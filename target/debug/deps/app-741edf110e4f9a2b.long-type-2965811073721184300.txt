@@ -1,0 +1,1 @@
+(for<'a> fn(&'a str) -> Result<(&'a str, Type), nom::Err<nom::error::Error<&'a str>>> {pseudo_function_signature}, for<'a> fn(&'a str) -> Result<(&'a str, Lang), nom::Err<nom::error::Error<&'a str>>> {simple_function})

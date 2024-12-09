@@ -1,0 +1,1 @@
+(Result<(&str, Lang), nom::Err<nom::error::Error<&str>>>, Result<(&str, Lang), nom::Err<nom::error::Error<&str>>>, Result<(&str, Lang), nom::Err<nom::error::Error<&str>>>)

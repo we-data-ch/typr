@@ -1,0 +1,1 @@
+(for<'a> fn(&'a str) -> Result<(&'a str, Lang), nom::Err<nom::error::Error<&'a str>>> {elements::parse_elements}, Result<(&str, &str), nom::Err<_>>)

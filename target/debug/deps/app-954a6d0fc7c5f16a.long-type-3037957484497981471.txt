@@ -1,0 +1,1 @@
+std::iter::Map<Filter<std::slice::Iter<'_, ArgumentType>, {closure@src/metaprogramming.rs:52:24: 52:49}>, {closure@src/metaprogramming.rs:52:60: 52:63}>

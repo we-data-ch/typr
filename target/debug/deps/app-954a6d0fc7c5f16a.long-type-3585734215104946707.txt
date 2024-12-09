@@ -1,0 +1,1 @@
+std::iter::FlatMap<std::slice::Iter<'_, language::Lang>, _, for<'a> fn(&'a (language::Lang, std::string::String)) -> Vec<language::Lang> {point_to_functions}>

@@ -1,0 +1,1 @@
+(for<'a> fn(&'a str) -> Result<(&'a str, String), nom::Err<nom::error::Error<&'a str>>> {types::pascal_case}, for<'a> fn(&'a str) -> Result<(&'a str, Type), nom::Err<nom::error::Error<&'a str>>> {types::type_alias})
