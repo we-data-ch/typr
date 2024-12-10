@@ -7,6 +7,12 @@ use serde::Serialize;
 #[derive(Debug, Clone, PartialEq, Serialize)] // 3 argument is for the embedding
 pub struct ArgumentType(pub String, pub Type, pub bool);
 
+impl ArgumentType {
+    fn to_r(&self) -> String {
+        self.0.clone()
+    }
+}
+
 impl fmt::Display for ArgumentType {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[var('{}'),{}]", self.0, self.1)       
@@ -15,6 +21,12 @@ impl fmt::Display for ArgumentType {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ArgumentValue(pub String, pub String);
+
+impl ArgumentValue {
+    fn to_r(&self) -> String {
+        format!("{} = {}", self.0, self.1)
+    }
+}
 
 impl fmt::Display for ArgumentValue {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -143,7 +155,7 @@ impl fmt::Display for Lang {
             Lang::Comment(txt) => "comment".to_string(),
             Lang::Range(i1, i2, i0) => format!("seq({},{},{})", i1, i2, i0),
             Lang::Integer(i) => i.to_string(),
-            Lang::Import(typ) => "import".to_string(),
+            Lang::Import(_typ) => "import".to_string(),
             Lang::Sequence(exps) 
                 => {
                 let res = exps.iter()
@@ -156,3 +168,44 @@ impl fmt::Display for Lang {
     }
 }
 
+impl Lang {
+    pub fn to_r(&self) -> String {
+        match self {
+            Lang::Bool(b) => b.to_string().to_uppercase(),
+            Lang::And(b1, b2) => format!("{} & {}", b1.to_r(), b2.to_r()),
+            Lang::Or(b1, b2) => format!("{} | {}", b1.to_r(), b2.to_r()),
+            Lang::Number(n) => format!("{}", n),
+            Lang::Add(e1, e2) => format!("add({}, {})", e1.to_r(), e2.to_r()),
+            Lang::Eq(e1, e2) => format!("{} == {}", e1.to_string(), e2.to_string()),
+            Lang::Pipe(e1, e2) => format!("{} |> {}", e1.to_string(), e2.to_string()),
+            Lang::Dot(e1, e2) => format!("{} |> {}", e1.to_string(), e2.to_string()),
+            Lang::Scope(exps) 
+                => exps.iter() .map(|x| x.to_r()).collect::<Vec<String>>().join("\n"),
+            Lang::Function(_args_kind, args, _typ, body) => 
+                format!("function({}) {{ {} }}", 
+                        args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
+                        body.to_r()),
+            Lang::Variable(v, _path, _perm, _muta, _ty) => v.to_string(),
+            Lang::FunctionApp(exp, vals) 
+                => format!("{}({})", exp.to_r(),
+                vals.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
+            Lang::ArrayIndexing(exp, val) => format!("{}[{}]", exp, val),
+            Lang::Let(var, _s2, body) 
+                => format!("{} <- {}", var.get_name(), body.to_r()),
+            Lang::Array(v) => format!("c({})", my_to_str(v)),
+            Lang::Record(args) 
+                => format!("list({})", args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
+            Lang::Char(s) => format!("\"{}\"", s),
+            Lang::If(cond, exp, els) 
+                => format!("if({}, {}, {})", cond.to_r(), exp.to_r(), els.to_r()),
+            Lang::Tuple(vals) => format!("list({})", vals.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
+            Lang::Assign(var, exp) => format!("{} <- {}", var, exp),
+            Lang::Comment(txt) => "# ".to_string() + txt,
+            Lang::Range(i1, i2, i0) => format!("seq({},{},{})", i1, i2, i0),
+            Lang::Integer(i) => i.to_string(),
+            Lang::Sequence(exps) 
+                => exps.iter().map(|x| x.to_r()).collect::<Vec<String>>().join("\n\n"),
+            _ => "".to_string()
+        }
+    }
+}

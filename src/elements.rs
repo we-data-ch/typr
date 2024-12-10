@@ -40,7 +40,7 @@ pub fn number(s: &str) -> IResult<&str,Lang> {
 }
 
 fn integer(s: &str) -> IResult<&str, Lang> {
-    let res = digit1(s);
+    let res = terminated(digit1, multispace0)(s);
     match res {
         Ok((s, d)) => Ok((s, Lang::Integer(d.parse::<i32>().unwrap()))),
         Err(r) => Err(r)
@@ -646,25 +646,55 @@ mod tests {
     }
 
     #[test]
+    fn test_sop0() {
+        let res = op("+").unwrap().1;
+        assert_eq!(res, Op::Add);
+    }
+
+    #[test]
+    fn test_el_op0() {
+        let res = element_operator("+ 2").unwrap().1;
+        assert_eq!(res, (Lang::Empty, Op::And));
+    }
+
+    #[test]
+    fn test_el_op1() {
+        let res = element_operator("2").unwrap().1;
+        assert_eq!(res, (Lang::Empty, Op::And));
+    }
+
+    #[test]
+    fn test_chain0() {
+        let res = element_chain("2").unwrap().1;
+        assert_eq!(res.to_string(), "...");
+    }
+
+    #[test]
     fn test_chain1() {
-        let res = element_chain("3 + 2 + 4 + 7 + 6").unwrap().1;
+        let res = element_chain("2 + 9").unwrap().1;
         assert_eq!(res.to_string(), "...");
     }
 
     #[test]
     fn test_chain2() {
-        let res = element_chain("3 .add(2).add(4).add(7).add(6)").unwrap().1;
+        let res = element_chain("3 + 2 + 4 + 7 + 6").unwrap().1;
         assert_eq!(res.to_string(), "...");
     }
 
     #[test]
     fn test_chain3() {
+        let res = element_chain("3 .add(2).add(4).add(7).add(6)").unwrap().1;
+        assert_eq!(res.to_string(), "...");
+    }
+
+    #[test]
+    fn test_chain4() {
         let res = element_chain("7 .combine(2, 3).okay(true)").unwrap().1;
         assert_eq!(res.to_string(), "...");
     }
     
     #[test]
-    fn test_chain4() {
+    fn test_chain5() {
         let res = single_element("combine(3, 2, 3)").unwrap().1;
         assert_eq!(res.to_string(), "...");
     }

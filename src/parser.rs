@@ -23,6 +23,7 @@ use nom::character::complete::not_line_ending;
 use nom::character::complete::line_ending;
 use crate::elements::bang_exp;
 use crate::metaprogramming::Module;
+use nom::multi::many0;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Adt(pub Vec<Lang>);
@@ -68,6 +69,10 @@ impl Adt {
         } else {
             panic!("The module '{}' was not found", path)
         }
+    }
+
+    pub fn to_r(&self) -> String {
+        self.0.iter().map(|lang| lang.to_r()).collect::<Vec<_>>().join("\n")
     }
 }
 
@@ -402,7 +407,7 @@ fn import_type(s: &str) -> IResult<&str, Vec<Lang>> {
 // main
 fn base_parse(s: &str) -> IResult<&str, Vec<Lang>> {
     let res = tuple((
-        many1(alt((import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp))),
+        many0(alt((import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp))),
         opt(alt((return_exp, parse_elements)))
               ))(s);
     match res {

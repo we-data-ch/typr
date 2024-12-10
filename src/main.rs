@@ -8,7 +8,7 @@ mod var;
 mod metaprogramming;
 
 use parser::parse;
-use my_io::{read_file, write_adt, recreate_files, delete_files};
+use my_io::{read_file, write_adt, recreate_files, delete_files, execute};
 use crate::types::Type;
 use crate::language::Lang;
 use crate::metaprogramming::metaprogrammation;
@@ -18,11 +18,19 @@ use std::io::Write;
 
 fn main() {
     recreate_files();
+
     let adt = parse(&read_file()).unwrap().1;
-    write_adt(&metaprogrammation(adt.clone()).to_string());
-    let serialized = serde_json::to_string(&adt).unwrap();
-    let mut file = File::create("adt.json").unwrap();
-    file.write_all(serialized.as_bytes()).unwrap();
+    let adt = metaprogrammation(adt.clone());
+    write_adt(&adt.to_string());
+
+    let rstd = include_str!("../configs/std.R");
+
+    let mut app = File::create("app.R").unwrap();
+    let content = format!("{}\n\n{}", rstd, adt.to_r());
+    app.write_all(content.as_bytes()).unwrap();
+    
+    execute();
+
     delete_files();
 }
 
