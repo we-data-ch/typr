@@ -6,7 +6,7 @@ authors = ["Fabrice Hategekimana <fab.hatege15@gmail.com>"]
 description = "A superset of the legendary R"
 license = "MIT"
 repository = "https://github.com/fabriceHategekimana/typr"
-keywords = ["R", "type checker", "language", "transpiler"] # Mots-clés
+keywords = ["R", "type-checker", "language", "transpiler"] # Mots-clés
 readme = "README.md"
 
 [dependencies]
