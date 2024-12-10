@@ -4,4 +4,13 @@ A superset of the legendary R !
 
 ![](images/TypR_logo.png)
 
+## Installation
 
+To install typR, you will need to install `Rust` and `Prolog`:
+
+- Rust's installation page: https://www.rust-lang.org/
+- Prolog's installation page: https://www.swi-prolog.org/download/stable
+
+You should be sure those tools are installed and accessible through the terminal.
+
+After that, you just need.

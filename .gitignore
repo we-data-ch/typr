@@ -1,0 +1,78 @@
+# Rust-specific build and compiled files
+/target
+**/*.rs.bk
+*.pdb
+
+# Dependency directories
+/vendor
+/cargo/
+Cargo.lock
+
+# IDE-specific files
+## VSCode
+.vscode/
+*.code-workspace
+
+## IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+## Eclipse
+.classpath
+.project
+.settings/
+
+## Vim
+*.swp
+*.swo
+*~
+
+## macOS specific
+.DS_Store
+
+# Debugging and profiling files
+*.log
+*.dSYM/
+core
+core.*
+vgcore.*
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Temporary files
+tmp/
+temp/
+
+# Backup files
+*.bak
+*.backup
+
+# Compilation artifacts
+*.o
+*.a
+*.so
+
+# Rust-specific build artifacts
+debug/
+release/
+incremental/
+
+# Benchmarking output
+perf.data
+perf.data.old
+
+# Documentation generation
+/doc/
+/docs/
+
+# Coverage reports
+lcov.info
+*.gcno
+*.gcda
