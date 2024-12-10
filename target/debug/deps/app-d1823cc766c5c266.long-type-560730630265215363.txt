@@ -1,1 +1,0 @@
-(fn(&str) -> Result<(&str, f32), nom::Err<nom::error::Error<&str>>> {nom::number::complete::float::<&str, nom::error::Error<&str>>}, for<'a> fn(&'a str) -> Result<(&'a str, Type), nom::Err<nom::error::Error<&'a str>>> {generic})

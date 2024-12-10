@@ -1,1 +1,0 @@
-(for<'a> fn(&'a str) -> Result<(&'a str, String), nom::Err<nom::error::Error<&'a str>>> {upper_case_generic}, impl FnMut(&str) -> Result<(&str, &str), nom::Err<_>>)

@@ -1,1 +1,0 @@
-(for<'a> fn(&'a str) -> Result<(&'a str, Type), nom::Err<nom::error::Error<&'a str>>> {function_type}, fn(&str) -> Result<(&str, &str), nom::Err<_>> {nom::character::complete::alpha1::<&str, _>})

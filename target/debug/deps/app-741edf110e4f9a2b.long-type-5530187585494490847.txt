@@ -1,1 +1,0 @@
-(for<'a> fn(&'a str) -> Result<(&'a str, Lang), nom::Err<nom::error::Error<&'a str>>> {dotdotdot}, for<'a> fn(&'a str) -> Result<(&'a str, Adt), nom::Err<nom::error::Error<&'a str>>> {parser::parse})

@@ -1,1 +1,0 @@
-for<'a> fn(&'a str) -> Result<(&'a str, (String, Type)), nom::Err<nom::error::Error<&'a str>>> {variable}

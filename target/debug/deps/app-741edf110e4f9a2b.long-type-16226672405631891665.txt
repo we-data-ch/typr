@@ -1,1 +1,0 @@
-(impl FnMut(_) -> Result<(_, _), nom::Err<_>>, Result<(&str, Lang), nom::Err<nom::error::Error<&str>>>, impl FnMut(_) -> Result<(_, _), nom::Err<_>>, impl FnMut(_) -> Result<(_, _), nom::Err<_>>)

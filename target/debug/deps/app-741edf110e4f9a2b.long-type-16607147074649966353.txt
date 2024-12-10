@@ -1,1 +1,0 @@
-std::iter::Map<std::iter::Map<std::slice::Iter<'_, Lang>, {closure@src/main.rs:31:33: 31:39}>, for<'a> fn(&'a Lang) -> Lang {<Lang as Clone>::clone}>

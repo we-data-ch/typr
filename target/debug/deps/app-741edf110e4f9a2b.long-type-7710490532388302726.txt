@@ -1,1 +1,0 @@
-(impl FnMut(&str) -> Result<(&str, &str), nom::Err<_>>, for<'a> fn(&'a str) -> Result<(&'a str, String), nom::Err<nom::error::Error<&'a str>>> {parser::number}, impl FnMut(&str) -> Result<(&str, &str), nom::Err<_>>, impl FnMut(&str) -> Result<(&str, &str), nom::Err<_>>, impl FnMut(&str) -> Result<(&str, &str), nom::Err<_>>)

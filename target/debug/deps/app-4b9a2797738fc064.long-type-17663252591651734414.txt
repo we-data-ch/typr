@@ -1,1 +1,0 @@
-(impl FnMut(f32) -> Result<(f32, f32), nom::Err<_>>, impl FnMut(f32) -> Result<(f32, f32), nom::Err<_>>, impl FnMut(f32) -> Result<(f32, f32), nom::Err<_>>, for<'a> fn(&'a str) -> Result<(&'a str, parser::Type), nom::Err<nom::error::Error<&'a str>>> {ltype}, impl FnMut(f32) -> Result<(f32, f32), nom::Err<_>>)

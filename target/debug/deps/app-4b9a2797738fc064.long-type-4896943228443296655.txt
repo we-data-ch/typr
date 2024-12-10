@@ -1,1 +1,0 @@
-(for<'a> fn(&'a str) -> Result<(&'a str, bool), nom::Err<nom::error::Error<&'a str>>> {single_boolean}, for<'a> fn(&'a str) -> Result<(&'a str, Lang), nom::Err<nom::error::Error<&'a str>>> {boolean_chain})
