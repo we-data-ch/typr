@@ -12,14 +12,21 @@ all_in([H|T], L2) :-
 % ========================================
 
 % interface subtyping
-check_interface_function([var(X, P, Pe, M, B), FnType1], [[gen('self'), Type]], context(Kinds, Types)) :-
+% check_interface_function([var(X, P, Pe, M, B), FnType1], [[gen('self'), Type]], context(Kinds, Types)) :-
+% unification:type_substitution(FnType1, [[gen('self'), Type]], FnType2),
+% type_context:get_from_context(context(Kinds, Types), var(X, P, Pe, M, Type), Types, FnType2).
+	% todo: check if it works with reduce type
+%
+% interface subtyping
+
+check_interface_function(var(X), FnType1, [[gen('self'), Type]], context(Kinds, Types)) :-
 	unification:type_substitution(FnType1, [[gen('self'), Type]], FnType2),
 	type_context:get_from_context(context(Kinds, Types), var(X, P, Pe, M, Type), Types, FnType2).
 	% todo: check if it works with reduce type
 
 check_interface_functions([], [[gen('self'), Type]], Context).
-check_interface_functions([H | T], [[gen('self'), Type]], Context) :-
-	check_interface_function(H, [[gen('self'), Type]], Context),
+check_interface_functions([[H1, H2] | T], [[gen('self'), Type]], Context) :-
+	check_interface_function(H1, H2, [[gen('self'), Type]], Context),
 	check_interface_functions(T, [[gen('self'), Type]], Context).
 
 % ========================================

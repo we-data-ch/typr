@@ -166,7 +166,7 @@ fn argument_val(s: &str) -> IResult<&str, ArgumentValue> {
         opt(terminated(tag(","), multispace0))
                 ))(s);
     match res {
-        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentValue(e1.to_string(), e2.to_string()))),
+        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentValue(e1.to_string(), e2))),
         Err(r) => Err(r)
     }
 }
@@ -541,10 +541,28 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         false,
                         Type::Empty));
                 Lang::FunctionApp(var, vec![res, pp]) },
+        (p, Op::Add2) 
+            => {let res = op_reverse(v); let pp = p;
+                let var = Box::new(Lang::Variable(
+                        "add2".to_string(),
+                        "".to_string(),
+                        Permission::Private,
+                        false,
+                        Type::Empty));
+                Lang::FunctionApp(var, vec![res, pp]) },
         (p, Op::Minus) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::Variable(
                         "minus".to_string(),
+                        "".to_string(),
+                        Permission::Private,
+                        false,
+                        Type::Empty));
+                Lang::FunctionApp(var, vec![res, pp]) },
+        (p, Op::Minus2) 
+            => {let res = op_reverse(v); let pp = p;
+                let var = Box::new(Lang::Variable(
+                        "minus2".to_string(),
                         "".to_string(),
                         Permission::Private,
                         false,
@@ -559,10 +577,46 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         false,
                         Type::Empty));
                 Lang::FunctionApp(var, vec![res, pp]) },
+        (p, Op::Mul2) 
+            => {let res = op_reverse(v); let pp = p;
+                let var = Box::new(Lang::Variable(
+                        "mul2".to_string(),
+                        "".to_string(),
+                        Permission::Private,
+                        false,
+                        Type::Empty));
+                Lang::FunctionApp(var, vec![res, pp]) },
         (p, Op::Div) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::Variable(
                         "div".to_string(),
+                        "".to_string(),
+                        Permission::Private,
+                        false,
+                        Type::Empty));
+                Lang::FunctionApp(var, vec![res, pp]) },
+        (p, Op::Div2) 
+            => {let res = op_reverse(v); let pp = p;
+                let var = Box::new(Lang::Variable(
+                        "div2".to_string(),
+                        "".to_string(),
+                        Permission::Private,
+                        false,
+                        Type::Empty));
+                Lang::FunctionApp(var, vec![res, pp]) },
+        (p, Op::At) 
+            => {let res = op_reverse(v); let pp = p;
+                let var = Box::new(Lang::Variable(
+                        "at".to_string(),
+                        "".to_string(),
+                        Permission::Private,
+                        false,
+                        Type::Empty));
+                Lang::FunctionApp(var, vec![res, pp]) },
+        (p, Op::At2) 
+            => {let res = op_reverse(v); let pp = p;
+                let var = Box::new(Lang::Variable(
+                        "at2".to_string(),
                         "".to_string(),
                         Permission::Private,
                         false,
@@ -587,6 +641,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
             Lang::Dot(Box::new(func), Box::new(op_reverse(v)))
         },
         (p, Op::Empty) => p,
+        (p, rest) => panic!("{} shouldn't be applied in index operations", rest)
     }
 }
 
@@ -889,6 +944,12 @@ mod tests {
     fn test_range3() {
         let res = parse_elements("1:3").unwrap().1;
         assert_eq!(res.to_string(), "");
+    }
+
+    #[test]
+    fn test_shape0() {
+        let res = single_element("[[1, 2], [3, 4]]").unwrap().1;
+        assert_eq!(res.shape(), vec![0 as usize]);
     }
 
 }

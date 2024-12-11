@@ -494,12 +494,12 @@ fn indices(s: &str) -> IResult<&str, Type> {
 // main
 pub fn ltype(s: &str) -> IResult<&str, Type> {
     terminated(alt((
+            interface,
             indices,
             number,
             integer,
             boolean,
             chars,
-            interface,
             union,
             type_alias,
             generic,

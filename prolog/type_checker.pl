@@ -241,15 +241,15 @@ typing(Context, sequence([H | T]), Type) :-
 	eval(Context, H, Context2),
 	typing(Context2, sequence(T), Type).
 
+typing(Context, if(Cond, True, empty), T) :-
+	typing(Context, Cond, bool),
+	typing(Context, True, T).
+
 typing(Context, if(Cond, True, Else), T3) :-
 	typing(Context, Cond, bool),
 	typing(Context, True, T1),
 	typing(Context, Else, T2),
 	unify_type(T1, T2, T3).
-
-typing(Context, if(Cond, True, empty), T) :-
-	typing(Context, Cond, bool),
-	typing(Context, True, T).
 
 % IF ERRORS
 % bad condition

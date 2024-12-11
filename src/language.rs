@@ -20,11 +20,11 @@ impl fmt::Display for ArgumentType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct ArgumentValue(pub String, pub String);
+pub struct ArgumentValue(pub String, pub Lang);
 
 impl ArgumentValue {
     fn to_r(&self) -> String {
-        format!("{} = {}", self.0, self.1)
+        format!("{} = {}", self.0, self.1.to_r())
     }
 }
 
@@ -169,6 +169,28 @@ impl fmt::Display for Lang {
 }
 
 impl Lang {
+    pub fn shape(&self) -> Vec<usize> {
+        match self {
+            Lang::Array(vec) => {
+                let mut dimensions = vec.len(); // Taille actuelle de ce niveau
+                if let Some(first) = vec.get(0) {
+                    if let Lang::Array(_) = first {
+                        // Descend récursivement dans la première sous-structure
+                        let mut sub_shape = first.shape();
+                        sub_shape.insert(0, dimensions);
+                        sub_shape
+                    } else {
+                        // Si ce niveau contient des valeurs uniquement
+                        vec![dimensions]
+                    }
+                } else {
+                    vec![0] // Array vide
+                }
+            }
+            _ => vec![], // Retourne une forme vide si ce n'est pas un tableau
+        }
+    }
+
     pub fn to_r(&self) -> String {
         match self {
             Lang::Bool(b) => b.to_string().to_uppercase(),
@@ -192,14 +214,28 @@ impl Lang {
             Lang::ArrayIndexing(exp, val) => format!("{}[{}]", exp, val),
             Lang::Let(var, _s2, body) 
                 => format!("{} <- {}", var.get_name(), body.to_r()),
-            Lang::Array(v) => format!("c({})", my_to_str(v)),
+            Lang::Array(v) 
+                => {
+                    let vector = format!("c({})", v.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(","));
+                    if Lang::Array(v.to_vec()).shape().len() < 2 {
+                        vector
+                    } else {
+                       let shape = Lang::Array(v.to_vec()).shape();
+                       format!("array({}, dim = c({}))",
+                            vector,
+                            shape.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")) 
+                    }
+                } 
             Lang::Record(args) 
                 => format!("list({})", args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
-            Lang::Char(s) => format!("\"{}\"", s),
+            Lang::Char(s) => "'".to_string() + s + "'",
             Lang::If(cond, exp, els) 
-                => format!("if({}, {}, {})", cond.to_r(), exp.to_r(), els.to_r()),
+                if els == &Box::new(Lang::Empty)
+                => format!("if({}) {{\n {} \n}}", cond.to_r(), exp.to_r()),
+            Lang::If(cond, exp, els) 
+                => format!("if ({}) {{\n {} \n}} else {}", cond.to_r(), exp.to_r(), els.to_r()),
             Lang::Tuple(vals) => format!("list({})", vals.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
-            Lang::Assign(var, exp) => format!("{} <- {}", var, exp),
+            Lang::Assign(var, exp) => format!("{} <- {}", var.to_r(), exp.to_r()),
             Lang::Comment(txt) => "# ".to_string() + txt,
             Lang::Range(i1, i2, i0) => format!("seq({},{},{})", i1, i2, i0),
             Lang::Integer(i) => i.to_string(),
@@ -209,3 +245,4 @@ impl Lang {
         }
     }
 }
+

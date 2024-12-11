@@ -79,7 +79,7 @@ pub fn write_adt(s: &str) {
     let intro = "main :-";
     let begin_typing = "typing(context([], []), ";
     let stds = include_str!("../configs/std.pl");
-    let new_s = s.replace("sequence([", &("sequence([".to_string() + stds + ","));
+    let new_s = s.replacen("sequence([", &("sequence([\n".to_string() + stds + ","), 1);
     let end_typing = ", T),";
     let write = "type_printer:pretty_print(T)";
     file.write_all(format!("{}\n{}\n\n{}\n{}{}{}\n\t{}.",
