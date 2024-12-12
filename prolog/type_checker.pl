@@ -15,8 +15,11 @@ get_tag_names([tag(Name, Type) | T1], [Name, T2]) :-
 	get_tag_names(T1, T2).
 
 get_tag_names([N], _) :-
-	write(N), writeln(" is not a tag"),
+	format("~w is not a tag"),
 	halt.
+
+get_tag_names(A, _) :-
+	format("The element ~w shouldn't be there, get_tag_names can only work with array of tags", [A]), halt.
 
 % ========================================
 
@@ -34,7 +37,7 @@ same_values(L1, L2) :-
 
 % ========================================
 
-% for funciton application 
+% for function application 
 split_at_n(0, List, [], List) :- !.
 split_at_n(_, [], [], []). 
 split_at_n(N, [H|T], [H|FirstN], Rest) :-
