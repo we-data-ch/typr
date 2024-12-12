@@ -4,11 +4,9 @@ use nom::branch::alt;
 use nom::sequence::terminated;
 use nom::character::complete::multispace0;
 use crate::language::Lang;
-use crate::var::Var;
 use nom::bytes::complete::tag;
 use nom::sequence::tuple;
 use crate::operators::{Op, op};
-use nom::number::complete::float;
 use nom::sequence::delimited;
 use nom::character::complete::alpha1;
 use nom::character::complete::alphanumeric1;
@@ -450,25 +448,28 @@ fn tuple_exp(s: &str) -> IResult<&str, Lang> {
     }
 }
 
+fn int_or_var(s: &str) -> IResult<&str, Lang> {
+    alt((integer, variable))(s)
+}
+
 fn range(s: &str) -> IResult<&str, Lang> {
     let res = tuple((
-            integer,
+            int_or_var,
             tag(":"),
-            opt(tuple((integer, tag(":")))),
-            integer))(s);
+            opt(tuple((int_or_var, tag(":")))),
+            int_or_var))(s);
     match res {
-        Ok((s, (Lang::Integer(i1), _sep, None, Lang::Integer(i2)))) 
+        Ok((s, (iv1, _sep, None, iv2))) 
             => Ok((s, 
                    Lang::FunctionApp(
                        Box::new(Lang::Variable("seq".to_string(), "".to_string(), Permission::Private, false, Type::Empty)),
-                       vec![Lang::Integer(i1), Lang::Integer(i2), Lang::Integer(1)]))),
-        Ok((s, (Lang::Integer(i1), _sep, Some((Lang::Integer(i0), _sep2)), Lang::Integer(i2))))
+                       vec![iv1, iv2, Lang::Integer(1)]))),
+        Ok((s, (iv1, _sep, Some((iv0, _sep2)), iv2)))
             => Ok((s, 
                    Lang::FunctionApp(
                        Box::new(Lang::Variable("seq".to_string(), "".to_string(), Permission::Private, false, Type::Empty)),
-                       vec![Lang::Integer(i1), Lang::Integer(i2), Lang::Integer(i0)]))),
+                       vec![iv1, iv2, iv0]))),
         Err(r) => Err(r),
-        _ => todo!()
     }
 }
 
@@ -943,6 +944,12 @@ mod tests {
     #[test]
     fn test_range3() {
         let res = parse_elements("1:3").unwrap().1;
+        assert_eq!(res.to_string(), "");
+    }
+
+    #[test]
+    fn test_range4() {
+        let res = parse_elements("1:a").unwrap().1;
         assert_eq!(res.to_string(), "");
     }
 

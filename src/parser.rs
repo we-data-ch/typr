@@ -5,7 +5,6 @@ use nom::character::complete::multispace0;
 use nom::sequence::tuple;
 use nom::sequence::terminated;
 use nom::bytes::complete::tag;
-use nom::multi::many1;
 use crate::elements::variable;
 use crate::types::type_alias;
 use nom::branch::alt;
@@ -659,7 +658,25 @@ mod tesus {
     #[test]
     fn test_alias_alias() {
         let res = parse("type Truc = Machin;").unwrap().1;
-        dbg!(&res); 
         assert_eq!(res.to_string(), "");
     }
+
+    #[test]
+    fn test_parse_range1() {
+        let res = parse("1:a").unwrap().1;
+        assert_eq!(res.to_string(), "");
+    }
+
+    #[test]
+    fn test_parse_range2() {
+        let res = parse("a:3").unwrap().1;
+        assert_eq!(res.to_string(), "");
+    }
+
+    #[test]
+    fn test_parse_range3() {
+        let res = parse("1:a:3").unwrap().1;
+        assert_eq!(res.to_string(), "");
+    }
+
 }
