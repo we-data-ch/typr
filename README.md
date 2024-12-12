@@ -2,16 +2,21 @@
 
 A superset of the legendary R !
 
+The project is still a prototype in progress and is really buggy. The syntax and the wanted features are there so there won't be some big change but additional features.
+
 ![](images/TypR_logo.png)
 
 ## Installation
 
 To install TypR, you will need to install `Rust` and `Prolog`:
 
+- R's installation page: https://www.r-project.org/
 - Rust's installation page: https://www.rust-lang.org/
 - Prolog's installation page: https://www.swi-prolog.org/download/stable
 
 You should be sure those tools are installed and accessible through the terminal.
+
+### Installation
 
 After that, you just need to install the executable:
 
@@ -29,6 +34,39 @@ Actually, the executable of TypR can only type-check the targeted file. The pref
 typr app.ty
 ```
 
-## Documentation
+## Documentation (minimal)
 
-Comming soon...
+TypR add great static types and a flexible syntax with some cool tricks (metaprogramming) that make him great to work with
+
+### Types
+
+*Basic types:*
+
+- int
+- num
+- chars
+- bool
+
+Structural types:
+
+- records
+- tuples (kinds of records)
+- arrays
+- functions
+- unions
+- interfaces
+
+### Main functionalities
+
+- Generics
+- type checking for array's shape (dependant types)
+- uniform function call
+- operator overloading
+- type embedding
+- interface inference
+
+### Functional programming with TypR
+
+### Object oriented programming with TypR
+
+
