@@ -134,13 +134,18 @@ Structural types:
 | Records               | ({[[name]: [type]]*})      | lists           |
 | Tuples (like records) | ([type]*)                  | lists           |
 | Functions             | (([type]*) -> type)        | functions       |
+| Tags                  | [name]\(type)              | NA, NaN, lists? |
 | Unions (of Tags)      | type [\| type]+            | -               |
 | Interfaces            | interface {a bit too much} | -               |
-| Tags                  | [name]\(type)              | NA, NaN, lists? |
 
 #### Arrays
 
 One can build an array from any types. Array keep the informations about the array size and it's type. As any other types, you don't need mention the type annotation. TypR can infer it for you.
+
+*Difference with R*
+TypR's array can only hold one type. It mean, all the member of the array must have the same type.
+
+*Exemples*
 
 ```scala
 let a: [3, bool] = [true, false, true];
@@ -219,17 +224,166 @@ pub let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K+1, int] {
 };
 ```
 
-You dont need to understand everything. This is just a function that take 3 parameters (#I for the start number, #J for the end number and #K for the step) The resulting index is a calculation (#J-#I/#K+1) that TypR can use to guess the shape of the resulting array. This type of generics are `index generics`, those are like super ints who have the power to be used in arrays' index. It give the power to define the resulting shape of complex operations like transpose or the dot product. A tutorial about this topic will come soon (since it can be a whole chapter by imself).
+At this stage, you dont need to understand everything. This is just a function that take 3 parameters (#I for the start number, #J for the end number and #K for the step) The resulting index is a calculation (#J-#I/#K+1) that TypR can use to guess the shape of the resulting array. This type of generics are `index generics`, those are like super ints who have the power to be used in arrays' index. It give the power to define the resulting shape of complex operations like transpose or the dot product. A tutorial about this topic will come soon (since it can be a whole chapter by imself).
 
+#### Records
+
+A record is a structure that hold different type of data. It's the equivalent of a named list in R. It has also his owns capability like the row polymorphism.
+
+*Difference with R*  
+TypR records are a subtype of R lists. You can't build a records with unlabeled values like in R. This restriction prevent unsafe and unpredictible operations to occure.
+
+*Exemples*
+To build a simple record representing a person with their name and age, you can just write:
+
+```scala
+:{name: "John", age: 19}
+```
+
+Will generate:
+
+```
+Type checking: 
+{name: chars, age: int}
+
+Execution: 
+$name
+[1] "John"
+
+$age
+[1] 19
+```
+
+To make a distinction with a scope and avoid long names like "list" or "record" for each object creation, We thought this notation will be easier to work with.
+
+To access a member by it's label, you just have to call it in this fashion:
+
+```scala
+let person = :{name: "John", age: 19};
+
+person.name
+```
+
+Here, we accessed the name of the person. Records are mainly there to keep together a set of data in a logical way
+
+#### Tuples
+
+R tuples are a specific case of records. Indeed, they are just records who automaticaly generate numered labels. Here:
+
+```scala
+("John", 19)
+```
+
+Will generate:
+
+```
+Type checking: 
+{0: chars, 1: int}
+
+Execution: 
+[[1]]
+[1] "John"
+
+[[2]]
+[1] 19
+```
+
+It's a faster and easier way to generate data on the fly.
+
+#### Functions
+
+Since TypR is more oriented toward a functional style, functions are values and have a type by themself. They are then anonymous by default and should be set in variables.
+
+*Difference with R*
+There aren't that much difference with R except function are created with the `fn` keyword instead of the `function` one. Also `return` is not a function anymore but a keyword.
+
+You can define a function with a type annotation but it's better to focus only on the function signature and let TypR infer the rest.
+
+```scala
+let f <- fn(a: int, b: int): bool {
+	a == b
+};
+```
+
+TypR functions are the most complex elements of TypR since many action (metaprogramming + type checking) must be done in the calling. But a lot of sugar has been added so everyone can use them seemlessely.
+
+#### Tags
+
+Tags are one of the algebraic data type (no need to know what an algebraic data type is yet) I needed the most but didn't know. I was asking myself wich kind of union type of union I should use (general union or tagged union), but those are the elements that bring at the same type the security and flexibility wanted for this language.
+
+
+*Difference with R*
+
+R don't have such a construct since, Tags, unions and even interface are an abstract concept to put some clarity and restriction to what the code should do. But compared to the others, tags are a kind of values and should exist in real R code. I have not made the implementation of the translation to R yet, but I think I will make
+
+Tags are values that one can use on the fly. Each flag is unique and has its own type. It's useful do define some elements like:
+
+```scala
+let none: :None = None;
+let nan: :NaN = NaN;
+le na: :NA = NA;
+```
+
+If the tag is named `[tag_name]`, then it's base type is `:[tag_name]`. They are R's factors on steroïd and even Rust's enums on steroïd. You can use them to define some collections (like the Day of the week, gender, etc.).
+
+Tags can also handle one type with them:
+
+```scala
+let results: :Val(num) = Val(7.3);
+let person: :Person({name: chars, age: int}) = Person(:{name: "Marc", age: 37});
+```
+
+Okay but what are their power ? Well they can be unified together inside a union type ! But here we will see how useful it is for return type in a if close:
+
+```scala
+if (true) {
+	7
+} else {
+	"seven"
+}
+```
+
+Here, TypR wont accept this code since `7` (`int`) and `"seven"` (`chars`) aren't the same type. But if we use tags:
+
+```scala
+if (true) {
+	Value(7)
+} else {
+	String("seven")
+}
+```
+
+The return type will be `Value(int) | String(chars)` meaning TypR will automaticaly unify the results if they are tags. Tags must be "unwrapped" to access the values within, forcing a user to handle the different cases.
+
+#### Union
+
+Union are an abstract concept that won't really appear in the resulting R code. In summary, you can only unify tags. You can now regroup tags to create other type. For instance, to create an option type, one can create an alias into this union of values:
+
+```R
+type Option<T> = :Some(T) | :None;
+```
+
+And if my function can return a `Na` and a `NaN` instead of an int value you can define your own type:
+
+```R
+type Failable = :Int(int) | :NaN | :Nan
+```
+
+This method is more flexible than an enum like Rust and more secure than an union from TypeScript.
+
+#### Interface
+
+coming soon...
 
 ### Main functionalities
 
-- Generics
-- Type checking for array's shape (dependant types)
 - Uniform function call
 - Operator overloading
+- Generics
 - Type embedding
 - Interface inference
+- Type checking for array's shape (dependant types)
+- Row polymorphism
 
 ### Functional programming with TypR
 
