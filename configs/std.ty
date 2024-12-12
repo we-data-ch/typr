@@ -10,6 +10,6 @@ pub let incr <- fn(a: num): num {
 	...
 };
 
-pub let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K, int] {
+pub let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K+1, int] {
 	...
 };
