@@ -366,7 +366,7 @@ type Option<T> = :Some(T) | :None;
 And if my function can return a `Na` and a `NaN` instead of an int value you can define your own type:
 
 ```R
-type Failable = :Int(int) | :NaN | :Nan
+type Failable<T> = :Value(T) | :NaN | :Na | :None;
 ```
 
 This method is more flexible than an enum like Rust and more secure than an union from TypeScript.
