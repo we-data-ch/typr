@@ -359,6 +359,10 @@ The return type will be `Value(int) | String(chars)` meaning TypR will automatic
 
 Union are an abstract concept that won't really appear in the resulting R code. In summary, you can only unify tags. You can now regroup tags to create other type. For instance, to create an option type, one can create an alias into this union of values:
 
+
+*Difference with R*
+There is no concept of union in R so nothing to compare.
+
 ```R
 type Option<T> = :Some(T) | :None;
 ```
@@ -371,9 +375,36 @@ type Failable<T> = :Value(T) | :NaN | :Na | :None;
 
 This method is more flexible than an enum like Rust and more secure than an union from TypeScript.
 
-#### Interface
+#### Interfaces [still buggy]
 
-coming soon...
+TypR interfaces works like Go's interfaces. It's a typed way of doing duck typing: If it walks like a duck and quacks like a duck, then it's a duck. So there is no implicit implémentation of an existing interface.
+
+*Difference with R*
+There is no concept of union in R so nothing to compare.
+
+You can define an interface in this fashion:
+
+```scala
+type Addable = interface {
+	add: fn(a: Self, b: Self): Self,
+}
+```
+
+You can then define a function that take any addable type in this way:
+
+```scala
+let time3 <- fn(n: Addable) {
+	add(n, add(n, n))
+};
+```
+
+The type int already had the function add that respect the interface `Addable`, so it will be immediatly accepter to pass an int in this fuction in different ways:
+
+```scala
+time3(5)
+(5).time3()
+5 |> time3()
+```
 
 ### Main functionalities
 
@@ -388,5 +419,4 @@ coming soon...
 ### Functional programming with TypR
 
 ### Object oriented programming with TypR
-
 
