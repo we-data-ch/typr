@@ -316,7 +316,7 @@ fn record(s: &str) -> IResult<&str, Lang> {
     match res {
         Ok((s, (Some(_), _, args, _))) => Ok((s, Lang::Record(args.clone()))),
         Ok((_s, (None, _, args, _))) => {
-            println!("You forgot to put a record identifier before the bracket: 'record {{...}}'");
+            println!("You forgot to put a record identifier before the bracket: ':{{...}}'");
             println!("{}", args.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", "));
             exit(1)
         } 
@@ -517,6 +517,12 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
         (p, Op::Or) => Lang::Or(Box::new(p), Box::new(op_reverse(v))),
         (p, Op::Union) => Lang::Union(Box::new(p), Box::new(op_reverse(v))),
         (p, Op::Eq) => Lang::Eq(Box::new(p), Box::new(op_reverse(v))),
+        (p, Op::LesserThan) => Lang::LesserThan(Box::new(p), Box::new(op_reverse(v))),
+        (p, Op::GreaterThan) => Lang::GreaterThan(Box::new(p), Box::new(op_reverse(v))),
+        (p, Op::LesserOrEqual) => Lang::LesserOrEqual(Box::new(p), Box::new(op_reverse(v))),
+        (p, Op::GreaterOrEqual) => Lang::GreaterOrEqual(Box::new(p), Box::new(op_reverse(v))),
+        (p, Op::Modu) => Lang::Modu(Box::new(p), Box::new(op_reverse(v))),
+        (p, Op::Modu2) => Lang::Modu2(Box::new(p), Box::new(op_reverse(v))),
         (Lang::FunctionApp(name, params), Op::Pipe) 
             => { // (UFC) add the "object" as te first parameter of the function call
                 let res = [op_reverse(v)].iter().chain(params.iter()).cloned().collect::<Vec<_>>();
@@ -958,5 +964,25 @@ mod tests {
         let res = single_element("[[1, 2], [3, 4]]").unwrap().1;
         assert_eq!(res.shape(), vec![0 as usize]);
     }
+
+    #[test]
+    fn test_fn_op1() {
+        let res = single_element("fn(n: int): bool { 3 >= n }").unwrap().1;
+        assert_eq!(res.shape(), vec![0 as usize]);
+    }
+
+    #[test]
+    fn test_parse_greater_than1() {
+        let res = element_chain("3 <= n").unwrap().1;
+        assert_eq!(res.to_string(), "");
+    }
+
+    #[test]
+    fn test_parse_greater_than2() {
+        let res = element_operator("<= 3").unwrap().1;
+        assert_eq!(res, (Lang::Empty, Op::Empty));
+    }
+
+    
 
 }

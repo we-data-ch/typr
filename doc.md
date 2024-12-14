@@ -1,39 +1,12 @@
-Après nous avons aussi la sûreté pour les sciences de données.
+Donc je m'explique les sciences de données c'est vraiment quelque chose qui est basé sur pas mal de choses donc l'élément de base c'est surtout les tableaux multidimensionnels donc c'est des tableaux comme des tenseurs, des vecteurs des matrices, des choses dans le genre, et en fait ce que j'ai pu tirer de mon travail de master, donc c'est surtout en fait les types dépendants je pourrais en parler vraiment longtemps parce que c'est vraiment cool et puissant mais je vais plutôt vous montrer parce que c'est plutôt une implémentation légère de ces types là donc sans aller trop en puissance parce que sinon je vais perdre aussi l'inférence de type mais voilà,
 
-Donc je m'explique les sciences de données c'est vraiment quelque chose qui est basé sur pas mal de choses donc l'élément de base c'est surtout les tableaux multidimensionnels donc c'est des tableaux comme des tenseurs,
-des vecteurs des matrices,
-des choses dans le genre,
-et en fait ce que j'ai pu tirer de mon travail de master,
-donc c'est surtout en fait les types dépendants je pourrais en parler vraiment longtemps parce que c'est vraiment cool et puissant mais je vais plutôt vous montrer parce que c'est plutôt une implémentation légère de ces types là donc sans aller trop en puissance parce que sinon je vais perdre aussi l'inférence de type mais voilà,
-donc ici je peux créer maintenant un tableau je vais l'appeler T et donc qui va avoir en fait index c'est à dire c'est un tableau de longueur 3 comme par exemple et je vais mettre 1 2 3 donc je vais retourner t bon je peux même peut-être mettre tab parce que pour montrer que je fais un peu d'effort devant l'écran.
-
-Donc voilà,
-ici j'ai le type array avec la longueur de 3,
-donc un tableau de longueur 3 et avec un numéro.
-
-Bien sûr,
-vous avez toujours l'inférence de type,
-c'est-à-dire que si je lance comme ça,
-il va inférer le type naturellement.
-
-si vous mettez un faux type donc le type qui ne va pas vous voyez qu'ici vous avez un problème vous voyez aussi ici que si vous changez l'index et que c'est pas le bon vous avez tout autant un problème donc voilà,
-ça c'est le genre de choses qu'on peut faire avec ça après vous avez aussi la possibilité comme par exemple de créer une matrice donc en faisant ça c'est deux tableaux 1,
-2,
-3 je pense que je vais mettre 4,
-5,
-6 et voilà on voit ici que nous avons un nouveau type donc c'est un tableau,
-donc il y a un index qui a un type à l'intérieur et ce type En fait,
-c'est un nouveau type tableau.
 
 Donc,
 il y a aussi un index,
 donc 3 et num.
-
 Donc,
 c'est un tableau qui a deux lignes et trois colonnes.
-
 Simple comme bonjour.
-
 Donc après nous avons aussi la notion de alias,
 donc on peut créer des types alias comme par exemple là je peux créer quelque chose comme mat pour matrice et je vais mettre m lignes n colonnes Donc ce serait l'équivalent au type tableau de tableau.
 

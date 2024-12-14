@@ -679,4 +679,11 @@ mod tesus {
         assert_eq!(res.to_string(), "");
     }
 
+    #[test]
+    fn test_parse_op1() {
+        let res = parse("let less_than_3 = fn(n: int): bool { 3 >= n };").unwrap().1;
+        assert_eq!(res.to_string(), "");
+    }
+
+
 }

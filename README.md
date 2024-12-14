@@ -416,6 +416,49 @@ time3(5)
 - Type checking for array's shape (dependant types)
 - Row polymorphism
 
+#### Uniform function call
+
+UFC (uniform function call) is one of my favourite features in programming language. I love the simplicity of methods, but I am not a fan of classes anymore since they are less expressive than algebraic data types in general. But working with my functions using types and module and pipes isn't totaly complet without methods call. So UFC bring the best of both worlds to me. I have also added some other forms with the original.
+
+For instance, we can see the definition of the add function for interger types:
+
+```scala
+let add <- fn(a: int, b: int): int {
+	...
+};
+```
+
+Now we can call it in different ways that gives the same results:
+
+```scala
+add(2, 3)
+(2).add(3)
+2 |> add(3)
+```
+
+There are the special elements `..` or `|>>` that make a function operate on an array level.
+
+```scala
+[1, 2, 3]..add(3)
+[1, 2, 3] |>> add(3)
+```
+
+This code will apply an addition with 3 for each element.
+
+#### Operator overloading
+
+Operator overloading is one of my favourite element to build operations on types. It's a shortcut and a syntax sugar that let the user define operations for their custom types.
+
+Imagine we create a type named point:
+
+```scala
+type Point = {x: int, y: int};
+
+let p1 = :{x: 2, y: 1};
+```
+
+You can define a function `add` to add two points. Let's assume you just add each coordinates.
+
 ### Functional programming with TypR
 
 ### Object oriented programming with TypR

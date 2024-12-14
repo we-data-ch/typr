@@ -159,6 +159,22 @@ typing(Context, eq(X, Y), bool) :-
 		typing(Context, X, T),
 		typing(Context, Y, T).
 
+typing(Context, lesser_or_equal(X, Y), bool) :- 
+		typing(Context, X, T),
+		typing(Context, Y, T).
+
+typing(Context, greater_or_equal(X, Y), bool) :- 
+		typing(Context, X, T),
+		typing(Context, Y, T).
+
+typing(Context, greater_than(X, Y), bool) :- 
+		typing(Context, X, T),
+		typing(Context, Y, T).
+
+typing(Context, lesser_than(X, Y), bool) :- 
+		typing(Context, X, T),
+		typing(Context, Y, T).
+
 % dot
 typing(Context, dot(0, Val), T) :-
 	typing(Context, Val, ttag(X, T)).

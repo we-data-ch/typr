@@ -24,25 +24,44 @@ pub enum Op {
     At2,
     Div,
     Div2,
+    LesserThan,
+    GreaterThan,
+    LesserOrEqual,
+    GreaterOrEqual,
+    Modu,
+    Modu2,
     Empty
+}
+
+fn bool_op(s: &str) -> IResult<&str, &str> {
+    terminated(
+        alt((
+            tag("<="),
+            tag(">="),
+            tag("=="),
+            tag("<"),
+            tag(">"),
+            tag("and"),
+            tag("or"),
+            )), multispace0)(s)
 }
 
 pub fn op(s: &str) -> IResult<&str, Op> {
     let res = terminated(
         alt((
-            tag("and"),
-            tag("or"),
+            bool_op,
             tag("++"),
             tag("+"),
             tag("--"),
             tag("-"),
-            tag("@"),
             tag("@@"),
+            tag("@"),
             tag("**"),
             tag("*"),
             tag("//"),
             tag("/"),
-            tag("=="),
+            tag("%%"),
+            tag("%"),
             tag("|>>"),
             tag("|>"),
             tag(".."),
@@ -63,12 +82,18 @@ pub fn op(s: &str) -> IResult<&str, Op> {
         Ok((s, "//")) => Ok((s, Op::Div2)),
         Ok((s, "@")) => Ok((s, Op::At)),
         Ok((s, "@@")) => Ok((s, Op::At2)),
-        Ok((s, "==")) => Ok((s, Op::Eq)),
+        Ok((s, "%%")) => Ok((s, Op::Modu2)),
+        Ok((s, "%")) => Ok((s, Op::Modu)),
         Ok((s, "|>")) => Ok((s, Op::Pipe)),
         Ok((s, "|>>")) => Ok((s, Op::Pipe2)),
         Ok((s, ".")) => Ok((s, Op::Dot)),
         Ok((s, "..")) => Ok((s, Op::Dot2)),
         Ok((s, "|")) => Ok((s, Op::Union)),
+        Ok((s, "==")) => Ok((s, Op::Eq)),
+        Ok((s, "<=")) => Ok((s, Op::LesserOrEqual)),
+        Ok((s, ">=")) => Ok((s, Op::GreaterOrEqual)),
+        Ok((s, "<")) => Ok((s, Op::LesserThan)),
+        Ok((s, ">")) => Ok((s, Op::GreaterThan)),
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -94,6 +119,12 @@ fn get_string(op: &Op) -> String {
         Op::Dot => ".".to_string(),
         Op::Dot2 => "..".to_string(),
         Op::Union => "|".to_string(),
+        Op::LesserThan => "<".to_string(),
+        Op::GreaterThan => ">".to_string(),
+        Op::LesserOrEqual => "<=".to_string(),
+        Op::GreaterOrEqual => ">=".to_string(),
+        Op::Modu2 => "%%".to_string(),
+        Op::Modu => "%".to_string(),
         _ => todo!()
     }
 }
