@@ -410,10 +410,9 @@ time3(5)
 
 - Uniform function call
 - Operator overloading
-- Generics
+- Generics + Index Generics
 - Type embedding
 - Interface inference
-- Type checking for array's shape (dependant types)
 - Row polymorphism
 
 #### Uniform function call
@@ -423,7 +422,7 @@ UFC (uniform function call) is one of my favourite features in programming langu
 For instance, we can see the definition of the add function for interger types:
 
 ```scala
-let add <- fn(a: int, b: int): int {
+let incr <- fn(a: int): int {
 	...
 };
 ```
@@ -431,16 +430,16 @@ let add <- fn(a: int, b: int): int {
 Now we can call it in different ways that gives the same results:
 
 ```scala
-add(2, 3)
-(2).add(3)
-2 |> add(3)
+incr(2)
+(2).incr()
+2 |> incr()
 ```
 
 There are the special elements `..` or `|>>` that make a function operate on an array level.
 
 ```scala
-[1, 2, 3]..add(3)
-[1, 2, 3] |>> add(3)
+[1, 2, 3]..incr()
+[1, 2, 3] |>> incr()
 ```
 
 This code will apply an addition with 3 for each element.
@@ -458,6 +457,61 @@ let p1 = :{x: 2, y: 1};
 ```
 
 You can define a function `add` to add two points. Let's assume you just add each coordinates.
+
+```scala
+let add <- fn(p1: Point, p2: Point): Point {
+	...	
+};
+```
+
+You can obviously use the function in differtent ways:
+
+```scala
+add(p1, p1)
+p1.add(p1)
+p1 |> add(p1)
+```
+
+But you can also add point in this fashion:
+
+```scala
+p1 + p1
+```
+
+Why is it possible ? Because `add` is a reserved symbol related to the binary operation `+`. So each time TypR see a `a+b`, it transform it to `add(a, b)`.
+
+There are a group of reserved operators that change to their function's form.
+
+| operator | function name |
+|----------|---------------|
+| +        | add           |
+| ++       | add2          |
+| -        | minus         |
+| --       | minus2        |
+| *        | mul           |
+| **       | mul2          |
+| /        | div           |
+| //       | div2          |
+| @        | at            |
+| @@       | at2           |
+
+You don't have to worry about the usage of if an operator is related to an other type. Each type can use each symbol once.
+
+#### Generics + Index Generics
+
+Generics is one of the hardest concept in this language, especially when we talk about Index Generics.
+
+In complex terms, generics is a way to create functions that allows functions to work with more types related to specific relationship with parameters (Parametric polymorphism).
+
+Since it allow almost any type, it's better to use them for structural and general purpose. For instance, it's great to describe data structures that can works with many types (like array, graphs, tree, etc.). It's also greate to use it to shape function composition.
+
+Index Generics take the 
+
+
+- Generics + Index Generics
+- Type embedding
+- Interface inference
+- Row polymorphism
 
 ### Functional programming with TypR
 

@@ -23,6 +23,7 @@ use crate::types::Type;
 use nom::sequence::preceded;
 use nom::character::complete::multispace1;
 use crate::parser::parse_exp;
+use crate::parser::return_exp;
 use crate::var::Permission;
 use nom::character::complete::digit1;
 
@@ -63,10 +64,10 @@ fn boolean(s: &str) -> IResult<&str,Lang> {
 }
 
 fn chars(s: &str) -> IResult<&str, Lang> {
-    let res = alt((
+    let res = terminated(alt((
             delimited(tag("\""), many0(none_of("\"")), tag("\"")),
             delimited(tag("'"), many0(none_of("'")), tag("'")),
-                  ))(s);
+                  )), multispace0)(s);
     match res {
         Ok((s, st)) => Ok((s, Lang::Char(st.iter().collect()))),
         Err(r) => Err(r)
@@ -499,7 +500,7 @@ fn single_element(s: &str) -> IResult<&str,Lang> {
 pub fn scope(s: &str) -> IResult<&str, Lang> {
     let res = delimited(
         terminated(alt((tag("("), tag("{"))), multispace0),
-        alt((dotdotdot, parse_elements, parse_exp)),
+        parse_exp,
         terminated(alt((tag(")"), tag("}"))), multispace0))(s);
     match res {
         Ok((s, Lang::Empty)) => Ok((s, Lang::Scope(vec![]))),
@@ -762,7 +763,7 @@ mod tests {
     }
 
     #[test]
-    fn test_funcion_no_parameters(){
+    fn test_function_no_parameters(){
         let res = function("fn () : Number { 7 }").unwrap().1;
         assert_eq!(res.to_string(), "fn([],Number,(7))");
     }
@@ -823,13 +824,13 @@ mod tests {
 
     #[test]
     fn test_scope1() {
-        let res = scope("{7;}").unwrap().1;
+        let res = scope("{7}").unwrap().1;
         assert_eq!(res.to_string(), "(7)");
     }
 
     #[test]
     fn test_scope2() {
-        let res = scope("{let a = 7;}").unwrap().1;
+        let res = scope("{let a <- 7;}").unwrap().1;
         assert_eq!(res.to_string(), "(7)");
     }
 
@@ -983,6 +984,10 @@ mod tests {
         assert_eq!(res, (Lang::Empty, Op::Empty));
     }
 
-    
+    #[test]
+    fn test_chain_string0() {
+        let res = element_chain("'wow' + 'hey'").unwrap().1;
+        assert_eq!(res.to_string(), "");
+    } 
 
 }

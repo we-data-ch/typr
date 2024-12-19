@@ -217,8 +217,8 @@ impl Lang {
             Lang::GreaterThan(e1, e2) => format!("{} > {}", e2.to_r(), e1.to_r()),
             Lang::LesserOrEqual(e1, e2) => format!("{} <= {}", e2.to_r(), e1.to_r()),
             Lang::GreaterOrEqual(e1, e2) => format!("{} >= {}", e2.to_r(), e1.to_r()),
-            Lang::Pipe(e1, e2) => format!("{} |> {}", e1.to_r(), e2.to_r()),
-            Lang::Dot(e1, e2) => format!("{} |> {}", e1.to_r(), e2.to_r()),
+            Lang::Pipe(e1, e2) => format!("{} |> {}", e2.to_r(), e1.to_r()),
+            Lang::Dot(e1, e2) => format!("{} |> {}", e2.to_r(), e1.to_r()),
             Lang::Scope(exps) 
                 => exps.iter().map(|x| x.to_r()).collect::<Vec<String>>().join("\n"),
             Lang::Function(_args_kind, args, _typ, body) => 

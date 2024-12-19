@@ -321,8 +321,8 @@ pub fn module(s: &str) -> IResult<&str, Vec<Lang>> {
     }
 }
 
-fn return_exp(s: &str) -> IResult<&str, Lang> {
-    delimited(tag("return"), parse_elements, tag(";"))(s)
+pub fn return_exp(s: &str) -> IResult<&str, Lang> {
+    terminated(delimited(tag("return "), parse_elements, tag(";")), multispace0)(s)
 }
 
 fn assign(s: &str) -> IResult<&str, Vec<Lang>> {
@@ -684,6 +684,13 @@ mod tesus {
         let res = parse("let less_than_3 = fn(n: int): bool { 3 >= n };").unwrap().1;
         assert_eq!(res.to_string(), "");
     }
+
+    #[test]
+    fn test_ret0() {
+        let res = return_exp("return a + 1;").unwrap().1;
+        assert_eq!(res.to_string(), "");
+    }
+
 
 
 }
