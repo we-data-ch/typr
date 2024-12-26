@@ -22,4 +22,9 @@ decl(var('abs', empty, private, false, num), any, fn([],[[var('a'),num]],int,seq
 decl(var('ceiling', empty, private, false, num), any, fn([],[[var('a'),num]],int,sequence([empty]))),
 decl(var('floor', empty, private, false, num), any, fn([],[[var('a'),num]],int,sequence([empty]))),
 decl(var('cat', empty, private, false, num), any, fn([],[[var('a'),chars]],chars,sequence([empty]))),
-decl(var('grepl', empty, private, false, num), any, fn([],[[var('a'),chars],[var('b'),chars]],bool,sequence([empty])))
+decl(var('grepl', empty, private, false, num), any, fn([],[[var('a'),chars],[var('b'),chars]],bool,sequence([empty]))),
+decl(var('rep', empty, private, false, tarray(ind('n'), gen('t'))), any, fn([],[[var('a'),tarray(ind('n'), gen('t'))], [var('b'),ind('m')]],tarray(mul(ind('n'), ind('m')), gen('t')),sequence([empty]))),
+decl(var('sort', empty, private, false, tarray(ind('n'), gen('t'))), any, fn([],[[var('a'),tarray(ind('n'), gen('t'))]],tarray(ind('n'), gen('t')),sequence([empty]))),
+decl(var('c', empty, private, false, tarray(ind('n'), gen('t'))), any, fn([],[[var('a'),tarray(ind('n'), gen('t'))], [var('b'),tarray(ind('m'), gen('t'))]],tarray(add(ind('n'), ind('m')), gen('t')),sequence([empty]))),
+decl(var('median', empty, private, false, tarray(ind('n'), gen('t'))), any, fn([],[[var('a'),tarray(ind('n'), gen('t'))]],gen('t'),sequence([empty]))),
+decl(var('mode', empty, private, false, tarray(ind('n'), gen('t'))), any, fn([],[[var('a'),tarray(ind('n'), gen('t'))]],gen('t'),sequence([empty])))

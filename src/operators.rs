@@ -20,6 +20,7 @@ pub enum Op {
     Minus2,
     Mul,
     Mul2,
+    In,
     At,
     At2,
     Div,
@@ -50,6 +51,7 @@ pub fn op(s: &str) -> IResult<&str, Op> {
     let res = terminated(
         alt((
             bool_op,
+            tag("in"),
             tag("++"),
             tag("+"),
             tag("--"),
@@ -70,6 +72,7 @@ pub fn op(s: &str) -> IResult<&str, Op> {
             )),
         multispace0)(s);
     match res {
+        Ok((s, "in")) => Ok((s, Op::In)),
         Ok((s, "and")) => Ok((s, Op::And)),
         Ok((s, "or")) => Ok((s, Op::Or)),
         Ok((s, "+")) => Ok((s, Op::Add)),
@@ -101,6 +104,7 @@ pub fn op(s: &str) -> IResult<&str, Op> {
 
 fn get_string(op: &Op) -> String {
     match op {
+        Op::In => "in".to_string(),
         Op::And => "and".to_string(),
         Op::Or => "or".to_string(),
         Op::Add => "+".to_string(),

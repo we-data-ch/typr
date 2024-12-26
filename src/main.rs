@@ -6,6 +6,9 @@ mod operators;
 mod my_io;
 mod var;
 mod metaprogramming;
+mod argument_type;
+mod argument_value;
+mod argument_kind;
 
 use parser::parse;
 use my_io::{read_file, write_adt, recreate_files, delete_files, execute};

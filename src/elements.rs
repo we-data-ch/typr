@@ -13,9 +13,9 @@ use nom::character::complete::alphanumeric1;
 use nom::combinator::opt;
 use nom::multi::many0;
 use nom::multi::many1;
-use crate::language::ArgumentType;
-use crate::language::ArgumentValue;
-use crate::language::ArgumentKind;
+use crate::argument_type::ArgumentType;
+use crate::argument_value::ArgumentValue;
+use crate::argument_kind::ArgumentKind;
 use crate::types::ltype;
 use nom::character::complete::one_of;
 use nom::character::complete::none_of;
@@ -23,7 +23,6 @@ use crate::types::Type;
 use nom::sequence::preceded;
 use nom::character::complete::multispace1;
 use crate::parser::parse_exp;
-use crate::parser::return_exp;
 use crate::var::Permission;
 use nom::character::complete::digit1;
 
@@ -514,6 +513,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
     // (params, op)
     let first = v.pop().unwrap();
     match first {
+        (p, Op::In) => Lang::In(Box::new(p), Box::new(op_reverse(v))),
         (p, Op::And) => Lang::And(Box::new(p), Box::new(op_reverse(v))),
         (p, Op::Or) => Lang::Or(Box::new(p), Box::new(op_reverse(v))),
         (p, Op::Union) => Lang::Union(Box::new(p), Box::new(op_reverse(v))),
@@ -532,7 +532,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
         (p, Op::Pipe) => Lang::Pipe(Box::new(p), Box::new(op_reverse(v))),
         (p, Op::Pipe2) => {
             let res = match p.clone() {
-                Lang::FunctionApp(name, params) => *name.clone(),
+                Lang::FunctionApp(name, _) => *name.clone(),
                 rest => rest.clone()
             };
             let func = Lang::FunctionApp(
@@ -640,7 +640,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
         (p, Op::Dot) => Lang::Dot(Box::new(p), Box::new(op_reverse(v))),
         (p, Op::Dot2) => {
             let res = match p.clone() {
-                Lang::FunctionApp(name, params) => *name.clone(),
+                Lang::FunctionApp(name, _) => *name.clone(),
                 rest => rest.clone()
             };
             let func = Lang::FunctionApp(
@@ -648,8 +648,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                 vec![res.clone()]);
             Lang::Dot(Box::new(func), Box::new(op_reverse(v)))
         },
-        (p, Op::Empty) => p,
-        (p, rest) => panic!("{} shouldn't be applied in index operations", rest)
+        (p, Op::Empty) => p
     }
 }
 

@@ -3,6 +3,6 @@ map <- sapply
 filter <- function(vec, condition) {
   vec[condition(vec)]
 }
-in <- function(element, vecteur) {
+into <- function(element, vecteur) {
   return(element %in% vecteur)
 }

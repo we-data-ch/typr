@@ -1,4 +1,3 @@
-use std::process::exit;
 use nom::IResult;
 use nom::character::complete::multispace0;
 use nom::sequence::tuple;
@@ -8,8 +7,7 @@ use nom::multi::many0;
 use nom::branch::alt;
 use nom::combinator::opt;
 use nom::character::complete::alpha1;
-use crate::language::ArgumentType;
-use nom::number::complete::float;
+use crate::argument_type::ArgumentType;
 use crate::elements::variable;
 use nom::character::complete::one_of;
 use nom::sequence::delimited;

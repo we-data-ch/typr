@@ -1,5 +1,5 @@
 use crate::my_io::read_file_from_name;
-use crate::language::ArgumentType;
+use crate::argument_type::ArgumentType;
 use crate::var::Permission;
 use crate::parser::Adt;
 use crate::var::Var;
@@ -16,10 +16,6 @@ pub struct Module(pub String, pub Vec<Lang>);
 impl Module {
     pub fn get_body(&self) -> Vec<Lang> {
         self.1.clone()
-    }
-
-    pub fn get_name(&self) -> String {
-        self.0.to_string()
     }
 
     pub fn from_language(l: Lang) -> Option<Module> {
@@ -44,7 +40,7 @@ fn find_module(name: &str, seq: &[Lang]) -> Module {
 fn get_core_function(var: Var, seq: &[Lang]) -> Lang {
     if var.get_path() == "" {
         seq.iter().find(|x| match x { 
-                    Lang::Let(v, t, b) 
+                    Lang::Let(v, _, _) 
                         if v.get_name() == var.get_name()
                         => true,
                     _ => false
@@ -103,7 +99,7 @@ fn get_related_functions(typ: Type, adt: &Adt) -> Vec<(Lang, String)> {
 
 
 fn get_record_embeddings(name: Type, args: Vec<ArgumentType>) -> Vec<(Type, ArgumentType)> {
-    args.iter().filter(|ArgumentType(a, b, emb)| *emb).map(|x| (name.clone(), x.clone())).collect()
+    args.iter().filter(|ArgumentType(_, _, emb)| *emb).map(|x| (name.clone(), x.clone())).collect()
 }
 
 fn get_embeddings(line: &Lang, adt: &Adt) -> Vec<(Type, ArgumentType)> {
@@ -121,7 +117,7 @@ fn get_embeddings(line: &Lang, adt: &Adt) -> Vec<(Type, ArgumentType)> {
                     Type::Alias(var.clone().get_name(), params.clone(), Type::Record(ve.to_vec()).to_string()),
                     ve.to_vec())
         }
-        Lang::Alias(var, params1, Type::Alias(name, params2, path)) 
+        Lang::Alias(_, _, Type::Alias(name, _, path)) 
             => {
                 let (alias, module) = adt.find_alias_module(path, name);
                 get_embeddings(&alias, &Adt(module.get_body()))
@@ -160,7 +156,7 @@ fn import_modules(adt: Adt) -> Adt {
 fn get_related_functions2(module_name: &str, name: &str, adt: &Adt) -> Vec<Lang> {
     adt.0.iter().flat_map(|line| {
         match line {
-            Lang::Let(Var(name1, path, permission, muta, Type::Alias(name2, args, path2)), typ3, _elem) 
+            Lang::Let(Var(name1, _, permission, muta, Type::Alias(name2, args, path2)), typ3, _elem) 
                 if name == name2 &&  *permission == Permission::Public
                     => {
                     let typ2 =  Type::Alias(name2.clone(), args.clone(), path2.clone());
@@ -181,12 +177,12 @@ fn get_related_module_functions(name: &str, typ: Type, adt: &Adt) -> Vec<Lang> {
                 if name1 == name
                     => {
                         let alias_name = match typ.clone() {
-                            Type::Alias(na, ar, pa) => na,
+                            Type::Alias(na, _, _) => na,
                             _ => "".to_string()
                         };
                         get_related_functions2(name, &alias_name, &Adt(body.to_vec()))
                     }
-            l => vec![]
+            _ => vec![]
         }
     }).collect::<Vec<_>>()
 }
@@ -201,7 +197,7 @@ fn remove_imports(lets: &[Lang]) -> Vec<Lang> {
 }
 
 fn import_types(adt: Adt) -> Adt {
-    let mut res = adt.0.iter().flat_map(|line| {
+    let res = adt.0.iter().flat_map(|line| {
         match line {
             Lang::Import(Type::Alias(name, params, path)) => {
                 let typ = Type::Alias(name.to_string(), params.clone(), path.to_string());

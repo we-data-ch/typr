@@ -1,48 +1,12 @@
+#![allow(dead_code)]
 use std::fmt;
 use crate::types::Type;
 use crate::var::Var;
 use crate::var::Permission;
 use serde::Serialize;
-
-#[derive(Debug, Clone, PartialEq, Serialize)] // 3 argument is for the embedding
-pub struct ArgumentType(pub String, pub Type, pub bool);
-
-impl ArgumentType {
-    fn to_r(&self) -> String {
-        self.0.clone()
-    }
-}
-
-impl fmt::Display for ArgumentType {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[var('{}'),{}]", self.0, self.1)       
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct ArgumentValue(pub String, pub Lang);
-
-impl ArgumentValue {
-    fn to_r(&self) -> String {
-        format!("{} = {}", self.0, self.1.to_r())
-    }
-}
-
-impl fmt::Display for ArgumentValue {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[var('{}'),{}]", self.0, self.1)       
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct ArgumentKind(pub String, pub String);
-
-impl fmt::Display for ArgumentKind {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[gen('{}'),{}]", self.0, self.1)       
-    }
-}
-
+use crate::argument_type::ArgumentType;
+use crate::argument_value::ArgumentValue;
+use crate::argument_kind::ArgumentKind;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Lang {
@@ -53,6 +17,7 @@ pub enum Lang {
     Union(Box<Lang>, Box<Lang>),
     Number(f32),
     Integer(i32),
+    In(Box<Lang>, Box<Lang>),
     Add(Box<Lang>, Box<Lang>),
     Eq(Box<Lang>, Box<Lang>),
     Modu(Box<Lang>, Box<Lang>),
@@ -164,7 +129,7 @@ impl fmt::Display for Lang {
                 => format!("if({}, {}, {})", cond, exp, els),
             Lang::Tuple(vals) => format!("record({})", to_records(vals)),
             Lang::Assign(var, exp) => format!("assign({}, {})", var, exp),
-            Lang::Comment(txt) => "comment".to_string(),
+            Lang::Comment(_) => "comment".to_string(),
             Lang::Range(i1, i2, i0) => format!("seq({},{},{})", i1, i2, i0),
             Lang::Integer(i) => i.to_string(),
             Lang::Import(_typ) => "import".to_string(),
@@ -184,7 +149,7 @@ impl Lang {
     pub fn shape(&self) -> Vec<usize> {
         match self {
             Lang::Array(vec) => {
-                let mut dimensions = vec.len(); // Taille actuelle de ce niveau
+                let dimensions = vec.len(); // Taille actuelle de ce niveau
                 if let Some(first) = vec.get(0) {
                     if let Lang::Array(_) = first {
                         // Descend récursivement dans la première sous-structure
@@ -206,6 +171,7 @@ impl Lang {
     pub fn to_r(&self) -> String {
         match self {
             Lang::Bool(b) => b.to_string().to_uppercase(),
+            Lang::In(b1, b2) => format!("{} %in% {}", b2.to_r(), b1.to_r()),
             Lang::And(b1, b2) => format!("{} & {}", b1.to_r(), b2.to_r()),
             Lang::Or(b1, b2) => format!("{} | {}", b1.to_r(), b2.to_r()),
             Lang::Modu(e1, e2) => format!("{} % {}", e2.to_r(), e1.to_r()),

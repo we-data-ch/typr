@@ -3,9 +3,6 @@ use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use std::fs::OpenOptions;
-use std::io::Read;
-use std::io;
 use std::path::Path;
 
 pub fn recreate_files() {
