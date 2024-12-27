@@ -33,8 +33,13 @@ pub fn delete_files() {
 
 pub fn read_file() -> String {
     let args: Vec<String> = env::args().collect();
-    let file = &args[1];
-    fs::read_to_string(&file).unwrap()
+    if cfg!(windows){
+        let file = args[1].replace("\\", r"\");
+        fs::read_to_string(&file).unwrap()
+    } else {
+        let file = &args[1];
+        fs::read_to_string(&file).unwrap()
+    }
 }
 
 pub fn read_file_from_name(name: &str) -> String {
