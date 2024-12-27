@@ -23,7 +23,8 @@ pub fn recreate_files() {
 }
 
 fn delete_file(file_path: &str) {
-    let path = Path::new(file_path);
+    let binding = get_os_file(file_path);
+    let path = Path::new(&binding);
     let _ = fs::remove_file(path);
 }
 
@@ -31,19 +32,22 @@ pub fn delete_files() {
     ["kinds.pl", "type_checker.pl", "type_comparison.pl", "type_context.pl", "type_module.pl", "type_printer.pl", "unification.pl"].iter().for_each(|file| delete_file(file))
 }
 
-pub fn read_file() -> String {
-    let args: Vec<String> = env::args().collect();
+fn get_os_file(file: &str) -> String {
     if cfg!(windows){
-        let file = args[1].replace("\\", r"\");
-        fs::read_to_string(&file).unwrap()
+       file.replace("\\", r"\") 
     } else {
-        let file = &args[1];
-        fs::read_to_string(&file).unwrap()
+       file.to_string()
     }
 }
 
+pub fn read_file() -> String {
+    let args: Vec<String> = env::args().collect();
+    let file = get_os_file(&args[1]);
+    fs::read_to_string(&file).unwrap()
+}
+
 pub fn read_file_from_name(name: &str) -> String {
-    let file = format!("{}.ty", name);
+    let file = get_os_file(&format!("{}.ty", name));
     fs::read_to_string(&file).unwrap()
 }
 
@@ -51,7 +55,7 @@ pub fn execute() -> () {
     println!("Type checking: ");
     let output = Command::new("swipl")
         .arg("-s")
-        .arg("adt.pl")
+        .arg(get_os_file("adt.pl"))
         .arg("-g")
         .arg("main")
         .arg("-t")
@@ -66,7 +70,7 @@ pub fn execute() -> () {
 
     println!("Execution: ");
     let output = Command::new("Rscript")
-        .arg("app.R")
+        .arg(get_os_file("app.R"))
         .output()
         .expect("Échec lors de l'exécution de la commande");
 
@@ -74,8 +78,9 @@ pub fn execute() -> () {
     println!("{}", stdout);
 }
 
+
 pub fn write_adt(s: &str) {
-    let mut file = File::create("adt.pl").unwrap();
+    let mut file = File::create(get_os_file("adt.pl")).unwrap();
     let import1 = ":- use_module(type_checker).";
     let import2 = ":- use_module(type_printer).";
     let intro = "main :-";
