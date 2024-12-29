@@ -31,6 +31,7 @@ pub enum Lang {
     Scope(Vec<Lang>),
     Function(Vec<ArgumentKind>, Vec<ArgumentType>, String, Box<Lang>),
     Module(String, Vec<Lang>),
+    ModuleDecl(String),
     Variable(String, String, Permission, bool, Type),
     FunctionApp(Box<Lang>, Vec<Lang>),
     ArrayIndexing(Box<Lang>, f32),
@@ -168,6 +169,13 @@ impl Lang {
         }
     }
 
+    fn format_path(path: &str) -> String {
+        match path {
+            "" => "".to_string(),
+            pat => pat.replace("/", "$") + "$"
+        }
+    }
+
     pub fn to_r(&self) -> String {
         match self {
             Lang::Bool(b) => b.to_string().to_uppercase(),
@@ -191,13 +199,13 @@ impl Lang {
                 format!("function({}) {{ {} }}", 
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
                         body.to_r()),
-            Lang::Variable(v, _path, _perm, _muta, _ty) => v.to_string(),
+            Lang::Variable(v, path, _perm, _muta, _ty) => Self::format_path(path) + v,
             Lang::FunctionApp(exp, vals) 
                 => format!("{}({})", exp.to_r(),
                 vals.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
             Lang::ArrayIndexing(exp, val) => format!("{}[{}]", exp, val),
             Lang::Let(var, _s2, body) 
-                => format!("{} <- {}", var.get_name(), body.to_r()),
+                => format!("{} <- {}", Self::format_path(&var.get_path()) + &var.get_name(), body.to_r()),
             Lang::Array(v) 
                 => {
                     let vector = format!("c({})", v.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(","));
@@ -228,6 +236,7 @@ impl Lang {
             Lang::Integer(i) => i.to_string(),
             Lang::Tag(s, t) => format!("list('{}', {})", s, t.to_r()),
             Lang::Empty => "NA".to_string(),
+            Lang::ModuleDecl(name) => format!("{} <- new.env()", name),
             Lang::Sequence(exps) 
                 => exps.iter().map(|x| x.to_r()).collect::<Vec<String>>().join("\n\n"),
             _ => "".to_string()

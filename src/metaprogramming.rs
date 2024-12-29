@@ -213,6 +213,38 @@ fn import_types(adt: Adt) -> Adt {
     res.into()
 }
 
+fn private_public_change(module_name: &str, adt: Adt) -> Vec<Lang> {
+    adt.0.iter().map(|line| {
+        match line {
+            Lang::Let(var, typ, body) 
+                => Lang::Let(
+                    var.clone().add_path(module_name),
+                    typ.clone(), body.clone()),
+            Lang::Alias(var, params, typ) 
+                => Lang::Alias(
+                    var.clone().add_path(module_name),
+                    params.clone(), typ.clone()),
+            _ => Lang::Empty
+        }
+    }).collect::<Vec<_>>()
+}
+
+fn linearize(adt: Adt) -> Adt {
+    adt.0.iter().flat_map(|line| {
+        match line {
+            Lang::Module(name, body) 
+                => {
+                    let new_adt = linearize(body.clone().into());
+                    let mut lines = private_public_change(name, new_adt);
+                    lines.insert(0, Lang::ModuleDecl(name.to_string()));
+                    lines
+                },
+            lang => vec![lang.clone()]
+        }
+    }).collect::<Vec<_>>().into()
+}
+
 pub fn metaprogrammation(adt: Adt) -> Adt {
-    type_embedding(import_types(import_modules(adt)))
+    //type_embedding(import_types(import_modules(adt)))
+    linearize(import_modules(adt)) 
 }
