@@ -178,7 +178,7 @@ impl Lang {
 
     pub fn to_r(&self) -> String {
         match self {
-            Lang::Bool(b) => b.to_string().to_uppercase(),
+            Lang::Bool(b) => format!("structure({}, class = 'bool')", b.to_string().to_uppercase()),
             Lang::In(b1, b2) => format!("{} %in% {}", b2.to_r(), b1.to_r()),
             Lang::And(b1, b2) => format!("{} & {}", b1.to_r(), b2.to_r()),
             Lang::Or(b1, b2) => format!("{} | {}", b1.to_r(), b2.to_r()),
