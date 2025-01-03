@@ -46,7 +46,21 @@ impl Data {
             "num" => Type::Number,
             "bool" => Type::Boolean,
             "chars" => Type::Char,
-            _ => Type::Empty
+             _ => Type::Empty
+        }
+    }
+
+    fn get_array(&self) -> Option<Vec<Data>> {
+        match self {
+            Data::Array(v) => Some(v.clone()),
+            _ => None
+        }
+    }
+
+    fn get_value(&self) -> Option<String> {
+        match self {
+            Data::Value(val) => Some(val.to_string()),
+            _ => None
         }
     }
 
@@ -54,16 +68,28 @@ impl Data {
         match self {
             Data::Value(val) => Data::string_to_type(val),
             Data::Array(v) => Type::Params(v.iter().map(|val| val.to_type()).collect::<Vec<_>>()),
-            Data::Function(name, rest) 
-                if name == "tfn" => {
-                    if let Data::Array(v) = &rest[1] {
-                        let vecs = v.iter().map(|val| val.to_type()).collect::<Vec<_>>();
-                        Type::Function(vecs, Box::new(rest[2].to_type()))
-                    } else {
-                        Type::Empty
-                    }
+            Data::Function(name, rest) if name == "tfn" => {
+                    let v = rest[1].get_array().unwrap();
+                    let vecs = v.iter().map(|val| val.to_type()).collect::<Vec<_>>();
+                    Type::Function(vecs, Box::new(rest[2].to_type()))
+            },
+            Data::Function(name, rest) if name == "tarray" => {
+                    Type::Array(Box::new(rest[0].to_type()), Box::new(rest[1].to_type()))
+            },
+            Data::Function(name, rest) if name == "ind" => {
+                match rest[0].get_value().unwrap().parse::<u32>().ok() {
+                   Some(num) => Type::Index(num),
+                   _ => Type::IndexGen(rest[0].to_string())
                 }
-            _ => Type::Empty
+            },
+            Data::Function(name, rest) if name == "gen" => {
+                let val = rest[0].get_value().unwrap();
+                match Data::string_to_type(&val) {
+                    Type::Empty => Type::Generic(val),
+                    typ => typ
+                }
+            },
+                    _ => Type::Empty
         }
     }
 
@@ -75,10 +101,10 @@ impl Data {
         //}
     //}
 
-    fn to_couple(&self) -> Option<(String, String)>{
+    fn to_couple(&self) -> Option<(String, Data)>{
         match self {
             Data::Array(v)
-                if v.len() == 2 => Some((v[0].to_name(), v[1].to_string())),
+                if v.len() == 2 => Some((v[0].to_name(), v[1].clone())),
             _ => None 
         }
     }
