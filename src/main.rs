@@ -9,9 +9,10 @@ mod metaprogramming;
 mod argument_type;
 mod argument_value;
 mod argument_kind;
+mod context_manager;
 
 use parser::parse;
-use my_io::{read_file, write_adt, recreate_files, delete_files, execute};
+use my_io::{read_file, write_adt, recreate_files, delete_files, type_check, execute};
 use crate::types::Type;
 use crate::language::Lang;
 use crate::metaprogramming::metaprogrammation;
@@ -25,13 +26,12 @@ fn main() {
     let adt = parse(&read_file()).unwrap().1;
     let adt = metaprogrammation(adt.clone());
     write_adt(&adt.to_string());
+    type_check();
 
     let rstd = include_str!("../configs/std.R");
-
     let mut app = File::create("app.R").unwrap();
     let content = format!("{}\n\n{}", rstd, adt.to_r());
     app.write_all(content.as_bytes()).unwrap();
-    
     execute();
 
     delete_files();

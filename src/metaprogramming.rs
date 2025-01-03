@@ -246,5 +246,5 @@ fn linearize(adt: Adt) -> Adt {
 
 pub fn metaprogrammation(adt: Adt) -> Adt {
     //type_embedding(import_types(import_modules(adt)))
-    linearize(import_modules(adt)) 
+    linearize(import_modules(adt))
 }

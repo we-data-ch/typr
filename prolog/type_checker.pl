@@ -1,4 +1,4 @@
-:- module(type_checker, [typing/3]).
+:- module(type_checker, [typing/3, eval/3]).
 :- use_module(type_context).
 :- use_module(unification).
 :- use_module(kinds).
@@ -76,6 +76,12 @@ record_union([[Key, Value]|Rest], List2, Result) :-
     record_union(Rest, TempList, Result). % Continue avec le reste de la première liste
 
 % ========================================
+
+eval(Context, sequence([H | T]), Context3) :- 
+	eval(Context, H, Context2),
+	eval(Context2, sequence(T), Context3).
+
+eval(Context, sequence([H]), Context).
 
 eval(Context, comment, Context).
 

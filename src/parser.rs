@@ -22,7 +22,10 @@ use nom::character::complete::not_line_ending;
 use nom::character::complete::line_ending;
 use crate::elements::bang_exp;
 use crate::metaprogramming::Module;
+use crate::my_io::get_context;
+use crate::context_manager::Context;
 use nom::multi::many0;
+
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Adt(pub Vec<Lang>);
@@ -70,8 +73,13 @@ impl Adt {
         }
     }
 
+    fn to_nominal_types(&self, context: Context) -> Adt {
+        self.clone()
+    }
+
     pub fn to_r(&self) -> String {
-        self.0.iter().map(|lang| lang.to_r()).collect::<Vec<_>>().join("\n")
+        let context = get_context();
+        self.to_nominal_types(context).0.iter().map(|lang| lang.to_r()).collect::<Vec<_>>().join("\n")
     }
 }
 
