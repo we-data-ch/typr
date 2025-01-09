@@ -134,7 +134,7 @@ Structural types:
 | Records               | ({[[name]: [type]]*})      | lists           |
 | Tuples (like records) | ([type]*)                  | lists           |
 | Functions             | (([type]*) -> type)        | functions       |
-| Tags                  | [name]\(type)              | NA, NaN, lists? |
+| Tags                  | .[name]\(type)             | NA, NaN, lists? |
 | Unions (of Tags)      | type [\| type]+            | -               |
 | Interfaces            | interface {a bit too much} | -               |
 
@@ -319,9 +319,9 @@ R don't have such a construct since, Tags, unions and even interface are an abst
 Tags are values that one can use on the fly. Each flag is unique and has its own type. It's useful do define some elements like:
 
 ```scala
-let none: :None = None;
-let nan: :NaN = NaN;
-le na: :NA = NA;
+let none: .None = None;
+let nan: .NaN = NaN;
+le na: .NA = NA;
 ```
 
 If the tag is named `[tag_name]`, then it's base type is `:[tag_name]`. They are R's factors on steroïd and even Rust's enums on steroïd. You can use them to define some collections (like the Day of the week, gender, etc.).
@@ -329,8 +329,8 @@ If the tag is named `[tag_name]`, then it's base type is `:[tag_name]`. They are
 Tags can also handle one type with them:
 
 ```scala
-let results: :Val(num) = Val(7.3);
-let person: :Person({name: chars, age: int}) = Person(:{name: "Marc", age: 37});
+let results: .Val(num) = Val(7.3);
+let person: .Person({name: chars, age: int}) = Person(:{name: "Marc", age: 37});
 ```
 
 Okay but what are their power ? Well they can be unified together inside a union type ! But here we will see how useful it is for return type in a if close:
@@ -353,7 +353,7 @@ if (true) {
 }
 ```
 
-The return type will be `Value(int) | String(chars)` meaning TypR will automaticaly unify the results if they are tags. Tags must be "unwrapped" to access the values within, forcing a user to handle the different cases.
+The return type will be `.Value(int) | .String(chars)` meaning TypR will automaticaly unify the results if they are tags. Tags must be "unwrapped" to access the values within, forcing a user to handle the different cases.
 
 #### Union
 
@@ -364,13 +364,13 @@ Union are an abstract concept that won't really appear in the resulting R code. 
 There is no concept of union in R so nothing to compare.
 
 ```R
-type Option<T> = :Some(T) | :None;
+type Option<T> = .Some(T) | .None;
 ```
 
 And if my function can return a `Na` and a `NaN` instead of an int value you can define your own type:
 
 ```R
-type Failable<T> = :Value(T) | :NaN | :Na | :None;
+type Failable<T> = .Value(T) | .NaN | .Na | .None;
 ```
 
 This method is more flexible than an enum like Rust and more secure than an union from TypeScript.
