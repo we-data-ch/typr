@@ -9,6 +9,7 @@ use nom::{
 
 use crate::Lang;
 use crate::Type;
+use crate::argument_type::ArgumentType;
 
 pub type Context = Vec<(Lang, Type)>;
 
@@ -24,8 +25,12 @@ use std::fmt;
 impl fmt::Display for Data {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
-            Data::Value(val) => val,
-            _ => "ERR"
+            Data::Value(val) if val == "empty" => "".to_string(),
+            Data::Value(val) => val.to_string(),
+            Data::Function(name, rest) if name == "var" => {
+                rest[0].to_string()
+            },
+            _ => "ERR".to_string()
         };
         write!(f, "{}", res)
     }
@@ -89,25 +94,89 @@ impl Data {
                     typ => typ
                 }
             },
-                    _ => Type::Empty
+            Data::Function(name, rest) if name == "add" => {
+                let val1 = rest[0].to_type();
+                let val2 = rest[1].to_type();
+                Type::Add(Box::new(val1), Box::new(val2))
+            },
+            Data::Function(name, rest) if name == "mul" => {
+                let val1 = rest[0].to_type();
+                let val2 = rest[1].to_type();
+                Type::Mul(Box::new(val1), Box::new(val2))
+            },
+            Data::Function(name, rest) if name == "division" => {
+                let val1 = rest[0].to_type();
+                let val2 = rest[1].to_type();
+                Type::Div(Box::new(val1), Box::new(val2))
+            },
+            Data::Function(name, rest) if name == "minus" => {
+                let val1 = rest[0].to_type();
+                let val2 = rest[1].to_type();
+                Type::Minus(Box::new(val1), Box::new(val2))
+            },
+            Data::Function(name, rest) if name == "ttag" => {
+                let val1 = rest[0].to_string();
+                let val2 = rest[1].to_type();
+                Type::Tag(val1, Box::new(val2))
+            },
+            Data::Function(name, rest) if name == "trecord" => {
+                let v = rest[0].get_array().expect("Can't open array in trecord");
+                let new_v = v.iter()
+                 .map(|key_value| {
+                     let val = key_value.get_array().unwrap();
+                     ArgumentType(val[0].to_string(), val[1].to_type(), false)
+                 }).collect::<Vec<_>>();
+                Type::Record(new_v)
+            },
+            Data::Function(name, rest) if name == "interface" => {
+                let v = rest[0].get_array().expect("Can't open array in interface");
+                let new_v = v.iter()
+                 .map(|key_value| {
+                     let val = key_value.get_array().expect("Can't open body (array) in key value interface");
+                     ArgumentType(val[0].to_string(), val[1].to_type(), false)
+                 }).collect::<Vec<_>>();
+                Type::Record(new_v)
+            },
+            Data::Function(name, rest) if name == "union" => {
+                let v = rest[0].get_array().expect("can't extract body (array) from union");
+                let new_v = v.iter().map(|ttag| ttag.to_type()).collect::<Vec<_>>();
+                Type::Union(new_v)
+            },
+            Data::Function(name, rest) if name == "var" => {
+                let name = rest[0].to_string();
+                let path = rest[1].to_string();
+                if let Type::Params(params) = rest[4].to_type(){
+                    Type::Alias(name, params, path)
+                } else { Type::Empty }
+            },
+            Data::Function(name, rest) if name == "params" => {
+                let v = rest[0].get_array().expect("There is a problem with the type parameters");
+                let new_v = v.iter().map(|param| param.to_type()).collect::<Vec<_>>();
+                Type::Params(new_v)
+            },
+            Data::Function(name, rest) if name == "talias" => {
+                    rest[2].to_type()
+            },
+            _ => Type::Failed(self.to_string())
         }
     }
 
-    //fn to_couple(&self) -> Option<(String, Type)>{
-        //match self {
-            //Data::Array(v)
-                //if v.len() == 2 => Some((v[0].to_name(), v[1].to_type())),
-            //_ => None 
-        //}
-    //}
-
-    fn to_couple(&self) -> Option<(String, Data)>{
+    fn to_couple(&self) -> Option<(String, Type)>{
+        println!("self: {:?}", self);
         match self {
             Data::Array(v)
-                if v.len() == 2 => Some((v[0].to_name(), v[1].clone())),
+                if v.len() == 2 => Some((v[0].to_name(), v[1].to_type())),
             _ => None 
         }
     }
+
+    //fn to_couple(&self) -> Option<(String, Data)>{
+        //match self {
+            //Data::Array(v)
+                //if v.len() == 2 => Some((v[0].to_name(), v[1].clone())),
+            //_ => None 
+        //}
+    //}
 
 }
 

@@ -44,6 +44,7 @@ pub enum Type {
     Minus(Box<Type>, Box<Type>),
     Div(Box<Type>, Box<Type>),
     Mul(Box<Type>, Box<Type>),
+    Failed(String),
     Empty
 }
 
@@ -88,7 +89,8 @@ impl fmt::Display for Type {
             Type::Minus(id1, id2) => format!("minus({}, {})", id1, id2),
             Type::Mul(id1, id2) => format!("mul({}, {})", id1, id2),
             Type::Div(id1, id2) => format!("division({}, {})", id1, id2),
-            Type::Empty => "any".to_string()
+            Type::Empty => "any".to_string(),
+            _ => "".to_string()
         };
         write!(f, "{}", res)       
     }
