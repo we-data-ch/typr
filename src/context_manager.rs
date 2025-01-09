@@ -9,7 +9,9 @@ use nom::{
 
 use crate::Lang;
 use crate::Type;
+use crate::var::Var;
 use crate::argument_type::ArgumentType;
+use crate::var::Permission;
 
 pub type Context = Vec<(Lang, Type)>;
 
@@ -155,17 +157,52 @@ impl Data {
                 Type::Params(new_v)
             },
             Data::Function(name, rest) if name == "talias" => {
-                    rest[2].to_type()
+                rest[2].to_type()
             },
             _ => Type::Failed(self.to_string())
         }
     }
 
-    fn to_couple(&self) -> Option<(String, Type)>{
-        println!("self: {:?}", self);
+    fn to_lang(&self) -> Lang {
         match self {
-            Data::Array(v)
-                if v.len() == 2 => Some((v[0].to_name(), v[1].to_type())),
+            Data::Function(name, rest) if name == "var" => {
+                    let var = Lang::Variable(
+                        rest[0].to_string(),
+                        rest[1].to_string(),
+                        rest[2].to_permission(),
+                        rest[3].to_bool(),
+                        rest[4].to_type());
+                    let var2: Var = Var::from_language(var.clone()).unwrap();
+                if let Type::Params(vec) = var2.clone().4 {
+                    Lang::Alias(var2, vec.clone(), Type::Empty)
+                } else {
+                    var.clone()
+                }
+            }
+            _ => Lang::Empty
+        }
+    }
+
+    fn to_bool(&self) -> bool {
+        if self.to_string() == "true"{
+            true
+        } else { false }
+    }
+
+    fn to_permission(&self) -> Permission {
+        if self.to_string() == "public"{
+            Permission::Public
+        } else { Permission::Private }
+        
+    }
+
+    fn to_couple(&self) -> Option<(Lang, Type)>{
+        match self {
+            Data::Array(v) if v.len() == 2 
+                => {
+                  let typ = v[1].to_type();
+                  Some((v[0].to_lang(), typ))
+                }
             _ => None 
         }
     }
@@ -225,7 +262,5 @@ pub fn parse_prolog(input: &str) -> Context {
     let res = match data {
         Data::Array(v) => v.iter().flat_map(|name_type| Data::to_couple(name_type)).collect::<Vec<_>>(),
         _ => panic!("The context should be an array of mapping")
-    };
-    res.iter().for_each(|x| println!("x: {:?}", x));
-    vec![]
+    }; res
 }
