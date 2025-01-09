@@ -28,7 +28,7 @@ format(tfn(Kinds1, Params1, Type1), Res) :-
 
 format(ttag(Name, Param), Res) :-
 	format(Param, Param2),
-	type_module:list_concat([Name, '(', Param2, ')'], Res).
+	type_module:list_concat(['.', Name, '(', Param2, ')'], Res).
 	
 format(var(Label), Label).
 

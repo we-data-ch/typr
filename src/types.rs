@@ -296,7 +296,7 @@ fn parenthese_value(s: &str) -> IResult<&str, Type> {
 
 fn tag_default(s: &str) -> IResult<&str, Type> {
     let res = terminated(tuple((
-            tag(":"),
+            tag("."),
             pascal_case,
             opt(parenthese_value))), multispace0)(s);
     match res {
