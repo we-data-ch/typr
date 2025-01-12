@@ -10,6 +10,9 @@ mod argument_type;
 mod argument_value;
 mod argument_kind;
 mod context_manager;
+mod type_comparison;
+mod unification;
+mod context;
 
 use parser::parse;
 use my_io::{read_file, write_adt, recreate_files, delete_files, type_check, execute};

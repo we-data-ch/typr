@@ -65,6 +65,7 @@ fn to_string<T: ToString>(v: &[T]) -> String {
     format!("[{}]", res)
 }
 
+
 use std::fmt;
 impl fmt::Display for Type {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -488,6 +489,11 @@ fn indices(s: &str) -> IResult<&str, Type> {
             indices_chain,
             single_index
                   ))(s)
+}
+
+pub fn string_to_type(s: &str) -> Type {
+    ltype(s)
+        .expect(&format!("The type format is incorrect: '{}'", s)).1
 }
 
 //ltype to not use the reserved symbol "type"
