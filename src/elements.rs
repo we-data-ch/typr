@@ -4,6 +4,7 @@ use nom::branch::alt;
 use nom::sequence::terminated;
 use nom::character::complete::multispace0;
 use crate::language::Lang;
+use crate::var::Var;
 use nom::bytes::complete::tag;
 use nom::sequence::tuple;
 use crate::operators::{Op, op};
@@ -452,23 +453,30 @@ fn int_or_var(s: &str) -> IResult<&str, Lang> {
     alt((integer, variable))(s)
 }
 
+fn create_range(params: &[Lang]) -> Lang {
+    if params.len() == 2 {
+        Lang::FunctionApp(
+           Box::new(Var::from_name("seq").to_language()),
+           vec![params[0].clone(), params[1].clone(), Lang::Integer(1)])
+    } else {
+        Lang::FunctionApp(
+           Box::new(Var::from_name("seq").to_language()),
+           vec![params[0].clone(), params[1].clone(), params[2].clone()])
+    }
+}
+
 fn range(s: &str) -> IResult<&str, Lang> {
     let res = tuple((
             int_or_var,
             tag(":"),
             opt(tuple((int_or_var, tag(":")))),
             int_or_var))(s);
+    //from_name().to_language()
     match res {
         Ok((s, (iv1, _sep, None, iv2))) 
-            => Ok((s, 
-                   Lang::FunctionApp(
-                       Box::new(Lang::Variable("seq".to_string(), "".to_string(), Permission::Private, false, Type::Empty)),
-                       vec![iv1, iv2, Lang::Integer(1)]))),
+            => Ok((s, create_range(&[iv1.clone(), iv2.clone()]))),
         Ok((s, (iv1, _sep, Some((iv0, _sep2)), iv2)))
-            => Ok((s, 
-                   Lang::FunctionApp(
-                       Box::new(Lang::Variable("seq".to_string(), "".to_string(), Permission::Private, false, Type::Empty)),
-                       vec![iv1, iv2, iv0]))),
+            => Ok((s, create_range(&[iv1.clone(), iv2.clone(), iv0.clone()]))),
         Err(r) => Err(r),
     }
 }

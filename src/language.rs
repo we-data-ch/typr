@@ -209,14 +209,10 @@ impl Lang {
             Lang::Array(v) 
                 => {
                     let vector = format!("c({})", v.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(","));
-                    if Lang::Array(v.to_vec()).shape().len() < 2 {
-                        vector
-                    } else {
                        let shape = Lang::Array(v.to_vec()).shape();
                        format!("array({}, dim = c({}))",
                             vector,
                             shape.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")) 
-                    }
                 } 
             Lang::Record(args) 
                 => format!("list({})", args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
@@ -232,7 +228,8 @@ impl Lang {
                                          .collect::<Vec<_>>().join(", ")),
             Lang::Assign(var, exp) => format!("{} <- {}", var.to_r(), exp.to_r()),
             Lang::Comment(txt) => "# ".to_string() + txt,
-            Lang::Range(i1, i2, i0) => format!("seq({},{},{})", i1, i2, i0),
+            Lang::Range(i1, i2, i0) 
+                => format!("array(seq({},{},{}), dim = c({}))", i1, i2, i0, i2-i1/i0),
             Lang::Integer(i) => i.to_string(),
             Lang::Tag(s, t) => format!("list('{}', {})", s, t.to_r()),
             Lang::Empty => "NA".to_string(),
@@ -241,6 +238,12 @@ impl Lang {
                 => exps.iter().map(|x| x.to_r()).collect::<Vec<String>>().join("\n\n"),
             _ => "".to_string()
         }
+    }
+
+    pub fn get_number(&self) -> i32 {
+        if let Lang::Integer(number) = self {
+            number.clone()
+        } else { 0 }
     }
 }
 
