@@ -200,6 +200,10 @@ impl Lang {
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
                         body.to_r()),
             Lang::Variable(v, path, _perm, _muta, _ty) => Self::format_path(path) + v,
+            Lang::FunctionApp(exp, vals) if exp.get_name() == "seq"
+                => format!("array({}({}), dim = c({}))", exp.to_r(),
+                vals.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
+                (vals[1].get_number()-vals[0].get_number())/vals[2].get_number()),
             Lang::FunctionApp(exp, vals) 
                 => format!("{}({})", exp.to_r(),
                 vals.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
@@ -244,6 +248,12 @@ impl Lang {
         if let Lang::Integer(number) = self {
             number.clone()
         } else { 0 }
+    }
+
+    pub fn get_name(&self) -> String {
+        if let Lang::Variable(name, _, _, _, _) = self {
+            name.to_string()
+        } else { "".to_string() }
     }
 }
 
