@@ -44,6 +44,7 @@ pub enum Type {
     Minus(Box<Type>, Box<Type>),
     Div(Box<Type>, Box<Type>),
     Mul(Box<Type>, Box<Type>),
+    Failed(String),
     Empty
 }
 
@@ -63,6 +64,7 @@ fn to_string<T: ToString>(v: &[T]) -> String {
         .unwrap_or("".to_string());
     format!("[{}]", res)
 }
+
 
 use std::fmt;
 impl fmt::Display for Type {
@@ -88,7 +90,8 @@ impl fmt::Display for Type {
             Type::Minus(id1, id2) => format!("minus({}, {})", id1, id2),
             Type::Mul(id1, id2) => format!("mul({}, {})", id1, id2),
             Type::Div(id1, id2) => format!("division({}, {})", id1, id2),
-            Type::Empty => "any".to_string()
+            Type::Empty => "any".to_string(),
+            _ => "".to_string()
         };
         write!(f, "{}", res)       
     }
@@ -294,7 +297,7 @@ fn parenthese_value(s: &str) -> IResult<&str, Type> {
 
 fn tag_default(s: &str) -> IResult<&str, Type> {
     let res = terminated(tuple((
-            tag(":"),
+            tag("."),
             pascal_case,
             opt(parenthese_value))), multispace0)(s);
     match res {
@@ -486,6 +489,11 @@ fn indices(s: &str) -> IResult<&str, Type> {
             indices_chain,
             single_index
                   ))(s)
+}
+
+pub fn string_to_type(s: &str) -> Type {
+    ltype(s)
+        .expect(&format!("The type format is incorrect: '{}'", s)).1
 }
 
 //ltype to not use the reserved symbol "type"

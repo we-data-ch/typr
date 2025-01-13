@@ -31,6 +31,7 @@ pub enum Lang {
     Scope(Vec<Lang>),
     Function(Vec<ArgumentKind>, Vec<ArgumentType>, String, Box<Lang>),
     Module(String, Vec<Lang>),
+    ModuleDecl(String),
     Variable(String, String, Permission, bool, Type),
     FunctionApp(Box<Lang>, Vec<Lang>),
     ArrayIndexing(Box<Lang>, f32),
@@ -168,9 +169,16 @@ impl Lang {
         }
     }
 
+    fn format_path(path: &str) -> String {
+        match path {
+            "" => "".to_string(),
+            pat => pat.replace("/", "$") + "$"
+        }
+    }
+
     pub fn to_r(&self) -> String {
         match self {
-            Lang::Bool(b) => b.to_string().to_uppercase(),
+            Lang::Bool(b) => format!("structure({}, class = 'bool')", b.to_string().to_uppercase()),
             Lang::In(b1, b2) => format!("{} %in% {}", b2.to_r(), b1.to_r()),
             Lang::And(b1, b2) => format!("{} & {}", b1.to_r(), b2.to_r()),
             Lang::Or(b1, b2) => format!("{} | {}", b1.to_r(), b2.to_r()),
@@ -191,24 +199,24 @@ impl Lang {
                 format!("function({}) {{ {} }}", 
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
                         body.to_r()),
-            Lang::Variable(v, _path, _perm, _muta, _ty) => v.to_string(),
+            Lang::Variable(v, path, _perm, _muta, _ty) => Self::format_path(path) + v,
+            Lang::FunctionApp(exp, vals) if exp.get_name() == "seq"
+                => format!("array({}({}), dim = c({}))", exp.to_r(),
+                vals.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
+                (vals[1].get_number()-vals[0].get_number())/vals[2].get_number()),
             Lang::FunctionApp(exp, vals) 
                 => format!("{}({})", exp.to_r(),
                 vals.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
             Lang::ArrayIndexing(exp, val) => format!("{}[{}]", exp, val),
             Lang::Let(var, _s2, body) 
-                => format!("{} <- {}", var.get_name(), body.to_r()),
+                => format!("{} <- {}", Self::format_path(&var.get_path()) + &var.get_name(), body.to_r()),
             Lang::Array(v) 
                 => {
                     let vector = format!("c({})", v.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(","));
-                    if Lang::Array(v.to_vec()).shape().len() < 2 {
-                        vector
-                    } else {
                        let shape = Lang::Array(v.to_vec()).shape();
                        format!("array({}, dim = c({}))",
                             vector,
                             shape.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")) 
-                    }
                 } 
             Lang::Record(args) 
                 => format!("list({})", args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
@@ -224,14 +232,28 @@ impl Lang {
                                          .collect::<Vec<_>>().join(", ")),
             Lang::Assign(var, exp) => format!("{} <- {}", var.to_r(), exp.to_r()),
             Lang::Comment(txt) => "# ".to_string() + txt,
-            Lang::Range(i1, i2, i0) => format!("seq({},{},{})", i1, i2, i0),
+            Lang::Range(i1, i2, i0) 
+                => format!("array(seq({},{},{}), dim = c({}))", i1, i2, i0, i2-i1/i0),
             Lang::Integer(i) => i.to_string(),
             Lang::Tag(s, t) => format!("list('{}', {})", s, t.to_r()),
             Lang::Empty => "NA".to_string(),
+            Lang::ModuleDecl(name) => format!("{} <- new.env()", name),
             Lang::Sequence(exps) 
                 => exps.iter().map(|x| x.to_r()).collect::<Vec<String>>().join("\n\n"),
             _ => "".to_string()
         }
+    }
+
+    pub fn get_number(&self) -> i32 {
+        if let Lang::Integer(number) = self {
+            number.clone()
+        } else { 0 }
+    }
+
+    pub fn get_name(&self) -> String {
+        if let Lang::Variable(name, _, _, _, _) = self {
+            name.to_string()
+        } else { "".to_string() }
     }
 }
 

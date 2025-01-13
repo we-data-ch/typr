@@ -9,6 +9,13 @@ impl ArgumentType {
     pub fn to_r(&self) -> String {
         self.0.clone()
     }
+    pub fn new(name: &str, type_: &Type) -> Self {
+        ArgumentType(name.to_string(), type_.clone(), false)
+    }
+
+    pub fn embedded(name: &str, type_: &Type) -> Self {
+        ArgumentType(name.to_string(), type_.clone(), true)
+    }
 }
 
 impl fmt::Display for ArgumentType {

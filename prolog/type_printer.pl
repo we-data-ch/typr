@@ -1,4 +1,4 @@
-:- module(type_printer, [pretty_print/1]).
+:- module(type_printer, [pretty_print/1, write_structure/1]).
 :- use_module(type_module).
 
 format(tarray(N1, T1), Res) :-
@@ -84,3 +84,10 @@ pretty_print(N1) :-
 pretty_print(N) :-
 	write("Wasn't able to print:"),
 	write(N).
+
+write_structure(Structure) :-
+    open("context.txt", write, Flux),
+    write(Flux, Structure),
+    write(Flux, '.'),
+    nl(Flux),
+    close(Flux).
