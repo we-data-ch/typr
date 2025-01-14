@@ -1,0 +1,20 @@
+Mat<M, N> = [M, [N, num]];
+CVec<M> = [M, [1, num]];
+LVec<M> = [M, [1, num]];
+add = (Mat<M, N>, Mat<M, N>) -> Mat<M, N>;
+transpose = (Mat<M, N>) -> Mat<N, M>;
+dot = (Mat<M, P>, Mat<P, N>) -> Mat<M, N>;
+cvec = ([N, T]) -> CVec<N>;
+lvec = ([N, T]) -> LVec<N>;
+
+
+
+Types
+Mat<M, N>
+CVec<M>
+LVec<M>
+
+Mat<M, N> -> MatMN
+[N, T] -> Array1
+CVec<N> -> CVecN
+LVec<N> -> LVecN

@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use crate::context_manager::parse_prolog;
-use crate::context_manager::Context;
+use crate::context::Context;
 
 
 pub fn recreate_files() {

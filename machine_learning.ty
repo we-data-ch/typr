@@ -7,6 +7,9 @@ module Matrice {
 	type CVec<#M> =
 		[#M, [1, num]];
 
+	type LVec<#M> =
+		[1, [#M, num]];
+
 	let add <- fn(m1: Mat<#M, #N>, m2: Mat<#M, #N>): Mat<#M, #N> {
 		...
 	};
@@ -15,7 +18,7 @@ module Matrice {
 		...
 	};
 
-	let dot <- fn(m1: Mat<#M, P>, m2: mat<P, #N>): <#M, #N> {
+	let dot <- fn(m1: Mat<#M, P>, m2: mat<P, #N>): Mat<#M, #N> {
 		...
 	};
 

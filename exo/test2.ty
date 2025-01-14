@@ -1,0 +1,16 @@
+Mat<M, N> = [M, [N, num]];
+CVec<M> = [M, [1, num]];
+LVec<M> = [1, [M, num]];
+add = ([M, [N, num]], [M, [N, num]]) -> [M, [N, num]];
+transpose = ([M, [N, num]]) -> [M, [N, num]];
+dot = ([M, [P, num]], [P, [N, num]]) -> [M, [N, num]];
+cvec = ([N, T]) -> [N, [1, num]];
+lvec = ([N, T]) -> [1, [N, num]];
+
+
+
+Types
+Mat<M, N>
+CVec<M>
+LVec<M>
+[M, [N, num]]

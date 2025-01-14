@@ -23,7 +23,7 @@ use nom::character::complete::line_ending;
 use crate::elements::bang_exp;
 use crate::metaprogramming::Module;
 use crate::my_io::get_context;
-use crate::context_manager::Context;
+use crate::context::Context;
 use nom::multi::many0;
 
 
@@ -54,6 +54,19 @@ fn find_alias(name: &str, v: Vec<Lang>) -> Lang {
         }).unwrap().clone()
 }
 
+struct NominalContext(Vec<(Type, String, Vec<String>)>);
+
+// name: type
+// alias: type
+
+
+impl From<Context> for NominalContext {
+   fn from(con: Context) -> Self {
+       let types = con.get_types();
+        todo!();
+   } 
+}
+
 impl Adt {
     pub fn find_alias_module(&self, path: &str, name: &str) -> (Lang, Module) {
         let module = self.find_module(path);
@@ -73,13 +86,11 @@ impl Adt {
         }
     }
 
-    fn to_nominal_types(&self, context: Context) -> Adt {
-        self.clone()
-    }
-
     pub fn to_r(&self) -> String {
         let context = get_context();
-        self.to_nominal_types(context).0.iter().map(|lang| lang.to_r()).collect::<Vec<_>>().join("\n")
+        //let nominal_context: NominalContext = context.into();
+        //self.to_nominal_types(context).0.iter().map(|lang| lang.to_r()).collect::<Vec<_>>().join("\n")
+        String::from("")
     }
 }
 

@@ -3,7 +3,7 @@ use crate::Lang;
 use std::fmt;
 use serde::Serialize;
 
-#[derive(Debug, PartialEq, Clone, Serialize)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize)]
 pub enum Permission {
     Private,
     Public

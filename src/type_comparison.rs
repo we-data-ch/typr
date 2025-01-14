@@ -21,8 +21,8 @@ pub fn check_interface_function(
     // Equivalent to the Prolog unification:type_substitution
     let fn_type2 = type_substitution(fn_type1, &vec![("self".to_string(), self_type.clone())]);
     // Equivalent to type_context:get_from_context
-    match context.types.get(&var.get_name()) {
-        Some(context_type) => is_matching(context, &fn_type2, context_type),
+    match context.get(&var) {
+        Some(context_type) => is_matching(context, &fn_type2, &context_type),
         None => false
     }
 }
@@ -125,9 +125,9 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
         }
 
         Type::Alias(name, params, _base_type) => {
-            if let Some(aliased_type) = context.types.get(name) {
+            if let Some(aliased_type) = context.get(&Var::from_name(name)) {
                 let substituted = type_substitution(
-                    aliased_type,
+                    &aliased_type,
                     &params.iter()
                         .enumerate()
                         .map(|(i, t)| (i.to_string(), t.clone()))

@@ -12,8 +12,8 @@ use crate::Type;
 use crate::var::Var;
 use crate::argument_type::ArgumentType;
 use crate::var::Permission;
+use crate::context::Context;
 
-pub type Context = Vec<(Lang, Type)>;
 
 #[derive(Debug, PartialEq, Clone)]
 enum Data {
@@ -262,5 +262,5 @@ pub fn parse_prolog(input: &str) -> Context {
     let res = match data {
         Data::Array(v) => v.iter().flat_map(|name_type| Data::to_couple(name_type)).collect::<Vec<_>>(),
         _ => panic!("The context should be an array of mapping")
-    }; res
+    }; res.into()
 }
