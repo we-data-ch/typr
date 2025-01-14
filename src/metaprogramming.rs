@@ -1,30 +1,15 @@
 use crate::my_io::read_file_from_name;
 use crate::argument_type::ArgumentType;
 use crate::var::Permission;
-use crate::parser::Adt;
+use crate::adt::Adt;
 use crate::var::Var;
 use crate::Lang;
 use crate::Type;
 use crate::parse;
+use crate::module::Module;
 
 fn get_alias(t: Type) -> Type {
     Type::Alias(t.clone().get_name(), vec![], "empty".to_string())
-}
-
-pub struct Module(pub String, pub Vec<Lang>);
-
-impl Module {
-    pub fn get_body(&self) -> Vec<Lang> {
-        self.1.clone()
-    }
-
-    pub fn from_language(l: Lang) -> Option<Module> {
-        match l {
-            Lang::Module(name, body) 
-                => Some(Module(name, body)),
-            _ => None
-        }
-    }
 }
 
 fn find_module(name: &str, seq: &[Lang]) -> Module {

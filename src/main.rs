@@ -13,6 +13,8 @@ mod context_manager;
 mod type_comparison;
 mod unification;
 mod context;
+mod adt;
+mod module;
 
 use parser::parse;
 use my_io::{read_file, write_adt, recreate_files, delete_files, type_check, execute};

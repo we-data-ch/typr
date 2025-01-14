@@ -9,50 +9,19 @@ use crate::elements::variable;
 use crate::types::type_alias;
 use nom::branch::alt;
 use crate::types::ltype;
-use std::fmt;
 use crate::types::Type;
 use crate::var::Var;
 use nom::combinator::opt;
 use crate::types::pascal_case;
 use nom::sequence::delimited;
-use serde::Serialize;
 use nom::sequence::preceded;
 use crate::elements::tag_exp;
 use nom::character::complete::not_line_ending;
 use nom::character::complete::line_ending;
 use crate::elements::bang_exp;
-use crate::metaprogramming::Module;
-use crate::my_io::get_context;
 use crate::context::Context;
 use nom::multi::many0;
-
-
-#[derive(Debug, Serialize, Clone)]
-pub struct Adt(pub Vec<Lang>);
-
-impl fmt::Display for Adt {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let res = self.0.iter().map(|x| x.to_string())
-            .reduce(|acc, x| format!("{}, {}", acc, x))
-            .unwrap_or("".to_string());
-        write!(f, "sequence([{}])", res)       
-    }
-}
-
-impl From<Vec<Lang>> for Adt {
-   fn from(val: Vec<Lang>) -> Self {
-        Adt(val)
-   } 
-}
-
-fn find_alias(name: &str, v: Vec<Lang>) -> Lang {
-    v.iter().find(|x| 
-        match x {
-          Lang::Alias(var, _params, _typ) 
-                if var.get_name() == name => true,
-            _ => false
-        }).unwrap().clone()
-}
+use crate::adt::Adt;
 
 struct NominalContext(Vec<(Type, String, Vec<String>)>);
 
@@ -67,32 +36,7 @@ impl From<Context> for NominalContext {
    } 
 }
 
-impl Adt {
-    pub fn find_alias_module(&self, path: &str, name: &str) -> (Lang, Module) {
-        let module = self.find_module(path);
-        let alias = find_alias(name, module.get_body());
-        (alias, module)
-    }
 
-    fn find_module(&self, path: &str) -> Module {
-        if let Lang::Module(name, body) = self.0.iter().find(|x| match x {
-            Lang::Module(name, _body) 
-                if name == path => true,
-            _ => false
-        }).unwrap_or(&Lang::Empty) {
-            Module(name.to_string(), body.to_vec())
-        } else {
-            panic!("The module '{}' was not found", path)
-        }
-    }
-
-    pub fn to_r(&self) -> String {
-        let context = get_context();
-        //let nominal_context: NominalContext = context.into();
-        //self.to_nominal_types(context).0.iter().map(|lang| lang.to_r()).collect::<Vec<_>>().join("\n")
-        String::from("")
-    }
-}
 
 fn pattern_var(s: &str) -> IResult<&str, (Vec<Lang>, Option<String>)> {
     let res = alt((tag_exp, variable))(s);
@@ -456,7 +400,7 @@ pub fn parse(s: &str) -> IResult<&str, Adt> {
     }
 }
 
-
+// main test
 #[cfg(test)]
 mod tesus {
     use super::*;
@@ -709,7 +653,4 @@ mod tesus {
         let res = return_exp("return a + 1;").unwrap().1;
         assert_eq!(res.to_string(), "");
     }
-
-
-
 }
