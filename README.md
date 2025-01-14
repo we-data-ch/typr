@@ -38,14 +38,14 @@ typr app.ty
 
 ## Documentation (minimal)
 
-- First presentation video in french : https://www.youtube.com/watch?v=5fWRaAPeJBs  
-- The next one is coming this friday 13 december 2024 !
+- First presentation video in French (subtitles in English): https://www.youtube.com/watch?v=5fWRaAPeJBs  
+- Second presentation video in French (subtitle in English): https://www.youtube.com/watch?v=vUf31KiV3J4
 
 ### Philosophy: flexibillity and type safety
 
 #### What is TypR 
 
-TypR is a word game with Typescript (a super set of javascript) and the common way of noming things in the R community. The initial goal is to create a better experience with building Packages for R (I want them to be easily compatible with the CRAN's requirements to be easy to ship). Indeed, TypR *is not only a type checker* but bring greater tool to build packages for datascience in genral and want to be an easy way to convert research paper into code. TypR add great static types and a flexible syntax with some cool tricks (metaprogramming) that make him great to work with
+TypR is a word game with Typescript (a superset of JavaScript) and the common way of naming things in the R community. The initial goal is to create a better experience with building Packages for R (I want them to be easily compatible with the CRAN's requirements to be easy to ship). Indeed, TypR *is not only a type checker* but bring greater tools to build packages for data science in general and want to be an easy way to convert research paper into code. TypR add great static types and a flexible syntax with some cool tricks (metaprogramming) that make it great to work with.
 
 #### What TypR is not
 
@@ -91,7 +91,7 @@ As you can see, typR display two things. The first is the result of the type che
 
 The second thing displayed is the evaluation of the value of the variable `a`. Since we created it with the value `5` it take it as it is.
 
-The `typr` binary created two files to do this task. They exist in the current directory and are respectively named `adt.pl` and `app.R`. `adt.pl` is the file (prolog file) containing the information about the code and the related types. TypR is able to reason about types with it and give use the type checking we previousely saw. The `app.R` is the file with the type annotation removed (but TypR don't only do that):
+The `typr` binary created two files to do this task. They exist in the current directory and are respectively named `adt.pl` and `app.R`. `adt.pl` is the file (prolog file) containing the information about the code and the related types. TypR is able to reason about types with it and gives us the type checking we previously saw. The `app.R` is the file with the type annotation removed (but TypR don't only do that):
 
 ```R
 # [other prebuild stuffs to work with typR]
@@ -101,16 +101,15 @@ n <- 5
 n
 ```
 
-You don't need to pay attention to the first lines of the document but to the last two lines. As you see, it's almost the same thing as the `app.ty` document with the exception of some element removed (the "let", and the type annotation). Of course TypR is not just a R with types but bring other great construct from metaprogramming that will also bring a simpler syntax in TypR that will build some code for you in the R's side. You can play with it and see by yourself.
-
+You don't need to pay attention to the first lines of the document but to the last two lines. As you see, it's almost the same thing as the `app.ty` document with the exception of some element removed (the "let", and the type annotation). Of course TypR is not just R with types but it brings other great constructs from metaprogramming that will also bring a simpler syntax in TypR. It will build some code for you on the R's side. You can play with it and see it for yourself.
 
 ### Types
 
-Even though TypR try to be the closest possible to the type system of R, it also take it's own route for certain things and do the translation for R. For now, not all basic R data types are represented but TypR has his own representation.
+Even though TypR try to be the closest possible to the type system of R, it also takes its own route for certain things and do the translation of R. For now, not all basic R data types are represented but TypR has its own representation.
 
 *Basic types:*
 
-Each basic type will give a vector of size 1 in R. Boleans are now the two lower case values `true` and `false` instead of the uppercase one (TRUE, FALSE or T, F).
+Each basic type gives a vector of size 1 in R. Boleans are now the two lower-case values `true` and `false` instead of the uppercase one (TRUE, FALSE or T, F).
 
 | name       | TypR  | R       |
 |------------|-------|---------|
