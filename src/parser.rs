@@ -23,21 +23,6 @@ use crate::context::Context;
 use nom::multi::many0;
 use crate::adt::Adt;
 
-struct NominalContext(Vec<(Type, String, Vec<String>)>);
-
-// name: type
-// alias: type
-
-
-impl From<Context> for NominalContext {
-   fn from(con: Context) -> Self {
-       let types = con.get_types();
-        todo!();
-   } 
-}
-
-
-
 fn pattern_var(s: &str) -> IResult<&str, (Vec<Lang>, Option<String>)> {
     let res = alt((tag_exp, variable))(s);
     match res {

@@ -1,6 +1,7 @@
 use crate::types::Type;
 use crate::language::Lang;
 use crate::var::Var;
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct Context(Vec<(Lang, Type)>);
@@ -34,7 +35,7 @@ impl Context {
     }
 
     pub fn get_types(&self) -> Vec<Type> {
-        let res = self.iter().flat_map(|(lang, type_)| {
+        let res = self.iter().flat_map(|(_lang, type_)| {
             match type_ {
                 Type::Function(args, ret)
                     => {
@@ -43,7 +44,11 @@ impl Context {
                     }
                 typ => vec![typ.clone()]
             }
-        });
-        todo!();
-    }
+        }).collect::<Vec<_>>();
+        let mut seen = HashSet::new();
+        let unique: Vec<_> = res.into_iter()
+            .filter(|x| seen.insert((*x).clone()))
+            .collect();
+        unique
+        }
 }

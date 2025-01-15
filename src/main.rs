@@ -15,6 +15,7 @@ mod unification;
 mod context;
 mod adt;
 mod module;
+mod nominal_context;
 
 use parser::parse;
 use my_io::{read_file, write_adt, recreate_files, delete_files, type_check, execute};

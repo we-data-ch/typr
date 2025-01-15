@@ -2,7 +2,7 @@ use std::fmt;
 use serde::Serialize;
 use crate::types::Type;
 
-#[derive(Debug, Clone, PartialEq, Serialize)] // 3 argument is for the embedding
+#[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)] // 3 argument is for the embedding
 pub struct ArgumentType(pub String, pub Type, pub bool);
 
 impl ArgumentType {

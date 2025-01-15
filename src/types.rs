@@ -22,7 +22,7 @@ use serde::Serialize;
 use crate::operators::op;
 use crate::operators::Op;
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
 pub enum Type {
     Number,
     Integer,
