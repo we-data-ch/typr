@@ -27,4 +27,5 @@ decl(var('rep', empty, private, false, tarray(ind('n'), gen('t'))), any, fn([],[
 decl(var('sort', empty, private, false, tarray(ind('n'), gen('t'))), any, fn([],[[var('a'),tarray(ind('n'), gen('t'))]],tarray(ind('n'), gen('t')),sequence([empty]))),
 decl(var('c', empty, private, false, tarray(ind('n'), gen('t'))), any, fn([],[[var('a'),tarray(ind('n'), gen('t'))], [var('b'),tarray(ind('m'), gen('t'))]],tarray(add(ind('n'), ind('m')), gen('t')),sequence([empty]))),
 decl(var('median', empty, private, false, tarray(ind('n'), gen('t'))), any, fn([],[[var('a'),tarray(ind('n'), gen('t'))]],gen('t'),sequence([empty]))),
-decl(var('mode', empty, private, false, tarray(ind('n'), gen('t'))), any, fn([],[[var('a'),tarray(ind('n'), gen('t'))]],gen('t'),sequence([empty])))
+decl(var('mode', empty, private, false, tarray(ind('n'), gen('t'))), any, fn([],[[var('a'),tarray(ind('n'), gen('t'))]],gen('t'),sequence([empty]))),
+decl(var('dot', empty, private, false, tarray(ind('m'), tarray(ind('d'), num))), any, fn([],[[var('a'),tarray(ind('m'), tarray(ind('d'), num))], [var('b'),tarray(ind('d'), tarray(ind('n'), num))]],tarray(ind('m'), tarray(ind('n'), num)),sequence([empty])))

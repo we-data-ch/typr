@@ -1,4 +1,4 @@
-use crate::types::Type;
+use crate::r#type::Type;
 use crate::language::Lang;
 use crate::var::Var;
 use std::collections::HashSet;

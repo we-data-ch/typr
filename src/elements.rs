@@ -20,7 +20,7 @@ use crate::argument_kind::ArgumentKind;
 use crate::types::ltype;
 use nom::character::complete::one_of;
 use nom::character::complete::none_of;
-use crate::types::Type;
+use crate::r#type::Type;
 use nom::sequence::preceded;
 use nom::character::complete::multispace1;
 use crate::parser::parse_exp;

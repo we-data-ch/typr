@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::context::Context;
-use crate::types::Type;
+use crate::r#type::Type;
 
 pub struct NominalContext(Vec<(Type, String, Vec<String>)>);
 
@@ -112,7 +112,7 @@ impl From<Context> for NominalContext {
    fn from(con: Context) -> Self {
        let types = con.get_types();
        let nominals = get_nominal(types.clone(), con);
-       dbg!(&types);
+       //dbg!(&types);
        vec![].into()
    } 
 }

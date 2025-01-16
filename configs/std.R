@@ -6,3 +6,6 @@ filter <- function(vec, condition) {
 into <- function(element, vecteur) {
   return(element %in% vecteur)
 }
+dot <- function(a, b) {
+	a %*% b
+}

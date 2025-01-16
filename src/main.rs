@@ -16,10 +16,11 @@ mod context;
 mod adt;
 mod module;
 mod nominal_context;
+mod r#type;
 
 use parser::parse;
 use my_io::{read_file, write_adt, recreate_files, delete_files, type_check, execute};
-use crate::types::Type;
+use crate::r#type::Type;
 use crate::language::Lang;
 use crate::metaprogramming::metaprogrammation;
 use std::fs::File;

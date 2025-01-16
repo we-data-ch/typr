@@ -57,7 +57,7 @@ impl Adt {
 
     pub fn to_r(&self) -> String {
         let context = get_context();
-        let nominal_context: NominalContext = context.into();
+        //let nominal_context: NominalContext = context.into();
         //self.to_nominal_types(context).0.iter().map(|lang| lang.to_r()).collect::<Vec<_>>().join("\n")
         self.iter().map(|line| line.to_r()).fold(String::from(""), |acc, x| format!("{}\n{}", acc, x))
     }

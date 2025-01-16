@@ -1,8 +1,7 @@
 use crate::unification::type_substitution;
 use crate::argument_type::ArgumentType;
-use std::collections::HashMap;
 use crate::unification::unify;
-use crate::types::Type;
+use crate::r#type::Type;
 use crate::var::Var;
 use crate::types::string_to_type;
 use crate::context::Context;

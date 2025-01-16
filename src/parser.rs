@@ -9,7 +9,7 @@ use crate::elements::variable;
 use crate::types::type_alias;
 use nom::branch::alt;
 use crate::types::ltype;
-use crate::types::Type;
+use crate::r#type::Type;
 use crate::var::Var;
 use nom::combinator::opt;
 use crate::types::pascal_case;
@@ -19,7 +19,6 @@ use crate::elements::tag_exp;
 use nom::character::complete::not_line_ending;
 use nom::character::complete::line_ending;
 use crate::elements::bang_exp;
-use crate::context::Context;
 use nom::multi::many0;
 use crate::adt::Adt;
 

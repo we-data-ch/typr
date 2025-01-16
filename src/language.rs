@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use std::fmt;
-use crate::types::Type;
+use crate::r#type::Type;
 use crate::var::Var;
 use crate::var::Permission;
 use serde::Serialize;

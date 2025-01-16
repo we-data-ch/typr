@@ -1,6 +1,6 @@
 use std::fmt;
 use serde::Serialize;
-use crate::types::Type;
+use crate::r#type::Type;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)] // 3 argument is for the embedding
 pub struct ArgumentType(pub String, pub Type, pub bool);
