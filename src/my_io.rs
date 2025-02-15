@@ -6,9 +6,10 @@ use std::io::Write;
 use std::path::Path;
 use crate::context_manager::parse_prolog;
 use crate::context::Context;
+use crate::Adt;
 
 
-pub fn recreate_files() {
+pub fn include_prolog_files() {
     let kinds = include_str!("../prolog/kinds.pl");
     let type_checker = include_str!("../prolog/type_checker.pl");
     let type_comparison = include_str!("../prolog/type_comparison.pl");
@@ -31,7 +32,7 @@ fn delete_file(file_path: &str) {
     let _ = fs::remove_file(path);
 }
 
-pub fn delete_files() {
+pub fn delete_prolog_files() {
     ["kinds.pl", "type_checker.pl", "type_comparison.pl", "type_context.pl", "type_module.pl", "type_printer.pl", "unification.pl"].iter().for_each(|file| delete_file(file))
 }
 
@@ -54,7 +55,7 @@ pub fn read_file_from_name(name: &str) -> String {
     fs::read_to_string(&file).expect(&format!("Can't Read file {}", name))
 }
 
-pub fn type_check() {
+pub fn type_check_prolog() {
     println!("Type checking: ");
     let output = Command::new("swipl")
         .arg("-s")
@@ -71,7 +72,7 @@ pub fn type_check() {
     println!("");
 }
 
-pub fn execute() -> () {
+pub fn execute_r() -> () {
     println!("Execution: ");
     let output = Command::new("Rscript")
         .arg(get_os_file("app.R"))
@@ -83,7 +84,8 @@ pub fn execute() -> () {
 }
 
 
-pub fn write_adt(s: &str) {
+pub fn write_adt_to_prolog(adt: &Adt) {
+    let s = adt.to_string();
     let mut file = File::create(get_os_file("adt.pl")).unwrap();
     let import1 = ":- use_module(type_checker).\n";
     let import2 = ":- use_module(type_printer).\n\n";

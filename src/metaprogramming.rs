@@ -113,7 +113,7 @@ fn get_embeddings(line: &Lang, adt: &Adt) -> Vec<(Type, ArgumentType)> {
 }
 
 fn type_embedding(adt: Adt) -> Adt {
-    adt.0.iter().flat_map(|line| {
+    adt.iter().flat_map(|line| {
         let res = get_embeddings(line, &adt);
         if res.len() > 0 {
             res.iter().flat_map(|(parent_type, ArgumentType(field, typ, _emb))| {
@@ -126,16 +126,18 @@ fn type_embedding(adt: Adt) -> Adt {
     }).collect::<Vec<_>>().into()
 }
 
-fn import_modules(adt: Adt) -> Adt {
-    adt.0.iter().map(|line| {
-        match line {
-            Lang::ModImp(name) => {
-                let new_adt = metaprogrammation(parse(&read_file_from_name(&name)).unwrap().1);
-                Lang::Module(name.to_string(), new_adt.0)
-            }
-            n => n.clone()
+fn import_file_module_code(line: &Lang) -> Lang {
+    match line {
+        Lang::ModImp(name) => {
+            let new_adt = metaprogrammation(parse(&read_file_from_name(&name)).unwrap().1);
+            Lang::Module(name.to_string(), new_adt.0)
         }
-    }).collect::<Vec<_>>().into()
+        n => n.clone()
+    }
+}
+
+fn import_file_modules_code(adt: Adt) -> Adt {
+    adt.iter().map(import_file_module_code).collect::<Vec<_>>().into()
 }
 
 fn get_related_functions2(module_name: &str, name: &str, adt: &Adt) -> Vec<Lang> {
@@ -214,22 +216,24 @@ fn private_public_change(module_name: &str, adt: Adt) -> Vec<Lang> {
     }).collect::<Vec<_>>()
 }
 
-fn linearize(adt: Adt) -> Adt {
-    adt.0.iter().flat_map(|line| {
-        match line {
-            Lang::Module(name, body) 
-                => {
-                    let new_adt = linearize(body.clone().into());
-                    let mut lines = private_public_change(name, new_adt);
-                    lines.insert(0, Lang::ModuleDecl(name.to_string()));
-                    lines
-                },
-            lang => vec![lang.clone()]
-        }
-    }).collect::<Vec<_>>().into()
+fn unnest_module(line: &Lang) -> Vec<Lang> {
+    match line {
+        Lang::Module(name, body) 
+            => {
+                let new_adt = unnest_modules(body.clone().into());
+                let mut lines = private_public_change(name, new_adt);
+                lines.insert(0, Lang::ModuleDecl(name.to_string()));
+                lines
+            },
+        lang => vec![lang.clone()]
+    }
+}
+
+fn unnest_modules(adt: Adt) -> Adt {
+    adt.iter().flat_map(unnest_module).collect::<Vec<_>>().into()
 }
 
 pub fn metaprogrammation(adt: Adt) -> Adt {
     //type_embedding(import_types(import_modules(adt)))
-    linearize(import_modules(adt))
+    unnest_modules(import_file_modules_code(adt))
 }

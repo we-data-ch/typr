@@ -49,6 +49,7 @@ pub enum Lang {
     Range(i32, i32, i32),
     ModImp(String),
     Import(Type), // type alias
+    Header(Box<Lang>),
     Empty
 }
 
@@ -134,6 +135,7 @@ impl fmt::Display for Lang {
             Lang::Range(i1, i2, i0) => format!("seq({},{},{})", i1, i2, i0),
             Lang::Integer(i) => i.to_string(),
             Lang::Import(_typ) => "import".to_string(),
+            Lang::Header(lang) => lang.to_string(),
             Lang::Sequence(exps) 
                 => {
                 let res = exps.iter()
@@ -141,7 +143,7 @@ impl fmt::Display for Lang {
                 format!("{}", res.join(","))
                 },
             _ => "empty".to_string()
-        };
+            };
         write!(f, "{}", res)
     }
 }

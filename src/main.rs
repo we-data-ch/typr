@@ -17,31 +17,52 @@ mod adt;
 mod module;
 mod nominal_context;
 mod r#type;
+mod kinds;
+mod type_checker;
+mod type_context;
+mod type_module;
+mod type_printer;
 
 use parser::parse;
-use my_io::{read_file, write_adt, recreate_files, delete_files, type_check, execute};
+use my_io::{read_file, write_adt_to_prolog, include_prolog_files, delete_prolog_files, type_check_prolog, execute_r};
 use crate::r#type::Type;
 use crate::language::Lang;
 use crate::metaprogramming::metaprogrammation;
 use std::fs::File;
 use std::io::Write;
+use crate::adt::Adt;
 
-
-fn main() {
-    recreate_files();
-
-    let adt = parse(&read_file()).unwrap().1;
-    let adt = metaprogrammation(adt.clone());
-    write_adt(&adt.to_string());
-    type_check();
-
+fn write_adt_to_r(adt: &Adt) -> () {
     let rstd = include_str!("../configs/std.R");
     let mut app = File::create("app.R").unwrap();
     let content = format!("{}\n\n{}", rstd, adt.to_r());
     app.write_all(content.as_bytes()).unwrap();
-    execute();
+}
 
-    delete_files();
+fn execute(adt: &Adt) -> () {
+    write_adt_to_r(&adt);
+    execute_r();
+}
+
+fn type_check(adt: &Adt) -> () {
+    write_adt_to_prolog(&adt);
+    type_check_prolog();
+}
+
+fn parse_code() -> Adt {
+    let adt = parse(&read_file()).unwrap().1;
+    metaprogrammation(adt.clone())
+}
+
+fn main() {
+    include_prolog_files();
+    
+    let adt = parse_code();
+
+    type_check(&adt);
+    execute(&adt);
+
+    delete_prolog_files();
 }
 
 #[cfg(test)]
