@@ -2,6 +2,12 @@ use crate::Type;
 use crate::Lang;
 use std::fmt;
 use serde::Serialize;
+use crate::context::Context;
+use crate::type_comparison;
+
+type Name = String;
+type Path = String;
+type IsMutableOpaque = bool;
 
 #[derive(Debug, PartialEq, Clone, Copy, Serialize)]
 pub enum Permission {
@@ -19,7 +25,7 @@ impl fmt::Display for Permission {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Var(pub String, pub String, pub Permission, pub bool, pub Type);
+pub struct Var(pub Name, pub Path, pub Permission, pub IsMutableOpaque, pub Type);
 
 impl Var {
     pub fn from_language(l: Lang) -> Option<Var> {
@@ -76,12 +82,38 @@ impl Var {
         self.1.to_string()
     }
 
+    pub fn get_permission(&self) -> Permission {
+        self.2
+    }
+
     pub fn set_path(self, new_path: &str) -> Var {
         Var(self.0, new_path.to_string(), self.2, self.3, self.4)
     }
 
     pub fn get_type(&self) -> Type {
         self.4.clone()
+    }
+
+    pub fn get_is_mutable(&self) -> bool {
+        self.3.clone()
+    }
+
+    pub fn get_is_opaque(&self) -> bool {
+        self.3.clone()
+    }
+
+    pub fn is_alias(&self) -> bool {
+        match self {
+            Var(_, _, _, _, Type::Params(_)) => true,
+            _ => false
+        }
+    }
+
+    pub fn match_with(&self, var: &Var, context: &Context) -> bool {
+        [(self.get_name() == var.get_name()),
+        (self.get_path() == var.get_path()),
+        (self.get_permission() == Permission::Public),
+        type_comparison::is_matching(context, &self.get_type(), &var.get_type())].iter().all(|&x| x)
     }
 }
 

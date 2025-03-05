@@ -1,33 +1,36 @@
 use std::fs::File;
 use std::io::{Write, Result};
+use crate::Type;
+use crate::kind::Kind;
+
+fn format_kind(ki: &Kind) -> String {
+   match ki {
+       Kind::Type => "k_type",
+       _ => "k_index"
+   }.to_string()
+}
 
 fn format(ty: &Type) -> String {
     match ty {
-        Type::TArray(dim, ty) => format!("[{}, {}]", dim, format(ty)),
-        Type::Var(name, _, _, _, Type::Params(params)) if params.is_empty() => name.clone(),
-        Type::Var(name, _, _, _, Type::Params(params)) => {
-            let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();
-            format!("{}({})", name, formatted_params.join(", "))
-        }
-        Type::Var(name, _, _, _, _) => name.clone(),
-        Type::TFn(kinds, params, ret_ty) => {
-            let formatted_kinds = kinds.iter().map(|kind| format(kind)).collect::<Vec<_>>();
+        Type::Array(dim, ty) => format!("[{}, {}]", dim, format(ty)),
+        Type::Function(kinds, params, ret_ty) => {
+            let formatted_kinds = kinds.iter().map(|arg_kind| format_kind(&arg_kind.get_kind())).collect::<Vec<_>>();
             let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();
             format!("fn<{}>({}) -> {}", formatted_kinds.join(", "), formatted_params.join(", "), format(ret_ty))
         }
-        Type::TTag(name, param) => format!("{}({})", name, format(param)),
-        Type::TRecord(fields) => {
-            let formatted_fields = fields.iter().map(|(label, ty)| format!("{}: {}", label, format(ty))).collect::<Vec<_>>();
+        Type::Tag(name, param) => format!("{}({})", name, format(param)),
+        Type::Record(fields) => {
+            let formatted_fields = fields.iter().map(|arg_typ| format!("{}: {}", arg_typ.get_argument(), format(&arg_typ.get_type()))).collect::<Vec<_>>();
             format!("{{{}}}", formatted_fields.join(", "))
         }
-        Type::Gen(name) => name.to_uppercase(),
-        Type::Ind(gen) => format!("#{}", gen.to_uppercase()),
-        Type::Num => "Num".to_string(),
-        Type::Bool => "Bool".to_string(),
-        Type::Int => "Int".to_string(),
+        Type::Generic(name) => name.to_uppercase(),
+        Type::Index(gen) => format!("#{}", gen),
+        Type::Number => "Num".to_string(),
+        Type::Boolean => "Bool".to_string(),
+        Type::Integer => "Int".to_string(),
         Type::Empty => "Empty".to_string(),
         Type::Union(types) => {
-            let formatted_types = types.iter().map(|ty| format(ty)).collect::<Vec<_>>();
+            let formatted_types = types.iter().map(|ty| format(&ty.to_type())).collect::<Vec<_>>();
             format!("Union({})", formatted_types.join(", "))
         }
         _ => "Unknown".to_string(),

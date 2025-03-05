@@ -1,3 +1,10 @@
+use crate::Type;
+use crate::Lang;
+use crate::context::Context;
+use crate::var::Var;
+
+pub struct Opaques(String);
+
 fn list_atom_concat(list: &[String]) -> String {
     list.join(", ")
 }
@@ -19,23 +26,24 @@ where
 
 fn get_base_name(ty: &Type) -> String {
     match ty {
-        Type::Gen(name) => name.to_uppercase(),
-        Type::Var(name, _, _, _, _) => name.clone(),
-        Type::Num => "Num".to_string(),
-        Type::Bool => "Bool".to_string(),
-        Type::TArray(dim, ty) => format!("array{}{}", dim, get_base_name(ty)),
-        Type::TRecord(params) => {
+        Type::Generic(name) => name.to_uppercase(),
+        Type::Number => "Num".to_string(),
+        Type::Boolean => "Bool".to_string(),
+        Type::Array(dim, ty) => format!("array{}{}", dim, get_base_name(ty)),
+        Type::Record(params) => {
             let flattened = flatten(params);
-            let base_names = flattened.iter().map(|(_, ty)| get_base_name(ty)).collect::<Vec<_>>();
+            let base_names = flattened.iter()
+                .map(|arg_typ| get_base_name(&arg_typ.get_type()))
+                .collect::<Vec<_>>();
             format!("record_{}", list_atom_concat(&base_names))
         }
-        Type::TFn(_, types, ret_ty) => {
+        Type::Function(_, types, ret_ty) => {
             let base_names = types.iter().map(|ty| get_base_name(ty)).collect::<Vec<_>>();
             let concatenated = list_atom_concat(&base_names);
             format!("function{}{}", concatenated, get_base_name(ret_ty))
         }
         Type::Tag(name, value) => format!("tag{}{}", name, get_base_name(value)),
-        Type::Int => "Int".to_string(),
+        Type::Integer => "Int".to_string(),
         _ => "Unknown".to_string(),
     }
 }
@@ -45,24 +53,25 @@ fn base_name_from(name: &str, ty: &Type) -> String {
     format!("{}{}", base, name)
 }
 
-fn substitute_opaque(opaques: &Opaques, var: &Expr, context: &mut Context) {
-    if let Expr::Var(name, _, _, _, _) = var {
-        if opaques.0.contains(name) {
-            context.types.push((name.clone(), Type::Opaque(name.clone())));
+fn substitute_opaque(opaques: &Opaques, var: &Lang, context: &mut Context) {
+    if let Lang::Variable(name, _, _, _, _) = var {
+        if opaques.0 == *name {
+            context.get_type_map()
+                .push((
+                        Var::from_language(var.clone()).unwrap(),
+                        Type::Opaque(name.clone())));
         }
     }
 }
 
-fn add_path(name: &str, var: &Expr, opaques: &mut Opaques, context: &mut Context) {
+pub fn add_path(name: &str, var: &Lang) -> Lang {
     match var {
-        Expr::Var(n, path, perm, mutable, ty) => {
+        Lang::Variable(n, path, perm, mutable, ty) => {
+            let context = Context::default();
             let new_path = concat_path(name, path);
-            context.types.push((n.clone(), Type::Var(n.clone(), new_path, perm.clone(), *mutable, ty.clone())));
-            if perm == "private" {
-                opaques.0.push(n.clone());
-            }
+            Lang::Variable(n.clone(), new_path, perm.clone(), *mutable, ty.clone())
         }
-        _ => {}
+        lang => lang.clone()
     }
 }
 

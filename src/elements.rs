@@ -26,6 +26,7 @@ use nom::character::complete::multispace1;
 use crate::parser::parse_exp;
 use crate::var::Permission;
 use nom::character::complete::digit1;
+use crate::kind::Kind;
 
 pub fn number(s: &str) -> IResult<&str,Lang> {
     let res = terminated(tuple((digit1, tag("."), digit1)), multispace0)(s);
@@ -170,15 +171,25 @@ fn argument_val(s: &str) -> IResult<&str, ArgumentValue> {
     }
 }
 
+fn lkind(s: &str) -> IResult<&str, Kind> {
+    let res = alt((tag("Type"), tag("Dim")))(s);
+    match res {
+        Ok((s, "Type")) => Ok((s, Kind::Type)),
+        Ok((s, "Kind")) => Ok((s, Kind::Dim)),
+        Err(r) => Err(r),
+        _ => todo!()
+    }
+}
+
 pub fn argument_kind(s: &str) -> IResult<&str, ArgumentKind> {
     let res = tuple((
-        terminated(alpha1, multispace0),
-        terminated(tag(":"), multispace0),
         ltype,
+        terminated(tag(":"), multispace0),
+        lkind,
         opt(terminated(tag(","), multispace0))
                 ))(s);
     match res {
-        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentKind(e1.to_string(), e2.to_string()))),
+        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentKind(e1, e2))),
         Err(r) => Err(r)
     }
 }
@@ -199,7 +210,7 @@ pub fn simple_function(s: &str) -> IResult<&str, Lang> {
           ))(s);
     match res {
         Ok((s, (_, _, args, _, Some(_), Some(typ), exp))) =>
-            Ok((s, Lang::Function(vec![], args, typ.to_string(), Box::new(exp)))),
+            Ok((s, Lang::Function(vec![], args, typ, Box::new(exp)))),
         Ok((_s, (_, _, _args, _, None, None, _exp))) 
             => {
                 println!("You forgot to specify the function return type: 'fn(...): Type'");
@@ -237,7 +248,7 @@ fn complex_function(s: &str) -> IResult<&str, Lang> {
           ))(s);
     match res {
         Ok((s, (_, _, arg_kinds, _, _, args, _, _, typ, exp))) => 
-            Ok((s, Lang::Function(arg_kinds, args, typ.to_string(), Box::new(exp)))),
+            Ok((s, Lang::Function(arg_kinds, args, typ, Box::new(exp)))),
         Err(r) => Err(r)
     }
 }

@@ -69,7 +69,7 @@ fn base_let_exp(s: &str) -> IResult<&str, Vec<Lang>> {
         Ok((s, (_let, (pat_var, None), typ, _eq, Lang::Function(ki, params, ty, body)))) 
             if params.len() > 0 => {
                 let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false);
-                Ok((s, vec![Lang::Let(newvar, typ.unwrap_or(Type::Empty).to_string(),
+                Ok((s, vec![Lang::Let(newvar, typ.unwrap_or(Type::Empty),
                 Box::new(Lang::Function(ki, params, ty, body)))]))
             },
         Ok((s, (_let, (pat_var, None), typ, _eq, body))) => {
@@ -77,7 +77,7 @@ fn base_let_exp(s: &str) -> IResult<&str, Vec<Lang>> {
                     vec![
                     Lang::Let(
                         Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
-                        typ.clone().unwrap_or(Type::Empty).to_string(),
+                        typ.clone().unwrap_or(Type::Empty),
                         Box::new(body))]))
                 }
         Ok((s, (_let, (pat_var, Some(_)), typ, _eq, body))) => {
@@ -86,14 +86,14 @@ fn base_let_exp(s: &str) -> IResult<&str, Vec<Lang>> {
                     vec![
                     Lang::Let(
                         Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
-                        typ.clone().unwrap_or(Type::Empty).to_string(),
+                        typ.clone().unwrap_or(Type::Empty),
                         Box::new(Lang::Dot(Box::new(Lang::Number(0.0)),
                         Box::new(body))))]))
 
             } else {
                 Ok((s,
                 pat_var.iter().map(|x| {
-                    Lang::Let(Var::from_language(x.clone()).unwrap().set_permission(false), typ.clone().unwrap_or(Type::Empty).to_string(), Box::new(body.clone()))
+                    Lang::Let(Var::from_language(x.clone()).unwrap().set_permission(false), typ.clone().unwrap_or(Type::Empty), Box::new(body.clone()))
                 }).collect::<Vec<_>>()
                    ))
             }
@@ -141,7 +141,7 @@ fn base_mut_exp(s: &str) -> IResult<&str, Lang> {
                     .unwrap()
                     .set_type(params[0].1.clone())
                     .set_mutability(true);
-                Ok((s, Lang::Let(newvar, typ.unwrap_or(Type::Empty).to_string(),
+                Ok((s, Lang::Let(newvar, typ.unwrap_or(Type::Empty),
                 Box::new(Lang::Function(ki, params, ty, body)))))
             },
         Ok((s, (_let, var, typ, _eq, body))) => {
@@ -149,7 +149,7 @@ fn base_mut_exp(s: &str) -> IResult<&str, Lang> {
                         Var::from_language(var)
                             .unwrap()
                             .set_mutability(true),
-                            typ.unwrap_or(Type::Empty).to_string(), Box::new(body))))
+                            typ.unwrap_or(Type::Empty), Box::new(body))))
         },
         Err(r) => Err(r)
     }
@@ -329,7 +329,7 @@ fn import_var(s: &str) -> IResult<&str, Vec<Lang>> {
         Ok((s, (_use, Lang::Variable(name, path, perm, mutop, typ), _sc))) => {
             let var1 =  Lang::Variable(name.clone(), path.clone(), perm.clone(), mutop.clone(), typ.clone());
             let var2 =  Lang::Variable(name.clone(), "".to_string(), perm.clone(), mutop.clone(), typ.clone());
-            let shortcut = Lang::Let(Var::from_language(var2).unwrap(), "any".to_string(), Box::new(var1));
+            let shortcut = Lang::Let(Var::from_language(var2).unwrap(), Type::Any, Box::new(var1));
             Ok((s, vec![shortcut]))
         }
         Err(r) => Err(r),

@@ -3,7 +3,6 @@ use serde::Serialize;
 use crate::language::Lang;
 use crate::module::Module;
 use crate::my_io::get_context;
-use crate::nominal_context::NominalContext;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Adt(pub Vec<Lang>);
@@ -56,9 +55,7 @@ impl Adt {
     }
 
     pub fn to_r(&self) -> String {
-        let context = get_context();
-        //let nominal_context: NominalContext = context.into();
-        //self.to_nominal_types(context).0.iter().map(|lang| lang.to_r()).collect::<Vec<_>>().join("\n")
+        let _context = get_context();
         self.iter().map(|line| line.to_r()).fold(String::from(""), |acc, x| format!("{}\n{}", acc, x))
     }
 }

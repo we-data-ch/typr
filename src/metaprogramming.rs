@@ -45,8 +45,8 @@ fn implement(func: &Lang, name: String, parent_type: &Type, field: String, child
                 types2[0].1 = parent_type2.clone();
             }
             let mut typ2 = typ;
-            let val = parent_type2.to_string();
-            if *typ == child_type.to_string() {
+            let val = parent_type2.clone();
+            if typ == child_type {
                typ2 =  &val;
             }
             // {field: a.field.fname()} | a
@@ -58,7 +58,7 @@ fn implement(func: &Lang, name: String, parent_type: &Type, field: String, child
                     false,
                     parent_type2
                     ),
-                    "any".to_string(),
+                    Type::Any,
                     Box::new(func))
         },
         Lang::Variable(s1, s2, perm, mutop, typ) => {

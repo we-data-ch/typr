@@ -9,6 +9,14 @@ impl ArgumentValue {
     pub fn to_r(&self) -> String {
         format!("{} = {}", self.0, self.1.to_r())
     }
+
+    pub fn get_argument(&self) -> String {
+        self.0.clone()
+    }
+
+    pub fn get_value(&self) -> Lang {
+        self.1.clone()
+    }
 }
 
 impl fmt::Display for ArgumentValue {

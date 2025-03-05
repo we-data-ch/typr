@@ -14,6 +14,7 @@ use nom::sequence::delimited;
 use nom::multi::many1;
 use nom::sequence::preceded;
 use nom::character::complete::digit1;
+use crate::tag::Tag;
 
 use crate::elements::scope;
 use crate::elements::function_symbol;
@@ -39,7 +40,7 @@ fn function_type(s: &str) -> IResult<&str, Type> {
             terminated(ltype, multispace0)
           ))(s);
     match res {
-        Ok((s, (_, v, _, _, t))) => Ok((s, Type::Function(v.clone(), Box::new(t)))),
+        Ok((s, (_, v, _, _, t))) => Ok((s, Type::Function(vec![], v.clone(), Box::new(t)))),
         Err(r) => Err(r)
     }
 }
@@ -268,7 +269,12 @@ fn union(s: &str) -> IResult<&str, Type> {
            many0(alt((tags, tag_exp)))))(s);
    match res {
        Ok((s, (t, v))) if v.len() == 0 => Ok((s, t.clone())),
-       Ok((s, (t, v))) => Ok((s, Type::Union([t].iter().chain(v.iter()).cloned().collect()))),
+       Ok((s, (t, v))) => {
+           let res = [t].iter()
+               .chain(v.iter()).cloned()
+               .flat_map(Tag::from_type).collect();
+           Ok((s, Type::Union(res)))
+       },
        Err(r) => Err(r)
    }
 }
@@ -292,7 +298,7 @@ fn pseudo_function_signature(s: &str) -> IResult<&str, Type> {
           ))(s);
     match res {
         Ok((s, (_, _, args, _, _, typ))) => 
-            Ok((s, Type::Function(args, Box::new(typ)))),
+            Ok((s, Type::Function(vec![], args, Box::new(typ)))),
         Err(r) => Err(r)
     }
 }
@@ -309,7 +315,7 @@ fn interface_simple_function(s: &str) -> IResult<&str, Type> {
           ))(s);
     match res {
         Ok((s, (_fn, _par1, vt, _par2, _dp, ty, _body))) 
-            => Ok((s, Type::Function(vt, Box::new(ty)))),
+            => Ok((s, Type::Function(vec![], vt, Box::new(ty)))),
         Err(r) => Err(r)
     }
 }

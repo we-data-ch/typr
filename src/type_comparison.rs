@@ -5,6 +5,7 @@ use crate::r#type::Type;
 use crate::var::Var;
 use crate::types::string_to_type;
 use crate::context::Context;
+use crate::tag::Tag;
 
 // Implementation of the Prolog rules as Rust functions
 pub fn all_in(subset: &[ArgumentType], superset: &[ArgumentType]) -> bool {
@@ -57,14 +58,14 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         // Record subtyping
         (Type::Record(r1), Type::Record(r2)) => all_in(r2, r1),
 
+        (Type::Union(types1), Type::Union(_types2)) => {
+            types1.iter().all(|t1| is_subtype(context, &t1.to_type(), type2))
+        },
+
         // Union subtyping
         (type1, Type::Union(types)) => {
-            types.iter().any(|t| is_matching(context, type1, t))
-        }
-
-        (Type::Union(types1), Type::Union(_types2)) => {
-            types1.iter().all(|t1| is_subtype(context, t1, type2))
-        }
+            types.iter().any(|t| is_matching(context, type1, &t.to_type()))
+        },
 
         // Generic subtyping
         (_, Type::Generic(_)) => true,
@@ -140,7 +141,8 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
 
         Type::Union(types) => {
             Type::Union(types.iter()
-                .map(|t| reduce_type(context, t))
+                .map(|t| reduce_type(context, &t.to_type()))
+                .flat_map(Tag::from_type)
                 .collect())
         }
 
@@ -152,9 +154,9 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
     }
 }
 
-pub fn get_best_type(context: &Context, type1: &Type, type2: &Type) -> Option<Type> {
+pub fn get_best_type(context: &Context, type1: &Type, type2: &Type) -> Type {
     match (type1, type2) {
-        (type1, type2) if type1 == type2 => Some(type1.clone()),
+        (type1, type2) if type1 == type2 => type1.clone(),
         
         _ => {
             let reduced1 = reduce_type(context, type1);
@@ -162,8 +164,8 @@ pub fn get_best_type(context: &Context, type1: &Type, type2: &Type) -> Option<Ty
             
             match unify(&reduced1, &reduced2) {
                 Some(unification_result) 
-                    => Some(type_substitution(type1, &unification_result)),
-                _ => None
+                    => type_substitution(type1, &unification_result),
+                _ => panic!("Unification failed !")
             }
         }
     }
@@ -178,7 +180,7 @@ fn is_same_type(context: &Context, type1: &Type, type2: &Type) -> bool {
     }
 }
 
-pub fn get_common_type_denominator(context: &Context, type1: &Type, type2: &Type) -> Option<Type> {
+pub fn get_common_type_denominator(_context: &Context, type1: &Type, type2: &Type) -> Option<Type> {
     match (type1, type2) {
         // Record case
         (Type::Record(r1), Type::Record(r2)) => {

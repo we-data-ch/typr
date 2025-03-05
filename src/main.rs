@@ -18,13 +18,16 @@ mod module;
 mod nominal_context;
 mod r#type;
 mod kinds;
+mod kind;
 mod type_checker;
 mod type_context;
 mod type_module;
 mod type_printer;
+mod tag;
+mod index;
 
 use parser::parse;
-use my_io::{read_file, write_adt_to_prolog, include_prolog_files, delete_prolog_files, type_check_prolog, execute_r};
+use my_io::{read_file, write_adt_to_prolog, type_check_prolog, execute_r};
 use crate::r#type::Type;
 use crate::language::Lang;
 use crate::metaprogramming::metaprogrammation;
@@ -55,14 +58,10 @@ fn parse_code() -> Adt {
 }
 
 fn main() {
-    include_prolog_files();
-    
     let adt = parse_code();
 
     type_check(&adt);
     execute(&adt);
-
-    delete_prolog_files();
 }
 
 #[cfg(test)]

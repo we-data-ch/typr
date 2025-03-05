@@ -29,13 +29,13 @@ pub enum Lang {
     Pipe(Box<Lang>, Box<Lang>),
     Dot(Box<Lang>, Box<Lang>),
     Scope(Vec<Lang>),
-    Function(Vec<ArgumentKind>, Vec<ArgumentType>, String, Box<Lang>),
+    Function(Vec<ArgumentKind>, Vec<ArgumentType>, Type, Box<Lang>),
     Module(String, Vec<Lang>),
     ModuleDecl(String),
     Variable(String, String, Permission, bool, Type),
     FunctionApp(Box<Lang>, Vec<Lang>),
     ArrayIndexing(Box<Lang>, f32),
-    Let(Var, String, Box<Lang>),
+    Let(Var, Type, Box<Lang>),
     Array(Vec<Lang>),
     Record(Vec<ArgumentValue>),
     Alias(Var, Vec<Type>, Type),
@@ -50,7 +50,14 @@ pub enum Lang {
     ModImp(String),
     Import(Type), // type alias
     Header(Box<Lang>),
+    Any,
     Empty
+}
+
+impl From<Var> for Lang {
+   fn from(val: Var) -> Self {
+       Lang::Variable(val.0, val.1, val.2, val.3, val.4)
+   } 
 }
 
 fn my_to_str<T: ToString>(v: &[T]) -> String {

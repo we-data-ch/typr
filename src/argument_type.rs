@@ -16,10 +16,24 @@ impl ArgumentType {
     pub fn embedded(name: &str, type_: &Type) -> Self {
         ArgumentType(name.to_string(), type_.clone(), true)
     }
+    
+    pub fn get_type(&self) -> Type {
+        self.1.clone()
+    }
+
+    pub fn get_argument(&self) -> String {
+        self.0.clone()
+    }
 }
 
 impl fmt::Display for ArgumentType {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[var('{}'),{}]", self.0, self.1)       
     }
+}
+
+impl From<(String, Type)> for ArgumentType {
+   fn from(val: (String, Type)) -> Self {
+        ArgumentType(val.0, val.1, false)
+   } 
 }

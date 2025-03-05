@@ -1,5 +1,7 @@
 use serde::Serialize;
 use crate::argument_type::ArgumentType;
+use crate::argument_kind::ArgumentKind;
+use crate::tag::Tag;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -16,7 +18,7 @@ pub enum Type {
     Boolean,
     Char,
     Embedded(Box<Type>),
-    Function(Vec<Type>, Box<Type>),
+    Function(Vec<ArgumentKind>, Vec<Type>, Box<Type>),
     Generic(String),
     IndexGen(String),
     Array(Box<Type>, Box<Type>),
@@ -24,7 +26,7 @@ pub enum Type {
     Index(u32),
     Alias(String, Vec<Type>, String),
     Tag(String, Box<Type>),
-    Union(Vec<Type>),
+    Union(Vec<Tag>),
     Interface(Vec<ArgumentType>),
     Params(Vec<Type>),
     Add(Box<Type>, Box<Type>),
@@ -32,7 +34,9 @@ pub enum Type {
     Div(Box<Type>, Box<Type>),
     Mul(Box<Type>, Box<Type>),
     Failed(String),
-    Empty
+    Opaque(String),
+    Empty,
+    Any
 }
 
 impl Type {
@@ -50,7 +54,7 @@ impl fmt::Display for Type {
         let res = match self {
             Type::Embedded(t) => format!("tembedded({})", t),
             Type::Alias(name, params, path) => format!("var('{}', '{}', public, false, params({}))", name, path, to_string(params)),
-            Type::Function(v, t) => format!("tfn([], {}, {})", to_string(v), t) ,
+            Type::Function(k, v, t) => format!("tfn({}, {}, {})", to_string(k), to_string(v), t) ,
             Type::Generic(g) => format!("gen('{}')", g.to_lowercase()),
             Type::IndexGen(g) => format!("ind('{}')", g.to_lowercase()),
             Type::Array(n, t) => format!("tarray({}, {})", n, t),

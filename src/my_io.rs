@@ -9,31 +9,10 @@ use crate::context::Context;
 use crate::Adt;
 
 
-pub fn include_prolog_files() {
-    let kinds = include_str!("../prolog/kinds.pl");
-    let type_checker = include_str!("../prolog/type_checker.pl");
-    let type_comparison = include_str!("../prolog/type_comparison.pl");
-    let type_context = include_str!("../prolog/type_context.pl");
-    let type_module = include_str!("../prolog/type_module.pl");
-    let type_printer = include_str!("../prolog/type_printer.pl");
-    let unification = include_str!("../prolog/unification.pl");
-
-    let prolog_files = [kinds, type_checker, type_comparison, type_context, type_module, type_printer, unification];
-    ["kinds.pl", "type_checker.pl", "type_comparison.pl", "type_context.pl", "type_module.pl", "type_printer.pl", "unification.pl"].iter().zip(prolog_files.iter()).for_each(|(name, content)| {
-        let path = Path::new(&name);
-        let mut file = File::create(path).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
-    });
-}
-
 fn delete_file(file_path: &str) {
     let binding = get_os_file(file_path);
     let path = Path::new(&binding);
     let _ = fs::remove_file(path);
-}
-
-pub fn delete_prolog_files() {
-    ["kinds.pl", "type_checker.pl", "type_comparison.pl", "type_context.pl", "type_module.pl", "type_printer.pl", "unification.pl"].iter().for_each(|file| delete_file(file))
 }
 
 fn get_os_file(file: &str) -> String {

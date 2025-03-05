@@ -1,7 +1,5 @@
 use crate::r#type::Type;
 use crate::argument_type::ArgumentType;
-use crate::context::Context;
-//use crate::type_comparison::get_common_type_denominator;
 
 pub fn type_substitution(type_: &Type, substitutions: &[(String, Type)]) -> Type {
     if substitutions.is_empty() {
@@ -93,8 +91,9 @@ pub fn type_substitution(type_: &Type, substitutions: &[(String, Type)]) -> Type
         }
 
         // Function type substitution
-        Type::Function(params, return_type) => {
+        Type::Function(kinds, params, return_type) => {
             Type::Function(
+                kinds.clone(),
                 params.iter()
                     .map(|param| type_substitution(param, substitutions))
                     .collect(),
@@ -152,7 +151,7 @@ fn unification_helper(
         }
 
         // Function case
-        (Type::Function(params1, ret1), Type::Function(params2, ret2)) => {
+        (Type::Function(_, params1, ret1), Type::Function(_, params2, ret2)) => {
             if params1.len() != params2.len() {
                 return None;
             }

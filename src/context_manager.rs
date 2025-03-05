@@ -13,6 +13,7 @@ use crate::var::Var;
 use crate::argument_type::ArgumentType;
 use crate::var::Permission;
 use crate::context::Context;
+use crate::tag::Tag;
 
 
 #[derive(Debug, PartialEq, Clone)]
@@ -78,7 +79,7 @@ impl Data {
             Data::Function(name, rest) if name == "tfn" => {
                     let v = rest[1].get_array().unwrap();
                     let vecs = v.iter().map(|val| val.to_type()).collect::<Vec<_>>();
-                    Type::Function(vecs, Box::new(rest[2].to_type()))
+                    Type::Function(vec![], vecs, Box::new(rest[2].to_type()))
             },
             Data::Function(name, rest) if name == "tarray" => {
                     Type::Array(Box::new(rest[0].to_type()), Box::new(rest[1].to_type()))
@@ -142,7 +143,7 @@ impl Data {
             Data::Function(name, rest) if name == "union" => {
                 let v = rest[0].get_array().expect("can't extract body (array) from union");
                 let new_v = v.iter().map(|ttag| ttag.to_type()).collect::<Vec<_>>();
-                Type::Union(new_v)
+                Type::Union(new_v.iter().cloned().flat_map(Tag::from_type).collect())
             },
             Data::Function(name, rest) if name == "var" => {
                 let name = rest[0].to_string();
@@ -245,7 +246,7 @@ fn parse_function(input: &str) -> IResult<&str, Data> {
 fn parse_dot(s: &str) -> IResult<&str, Data> {
     let res = tag(".")(s);
     match res {
-        Ok((s, dot)) => Ok((s, Data::Dot)),
+        Ok((s, _dot)) => Ok((s, Data::Dot)),
         Err(r) => Err(r)
     }
 }
