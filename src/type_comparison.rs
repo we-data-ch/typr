@@ -19,7 +19,7 @@ pub fn check_interface_function(
     context: &Context
 ) -> bool {
     // Equivalent to the Prolog unification:type_substitution
-    let fn_type2 = type_substitution(fn_type1, &vec![("self".to_string(), self_type.clone())]);
+    let fn_type2 = type_substitution(fn_type1, &vec![(Type::Generic("self".to_string()), self_type.clone())]);
     // Equivalent to type_context:get_from_context
     match context.get(&var) {
         Some(context_type) => is_matching(context, &fn_type2, &context_type),
@@ -39,7 +39,9 @@ pub fn check_interface_functions(
 
 pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
     match (type1, type2) {
+        (typ1, typ2) if typ1 == typ2 => true,
         // Array subtyping
+        (_, Type::Any) => true,
         (Type::Array(n1, t1), Type::Array(n2, t2)) => {
             is_subtype(context, n1, n2) && is_subtype(context, t1, t2)
         }
@@ -69,7 +71,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
 
         // Generic subtyping
         (_, Type::Generic(_)) => true,
-        (_, Type::IndexGen(_)) => true,
+        (Type::Index(_), Type::IndexGen(_)) => true,
 
         // Params subtyping
         (Type::Params(p1), Type::Params(p2)) => {
@@ -90,6 +92,7 @@ pub fn is_matching(context: &Context, type1: &Type, type2: &Type) -> bool {
     // Handle special cases
     match (type1, type2) {
         (Type::Empty, _) | (_, Type::Empty) => true,
+        (Type::Any, _) | (_, Type::Any) => true,
         
         // Reduce types and check again
         _ => {
@@ -130,7 +133,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                     &aliased_type,
                     &params.iter()
                         .enumerate()
-                        .map(|(i, t)| (i.to_string(), t.clone()))
+                        .map(|(i, t)| (Type::Generic(i.to_string()), t.clone()))
                         .collect::<Vec<_>>()
                 );
                 reduce_type(context, &substituted)
@@ -156,8 +159,8 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
 
 pub fn get_best_type(context: &Context, type1: &Type, type2: &Type) -> Type {
     match (type1, type2) {
+        (Type::Any, type2) => type2.clone(), 
         (type1, type2) if type1 == type2 => type1.clone(),
-        
         _ => {
             let reduced1 = reduce_type(context, type1);
             let reduced2 = reduce_type(context, type2);

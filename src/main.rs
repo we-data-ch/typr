@@ -27,13 +27,15 @@ mod tag;
 mod index;
 
 use parser::parse;
-use my_io::{read_file, write_adt_to_prolog, type_check_prolog, execute_r};
+use my_io::{read_file, execute_r};
 use crate::r#type::Type;
 use crate::language::Lang;
 use crate::metaprogramming::metaprogrammation;
 use std::fs::File;
 use std::io::Write;
 use crate::adt::Adt;
+use crate::type_checker::typing;
+use crate::context::Context;
 
 fn write_adt_to_r(adt: &Adt) -> () {
     let rstd = include_str!("../configs/std.R");
@@ -48,8 +50,8 @@ fn execute(adt: &Adt) -> () {
 }
 
 fn type_check(adt: &Adt) -> () {
-    write_adt_to_prolog(&adt);
-    type_check_prolog();
+    let res = typing(&Context::default(), &Lang::Sequence(adt.0.clone()));
+    type_printer::pretty_print(&res)
 }
 
 fn parse_code() -> Adt {

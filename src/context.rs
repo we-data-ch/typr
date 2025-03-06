@@ -75,8 +75,10 @@ impl Context {
 
     pub fn get_type_from_variable(&self, var: Var) -> Type {
        self.types.iter()
-           .find_map(|(v, ty)| var.match_with(v, self).then(|| ty))
-           .unwrap().clone()
+           .find(|(v, _)| var.match_with(v, self))
+           .map(|(_, ty)| ty)
+           .expect(&format!("The variable {}, wasn't found in the context", var))
+           .clone()
     }
 
     pub fn get_type_map(&self) -> Vec<(Var, Type)> {

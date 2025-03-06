@@ -37,9 +37,9 @@ fn format(ty: &Type) -> String {
     }
 }
 
-fn pretty_print(ty: &Type) {
+pub fn pretty_print(ty: &Type) {
     let formatted = format(ty);
-    println!("{}", formatted);
+    println!("Type checking:\n{:?}\n", formatted);
 }
 
 fn write_structure(structure: &str) -> Result<()> {

@@ -6,6 +6,7 @@ use crate::type_comparison;
 use crate::var::Var;
 use crate::tag::Tag;
 use crate::index::Index;
+use crate::unification;
 
 
 fn get_tag_names_old(tags: &[Type]) -> Vec<String> {
@@ -76,9 +77,10 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
     match expr {
         Lang::Sequence(exprs) => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, expr) => {
+            let ty = if ty == &Type::Empty {Type::Any} else {ty.clone()};
             let expr_ty = typing(&context, expr);
             type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
-                let best_ty = type_comparison::get_best_type(&context, ty, &expr_ty);
+                let best_ty = type_comparison::get_best_type(&context, &ty, &expr_ty);
                 context.clone().push_type(name.clone().into(), best_ty)
             }).expect("Type error")
         }
@@ -102,6 +104,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
 
 pub fn typing(context: &Context, expr: &Lang) -> Type {
     match expr {
+        Lang::Integer(_) => Type::Integer,
         Lang::Bool(_) => Type::Boolean,
         Lang::Char(_) => Type::Char,
         Lang::Empty => Type::Any,
@@ -170,20 +173,26 @@ pub fn typing(context: &Context, expr: &Lang) -> Type {
             let new_context = exprs.iter()
                 .fold(context2, |ctx, expr| eval(&ctx, expr));
             typing(&new_context, &exp)
-
         },
-        Lang::FunctionApp(fn_expr, args) => {
-            let fn_ty = typing(context, fn_expr);
+        Lang::FunctionApp(fn_var_name, args) => {
+            let fn_ty = typing(context, fn_var_name);
             match fn_ty {
-                Type::Function(kinds, param_types, ret_ty) => {
+                Type::Function(_kinds, param_types, ret_ty) => {
                     let arg_types = args.iter().map(|arg| typing(context, arg)).collect::<Vec<_>>();
-                    if param_types == arg_types {
-                        *ret_ty
+                    let arg_param_types = arg_types.iter().zip(param_types.iter()).collect::<Vec<_>>();
+                    let condition = arg_param_types.iter() 
+                        .all(|(arg, par)| type_comparison::is_matching(context, arg, par));
+                    if condition {
+                        let unification_map = arg_param_types.iter()
+                            .flat_map(|(arg, par)| unification::unify(arg, par))
+                            .reduce(|res1, res2| res1.iter().chain(res2.iter()).cloned().collect())
+                            .unwrap_or(vec![]);
+                        unification::type_substitution(&(*ret_ty), &unification_map)
                     } else {
-                        panic!("Type error");
+                        panic!("The arguments types doesnt match:\nexpected: {:?}\nrecieved: {:?}", param_types, arg_types);
                     }
                 }
-                _ => panic!("Type error"),
+                _ => panic!("{} is not a function but a {}", fn_var_name, fn_ty),
             }
         }
         Lang::Tag(name, expr) => {
@@ -251,7 +260,15 @@ pub fn typing(context: &Context, expr: &Lang) -> Type {
                 _ => panic!("Type error"),
             }
         },
-        Lang::Variable(_, _, _, _, ty) => ty.clone(),
+        Lang::Variable(na, pa, pe, sp, ty) => {
+            let var = Var::from_language(
+                Lang::Variable(na.clone(),
+                pa.clone(),
+                pe.clone(),
+                sp.clone(),
+                ty.clone())).unwrap();
+            context.get_type_from_variable(var)
+        },
         _ => Type::Any,
     }
 }

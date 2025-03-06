@@ -1,3 +1,4 @@
+#[warn(dead_code)]
 use crate::Type;
 use crate::Lang;
 use std::fmt;
@@ -112,7 +113,7 @@ impl Var {
     pub fn match_with(&self, var: &Var, context: &Context) -> bool {
         [(self.get_name() == var.get_name()),
         (self.get_path() == var.get_path()),
-        (self.get_permission() == Permission::Public),
+        (self.get_permission() == var.get_permission()),
         type_comparison::is_matching(context, &self.get_type(), &var.get_type())].iter().all(|&x| x)
     }
 }

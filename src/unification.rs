@@ -1,7 +1,7 @@
 use crate::r#type::Type;
 use crate::argument_type::ArgumentType;
 
-pub fn type_substitution(type_: &Type, substitutions: &[(String, Type)]) -> Type {
+pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     if substitutions.is_empty() {
         return type_.clone();
     }
@@ -10,7 +10,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(String, Type)]) -> Type
         // Generic type substitution
         Type::Generic(name) => {
             if let Some((_, replacement)) = substitutions.iter()
-                .find(|(gen_name, _)| gen_name == name) {
+                .find(|(gen_name, _)| gen_name == &Type::Generic(name.clone())) {
                 replacement.clone()
             } else {
                 type_.clone()
@@ -20,7 +20,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(String, Type)]) -> Type
         // Index generic substitution
         Type::IndexGen(name) => {
             if let Some((_, replacement)) = substitutions.iter()
-                .find(|(idx_name, _)| idx_name == name) {
+                .find(|(idx_name, _)| idx_name == &Type::IndexGen(name.clone())) {
                 replacement.clone()
             } else {
                 type_.clone()
@@ -127,27 +127,27 @@ pub fn type_substitution(type_: &Type, substitutions: &[(String, Type)]) -> Type
 
 // Add these new functions to the previous implementation
 
-fn unification_helper(
-    values: &[Type],
-    type1: &Type,
-    type2: &Type
-) -> Option<Vec<(String, Type)>> {
+fn unification_helper(values: &[Type], type1: &Type, type2: &Type
+) -> Option<Vec<(Type, Type)>> {
     match (type1, type2) {
         // Direct equality case
         (t1, t2) if t1 == t2 => Some(vec![]),
+        // Any case
+        (Type::Any, _) => Some(vec![]),
+        (_, Type::Any) => Some(vec![]),
 
         // Generic case
         (t, Type::Generic(g)) | (Type::Generic(g), t) => {
-            Some(vec![(g.clone(), t.clone())])
+            Some(vec![(Type::Generic(g.clone()), t.clone())])
         }
 
         // Index generic case with number
         (Type::Number, Type::IndexGen(g)) | (Type::IndexGen(g), Type::Number) => {
-            Some(vec![(g.clone(), Type::Number)])
+            Some(vec![(Type::IndexGen(g.clone()), Type::Number)])
         }
 
-        (Type::Integer, Type::IndexGen(g)) | (Type::IndexGen(g), Type::Integer) => {
-            Some(vec![(g.clone(), Type::Integer)])
+        (Type::Index(i), Type::IndexGen(g)) | (Type::IndexGen(g), Type::Index(i)) => {
+            Some(vec![(Type::IndexGen(g.clone()), Type::Index(i.clone()))])
         }
 
         // Function case
@@ -207,29 +207,14 @@ fn unification_helper(
     }
 }
 
-pub fn unify(type1: &Type, type2: &Type) -> Option<Vec<(String, Type)>> {
-    // First try to get common type denominator
-    //if let Some(common) = get_common_type_denominator(&Context::default(), type1, type2) {
-        //// Check if the result is coherent (no contradicting substitutions)
-        //if is_coherent(&common) {
-            //return Some(vec![]);
-        //}
-    //}
-
-    // If that doesn't work, try unification helper
-    let result = unification_helper(&vec![], type1, type2)?;
-    
-    // Check if the result is coherent
-    if is_coherent(&result) {
-        Some(result)
-    } else {
-        None
-    }
+pub fn unify(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
+    // try unification helper
+    unification_helper(&vec![], type1, type2)
 }
 
 // Helper functions needed for unification
 
-fn merge_substitutions(existing: &mut Vec<(String, Type)>, new: Vec<(String, Type)>) {
+fn merge_substitutions(existing: &mut Vec<(Type, Type)>, new: Vec<(Type, Type)>) {
     for (name, type_) in new {
         if let Some(pos) = existing.iter().position(|(n, _)| n == &name) {
             existing[pos] = (name, type_);

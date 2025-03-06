@@ -67,7 +67,6 @@ fn substitute_opaque(opaques: &Opaques, var: &Lang, context: &mut Context) {
 pub fn add_path(name: &str, var: &Lang) -> Lang {
     match var {
         Lang::Variable(n, path, perm, mutable, ty) => {
-            let context = Context::default();
             let new_path = concat_path(name, path);
             Lang::Variable(n.clone(), new_path, perm.clone(), *mutable, ty.clone())
         }
