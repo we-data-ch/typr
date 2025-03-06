@@ -36,22 +36,24 @@ use std::io::Write;
 use crate::adt::Adt;
 use crate::type_checker::typing;
 use crate::context::Context;
+use crate::nominal_context::NominalContext;
 
-fn write_adt_to_r(adt: &Adt) -> () {
+fn write_adt_to_r(adt: &Adt, nominal: &NominalContext) -> () {
     let rstd = include_str!("../configs/std.R");
     let mut app = File::create("app.R").unwrap();
-    let content = format!("{}\n\n{}", rstd, adt.to_r());
+    let content = format!("{}\n\n{}", rstd, adt.to_r(nominal));
     app.write_all(content.as_bytes()).unwrap();
 }
 
-fn execute(adt: &Adt) -> () {
-    write_adt_to_r(&adt);
+fn execute(adt: &Adt, nominal: NominalContext) -> () {
+    write_adt_to_r(&adt, &nominal);
     execute_r();
 }
 
-fn type_check(adt: &Adt) -> () {
-    let res = typing(&Context::default(), &Lang::Sequence(adt.0.clone()));
-    type_printer::pretty_print(&res)
+fn type_check(adt: &Adt) -> NominalContext {
+    let (typ, context) = typing(&Context::default(), &Lang::Sequence(adt.0.clone()));
+    type_printer::pretty_print(&typ);
+    NominalContext::from(&context)
 }
 
 fn parse_code() -> Adt {
@@ -62,8 +64,8 @@ fn parse_code() -> Adt {
 fn main() {
     let adt = parse_code();
 
-    type_check(&adt);
-    execute(&adt);
+    let nominal = type_check(&adt);
+    execute(&adt, nominal);
 }
 
 #[cfg(test)]

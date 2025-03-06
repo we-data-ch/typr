@@ -7,6 +7,7 @@ use crate::var::Var;
 use crate::tag::Tag;
 use crate::index::Index;
 use crate::unification;
+use crate::NominalContext;
 
 
 fn get_tag_names_old(tags: &[Type]) -> Vec<String> {
@@ -78,7 +79,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Sequence(exprs) => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, expr) => {
             let ty = if ty == &Type::Empty {Type::Any} else {ty.clone()};
-            let expr_ty = typing(&context, expr);
+            let expr_ty = typing(&context, expr).0;
             type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
                 let best_ty = type_comparison::get_best_type(&context, &ty, &expr_ty);
                 context.clone().push_type(name.clone().into(), best_ty)
@@ -86,10 +87,10 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         }
         Lang::Assign(var, expr) => {
             let type1 = context.get_type_from_variable(Var::from_language((**var).clone()).unwrap());
-            let type2 = typing(&context, expr);
+            let type2 = typing(&context, expr).0;
             if type_comparison::is_matching(&context, &type1, &type2) {
-                let var_ty = typing(&context, var);
-                let expr_ty = typing(&context, expr);
+                let var_ty = typing(&context, var).0;
+                let expr_ty = typing(&context, expr).0;
                 if !type_comparison::is_matching(&context, &var_ty, &expr_ty) {
                     panic!("Type error");
                 }
@@ -102,37 +103,37 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
     }
 }
 
-pub fn typing(context: &Context, expr: &Lang) -> Type {
+pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
     match expr {
-        Lang::Integer(_) => Type::Integer,
-        Lang::Bool(_) => Type::Boolean,
-        Lang::Char(_) => Type::Char,
-        Lang::Empty => Type::Any,
+        Lang::Integer(_) => (Type::Integer, context.clone()),
+        Lang::Bool(_) => (Type::Boolean, context.clone()),
+        Lang::Char(_) => (Type::Char, context.clone()),
+        Lang::Empty => (Type::Any, context.clone()),
         Lang::And(e1, e2) | Lang::Or(e1, e2) => {
-            if typing(context, e1) == Type::Boolean && typing(context, e2) == Type::Boolean {
-                Type::Boolean
+            if typing(context, e1).0 == Type::Boolean && typing(context, e2).0 == Type::Boolean {
+                (Type::Boolean, context.clone())
             } else {
                 panic!("Type error");
             }
         }
         Lang::Eq(e1, e2) | Lang::LesserOrEqual(e1, e2) | Lang::GreaterOrEqual(e1, e2) | Lang::GreaterThan(e1, e2) | Lang::LesserThan(e1, e2) => {
-            let ty1 = typing(context, e1);
-            let ty2 = typing(context, e2);
+            let ty1 = typing(context, e1).0;
+            let ty2 = typing(context, e2).0;
             if ty1 == ty2 {
-                Type::Boolean
+                (Type::Boolean, context.clone())
             } else {
                 panic!("Type error");
             }
         }
         Lang::Dot(e1, e2) => {
-            let ty1 = typing(context, e1);
+            let ty1 = typing(context, e2).0;
             match ty1 {
                 Type::Record(fields) => {
-                    let e2p = *e2.clone();
-                    if let Lang::Variable(name, _, _, _, _) = e2p {
+                    let e1p = *e1.clone();
+                    if let Lang::Variable(name, _, _, _, _) = e1p {
                         if let Some(arg_typ) = fields.iter()
                             .find(|arg_typ2| arg_typ2.get_argument() == name) {
-                            arg_typ.1.clone()
+                            (arg_typ.1.clone(), context.clone())
                         } else {
                             panic!("Field not found");
                         }
@@ -144,14 +145,14 @@ pub fn typing(context: &Context, expr: &Lang) -> Type {
             }
         }
         Lang::Pipe(e1, e2) => {
-            let ty1 = typing(context, e1);
+            let ty1 = typing(context, e1).0;
             match ty1 {
                 Type::Record(fields) => {
                     let e2p = *e2.clone();
                     if let Lang::Variable(name, _, _, _, _) = e2p {
                         if let Some(arg_typ) = fields.iter()
                             .find(|arg_typ2| arg_typ2.get_argument() == name) {
-                            arg_typ.get_type()
+                            (arg_typ.get_type(), context.clone())
                         } else {
                             panic!("Field not found");
                         }
@@ -164,7 +165,7 @@ pub fn typing(context: &Context, expr: &Lang) -> Type {
         }
         Lang::Function(kinds, params, ret_ty, _body) => {
             let param_types = params.iter().map(|arg_typ| arg_typ.get_type()).collect();
-            Type::Function(kinds.clone(), param_types, Box::new(ret_ty.clone()))
+            (Type::Function(kinds.clone(), param_types, Box::new(ret_ty.clone())), context.clone())
         }
         Lang::Sequence(exprs) => {
             let context2 = context.clone();
@@ -175,10 +176,10 @@ pub fn typing(context: &Context, expr: &Lang) -> Type {
             typing(&new_context, &exp)
         },
         Lang::FunctionApp(fn_var_name, args) => {
-            let fn_ty = typing(context, fn_var_name);
+            let fn_ty = typing(context, fn_var_name).0;
             match fn_ty {
                 Type::Function(_kinds, param_types, ret_ty) => {
-                    let arg_types = args.iter().map(|arg| typing(context, arg)).collect::<Vec<_>>();
+                    let arg_types = args.iter().map(|arg| typing(context, arg).0).collect::<Vec<_>>();
                     let arg_param_types = arg_types.iter().zip(param_types.iter()).collect::<Vec<_>>();
                     let condition = arg_param_types.iter() 
                         .all(|(arg, par)| type_comparison::is_matching(context, arg, par));
@@ -187,33 +188,35 @@ pub fn typing(context: &Context, expr: &Lang) -> Type {
                             .flat_map(|(arg, par)| unification::unify(arg, par))
                             .reduce(|res1, res2| res1.iter().chain(res2.iter()).cloned().collect())
                             .unwrap_or(vec![]);
-                        unification::type_substitution(&(*ret_ty), &unification_map)
+                        let new_type = unification::type_substitution(&(*ret_ty), &unification_map);
+                        (new_type, context.clone())
                     } else {
                         panic!("The arguments types doesnt match:\nexpected: {:?}\nrecieved: {:?}", param_types, arg_types);
                     }
                 }
-                _ => panic!("{} is not a function but a {}", fn_var_name, fn_ty),
+                _ => panic!("{} is not a function but a {}", fn_var_name.disp(&NominalContext::new()), fn_ty),
             }
         }
         Lang::Tag(name, expr) => {
-            let ty = typing(context, expr);
-            Type::Tag(name.clone(), Box::new(ty))
+            let ty = typing(context, expr).0;
+            (Type::Tag(name.clone(), Box::new(ty)), context.clone())
         }
         Lang::If(cond, true_branch, false_branch) => {
-            if typing(context, cond) == Type::Boolean {
-                let true_ty = typing(context, true_branch);
-                let false_ty = typing(context, false_branch);
-                unify_type(&true_ty, &false_ty)
+            if typing(context, cond).0 == Type::Boolean {
+                let true_ty = typing(context, true_branch).0;
+                let false_ty = typing(context, false_branch).0;
+                (unify_type(&true_ty, &false_ty), context.clone())
             } else {
                 panic!("Type error");
             }
         }
         Lang::Array(exprs) => {
-            let types = exprs.iter().map(|expr| typing(context, expr)).collect::<Vec<_>>();
+            let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
             if types.windows(2).all(|w| w[0] == w[1]) {
-                Type::Array(
+                let new_type = Type::Array(
                     Box::new(Type::Index(exprs.len() as u32)),
-                    Box::new(types[0].clone()))
+                    Box::new(types[0].clone()));
+                (new_type, context.clone())
             } else {
                 panic!("Type error");
             }
@@ -222,12 +225,12 @@ pub fn typing(context: &Context, expr: &Lang) -> Type {
             let field_types = fields.iter()
                 .map(|arg_val| {
                     (arg_val.get_argument(),
-                    typing(context, &arg_val.get_value())).into()
+                    typing(context, &arg_val.get_value()).0).into()
                 }).collect();
-            Type::Record(field_types)
+            (Type::Record(field_types), context.clone())
         }
         Lang::Match(val, branches) => {
-            let val_ty = typing(context, val);
+            let val_ty = typing(context, val).0;
             match val_ty {
                 Type::Union(union_types) => {
                     let tag_names = get_tag_names(&union_types);
@@ -236,9 +239,9 @@ pub fn typing(context: &Context, expr: &Lang) -> Type {
                         .collect::<Vec<_>>());
                     if same_values(&tag_names, &tag_names2) {
                         let branch_types = branches.iter()
-                            .map(|(_, exp)| typing(context, exp))
+                            .map(|(_, exp)| typing(context, exp).0)
                             .collect::<Vec<_>>();
-                        unify_types(&branch_types)
+                        (unify_types(&branch_types), context.clone())
                     } else {
                         panic!("Type error");
                     }
@@ -247,12 +250,12 @@ pub fn typing(context: &Context, expr: &Lang) -> Type {
             }
         }
         Lang::ArrayIndexing(expr, index) => {
-            let ty = typing(context, expr);
+            let ty = typing(context, expr).0;
             match ty {
                 Type::Array(len, elem_ty) => {
                     let index2 = Index::from_type(&(*len)).unwrap().get_value();
                     if (*index as u32) <  index2 {
-                        *elem_ty
+                        (*elem_ty, context.clone())
                     } else {
                         panic!("Index out of bounds");
                     }
@@ -267,9 +270,9 @@ pub fn typing(context: &Context, expr: &Lang) -> Type {
                 pe.clone(),
                 sp.clone(),
                 ty.clone())).unwrap();
-            context.get_type_from_variable(var)
+            (context.get_type_from_variable(var), context.clone())
         },
-        _ => Type::Any,
+        _ => (Type::Any, context.clone()),
     }
 }
 

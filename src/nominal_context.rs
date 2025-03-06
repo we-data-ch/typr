@@ -3,7 +3,21 @@ use crate::context::Context;
 use crate::r#type::Type;
 use crate::type_comparison::is_subtype;
 
+#[derive(Debug, Clone)]
 pub struct NominalContext(Vec<(Type, String, Vec<String>)>);
+
+impl NominalContext {
+    pub fn new() -> NominalContext {
+        NominalContext(vec![])
+    }
+
+    pub fn get_classes(&self, t: &Type) -> String {
+        let vec: Vec<_> = self.0.iter().find(|(ty, _, _)| t == ty)
+            .map(|(_, name, sup)| sup.clone())
+            .unwrap();
+        vec.iter().map(|x| format!("'{}'", x)).collect::<Vec<_>>().join(",")
+    }
+}
 
 impl From<Vec<(Type, String, Vec<String>)>> for  NominalContext {
    fn from(val: Vec<(Type, String, Vec<String>)>) -> Self {
@@ -22,6 +36,40 @@ enum TypeCategory {
     Union,
     Interface,
     Rest
+}
+
+impl TypeCategory {
+    fn from_type(t: Type) -> TypeCategory {
+        match t {
+            Type::Array(_, _) => TypeCategory::Array,
+            Type::Function(_, _, _) => TypeCategory::Function,
+            Type::Record(_) => TypeCategory::Record,
+            Type::Index(_) => TypeCategory::Index,
+            Type::Alias(_, _, _) => TypeCategory::Alias,
+            Type::Tag(_, _) => TypeCategory::Tag,
+            Type::Union(_) => TypeCategory::Union,
+            Type::Interface(_) => TypeCategory::Interface,
+            _ => TypeCategory::Rest
+        }
+    }
+}
+
+use std::fmt;
+impl fmt::Display for TypeCategory {
+    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let res = match self {
+            TypeCategory::Array => "Array",
+            TypeCategory::Function => "Function",
+            TypeCategory::Record => "Record",
+            TypeCategory::Index => "Index",
+            TypeCategory::Tag => "Tag",
+            TypeCategory::Alias => "Alias",
+            TypeCategory::Union => "Union",
+            TypeCategory::Interface => "Interface",
+            TypeCategory::Rest => "Rest"
+        };
+        write!(f, "{}", res)       
+    }
 }
 
 struct TypeNominal {
@@ -96,7 +144,11 @@ struct Nominal(String);
 
 impl From<(Type, usize)> for Nominal {
    fn from(val: (Type, usize)) -> Self {
-       Nominal(format!("{}_{}", val.0, val.1))
+       let category = TypeCategory::from_type(val.0);
+       match category {
+           TypeCategory::Rest => Nominal("".to_string()),
+           _ => Nominal(format!("{}_{}", category, val.1))
+       }
    } 
 }
 

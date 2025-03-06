@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Write, Result};
 use crate::Type;
 use crate::kind::Kind;
+use crate::NominalContext;
 
 fn format_kind(ki: &Kind) -> String {
    match ki {

@@ -7,6 +7,9 @@ use serde::Serialize;
 use crate::argument_type::ArgumentType;
 use crate::argument_value::ArgumentValue;
 use crate::argument_kind::ArgumentKind;
+use crate::NominalContext;
+use crate::type_checker;
+use crate::Context;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Lang {
@@ -68,90 +71,97 @@ fn my_to_str<T: ToString>(v: &[T]) -> String {
     format!("[{}]", res)
 }
 
+fn my_to_str2(v: &[Lang], nomi: &NominalContext) -> String {
+    let res = v.iter()
+        .map(|x| x.disp(nomi))
+        .reduce(|acc, x| format!("{}, {}", acc, x))
+        .unwrap_or("".to_string());
+    format!("[{}]", res)
+}
+
 //for match exp branches
-fn to_string(v: &[(Box<Lang>, Box<Lang>)]) -> String {
+fn to_string(v: &[(Box<Lang>, Box<Lang>)], nomi: &NominalContext) -> String {
     "[".to_string() +
         &v.iter()
-        .map(|(p1, p2)| format!("[{}, {}]", p1.to_string(), p2.to_string()))
+        .map(|(p1, p2)| format!("[{}, {}]", p1.disp(nomi), p2.disp(nomi)))
         .collect::<Vec<_>>()
         .join(",")
     + "]"
 }
 
-fn to_records(v: &[Lang]) -> String {
+fn to_records(v: &[Lang], nomi: &NominalContext) -> String {
     "[".to_string() + 
     &v.iter()
         .enumerate()
-        .map(|(i, x)| format!("[var('{}'), {}]", i, x))
+        .map(|(i, x)| format!("[var('{}'), {}]", i, x.disp(nomi)))
         .collect::<Vec<_>>()
         .join(",")
     + "]"
 }
 
-impl fmt::Display for Lang {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let res = match self {
+impl Lang {
+    pub fn disp(self: &Self, nomi: &NominalContext) -> String {
+        match self {
             Lang::Bool(b) => format!("{}", b),
-            Lang::And(e1, e2) => format!("and({}, {})", e1.to_string(), e2.to_string()),
-            Lang::Or(e1, e2) => format!("or({}, {})", e1.to_string(), e2.to_string()),
-            Lang::Union(e1, e2) => format!("rec_union({}, {})", e1.to_string(), e2.to_string()),
+            Lang::And(e1, e2) => format!("and({}, {})", e1.disp(nomi), e2.disp(nomi)),
+            Lang::Or(e1, e2) => format!("or({}, {})", e1.disp(nomi), e2.disp(nomi)),
+            Lang::Union(e1, e2) => format!("rec_union({}, {})", e1.disp(nomi), e2.disp(nomi)),
             Lang::Number(n) => format!("{:?}", n),
-            Lang::Modu(e1, e2) => format!("modu({}, {})", e1.to_string(), e2.to_string()),
-            Lang::Modu2(e1, e2) => format!("modu({}, {})", e1.to_string(), e2.to_string()),
-            Lang::Add(e1, e2) => format!("add({}, {})", e1.to_string(), e2.to_string()),
-            Lang::Eq(e1, e2) => format!("eq({}, {})", e1.to_string(), e2.to_string()),
-            Lang::LesserThan(e1, e2) => format!("lesser_than({}, {})", e1.to_r(), e2.to_r()),
-            Lang::GreaterThan(e1, e2) => format!("{} > {}", e1.to_r(), e2.to_r()),
-            Lang::LesserOrEqual(e1, e2) => format!("lesser_or_equal({}, {})", e1.to_r(), e2.to_r()),
-            Lang::GreaterOrEqual(e1, e2) => format!("{} >= {}", e1.to_r(), e2.to_r()),
-            Lang::Pipe(e1, e2) => format!("pipe({}, {})", e1.to_string(), e2.to_string()),
-            Lang::Dot(e1, e2) => format!("dot({}, {})", e1.to_string(), e2.to_string()),
+            Lang::Modu(e1, e2) => format!("modu({}, {})", e1.disp(nomi), e2.disp(nomi)),
+            Lang::Modu2(e1, e2) => format!("modu({}, {})", e1.disp(nomi), e2.disp(nomi)),
+            Lang::Add(e1, e2) => format!("add({}, {})", e1.disp(nomi), e2.disp(nomi)),
+            Lang::Eq(e1, e2) => format!("eq({}, {})", e1.disp(nomi), e2.disp(nomi)),
+            Lang::LesserThan(e1, e2) => format!("lesser_than({}, {})", e1.to_r(nomi), e2.to_r(nomi)),
+            Lang::GreaterThan(e1, e2) => format!("{} > {}", e1.to_r(nomi), e2.to_r(nomi)),
+            Lang::LesserOrEqual(e1, e2) => format!("lesser_or_equal({}, {})", e1.to_r(nomi), e2.to_r(nomi)),
+            Lang::GreaterOrEqual(e1, e2) => format!("{} >= {}", e1.to_r(nomi), e2.to_r(nomi)),
+            Lang::Pipe(e1, e2) => format!("pipe({}, {})", e1.disp(nomi), e2.disp(nomi)),
+            Lang::Dot(e1, e2) => format!("dot({}, {})", e1.disp(nomi), e2.disp(nomi)),
             Lang::Scope(exps)
                 => {
                 let res = exps.iter()
-                    .map(|x| x.to_string()).collect::<Vec<String>>();
+                    .map(|x| x.disp(nomi)).collect::<Vec<String>>();
                 format!("sequence([{}])", res.join(","))
                 },
             Lang::Module(name, body) => {
                "mod('".to_string() + name + "', [" + 
                    &body.iter()
-                   .map(|x| x.to_string())
+                   .map(|x| x.disp(nomi))
                    .collect::<Vec<_>>().join(",")
                 + "])"
             },
             Lang::Function(args_kind, args, typ, body) => 
-                format!("fn({},{},{},{})", my_to_str(args_kind), my_to_str(args), typ, body),
+                format!("fn({},{},{},{})", my_to_str(args_kind), my_to_str(args), typ, body.disp(nomi)),
             Lang::Variable(v, path, perm, muta, ty) 
                 => Var(v.clone(), path.clone(), perm.clone(), muta.clone(), ty.clone()).to_string(),
-            Lang::FunctionApp(exp, vals) => format!("fn_app({}, values({}))", exp, my_to_str(vals)),
-            Lang::ArrayIndexing(exp, val) => format!("array_indexing({}, values({}))", exp, val),
+            Lang::FunctionApp(exp, vals) => format!("fn_app({}, values({}))", exp.disp(nomi), my_to_str2(vals, nomi)),
+            Lang::ArrayIndexing(exp, val) => format!("array_indexing({}, values({}))", exp.disp(nomi), val),
             Lang::Let(var, s2, body) 
-                => format!("decl({}, {}, {})", var.clone().to_string(), s2, body),
-            Lang::Array(v) => format!("array({})", my_to_str(v)),
+                => format!("decl({}, {}, {})", var.clone().to_string(), s2, body.disp(nomi)),
+            Lang::Array(v) => format!("array({})", my_to_str2(v, nomi)),
             Lang::Record(args) => format!("record({})",my_to_str(args)),
             Lang::Alias(var, params, typ) 
                 => format!("decl({}, params({}), {})", var.clone().set_permission(true), my_to_str(params), typ.to_string()),
-            Lang::Tag(s, t) => format!("tag('{}', {})", s, t),
+            Lang::Tag(s, t) => format!("tag('{}', {})", s, t.disp(nomi)),
             Lang::Char(s) => format!("chars('{}')", s),
-            Lang::Match(val, branches) => format!("match({}, {})", val, to_string(branches)),
+            Lang::Match(val, branches) => format!("match({}, {})", val.disp(nomi), to_string(branches, nomi)),
             Lang::If(cond, exp, els) 
-                => format!("if({}, {}, {})", cond, exp, els),
-            Lang::Tuple(vals) => format!("record({})", to_records(vals)),
-            Lang::Assign(var, exp) => format!("assign({}, {})", var, exp),
+                => format!("if({}, {}, {})", cond.disp(nomi), exp.disp(nomi), els.disp(nomi)),
+            Lang::Tuple(vals) => format!("record({})", to_records(vals, nomi)),
+            Lang::Assign(var, exp) => format!("assign({}, {})", var.disp(nomi), exp.disp(nomi)),
             Lang::Comment(_) => "comment".to_string(),
             Lang::Range(i1, i2, i0) => format!("seq({},{},{})", i1, i2, i0),
             Lang::Integer(i) => i.to_string(),
             Lang::Import(_typ) => "import".to_string(),
-            Lang::Header(lang) => lang.to_string(),
+            Lang::Header(lang) => lang.disp(nomi),
             Lang::Sequence(exps) 
                 => {
                 let res = exps.iter()
-                    .map(|x| x.to_string()).collect::<Vec<String>>();
+                    .map(|x| x.disp(nomi)).collect::<Vec<String>>();
                 format!("{}", res.join(","))
                 },
             _ => "empty".to_string()
-            };
-        write!(f, "{}", res)
+            }
     }
 }
 
@@ -185,70 +195,75 @@ impl Lang {
         }
     }
 
-    pub fn to_r(&self) -> String {
+    pub fn to_r(&self, nomi: &NominalContext) -> String {
         match self {
-            Lang::Bool(b) => format!("structure({}, class = 'bool')", b.to_string().to_uppercase()),
-            Lang::In(b1, b2) => format!("{} %in% {}", b2.to_r(), b1.to_r()),
-            Lang::And(b1, b2) => format!("{} & {}", b1.to_r(), b2.to_r()),
-            Lang::Or(b1, b2) => format!("{} | {}", b1.to_r(), b2.to_r()),
-            Lang::Modu(e1, e2) => format!("{} % {}", e2.to_r(), e1.to_r()),
-            Lang::Modu2(e1, e2) => format!("{} %% {}", e2.to_r(), e1.to_r()),
+            Lang::Bool(b) => format!("{}", b.to_string().to_uppercase()),
+            Lang::In(b1, b2) => format!("{} %in% {}", b2.to_r(nomi), b1.to_r(nomi)),
+            Lang::And(b1, b2) => format!("{} & {}", b1.to_r(nomi), b2.to_r(nomi)),
+            Lang::Or(b1, b2) => format!("{} | {}", b1.to_r(nomi), b2.to_r(nomi)),
+            Lang::Modu(e1, e2) => format!("{} % {}", e2.to_r(nomi), e1.to_r(nomi)),
+            Lang::Modu2(e1, e2) => format!("{} %% {}", e2.to_r(nomi), e1.to_r(nomi)),
             Lang::Number(n) => format!("{}", n),
-            Lang::Add(e1, e2) => format!("add({}, {})", e1.to_r(), e2.to_r()),
-            Lang::Eq(e1, e2) => format!("{} == {}", e2.to_r(), e1.to_r()),
-            Lang::LesserThan(e1, e2) => format!("{} < {}", e2.to_r(), e1.to_r()),
-            Lang::GreaterThan(e1, e2) => format!("{} > {}", e2.to_r(), e1.to_r()),
-            Lang::LesserOrEqual(e1, e2) => format!("{} <= {}", e2.to_r(), e1.to_r()),
-            Lang::GreaterOrEqual(e1, e2) => format!("{} >= {}", e2.to_r(), e1.to_r()),
-            Lang::Pipe(e1, e2) => format!("{} |> {}", e2.to_r(), e1.to_r()),
-            Lang::Dot(e1, e2) => format!("{} |> {}", e2.to_r(), e1.to_r()),
+            Lang::Add(e1, e2) => format!("add({}, {})", e1.to_r(nomi), e2.to_r(nomi)),
+            Lang::Eq(e1, e2) => format!("{} == {}", e2.to_r(nomi), e1.to_r(nomi)),
+            Lang::LesserThan(e1, e2) => format!("{} < {}", e2.to_r(nomi), e1.to_r(nomi)),
+            Lang::GreaterThan(e1, e2) => format!("{} > {}", e2.to_r(nomi), e1.to_r(nomi)),
+            Lang::LesserOrEqual(e1, e2) => format!("{} <= {}", e2.to_r(nomi), e1.to_r(nomi)),
+            Lang::GreaterOrEqual(e1, e2) => format!("{} >= {}", e2.to_r(nomi), e1.to_r(nomi)),
+            Lang::Pipe(e1, e2) => format!("{} |> {}", e2.to_r(nomi), e1.to_r(nomi)),
+            Lang::Dot(e1, e2) => format!("{} |> {}", e2.to_r(nomi), e1.to_r(nomi)),
             Lang::Scope(exps) 
-                => exps.iter().map(|x| x.to_r()).collect::<Vec<String>>().join("\n"),
+                => exps.iter().map(|x| x.to_r(nomi)).collect::<Vec<String>>().join("\n"),
             Lang::Function(_args_kind, args, _typ, body) => 
                 format!("function({}) {{ {} }}", 
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
-                        body.to_r()),
+                        body.to_r(nomi)),
             Lang::Variable(v, path, _perm, _muta, _ty) => Self::format_path(path) + v,
             Lang::FunctionApp(exp, vals) if exp.get_name() == "seq"
-                => format!("array({}({}), dim = c({}))", exp.to_r(),
-                vals.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
+                => format!("array({}({}), dim = c({}))", exp.to_r(nomi),
+                vals.iter().map(|x| x.to_r(nomi)).collect::<Vec<_>>().join(", "),
                 (vals[1].get_number()-vals[0].get_number())/vals[2].get_number()),
             Lang::FunctionApp(exp, vals) 
-                => format!("{}({})", exp.to_r(),
-                vals.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
-            Lang::ArrayIndexing(exp, val) => format!("{}[{}]", exp, val),
+                => format!("{}({})", exp.to_r(nomi),
+                vals.iter().map(|x| x.to_r(nomi)).collect::<Vec<_>>().join(", ")),
+            Lang::ArrayIndexing(exp, val) => format!("{}[{}]", exp.disp(nomi), val),
             Lang::Let(var, _s2, body) 
-                => format!("{} <- {}", Self::format_path(&var.get_path()) + &var.get_name(), body.to_r()),
+                => format!("{} <- {}", Self::format_path(&var.get_path()) + &var.get_name(), body.to_r(nomi)),
             Lang::Array(v) 
                 => {
-                    let vector = format!("c({})", v.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(","));
+                    let vector = format!("c({})", v.iter().map(|x| x.to_r(nomi)).collect::<Vec<_>>().join(","));
                        let shape = Lang::Array(v.to_vec()).shape();
                        format!("array({}, dim = c({}))",
                             vector,
                             shape.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")) 
                 } 
             Lang::Record(args) 
-                => format!("list({})", args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", ")),
+                => {
+                let body = args.iter().map(|x| x.to_r(nomi)).collect::<Vec<_>>().join(", ");
+                let typ = type_checker::typing(&Context::new(vec![], vec![]), self).0;
+                let res = nomi.get_classes(&typ);
+            format!("structure(list({}), class = c('Record', {}))", body, res)
+                    }
             Lang::Char(s) => "'".to_string() + s + "'",
             Lang::If(cond, exp, els) 
                 if els == &Box::new(Lang::Empty)
-                => format!("if({}) {{\n {} \n}}", cond.to_r(), exp.to_r()),
+                => format!("if({}) {{\n {} \n}}", cond.to_r(nomi), exp.to_r(nomi)),
             Lang::If(cond, exp, els) 
-                => format!("if ({}) {{\n {} \n}} else {}", cond.to_r(), exp.to_r(), els.to_r()),
-            Lang::Tuple(vals) => format!("list({})", vals.iter()
+                => format!("if ({}) {{\n {} \n}} else {}", cond.to_r(nomi), exp.to_r(nomi), els.to_r(nomi)),
+            Lang::Tuple(vals) => format!("structure(list({}), class = 'Tuple')", vals.iter()
                                          .enumerate()
-                                         .map(|(i, x)| format!("'{}' = {}", i.to_string(), x.to_r()))
+                                         .map(|(i, x)| format!("'{}' = {}", i.to_string(), x.to_r(nomi)))
                                          .collect::<Vec<_>>().join(", ")),
-            Lang::Assign(var, exp) => format!("{} <- {}", var.to_r(), exp.to_r()),
+            Lang::Assign(var, exp) => format!("{} <- {}", var.to_r(nomi), exp.to_r(nomi)),
             Lang::Comment(txt) => "# ".to_string() + txt,
             Lang::Range(i1, i2, i0) 
                 => format!("array(seq({},{},{}), dim = c({}))", i1, i2, i0, i2-i1/i0),
             Lang::Integer(i) => i.to_string(),
-            Lang::Tag(s, t) => format!("list('{}', {})", s, t.to_r()),
+            Lang::Tag(s, t) => format!("list('{}', {})", s, t.to_r(nomi)),
             Lang::Empty => "NA".to_string(),
             Lang::ModuleDecl(name) => format!("{} <- new.env()", name),
             Lang::Sequence(exps) 
-                => exps.iter().map(|x| x.to_r()).collect::<Vec<String>>().join("\n\n"),
+                => exps.iter().map(|x| x.to_r(nomi)).collect::<Vec<String>>().join("\n\n"),
             _ => "".to_string()
         }
     }

@@ -24,7 +24,7 @@ impl Tag {
 
     pub fn from_language(lang: Lang, context: &Context) -> Option<Tag> {
         match lang {
-            Lang::Tag(name, typ) => Some(Tag(name, typing(context, &(*typ)))),
+            Lang::Tag(name, typ) => Some(Tag(name, typing(context, &(*typ)).0)),
             _ => None
         }
     }
