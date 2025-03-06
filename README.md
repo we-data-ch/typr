@@ -10,11 +10,10 @@ There is also a more mature project named vapour written in go who has some cool
 
 ## Installation
 
-To install TypR, you will need to install `Rust` and `Prolog` (of course you should have R installed in your system):
+To install TypR, you will need to install `Rust` (of course you should have R installed in your system):
 
 - R's installation page: https://www.r-project.org/
 - Rust's installation page: https://www.rust-lang.org/
-- Prolog's installation page: https://www.swi-prolog.org/download/stable
 
 You should be sure those tools are installed and accessible through the terminal.
 
