@@ -3,13 +3,15 @@ use serde::Serialize;
 use crate::language::Lang;
 use crate::module::Module;
 use crate::NominalContext;
+use crate::Context;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Adt(pub Vec<Lang>);
 
 impl fmt::Display for Adt {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let res = self.0.iter().map(|x| x.disp(&NominalContext::new()))
+        let cont = Context::new(vec![], vec![]);
+        let res = self.0.iter().map(|x| x.disp(&NominalContext::new(), &cont))
             .reduce(|acc, x| format!("{}, {}", acc, x))
             .unwrap_or("".to_string());
         write!(f, "sequence([{}])", res)       
@@ -54,7 +56,10 @@ impl Adt {
         }
     }
 
-    pub fn to_r(&self, nominal: &NominalContext) -> String {
-        self.iter().map(|line| line.to_r(nominal)).fold(String::from(""), |acc, x| format!("{}\n{}", acc, x))
+    pub fn to_r(&self, nominal: &NominalContext, cont: &Context) -> String {
+        self.iter()
+            //.inspect(|x| println!("x: {:?}", x))
+            .map(|line| line.to_r(nominal, cont))
+            .fold(String::from(""), |acc, x| format!("{}\n{}", acc, x))
     }
 }

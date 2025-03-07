@@ -38,22 +38,22 @@ use crate::type_checker::typing;
 use crate::context::Context;
 use crate::nominal_context::NominalContext;
 
-fn write_adt_to_r(adt: &Adt, nominal: &NominalContext) -> () {
+fn write_adt_to_r(adt: &Adt, nominal: &NominalContext, cont: &Context) -> () {
     let rstd = include_str!("../configs/std.R");
     let mut app = File::create("app.R").unwrap();
-    let content = format!("{}\n\n{}", rstd, adt.to_r(nominal));
+    let content = format!("{}\n\n{}", rstd, adt.to_r(nominal, cont));
     app.write_all(content.as_bytes()).unwrap();
 }
 
-fn execute(adt: &Adt, nominal: NominalContext) -> () {
-    write_adt_to_r(&adt, &nominal);
+fn execute(adt: &Adt, nominal: NominalContext, cont: &Context) -> () {
+    write_adt_to_r(&adt, &nominal, cont);
     execute_r();
 }
 
-fn type_check(adt: &Adt) -> NominalContext {
+fn type_check(adt: &Adt) -> (NominalContext, Context) {
     let (typ, context) = typing(&Context::default(), &Lang::Sequence(adt.0.clone()));
     type_printer::pretty_print(&typ);
-    NominalContext::from(&context)
+    (NominalContext::from(&context), context)
 }
 
 fn parse_code() -> Adt {
@@ -64,8 +64,8 @@ fn parse_code() -> Adt {
 fn main() {
     let adt = parse_code();
 
-    let nominal = type_check(&adt);
-    execute(&adt, nominal);
+    let (nominal, context) = type_check(&adt);
+    execute(&adt, nominal, &context);
 }
 
 #[cfg(test)]

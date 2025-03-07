@@ -126,43 +126,29 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         }
         Lang::Dot(e1, e2) => {
-            let ty1 = typing(context, e2).0;
-            match ty1 {
-                Type::Record(fields) => {
-                    let e1p = *e1.clone();
-                    if let Lang::Variable(name, _, _, _, _) = e1p {
-                        if let Some(arg_typ) = fields.iter()
-                            .find(|arg_typ2| arg_typ2.get_argument() == name) {
-                            (arg_typ.1.clone(), context.clone())
-                        } else {
-                            panic!("Field not found");
-                        }
-                    } else {
-                        panic!("Type error");
-                    }
-                }
-                _ => panic!("Type error"),
+            let ty2 = typing(context, e2).0;
+            match (ty2, *e1.clone()) {
+                (Type::Record(fields), Lang::Variable(name, _, _, _, _)) => {
+                    fields.iter()
+                        .find(|arg_typ2| arg_typ2.get_argument() == name)
+                        .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
+                        .expect("Field not found")
+                },
+                _ => panic!("Type error")
             }
-        }
+        },
         Lang::Pipe(e1, e2) => {
-            let ty1 = typing(context, e1).0;
-            match ty1 {
-                Type::Record(fields) => {
-                    let e2p = *e2.clone();
-                    if let Lang::Variable(name, _, _, _, _) = e2p {
-                        if let Some(arg_typ) = fields.iter()
-                            .find(|arg_typ2| arg_typ2.get_argument() == name) {
-                            (arg_typ.get_type(), context.clone())
-                        } else {
-                            panic!("Field not found");
-                        }
-                    } else {
-                        panic!("Type error");
-                    }
-                }
-                _ => panic!("Type error"),
+            let ty2 = typing(context, e2).0;
+            match (ty2, *e1.clone()) {
+                (Type::Record(fields), Lang::Variable(name, _, _, _, _)) => {
+                    fields.iter()
+                        .find(|arg_typ2| arg_typ2.get_argument() == name)
+                        .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
+                        .expect("Field not found")
+                },
+                _ => panic!("Type error")
             }
-        }
+        },
         Lang::Function(kinds, params, ret_ty, _body) => {
             let param_types = params.iter().map(|arg_typ| arg_typ.get_type()).collect();
             (Type::Function(kinds.clone(), param_types, Box::new(ret_ty.clone())), context.clone())
@@ -194,7 +180,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         panic!("The arguments types doesnt match:\nexpected: {:?}\nrecieved: {:?}", param_types, arg_types);
                     }
                 }
-                _ => panic!("{} is not a function but a {}", fn_var_name.disp(&NominalContext::new()), fn_ty),
+                _ => panic!("{} is not a function but a {}", fn_var_name.disp(&NominalContext::new(), &Context::new(vec![], vec![])), fn_ty),
             }
         }
         Lang::Tag(name, expr) => {
