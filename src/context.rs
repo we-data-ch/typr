@@ -54,8 +54,13 @@ impl Context {
                 Type::Function(_, args, ret)
                     => {
                         let mut sol = args.clone();
-                        sol.push((**ret).clone()); sol
+                        sol.push((**ret).clone());
+                        sol.push(type_.clone()); sol
                     }
+                Type::Union(tags) => {
+                   let mut sol = tags.iter().map(|tag| tag.to_type()).collect::<Vec<_>>();
+                   sol.push(type_.clone()); sol
+                },
                 typ => vec![typ.clone()]
             }
         }).collect::<Vec<_>>();

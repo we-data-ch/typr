@@ -44,6 +44,10 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (_, Type::Any) => true,
         (Type::Array(n1, t1), Type::Array(n2, t2)) => {
             is_subtype(context, n1, n2) && is_subtype(context, t1, t2)
+        },
+        (type1, Type::Alias(_, _, _)) => {
+            let reduced = reduce_type(context, type2);
+            is_subtype(context, type1, &reduced)
         }
 
         // Interface subtyping
@@ -128,8 +132,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 .collect())
         }
         Type::Alias(name, params, _base_type) => {
-            let var = Var::from_name(name).set_type(Type::Params(params.to_vec())).set_path("empty");
-            dbg!(&var);
+            let var = Var::from_name(name).set_type(Type::Params(params.to_vec()));
             if let Some(aliased_type) = context.get(&var) {
                 let substituted = type_substitution(
                     &aliased_type,
@@ -162,17 +165,18 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
 pub fn get_best_type(context: &Context, type1: &Type, type2: &Type) -> Type {
     match (type1, type2) {
         (Type::Any, type2) => type2.clone(), 
-        (type1, type2) if type1 == type2 => type1.clone(),
-        _ => {
-            let reduced1 = reduce_type(context, type1);
-            let reduced2 = reduce_type(context, type2);
-            
-            match unify(&reduced1, &reduced2) {
-                Some(unification_result) 
-                    => type_substitution(type1, &unification_result),
-                _ => panic!("Unification failed !")
-            }
-        }
+        _ => type1.clone()
+        //(type1, type2) if type1 == type2 => type1.clone(),
+        //_ => {
+            //let reduced1 = reduce_type(context, type1);
+            //let reduced2 = reduce_type(context, type2);
+            //
+            //match unify(&reduced1, &reduced2) {
+                //Some(unification_result) 
+                    //=> type_substitution(type1, &unification_result),
+                //_ => panic!("Unification failed !")
+            //}
+        //}
     }
 }
 

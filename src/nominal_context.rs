@@ -15,6 +15,9 @@ impl NominalContext {
         let vec: Vec<_> = self.0.iter().find(|(ty, _, _)| t == ty)
             .map(|(_, _, sup)| sup.clone())
             .unwrap();
+        let vec = vec.iter()
+            .filter(|elem| *elem != "").collect::<Vec<_>>();
+        dbg!(&vec);
         vec.iter().map(|x| format!("'{}'", x)).collect::<Vec<_>>().join(",")
     }
 

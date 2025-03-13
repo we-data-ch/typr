@@ -302,7 +302,11 @@ impl Lang {
             Lang::Range(i1, i2, i0) 
                 => format!("array(seq({},{},{}), dim = c({}))", i1, i2, i0, i2-i1/i0),
             Lang::Integer(i) => i.to_string(),
-            Lang::Tag(s, t) => format!("list('{}', {})", s, t.to_r(nomi, cont)),
+            Lang::Tag(s, t) => {
+                let typ = type_checker::typing(cont, self).0;
+                let res = nomi.get_classes(&typ);
+                format!("structure(list('{}', {}), class = c('Tag', {}))", s, t.to_r(nomi, cont), res)
+            },
             Lang::Empty => "NA".to_string(),
             Lang::ModuleDecl(name) => format!("{} <- new.env()", name),
             Lang::Sequence(exps) 

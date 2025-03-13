@@ -13,6 +13,14 @@ fn format_kind(ki: &Kind) -> String {
 
 fn format(ty: &Type) -> String {
     match ty {
+        Type::Alias(name, params, path) => {
+            if params.len() == 0 {
+                format!("{}", name)
+            } else {
+            let paras = params.iter().map(|typ| format(typ)).collect::<Vec<_>>();
+                format!("{}<{}>", name, paras.join(", "))
+            }
+        },
         Type::Array(dim, ty) => format!("[{}, {}]", dim, format(ty)),
         Type::Function(kinds, params, ret_ty) => {
             let formatted_kinds = kinds.iter().map(|arg_kind| format_kind(&arg_kind.get_kind())).collect::<Vec<_>>();

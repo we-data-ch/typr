@@ -22,6 +22,7 @@ use nom::combinator::recognize;
 use crate::operators::op;
 use crate::operators::Op;
 use crate::r#type::Type;
+use crate::parser::get_input;
 
 fn ltype_arg(s: &str) -> IResult<&str, Type> {
     let res = tuple((ltype, terminated(opt(tag(",")), multispace0)))(s);
@@ -205,9 +206,9 @@ pub fn type_alias(s: &str) -> IResult<&str, Type> {
           ))(s);
     match res {
         Ok((s, (Some(p), name, Some(v)))) => Ok((s, Type::Alias(name, v.clone(), p))),
-        Ok((s, (None, name, Some(v)))) => Ok((s, Type::Alias(name, v.clone(), "empty".to_string()))),
+        Ok((s, (None, name, Some(v)))) => Ok((s, Type::Alias(name, v.clone(), "".to_string()))),
         Ok((s, (Some(p), name, None))) => Ok((s, Type::Alias(name, vec![], p))),
-        Ok((s, (None, name, None))) => Ok((s, Type::Alias(name, vec![], "empty".to_string()))),
+        Ok((s, (None, name, None))) => Ok((s, Type::Alias(name, vec![], "".to_string()))),
         Err(r) => Err(r),
     }
 }
@@ -228,7 +229,7 @@ fn tag_default(s: &str) -> IResult<&str, Type> {
     match res {
         Ok((s, (_, n, Some(val)))) => Ok((s, Type::Tag(n, Box::new(val)))),
         Ok((s, (_, n, None))) => Ok((s, Type::Tag(n, Box::new(Type::Empty)))),
-        Err(r) => Err(r),
+        Err(r) => Err(r)
     }
 }
 
