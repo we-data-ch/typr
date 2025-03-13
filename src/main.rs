@@ -25,6 +25,7 @@ mod type_module;
 mod type_printer;
 mod tag;
 mod index;
+mod adt_manager;
 
 use parser::parse;
 use my_io::{read_file, execute_r};
@@ -37,6 +38,7 @@ use crate::adt::Adt;
 use crate::type_checker::typing;
 use crate::context::Context;
 use crate::nominal_context::NominalContext;
+use crate::adt_manager::AdtManager;
 
 fn write_adt_to_r(adt: &Adt, nominal: &NominalContext, cont: &Context) -> () {
     let rstd = include_str!("../configs/std.R");
@@ -56,16 +58,20 @@ fn type_check(adt: &Adt) -> (NominalContext, Context) {
     (NominalContext::from(&context), context)
 }
 
-fn parse_code() -> Adt {
-    let adt = parse(&read_file()).unwrap().1;
-    metaprogrammation(adt.clone())
+fn parse_code() -> AdtManager {
+    let typr_std = include_str!("../configs/std.ty");
+    let adt_manager = AdtManager::new()
+        .add_to_body(parse(&read_file()).unwrap().1)
+        .add_to_header(parse(typr_std).unwrap().1);
+    let adt = metaprogrammation(adt_manager.body.clone());
+    adt_manager.set_body(adt)
 }
 
 fn main() {
-    let adt = parse_code();
+    let adt_manager = parse_code();
 
-    let (nominal, context) = type_check(&adt);
-    execute(&adt, nominal, &context);
+    let (nominal, context) = type_check(&adt_manager.get_adt_with_header());
+    execute(&adt_manager.get_adt_without_header(), nominal, &context);
 }
 
 #[cfg(test)]

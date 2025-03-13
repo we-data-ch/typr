@@ -1,11 +1,6 @@
 use std::process::Command;
 use std::env;
 use std::fs;
-use std::fs::File;
-use std::io::Write;
-use crate::context_manager::parse_prolog;
-use crate::context::Context;
-use crate::Adt;
 
 
 fn get_os_file(file: &str) -> String {

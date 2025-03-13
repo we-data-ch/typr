@@ -58,8 +58,11 @@ impl Adt {
 
     pub fn to_r(&self, nominal: &NominalContext, cont: &Context) -> String {
         self.iter()
-            //.inspect(|x| println!("x: {:?}", x))
             .map(|line| line.to_r(nominal, cont))
             .fold(String::from(""), |acc, x| format!("{}\n{}", acc, x))
+    }
+
+    pub fn add(self, adt: Adt) -> Adt {
+        Adt(self.0.iter().chain(adt.0.iter()).cloned().collect::<Vec<_>>())
     }
 }

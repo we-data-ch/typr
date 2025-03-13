@@ -105,6 +105,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
 
 pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
     match expr {
+        Lang::Number(_) => (Type::Number, context.clone()),
         Lang::Integer(_) => (Type::Integer, context.clone()),
         Lang::Bool(_) => (Type::Boolean, context.clone()),
         Lang::Char(_) => (Type::Char, context.clone()),
@@ -154,19 +155,26 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             (Type::Function(kinds.clone(), param_types, Box::new(ret_ty.clone())), context.clone())
         }
         Lang::Sequence(exprs) => {
-            let context2 = context.clone();
-            let mut exprs2 = exprs.clone();
-            let exp = exprs2.pop().unwrap();
-            let new_context = exprs.iter()
-                .fold(context2, |ctx, expr| eval(&ctx, expr));
-            typing(&new_context, &exp)
+            if exprs.len() == 1 {
+                let res = exprs.clone().pop().unwrap();
+                typing(context, &res)
+            } else {
+                let context2 = context.clone();
+                let mut exprs2 = exprs.clone();
+                let exp = exprs2.pop().unwrap();
+                let new_context = exprs.iter()
+                    .fold(context2, |ctx, expr| eval(&ctx, expr));
+                typing(&new_context, &exp)
+            }
         },
         Lang::FunctionApp(fn_var_name, args) => {
             let fn_ty = typing(context, fn_var_name).0;
             match fn_ty {
                 Type::Function(_kinds, param_types, ret_ty) => {
-                    let arg_types = args.iter().map(|arg| typing(context, arg).0).collect::<Vec<_>>();
-                    let arg_param_types = arg_types.iter().zip(param_types.iter()).collect::<Vec<_>>();
+                    let arg_types = args.iter()
+                        .map(|arg| typing(context, arg).0).collect::<Vec<_>>();
+                    let arg_param_types = arg_types.iter()
+                        .zip(param_types.iter()).collect::<Vec<_>>();
                     let condition = arg_param_types.iter() 
                         .all(|(arg, par)| type_comparison::is_matching(context, arg, par));
                     if condition {

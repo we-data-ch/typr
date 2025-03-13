@@ -13,9 +13,15 @@ impl NominalContext {
 
     pub fn get_classes(&self, t: &Type) -> String {
         let vec: Vec<_> = self.0.iter().find(|(ty, _, _)| t == ty)
-            .map(|(_, name, sup)| sup.clone())
+            .map(|(_, _, sup)| sup.clone())
             .unwrap();
         vec.iter().map(|x| format!("'{}'", x)).collect::<Vec<_>>().join(",")
+    }
+
+    pub fn get_class(&self, t: &Type) -> String {
+        self.0.iter().find(|(ty, _, _)| t == ty)
+            .map(|(_, name, _)| name.clone())
+            .unwrap()
     }
 }
 

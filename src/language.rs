@@ -165,6 +165,10 @@ impl Lang {
     }
 }
 
+fn build_generic_function(s: &str) -> String {
+    format!("{} <- function(x, ...) {{\n\tUseMethod('{}')\n}}", s, s)
+}
+
 impl Lang {
     pub fn shape(&self) -> Vec<usize> {
         match self {
@@ -253,7 +257,21 @@ impl Lang {
                 vals.iter().map(|x| x.to_r(nomi, cont)).collect::<Vec<_>>().join(", ")),
             Lang::ArrayIndexing(exp, val) => format!("{}[{}]", exp.disp(nomi, cont), val),
             Lang::Let(var, _s2, body) 
-                => format!("{} <- {}", Self::format_path(&var.get_path()) + &var.get_name(), body.to_r(nomi, cont)),
+                => {
+                    let new_path = Self::format_path(&var.get_path());
+                    let new_body = body.to_r(nomi, cont);
+                    let new_name = new_path + &var.get_name();
+                    match **body {
+                        Lang::Function(_, _, _, _) => {
+                            let related_type = var.get_type();
+                            let named_related_type = nomi.get_class(&related_type);
+                            let gen_func = build_generic_function(&new_name);
+                            format!("{}\n\n{}.{} <- {}",
+                                    gen_func, new_name, named_related_type, new_body)
+                        }
+                        _ => format!("{} <- {}", new_name, new_body)
+                    }
+                },
             Lang::Array(v) 
                 => {
                     let vector = format!("c({})", v.iter().map(|x| x.to_r(nomi, cont)).collect::<Vec<_>>().join(","));
