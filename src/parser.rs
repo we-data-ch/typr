@@ -450,50 +450,44 @@ mod tesus {
     }
 
     #[test]
-    fn test_let7() {
-        let res = parse("let f = fn(a: num, b: bool): num {...};").unwrap().1;
-        assert_eq!(res, Lang::Empty);
-    }
-
-    #[test]
     fn test_suite1() {
         let res = parse("let a = 5; let b = 6; b;").unwrap().1;
-        assert_eq!(res, Lang::Emtpy);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_suite2() {
         let res = parse("type Nu = num;").unwrap().1;
-        assert_eq!(res, Lang::Emtpy);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_suite3() {
         let res = parse("type nu = num; type bo = bool;").unwrap().1;
-        assert_eq!(res, Lang::Emtpy);
+        assert_eq!(res.0, vec![])
     }
     #[test]
     fn test_suite4() {
-        let res = parse("type B = num; let a: Re<num> = record {b: true, t: 10}; a;").unwrap().0;
-        assert_eq!(res, Lang::Emtpy);
+        let res = parse("type B = num; let a: Re<num> = record {b: true, t: 10}; a;").unwrap().1;
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_suite5() {
-        let res = parse("type C = num; let a: Re<num> = 5; type B<T> = num; b;").unwrap().0;
-        assert_eq!(res, Lang::Emtpy);
+        let res = parse("type C = num; let a: Re<num> = 5; type B<T> = num; b;").unwrap().1;
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_suite6() {
         let res = parse("let z: Mat<2, 2, num> = 8; type Mat<M, N, T> = [M, [N, T]]; let a: Mat<2, 2, num> = [[2, 2], [2, 2]]; a;").unwrap().1;
-        assert_eq!(res, Lang::Emtpy);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_parse_chars() {
         let res = parse("let p1: chars = \"hey\";").unwrap().1;
-        assert_eq!(res, Lang::Emtpy);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
@@ -511,19 +505,19 @@ mod tesus {
     #[test]
     fn test_base_parse3() {
         let res = base_mut_exp("mut a = 5;").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res, Lang::Empty)
     }
 
     #[test]
     fn test_base_parse4() {
         let res = parse("module Person { let nom = 'Jean'; }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_base_parse5() {
         let res = parse("let a: Combo = 4;").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
@@ -541,24 +535,24 @@ mod tesus {
     #[test]
     fn test_module5() {
         let res = parse_exp("module Add { let a = 5; }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res, Lang::Empty)
     }
 
     #[test]
     fn test_parse_module() {
         let res = parse("module Add { let a = 5; }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_option_type1() {
         let res = parse("let a: Option<T> = Some(7);").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_pattern_var1() {
-        let res = pattern_var("Some(n)").unwrap().1;
+        let res = pattern_var("Some(n)").unwrap().1.0;
         assert_eq!(res, vec![]);
     }
 
@@ -577,55 +571,55 @@ mod tesus {
     #[test]
     fn test_classic_let() {
         let res = parse("let duck = record { wing: Wings, name: 'Daffy'};").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_let_func1() {
         let res = parse("let map <- fn(a: [N, T], f: (T) -> U): [N, U] { ... };").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_let_func2() {
         let res = parse("let append <- fn(a: [#N, T], b: T): [#N+1, T] { ... };").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_assignement1() {
         let res = parse("Mod::a <- 4;").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_alias_alias() {
         let res = parse("type Truc = Machin;").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_parse_range1() {
         let res = parse("1:a").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_parse_range2() {
         let res = parse("a:3").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_parse_range3() {
         let res = parse("1:a:3").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]
     fn test_parse_op1() {
         let res = parse("let less_than_3 = fn(n: int): bool { 3 >= n };").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        assert_eq!(res.0, vec![])
     }
 
     #[test]

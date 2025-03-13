@@ -723,7 +723,7 @@ mod tests {
     #[test]
     fn test_single_element() {
         let res = single_element("4;").unwrap().1;
-        assert_eq!(res.to_string(), "4");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
@@ -747,145 +747,145 @@ mod tests {
     #[test]
     fn test_chain0() {
         let res = element_chain("2").unwrap().1;
-        assert_eq!(res.to_string(), "...");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_chain1() {
         let res = element_chain("2 + 9").unwrap().1;
-        assert_eq!(res.to_string(), "...");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_chain2() {
         let res = element_chain("3 + 2 + 4 + 7 + 6").unwrap().1;
-        assert_eq!(res.to_string(), "...");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_chain3() {
         let res = element_chain("3 .add(2).add(4).add(7).add(6)").unwrap().1;
-        assert_eq!(res.to_string(), "...");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_chain4() {
         let res = element_chain("7 .combine(2, 3).okay(true)").unwrap().1;
-        assert_eq!(res.to_string(), "...");
+        assert_eq!(res, Lang::Empty);
     }
     
     #[test]
     fn test_chain5() {
         let res = single_element("combine(3, 2, 3)").unwrap().1;
-        assert_eq!(res.to_string(), "...");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_function_no_parameters(){
         let res = function("fn () : Number { 7 }").unwrap().1;
-        assert_eq!(res.to_string(), "fn([],Number,(7))");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_function_with_parameters(){
         let res = function("fn (a: number, b: bool) : Number { 7 }").unwrap().1;
-        assert_eq!(res.to_string(), "fn([[var(a),number], [var(b),bool]],Number,(7))");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_parse_function1() {
         let res = single_element("fn (a: num, b: bool) : num {...}").unwrap().1;
-        assert_eq!(res.to_string(), "fn([], [[var(a),number], [var(b),bool]],Number,(7))");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_parse_elements_function() {
         let res = parse_elements("fn (a: number, b: bool) : Number { 7 }").unwrap().1;
-        assert_eq!(res.to_string(), "fn([[var(a),number], [var(b),bool]],Number,(7))");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_function_application1() {
         let res = function_application("incr()").unwrap().1;
-        assert_eq!(res.to_string(), "fn_app(var(incr), values([]))");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_function_application2() {
         let res = single_element("incr()").unwrap().1;
-        assert_eq!(res.to_string(), "fn_app(var(incr), values([]))");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_function_application3() {
         let res = parse_elements("incr()").unwrap().1;
-        assert_eq!(res.to_string(), "fn_app(var(incr), values([]))");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_function_application4() {
         let res = parse_elements("{7}()").unwrap().1;
-        assert_eq!(res.to_string(), "fn_app((7), values([]))");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_function_application5() {
         let res = parse_elements("{7}(4)").unwrap().1;
-        assert_eq!(res.to_string(), "fn_app((7), values([4]))");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_function_application6() {
         let res = function_application("{7}(4)").unwrap().1;
-        assert_eq!(res.to_string(), "fn_app((7), values([4]))");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_scope1() {
         let res = scope("{7}").unwrap().1;
-        assert_eq!(res.to_string(), "(7)");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_scope2() {
         let res = scope("{let a <- 7;}").unwrap().1;
-        assert_eq!(res.to_string(), "(7)");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_scope3() {
         let res = scope("{let a = 7; a;}").unwrap().1;
-        assert_eq!(res.to_string(), "(7)");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_array() {
         let res = array("[1, 2, 3]").unwrap().1;
-        assert_eq!(res.to_string(), "array([1, 2, 3])");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_char1() {
         let res = chars("\"Hello world\"").unwrap().1;
-        assert_eq!(res.to_string(), "char");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_char2() {
         let res = single_element("'Hello world'").unwrap().1;
-        assert_eq!(res.to_string(), "'Hello world'");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_if1() {
         let res = if_exp("if (true) { 7 }").unwrap().1;
-        assert_eq!(res.to_string(), "if(true, 7, [], empty)");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_if2() {
         let res = parse_elements("if (true) { 7 }").unwrap().1;
-        assert_eq!(res.to_string(), "if(true, 7, [], empty)");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
@@ -903,79 +903,79 @@ mod tests {
     #[test]
     fn test_match1() {
         let res = match_exp("match a { True => 3, False => 4, }").unwrap().1;
-        assert_eq!(res.to_string(), "match(7, [3, 3],[var('n'), var('n')])");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_variable1() {
         let res = variable("hey").unwrap().1;
-        assert_eq!(res.to_string(), "var()");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_variable2() {
         let res = variable("Person::hey").unwrap().1;
-        assert_eq!(res.to_string(), "var()");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_variable3() {
         let res = variable("Person::Course::hey").unwrap().1;
-        assert_eq!(res.to_string(), "var()");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_var_tag1() {
         let res = single_element("Mod::a").unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_var_tag2() {
         let res = parse_elements("Mod::a").unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_func_appli1() {
         let res = parse_elements("Mod::new(7)").unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_func_appli2() {
         let res = parse_elements("Count::new(7)").unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_index_function() {
         let res = single_element("fn(a: #N): [#N, int] { ... }").unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_range1() {
         let res = range("1:3").unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res, Lang::Empty);
     }
     
     #[test]
     fn test_range2() {
         let res = single_element("1:3").unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_range3() {
         let res = parse_elements("1:3").unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_range4() {
         let res = parse_elements("1:a").unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
@@ -993,7 +993,7 @@ mod tests {
     #[test]
     fn test_parse_greater_than1() {
         let res = element_chain("3 <= n").unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res, Lang::Empty);
     }
 
     #[test]
@@ -1005,7 +1005,7 @@ mod tests {
     #[test]
     fn test_chain_string0() {
         let res = element_chain("'wow' + 'hey'").unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res, Lang::Empty);
     } 
 
 }

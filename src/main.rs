@@ -77,14 +77,15 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use crate::elements::parse_elements;
+    use crate::language::Lang;
 
     #[test]
     fn test1(){
         let text = "true and false and true and true;";
         let value = parse_elements(text).unwrap().1;
         assert_eq!(
-            value.to_string(),
-            "and(true, and(false, and(true, true)))");
+            value,
+            Lang::Empty);
     }
 
     #[test]
@@ -92,7 +93,7 @@ mod tests {
         let text = "true or false;";
         let value = parse_elements(text).unwrap().1;
         assert_eq!(
-            value.to_string(), 
-            "or(true, false)");
+            value, 
+            Lang::Empty);
     }
 }
