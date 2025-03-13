@@ -17,7 +17,6 @@ impl NominalContext {
             .unwrap();
         let vec = vec.iter()
             .filter(|elem| *elem != "").collect::<Vec<_>>();
-        dbg!(&vec);
         vec.iter().map(|x| format!("'{}'", x)).collect::<Vec<_>>().join(",")
     }
 

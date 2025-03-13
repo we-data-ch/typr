@@ -113,7 +113,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::Integer(_) => (Type::Integer, context.clone()),
         Lang::Bool(_) => (Type::Boolean, context.clone()),
         Lang::Char(_) => (Type::Char, context.clone()),
-        Lang::Empty => (Type::Any, context.clone()),
+        Lang::Empty => (Type::Empty, context.clone()),
         Lang::And(e1, e2) | Lang::Or(e1, e2) => {
             if typing(context, e1).0 == Type::Boolean && typing(context, e2).0 == Type::Boolean {
                 (Type::Boolean, context.clone())

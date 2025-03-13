@@ -105,8 +105,7 @@ pub fn is_matching(context: &Context, type1: &Type, type2: &Type) -> bool {
             let reduced2 = reduce_type(context, type2);
 
             is_same_type(context, &reduced1, &reduced2) ||
-            is_subtype(context, &reduced1, &reduced2) ||
-            is_subtype(context, &reduced2, &reduced1)
+            is_subtype(context, &reduced1, &reduced2)
         }
     }
 }

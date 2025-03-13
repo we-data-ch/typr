@@ -27,23 +27,29 @@ fn format(ty: &Type) -> String {
             let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();
             format!("fn<{}>({}) -> {}", formatted_kinds.join(", "), formatted_params.join(", "), format(ret_ty))
         }
-        Type::Tag(name, param) => format!(".{}({})", name, format(param)),
+        Type::Tag(name, param) => {
+            if **param == Type::Any{
+                format!(".{}", name)
+            } else {
+                format!(".{}({})", name, format(param))
+            }
+        },
         Type::Record(fields) => {
             let formatted_fields = fields.iter().map(|arg_typ| format!("{}: {}", arg_typ.get_argument(), format(&arg_typ.get_type()))).collect::<Vec<_>>();
             format!("{{{}}}", formatted_fields.join(", "))
         }
         Type::Generic(name) => name.to_uppercase(),
         Type::Index(gen) => format!("#{}", gen),
-        Type::Number => "Num".to_string(),
-        Type::Boolean => "Bool".to_string(),
-        Type::Integer => "Int".to_string(),
-        Type::Char => "Char".to_string(),
+        Type::Number => "num".to_string(),
+        Type::Boolean => "bool".to_string(),
+        Type::Integer => "int".to_string(),
+        Type::Char => "char".to_string(),
         Type::Empty => "Empty".to_string(),
         Type::Union(types) => {
             let formatted_types = types.iter().map(|ty| format(&ty.to_type())).collect::<Vec<_>>();
             format!("Union({})", formatted_types.join(", "))
         }
-        Type::Any => "Any".to_string(),
+        Type::Any => "any".to_string(),
         _ => "Unknown".to_string(),
     }
 }
