@@ -4,13 +4,14 @@ use crate::language::Lang;
 use crate::module::Module;
 use crate::NominalContext;
 use crate::Context;
+use crate::nominals::Nominals;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Adt(pub Vec<Lang>);
 
 impl fmt::Display for Adt {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let cont = Context::new(vec![], vec![]);
+        let cont = Context::new(vec![], vec![], Nominals::new());
         let res = self.0.iter().map(|x| x.disp(&NominalContext::new(), &cont))
             .reduce(|acc, x| format!("{}, {}", acc, x))
             .unwrap_or("".to_string());

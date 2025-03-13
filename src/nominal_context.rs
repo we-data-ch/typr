@@ -25,6 +25,14 @@ impl NominalContext {
             .map(|(_, name, _)| name.clone())
             .unwrap()
     }
+
+    pub fn push_type(self, t: Type) -> NominalContext {
+        todo!();
+    }
+
+    pub fn update_supertypes(self) -> NominalContext {
+        todo!();
+    }
 }
 
 impl From<Vec<(Type, String, Vec<String>)>> for  NominalContext {
@@ -80,13 +88,33 @@ impl fmt::Display for TypeCategory {
     }
 }
 
-struct TypeNominal {
+#[derive(Debug, Clone)]
+struct Categories(HashMap<TypeCategory, usize>);
+
+impl Categories {
+    fn register_type(self, t: Type) -> Categories {
+        let category = TypeCategory::from_type(t);
+        let mut map = self.0;
+        map.entry(category).and_modify(|val| *val += 1);
+        Categories(map)
+    }
+
+    fn get_nominal(&self, t: &Type) -> Nominal {
+        let category = TypeCategory::from_type(t.clone());
+        let index = self.0.get(&category).unwrap();
+        Nominal(format!("{}_{}", category, index))
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct TypeNominal {
     body: Vec<(Type, Nominal)>,
-    categories: HashMap<TypeCategory, usize>
+    categories: Categories
 }
 
 impl TypeNominal {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let mut categories = HashMap::new();
         categories.insert(TypeCategory::Array, 0 as usize);
         categories.insert(TypeCategory::Function, 0 as usize);
@@ -98,8 +126,21 @@ impl TypeNominal {
         categories.insert(TypeCategory::Interface, 0 as usize);
         TypeNominal {
             body: vec![],
-            categories: categories 
+            categories: Categories(categories)
         }
+    }
+
+    pub fn register_type(self, t: Type) -> TypeNominal {
+         let new_categories = self.categories.register_type(t.clone());
+         let nominal = new_categories.get_nominal(&t);
+        TypeNominal {
+            body: self.body.iter().cloned().chain([(t, nominal)]).collect::<Vec<_>>(),
+            categories: new_categories
+        }
+    }
+
+    pub fn get_types(&self) -> Vec<Type> {
+        self.body.iter().map(|(typ, _nomi)| typ.clone()).collect()
     }
 
     fn corresponding_nominal(&self, type_: &Type) -> Option<Nominal> {
@@ -130,11 +171,11 @@ impl TypeNominal {
    }
 
    fn incr(&mut self, category: TypeCategory) -> () {
-       self.categories.insert(category, *self.categories.get(&category).unwrap() + 1);
+       self.categories.0.insert(category, *self.categories.0.get(&category).unwrap() + 1);
    }
 
    fn get(&self, category: TypeCategory) -> usize {
-       *self.categories.get(&category).unwrap()
+       *self.categories.0.get(&category).unwrap()
    }
 
    fn push(&mut self, type_nominal: (Type, Nominal)) {
@@ -170,7 +211,7 @@ fn get_nominal(types: Vec<Type>, _con: &Context) -> TypeNominal {
     })
 }
 
-fn get_subtype_relation(types: Vec<Type>, con: &Context, nominals: &TypeNominal) -> Vec<Vec<String>> {
+pub fn get_subtype_relation(types: Vec<Type>, con: &Context, nominals: &TypeNominal) -> Vec<Vec<String>> {
     let types_ref = types.clone();
     types.iter().map(|typ| {
         types_ref.iter()

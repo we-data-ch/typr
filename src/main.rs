@@ -26,6 +26,7 @@ mod type_printer;
 mod tag;
 mod index;
 mod adt_manager;
+mod nominals;
 
 use parser::parse;
 use my_io::{read_file, execute_r};

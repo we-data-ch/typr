@@ -3,6 +3,7 @@ use crate::Lang;
 use std::fmt;
 use crate::NominalContext;
 use crate::Context;
+use crate::nominals::Nominals;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ArgumentValue(pub String, pub Lang);
@@ -23,7 +24,7 @@ impl ArgumentValue {
 
 impl fmt::Display for ArgumentValue {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let cont = Context::new(vec![], vec![]);
+        let cont = Context::new(vec![], vec![], Nominals::new());
         write!(f, "[var('{}'),{}]", self.0, self.1.disp(&NominalContext::new(), &cont))       
     }
 }

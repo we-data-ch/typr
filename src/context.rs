@@ -3,16 +3,19 @@ use crate::language::Lang;
 use crate::var::Var;
 use std::collections::HashSet;
 use crate::kind::Kind;
+use crate::NominalContext;
+use crate::nominals::Nominals;
 
 #[derive(Debug, Clone)]
 pub struct Context {
    types: Vec<(Var, Type)>,
-   kinds: Vec<(Type, Kind)>
+   kinds: Vec<(Type, Kind)>,
+   nominals: Nominals
 }
 
 impl Default for Context {
     fn default() -> Self {
-        Context { types: vec![], kinds: vec![] }
+        Context { types: vec![], kinds: vec![], nominals: Nominals::new() }
     }
 }
 
@@ -22,17 +25,19 @@ impl From<Vec<(Lang, Type)>> for  Context {
            .map(|(lan, typ)| { 
                 (Var::from_language(lan.clone()).unwrap(), typ.clone())})
            .collect();
-        Context { types: val2, kinds: vec![] }
+        Context { types: val2, kinds: vec![], nominals: Nominals::new() }
    } 
 }
 
 impl Context {
-    pub fn new(types: Vec<(Var, Type)>, kinds: Vec<(Type, Kind)>) -> Context {
+    pub fn new(types: Vec<(Var, Type)>, kinds: Vec<(Type, Kind)>, nominals: Nominals) -> Context {
         Context {
             types: types,
-            kinds: kinds
+            kinds: kinds,
+            nominals: nominals
         }
     }
+
     pub fn get(&self, var: &Var) -> Option<Type> {
         self.iter().map(|(var2, type_)| {
             match var2 {
@@ -71,9 +76,10 @@ impl Context {
         unique
         }
 
-    pub fn push_type(self, lang: Var, typ: Type) -> Context {
+    pub fn push_type(self, lang: Var, typ: Type, cont: &Context) -> Context {
         Context {
-            types: self.types.iter().chain([(lang, typ)].iter()).cloned().collect(),
+            types: self.types.iter().chain([(lang, typ.clone())].iter()).cloned().collect(),
+            nominals: self.nominals.push_type(typ).update_super_types(cont),
             ..self
         }
     }

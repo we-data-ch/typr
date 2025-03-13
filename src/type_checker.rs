@@ -8,6 +8,7 @@ use crate::tag::Tag;
 use crate::index::Index;
 use crate::unification;
 use crate::NominalContext;
+use crate::nominals::Nominals;
 
 
 fn get_tag_names_old(tags: &[Type]) -> Vec<String> {
@@ -82,12 +83,12 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let expr_ty = typing(&context, expr).0;
             type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
                 let best_ty = type_comparison::get_best_type(&context, &ty, &expr_ty);
-                context.clone().push_type(name.clone().into(), best_ty)
+                context.clone().push_type(name.clone().into(), best_ty, context)
             }).expect("Type error")
         },
         Lang::Alias(name, params, typ) => {
             let var = name.clone().set_type(Type::Params(params.to_vec()));
-            context.clone().push_type(var, typ.clone())
+            context.clone().push_type(var, typ.clone(), context)
         },
         Lang::Assign(var, expr) => {
             let type1 = context.get_type_from_variable(Var::from_language((**var).clone()).unwrap());
@@ -192,7 +193,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         panic!("The arguments types doesnt match:\nexpected: {:?}\nrecieved: {:?}", param_types, arg_types);
                     }
                 }
-                _ => panic!("{} is not a function but a {}", fn_var_name.disp(&NominalContext::new(), &Context::new(vec![], vec![])), fn_ty),
+                _ => panic!("{} is not a function but a {}", fn_var_name.disp(&NominalContext::new(), &Context::new(vec![], vec![], Nominals::new())), fn_ty),
             }
         }
         Lang::Tag(name, expr) => {
