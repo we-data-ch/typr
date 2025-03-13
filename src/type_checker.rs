@@ -84,7 +84,11 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                 let best_ty = type_comparison::get_best_type(&context, &ty, &expr_ty);
                 context.clone().push_type(name.clone().into(), best_ty)
             }).expect("Type error")
-        }
+        },
+        Lang::Alias(name, params, typ) => {
+            let var = name.clone().set_type(Type::Params(params.to_vec()));
+            context.clone().push_type(var, typ.clone())
+        },
         Lang::Assign(var, expr) => {
             let type1 = context.get_type_from_variable(Var::from_language((**var).clone()).unwrap());
             let type2 = typing(&context, expr).0;

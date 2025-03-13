@@ -99,7 +99,7 @@ pub fn is_matching(context: &Context, type1: &Type, type2: &Type) -> bool {
         _ => {
             let reduced1 = reduce_type(context, type1);
             let reduced2 = reduce_type(context, type2);
-            
+
             is_same_type(context, &reduced1, &reduced2) ||
             is_subtype(context, &reduced1, &reduced2) ||
             is_subtype(context, &reduced2, &reduced1)
@@ -127,9 +127,10 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 .map(|arg| reduce_param(context, arg))
                 .collect())
         }
-
         Type::Alias(name, params, _base_type) => {
-            if let Some(aliased_type) = context.get(&Var::from_name(name)) {
+            let var = Var::from_name(name).set_type(Type::Params(params.to_vec())).set_path("empty");
+            dbg!(&var);
+            if let Some(aliased_type) = context.get(&var) {
                 let substituted = type_substitution(
                     &aliased_type,
                     &params.iter()
@@ -177,11 +178,7 @@ pub fn get_best_type(context: &Context, type1: &Type, type2: &Type) -> Type {
 
 fn is_same_type(context: &Context, type1: &Type, type2: &Type) -> bool {
     // Basic implementation - could be extended based on your needs
-    type1 == type2 || match (type1, type2) {
-        (Type::Alias(_, _, base1), type2) => is_same_type(context, &string_to_type(base1), type2),
-        (type1, Type::Alias(_, _, base2)) => is_same_type(context, type1, &string_to_type(base2)),
-        _ => false
-    }
+    type1 == type2
 }
 
 pub fn get_common_type_denominator(_context: &Context, type1: &Type, type2: &Type) -> Option<Type> {

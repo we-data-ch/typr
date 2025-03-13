@@ -11,6 +11,8 @@ fn to_string<T: ToString>(v: &[T]) -> String {
     format!("[{}]", res)
 }
 
+type Path = String;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
 pub enum Type {
     Number,
@@ -24,7 +26,7 @@ pub enum Type {
     Array(Box<Type>, Box<Type>),
     Record(Vec<ArgumentType>),
     Index(u32),
-    Alias(String, Vec<Type>, String),
+    Alias(String, Vec<Type>, Path),
     Tag(String, Box<Type>),
     Union(Vec<Tag>),
     Interface(Vec<ArgumentType>),
