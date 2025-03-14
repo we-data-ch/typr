@@ -193,7 +193,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         panic!("The arguments types doesnt match:\nexpected: {:?}\nrecieved: {:?}", param_types, arg_types);
                     }
                 }
-                _ => panic!("{} is not a function but a {}", fn_var_name.disp(&NominalContext::new(), &Context::new(vec![], vec![], Nominals::new())), fn_ty),
+                _ => panic!("{} is not a function but a {}", fn_var_name.disp(&Context::new(vec![], vec![], Nominals::new())), fn_ty),
             }
         }
         Lang::Tag(name, expr) => {

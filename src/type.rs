@@ -2,6 +2,7 @@ use serde::Serialize;
 use crate::argument_type::ArgumentType;
 use crate::argument_kind::ArgumentKind;
 use crate::tag::Tag;
+use crate::nominal_context::TypeCategory;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -46,6 +47,42 @@ impl Type {
         match self {
             Type::Alias(name, _args, _path) => name.to_string(),
             _ => todo!()
+        }
+    }
+
+    pub fn type_extraction(&self) -> Vec<Type> {
+        match self {
+            Type::Function(_, args, ret)
+                => {
+                    let mut sol = args.clone();
+                    sol.push((**ret).clone());
+                    sol.push(self.clone()); sol
+                }
+            Type::Union(tags) => {
+               let mut sol = tags.iter().map(|tag| tag.to_type()).collect::<Vec<_>>();
+               sol.push(self.clone()); sol
+            },
+            typ => vec![typ.clone()]
+        }
+    }
+
+    pub fn to_category(&self) -> TypeCategory {
+        match self {
+            Type::Array(_, _) => TypeCategory::Array,
+            Type::Function(_, _, _) => TypeCategory::Function,
+            Type::Record(_) => TypeCategory::Record,
+            Type::Index(_) => TypeCategory::Index,
+            Type::Alias(_, _, _) => TypeCategory::Alias,
+            Type::Tag(_, _) => TypeCategory::Tag,
+            Type::Union(_) => TypeCategory::Union,
+            Type::Interface(_) => TypeCategory::Interface,
+            Type::Boolean => TypeCategory::Boolean,
+            Type::Integer => TypeCategory::Integer,
+            Type::Number => TypeCategory::Number,
+            Type::Char => TypeCategory::Char,
+            Type::Generic(_) => TypeCategory::Generic,
+            Type::IndexGen(_) => TypeCategory::Generic,
+            _ => TypeCategory::Rest
         }
     }
 }

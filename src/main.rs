@@ -41,22 +41,22 @@ use crate::context::Context;
 use crate::nominal_context::NominalContext;
 use crate::adt_manager::AdtManager;
 
-fn write_adt_to_r(adt: &Adt, nominal: &NominalContext, cont: &Context) -> () {
+fn write_adt_to_r(adt: &Adt, cont: &Context) -> () {
     let rstd = include_str!("../configs/std.R");
     let mut app = File::create("app.R").unwrap();
-    let content = format!("{}\n\n{}", rstd, adt.to_r(nominal, cont));
+    let content = format!("{}\n\n{}", rstd, adt.to_r(cont));
     app.write_all(content.as_bytes()).unwrap();
 }
 
-fn execute(adt: &Adt, nominal: NominalContext, cont: &Context) -> () {
-    write_adt_to_r(&adt, &nominal, cont);
+fn execute(adt: &Adt, cont: &Context) -> () {
+    write_adt_to_r(&adt, cont);
     execute_r();
 }
 
-fn type_check(adt: &Adt) -> (NominalContext, Context) {
+fn type_check(adt: &Adt) -> Context {
     let (typ, context) = typing(&Context::default(), &Lang::Sequence(adt.0.clone()));
     type_printer::pretty_print(&typ);
-    (NominalContext::from(&context), context)
+    context
 }
 
 fn parse_code() -> AdtManager {
@@ -71,8 +71,9 @@ fn parse_code() -> AdtManager {
 fn main() {
     let adt_manager = parse_code();
 
-    let (nominal, context) = type_check(&adt_manager.get_adt_with_header());
-    execute(&adt_manager.get_adt_without_header(), nominal, &context);
+    //let context = type_check(&adt_manager.get_adt_with_header());
+    let context = type_check(&adt_manager.get_adt_without_header());
+    execute(&adt_manager.get_adt_without_header(), &context);
 }
 
 #[cfg(test)]

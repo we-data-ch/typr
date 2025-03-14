@@ -29,6 +29,22 @@ impl From<Vec<(Lang, Type)>> for  Context {
    } 
 }
 
+fn type_extraction(t: &Type) -> Vec<Type> {
+    match t {
+        Type::Function(_, args, ret)
+            => {
+                let mut sol = args.clone();
+                sol.push((**ret).clone());
+                sol.push(t.clone()); sol
+            }
+        Type::Union(tags) => {
+           let mut sol = tags.iter().map(|tag| tag.to_type()).collect::<Vec<_>>();
+           sol.push(t.clone()); sol
+        },
+        typ => vec![typ.clone()]
+    }
+}
+
 impl Context {
     pub fn new(types: Vec<(Var, Type)>, kinds: Vec<(Type, Kind)>, nominals: Nominals) -> Context {
         Context {
@@ -55,19 +71,7 @@ impl Context {
 
     pub fn get_types(&self) -> Vec<Type> {
         let res = self.iter().flat_map(|(_lang, type_)| {
-            match type_ {
-                Type::Function(_, args, ret)
-                    => {
-                        let mut sol = args.clone();
-                        sol.push((**ret).clone());
-                        sol.push(type_.clone()); sol
-                    }
-                Type::Union(tags) => {
-                   let mut sol = tags.iter().map(|tag| tag.to_type()).collect::<Vec<_>>();
-                   sol.push(type_.clone()); sol
-                },
-                typ => vec![typ.clone()]
-            }
+            type_extraction(type_)
         }).collect::<Vec<_>>();
         let mut seen = HashSet::new();
         let unique: Vec<_> = res.into_iter()
@@ -85,7 +89,10 @@ impl Context {
     }
 
     pub fn get_type_from_variable(&self, var: Var) -> Type {
-       self.types.iter()
+        if var.get_name() == "f" {
+            dbg!(&self);
+        }
+        self.types.iter()
            .find(|(v, _)| var.match_with(v, self))
            .map(|(_, ty)| ty)
            .expect(&format!("The variable {}, wasn't found in the context", var))
@@ -98,6 +105,14 @@ impl Context {
 
     pub fn get_kind_map(&self) -> Vec<(Type, Kind)> {
         self.kinds.clone()
+    }
+
+    pub fn get_class(&self, t: &Type) -> String {
+        self.nominals.get_class(t)
+    }
+
+    pub fn get_classes(&self, t: &Type) -> String {
+        self.nominals.get_classes(t)
     }
     
 }

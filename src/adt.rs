@@ -12,7 +12,7 @@ pub struct Adt(pub Vec<Lang>);
 impl fmt::Display for Adt {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let cont = Context::new(vec![], vec![], Nominals::new());
-        let res = self.0.iter().map(|x| x.disp(&NominalContext::new(), &cont))
+        let res = self.0.iter().map(|x| x.disp(&cont))
             .reduce(|acc, x| format!("{}, {}", acc, x))
             .unwrap_or("".to_string());
         write!(f, "sequence([{}])", res)       
@@ -57,9 +57,9 @@ impl Adt {
         }
     }
 
-    pub fn to_r(&self, nominal: &NominalContext, cont: &Context) -> String {
+    pub fn to_r(&self, cont: &Context) -> String {
         self.iter()
-            .map(|line| line.to_r(nominal, cont))
+            .map(|line| line.to_r(cont))
             .fold(String::from(""), |acc, x| format!("{}\n{}", acc, x))
     }
 
