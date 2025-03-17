@@ -1,30 +1,40 @@
 use crate::unification::type_substitution;
 use crate::argument_type::ArgumentType;
-use crate::unification::unify;
 use crate::r#type::Type;
 use crate::var::Var;
-use crate::types::string_to_type;
 use crate::context::Context;
 use crate::tag::Tag;
+use crate::is_subset;
 
 // Implementation of the Prolog rules as Rust functions
 pub fn all_in(subset: &[ArgumentType], superset: &[ArgumentType]) -> bool {
     subset.iter().all(|item| superset.contains(item))
 }
 
-pub fn check_interface_function(
-    var: &Var,
-    fn_type1: &Type,
-    self_type: &Type,
-    context: &Context
-) -> bool {
-    // Equivalent to the Prolog unification:type_substitution
-    let fn_type2 = type_substitution(fn_type1, &vec![(Type::Generic("self".to_string()), self_type.clone())]);
-    // Equivalent to type_context:get_from_context
-    match context.get(&var) {
-        Some(context_type) => is_matching(context, &fn_type2, &context_type),
-        None => false
+fn to_self(t1: Type, t2: Type) -> Type {
+    if  t1 == t2 {
+        Type::Alias("Self".to_string(), vec![], "".to_string())
+    } else {
+       t1
     }
+}
+
+fn set_self(fs: &[(Var, Type)]) -> Vec<(Var, Type)> {
+    fs.iter().map(|(var, typ)| {
+        match typ {
+            Type::Function(kinds, arg_types, ret_type) => {
+                if arg_types.len() > 0 {
+                    let first = arg_types.first().cloned().unwrap();
+                    let args = arg_types.iter()
+                        .map(|typ_ele| to_self(typ_ele.clone(), first.clone()))
+                        .collect();
+                    let ret2 = to_self((**ret_type).clone(), first);
+                    (var.clone().set_type(Type::Empty), Type::Function(kinds.clone(), args, Box::new(ret2)))
+                } else { (var.clone().set_type(Type::Empty), typ.clone()) }
+            },
+            _ => (var.clone(), typ.clone())
+        }
+    }).collect()
 }
 
 pub fn check_interface_functions(
@@ -32,9 +42,8 @@ pub fn check_interface_functions(
     self_type: &Type,
     context: &Context
 ) -> bool {
-    functions.iter().all(|(var, fn_type)| {
-        check_interface_function(var, fn_type, self_type, context)
-    })
+    let functions2 = set_self(&context.get_functions(self_type));
+    is_subset(functions, &functions2)
 }
 
 pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
@@ -54,7 +63,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (type1, Type::Interface(args)) => {
             check_interface_functions(
                 &args.iter()
-                    .map(|arg| (Var::default(), arg.1.clone()))
+                    .map(|arg| (Var::default().set_name(&arg.0), arg.1.clone()))
                     .collect::<Vec<_>>(),
                 type1,
                 context
@@ -104,7 +113,7 @@ pub fn is_matching(context: &Context, type1: &Type, type2: &Type) -> bool {
             let reduced1 = reduce_type(context, type1);
             let reduced2 = reduce_type(context, type2);
 
-            is_same_type(context, &reduced1, &reduced2) ||
+            reduced1 == reduced2 ||
             is_subtype(context, &reduced1, &reduced2)
         }
     }
@@ -161,26 +170,14 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
     }
 }
 
-pub fn get_best_type(context: &Context, type1: &Type, type2: &Type) -> Type {
+pub fn get_best_type(type1: &Type, type2: &Type) -> Type {
     match (type1, type2) {
         (Type::Any, type2) => type2.clone(), 
         _ => type1.clone()
-        //(type1, type2) if type1 == type2 => type1.clone(),
-        //_ => {
-            //let reduced1 = reduce_type(context, type1);
-            //let reduced2 = reduce_type(context, type2);
-            //
-            //match unify(&reduced1, &reduced2) {
-                //Some(unification_result) 
-                    //=> type_substitution(type1, &unification_result),
-                //_ => panic!("Unification failed !")
-            //}
-        //}
     }
 }
 
-fn is_same_type(context: &Context, type1: &Type, type2: &Type) -> bool {
-    // Basic implementation - could be extended based on your needs
+fn is_same_type(type1: &Type, type2: &Type) -> bool {
     type1 == type2
 }
 

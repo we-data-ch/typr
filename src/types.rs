@@ -22,7 +22,6 @@ use nom::combinator::recognize;
 use crate::operators::op;
 use crate::operators::Op;
 use crate::r#type::Type;
-use crate::parser::get_input;
 
 fn ltype_arg(s: &str) -> IResult<&str, Type> {
     let res = tuple((ltype, terminated(opt(tag(",")), multispace0)))(s);
@@ -422,10 +421,6 @@ fn indices(s: &str) -> IResult<&str, Type> {
                   ))(s)
 }
 
-pub fn string_to_type(s: &str) -> Type {
-    ltype(s)
-        .expect(&format!("The type format is incorrect: '{}'", s)).1
-}
 
 //ltype to not use the reserved symbol "type"
 // main

@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use std::fmt;
 use crate::r#type::Type;
 use crate::var::Var;
 use crate::var::Permission;
@@ -7,7 +6,6 @@ use serde::Serialize;
 use crate::argument_type::ArgumentType;
 use crate::argument_value::ArgumentValue;
 use crate::argument_kind::ArgumentKind;
-use crate::NominalContext;
 use crate::type_checker;
 use crate::Context;
 use crate::nominal_context::TypeCategory;
@@ -289,8 +287,11 @@ impl Lang {
                 => {
                 let body = args.iter().map(|x| x.to_r(cont)).collect::<Vec<_>>().join(", ");
                 let typ = type_checker::typing(cont, self).0;
-                let res = cont.get_classes(&typ);
-            format!("structure(list({}), class = c('Record', {}))", body, res)
+                match cont.get_classes(&typ) {
+                    Some(res) => format!("structure(list({}), class = c('Record', {}))", body, res),
+                    _ => format!("structure(list({}), class = 'Record')", body)
+                }
+            
                     }
             Lang::Char(s) => "'".to_string() + s + "'",
             Lang::If(cond, exp, els) 
@@ -309,8 +310,11 @@ impl Lang {
             Lang::Integer(i) => i.to_string(),
             Lang::Tag(s, t) => {
                 let typ = type_checker::typing(cont, self).0;
-                let res = cont.get_classes(&typ);
-                format!("structure(list('{}', {}), class = c('Tag', {}))", s, t.to_r(cont), res)
+                
+                match cont.get_classes(&typ) {
+                    Some(res) => format!("structure(list('{}', {}), class = c('Tag', {}))", s, t.to_r(cont), res),
+                    _ => format!("structure(list('{}', {}), class = 'Tag')", s, t.to_r(cont))
+                }
             },
             Lang::Empty => "NA".to_string(),
             Lang::ModuleDecl(name) => format!("{} <- new.env()", name),

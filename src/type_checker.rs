@@ -7,8 +7,6 @@ use crate::var::Var;
 use crate::tag::Tag;
 use crate::index::Index;
 use crate::unification;
-use crate::NominalContext;
-use crate::nominals::Nominals;
 
 
 fn get_tag_names_old(tags: &[Type]) -> Vec<String> {
@@ -82,7 +80,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let ty = if ty == &Type::Empty {Type::Any} else {ty.clone()};
             let expr_ty = typing(&context, expr).0;
             type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
-                let best_ty = type_comparison::get_best_type(&context, &ty, &expr_ty);
+                let best_ty = type_comparison::get_best_type(&ty, &expr_ty);
                 context.clone().push_type(name.clone().into(), best_ty, context)
             }).expect("Type error")
         },
@@ -180,9 +178,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         .map(|arg| typing(context, arg).0).collect::<Vec<_>>();
                     let arg_param_types = arg_types.iter()
                         .zip(param_types.iter()).collect::<Vec<_>>();
-                    let condition = arg_param_types.iter() 
+                    let conditions = arg_param_types.iter() 
                         .all(|(arg, par)| type_comparison::is_matching(context, arg, par));
-                    if condition {
+                    if conditions {
                         let unification_map = arg_param_types.iter()
                             .flat_map(|(arg, par)| unification::unify(arg, par))
                             .reduce(|res1, res2| res1.iter().chain(res2.iter()).cloned().collect())
@@ -193,7 +191,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         panic!("The arguments types doesnt match:\nexpected: {:?}\nrecieved: {:?}", param_types, arg_types);
                     }
                 }
-                _ => panic!("{} is not a function but a {}", fn_var_name.disp(&Context::new(vec![], vec![], Nominals::new())), fn_ty),
+                _ => panic!("{} is not a function but a {}", fn_var_name.disp(&Context::new(vec![], vec![])), fn_ty),
             }
         }
         Lang::Tag(name, expr) => {

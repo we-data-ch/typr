@@ -2,7 +2,6 @@ use std::fs::File;
 use std::io::{Write, Result};
 use crate::Type;
 use crate::kind::Kind;
-use crate::NominalContext;
 
 fn format_kind(ki: &Kind) -> String {
    match ki {
@@ -13,7 +12,7 @@ fn format_kind(ki: &Kind) -> String {
 
 fn format(ty: &Type) -> String {
     match ty {
-        Type::Alias(name, params, path) => {
+        Type::Alias(name, params, _path) => {
             if params.len() == 0 {
                 format!("{}", name)
             } else {

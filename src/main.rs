@@ -9,12 +9,12 @@ mod metaprogramming;
 mod argument_type;
 mod argument_value;
 mod argument_kind;
-mod context_manager;
+//mod context_manager;
+//mod module;
 mod type_comparison;
 mod unification;
 mod context;
 mod adt;
-mod module;
 mod nominal_context;
 mod r#type;
 mod kinds;
@@ -27,6 +27,7 @@ mod tag;
 mod index;
 mod adt_manager;
 mod nominals;
+mod subtypes;
 
 use parser::parse;
 use my_io::{read_file, execute_r};
@@ -38,8 +39,13 @@ use std::io::Write;
 use crate::adt::Adt;
 use crate::type_checker::typing;
 use crate::context::Context;
-use crate::nominal_context::NominalContext;
 use crate::adt_manager::AdtManager;
+use std::collections::HashSet;
+
+pub fn is_subset<T: Eq + std::hash::Hash>(v1: &[T], v2: &[T]) -> bool {
+    let set_v2: HashSet<_> = v2.iter().collect();
+    v1.iter().all(|x| set_v2.contains(x))
+}
 
 fn write_adt_to_r(adt: &Adt, cont: &Context) -> () {
     let rstd = include_str!("../configs/std.R");

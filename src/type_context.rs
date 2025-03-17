@@ -2,8 +2,6 @@ use crate::Type;
 use crate::context::Context;
 use crate::var::Var;
 use crate::kind::Kind;
-use crate::NominalContext;
-use crate::nominals::Nominals;
 
 fn get_right_elements(params: &[(String, Type)]) -> Vec<Type> {
     params.iter().map(|(_, ty)| ty.clone()).collect()
@@ -28,7 +26,7 @@ fn concat<T: Clone>(list1: Vec<T>, list2: Vec<T>) -> Vec<T> {
 fn concat_context(context1: &Context, context2: &Context) -> Context {
     let typ_kind = concat(context1.get_kind_map().clone(), context2.get_kind_map().clone());
     let var_typ = concat(context1.get_type_map().clone(), context2.get_type_map().clone());
-    Context::new(var_typ, typ_kind, Nominals::new())
+    Context::new(var_typ, typ_kind)
 }
 
 fn add_type(context: &mut Context, var: &Var, ty: Type) {

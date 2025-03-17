@@ -3,44 +3,6 @@ use crate::context::Context;
 use crate::r#type::Type;
 use crate::type_comparison::is_subtype;
 
-#[derive(Debug, Clone)]
-pub struct NominalContext(Vec<(Type, String, Vec<String>)>);
-
-impl NominalContext {
-    pub fn new() -> NominalContext {
-        NominalContext(vec![])
-    }
-
-    pub fn get_classes(&self, t: &Type) -> String {
-        let vec: Vec<_> = self.0.iter().find(|(ty, _, _)| t == ty)
-            .map(|(_, _, sup)| sup.clone())
-            .unwrap();
-        let vec = vec.iter()
-            .filter(|elem| *elem != "").collect::<Vec<_>>();
-        vec.iter().map(|x| format!("'{}'", x)).collect::<Vec<_>>().join(",")
-    }
-
-    pub fn get_class(&self, t: &Type) -> String {
-        self.0.iter().find(|(ty, _, _)| t == ty)
-            .map(|(_, name, _)| name.clone())
-            .unwrap()
-    }
-
-    pub fn push_type(self, t: Type) -> NominalContext {
-        todo!();
-    }
-
-    pub fn update_supertypes(self) -> NominalContext {
-        todo!();
-    }
-}
-
-impl From<Vec<(Type, String, Vec<String>)>> for  NominalContext {
-   fn from(val: Vec<(Type, String, Vec<String>)>) -> Self {
-        NominalContext(val.clone())
-   } 
-}
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TypeCategory {
     Array,
@@ -174,7 +136,7 @@ impl TypeNominal {
     }
 
     pub fn get_index(&self, t: Type) -> usize {
-        self.body.iter().enumerate().find(|(i, (typ, _))| *typ == t).unwrap().0 as usize
+        self.body.iter().enumerate().find(|(_i, (typ, _))| *typ == t).unwrap().0 as usize
     }
 
     fn corresponding_nominal(&self, type_: &Type) -> Option<Nominal> {
@@ -182,30 +144,32 @@ impl TypeNominal {
             .map(|(_, nominal)| nominal.clone())
     }
 
-   fn get_nth(&mut self, type_: Type) -> usize {
+    fn get_nth(&self, type_: Type) -> (Categories, usize) {
       match type_ {
           Type::Array(_, _) => self.get_nth_helper(TypeCategory::Array),
           Type::Function(_, _, _) => self.get_nth_helper(TypeCategory::Function),
           Type::Record(_) => self.get_nth_helper(TypeCategory::Record),
-          Type::Number | Type::Integer | Type::Char | Type::Boolean => 0 as usize,
-          Type::Embedded(_) | Type::Generic(_) | Type::IndexGen(_) => 0 as usize,
+          Type::Number | Type::Integer | Type::Char | Type::Boolean => (self.categories.clone(), 0 as usize),
+          Type::Embedded(_) | Type::Generic(_) | Type::IndexGen(_) => (self.categories.clone(), 0 as usize),
           Type::Index(_) => self.get_nth_helper(TypeCategory::Index),
           Type::Alias(_, _, _) => self.get_nth_helper(TypeCategory::Alias),
           Type::Tag(_, _) => self.get_nth_helper(TypeCategory::Tag),
           Type::Union(_) => self.get_nth_helper(TypeCategory::Union),
           Type::Interface(_) => self.get_nth_helper(TypeCategory::Interface),
-          Type::Failed(_) | Type::Params(_) | Type::Empty => 0 as usize,
-          Type::Add(_, _) | Type::Mul(_, _) | Type::Div(_, _) | Type::Minus(_, _) => 0 as usize,
+          Type::Failed(_) | Type::Params(_) | Type::Empty => (self.categories.clone(), 0 as usize),
+          Type::Add(_, _) | Type::Mul(_, _) | Type::Div(_, _) | Type::Minus(_, _) => (self.categories.clone(), 0 as usize),
           _ => self.get_nth_helper(TypeCategory::Rest)
       }
    } 
 
-   fn get_nth_helper(&mut self, category: TypeCategory) -> usize {
-       self.incr(category); self.get(category)
+   fn get_nth_helper(&self, category: TypeCategory) -> (Categories, usize) {
+       (self.incr(category), self.get(category))
    }
 
-   fn incr(&mut self, category: TypeCategory) -> () {
-       self.categories.0.insert(category, *self.categories.0.get(&category).unwrap() + 1);
+   fn incr(&self, category: TypeCategory) -> Categories {
+       let mut mut_cate = self.categories.clone();
+       mut_cate.0.insert(category, *self.categories.0.get(&category).unwrap() + 1);
+       mut_cate.clone()
    }
 
    fn get(&self, category: TypeCategory) -> usize {
@@ -216,8 +180,31 @@ impl TypeNominal {
        self.body.push(type_nominal)
    }
 
-   fn new_nominal(&mut self, type_: Type) -> Nominal {
-        Nominal::from((type_.clone(), self.get_nth(type_)))
+   fn new_nominal(&self, type_: Type) -> (Categories, Nominal) {
+       let res = self.get_nth(type_.clone());
+        (res.0, Nominal::from((type_, res.1)))
+   }
+
+   fn contains(&self, typ: &Type) -> bool {
+       self.body.iter().find(|(typ_, _nom)| typ == typ_).is_some()
+   }
+
+   pub fn push_type(&self, typ: Type) -> TypeNominal {
+       if self.contains(&typ) {
+            self.clone()
+       } else {
+           let cat_nom = self.new_nominal(typ.clone());
+           TypeNominal {
+               body: self.body.iter().chain([(typ, cat_nom.1)].iter()).cloned().collect::<Vec<_>>(),
+               categories: cat_nom.0
+           }
+       }
+   }
+
+   pub fn get_class(&self, typ: &Type) -> String {
+       self.body.iter()
+           .find(|(typ_, _nominal)| typ_ == typ)
+           .unwrap().1.0.clone()
    }
 
 }
@@ -239,7 +226,7 @@ fn get_nominal(types: Vec<Type>, _con: &Context) -> TypeNominal {
     types.iter().fold(TypeNominal::new(), |mut acc, type_| {
         let res = match acc.corresponding_nominal(type_) {
             Some(nominal) => (type_.clone(), nominal),
-            None => (type_.clone(), acc.new_nominal(type_.clone()))
+            None => (type_.clone(), acc.new_nominal(type_.clone()).1)
         };
         acc.push(res); acc
     })
@@ -253,17 +240,4 @@ pub fn get_subtype_relation(types: Vec<Type>, con: &Context, nominals: &TypeNomi
             .map(|typ3| nominals.corresponding_nominal(typ3).unwrap().0)
             .collect::<Vec<_>>()
     }).collect::<Vec<_>>()
-}
-
-impl From<&Context> for NominalContext {
-   fn from(con: &Context) -> Self {
-       let types = con.get_types();
-       let nominals: TypeNominal = get_nominal(types.clone(), con);
-       let super_nominal = get_subtype_relation(types.clone(), con, &nominals);
-       NominalContext(types.iter().cloned()
-           .zip(nominals.body.iter().map(|(_, nom)| nom.0.clone()))
-           .zip(super_nominal.iter().cloned())
-           .map(|((typ, nom), sup)| (typ, nom, sup))
-           .collect::<Vec<_>>())
-   } 
 }

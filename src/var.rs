@@ -1,4 +1,3 @@
-#[warn(dead_code)]
 use crate::Type;
 use crate::Lang;
 use std::fmt;
@@ -10,7 +9,7 @@ type Name = String;
 type Path = String;
 type IsMutableOpaque = bool;
 
-#[derive(Debug, PartialEq, Clone, Copy, Serialize)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Eq, Hash)]
 pub enum Permission {
     Private,
     Public
@@ -25,7 +24,7 @@ impl fmt::Display for Permission {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
 pub struct Var(pub Name, pub Path, pub Permission, pub IsMutableOpaque, pub Type);
 
 impl Var {
@@ -48,6 +47,10 @@ impl Var {
 
     pub fn to_language(self) -> Lang {
         Lang::Variable(self.0, self.1, self.2, self.3, self.4)
+    }
+
+    pub fn set_name(self, s: &str) -> Var {
+       Var(s.to_string(), self.1, self.2, self.3, self.4)
     }
 
     pub fn set_type(self, typ: Type) -> Var {
@@ -95,20 +98,20 @@ impl Var {
         self.4.clone()
     }
 
-    pub fn get_is_mutable(&self) -> bool {
-        self.3.clone()
-    }
+    //pub fn get_is_mutable(&self) -> bool {
+        //self.3.clone()
+    //}
 
-    pub fn get_is_opaque(&self) -> bool {
-        self.3.clone()
-    }
+    //pub fn get_is_opaque(&self) -> bool {
+        //self.3.clone()
+    //}
 
-    pub fn is_alias(&self) -> bool {
-        match self {
-            Var(_, _, _, _, Type::Params(_)) => true,
-            _ => false
-        }
-    }
+    //pub fn is_alias(&self) -> bool {
+        //match self {
+            //Var(_, _, _, _, Type::Params(_)) => true,
+            //_ => false
+        //}
+    //}
 
     pub fn match_with(&self, var: &Var, context: &Context) -> bool {
         [(self.get_name() == var.get_name()),

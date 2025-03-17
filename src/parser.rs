@@ -21,16 +21,6 @@ use nom::character::complete::line_ending;
 use crate::elements::bang_exp;
 use nom::multi::many0;
 use crate::adt::Adt;
-use nom::Err;
-use nom::error::Error;
-
-pub fn get_input(error: Err<Error<&str>>) -> &str {
-    match error {
-        Err::Incomplete(_) => "",
-        Err::Error(e) => e.input,
-        Err::Failure(e) => e.input,
-    }
-}
 
 fn pattern_var(s: &str) -> IResult<&str, (Vec<Lang>, Option<String>)> {
     let res = alt((tag_exp, variable))(s);
