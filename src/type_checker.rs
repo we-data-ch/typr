@@ -86,7 +86,12 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         },
         Lang::Alias(name, params, typ) => {
             let var = name.clone().set_type(Type::Params(params.to_vec()));
-            context.clone().push_type(var, typ.clone(), context)
+            let new_context = context.clone().push_type(var, typ.clone(), context);
+            //let (fn_typ, fn_adt) = context.get_embeddings(typ);
+            //let new_context2 = fn_typ.iter()
+                //.fold(new_context, |ctx, var_typfun| ctx.push_type(var_typfun.0, var_typefun.1, context));
+            //let new_context3 = new_context2.add_to_adt(fn_adt);
+            new_context
         },
         Lang::Assign(var, expr) => {
             let type1 = context.get_type_from_variable(Var::from_language((**var).clone()).unwrap());
