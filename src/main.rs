@@ -78,7 +78,7 @@ fn main() {
     let adt_manager = parse_code();
 
     //let context = type_check(&adt_manager.get_adt_with_header());
-    let context = type_check(&adt_manager.get_adt_without_header());
+    let context = type_check(&adt_manager.get_adt_with_header());
     execute(&adt_manager.get_adt_without_header(), &context);
 }
 

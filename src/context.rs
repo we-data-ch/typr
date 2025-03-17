@@ -149,7 +149,8 @@ impl Context {
     pub fn get_classes(&self, t: &Type) -> Option<String> {
         self.subtypes.get_supertypes(t)
             .into_iter().map(|typ| self.nominals.get_class(&typ))
-            .reduce(|acc, x| format!("'{}', '{}'", acc, x))
+            .map(|x| format!("'{}'", x))
+            .reduce(|acc, x| format!("{}, {}", acc, x))
     }
 
     pub fn get_supertypes(&self, t: &Type) -> Vec<Type> {

@@ -310,7 +310,6 @@ impl Lang {
             Lang::Integer(i) => i.to_string(),
             Lang::Tag(s, t) => {
                 let typ = type_checker::typing(cont, self).0;
-                
                 match cont.get_classes(&typ) {
                     Some(res) => format!("structure(list('{}', {}), class = c('Tag', {}))", s, t.to_r(cont), res),
                     _ => format!("structure(list('{}', {}), class = 'Tag')", s, t.to_r(cont))
