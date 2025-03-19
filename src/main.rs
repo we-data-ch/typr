@@ -50,7 +50,7 @@ pub fn is_subset<T: Eq + std::hash::Hash>(v1: &[T], v2: &[T]) -> bool {
 fn write_adt_to_r(adt: &Adt, cont: &Context) -> () {
     let rstd = include_str!("../configs/std.R");
     let mut app = File::create("app.R").unwrap();
-    let content = format!("{}\n\n{}", rstd, adt.to_r(cont));
+    let content = format!("{}\n\n{}\n\n{}", rstd, Adt(cont.adt.clone()).to_r(cont), adt.to_r(cont));
     app.write_all(content.as_bytes()).unwrap();
 }
 

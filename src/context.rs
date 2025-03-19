@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use crate::kind::Kind;
 use crate::subtypes::Subtypes;
 use crate::nominal_context::TypeNominal;
+use crate::argument_type::ArgumentType;
 
 #[derive(Debug, Clone)]
 pub struct VarType(Vec<(Var, Type)>);
@@ -32,7 +33,8 @@ pub struct Context {
    pub types: VarType,
    kinds: Vec<(Type, Kind)>,
    nominals: TypeNominal,
-   pub subtypes: Subtypes
+   pub subtypes: Subtypes,
+   pub adt: Vec<Lang>
 }
 
 impl Default for Context {
@@ -41,7 +43,8 @@ impl Default for Context {
             types: VarType::new(),
             kinds: vec![],
             nominals: TypeNominal::new(),
-            subtypes: Subtypes::new()
+            subtypes: Subtypes::new(),
+            adt: vec![]
         }
     }
 }
@@ -56,7 +59,8 @@ impl From<Vec<(Lang, Type)>> for  Context {
             types: VarType(val2),
             kinds: vec![],
             nominals: TypeNominal::new(),
-            subtypes: Subtypes::new()
+            subtypes: Subtypes::new(),
+            adt: vec![]
         }
    } 
 }
@@ -83,7 +87,8 @@ impl Context {
             types: VarType(types),
             kinds: kinds,
             nominals: TypeNominal::new(),
-            subtypes: Subtypes::new()
+            subtypes: Subtypes::new(),
+            adt: vec![]
         }
     }
 
@@ -171,5 +176,144 @@ impl Context {
             ..self.clone()
         }
     }
+
+    pub fn get_embeddings(&self, t: &Type) -> (Vec<(Var, Type)>, Context) {
+        match t {
+            Type::Record(arg_typs) => {
+                let new_t = t.clone().without_embeddings();
+                let type_functions = arg_typs.iter()
+                    .filter(|arg_typ| arg_typ.is_embedded())
+                    .map(|arg_typ| arg_typ.remove_embeddings())
+                    .map(|arg_typ| (arg_typ.get_argument(), arg_typ.get_type()))
+                    .flat_map(|(arg, ty)| {
+                        let funcs = self.get_functions(&ty);
+                        funcs.iter().map(|(var, fun)| (arg.clone(), var.clone(), fun.clone())).collect::<Vec<_>>()
+                    })
+                    .map(|(arg, var, fun): (String, Var, Type)| 
+                         (arg, var.clone().set_type(new_t.clone()),
+                         fun.clone().replace_function_types(var.get_type(), new_t.clone())))
+                    .collect::<Vec<_>>();
+                let new_cont = 
+                    type_functions.iter()
+                    .fold(self.clone(), |ctx, tf| ctx.clone().push_type(tf.1.clone(), tf.2.clone(), &ctx));
+                let new_cont2 = new_cont.clone().add_to_adt(&self.build_concret_functions(&type_functions));
+                (type_functions.iter().map(|(arg, var, fun)| (var.clone(), fun.clone())).collect(),
+                new_cont2)
+            },
+            _ => (vec![], Context::default())
+        }
+    }
+
+    fn add_to_adt(self, data: &[Lang]) -> Context {
+        Context {
+            adt: self.adt.iter().chain(data.iter()).cloned().collect::<Vec<_>>(),
+            ..self
+        }
+    }
+
+    fn build_concret_functions(&self, var_typ: &[(String, Var, Type)]) -> Vec<Lang> {
+        var_typ.iter().map(|(par, var, typ)| {
+            let t = var.get_type();
+            match typ {
+                Type::Function(kinds, args, t2) => {
+                   let manips = args.iter().enumerate()
+                       .map(|(i, argtyp)| manip(&generate_arg(i), argtyp.clone(), t.clone(), par))
+                       .collect::<Vec<_>>();
+                   let t_end = (**t2).clone();
+                   let manip1 = if t_end == t { Manip::Set("a".to_string(), par.to_string()) } else {Manip::Same("a".to_string())};
+                   let new_args = args.iter()
+                       .map(|ty| if *ty == t {typ.clone()} else { ty.clone() } )
+                       .enumerate()
+                       .map(|(i, typ)| ArgumentType::new(&generate_arg(i), &typ.clone()))
+                       .collect::<Vec<_>>();
+                   let new_t2 = if t_end == t { typ.clone() } else {t_end.clone()};
+                   Lang::Let(
+                       var.clone(),
+                        Type::Empty,
+                        Box::new(
+                           Lang::Function(kinds.to_vec(), new_args, new_t2,
+                                          Box::new(build_concret_function(&manips, manip1, var.clone())))
+                                )
+                            )
+                },
+                _ => todo!()
+            }
+        }).collect()
+    }
     
+}
+
+fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
+    let args = m.iter()
+        .map(|x| x.to_lang())
+        .collect::<Vec<_>>();
+    let first = args.iter().nth(0).unwrap().clone();
+    match end {
+        Manip::Set(_, param) => {
+            Lang::FunctionApp(
+                Box::new(Var::from_name("set").to_language()),
+                vec![
+                    Var::from_name("a").to_language(),
+                    Lang::Char(param.to_string()),
+                    Lang::FunctionApp(Box::new(name.to_language()), args)
+                ]
+            )
+        },
+        _ => {
+            Lang::FunctionApp(Box::new(name.to_language()), args)
+        }
+    }
+}
+
+
+fn manip(arg: &str, t1: Type, t2: Type, par: &str) -> Manip {
+   if t1 == t2 {
+       Manip::Get(arg.to_string(), par.to_string())
+   } else {
+        Manip::Same(arg.to_string())
+   }
+}
+
+type ArgName = String;
+type Field = String;
+
+enum Manip {
+    Get(ArgName, Field),
+    Set(ArgName, Field),
+    Same(ArgName),
+    Empty
+}
+
+impl Manip {
+    fn to_lang(&self) -> Lang {
+        match self {
+            Manip::Same(argname) => Var::from_name(&argname).to_language(),
+            Manip::Get(argname, field) => {
+                Lang::FunctionApp(
+                    Box::new(Var::from_name("get").to_language()),
+                    vec![
+                        Var::from_name(&argname).to_language(),
+                        Lang::Char(field.to_string())
+                    ])
+            },
+            _ => todo!()
+        }
+    }
+}
+
+fn generate_arg(mut num: usize) -> String {
+    match num {
+        0 => "a",
+        1 => "b",
+        2 => "c",
+        3 => "d",
+        4 => "e",
+        5 => "f",
+        6 => "g",
+        7 => "h",
+        8 => "i",
+        9 => "j",
+        10 => "k",
+        _ => "overflow"
+    }.to_string()
 }

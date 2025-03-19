@@ -12,3 +12,12 @@ into <- function(element, vecteur) {
 dot <- function(a, b) {
 	a %*% b
 }
+
+get <- function(var, label) {
+	var[[label]]
+}
+
+set <- function(var, label, val) {
+	var[[label]] <- val;
+	return(var)
+}

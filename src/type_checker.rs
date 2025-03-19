@@ -86,12 +86,11 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         },
         Lang::Alias(name, params, typ) => {
             let var = name.clone().set_type(Type::Params(params.to_vec()));
-            let new_context = context.clone().push_type(var, typ.clone(), context);
-            //let (fn_typ, fn_adt) = context.get_embeddings(typ);
-            //let new_context2 = fn_typ.iter()
-                //.fold(new_context, |ctx, var_typfun| ctx.push_type(var_typfun.0, var_typefun.1, context));
-            //let new_context3 = new_context2.add_to_adt(fn_adt);
-            new_context
+            let new_context = context.clone().push_type(var, typ.clone().without_embeddings(), context);
+            let (fn_typ, new_context2) = new_context.get_embeddings(typ);
+            let new_context3 = fn_typ.iter()
+                .fold(new_context2, |ctx, var_typfun| ctx.push_type(var_typfun.0.clone(), var_typfun.1.clone(), context));
+            new_context3
         },
         Lang::Assign(var, expr) => {
             let type1 = context.get_type_from_variable(Var::from_language((**var).clone()).unwrap());
@@ -176,7 +175,10 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::FunctionApp(fn_var_name, args) => {
-            let fn_ty = typing(context, fn_var_name).0;
+            let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
+            let var_name = Var::from_language(*fn_var_name.clone())
+                .unwrap().set_type(first);
+            let fn_ty = typing(context, &var_name.to_language()).0;
             match fn_ty {
                 Type::Function(_kinds, param_types, ret_ty) => {
                     let arg_types = args.iter()

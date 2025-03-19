@@ -1,19 +1,3 @@
-let add <- fn(a: T, b: T): T {
-	...
-};
-
-let minus <- fn(a: T, b: T): U {
-	...
-};
-
-let mul <- fn(a: T, b: T): T {
-	...
-};
-
-let div <- fn(a: T, b: T): U {
-	...
-};
-
 let map <- fn(a: [#N, T], f: (T) -> U): [#N, U] {
 	...
 };

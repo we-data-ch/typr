@@ -287,9 +287,10 @@ impl Lang {
                 => {
                 let body = args.iter().map(|x| x.to_r(cont)).collect::<Vec<_>>().join(", ");
                 let typ = type_checker::typing(cont, self).0;
+                let class = cont.get_class(&typ);
                 match cont.get_classes(&typ) {
-                    Some(res) => format!("structure(list({}), class = c('Record', {}))", body, res),
-                    _ => format!("structure(list({}), class = 'Record')", body)
+                    Some(res) => format!("structure(list({}), class = c('Record', '{}', {}))", body, class, res),
+                    _ => format!("structure(list({}), class = c('Record', '{}'))", body, class)
                 }
             
                     }
@@ -310,9 +311,12 @@ impl Lang {
             Lang::Integer(i) => i.to_string(),
             Lang::Tag(s, t) => {
                 let typ = type_checker::typing(cont, self).0;
+                let class = cont.get_class(&typ);
+                dbg!(&class);
                 match cont.get_classes(&typ) {
-                    Some(res) => format!("structure(list('{}', {}), class = c('Tag', {}))", s, t.to_r(cont), res),
-                    _ => format!("structure(list('{}', {}), class = 'Tag')", s, t.to_r(cont))
+                    Some(res) => 
+                        format!("structure(list('{}', {}), class = c('Tag', '{}', {}))", s, t.to_r(cont), class, res),
+                    _ => format!("structure(list('{}', {}), class = c('Tag', '{}'))", s, t.to_r(cont), class)
                 }
             },
             Lang::Empty => "NA".to_string(),

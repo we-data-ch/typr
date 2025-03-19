@@ -85,6 +85,39 @@ impl Type {
             _ => TypeCategory::Rest
         }
     }
+
+    pub fn get_embedding(&self) -> Option<Type> {
+        match self {
+            Type::Embedded(typ) => Some(*typ.clone()),
+            _ => None
+        }
+    }
+
+    pub fn replace_function_types(self: Type, t1: Type, t2: Type) -> Type {
+        match self {
+            Type::Function(kinds, args, ret) => {
+                let new_args = args.iter()
+                    .map(|typ| if *typ == t1 { t2.clone() } else {t1.clone()})
+                    .collect::<Vec<_>>();
+                let new_ret = if *ret == t1 { t2 } else { *ret };
+                Type::Function(kinds.clone(), new_args, Box::new(new_ret))
+            },
+            _ => self
+        }
+    }
+
+    pub fn without_embeddings(self) -> Type {
+        match self {
+            Type::Record(args) => {
+                let new_args = args.iter()
+                    .map(|arg| arg.remove_embeddings())
+                    .collect();
+                Type::Record(new_args)
+            },
+            typ => typ
+        }
+    }
+
 }
 
 use std::fmt;

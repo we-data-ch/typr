@@ -24,6 +24,14 @@ impl ArgumentType {
     pub fn get_argument(&self) -> String {
         self.0.clone()
     }
+
+    pub fn remove_embeddings(&self) -> ArgumentType {
+        ArgumentType(self.0.clone(), self.1.clone(), false)
+    }
+
+    pub fn is_embedded(&self) -> bool {
+        self.2
+    }
 }
 
 impl fmt::Display for ArgumentType {
