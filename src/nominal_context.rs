@@ -55,10 +55,10 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Alias => "Alias",
             TypeCategory::Union => "Union",
             TypeCategory::Interface => "Interface",
-            TypeCategory::Boolean => "bool",
-            TypeCategory::Integer => "int",
-            TypeCategory::Number => "num",
-            TypeCategory::Char => "char",
+            TypeCategory::Boolean => "logical",
+            TypeCategory::Integer => "integer",
+            TypeCategory::Number => "numeric",
+            TypeCategory::Char => "character",
             TypeCategory::Generic => "Generic",
             TypeCategory::Rest => "Rest"
         };
@@ -149,7 +149,7 @@ impl TypeNominal {
           Type::Array(_, _) => self.get_nth_helper(TypeCategory::Array),
           Type::Function(_, _, _) => self.get_nth_helper(TypeCategory::Function),
           Type::Record(_) => self.get_nth_helper(TypeCategory::Record),
-          Type::Number | Type::Integer | Type::Char | Type::Boolean => (self.categories.clone(), 0 as usize),
+          Type::Number | Type::Integer | Type::Char | Type::Boolean => (self.categories.clone(), 100 as usize),
           Type::Embedded(_) | Type::Generic(_) | Type::IndexGen(_) => (self.categories.clone(), 0 as usize),
           Type::Index(_) => self.get_nth_helper(TypeCategory::Index),
           Type::Alias(_, _, _) => self.get_nth_helper(TypeCategory::Alias),
@@ -215,9 +215,13 @@ pub struct Nominal(pub String);
 impl From<(Type, usize)> for Nominal {
    fn from(val: (Type, usize)) -> Self {
        let category = TypeCategory::from_type(val.0);
-       match category {
-           TypeCategory::Rest => Nominal("".to_string()),
-           _ => Nominal(format!("{}_{}", category, val.1))
+       if val.1 != 100 { // if it's not a primitive like int or bool
+           match category {
+               TypeCategory::Rest => Nominal("".to_string()),
+               _ => Nominal(format!("{}_{}", category, val.1))
+           }
+       } else {
+           Nominal(format!("{}", category))
        }
    } 
 }

@@ -52,6 +52,8 @@ pub enum Lang {
     ModImp(String),
     Import(Type), // type alias
     Header(Box<Lang>),
+    GenFunc(String),
+    Test(Vec<Lang>),
     Any,
     Empty
 }
@@ -164,7 +166,7 @@ impl Lang {
     }
 }
 
-fn build_generic_function(s: &str) -> String {
+pub fn build_generic_function(s: &str) -> String {
     format!("{} <- function(x, ...) {{\n\tUseMethod('{}')\n}}", s, s)
 }
 
@@ -255,6 +257,7 @@ impl Lang {
                 => format!("{}({})", exp.to_r(cont),
                 vals.iter().map(|x| x.to_r(cont)).collect::<Vec<_>>().join(", ")),
             Lang::ArrayIndexing(exp, val) => format!("{}[{}]", exp.disp(cont), val),
+            Lang::GenFunc(func) => func.to_string(),
             Lang::Let(var, _s2, body) 
                 => {
                     let new_path = Self::format_path(&var.get_path());
@@ -263,14 +266,8 @@ impl Lang {
                     match **body {
                         Lang::Function(_, _, _, _) => {
                             let related_type = var.get_type();
-                            if related_type.to_category() != TypeCategory::Generic {
-                                let named_related_type = cont.get_class(&related_type);
-                                let gen_func = build_generic_function(&new_name);
-                                format!("{}\n\n{}.{} <- {}",
-                                        gen_func, new_name, named_related_type, new_body)
-                            } else {
-                                format!("{} <- {}", new_name, new_body)
-                            }
+                            let class = cont.get_class(&related_type);
+                            format!("{}.{} <- {}", new_name, class, new_body)
                         }
                         _ => format!("{} <- {}", new_name, new_body)
                     }

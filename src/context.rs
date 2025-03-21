@@ -204,9 +204,9 @@ impl Context {
         }
     }
 
-    fn add_to_adt(self, data: &[Lang]) -> Context {
+    pub fn add_to_adt(self, data: &[Lang]) -> Context {
         Context {
-            adt: self.adt.iter().chain(data.iter()).cloned().collect::<Vec<_>>(),
+            adt: data.iter().fold(self.adt, |adt, lang| add_if_absent(adt, lang.clone())),
             ..self
         }
     }
@@ -316,4 +316,11 @@ fn generate_arg(mut num: usize) -> String {
         10 => "k",
         _ => "overflow"
     }.to_string()
+}
+
+fn add_if_absent(mut vec: Vec<Lang>, val: Lang) -> Vec<Lang> {
+    if !vec.contains(&val) {
+        vec.push(val);
+    }
+    vec // Retourne le nouveau vecteur
 }

@@ -1,3 +1,4 @@
+use crate::language::build_generic_function;
 use std::collections::HashSet;
 use crate::Type;
 use crate::context::Context;
@@ -79,10 +80,11 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Let(name, ty, expr) => {
             let ty = if ty == &Type::Empty {Type::Any} else {ty.clone()};
             let expr_ty = typing(&context, expr).0;
-            type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
+            let new_context = type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
                 let best_ty = type_comparison::get_best_type(&ty, &expr_ty);
                 context.clone().push_type(name.clone().into(), best_ty, context)
-            }).expect("Type error")
+            }).expect("Type error");
+            new_context.add_to_adt(&[Lang::GenFunc(build_generic_function(&name.get_name()))])
         },
         Lang::Alias(name, params, typ) => {
             let var = name.clone().set_type(Type::Params(params.to_vec()));
