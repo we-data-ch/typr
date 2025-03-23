@@ -207,6 +207,12 @@ impl TypeNominal {
            .unwrap().1.0.clone()
    }
 
+   pub fn get_type_from_class(&self, class: &str) -> Type {
+       self.body.iter()
+           .find(|(_type, nominal)| class == nominal.0)
+           .unwrap().0.clone()
+   }
+
 }
 
 #[derive(Debug, PartialEq, Clone)]

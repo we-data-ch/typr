@@ -36,7 +36,7 @@ impl ArgumentType {
 
 impl fmt::Display for ArgumentType {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[var('{}'),{}]", self.0, self.1)       
+        write!(f, "{}: {}", self.0, self.1)       
     }
 }
 

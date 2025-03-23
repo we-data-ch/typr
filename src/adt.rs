@@ -42,6 +42,12 @@ impl Adt {
             .fold(String::from(""), |acc, x| format!("{}\n{}", acc, x))
     }
 
+    pub fn to_wasm(&self, cont: &Context) -> String {
+        self.iter()
+            .map(|line| line.to_typescript(cont))
+            .fold(String::from(""), |acc, x| format!("{}\n{}", acc, x))
+    }
+
     pub fn add(self, adt: Adt) -> Adt {
         Adt(self.0.iter().chain(adt.0.iter()).cloned().collect::<Vec<_>>())
     }

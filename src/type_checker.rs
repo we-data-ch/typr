@@ -171,6 +171,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 let context2 = context.clone();
                 let mut exprs2 = exprs.clone();
                 let exp = exprs2.pop().unwrap();
+                dbg!(&exp);
                 let new_context = exprs.iter()
                     .fold(context2, |ctx, expr| eval(&ctx, expr));
                 typing(&new_context, &exp)

@@ -3,6 +3,7 @@ use crate::argument_type::ArgumentType;
 use crate::argument_kind::ArgumentKind;
 use crate::tag::Tag;
 use crate::nominal_context::TypeCategory;
+use crate::Context;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -118,6 +119,22 @@ impl Type {
         }
     }
 
+    pub fn to_typescript(&self) -> String {
+       match self {
+           Type::Boolean => "boolean".to_string(),
+           Type::Integer => "number".to_string(),
+           Type::Number => "number".to_string(),
+           Type::Char => "string".to_string(),
+           Type::Record(body) => {
+                let res = body.iter()
+                    .map(|at| format!("{}: {}", at.get_argument(), at.get_type().to_typescript()))
+                    .collect::<Vec<_>>().join(", ");
+                format!("{{ {} }}", res)
+           },
+           _ => format!("the type: {} is not yet in to_typescript()", self)
+       } 
+    }
+
 }
 
 use std::fmt;
@@ -130,7 +147,10 @@ impl fmt::Display for Type {
             Type::Generic(g) => format!("gen('{}')", g.to_lowercase()),
             Type::IndexGen(g) => format!("ind('{}')", g.to_lowercase()),
             Type::Array(n, t) => format!("tarray({}, {})", n, t),
-            Type::Record(r) => format!("trecord({})", to_string(r)),
+            Type::Record(r) => {
+                format!("{{ {} }}", r.iter()
+                        .map(|at| at.to_string()).collect::<Vec<_>>().join(", "))
+            },
             Type::Index(i) => i.to_string(),
             Type::Number => "num".to_string(),
             Type::Integer => "int".to_string(),

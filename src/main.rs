@@ -48,6 +48,7 @@ use crate::engine::type_check;
 use crate::engine::execute;
 use crate::engine::write_adt_to_r_with_path;
 use crate::my_io::execute_r_with_path;
+use crate::engine::run_file_to_typescript;
 
 pub fn is_subset<T: Eq + std::hash::Hash>(v1: &[T], v2: &[T]) -> bool {
     let set_v2: HashSet<_> = v2.iter().collect();
@@ -80,6 +81,11 @@ enum Commands {
     Run,
     /// Lancer les tests
     Test,
+    /// Exécuter un fichier WebAssembly
+    Javascript {
+        /// Chemin du fichier WebAssembly
+        path: PathBuf,
+    },
 }
 
 fn new(name: &str) {
@@ -177,6 +183,7 @@ fn main() {
                 Some(Commands::Build) => build(),
                 Some(Commands::Run) => run(),
                 Some(Commands::Test) => test(),
+                Some(Commands::Javascript { path }) => run_file_to_typescript(&path, &PathBuf::from(".")),
                 None => {
                     println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");
                     std::process::exit(1);

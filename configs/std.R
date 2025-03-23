@@ -1,7 +1,11 @@
-add <- function(a, b) {a + b}
-minus <- function(a, b) {a - b}
-mul <- function(a, b) {a * b}
-div <- function(a, b) {a / b}
+add.integer <- function(a, b) {a + b}
+add.numeric <- function(a, b) {a + b}
+minus.integer <- function(a, b) {a - b}
+minus.numeric <- function(a, b) {a - b}
+mul.integer <- function(a, b) {a * b}
+mul.numeric <- function(a, b) {a * b}
+div.integer <- function(a, b) {a / b}
+div.numeric <- function(a, b) {a / b}
 map <- sapply
 filter <- function(vec, condition) {
   vec[condition(vec)]

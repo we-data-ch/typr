@@ -122,11 +122,14 @@ impl Context {
         let types = typ.type_extraction();
         let res = VarType(self.types.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
         let type_list: Vec<_> = res.get_types().iter().cloned().collect();
-        let new_subtypes = self.subtypes.update(&type_list, context);
+        let new_subtypes = self.subtypes.clone().update(&type_list, context);
+        let nominals = types.iter()
+            .fold(self.nominals.clone(), |nom, typ_| nom.push_type(typ_.clone()));
         Context {
             types: res, 
-            nominals: types.iter().fold(self.nominals, |nom, typ_| nom.push_type(typ_.clone())),
+            nominals: nominals.clone(),
             subtypes: new_subtypes,
+            adt: self.clone().add_to_adt(&wasm_types(&types, &nominals)).adt,
             ..self
         }
     }
@@ -240,7 +243,10 @@ impl Context {
             }
         }).collect()
     }
-    
+
+    pub fn get_type_from_class(&self, class: &str) -> Type {
+        self.nominals.get_type_from_class(class)
+    }
 }
 
 fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
@@ -323,4 +329,8 @@ fn add_if_absent(mut vec: Vec<Lang>, val: Lang) -> Vec<Lang> {
         vec.push(val);
     }
     vec // Retourne le nouveau vecteur
+}
+
+fn wasm_types(types: &[Type], nominals: &TypeNominal) -> Vec<Lang> {
+    vec![]
 }

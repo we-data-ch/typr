@@ -51,7 +51,7 @@ pub fn op(s: &str) -> IResult<&str, Op> {
     let res = terminated(
         alt((
             bool_op,
-            tag("in"),
+            tag("in "),
             tag("++"),
             tag("+"),
             tag("--"),

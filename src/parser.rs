@@ -269,7 +269,11 @@ pub fn module(s: &str) -> IResult<&str, Vec<Lang>> {
 }
 
 pub fn return_exp(s: &str) -> IResult<&str, Lang> {
-    terminated(delimited(tag("return "), parse_elements, tag(";")), multispace0)(s)
+    let res = terminated(delimited(tag("return "), parse_elements, tag(";")), multispace0)(s);
+    match res {
+        Ok((s, el)) => Ok((s, Lang::Return(Box::new(el)))),
+        Err(r) => Err(r)
+    }
 }
 
 fn assign(s: &str) -> IResult<&str, Vec<Lang>> {

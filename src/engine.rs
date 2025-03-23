@@ -11,6 +11,18 @@ use crate::read_file;
 use crate::metaprogrammation;
 use std::io::Write;
 use std::path::PathBuf;
+use crate::my_io::execute_wasm;
+
+pub fn write_adt_to_wasm(adt: &Adt, cont: &Context) -> () {
+    let rstd = include_str!("../configs/std.ts");
+    let mut rstd_file = File::create("std.ts").unwrap();
+    rstd_file.write_all(rstd.as_bytes()).unwrap();
+
+    let mut app = File::create("app.ts").unwrap();
+    let ts_import = include_str!("../configs/ts_import.ts");
+    let content = format!("{}\n{}\n{}", ts_import, Adt(cont.adt.clone()).to_wasm(cont), adt.to_wasm(cont));
+    app.write_all(content.as_bytes()).unwrap();
+}
 
 pub fn write_adt_to_r(adt: &Adt, cont: &Context) -> () {
     let rstd = include_str!("../configs/std.R");
@@ -59,8 +71,22 @@ pub fn run_file(path: &PathBuf, execution_path: &PathBuf) -> () {
     std::env::set_current_dir(execution_path).expect("Échec lors du changement de répertoire");
 
     let adt_manager = parse_code(path);
-    let context = type_check(&adt_manager.get_adt_without_header());
+    let context = type_check(&adt_manager.get_adt_with_header());
     execute(&adt_manager.get_adt_without_header(), &context);
+
+    std::env::set_current_dir(original_dir).expect("Échec lors de la restauration du répertoire de travail");
+}
+
+
+
+pub fn run_file_to_typescript(path: &PathBuf, execution_path: &PathBuf) -> () {
+    let original_dir = std::env::current_dir().expect("Impossible d'obtenir le répertoire de travail actuel");
+    std::env::set_current_dir(execution_path).expect("Échec lors du changement de répertoire");
+
+    let adt_manager = parse_code(path);
+    let context = type_check(&adt_manager.get_adt_with_header());
+    write_adt_to_wasm(&adt_manager.get_adt_without_header(), &context);
+    execute_wasm();
 
     std::env::set_current_dir(original_dir).expect("Échec lors de la restauration du répertoire de travail");
 }
