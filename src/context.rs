@@ -307,7 +307,7 @@ impl Manip {
     }
 }
 
-fn generate_arg(mut num: usize) -> String {
+pub fn generate_arg(mut num: usize) -> String {
     match num {
         0 => "a",
         1 => "b",
@@ -332,5 +332,12 @@ fn add_if_absent(mut vec: Vec<Lang>, val: Lang) -> Vec<Lang> {
 }
 
 fn wasm_types(types: &[Type], nominals: &TypeNominal) -> Vec<Lang> {
-    vec![]
+    types.iter().flat_map(|typ| {
+        let name = nominals.get_class(typ);
+        match typ {
+            Type::Record(_) | Type::Tag(_, _) | Type::Function(_, _, _)
+                => Some(Lang::Alias(Var::from_name(&name), vec![], typ.clone())),
+            _ => None
+        }
+    }).collect()
 }

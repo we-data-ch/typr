@@ -56,7 +56,6 @@ pub enum Lang {
     GenFunc(String),
     Test(Vec<Lang>),
     Return(Box<Lang>),
-    WasmInterface(String, Type),
     Any,
     Empty
 }
@@ -407,9 +406,6 @@ impl Lang {
             Lang::Sequence(exps) 
                 => exps.iter().map(|x| x.to_typescript(cont)).collect::<Vec<String>>().join("\n\n"),
             Lang::Return(exp) => format!("return {};", exp.to_typescript(cont)),
-            Lang::WasmInterface(name, rec_type) => {
-                format!("interface {} {}", name, rec_type.to_typescript())
-            },
             Lang::Dot(e1, e2) => {
                 match *e1.clone() {
                     Lang::Variable(_, _, _, _, _) => 
@@ -422,6 +418,17 @@ impl Lang {
                     Lang::Variable(_, _, _, _, _) => 
                         format!("{}.{}", e2.to_typescript(cont), e1.to_typescript(cont)),
                     _ => format!("{} |> {}", e2.to_typescript(cont), e1.to_typescript(cont)),
+                }
+            }
+            Lang::Alias(var, args, typ) => {
+                if args.len() > 0 {
+                    let res = args.iter()
+                        .map(|typ| typ.to_typescript())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("type {}<{}> = {};", var.get_name(), res, typ.to_typescript())
+                } else {
+                    format!("type {} = {};", var.get_name(), typ.to_typescript())
                 }
             }
             _ => "".to_string()

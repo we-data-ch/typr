@@ -4,6 +4,7 @@ use crate::argument_kind::ArgumentKind;
 use crate::tag::Tag;
 use crate::nominal_context::TypeCategory;
 use crate::Context;
+use crate::context::generate_arg;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -131,6 +132,20 @@ impl Type {
                     .collect::<Vec<_>>().join(", ");
                 format!("{{ {} }}", res)
            },
+           Type::Array(size, body) => format!("{}[]", body.to_typescript()),
+           Type::IndexGen(_) => "".to_string(),
+           Type::Function(_kinds, args, ret) => {
+               let res = args.iter()
+                    .enumerate()
+                    .map(|(i, typ)| format!("{}: {}", generate_arg(i), typ.to_typescript()))
+                    .collect::<Vec<_>>().join(", ");
+               format!("({}) => {}", res, ret.to_typescript())
+           },
+           Type::Generic(val) => format!("{}", val),
+           Type::Index(val) => format!("{}", val),
+           Type::Tag(name, typ) => format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript()),
+           Type::Any => "null".to_string(),
+           Type::Empty => "null".to_string(),
            _ => format!("the type: {} is not yet in to_typescript()", self)
        } 
     }
