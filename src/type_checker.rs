@@ -84,6 +84,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                 let best_ty = type_comparison::get_best_type(&ty, &expr_ty);
                 context.clone().push_type(name.clone().into(), best_ty, context)
             }).expect("Type error");
+            // Generic function for R transpilation (the other target won't write it)
             new_context.add_to_adt(&[Lang::GenFunc(build_generic_function(&name.get_name()))])
         },
         Lang::Alias(name, params, typ) => {

@@ -329,7 +329,7 @@ impl Lang {
             Lang::ModuleDecl(name) => format!("{} <- new.env()", name),
             Lang::Sequence(exps) 
                 => exps.iter().map(|x| x.to_r(cont)).collect::<Vec<String>>().join("\n\n"),
-            Lang::Return(exp) => exp.to_typescript(cont),
+            Lang::Return(exp) => format!("return ({})", exp.to_r(cont)),
             _ => "".to_string()
         }
     }
@@ -380,7 +380,7 @@ impl Lang {
                                               at.get_argument(),
                                               at.get_type().to_typescript()))
                             .collect::<Vec<_>>();
-                           format!("function {}_{}({}): {} {{\n{}\n}}",
+                            format!("function {}_{}({}): {} {{\n{}\n}}",
                             class,
                             var.get_name(), res.join(", "),
                             ret.to_typescript(), body2.to_typescript(cont))

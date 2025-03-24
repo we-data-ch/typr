@@ -11,9 +11,9 @@ use crate::read_file;
 use crate::metaprogrammation;
 use std::io::Write;
 use std::path::PathBuf;
-use crate::my_io::execute_wasm;
+use crate::my_io::execute_typescript;
 
-pub fn write_adt_to_wasm(adt: &Adt, cont: &Context) -> () {
+pub fn write_adt_to_typescript(adt: &Adt, cont: &Context) -> () {
     let rstd = include_str!("../configs/std.ts");
     let mut rstd_file = File::create("std.ts").unwrap();
     rstd_file.write_all(rstd.as_bytes()).unwrap();
@@ -85,8 +85,8 @@ pub fn run_file_to_typescript(path: &PathBuf, execution_path: &PathBuf) -> () {
 
     let adt_manager = parse_code(path);
     let context = type_check(&adt_manager.get_adt_with_header());
-    write_adt_to_wasm(&adt_manager.get_adt_without_header(), &context);
-    execute_wasm();
+    write_adt_to_typescript(&adt_manager.get_adt_without_header(), &context);
+    execute_typescript();
 
     std::env::set_current_dir(original_dir).expect("Échec lors de la restauration du répertoire de travail");
 }

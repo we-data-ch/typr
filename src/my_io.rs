@@ -45,7 +45,7 @@ pub fn execute_r_with_path(execution_path: &PathBuf) -> () {
     println!("{}", stdout);
 }
 
-pub fn execute_wasm() -> () {
+pub fn execute_typescript() -> () {
     println!("Compilation TypeScript: ");
     
     // Compiler le fichier TypeScript en JavaScript

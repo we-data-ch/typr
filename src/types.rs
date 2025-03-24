@@ -22,6 +22,8 @@ use nom::combinator::recognize;
 use crate::operators::op;
 use crate::operators::Op;
 use crate::r#type::Type;
+use std::collections::HashSet;
+use crate::argument_kind::ArgumentKind;
 
 fn ltype_arg(s: &str) -> IResult<&str, Type> {
     let res = tuple((ltype, terminated(opt(tag(",")), multispace0)))(s);
@@ -40,7 +42,15 @@ fn function_type(s: &str) -> IResult<&str, Type> {
             terminated(ltype, multispace0)
           ))(s);
     match res {
-        Ok((s, (_, v, _, _, t))) => Ok((s, Type::Function(vec![], v.clone(), Box::new(t)))),
+        Ok((s, (_, v, _, _, t))) => {
+            let kind_vec = v.iter()
+                .flat_map(|typ| typ.extract_generics())
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .map(|typ| ArgumentKind::from((typ.clone(), typ.get_kind())))
+                .collect::<Vec<_>>();
+            Ok((s, Type::Function(kind_vec, v.clone(), Box::new(t))))
+        },
         Err(r) => Err(r)
     }
 }

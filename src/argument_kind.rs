@@ -10,6 +10,9 @@ impl ArgumentKind {
     pub fn get_kind(&self) -> Kind {
         self.1.clone()
     }
+    pub fn get_argument(&self) -> Type {
+        self.0.clone()
+    }
 }
 
 impl fmt::Display for ArgumentKind {

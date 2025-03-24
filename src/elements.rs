@@ -27,6 +27,7 @@ use crate::parser::parse_exp;
 use crate::var::Permission;
 use nom::character::complete::digit1;
 use crate::kind::Kind;
+use std::collections::HashSet;
 
 pub fn number(s: &str) -> IResult<&str,Lang> {
     let res = terminated(tuple((digit1, tag("."), digit1)), multispace0)(s);
@@ -198,6 +199,17 @@ pub fn function_symbol(s: &str) -> IResult<&str, &str> {
     alt((tag("function"), tag("func"), tag("fn")))(s)
 }
 
+fn extract_generics(args: &[ArgumentType], ret_typ: &Type) -> Vec<ArgumentKind> {
+    args.iter()
+        .map(|at| at.get_type())
+        .chain([ret_typ.clone()].iter().cloned())
+        .flat_map(|typ| typ.extract_generics())
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .map(|typ| ArgumentKind::from((typ.clone(), typ.get_kind())))
+        .collect::<Vec<_>>()
+}
+
 pub fn simple_function(s: &str) -> IResult<&str, Lang> {
     let res = tuple((
         terminated(function_symbol, multispace0),
@@ -209,8 +221,10 @@ pub fn simple_function(s: &str) -> IResult<&str, Lang> {
         scope
           ))(s);
     match res {
-        Ok((s, (_, _, args, _, Some(_), Some(typ), exp))) =>
-            Ok((s, Lang::Function(vec![], args, typ, Box::new(exp)))),
+        Ok((s, (_, _, args, _, Some(_), Some(typ), exp))) =>{
+            let gen_vec = extract_generics(&args, &typ);
+            Ok((s, Lang::Function(gen_vec, args, typ, Box::new(exp))))
+        },
         Ok((_s, (_, _, _args, _, None, None, _exp))) 
             => {
                 println!("You forgot to specify the function return type: 'fn(...): Type'");
