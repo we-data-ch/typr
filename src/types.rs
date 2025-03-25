@@ -155,7 +155,7 @@ fn record_type(s: &str) -> IResult<&str, Type> {
 }
 
 fn number(s: &str) -> IResult<&str, Type> {
-    let res = terminated(tag("num"), multispace0)(s);
+    let res = terminated(tag("num "), multispace0)(s);
     match res {
         Ok((s, _)) => Ok((s, Type::Number)),
         Err(r) => Err(r)
@@ -163,7 +163,7 @@ fn number(s: &str) -> IResult<&str, Type> {
 }
 
 fn boolean(s: &str) -> IResult<&str, Type> {
-    let res = terminated(tag("bool"), multispace0)(s);
+    let res = terminated(tag("bool "), multispace0)(s);
     match res {
         Ok((s, _)) => Ok((s, Type::Boolean)),
         Err(r) => Err(r)
@@ -290,7 +290,7 @@ fn union(s: &str) -> IResult<&str, Type> {
 }
 
 fn chars(s: &str) -> IResult<&str, Type> {
-    let res = tag("chars")(s);
+    let res = tag("chars ")(s);
     match res {
         Ok((s, _st)) => Ok((s, Type::Char)),
         Err(r) => Err(r)

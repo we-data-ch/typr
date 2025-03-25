@@ -395,7 +395,8 @@ impl Lang {
                 let res = params.iter().map(|x| x.to_typescript(cont)).collect::<Vec<_>>();
                 match &var.get_name()[..] {
                     "console__log" => format!("console.log({})", res.join(", ")),
-                    "parseInt" => format!("parseInt({})", res.join(", ")),
+                    "parseInt" | "parseFloat"
+                        => format!("{}({})", var.get_name(), res.join(", ")),
                     _ => format!("{}_{}({})", cont.get_class(&typ), var.get_name(), res.join(", "))
                 }
             },

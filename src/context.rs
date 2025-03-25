@@ -138,7 +138,7 @@ impl Context {
         self.types.iter()
            .find(|(v, _)| var.match_with(v, self))
            .map(|(_, ty)| ty)
-           .expect(&format!("The variable {}, wasn't found in the context", var.get_type()))
+           .expect(&format!("The variable {}, wasn't found in the context", var))
            .clone()
     }
 
