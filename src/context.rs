@@ -118,7 +118,7 @@ impl Context {
         unique
     }
 
-    pub fn push_type(self, lang: Var, typ: Type, context: &Context) -> Context {
+    pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let types = typ.type_extraction();
         let res = VarType(self.types.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
         let type_list: Vec<_> = res.get_types().iter().cloned().collect();
@@ -138,7 +138,7 @@ impl Context {
         self.types.iter()
            .find(|(v, _)| var.match_with(v, self))
            .map(|(_, ty)| ty)
-           .expect(&format!("The variable {}, wasn't found in the context", var))
+           .expect(&format!("The variable {}, wasn't found in the context", var.get_type()))
            .clone()
     }
 
@@ -198,7 +198,7 @@ impl Context {
                     .collect::<Vec<_>>();
                 let new_cont = 
                     type_functions.iter()
-                    .fold(self.clone(), |ctx, tf| ctx.clone().push_type(tf.1.clone(), tf.2.clone(), &ctx));
+                    .fold(self.clone(), |ctx, tf| ctx.clone().push_var_type(tf.1.clone(), tf.2.clone(), &ctx));
                 let new_cont2 = new_cont.clone().add_to_adt(&self.build_concret_functions(&type_functions));
                 (type_functions.iter().map(|(arg, var, fun)| (var.clone(), fun.clone())).collect(),
                 new_cont2)
@@ -332,14 +332,12 @@ fn add_if_absent(mut vec: Vec<Lang>, val: Lang) -> Vec<Lang> {
 }
 
 fn wasm_types(types: &[Type], nominals: &TypeNominal) -> Vec<Lang> {
-    let res = types.iter().flat_map(|typ| {
+    types.iter().flat_map(|typ| {
         let name = nominals.get_class(typ);
         match typ {
             Type::Record(_) | Type::Tag(_, _) | Type::Function(_, _, _)
                 => Some(Lang::Alias(Var::from_name(&name), vec![], typ.clone())),
             _ => None
         }
-    }).collect::<Vec<_>>();
-    dbg!(&res);
-    res
+    }).collect::<Vec<_>>()
 }

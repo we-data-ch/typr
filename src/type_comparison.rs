@@ -98,6 +98,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
 }
 
 pub fn is_matching(context: &Context, type1: &Type, type2: &Type) -> bool {
+
     // Basic equality
     if type1 == type2 {
         return true;
@@ -112,6 +113,13 @@ pub fn is_matching(context: &Context, type1: &Type, type2: &Type) -> bool {
         _ => {
             let reduced1 = reduce_type(context, type1);
             let reduced2 = reduce_type(context, type2);
+
+            //if (&reduced1 == type1) && (&reduced2 == type2) {
+                //dbg!(&context.subtypes);
+                //dbg!(&reduced1);
+                //dbg!(&reduced2);
+                //panic!();
+            //}
 
             reduced1 == reduced2 ||
             is_subtype(context, &reduced1, &reduced2)

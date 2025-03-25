@@ -394,8 +394,8 @@ impl Lang {
                 let typ = typing(cont, first).0;
                 let res = params.iter().map(|x| x.to_typescript(cont)).collect::<Vec<_>>();
                 match &var.get_name()[..] {
-                    "print" => format!("console.log({})", res.join(", ")),
                     "console__log" => format!("console.log({})", res.join(", ")),
+                    "parseInt" => format!("parseInt({})", res.join(", ")),
                     _ => format!("{}_{}({})", cont.get_class(&typ), var.get_name(), res.join(", "))
                 }
             },

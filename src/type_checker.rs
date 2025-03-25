@@ -82,17 +82,18 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let expr_ty = typing(&context, expr).0;
             let new_context = type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
                 let best_ty = type_comparison::get_best_type(&ty, &expr_ty);
-                context.clone().push_type(name.clone().into(), best_ty, context)
-            }).expect("Type error");
+                context.clone().push_var_type(name.clone().into(), best_ty, context)
+            }).expect(&format!("Type error:\n {} don't match {}", expr_ty, ty));
             // Generic function for R transpilation (the other target won't write it)
             new_context.add_to_adt(&[Lang::GenFunc(build_generic_function(&name.get_name()))])
         },
         Lang::Alias(name, params, typ) => {
             let var = name.clone().set_type(Type::Params(params.to_vec()));
-            let new_context = context.clone().push_type(var, typ.clone().without_embeddings(), context);
+            let new_context = context.clone()
+                .push_var_type(var, typ.clone(), context);
             let (fn_typ, new_context2) = new_context.get_embeddings(typ);
             let new_context3 = fn_typ.iter()
-                .fold(new_context2, |ctx, var_typfun| ctx.push_type(var_typfun.0.clone(), var_typfun.1.clone(), context));
+                .fold(new_context2, |ctx, var_typfun| ctx.push_var_type(var_typfun.0.clone(), var_typfun.1.clone(), context));
             new_context3
         },
         Lang::Assign(var, expr) => {

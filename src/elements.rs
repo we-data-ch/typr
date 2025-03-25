@@ -81,7 +81,7 @@ fn starting_char(s: &str) -> IResult<&str, char> {
 }
 
 fn body_char(s: &str) -> IResult<&str, char> {
-    one_of("abcdefghijklmnopqrstuvwxyz_0123456789")(s)
+    one_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789")(s)
 }
 
 fn variable_exp(s: &str) -> IResult<&str, String> {

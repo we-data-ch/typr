@@ -1,0 +1,73 @@
+let as__character <- fn(a: A): chars {
+	...
+};
+
+let print <- fn(a: chars): T {
+	...
+};
+
+let map <- fn(a: [#N, T], f: (T) -> U): [#N, U] {
+	...
+};
+
+let incr <- fn(a: int): int {
+	...
+};
+
+let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K+1, int] {
+	...
+};
+
+let rev <- fn(a: [#N, T]): [#N, T] {
+	...
+};
+
+let mean <- fn(a: [#N, T]): T  {
+	...
+};
+
+let sd <- fn(a: [#N, T]): T  {
+	...
+};
+
+let min <- fn(a: [#N, T]): T  {
+	...
+};
+
+let max <- fn(a: [#N, T]): T  {
+	...
+};
+
+let add <- fn(a: int, b: int): int {
+	...
+};
+
+let add <- fn(a: num, b: num): num {
+	...
+};
+
+let minus <- fn(a: int, b: int): int {
+	...
+};
+
+let minus <- fn(a: num, b: num): num {
+	...
+};
+
+let mul <- fn(a: int, b: int): int {
+	...
+};
+
+let mul <- fn(a: num, b: num): num {
+	...
+};
+
+let div <- fn(a: int, b: int): int {
+	...
+};
+
+let div <- fn(a: num, b: num): num {
+	...
+};
+
+type Truc = num;

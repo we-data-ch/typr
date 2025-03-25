@@ -12,20 +12,21 @@ use crate::metaprogrammation;
 use std::io::Write;
 use std::path::PathBuf;
 use crate::my_io::execute_typescript;
+use crate::TargetLanguage;
 
 pub fn write_adt_to_typescript(adt: &Adt, cont: &Context) -> () {
-    let rstd = include_str!("../configs/std.ts");
+    let rstd = include_str!("../configs/typescript/std.ts");
     let mut rstd_file = File::create("std.ts").unwrap();
     rstd_file.write_all(rstd.as_bytes()).unwrap();
 
     let mut app = File::create("app.ts").unwrap();
-    let ts_import = include_str!("../configs/ts_import.ts");
+    let ts_import = include_str!("../configs/typescript/ts_import.ts");
     let content = format!("{}\n{}\n{}", ts_import, Adt(cont.adt.clone()).to_wasm(cont), adt.to_wasm(cont));
     app.write_all(content.as_bytes()).unwrap();
 }
 
 pub fn write_adt_to_r(adt: &Adt, cont: &Context) -> () {
-    let rstd = include_str!("../configs/std.R");
+    let rstd = include_str!("../configs/r/std.R");
     let mut rstd_file = File::create("std.R").unwrap();
     rstd_file.write_all(rstd.as_bytes()).unwrap();
 
@@ -35,7 +36,7 @@ pub fn write_adt_to_r(adt: &Adt, cont: &Context) -> () {
 }
 
 pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf) -> () {
-    let rstd = include_str!("../configs/std.R");
+    let rstd = include_str!("../configs/r/std.R");
     let std_path = output_dir.join("std.R");
     let mut rstd_file = File::create(std_path).unwrap();
     rstd_file.write_all(rstd.as_bytes()).unwrap();
@@ -46,9 +47,29 @@ pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf)
     app.write_all(content.as_bytes()).unwrap();
 }
 
-pub fn execute(adt: &Adt, cont: &Context) -> () {
-    write_adt_to_r(&adt, cont);
-    execute_r();
+fn write_adt_to_assemblyscript(adt: &Adt, cont: &Context) {
+    todo!();
+}
+
+fn execute_assemblyscript() {
+    todo!();
+}
+
+pub fn execute(adt: &AdtManager, cont: &Context, target: TargetLanguage) -> () {
+    match target {
+        TargetLanguage::R => {
+            write_adt_to_r(&adt.get_adt_without_header(), cont);
+            execute_r();
+        },
+        TargetLanguage::TypeScript => {
+            write_adt_to_typescript(&adt.get_adt_without_header(), &cont);
+            execute_typescript();
+        },
+        TargetLanguage::AssemblyScript => {
+            write_adt_to_assemblyscript(&adt.get_adt_without_header(), &cont);
+            execute_assemblyscript();
+        }
+    }
 }
 
 pub fn type_check(adt: &Adt) -> Context {
@@ -57,8 +78,12 @@ pub fn type_check(adt: &Adt) -> Context {
     context
 }
 
-pub fn parse_code(path: &PathBuf) -> AdtManager {
-    let typr_std = include_str!("../configs/std.ty");
+pub fn parse_code(path: &PathBuf, target: TargetLanguage) -> AdtManager {
+    let typr_std = match target {
+        TargetLanguage::R => include_str!("../configs/r/std.ty"),
+        TargetLanguage::TypeScript => include_str!("../configs/typescript/std.ty"),
+        TargetLanguage::AssemblyScript => include_str!("../configs/assemblyscript/std.ty")
+    };
     let adt_manager = AdtManager::new()
         .add_to_body(parse(&read_file(path)).unwrap().1)
         .add_to_header(parse(typr_std).unwrap().1);
@@ -66,27 +91,13 @@ pub fn parse_code(path: &PathBuf) -> AdtManager {
     adt_manager.set_body(adt)
 }
 
-pub fn run_file(path: &PathBuf, execution_path: &PathBuf) -> () {
+pub fn run_file(path: &PathBuf, execution_path: &PathBuf, target: TargetLanguage) -> () {
     let original_dir = std::env::current_dir().expect("Impossible d'obtenir le répertoire de travail actuel");
     std::env::set_current_dir(execution_path).expect("Échec lors du changement de répertoire");
 
-    let adt_manager = parse_code(path);
+    let adt_manager = parse_code(path, target);
     let context = type_check(&adt_manager.get_adt_with_header());
-    execute(&adt_manager.get_adt_without_header(), &context);
-
-    std::env::set_current_dir(original_dir).expect("Échec lors de la restauration du répertoire de travail");
-}
-
-
-
-pub fn run_file_to_typescript(path: &PathBuf, execution_path: &PathBuf) -> () {
-    let original_dir = std::env::current_dir().expect("Impossible d'obtenir le répertoire de travail actuel");
-    std::env::set_current_dir(execution_path).expect("Échec lors du changement de répertoire");
-
-    let adt_manager = parse_code(path);
-    let context = type_check(&adt_manager.get_adt_with_header());
-    write_adt_to_typescript(&adt_manager.get_adt_without_header(), &context);
-    execute_typescript();
+    execute(&adt_manager, &context, target);
 
     std::env::set_current_dir(original_dir).expect("Échec lors de la restauration du répertoire de travail");
 }

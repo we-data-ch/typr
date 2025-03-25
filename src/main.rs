@@ -48,7 +48,6 @@ use crate::engine::type_check;
 use crate::engine::execute;
 use crate::engine::write_adt_to_r_with_path;
 use crate::my_io::execute_r_with_path;
-use crate::engine::run_file_to_typescript;
 use std::process::Command;
 use crate::engine::write_adt_to_typescript;
 use crate::my_io::execute_typescript;
@@ -102,7 +101,11 @@ enum Commands {
         target: String,
     },
     /// Vérifier le parsing et le typechecking
-    Check,
+    Check {
+        /// Langage cible (r, typescript, assemblyscript)
+        #[arg(short, long, value_name = "TARGET", default_value = "r")]
+        target: String,
+    },
     /// Faire le check et construire le code cible
     Build {
         /// Langage cible (r, typescript, assemblyscript)
@@ -282,14 +285,14 @@ fn new(name: &str, target: TargetLanguage) {
     }
 }
 
-fn check() {
-    let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
+fn check(target: TargetLanguage) {
+    let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"), target);
     let context = type_check(&adt_manager.get_adt_with_header());
     println!("✓ Vérification du code réussie!");
 }
 
 fn build(target: TargetLanguage) {
-    let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
+    let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"), target);
     let context = type_check(&adt_manager.get_adt_with_header());
     
     match target {
@@ -390,7 +393,8 @@ fn test(target: TargetLanguage) {
 fn run_single_file(path: &PathBuf, target: TargetLanguage) {
     
     let file_name = path.file_name().unwrap().to_str().unwrap();
-    let adt_manager = parse_code(&PathBuf::from(file_name));
+    let adt_manager = parse_code(&PathBuf::from(file_name), target);
+    //HEADER
     let context = type_check(&adt_manager.get_adt_with_header());
     
     // Créer un dossier temporaire pour les fichiers générés
@@ -439,7 +443,10 @@ fn main() {
                     let target_lang = parse_target(&target_str);
                     new(&name, target_lang)
                 },
-                Some(Commands::Check) => check(),
+                Some(Commands::Check { target: target_str }) => {
+                    let target_lang = parse_target(&target_str);
+                    check(target_lang)
+                },
                 Some(Commands::Build { target: target_str }) => {
                     let target_lang = parse_target(&target_str);
                     build(target_lang)
