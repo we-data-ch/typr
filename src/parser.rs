@@ -465,6 +465,12 @@ mod tesus {
     }
 
     #[test]
+    fn test_let7() {
+        let res = let_exp("let f <- fn(): bool { true };").unwrap().1;
+        assert_eq!(res, vec![])
+    }
+
+    #[test]
     fn test_suite1() {
         let res = parse("let a = 5; let b = 6; b;").unwrap().1;
         assert_eq!(res.0, vec![])

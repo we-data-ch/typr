@@ -277,7 +277,11 @@ impl Lang {
                         Lang::Function(_, _, _, _) => {
                             let related_type = var.get_type();
                             let class = cont.get_class(&related_type);
-                            format!("{}.{} <- {}", new_name, class, new_body)
+                            if class != "Empty" {
+                                format!("{}.{} <- {}", new_name, class, new_body)
+                            } else {
+                                format!("{} <- {}", new_name, new_body)
+                            }
                         }
                         _ => format!("{} <- {}", new_name, new_body)
                     }
@@ -362,7 +366,6 @@ impl Lang {
             },
             Lang::Variable(v, path, _perm, _muta, _ty) => Self::format_path(path) + v,
             Lang::Let(var, typ, body) => {
-
                 if var.get_name() == "main" {
                     match *body.clone() {
                         Lang::Function(_kinds, params, ret, body2) => {
@@ -393,10 +396,14 @@ impl Lang {
                 let first = params.iter().nth(0).unwrap();
                 let typ = typing(cont, first).0;
                 let res = params.iter().map(|x| x.to_typescript(cont)).collect::<Vec<_>>();
-                match &var.get_name()[..] {
+                let name = var.get_name();
+                match &name[..] {
                     "console__log" => format!("console.log({})", res.join(", ")),
                     "parseInt" | "parseFloat"
                         => format!("{}({})", var.get_name(), res.join(", ")),
+                        n if &name[0..6] == "math__" => {
+                            format!("Math.{}({})", name[6..].to_string(), res.join(", "))
+                        }
                     _ => format!("{}_{}({})", cont.get_class(&typ), var.get_name(), res.join(", "))
                 }
             },

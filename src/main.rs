@@ -397,16 +397,12 @@ fn run_single_file(path: &PathBuf, target: TargetLanguage) {
     //HEADER
     let context = type_check(&adt_manager.get_adt_with_header());
     
-    // Créer un dossier temporaire pour les fichiers générés
-    let temp_dir = PathBuf::from("temp_output");
-    if !temp_dir.exists() {
-        fs::create_dir(&temp_dir).expect("Impossible de créer le dossier temporaire");
-    }
+    let dir = PathBuf::from(".");
     
     match target {
         TargetLanguage::R => {
-            write_adt_to_r_with_path(&adt_manager.get_adt_without_header(), &context, &temp_dir);
-            execute_r_with_path(&temp_dir);
+            write_adt_to_r_with_path(&adt_manager.get_adt_without_header(), &context, &dir);
+            execute_r_with_path(&dir);
         },
         TargetLanguage::TypeScript => {
             // Générer et exécuter le TypeScript
@@ -420,9 +416,6 @@ fn run_single_file(path: &PathBuf, target: TargetLanguage) {
             println!("Exécution AssemblyScript non implémentée pour l'instant.");
         },
     }
-    
-    // Nettoyer le dossier temporaire
-    fs::remove_dir_all(&temp_dir).expect("Impossible de supprimer le dossier temporaire");
     
 }
 

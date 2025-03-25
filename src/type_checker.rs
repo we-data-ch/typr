@@ -84,8 +84,13 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                 let best_ty = type_comparison::get_best_type(&ty, &expr_ty);
                 context.clone().push_var_type(name.clone().into(), best_ty, context)
             }).expect(&format!("Type error:\n {} don't match {}", expr_ty, ty));
-            // Generic function for R transpilation (the other target won't write it)
-            new_context.add_to_adt(&[Lang::GenFunc(build_generic_function(&name.get_name()))])
+            // Generic function for R transpilation (the other targets won't write it)
+            match ty {
+                Type::Function(_, args, _) if args.len() > 0 => {
+                    new_context.add_to_adt(&[Lang::GenFunc(build_generic_function(&name.get_name()))])
+                },
+                _ => new_context
+            }
         },
         Lang::Alias(name, params, typ) => {
             let var = name.clone().set_type(Type::Params(params.to_vec()));
@@ -111,6 +116,16 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             }
         }
         _ => context.clone()
+    }
+}
+
+// for the sugar syntax that can catch value as type for array
+// 4 -> Index(4) if an index parameter is needed
+fn index_conversion(arg_type: &Type, par_type: &Type, value: &Lang) -> (Type, Type) {
+    match (par_type, arg_type, value) {
+        (Type::IndexGen(_), _, Lang::Integer(i)) 
+            => (par_type.clone(), Type::Index(*i as u32)),
+        _ => (par_type.clone(), arg_type.clone())
     }
 }
 
@@ -179,9 +194,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::FunctionApp(fn_var_name, args) => {
-            let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
-            let var_name = Var::from_language(*fn_var_name.clone())
-                .unwrap().set_type(first);
+            let var_name = if args.len() > 0 {
+                let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
+                Var::from_language(*fn_var_name.clone())
+                    .unwrap().set_type(first)
+            } else {
+                Var::from_language(*fn_var_name.clone()).unwrap()
+            };
             let fn_ty = typing(context, &var_name.to_language()).0;
             match fn_ty {
                 Type::Function(_kinds, param_types, ret_ty) => {
@@ -193,10 +212,12 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         .all(|(arg, par)| type_comparison::is_matching(context, arg, par));
                     if conditions {
                         let unification_map = arg_param_types.iter()
-                            .flat_map(|(arg, par)| unification::unify(arg, par))
+                            .zip(args.iter())
+                            .map(|((arg, par), val)| index_conversion(arg, par, val))
+                            .flat_map(|(arg, par)| unification::unify(&arg, &par))
                             .reduce(|res1, res2| res1.iter().chain(res2.iter()).cloned().collect())
                             .unwrap_or(vec![]);
-                        let new_type = unification::type_substitution(&(*ret_ty), &unification_map);
+                        let new_type = unification::type_substitution(&(*ret_ty), &unification_map).index_calculation();
                         (new_type, context.clone())
                     } else {
                         panic!("The arguments types doesnt match:\nexpected: {:?}\nrecieved: {:?}", param_types, arg_types);

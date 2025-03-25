@@ -203,7 +203,7 @@ impl Context {
                 (type_functions.iter().map(|(arg, var, fun)| (var.clone(), fun.clone())).collect(),
                 new_cont2)
             },
-            _ => (vec![], Context::default())
+            _ => (vec![], self.clone())
         }
     }
 

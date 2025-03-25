@@ -202,9 +202,14 @@ impl TypeNominal {
    }
 
    pub fn get_class(&self, typ: &Type) -> String {
-       self.body.iter()
-           .find(|(typ_, _nominal)| typ_ == typ)
-           .unwrap().1.0.clone()
+       match typ {
+           Type::Empty => "Empty".to_string(),
+           _ => {
+               self.body.iter()
+                   .find(|(typ_, _nominal)| typ_ == typ)
+                   .unwrap().1.0.clone()
+           }
+       }
    }
 
    pub fn get_type_from_class(&self, class: &str) -> Type {

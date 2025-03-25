@@ -211,6 +211,67 @@ impl Type {
             _ => Kind::Type
         }
     }
+
+    pub fn index_calculation(&self) -> Type {
+        match self {
+            Type::Add(a, b) 
+                => a.index_calculation().sum_index(&b.index_calculation()),
+            Type::Minus(a, b) 
+                => a.index_calculation().minus_index(&b.index_calculation()),
+            Type::Mul(a, b) 
+                => a.index_calculation().mul_index(&b.index_calculation()),
+            Type::Div(a, b) 
+                => a.index_calculation().div_index(&b.index_calculation()),
+            Type::Array(ind, typ) =>
+                Type::Array(
+                    Box::new(ind.index_calculation()), 
+                    Box::new(typ.index_calculation())),
+                    Type::Function(kinds, args, ret_typ) => {
+                        let new_args = args.iter()
+                            .map(|typ| typ.index_calculation())
+                            .collect::<Vec<_>>();
+                        let new_kinds = args.iter()
+                            .flat_map(|typ| typ.extract_generics())
+                            .collect::<HashSet<_>>().iter()
+                            .map(|typ| ArgumentKind::from((typ.clone(), typ.get_kind())))
+                            .collect::<Vec<_>>();
+                        Type::Function(
+                            new_kinds,
+                            new_args,
+                            Box::new(ret_typ.index_calculation()))
+                    }
+            _ => self.clone()
+        }
+    }
+
+    fn sum_index(&self, i: &Type) -> Type {
+        match (self, i) {
+            (Type::Index(a), Type::Index(b)) => Type::Index(a+b),
+            _ => panic!("Type {} and {} can't be added", self, i)
+        }
+    }
+
+    fn minus_index(&self, i: &Type) -> Type {
+        match (self, i) {
+            (Type::Index(a), Type::Index(b)) => Type::Index(a-b),
+            _ => panic!("Type {} and {} can't be added", self, i)
+        }
+    }
+
+    fn mul_index(&self, i: &Type) -> Type {
+        match (self, i) {
+            (Type::Index(a), Type::Index(b)) => Type::Index(a*b),
+            _ => panic!("Type {} and {} can't be added", self, i)
+        }
+    }
+
+    fn div_index(&self, i: &Type) -> Type {
+        match (self, i) {
+            (Type::Index(a), Type::Index(b)) => Type::Index(a.div_euclid(*b)),
+            _ => panic!("Type {} and {} can't be added", self, i)
+        }
+    }
+
 }
 
 use std::fmt;
