@@ -8,9 +8,9 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
 
     match type_ {
         // Generic type substitution
-        Type::Generic(name) => {
+        Type::Generic(_) => {
             if let Some((_, replacement)) = substitutions.iter()
-                .find(|(gen_name, _)| gen_name == &Type::Generic(name.clone())) {
+                .find(|(gen_name, _)| gen_name == type_) {
                 replacement.clone()
             } else {
                 type_.clone()

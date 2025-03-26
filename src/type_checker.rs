@@ -8,6 +8,7 @@ use crate::var::Var;
 use crate::tag::Tag;
 use crate::index::Index;
 use crate::unification;
+use crate::type_comparison::is_matching;
 
 
 fn get_tag_names_old(tags: &[Type]) -> Vec<String> {
@@ -177,9 +178,21 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 _ => panic!("Type error")
             }
         },
-        Lang::Function(kinds, params, ret_ty, _body) => {
-            let param_types = params.iter().map(|arg_typ| arg_typ.get_type()).collect();
-            (Type::Function(kinds.clone(), param_types, Box::new(ret_ty.clone())), context.clone())
+        Lang::Function(kinds, params, ret_ty, body) => {
+            let param_types = params.iter()
+                .map(|arg_typ| arg_typ.get_type())
+                .collect::<Vec<_>>();
+            let sub_context = params.into_iter()
+                .map(|arg_typ| Var::from_name(&arg_typ.get_argument()))
+                .zip(param_types.clone().into_iter())
+                .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
+            let res = typing(&sub_context, body);
+                if !is_matching(context, &res.0, ret_ty) {
+                    panic!("Error:\nThe output type of the function don't match it's type annotation\nExpected: {}\nFound: {}", ret_ty, res.0)
+                }
+            let new_context = res.1.unifications.into_iter()
+                .fold(context.clone(), |cont, uni_vec| cont.push_unifications(uni_vec));
+            (Type::Function(kinds.clone(), param_types, Box::new(ret_ty.clone())), new_context)
         }
         Lang::Sequence(exprs) => {
             if exprs.len() == 1 {
@@ -217,14 +230,16 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                             .map(|((arg, par), val)| index_conversion(arg, par, val))
                             .flat_map(|(arg, par)| unification::unify(&arg, &par))
                             .reduce(|res1, res2| res1.iter().chain(res2.iter()).cloned().collect())
-                            .unwrap_or(vec![]);
+                            .unwrap_or(vec![])
+                            .into_iter().collect::<HashSet<_>>()
+                            .into_iter().collect::<Vec<_>>();
                         let new_type = unification::type_substitution(&(*ret_ty), &unification_map).index_calculation();
-                        (new_type, context.clone())
+                        (new_type, context.clone().push_unifications(unification_map))
                     } else {
                         panic!("The arguments types doesnt match:\nexpected: {:?}\nrecieved: {:?}", param_types, arg_types);
                     }
                 }
-                _ => panic!("{} is not a function but a {}", fn_var_name.disp(&Context::new(vec![], vec![])), fn_ty),
+                _ => panic!("{} is not a function but a {}", fn_var_name.to_r(&Context::new(vec![], vec![])).0, fn_ty),
             }
         }
         Lang::Tag(name, expr) => {

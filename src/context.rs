@@ -6,6 +6,7 @@ use crate::kind::Kind;
 use crate::subtypes::Subtypes;
 use crate::nominal_context::TypeNominal;
 use crate::argument_type::ArgumentType;
+use std::iter::Rev;
 
 #[derive(Debug, Clone)]
 pub struct VarType(Vec<(Var, Type)>);
@@ -15,16 +16,16 @@ impl VarType {
         VarType(vec![])
     }
 
-    fn iter(&self) -> std::slice::Iter<(Var, Type)> {
-        self.0.iter()
+    fn iter(&self) -> Rev<std::slice::Iter<(Var, Type)>> {
+        self.0.iter().rev()
     }
 
     fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {
-        self.0.iter().filter(|(var, typ)| var.get_type() == *t).cloned().collect()
+        self.0.iter().rev().filter(|(var, typ)| var.get_type() == *t).cloned().collect()
     }
 
     pub fn get_types(&self) -> HashSet<Type> {
-        self.0.iter().flat_map(|(_var, typ)| typ.clone().type_extraction()).collect()
+        self.0.iter().rev().flat_map(|(_var, typ)| typ.clone().type_extraction()).collect()
     }
 }
 
@@ -34,7 +35,8 @@ pub struct Context {
    kinds: Vec<(Type, Kind)>,
    nominals: TypeNominal,
    pub subtypes: Subtypes,
-   pub adt: Vec<Lang>
+   pub adt: Vec<Lang>,
+   pub unifications: Vec<Vec<(Type, Type)>>
 }
 
 impl Default for Context {
@@ -44,7 +46,8 @@ impl Default for Context {
             kinds: vec![],
             nominals: TypeNominal::new(),
             subtypes: Subtypes::new(),
-            adt: vec![]
+            adt: vec![],
+            unifications: vec![]
         }
     }
 }
@@ -60,7 +63,8 @@ impl From<Vec<(Lang, Type)>> for  Context {
             kinds: vec![],
             nominals: TypeNominal::new(),
             subtypes: Subtypes::new(),
-            adt: vec![]
+            adt: vec![],
+            unifications: vec![]
         }
    } 
 }
@@ -88,7 +92,8 @@ impl Context {
             kinds: kinds,
             nominals: TypeNominal::new(),
             subtypes: Subtypes::new(),
-            adt: vec![]
+            adt: vec![],
+            unifications: vec![]
         }
     }
 
@@ -246,6 +251,37 @@ impl Context {
 
     pub fn get_type_from_class(&self, class: &str) -> Type {
         self.nominals.get_type_from_class(class)
+    }
+
+    pub fn push_unifications(&self, unifs: Vec<(Type, Type)>) -> Context {
+        let mut new_unifications = self.unifications.clone();
+        new_unifications.push(unifs);
+        Context {
+            unifications: new_unifications,
+            ..self.clone()
+        }
+    }
+
+    pub fn pop_unifications(&self) -> (Option<Vec<(Type, Type)>>, Context) {
+        let mut new_unifications = self.unifications.clone();
+        let popped = if !new_unifications.is_empty() {
+            Some(new_unifications.remove(0))
+        } else {
+            None
+        };
+        
+        (popped, Context {
+            unifications: new_unifications,
+            ..self.clone()
+        })
+    }
+
+    pub fn has_unifications(&self) -> bool {
+        !self.unifications.is_empty()
+    }
+
+    pub fn unifications_count(&self) -> usize {
+        self.unifications.len()
     }
 }
 

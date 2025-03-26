@@ -295,10 +295,11 @@ fn comment(s: &str) -> IResult<&str, Vec<Lang>> {
     let res = tuple((
             tag("#"),
             not_line_ending,
-            opt(line_ending)
+            opt(line_ending),
+            multispace0
                     ))(s);
     match res {
-        Ok((s, (_hashtag, txt, _))) => Ok((s, vec![Lang::Comment(txt.to_string())])),
+        Ok((s, (_hashtag, txt, _, _))) => Ok((s, vec![Lang::Comment(txt.to_string())])),
         Err(r) => Err(r)
     }
 }

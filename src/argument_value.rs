@@ -8,7 +8,7 @@ pub struct ArgumentValue(pub String, pub Lang);
 
 impl ArgumentValue {
     pub fn to_r(&self, cont: &Context) -> String {
-        format!("{} = {}", self.0, self.1.to_r(cont))
+        format!("{} = {}", self.0, self.1.to_r(cont).0)
     }
 
     pub fn get_argument(&self) -> String {
@@ -23,7 +23,7 @@ impl ArgumentValue {
 impl fmt::Display for ArgumentValue {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let cont = Context::new(vec![], vec![]);
-        write!(f, "[var('{}'),{}]", self.0, self.1.disp(&cont))       
+        write!(f, "[var('{}'),{}]", self.0, self.1.to_r(&cont).0)       
     }
 }
 

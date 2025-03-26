@@ -9,7 +9,7 @@ pub struct Adt(pub Vec<Lang>);
 impl fmt::Display for Adt {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let cont = Context::new(vec![], vec![]);
-        let res = self.0.iter().map(|x| x.disp(&cont))
+        let res = self.0.iter().map(|x| x.to_r(&cont).0)
             .reduce(|acc, x| format!("{}, {}", acc, x))
             .unwrap_or("".to_string());
         write!(f, "sequence([{}])", res)       
@@ -37,9 +37,15 @@ impl Adt {
     }
 
     pub fn to_r(&self, cont: &Context) -> String {
-        self.iter()
-            .map(|line| line.to_r(cont))
-            .fold(String::from(""), |acc, x| format!("{}\n{}", acc, x))
+        let mut current_cont = cont.clone();
+        let mut results = Vec::new();
+        
+        for exp in self.iter() {
+            let (exp_str, new_cont) = exp.to_r(&current_cont);
+            results.push(exp_str);
+            current_cont = new_cont;
+        }
+        results.join("\n")
     }
 
     pub fn to_wasm(&self, cont: &Context) -> String {
