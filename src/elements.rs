@@ -336,9 +336,9 @@ fn closing_separator(s: &str) -> IResult<&str, &str> {
 fn record(s: &str) -> IResult<&str, Lang> {
     let res = tuple((
         opt(record_identifier),
-        opening_separator,
+        terminated(tag("{"), multispace0),
         many0(argument_val),
-        closing_separator))(s);
+        terminated(tag("}"), multispace0)))(s);
     match res {
         Ok((s, (Some(_), _, args, _))) => Ok((s, Lang::Record(args.clone()))),
         Ok((_s, (None, _, args, _))) => {

@@ -57,8 +57,12 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (type1, Type::Alias(_, _, _)) => {
             let reduced = reduce_type(context, type2);
             is_subtype(context, type1, &reduced)
+        },
+        (Type::Function(_, args1, ret_typ1), Type::Function(_, args2, ret_typ2)) => {
+            args1.iter().chain([&(**ret_typ1)])
+                .zip(args2.iter().chain([&(**ret_typ2)]))
+                .all(|(typ1, typ2)| is_subtype(context, typ1, typ2))
         }
-
         // Interface subtyping
         (type1, Type::Interface(args)) => {
             check_interface_functions(
@@ -113,13 +117,6 @@ pub fn is_matching(context: &Context, type1: &Type, type2: &Type) -> bool {
         _ => {
             let reduced1 = reduce_type(context, type1);
             let reduced2 = reduce_type(context, type2);
-
-            //if (&reduced1 == type1) && (&reduced2 == type2) {
-                //dbg!(&context.subtypes);
-                //dbg!(&reduced1);
-                //dbg!(&reduced2);
-                //panic!();
-            //}
 
             reduced1 == reduced2 ||
             is_subtype(context, &reduced1, &reduced2)

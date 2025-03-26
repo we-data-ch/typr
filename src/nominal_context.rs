@@ -204,6 +204,7 @@ impl TypeNominal {
    pub fn get_class(&self, typ: &Type) -> String {
        match typ {
            Type::Empty => "Empty".to_string(),
+           Type::Any => "Empty".to_string(),
            _ => {
                self.body.iter()
                    .find(|(typ_, _nominal)| typ_ == typ)

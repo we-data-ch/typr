@@ -1,16 +1,9 @@
-export function typr<A>(a: A): void {
-	console.log("Hello TypR!")
-}
-
-export function as__character<A>(value: A): string {
-    if (value === null) return "null";
-    if (value === undefined) return "undefined";
-    if (typeof value === "object") return JSON.stringify(value);
-    return String(value);
-}
-
-export function console__log<A>(value: A): void {
-	console.log(value)
+function map<T, U>(array: T[], callback: (value: T, index: number, array: T[]) => U): U[] {
+    const result: U[] = [];
+    for (let i = 0; i < array.length; i++) {
+        result.push(callback(array[i], i, array));
+    }
+    return result;
 }
 
 export function numeric_add(a: number, b: number): number {

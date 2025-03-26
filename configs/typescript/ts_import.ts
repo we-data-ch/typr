@@ -1,5 +1,3 @@
-import { as__character } from "./std";
-import { console__log } from "./std";
 import { numeric_add } from "./std";
 import { numeric_minus } from "./std";
 import { numeric_mul } from "./std";

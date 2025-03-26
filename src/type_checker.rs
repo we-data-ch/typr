@@ -85,8 +85,9 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                 context.clone().push_var_type(name.clone().into(), best_ty, context)
             }).expect(&format!("Type error:\n {} don't match {}", expr_ty, ty));
             // Generic function for R transpilation (the other targets won't write it)
-            match ty {
-                Type::Function(_, args, _) if args.len() > 0 => {
+            match expr_ty {
+                Type::Function(kinds, args, _) 
+                    if (args.len() > 0) && (kinds.len() == 0) => {
                     new_context.add_to_adt(&[Lang::GenFunc(build_generic_function(&name.get_name()))])
                 },
                 _ => new_context
@@ -301,6 +302,10 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 ty.clone())).unwrap();
             (context.get_type_from_variable(var), context.clone())
         },
+        Lang::Scope(expr) if expr.len() == 1 => {
+            typing(context, &expr[0])
+        },
+        Lang::Scope(expr) => typing(context, &Lang::Sequence(expr.to_vec())),
         _ => (Type::Any, context.clone()),
     }
 }

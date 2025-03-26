@@ -1,4 +1,4 @@
-let as__character <- fn(a: A): chars {
+let as__character <- fn(a: A): char {
 	...
 };
 
@@ -7,7 +7,7 @@ let map <- fn(a: [#N, T], f: (T) -> U): [#N, U] {
 };
 
 let incr <- fn(a: int): int {
-	...
+	a + 1
 };
 
 let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K, int] {
@@ -63,5 +63,13 @@ let div <- fn(a: int, b: int): int {
 };
 
 let div <- fn(a: num, b: num): num {
+	...
+};
+
+let plot <- fn(a: [#N, int], b: [#N, int]): T {
+	...
+};
+
+let plot <- fn(a: [#N, num], b: [#N, num]): T {
 	...
 };

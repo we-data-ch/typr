@@ -1,7 +1,3 @@
-let add <- fn(a: num, b: num): num {
-	...
-};
-
 let console__log <- fn(a: A): T {
 	...
 };
@@ -14,6 +10,9 @@ let add <- fn(a: int, b: int): int {
 	...
 };
 
+let add <- fn(a: num, b: num): num {
+	...
+};
 
 let minus <- fn(a: int, b: int): int {
 	...

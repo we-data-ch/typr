@@ -398,12 +398,13 @@ impl Lang {
                 let res = params.iter().map(|x| x.to_typescript(cont)).collect::<Vec<_>>();
                 let name = var.get_name();
                 match &name[..] {
-                    "console__log" => format!("console.log({})", res.join(", ")),
                     "parseInt" | "parseFloat"
                         => format!("{}({})", var.get_name(), res.join(", ")),
-                        n if &name[0..6] == "math__" => {
+                    n if (name.len() > 6) && (&name[0..6] == "math__") => {
                             format!("Math.{}({})", name[6..].to_string(), res.join(", "))
                         }
+                    n if name.contains("__") =>
+                        format!("{}({})", name.replace("__", "."), res.join(", ")),
                     _ => format!("{}_{}({})", cont.get_class(&typ), var.get_name(), res.join(", "))
                 }
             },
