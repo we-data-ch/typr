@@ -369,16 +369,17 @@ fn tests(s: &str) -> IResult<&str, Vec<Lang>> {
 // main
 fn base_parse(s: &str) -> IResult<&str, Vec<Lang>> {
     let res = tuple((
+        opt(multispace0),
         many0(alt((tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp))),
         opt(alt((return_exp, parse_elements)))
               ))(s);
     match res {
-        Ok((s, (v, Some(exp)))) => {
+        Ok((s, (_, v, Some(exp)))) => {
             let mut new_v = v.iter().flatten().cloned().collect::<Vec<_>>();
             new_v.push(exp);
             Ok((s, new_v))
         },
-        Ok((s, (v, None))) => Ok((s, v.iter().flatten().cloned().collect())),
+        Ok((s, (_, v, None))) => Ok((s, v.iter().flatten().cloned().collect())),
         Err(r) => Err(r)
     }
 }

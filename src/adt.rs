@@ -49,9 +49,15 @@ impl Adt {
     }
 
     pub fn to_wasm(&self, cont: &Context) -> String {
-        self.iter()
-            .map(|line| line.to_typescript(cont))
-            .fold(String::from(""), |acc, x| format!("{}\n{}", acc, x))
+        let mut current_cont = cont.clone();
+        let mut results = Vec::new();
+        
+        for exp in self.iter() {
+            let (exp_str, new_cont) = exp.to_typescript(&current_cont);
+            results.push(exp_str);
+            current_cont = new_cont;
+        }
+        results.join("\n")
     }
 
     pub fn add(self, adt: Adt) -> Adt {

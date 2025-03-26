@@ -399,40 +399,65 @@ impl Lang {
         result
     }
 
-    pub fn to_typescript(&self, cont: &Context) -> String {
+    pub fn to_typescript(&self, cont: &Context) -> (String, Context) {
         match self {
-            Lang::Bool(b) => format!("{}", b),
-            Lang::Integer(i) => format!("{}", i),
-            Lang::Number(n) => format!("{}", n),
-            Lang::Char(c) => format!("\"{}\"", c),
-            Lang::Empty => "null".to_string(),
+            Lang::Bool(b) => (format!("{}", b), cont.clone()),
+            Lang::Integer(i) => (format!("{}", i), cont.clone()),
+            Lang::Number(n) => (format!("{}", n), cont.clone()),
+            Lang::Char(c) => (format!("\"{}\"", c), cont.clone()),
+            Lang::Empty => ("null".to_string(), cont.clone()),
             Lang::Array(v) => {
-                let res = v.iter().map(|lang| lang.to_typescript(cont)).collect::<Vec<_>>();
-                format!("[{}]", res.join(", "))
+                let mut current_cont = cont.clone();
+                let mut val_strs = Vec::new();
+                
+                for val in v {
+                    let (val_str, new_cont) = val.to_typescript(&current_cont);
+                    val_strs.push(val_str);
+                    current_cont = new_cont;
+                }
+                
+                (format!("[{}]", val_strs.join(", ")), current_cont)
             },
             Lang::Record(v) => {
-                let res = v.iter().map(|arg_val| format!("{}: {}", 
-                                               arg_val.get_argument(), 
-                                               arg_val.get_value().to_typescript(cont)))
-                    .collect::<Vec<_>>();
-                format!("{{ {} }}", res.join(", "))
+                let mut current_cont = cont.clone();
+                let mut arg_strs = Vec::new();
+                
+                for arg_val in v {
+                    let (val_str, new_cont) = arg_val.get_value().to_typescript(&current_cont);
+                    arg_strs.push(format!("{}: {}", arg_val.get_argument(), val_str));
+                    current_cont = new_cont;
+                }
+                
+                (format!("{{ {} }}", arg_strs.join(", ")), current_cont)
             },
-            Lang::Tuple(vals) => format!("{{ {} }}", vals.iter()
-                                         .enumerate()
-                                         .map(|(i, x)| format!("'{}': {}", i.to_string(), x.to_typescript(cont)))
-                                         .collect::<Vec<_>>().join(", ")),
+            Lang::Tuple(vals) => {
+                let mut current_cont = cont.clone();
+                let mut val_entries = Vec::new();
+                
+                for (i, val) in vals.iter().enumerate() {
+                    let (val_str, new_cont) = val.to_typescript(&current_cont);
+                    val_entries.push(format!("'{}': {}", i.to_string(), val_str));
+                    current_cont = new_cont;
+                }
+                
+                (format!("{{ {} }}", val_entries.join(", ")), current_cont)
+            },
             Lang::Tag(s, t) => {
+                let (t_str, new_cont) = t.to_typescript(cont);
                 let typ = type_checker::typing(cont, self).0;
-                format!("{{ _type: '{}', _body: {} }}", s, t.to_typescript(cont))
+                
+                (format!("{{ _type: '{}', _body: {} }}", s, t_str), new_cont)
             },
-            Lang::Variable(v, path, _perm, _muta, _ty) => Self::format_path(path) + v,
+            Lang::Variable(v, path, _perm, _muta, _ty) => 
+                (Self::format_path(path) + v, cont.clone()),
             Lang::Let(var, typ, body) => {
                 if var.get_name() == "main" {
                     match *body.clone() {
                         Lang::Function(_kinds, params, ret, body2) => {
-                            format!("export function main(): void {{\n{}\n}}", body2.to_typescript(cont))
+                            let (body_str, new_cont) = body2.to_typescript(cont);
+                            (format!("export function main(): void {{\n{}\n}}", body_str), new_cont)
                         },
-                        _ => todo!()
+                        _ => ("".to_string(), cont.clone()) // todo!()
                     }
                 } else {
                    match *body.clone() {
@@ -444,66 +469,125 @@ impl Lang {
                                               at.get_argument(),
                                               at.get_type().to_typescript()))
                             .collect::<Vec<_>>();
-                            format!("function {}_{}({}): {} {{\n{}\n}}",
-                            class,
-                            var.get_name(), res.join(", "),
-                            ret.to_typescript(), body2.to_typescript(cont))
+                            
+                            let (body_str, new_cont) = body2.to_typescript(cont);
+                            (format!("function {}_{}({}): {} {{\n{}\n}}",
+                                class,
+                                var.get_name(), 
+                                res.join(", "),
+                                ret.to_typescript(), 
+                                body_str), 
+                            new_cont)
                        },
-                       _ => format!("let {} = {}", var.get_name(), body.to_typescript(cont))
+                       _ => {
+                           let (body_str, new_cont) = body.to_typescript(cont);
+                           (format!("let {} = {}", var.get_name(), body_str), new_cont)
+                       }
                    } 
                 }
             },
             Lang::FunctionApp(var, params) => {
                 let first = params.iter().nth(0).unwrap();
                 let typ = typing(cont, first).0;
-                let res = params.iter().map(|x| x.to_typescript(cont)).collect::<Vec<_>>();
+                
+                let (var_str, cont1) = var.to_typescript(cont);
+                
+                let mut current_cont = cont1;
+                let mut param_strs = Vec::new();
+                
+                for param in params {
+                    let (param_str, new_cont) = param.to_typescript(&current_cont);
+                    param_strs.push(param_str);
+                    current_cont = new_cont;
+                }
+                
                 let name = var.get_name();
-                match &name[..] {
-                    "parseInt" | "parseFloat"
-                        => format!("{}({})", var.get_name(), res.join(", ")),
+                let result = match &name[..] {
+                    "parseInt" | "parseFloat" | "map"
+                        => format!("{}({})", var.get_name(), param_strs.join(", ")),
                     n if (name.len() > 6) && (&name[0..6] == "math__") => {
-                            format!("Math.{}({})", name[6..].to_string(), res.join(", "))
+                            format!("Math.{}({})", name[6..].to_string(), param_strs.join(", "))
                         }
                     n if name.contains("__") =>
-                        format!("{}({})", name.replace("__", "."), res.join(", ")),
-                    _ => format!("{}_{}({})", cont.get_class(&typ), var.get_name(), res.join(", "))
-                }
+                        format!("{}({})", name.replace("__", "."), param_strs.join(", ")),
+                    _ => format!("{}_{}({})", cont.get_class(&typ), var.get_name(), param_strs.join(", "))
+                };
+                
+                (result, current_cont)
             },
+            Lang::Function(kinds, args, ret_typ, body) => {
+                let params = args.iter()
+                    .map(|arg_typ| arg_typ.get_argument())
+                    .collect::<Vec<_>>().join(", ");
+                let cont2 = args.iter()
+                    .map(|arg_typ| (arg_typ.get_argument(), arg_typ.get_type()))
+                    .map(|(arg, typ)| (Var::from_name(&arg), typ))
+                    .fold(cont.clone(), |ctx, (arg, typ)| ctx.clone().push_var_type(arg, typ, &ctx));
+                (format!("({}) => {{ {} }}", 
+                         params, body.to_typescript(&cont2).0), cont.clone())
+            }
             Lang::Scope(langs) => {
-                let res = langs.iter().map(|lang| lang.to_typescript(cont)).collect::<Vec<_>>();
-                res.join("\n")
+                let mut current_cont = cont.clone();
+                let mut result_strs = Vec::new();
+                
+                for lang in langs {
+                    let (lang_str, new_cont) = lang.to_typescript(&current_cont);
+                    result_strs.push(lang_str);
+                    current_cont = new_cont;
+                }
+                
+                (result_strs.join("\n"), current_cont)
             },
-            Lang::Sequence(exps) 
-                => exps.iter().map(|x| x.to_typescript(cont)).collect::<Vec<String>>().join("\n\n"),
-            Lang::Return(exp) => format!("return {};", exp.to_typescript(cont)),
+            Lang::Sequence(exps) => {
+                let mut current_cont = cont.clone();
+                let mut result_strs = Vec::new();
+                
+                for exp in exps {
+                    let (exp_str, new_cont) = exp.to_typescript(&current_cont);
+                    result_strs.push(exp_str);
+                    current_cont = new_cont;
+                }
+                
+                (result_strs.join("\n\n"), current_cont)
+            },
+            Lang::Return(exp) => {
+                let (exp_str, new_cont) = exp.to_typescript(cont);
+                (format!("return {};", exp_str), new_cont)
+            },
             Lang::Dot(e1, e2) => {
+                let (e1_str, cont1) = e1.to_typescript(cont);
+                let (e2_str, cont2) = e2.to_typescript(&cont1);
+                
                 match *e1.clone() {
                     Lang::Variable(_, _, _, _, _) => 
-                        format!("{}.{}", e2.to_typescript(cont), e1.to_typescript(cont)),
-                    _ => format!("{} |> {}", e2.to_typescript(cont), e1.to_typescript(cont)),
+                        (format!("{}.{}", e2_str, e1_str), cont2),
+                    _ => (format!("{} |> {}", e2_str, e1_str), cont2),
                 }
-            }
+            },
             Lang::Pipe(e1, e2) => {
+                let (e1_str, cont1) = e1.to_typescript(cont);
+                let (e2_str, cont2) = e2.to_typescript(&cont1);
+                
                 match *e1.clone() {
                     Lang::Variable(_, _, _, _, _) => 
-                        format!("{}.{}", e2.to_typescript(cont), e1.to_typescript(cont)),
-                    _ => format!("{} |> {}", e2.to_typescript(cont), e1.to_typescript(cont)),
+                        (format!("{}.{}", e2_str, e1_str), cont2),
+                    _ => (format!("{} |> {}", e2_str, e1_str), cont2),
                 }
-            }
+            },
             Lang::Alias(var, args, typ) => {
                 if args.len() > 0 {
                     let res = args.iter()
                         .map(|typ| typ.to_typescript())
                         .collect::<Vec<_>>()
                         .join(", ");
-                    format!("type {}<{}> = {};", var.get_name(), res, typ.to_typescript())
+                    (format!("type {}<{}> = {};", var.get_name(), res, typ.to_typescript()), cont.clone())
                 } else {
-                    format!("type {} = {};", var.get_name(), typ.to_typescript())
+                    (format!("type {} = {};", var.get_name(), typ.to_typescript()), cont.clone())
                 }
-            }
-            _ => "".to_string()
+            },
+            _ => ("".to_string(), cont.clone())
         }
-    } 
+    }
 
     pub fn get_number(&self) -> i32 {
         if let Lang::Integer(number) = self {

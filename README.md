@@ -1,8 +1,12 @@
 # Typr
 
-A superset of the legendary R !
+## What is TypR ?
 
-The project is still a prototype in progress and is really buggy. The syntax and the wanted features are there so there won't be some big change but additional features.
+A faster, safer, cooler R that can transpile to Typescript/Javascript/WebAssembly.
+
+TypR is a superset of the legendary R. It add cool types, a beautiful syntax and powerful modern features.
+
+The project is still new and can have some bugs. All the syntax basis and the features are arleady there so there won't be some big breaking change but additional features.
 
 ![](images/TypR_logo.png)
 
@@ -10,12 +14,18 @@ There is also a more mature project named vapour written in go who has some cool
 
 ## Installation
 
+## For R (basic)
 To install TypR, you will need to install `Rust` (of course you should have R installed in your system):
 
 - R's installation page: https://www.r-project.org/
 - Rust's installation page: https://www.rust-lang.org/
 
 You should be sure those tools are installed and accessible through the terminal.
+
+## For Typescript/Javascript
+It's not complet yet, but you can transpile TypR code to Typescript/Javascript using node.
+
+- node: https://nodejs.org/en 
 
 ### Installation
 
