@@ -215,13 +215,6 @@ fn new(name: &str, target: TargetLanguage) {
         },
         TargetLanguage::AssemblyScript => {
             files.extend(vec![
-                ("package.json".to_string(), format!(
-                    "{{\n  \"name\": \"{}\",\n  \"version\": \"0.1.0\",\n  \"description\": \"\",\n  \"main\": \"index.js\",\n  \"scripts\": {{\n    \"asbuild:debug\": \"asc assembly/index.ts --target debug\",\n    \"asbuild:release\": \"asc assembly/index.ts --target release\",\n    \"asbuild\": \"npm run asbuild:debug && npm run asbuild:release\",\n    \"test\": \"node tests\"\n  }},\n  \"keywords\": [],\n  \"author\": \"\",\n  \"license\": \"ISC\",\n  \"dependencies\": {{\n    \"assemblyscript\": \"^0.27.1\"\n  }}\n}}", 
-                    name
-                )),
-                ("asconfig.json".to_string(), 
-                    "{\n  \"targets\": {\n    \"debug\": {\n      \"outFile\": \"build/debug.wasm\",\n      \"textFile\": \"build/debug.wat\",\n      \"sourceMap\": true,\n      \"debug\": true\n    },\n    \"release\": {\n      \"outFile\": \"build/release.wasm\",\n      \"textFile\": \"build/release.wat\",\n      \"sourceMap\": true,\n      \"optimizeLevel\": 3,\n      \"shrinkLevel\": 1,\n      \"converge\": false,\n      \"noAssert\": false\n    }\n  },\n  \"options\": {}\n}".to_string()
-                ),
                 ("assembly/index.ts".to_string(), "// Main AssemblyScript code goes here\nexport function add(a: i32, b: i32): i32 {\n  return a + b;\n}\n".to_string()),
             ]);
         },
@@ -231,6 +224,58 @@ fn new(name: &str, target: TargetLanguage) {
         let path = Path::new(name).join(file);
         if let Err(e) = fs::write(&path, content) {
             eprintln!("Erreur lors de la création du fichier {}: {}", path.display(), e);
+            std::process::exit(1);
+        }
+    }
+
+    // Initialisation spécifique pour AssemblyScript
+    if target == TargetLanguage::AssemblyScript {
+        // Sauvegarder le répertoire courant
+        let current_dir = std::env::current_dir().expect("Impossible d'obtenir le répertoire courant");
+        
+        // Changer vers le répertoire du projet
+        if let Err(e) = std::env::set_current_dir(name) {
+            eprintln!("Erreur lors du changement vers le répertoire du projet: {}", e);
+            std::process::exit(1);
+        }
+        
+        println!("Initialisation du projet AssemblyScript...");
+        
+        // Exécuter les commandes npm
+        let commands = vec![
+            "npm init -y",
+            "npm install --save-dev assemblyscript",
+            "npm install --save @assemblyscript/loader",
+            "npm install --save-dev @assemblyscript/wasi-shim",
+            "npx asinit . -y"
+        ];
+        
+        for cmd in commands {
+            let parts: Vec<&str> = cmd.split_whitespace().collect();
+            let command = parts[0];
+            let args = &parts[1..];
+            
+            println!("Exécution de: {}", cmd);
+            
+            let status = Command::new(command)
+                .args(args)
+                .status();
+                
+            match status {
+                Ok(exit_status) => {
+                    if !exit_status.success() {
+                        eprintln!("La commande '{}' a échoué avec le code de sortie: {:?}", cmd, exit_status.code());
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Erreur lors de l'exécution de la commande '{}': {}", cmd, e);
+                }
+            }
+        }
+        
+        // Revenir au répertoire d'origine
+        if let Err(e) = std::env::set_current_dir(current_dir) {
+            eprintln!("Erreur lors du retour au répertoire d'origine: {}", e);
             std::process::exit(1);
         }
     }
@@ -280,6 +325,7 @@ fn new(name: &str, target: TargetLanguage) {
 │   └── test.ty
 ├── package.json
 ├── asconfig.json
+├── node_modules/
 └── README.md", name);
         },
     }
@@ -352,9 +398,14 @@ fn run(target: TargetLanguage) {
             let original_dir = std::env::current_dir().expect("Impossible d'obtenir le répertoire de travail actuel");
             
             println!("Compilation AssemblyScript...");
-            let asbuild_output = Command::new("npm")
-                .arg("run")
-                .arg("asbuild")
+            let asbuild_output = Command::new("npx")
+                .arg("asc")
+                .arg("assembly/main.ts")
+                .arg("-o")
+                .arg("build/main.wasm")
+                .arg("--optimize")
+                .arg("--config")
+                .arg("./node_modules/@assemblyscript/wasi-shim/asconfig.json")
                 .output()
                 .expect("Échec lors de la compilation AssemblyScript");
                 
@@ -367,6 +418,20 @@ fn run(target: TargetLanguage) {
             println!("Exécution WebAssembly...");
             // Ici, vous devriez implémenter une méthode pour exécuter le WebAssembly
             // Cela pourrait nécessiter un environnement Node.js avec un script spécifique
+            let asbuild_output = Command::new("wasmtime")
+                .arg("build/main.wasm")
+                .output()
+                .expect("Échec lors de l'execution du wasm");
+            
+            // Afficher la sortie standard
+            let stdout = String::from_utf8_lossy(&asbuild_output.stdout);
+            println!("{}", stdout);
+            
+            // Si vous voulez également afficher les erreurs éventuelles
+            let stderr = String::from_utf8_lossy(&asbuild_output.stderr);
+            if !stderr.is_empty() {
+                eprintln!("Erreurs: {}", stderr);
+            }
             
             std::env::set_current_dir(original_dir).expect("Échec lors de la restauration du répertoire de travail");
         },
