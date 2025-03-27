@@ -110,6 +110,7 @@ impl TypeNominal {
         categories.insert(TypeCategory::Number, 0 as usize);
         categories.insert(TypeCategory::Char, 0 as usize);
         categories.insert(TypeCategory::Generic, 0 as usize);
+        categories.insert(TypeCategory::Rest, 0 as usize);
         TypeNominal {
             body: vec![],
             categories: Categories(categories)

@@ -28,6 +28,7 @@ use crate::var::Permission;
 use nom::character::complete::digit1;
 use crate::kind::Kind;
 use std::collections::HashSet;
+use crate::Context;
 
 pub fn number(s: &str) -> IResult<&str,Lang> {
     let res = terminated(tuple((digit1, tag("."), digit1)), multispace0)(s);
@@ -506,6 +507,47 @@ fn range(s: &str) -> IResult<&str, Lang> {
     }
 }
 
+fn pure_string((lang, op): (Lang, Op)) -> String {
+    let cont = Context::new(vec![], vec![]);
+    match (lang, op) {
+        (lang, Op::Empty) => lang.to_r(&cont).0,
+        (lang, Op::Add) => format!(" + {}", lang.to_r(&cont).0),
+        (lang, Op::Minus) => format!(" - {}", lang.to_r(&cont).0),
+        (lang, Op::Mul) => format!(" * {}", lang.to_r(&cont).0),
+        (lang, Op::Div) => format!(" * {}", lang.to_r(&cont).0),
+        _ => "".to_string()
+    }
+}
+
+fn element_operator2(s: &str) -> IResult<&str, (Lang, Op)> {
+    let res = tuple((
+                opt(op),
+                alt((number, integer, variable))
+                ))(s);
+    match res {
+        Ok((s, (Some(ope), ele))) => Ok((s, (ele, ope))),
+        Ok((s, (None, ele))) => Ok((s, (ele, Op::Empty))),
+        Err(r) => Err(r)
+    }
+}
+
+fn vectorial_bloc(s: &str) -> IResult<&str, Lang> {
+    let res = delimited(
+                    tag("@{ "),
+                    many1(element_operator2),
+                    tag("}@")
+                    )(s);
+    match res {
+        Ok((s, v)) => {
+            let new_v = v.into_iter()
+                .map(|e| pure_string(e))
+                .collect::<Vec<_>>().join("");
+            Ok((s, Lang::VecBloc(new_v)))
+        },
+        Err(r) => Err(r)
+    }
+}
+
 // main
 fn single_element(s: &str) -> IResult<&str,Lang> {
     alt((
@@ -677,7 +719,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                 rest => rest.clone()
             };
             let func = Lang::FunctionApp(
-                Box::new(Lang::Variable("map".to_string(), "".to_string(), Permission::Private, false, Type::Empty)),
+                Box::new(Var::from_name("map").to_language()),
                 vec![res.clone()]);
             Lang::Dot(Box::new(func), Box::new(op_reverse(v)))
         },
@@ -717,7 +759,9 @@ pub fn bang_exp(s: &str) -> IResult<&str, Lang> {
 fn element_chain(s: &str) -> IResult<&str, Lang> {
     let res = many1(element_operator)(s);
     match res {
-        Ok((s, v)) => Ok((s, op_reverse(&mut v.clone()))),
+        Ok((s, v)) => {
+            Ok((s, op_reverse(&mut v.clone())))
+        },
         Err(r) => Err(r)
     }
 }
@@ -725,6 +769,7 @@ fn element_chain(s: &str) -> IResult<&str, Lang> {
 // main
 pub fn parse_elements(s: &str) -> IResult<&str, Lang> {
     alt((
+        vectorial_bloc,
         element_chain,
         single_element
         ))(s)
@@ -1021,5 +1066,35 @@ mod tests {
         let res = element_chain("'wow' + 'hey'").unwrap().1;
         assert_eq!(res, Lang::Empty);
     } 
+
+    #[test]
+    fn test_vectorial_bloc1() {
+        let res = vectorial_bloc("@{ 3 }@").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
+
+    #[test]
+    fn test_vectorial_bloc2() {
+        let res = vectorial_bloc("@{ 3 + 4 }@").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
+
+    #[test]
+    fn test_vectorial_bloc3() {
+        let res = vectorial_bloc("@{ 4*v + 12 }@").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
+
+    #[test]
+    fn test_vectorial_bloc4() {
+        let res = single_element("@{ 4*v + 12 }@").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
+
+    #[test]
+    fn test_vectorial_bloc5() {
+        let res = element_chain("@{ 4*v + 12 }@").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
 
 }

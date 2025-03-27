@@ -163,6 +163,14 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect("Field not found")
                 },
+                (_, Lang::FunctionApp(name, args)) 
+                    if Var::from_language((*name).clone()).unwrap().get_name() == "map"
+                        => {
+                            let new_args = [(**e2).clone()].into_iter()
+                                .chain(args.into_iter())
+                                .collect::<Vec<_>>();
+                            typing(context, &Lang::FunctionApp(name, new_args))
+                        },
                 _ => panic!("Type error")
             }
         },
@@ -321,6 +329,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             typing(context, &expr[0])
         },
         Lang::Scope(expr) => typing(context, &Lang::Sequence(expr.to_vec())),
+        Lang::VecBloc(expr) => (Type::Any, context.clone()),
         _ => (Type::Any, context.clone()),
     }
 }

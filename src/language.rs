@@ -57,6 +57,7 @@ pub enum Lang {
     GenFunc(String),
     Test(Vec<Lang>),
     Return(Box<Lang>),
+    VecBloc(String),
     Any,
     Empty
 }
@@ -183,6 +184,14 @@ impl Lang {
                 match *e1.clone() {
                     Lang::Variable(_, _, _, _, _) => 
                         (format!("{}${}", e2_str, e1_str), cont2),
+                Lang::FunctionApp(name, args) 
+                    if Var::from_language((*name).clone()).unwrap().get_name() == "map"
+                        => {
+                            let new_args = [(**e2).clone()].into_iter()
+                                .chain(args.into_iter())
+                                .collect::<Vec<_>>();
+                            Lang::FunctionApp(name, new_args).to_r(&cont2)
+                        },
                     _ => (format!("{} |> {}", e2_str, e1_str), cont2),
                 }
             },
@@ -214,15 +223,17 @@ impl Lang {
                         body_str), 
                 new_cont)
             },
-            Lang::Variable(v, path, _perm, _muta, _ty) => 
-                match _ty {
-                    Type::Empty | Type::Any => 
-                        (Self::format_path(path) + v, cont.clone()),
-                    _ => {
-                        let class = cont.get_class(_ty);
-                        (Self::format_path(path) + v + "." + &class, cont.clone())
+            Lang::Variable(v, path, _perm, _muta, _ty) => {
+                let name = if v.contains("__") {
+                    v.replace("__", ".")
+                } else {
+                    match _ty {
+                        Type::Empty | Type::Any => v.clone(),
+                        _ => v.clone() + "." + &cont.get_class(_ty)
                     }
-                }
+                };
+                (Self::format_path(path) + &name, cont.clone())
+            }
             Lang::FunctionApp(exp, vals) => {
                 let (exp_str, cont1) = exp.to_r(cont);
                 let (unification_map, cont2) = cont1.pop_unifications();
@@ -361,7 +372,7 @@ impl Lang {
             Lang::Range(i1, i2, i0) => 
                 (format!("array(seq({},{},{}), dim = c({}))", i1, i2, i0, i2-i1/i0), cont.clone()),
             Lang::Integer(i) => 
-                (i.to_string(), cont.clone()),
+                (format!("{}L", i), cont.clone()),
             Lang::Tag(s, t) => {
                 let (t_str, new_cont) = t.to_r(cont);
                 let typ = type_checker::typing(cont, self).0;
@@ -393,6 +404,7 @@ impl Lang {
                 let (exp_str, new_cont) = exp.to_r(cont);
                 (format!("return ({})", exp_str), new_cont)
             },
+            Lang::VecBloc(bloc) => (bloc.to_string(), cont.clone()),
             _ => ("".to_string(), cont.clone())
         };
         
