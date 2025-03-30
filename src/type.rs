@@ -182,6 +182,48 @@ impl Type {
        } 
     }
 
+    pub fn to_assemblyscript(&self) -> String {
+       match self {
+           Type::Boolean => "bool".to_string(),
+           Type::Integer => "i32".to_string(),
+           Type::Number => "f64".to_string(),
+           Type::Char => "string".to_string(),
+           Type::Record(body) => {
+                let res = body.iter()
+                    .map(|at| format!("{}: {}", at.get_argument(), at.get_type().to_typescript()))
+                    .collect::<Vec<_>>().join(", ");
+                format!("{{ {} }}", res)
+           },
+           Type::Array(size, body) => format!("{}[]", body.to_typescript()),
+           Type::IndexGen(id) => id.to_uppercase(),
+           Type::Generic(val) => val.to_uppercase(), 
+           Type::Index(val) => val.to_string(),
+           Type::Function(kinds, args, ret) => {
+               let res = args.iter()
+                    .enumerate()
+                    .map(|(i, typ)| format!("{}: {}", generate_arg(i), typ.to_typescript()))
+                    .collect::<Vec<_>>().join(", ");
+               if kinds.len() == 0 {
+                   format!("({}) => {}", res, ret.to_typescript())
+               } else {
+                   let res2 = kinds.iter()
+                       .map(|ak| ak.get_argument().to_typescript())
+                       .collect::<Vec<_>>()
+                       .join(", ");
+                   format!("<{}>({}) => {}", res2, res, ret.to_typescript())
+               }
+           },
+           Type::Tag(name, typ) => format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript()),
+           Type::Any => "null".to_string(),
+           Type::Empty => "null".to_string(),
+           Type::Add(_,_) => "T".to_string(),
+           Type::Minus(_,_) => "T".to_string(),
+           Type::Div(_,_) => "T".to_string(),
+           Type::Mul(_,_) => "T".to_string(),
+           _ => format!("the type: {} is not yet in to_typescript()", self)
+       } 
+    }
+
     pub fn extract_generics(&self) -> Vec<Type> {
         match self {
             Type::Generic(_) | Type::IndexGen(_) => vec![self.clone()],

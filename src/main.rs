@@ -51,6 +51,8 @@ use crate::my_io::execute_r_with_path;
 use std::process::Command;
 use crate::engine::write_adt_to_typescript;
 use crate::my_io::execute_typescript;
+use crate::engine::write_adt_to_assemblyscript_with_path;
+use crate::engine::write_adt_to_typescript_with_path;
 
 pub fn is_subset<T: Eq + std::hash::Hash>(v1: &[T], v2: &[T]) -> bool {
     let set_v2: HashSet<_> = v2.iter().collect();
@@ -348,12 +350,13 @@ fn build(target: TargetLanguage) {
         },
         TargetLanguage::TypeScript => {
             // Fonction à implémenter pour générer du TypeScript
-            // write_adt_to_typescript_with_path(&adt_manager.get_adt_without_header(), &context, &PathBuf::from("src"));
+            write_adt_to_typescript_with_path(&adt_manager.get_adt_without_header(), &context, &PathBuf::from("src"));
+            //write_adt_to_typescript(&adt_manager.get_adt_without_header(), &context);
             println!("✓ Code TypeScript généré avec succès dans le dossier src/");
         },
         TargetLanguage::AssemblyScript => {
             // Fonction à implémenter pour générer de l'AssemblyScript
-            // write_adt_to_assemblyscript_with_path(&adt_manager.get_adt_without_header(), &context, &PathBuf::from("assembly"));
+            write_adt_to_assemblyscript_with_path(&adt_manager.get_adt_without_header(), &context, &PathBuf::from("assembly"));
             println!("✓ Code AssemblyScript généré avec succès dans le dossier assembly/");
         },
     }

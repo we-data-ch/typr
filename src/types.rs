@@ -431,11 +431,19 @@ fn indices(s: &str) -> IResult<&str, Type> {
                   ))(s)
 }
 
+fn empty(s: &str) -> IResult<&str, Type> {
+    match tag("Empty")(s) {
+        Ok((s, _)) => Ok((s, Type::Empty)),
+        Err(r) => Err(r)
+    }
+}
+
 
 //ltype to not use the reserved symbol "type"
 // main
 pub fn ltype(s: &str) -> IResult<&str, Type> {
     terminated(alt((
+            empty,
             interface,
             indices,
             number,

@@ -601,6 +601,225 @@ impl Lang {
         }
     }
 
+    pub fn to_assemblyscript(&self, cont: &Context) -> (String, Context) {
+        match self {
+            Lang::Bool(b) => (format!("{}", b), cont.clone()),
+            Lang::Integer(i) => (format!("{}", i), cont.clone()),
+            Lang::Number(n) => (format!("{}", n), cont.clone()),
+            Lang::Char(c) => (format!("\"{}\"", c), cont.clone()),
+            Lang::Empty => ("null".to_string(), cont.clone()),
+            Lang::Array(v) => {
+                let mut current_cont = cont.clone();
+                let mut val_strs = Vec::new();
+                
+                for val in v {
+                    let (val_str, new_cont) = val.to_assemblyscript(&current_cont);
+                    val_strs.push(val_str);
+                    current_cont = new_cont;
+                }
+                
+                (format!("[{}]", val_strs.join(", ")), current_cont)
+            },
+            Lang::Record(v) => {
+                let mut current_cont = cont.clone();
+                let mut arg_strs = Vec::new();
+                
+                for arg_val in v {
+                    let (val_str, new_cont) = arg_val.get_value().to_assemblyscript(&current_cont);
+                    arg_strs.push(format!("{}: {}", arg_val.get_argument(), val_str));
+                    current_cont = new_cont;
+                }
+                
+                (format!("{{ {} }}", arg_strs.join(", ")), current_cont)
+            },
+            Lang::Tuple(vals) => {
+                let mut current_cont = cont.clone();
+                let mut val_entries = Vec::new();
+                
+                for (i, val) in vals.iter().enumerate() {
+                    let (val_str, new_cont) = val.to_assemblyscript(&current_cont);
+                    val_entries.push(format!("'{}': {}", i.to_string(), val_str));
+                    current_cont = new_cont;
+                }
+                
+                (format!("{{ {} }}", val_entries.join(", ")), current_cont)
+            },
+            Lang::Tag(s, t) => {
+                let (t_str, new_cont) = t.to_assemblyscript(cont);
+                let typ = type_checker::typing(cont, self).0;
+                
+                (format!("{{ _type: '{}', _body: {} }}", s, t_str), new_cont)
+            },
+            Lang::Variable(v, path, _perm, _muta, _ty) => 
+                (Self::format_path(path) + v, cont.clone()),
+            Lang::Let(var, typ, body) => {
+                if var.get_name() == "main" {
+                    match *body.clone() {
+                        Lang::Function(_kinds, params, ret, body2) => {
+                            let (body_str, new_cont) = body2.to_assemblyscript(cont);
+                            (format!("export function main(): void {{\n{}\n}}", body_str), new_cont)
+                        },
+                        _ => ("".to_string(), cont.clone()) // todo!()
+                    }
+                } else {
+                   match *body.clone() {
+                       Lang::Function(kinds, params, ret, body2) => {
+                           let first = params.iter().nth(0).unwrap().get_type();
+                           let class = cont.get_class(&first);
+                           let res = params.iter()
+                            .map(|at| format!("{}: {}",
+                                              at.get_argument(),
+                                              at.get_type().to_assemblyscript()))
+                            .collect::<Vec<_>>();
+                            
+                            let (body_str, new_cont) = body2.to_assemblyscript(cont);
+                            if kinds.len() == 0 {
+                                (format!("function {}_{}({}): {} {{\n{}\n}}",
+                                    class,
+                                    var.get_name(), 
+                                    res.join(", "),
+                                    ret.to_assemblyscript(), 
+                                    body_str), 
+                                new_cont)
+                            } else {
+                                let generics = kinds.iter()
+                                    .map(|arg_kind| arg_kind.get_argument())
+                                    .map(|kind| kind.to_assemblyscript())
+                                    .collect::<Vec<_>>().join(", ");
+                                (format!("function {}_{}<{}>({}): {} {{\n{}\n}}",
+                                    class,
+                                    var.get_name(), 
+                                    generics,
+                                    res.join(", "),
+                                    ret.to_assemblyscript(), 
+                                    body_str), 
+                                new_cont)
+                            }
+                       },
+                       _ => {
+                           let (body_str, new_cont) = body.to_assemblyscript(cont);
+                           (format!("let {} = {}", var.get_name(), body_str), new_cont)
+                       }
+                   } 
+                }
+            },
+            Lang::FunctionApp(var, params) => {
+                let first = params.iter().nth(0).unwrap();
+                let typ = typing(cont, first).0;
+                
+                let (var_str, cont1) = var.to_assemblyscript(cont);
+                
+                let mut current_cont = cont1;
+                let mut param_strs = Vec::new();
+                
+                for param in params {
+                    let (param_str, new_cont) = param.to_assemblyscript(&current_cont);
+                    param_strs.push(param_str);
+                    current_cont = new_cont;
+                }
+                
+                let name = var.get_name();
+                let result = match &name[..] {
+                    "parseInt" | "parseFloat" | "map"
+                        => format!("{}({})", var.get_name(), param_strs.join(", ")),
+                    n if (name.len() > 6) && (&name[0..6] == "math__") => {
+                            format!("Math.{}({})", name[6..].to_string(), param_strs.join(", "))
+                        }
+                    n if name.contains("__") =>
+                        format!("{}({})", name.replace("__", "."), param_strs.join(", ")),
+                    _ => format!("{}_{}({})", cont.get_class(&typ), var.get_name(), param_strs.join(", "))
+                };
+                
+                (result, current_cont)
+            },
+            Lang::Function(kinds, args, ret_typ, body) => {
+                let params = args.iter()
+                    .map(|arg_typ| arg_typ.get_argument())
+                    .collect::<Vec<_>>().join(", ");
+                let cont2 = args.iter()
+                    .map(|arg_typ| (arg_typ.get_argument(), arg_typ.get_type()))
+                    .map(|(arg, typ)| (Var::from_name(&arg), typ))
+                    .fold(cont.clone(), |ctx, (arg, typ)| ctx.clone().push_var_type(arg, typ, &ctx));
+                (format!("({}) => {{ {} }}", 
+                         params, body.to_assemblyscript(&cont2).0), cont.clone())
+            }
+            Lang::Scope(langs) => {
+                let mut current_cont = cont.clone();
+                let mut result_strs = Vec::new();
+                
+                for lang in langs {
+                    let (lang_str, new_cont) = lang.to_assemblyscript(&current_cont);
+                    result_strs.push(lang_str);
+                    current_cont = new_cont;
+                }
+                
+                (result_strs.join("\n"), current_cont)
+            },
+            Lang::Sequence(exps) => {
+                let mut current_cont = cont.clone();
+                let mut result_strs = Vec::new();
+                
+                for exp in exps {
+                    let (exp_str, new_cont) = exp.to_assemblyscript(&current_cont);
+                    result_strs.push(exp_str);
+                    current_cont = new_cont;
+                }
+                
+                (result_strs.join("\n\n"), current_cont)
+            },
+            Lang::Return(exp) => {
+                let (exp_str, new_cont) = exp.to_assemblyscript(cont);
+                (format!("return {};", exp_str), new_cont)
+            },
+            Lang::Dot(e1, e2) => {
+                let (e1_str, cont1) = e1.to_assemblyscript(cont);
+                let (e2_str, cont2) = e2.to_assemblyscript(&cont1);
+                
+                match *e1.clone() {
+                    Lang::Variable(_, _, _, _, _) => 
+                        (format!("{}.{}", e2_str, e1_str), cont2),
+                    _ => (format!("{} |> {}", e2_str, e1_str), cont2),
+                }
+            },
+            Lang::Pipe(e1, e2) => {
+                let (e1_str, cont1) = e1.to_assemblyscript(cont);
+                let (e2_str, cont2) = e2.to_assemblyscript(&cont1);
+                
+                match *e1.clone() {
+                    Lang::Variable(_, _, _, _, _) => 
+                        (format!("{}.{}", e2_str, e1_str), cont2),
+                    _ => (format!("{} |> {}", e2_str, e1_str), cont2),
+                }
+            },
+            Lang::Alias(var, args, typ) => {
+                if args.len() > 0 {
+                    let res = args.iter()
+                        .map(|typ| typ.to_assemblyscript())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    (format!("type {}<{}> = {};", var.get_name(), res, typ.to_assemblyscript()), cont.clone())
+                } else {
+                    match typ {
+                        Type::Function(kinds, args, ret_typ) => {
+                            let res = kinds.iter()
+                                .map(|arg_kind| arg_kind.get_argument())
+                                .map(|kind| kind.to_assemblyscript())
+                                .collect::<Vec<_>>().join(", ");
+                            let new_fn = Type::Function(vec![], args.clone(), ret_typ.clone());
+                           (format!("type {}<{}> = {};", 
+                                    var.get_name(),
+                                    res,
+                                    new_fn.to_assemblyscript()),
+                            cont.clone()) 
+                        },
+                        _ => (format!("type {} = {};", var.get_name(), typ.to_assemblyscript()), cont.clone())
+                    }
+                }
+            },
+            _ => ("".to_string(), cont.clone())
+        }
+    }
+
     pub fn get_number(&self) -> i32 {
         if let Lang::Integer(number) = self {
             number.clone()
