@@ -3,7 +3,6 @@ use crate::argument_type::ArgumentType;
 use crate::argument_kind::ArgumentKind;
 use crate::tag::Tag;
 use crate::nominal_context::TypeCategory;
-use crate::Context;
 use crate::context::generate_arg;
 use crate::kind::Kind;
 use std::collections::HashSet;

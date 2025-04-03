@@ -8,7 +8,6 @@ use crate::argument_value::ArgumentValue;
 use crate::argument_kind::ArgumentKind;
 use crate::type_checker;
 use crate::Context;
-use crate::nominal_context::TypeCategory;
 use crate::typing;
 use crate::unification;
 
@@ -236,7 +235,7 @@ impl Lang {
             }
             Lang::FunctionApp(exp, vals) => {
                 let (exp_str, cont1) = exp.to_r(cont);
-                let (unification_map, cont2) = cont1.pop_unifications();
+                let (unification_map, _cont2) = cont1.pop_unifications();
                 let exp_typ = typing(cont, exp).0;
                 let new_exp_typ = unification::type_substitution(&exp_typ, &unification_map.unwrap_or(vec![]));
 
@@ -456,16 +455,15 @@ impl Lang {
             },
             Lang::Tag(s, t) => {
                 let (t_str, new_cont) = t.to_typescript(cont);
-                let typ = type_checker::typing(cont, self).0;
                 
                 (format!("{{ _type: '{}', _body: {} }}", s, t_str), new_cont)
             },
             Lang::Variable(v, path, _perm, _muta, _ty) => 
                 (Self::format_path(path) + v, cont.clone()),
-            Lang::Let(var, typ, body) => {
+            Lang::Let(var, _typ, body) => {
                 if var.get_name() == "main" {
                     match *body.clone() {
-                        Lang::Function(_kinds, params, ret, body2) => {
+                        Lang::Function(_kinds, _params, _ret, body2) => {
                             let (body_str, new_cont) = body2.to_typescript(cont);
                             (format!("export function main(): void {{\n{}\n}}", body_str), new_cont)
                         },
@@ -502,7 +500,7 @@ impl Lang {
                 let first = params.iter().nth(0).unwrap();
                 let typ = typing(cont, first).0;
                 
-                let (var_str, cont1) = var.to_typescript(cont);
+                let (_var_str, cont1) = var.to_typescript(cont);
                 
                 let mut current_cont = cont1;
                 let mut param_strs = Vec::new();
@@ -806,7 +804,8 @@ impl Lang {
                                 .map(|kind| kind.to_assemblyscript())
                                 .collect::<Vec<_>>().join(", ");
                             let new_fn = Type::Function(vec![], args.clone(), ret_typ.clone());
-                           (format!("type {}<{}> = {};", 
+                            let res = if res == "" { res } else { format!("<{}>", res)};
+                           (format!("type {}{} = {};", 
                                     var.get_name(),
                                     res,
                                     new_fn.to_assemblyscript()),
