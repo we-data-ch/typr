@@ -11,15 +11,6 @@ use crate::unification;
 use crate::type_comparison::is_matching;
 
 
-fn get_tag_names_old(tags: &[Type]) -> Vec<String> {
-    tags.iter()
-        .filter_map(|tag| match tag {
-            Type::Tag(name, _) => Some(name.clone()),
-            _ => None,
-        })
-        .collect()
-}
-
 fn get_tag_names(tags: &[Tag]) -> Vec<String> {
     tags.iter()
         .filter_map(|tag| match tag.to_type() {
@@ -38,10 +29,6 @@ fn same_values<T: Eq + std::hash::Hash>(list1: &[T], list2: &[T]) -> bool {
     list1.len() == list2.len() && subset(list1, list2) && subset(list2, list1)
 }
 
-fn split_at_n<T>(n: usize, list: &[T]) -> (&[T], &[T]) {
-    list.split_at(n)
-}
-
 fn unify_types(types: &[Type]) -> Type {
     if types.is_empty() {
         Type::Any
@@ -55,25 +42,6 @@ fn unify_types(types: &[Type]) -> Type {
         unified_type
     }
 }
-
-fn contains_key(key: &str, list: &[(String, Type)]) -> bool {
-    list.iter().any(|(k, _)| k == key)
-}
-
-fn add_if_not_present(key: &str, value: Type, list: &mut Vec<(String, Type)>) {
-    if !contains_key(key, list) {
-        list.push((key.to_string(), value));
-    }
-}
-
-fn record_union(record1: &[(String, Type)], record2: &[(String, Type)]) -> Vec<(String, Type)> {
-    let mut result = record1.to_vec();
-    for (key, value) in record2 {
-        add_if_not_present(key, value.clone(), &mut result);
-    }
-    result
-}
-
 
 pub fn eval(context: &Context, expr: &Lang) -> Context {
     match expr {

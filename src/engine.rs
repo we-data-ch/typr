@@ -1,7 +1,6 @@
 use crate::Adt;
 use crate::Context;
 use std::fs::File;
-use crate::my_io::execute_r;
 use crate::typing;
 use crate::Lang;
 use crate::type_printer;
@@ -11,7 +10,6 @@ use crate::read_file;
 use crate::metaprogrammation;
 use std::io::Write;
 use std::path::PathBuf;
-use crate::my_io::execute_typescript;
 use crate::TargetLanguage;
 
 pub fn write_adt_to_typescript(adt: &Adt, cont: &Context) -> () {
@@ -51,16 +49,6 @@ pub fn write_adt_to_assemblyscript_with_path(adt: &Adt, cont: &Context, output_d
     app.write_all(content.as_bytes()).unwrap();
 }
 
-pub fn write_adt_to_r(adt: &Adt, cont: &Context) -> () {
-    let rstd = include_str!("../configs/r/std.R");
-    let mut rstd_file = File::create("std.R").unwrap();
-    rstd_file.write_all(rstd.as_bytes()).unwrap();
-
-    let mut app = File::create("app.R").unwrap();
-    let content = format!("source('std.R', echo = FALSE)\n{}\n{}", Adt(cont.adt.clone()).to_r(cont), adt.to_r(cont));
-    app.write_all(content.as_bytes()).unwrap();
-}
-
 pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf) -> () {
     let rstd = include_str!("../configs/r/std.R");
     let std_path = output_dir.join("std.R");
@@ -71,22 +59,6 @@ pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf)
     let mut app = File::create(app_path).unwrap();
     let content = format!("source('std.R', echo = FALSE)\n{}\n{}", Adt(cont.adt.clone()).to_r(cont), adt.to_r(cont));
     app.write_all(content.as_bytes()).unwrap();
-}
-
-pub fn execute(adt: &AdtManager, cont: &Context, target: TargetLanguage) -> () {
-    match target {
-        TargetLanguage::R => {
-            write_adt_to_r(&adt.get_adt_without_header(), cont);
-            execute_r();
-        },
-        TargetLanguage::TypeScript => {
-            write_adt_to_typescript(&adt.get_adt_without_header(), &cont);
-            execute_typescript();
-        },
-        TargetLanguage::AssemblyScript => {
-            println!("Need an folder to convert the file into wasm.\nTry creating a project with the command 'new'");
-        }
-    }
 }
 
 pub fn type_check(adt: &Adt) -> Context {
@@ -106,15 +78,4 @@ pub fn parse_code(path: &PathBuf, target: TargetLanguage) -> AdtManager {
         .add_to_header(parse(typr_std).unwrap().1);
     let adt = metaprogrammation(adt_manager.body.clone());
     adt_manager.set_body(adt)
-}
-
-pub fn run_file(path: &PathBuf, execution_path: &PathBuf, target: TargetLanguage) -> () {
-    let original_dir = std::env::current_dir().expect("Impossible d'obtenir le répertoire de travail actuel");
-    std::env::set_current_dir(execution_path).expect("Échec lors du changement de répertoire");
-
-    let adt_manager = parse_code(path, target);
-    let context = type_check(&adt_manager.get_adt_with_header());
-    execute(&adt_manager, &context, target);
-
-    std::env::set_current_dir(original_dir).expect("Échec lors de la restauration du répertoire de travail");
 }

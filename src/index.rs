@@ -11,10 +11,6 @@ impl Index {
         }
     }
 
-    pub fn to_type(&self) -> Type {
-        Type::Index(self.0.clone())
-    }
-
     pub fn get_value(&self) -> u32 {
         self.0.clone()
     }

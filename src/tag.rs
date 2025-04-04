@@ -33,13 +33,6 @@ impl Tag {
         Type::Tag(self.0.clone(), Box::new(self.1.clone()))
     }
 
-    pub fn get_name(&self) -> String {
-        self.0.clone()
-    }
-
-    pub fn get_type(&self) -> Type {
-        self.1.clone()
-    }
 }
 
 use std::fmt;

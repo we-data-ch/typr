@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use serde::Serialize;
 use crate::argument_type::ArgumentType;
 use crate::argument_kind::ArgumentKind;

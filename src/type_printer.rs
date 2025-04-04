@@ -1,5 +1,3 @@
-use std::fs::File;
-use std::io::{Write, Result};
 use crate::Type;
 use crate::kind::Kind;
 
@@ -57,10 +55,3 @@ pub fn pretty_print(ty: &Type) {
     let formatted = format(ty);
     println!("Type checking:\n{:?}\n", formatted);
 }
-
-fn write_structure(structure: &str) -> Result<()> {
-    let mut file = File::create("context.txt")?;
-    writeln!(file, "{}", structure)?;
-    Ok(())
-}
-
