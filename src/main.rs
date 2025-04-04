@@ -18,8 +18,6 @@ mod r#type;
 mod kinds;
 mod kind;
 mod type_checker;
-mod type_context;
-mod type_module;
 mod type_printer;
 mod tag;
 mod index;

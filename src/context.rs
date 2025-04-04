@@ -69,22 +69,6 @@ impl From<Vec<(Lang, Type)>> for  Context {
    } 
 }
 
-fn type_extraction(t: &Type) -> Vec<Type> {
-    match t {
-        Type::Function(_, args, ret)
-            => {
-                let mut sol = args.clone();
-                sol.push((**ret).clone());
-                sol.push(t.clone()); sol
-            }
-        Type::Union(tags) => {
-           let mut sol = tags.iter().map(|tag| tag.to_type()).collect::<Vec<_>>();
-           sol.push(t.clone()); sol
-        },
-        typ => vec![typ.clone()]
-    }
-}
-
 impl Context {
     pub fn new(types: Vec<(Var, Type)>, kinds: Vec<(Type, Kind)>) -> Context {
         Context {
@@ -112,17 +96,6 @@ impl Context {
         self.types.0.iter()
     }
 
-    pub fn get_types(&self) -> Vec<Type> {
-        let res = self.iter().flat_map(|(_lang, type_)| {
-            type_extraction(type_)
-        }).collect::<Vec<_>>();
-        let mut seen = HashSet::new();
-        let unique: Vec<_> = res.into_iter()
-            .filter(|x| seen.insert((*x).clone()))
-            .collect();
-        unique
-    }
-
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let types = typ.type_extraction();
         let res = VarType(self.types.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
@@ -147,14 +120,6 @@ impl Context {
            .clone()
     }
 
-    pub fn get_type_map(&self) -> Vec<(Var, Type)> {
-        self.types.0.clone()
-    }
-
-    pub fn get_kind_map(&self) -> Vec<(Type, Kind)> {
-        self.kinds.clone()
-    }
-
     pub fn get_class(&self, t: &Type) -> String {
         self.nominals.get_class(t)
     }
@@ -174,15 +139,6 @@ impl Context {
         self.get_supertypes(t).iter()
             .chain([t.clone()].iter()).flat_map(|typ| self.types.get_functions(typ))
             .collect()
-    }
-
-    pub fn update_subtypes(&self) -> Context {
-        let type_list: Vec<_> = self.types.get_types().iter().cloned().collect();
-        let new_subtypes = self.subtypes.clone().update(&type_list, self);
-        Context {
-            subtypes: new_subtypes,
-            ..self.clone()
-        }
     }
 
     pub fn get_embeddings(&self, t: &Type) -> (Vec<(Var, Type)>, Context) {
