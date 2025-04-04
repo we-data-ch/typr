@@ -15,7 +15,6 @@ mod context;
 mod adt;
 mod nominal_context;
 mod r#type;
-mod kinds;
 mod kind;
 mod type_checker;
 mod type_printer;

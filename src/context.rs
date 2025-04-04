@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::r#type::Type;
 use crate::language::Lang;
 use crate::var::Var;
