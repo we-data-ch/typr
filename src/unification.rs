@@ -224,19 +224,6 @@ fn merge_substitutions(existing: &mut Vec<(Type, Type)>, new: Vec<(Type, Type)>)
     }
 }
 
-fn is_coherent(substitutions: &[(String, Type)]) -> bool {
-    // Check for contradicting substitutions
-    for i in 0..substitutions.len() {
-        for j in (i + 1)..substitutions.len() {
-            if substitutions[i].0 == substitutions[j].0 && 
-               substitutions[i].1 != substitutions[j].1 {
-                return false;
-            }
-        }
-    }
-    true
-}
-
 pub fn record_intersection(
     record1: &[ArgumentType],
     record2: &[ArgumentType]

@@ -181,30 +181,3 @@ pub fn get_best_type(type1: &Type, type2: &Type) -> Type {
         _ => type1.clone()
     }
 }
-
-fn is_same_type(type1: &Type, type2: &Type) -> bool {
-    type1 == type2
-}
-
-pub fn get_common_type_denominator(_context: &Context, type1: &Type, type2: &Type) -> Option<Type> {
-    match (type1, type2) {
-        // Record case
-        (Type::Record(r1), Type::Record(r2)) => {
-            // If r1 contains all fields from r2, return r1
-            if all_in(r2, r1) {
-                return Some(type1.clone());
-            }
-            // If r2 contains all fields from r1, return r2
-            if all_in(r1, r2) {
-                return Some(type2.clone());
-            }
-            None
-        },
-
-        // Direct equality case
-        (t1, t2) if t1 == t2 => Some(t1.clone()),
-
-        // No common denominator found
-        _ => None
-    }
-}

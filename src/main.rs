@@ -29,7 +29,7 @@ mod subtypes;
 mod engine;
 
 use parser::parse;
-use my_io::{read_file, execute_r};
+use my_io::read_file;
 use crate::r#type::Type;
 use crate::language::Lang;
 use crate::metaprogramming::metaprogrammation;
@@ -333,7 +333,7 @@ fn new(name: &str, target: TargetLanguage) {
 
 fn check(target: TargetLanguage) {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"), target);
-    let context = type_check(&adt_manager.get_adt_with_header());
+    let _ = type_check(&adt_manager.get_adt_with_header());
     println!("✓ Vérification du code réussie!");
 }
 

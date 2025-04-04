@@ -326,14 +326,6 @@ fn record_identifier(s: &str) -> IResult<&str, &str> {
     alt((tag("record"), tag("object"), tag("list"), tag(":")))(s)
 }
 
-fn opening_separator(s: &str) -> IResult<&str, &str> {
-    terminated(alt((tag("{"), tag("("))), multispace0)(s)
-}
-
-fn closing_separator(s: &str) -> IResult<&str, &str> {
-    terminated(alt((tag("}"), tag(")"))), multispace0)(s)
-}
-
 fn record(s: &str) -> IResult<&str, Lang> {
     let res = tuple((
         opt(record_identifier),

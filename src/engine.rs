@@ -1,7 +1,7 @@
 use crate::Adt;
 use crate::Context;
 use std::fs::File;
-use crate::execute_r;
+use crate::my_io::execute_r;
 use crate::typing;
 use crate::Lang;
 use crate::type_printer;
@@ -73,14 +73,6 @@ pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf)
     app.write_all(content.as_bytes()).unwrap();
 }
 
-fn write_adt_to_assemblyscript(adt: &Adt, cont: &Context) {
-    todo!();
-}
-
-fn execute_assemblyscript() {
-    todo!();
-}
-
 pub fn execute(adt: &AdtManager, cont: &Context, target: TargetLanguage) -> () {
     match target {
         TargetLanguage::R => {
@@ -92,8 +84,7 @@ pub fn execute(adt: &AdtManager, cont: &Context, target: TargetLanguage) -> () {
             execute_typescript();
         },
         TargetLanguage::AssemblyScript => {
-            write_adt_to_assemblyscript(&adt.get_adt_without_header(), &cont);
-            execute_assemblyscript();
+            println!("Need an folder to convert the file into wasm.\nTry creating a project with the command 'new'");
         }
     }
 }

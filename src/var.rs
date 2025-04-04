@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::Type;
 use crate::Lang;
 use std::fmt;

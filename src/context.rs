@@ -21,7 +21,7 @@ impl VarType {
     }
 
     fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {
-        self.0.iter().rev().filter(|(var, typ)| var.get_type() == *t).cloned().collect()
+        self.0.iter().rev().filter(|(var, _typ)| var.get_type() == *t).cloned().collect()
     }
 
     pub fn get_types(&self) -> HashSet<Type> {
@@ -205,7 +205,7 @@ impl Context {
                     type_functions.iter()
                     .fold(self.clone(), |ctx, tf| ctx.clone().push_var_type(tf.1.clone(), tf.2.clone(), &ctx));
                 let new_cont2 = new_cont.clone().add_to_adt(&self.build_concret_functions(&type_functions));
-                (type_functions.iter().map(|(arg, var, fun)| (var.clone(), fun.clone())).collect(),
+                (type_functions.iter().map(|(_arg, var, fun)| (var.clone(), fun.clone())).collect(),
                 new_cont2)
             },
             _ => (vec![], self.clone())
@@ -289,7 +289,6 @@ fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
     let args = m.iter()
         .map(|x| x.to_lang())
         .collect::<Vec<_>>();
-    let first = args.iter().nth(0).unwrap().clone();
     match end {
         Manip::Set(_, param) => {
             Lang::FunctionApp(
@@ -343,7 +342,7 @@ impl Manip {
     }
 }
 
-pub fn generate_arg(mut num: usize) -> String {
+pub fn generate_arg(num: usize) -> String {
     match num {
         0 => "a",
         1 => "b",

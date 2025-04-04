@@ -13,10 +13,6 @@ impl ArgumentType {
         ArgumentType(name.to_string(), type_.clone(), false)
     }
 
-    pub fn embedded(name: &str, type_: &Type) -> Self {
-        ArgumentType(name.to_string(), type_.clone(), true)
-    }
-    
     pub fn get_type(&self) -> Type {
         self.1.clone()
     }

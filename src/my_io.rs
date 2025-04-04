@@ -1,5 +1,5 @@
+#![allow(dead_code)]
 use std::process::Command;
-use std::env;
 use std::fs;
 use std::path::PathBuf;
 
@@ -13,7 +13,6 @@ fn get_os_file(file: &str) -> String {
 }
 
 pub fn read_file(path: &PathBuf) -> String {
-    let args: Vec<String> = env::args().collect();
     let file = get_os_file(path.to_str().unwrap());
     fs::read_to_string(&file).unwrap()
 }

@@ -73,7 +73,7 @@ impl Type {
 
     fn add_kinds_in_functions_if_not(&self) -> Type {
         match self {
-            Type::Function(kinds, args, ret) => {
+            Type::Function(_kinds, args, ret) => {
                 let new_kinds = args.iter()
                     .chain([(**ret).clone()].iter())
                     .flat_map(|typ| typ.extract_generics())
@@ -151,7 +151,7 @@ impl Type {
                     .collect::<Vec<_>>().join(", ");
                 format!("{{ {} }}", res)
            },
-           Type::Array(size, body) => format!("{}[]", body.to_typescript()),
+           Type::Array(_size, body) => format!("{}[]", body.to_typescript()),
            Type::IndexGen(id) => id.to_uppercase(),
            Type::Generic(val) => val.to_uppercase(), 
            Type::Index(val) => val.to_string(),
@@ -193,7 +193,7 @@ impl Type {
                     .collect::<Vec<_>>().join(", ");
                 format!("{{ {} }}", res)
            },
-           Type::Array(size, body) => format!("{}[]", body.to_typescript()),
+           Type::Array(_size, body) => format!("{}[]", body.to_typescript()),
            Type::IndexGen(id) => id.to_uppercase(),
            Type::Generic(val) => val.to_uppercase(), 
            Type::Index(val) => val.to_string(),
@@ -267,7 +267,7 @@ impl Type {
                 Type::Array(
                     Box::new(ind.index_calculation()), 
                     Box::new(typ.index_calculation())),
-                    Type::Function(kinds, args, ret_typ) => {
+                    Type::Function(_kinds, args, ret_typ) => {
                         let new_args = args.iter()
                             .map(|typ| typ.index_calculation())
                             .collect::<Vec<_>>();

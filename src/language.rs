@@ -515,17 +515,17 @@ impl Lang {
                 let result = match &name[..] {
                     "parseInt" | "parseFloat" | "map"
                         => format!("{}({})", var.get_name(), param_strs.join(", ")),
-                    n if (name.len() > 6) && (&name[0..6] == "math__") => {
+                    _n if (name.len() > 6) && (&name[0..6] == "math__") => {
                             format!("Math.{}({})", name[6..].to_string(), param_strs.join(", "))
                         }
-                    n if name.contains("__") =>
+                    _n if name.contains("__") =>
                         format!("{}({})", name.replace("__", "."), param_strs.join(", ")),
                     _ => format!("{}_{}({})", cont.get_class(&typ), var.get_name(), param_strs.join(", "))
                 };
                 
                 (result, current_cont)
             },
-            Lang::Function(kinds, args, ret_typ, body) => {
+            Lang::Function(_kinds, args, _ret_typ, body) => {
                 let params = args.iter()
                     .map(|arg_typ| arg_typ.get_argument())
                     .collect::<Vec<_>>().join(", ");
@@ -644,16 +644,15 @@ impl Lang {
             },
             Lang::Tag(s, t) => {
                 let (t_str, new_cont) = t.to_assemblyscript(cont);
-                let typ = type_checker::typing(cont, self).0;
                 
                 (format!("{{ _type: '{}', _body: {} }}", s, t_str), new_cont)
             },
             Lang::Variable(v, path, _perm, _muta, _ty) => 
                 (Self::format_path(path) + v, cont.clone()),
-            Lang::Let(var, typ, body) => {
+            Lang::Let(var, _typ, body) => {
                 if var.get_name() == "main" {
                     match *body.clone() {
-                        Lang::Function(_kinds, params, ret, body2) => {
+                        Lang::Function(_kinds, _params, _ret, body2) => {
                             let (body_str, new_cont) = body2.to_assemblyscript(cont);
                             (format!("export function main(): void {{\n{}\n}}", body_str), new_cont)
                         },
@@ -705,7 +704,7 @@ impl Lang {
                 let first = params.iter().nth(0).unwrap();
                 let typ = typing(cont, first).0;
                 
-                let (var_str, cont1) = var.to_assemblyscript(cont);
+                let (_var_str, cont1) = var.to_assemblyscript(cont);
                 
                 let mut current_cont = cont1;
                 let mut param_strs = Vec::new();
@@ -720,17 +719,17 @@ impl Lang {
                 let result = match &name[..] {
                     "parseInt" | "parseFloat" | "map"
                         => format!("{}({})", var.get_name(), param_strs.join(", ")),
-                    n if (name.len() > 6) && (&name[0..6] == "math__") => {
+                    _n if (name.len() > 6) && (&name[0..6] == "math__") => {
                             format!("Math.{}({})", name[6..].to_string(), param_strs.join(", "))
                         }
-                    n if name.contains("__") =>
+                    _n if name.contains("__") =>
                         format!("{}({})", name.replace("__", "."), param_strs.join(", ")),
                     _ => format!("{}_{}({})", cont.get_class(&typ), var.get_name(), param_strs.join(", "))
                 };
                 
                 (result, current_cont)
             },
-            Lang::Function(kinds, args, ret_typ, body) => {
+            Lang::Function(_kinds, args, _ret_typ, body) => {
                 let params = args.iter()
                     .map(|arg_typ| arg_typ.get_argument())
                     .collect::<Vec<_>>().join(", ");

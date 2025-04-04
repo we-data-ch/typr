@@ -18,15 +18,6 @@ fn import_file_modules_code(adt: Adt) -> Adt {
     adt.iter().map(import_file_module_code).collect::<Vec<_>>().into()
 }
 
-fn remove_imports(lets: &[Lang]) -> Vec<Lang> {
-    lets.iter().flat_map(|line| {
-        match line {
-            Lang::Import(_) => None,
-            l => Some(l.clone())
-        }
-    }).collect::<Vec<_>>()
-}
-
 fn private_public_change(module_name: &str, adt: Adt) -> Vec<Lang> {
     adt.0.iter().map(|line| {
         match line {
