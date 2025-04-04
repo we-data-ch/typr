@@ -23,6 +23,7 @@ mod index;
 mod adt_manager;
 mod subtypes;
 mod engine;
+mod vartype;
 
 use parser::parse;
 use my_io::read_file;
