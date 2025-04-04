@@ -22,7 +22,6 @@ mod type_printer;
 mod tag;
 mod index;
 mod adt_manager;
-mod nominals;
 mod subtypes;
 mod engine;
 

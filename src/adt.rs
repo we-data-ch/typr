@@ -22,15 +22,6 @@ impl From<Vec<Lang>> for Adt {
    } 
 }
 
-fn find_alias(name: &str, v: Vec<Lang>) -> Lang {
-    v.iter().find(|x| 
-        match x {
-          Lang::Alias(var, _params, _typ) 
-                if var.get_name() == name => true,
-            _ => false
-        }).unwrap().clone()
-}
-
 impl Adt {
     pub fn iter(&self) -> std::slice::Iter<Lang> {
         self.0.iter()

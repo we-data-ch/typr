@@ -1,7 +1,5 @@
 use std::collections::HashMap;
-use crate::context::Context;
 use crate::r#type::Type;
-use crate::type_comparison::is_subtype;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TypeCategory {
@@ -69,25 +67,6 @@ impl fmt::Display for TypeCategory {
 #[derive(Debug, Clone)]
 struct Categories(HashMap<TypeCategory, usize>);
 
-impl Categories {
-    fn register_type(self, t: Type) -> Categories {
-        let mut map = self.0;
-        t.type_extraction().iter()
-            .map(|x| TypeCategory::from_type(x.clone()))
-            .for_each(|category| {
-                map.entry(category).and_modify(|val| *val += 1);
-            });
-        Categories(map)
-    }
-
-    fn get_nominal(&self, t: &Type) -> Nominal {
-        let category = TypeCategory::from_type(t.clone());
-        let index = self.0.get(&category).unwrap();
-        Nominal(format!("{}_{}", category, index))
-    }
-}
-
-
 #[derive(Debug, Clone)]
 pub struct TypeNominal {
     pub body: Vec<(Type, Nominal)>,
@@ -115,34 +94,6 @@ impl TypeNominal {
             body: vec![],
             categories: Categories(categories)
         }
-    }
-
-    pub fn register_type(self, t: Type) -> TypeNominal {
-        let types = t.type_extraction();
-        let new_categories = types.iter().fold(self.categories, |cat, typ| {
-            cat.register_type(typ.clone())
-        });
-        let typ_nom = types.iter().map(|typ| {
-            (typ.clone(), new_categories.get_nominal(&typ))
-        }).collect::<Vec<_>>();
-
-        TypeNominal {
-            body: self.body.iter().chain(typ_nom.iter()).cloned().collect::<Vec<_>>(),
-            categories: new_categories
-        }
-    }
-
-    pub fn get_types(&self) -> Vec<Type> {
-        self.body.iter().map(|(typ, _nomi)| typ.clone()).collect()
-    }
-
-    pub fn get_index(&self, t: Type) -> usize {
-        self.body.iter().enumerate().find(|(_i, (typ, _))| *typ == t).unwrap().0 as usize
-    }
-
-    fn corresponding_nominal(&self, type_: &Type) -> Option<Nominal> {
-        self.body.iter().find(|(typ, _)| type_ == typ)
-            .map(|(_, nominal)| nominal.clone())
     }
 
     fn get_nth(&self, type_: Type) -> (Categories, usize) {
@@ -175,10 +126,6 @@ impl TypeNominal {
 
    fn get(&self, category: TypeCategory) -> usize {
        *self.categories.0.get(&category).unwrap()
-   }
-
-   fn push(&mut self, type_nominal: (Type, Nominal)) {
-       self.body.push(type_nominal)
    }
 
    fn new_nominal(&self, type_: Type) -> (Categories, Nominal) {
@@ -237,24 +184,4 @@ impl From<(Type, usize)> for Nominal {
            Nominal(format!("{}", category))
        }
    } 
-}
-
-fn get_nominal(types: Vec<Type>, _con: &Context) -> TypeNominal {
-    types.iter().fold(TypeNominal::new(), |mut acc, type_| {
-        let res = match acc.corresponding_nominal(type_) {
-            Some(nominal) => (type_.clone(), nominal),
-            None => (type_.clone(), acc.new_nominal(type_.clone()).1)
-        };
-        acc.push(res); acc
-    })
-}
-
-pub fn get_subtype_relation(types: Vec<Type>, con: &Context, nominals: &TypeNominal) -> Vec<Vec<String>> {
-    let types_ref = types.clone();
-    types.iter().map(|typ| {
-        types_ref.iter()
-            .filter(|typ2| is_subtype(con, typ, typ2))
-            .map(|typ3| nominals.corresponding_nominal(typ3).unwrap().0)
-            .collect::<Vec<_>>()
-    }).collect::<Vec<_>>()
 }

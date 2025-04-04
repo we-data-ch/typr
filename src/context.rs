@@ -184,7 +184,7 @@ impl Context {
                        .map(|(i, argtyp)| manip(&generate_arg(i), argtyp.clone(), t.clone(), par))
                        .collect::<Vec<_>>();
                    let t_end = (**t2).clone();
-                   let manip1 = if t_end == t { Manip::Set("a".to_string(), par.to_string()) } else {Manip::Same("a".to_string())};
+                   let manip1 = if t_end == t { Manip::Set(par.to_string()) } else {Manip::Same("a".to_string())};
                    let new_args = args.iter()
                        .map(|ty| if *ty == t {typ.clone()} else { ty.clone() } )
                        .enumerate()
@@ -232,13 +232,6 @@ impl Context {
         })
     }
 
-    pub fn has_unifications(&self) -> bool {
-        !self.unifications.is_empty()
-    }
-
-    pub fn unifications_count(&self) -> usize {
-        self.unifications.len()
-    }
 }
 
 fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
@@ -246,7 +239,7 @@ fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
         .map(|x| x.to_lang())
         .collect::<Vec<_>>();
     match end {
-        Manip::Set(_, param) => {
+        Manip::Set(param) => {
             Lang::FunctionApp(
                 Box::new(Var::from_name("set").to_language()),
                 vec![
@@ -276,9 +269,8 @@ type Field = String;
 
 enum Manip {
     Get(ArgName, Field),
-    Set(ArgName, Field),
-    Same(ArgName),
-    Empty
+    Set(Field),
+    Same(ArgName)
 }
 
 impl Manip {
