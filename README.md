@@ -2,7 +2,7 @@
 
 ## What is TypR ?
 
-A faster, safer, cooler R that can transpile to Typescript/Javascript/WebAssembly.
+A faster, safer, cooler R that can transpile to `Typescript`/`Javascript`/`WebAssembly`.
 
 TypR is a superset of the legendary R. It add cool types, a beautiful syntax and powerful modern features.
 
@@ -66,9 +66,9 @@ TypR is not fundamentally OOP. Like R who is more a functional programming langu
 
 To explain TypR in an other way, it's a core calculus with quite a bit of syntax sugar.
 
-![](images/typr_transpilation_type_checking_process.png)
+![](images/transpiler.png)
 
-The transpilation process must pass by a first parsing stage then a modification of the abstract syntax tree to obtain through the process of metaprogramming. This is a fancy word for syntax sugar. It's a way to transform a langage and take some shortcuts to make it easier to work with. 
+To build the corresponding code for each target language, TypR use a context based on the parsing of the syntax and the typechecking of it's construct to build enough knowledge to make inference and simplify the work of developpers. For R, it use the S3 object oriented system underneath. For Typescript/Javascript and Assemblyscript/Wasm it use monomorphization. TypR needs to transpile to Typescript before creating an equivalent javascript file. It also needs to transpile to Assemblyscript before creating wasm files.
 
 ### First code
 

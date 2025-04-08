@@ -81,3 +81,7 @@ let plot <- fn(a: [#N, int], b: [#N, int]): T {
 let plot <- fn(a: [#N, num], b: [#N, num]): T {
 	...
 };
+
+let get <- fn(a: {}, b: char) -> T {
+	...
+};
