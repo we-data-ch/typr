@@ -27,6 +27,8 @@ pub enum Type {
     Function(Vec<ArgumentKind>, Vec<Type>, Box<Type>),
     Generic(String),
     IndexGen(String),
+    LabelGen(String),
+    Label(String),
     Array(Box<Type>, Box<Type>),
     Record(Vec<ArgumentType>),
     Index(u32),
@@ -254,6 +256,12 @@ impl Type {
     fn sum_index(&self, i: &Type) -> Type {
         match (self, i) {
             (Type::Index(a), Type::Index(b)) => Type::Index(a+b),
+            (Type::Record(a), Type::Record(b)) 
+                => Type::Record(
+                    a.iter()
+                    .chain(b.iter())
+                    .cloned()
+                    .collect::<Vec<_>>()),
             _ => panic!("Type {} and {} can't be added", self, i)
         }
     }
@@ -299,7 +307,7 @@ impl fmt::Display for Type {
             Type::Number => "num".to_string(),
             Type::Integer => "int".to_string(),
             Type::Boolean => "bool".to_string(),
-            Type::Char => "chars".to_string(),
+            Type::Char => "char".to_string(),
             Type::Tag(s, t) => format!("ttag('{}', {})", s, t),
             Type::Union(v) => format!("union({})", to_string(v)),
             Type::Interface(v) => format!("interface({})", to_string(v)),

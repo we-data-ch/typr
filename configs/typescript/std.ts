@@ -42,3 +42,6 @@ export function integer_seq(start: number, count: number, step: number = 1): num
 	return [...Array(count)].map((_, i) => start + i * step);
 }
 
+export function character_print(a: string): any {
+	console.log(a)
+}

@@ -37,3 +37,7 @@ let div <- fn(a: int, b: int): int {
 let div <- fn(a: num, b: num): num {
 	...
 };
+
+let print <- fn(a: char): T {
+	...
+};

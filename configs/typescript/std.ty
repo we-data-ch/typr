@@ -175,3 +175,6 @@ let math__pow <- fn(a: num, b: num): num  {
 	...
 };
 
+let print <- fn(a: char): T {
+	...
+};

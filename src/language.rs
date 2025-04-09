@@ -287,10 +287,10 @@ impl Lang {
                     Lang::Function(_, _, _, _) => {
                         let related_type = var.get_type();
                         let class = cont.get_class(&related_type);
-                        if class != "Empty" {
-                            (format!("{}.{} <- {}", new_name, class, body_str), new_cont)
+                        if class == "Empty" || &class[0..7] == "Generic" {
+                            (format!("{}.default <- {}", new_name, body_str), new_cont)
                         } else {
-                            (format!("{} <- {}", new_name, body_str), new_cont)
+                            (format!("{}.{} <- {}", new_name, class, body_str), new_cont)
                         }
                     }
                     _ => (format!("{} <- {}", new_name, body_str), new_cont)

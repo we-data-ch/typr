@@ -36,6 +36,7 @@ impl TypeCategory {
             Type::Char => TypeCategory::Char,
             Type::Generic(_) => TypeCategory::Generic,
             Type::IndexGen(_) => TypeCategory::Generic,
+            Type::LabelGen(_) => TypeCategory::Generic,
             _ => TypeCategory::Rest
         }
     }

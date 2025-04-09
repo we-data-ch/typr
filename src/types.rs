@@ -94,7 +94,7 @@ fn index(s: &str) -> IResult<&str, Type> {
 fn array_type(s: &str) -> IResult<&str, Type> {
     let res = tuple((
             terminated(tag("["), multispace0),
-            indices,
+            index_generic,
             terminated(tag(","), multispace0),
             ltype,
             terminated(tag("]"), multispace0),
@@ -114,10 +114,17 @@ fn embedded_ltype(s: &str) -> IResult<&str, Type> {
     }
 }
 
+fn simple_label(s: &str) -> IResult<&str, Type> {
+    let res = alpha1(s);
+    match res {
+        Ok((s, lab)) => Ok((s, Type::Label(lab.to_string()))),
+        Err(r) => Err(r)
+    }
+}
 
 pub fn argument(s: &str) -> IResult<&str, ArgumentType> {
     let res = tuple((
-        terminated(alpha1, multispace0),
+        terminated(alt((label_generic, simple_label)), multispace0),
         terminated(tag(":"), multispace0),
         alt((ltype, embedded_ltype)),
         opt(terminated(tag(","), multispace0))
@@ -385,6 +392,18 @@ fn index_generic(s: &str) -> IResult<&str, Type> {
     }
 }
 
+fn label_generic(s: &str) -> IResult<&str, Type> {
+    let res = tuple((
+            tag("%"),
+            generic))(s);
+    match res {
+        Ok((s, (_tag, Type::Generic(gen)))) 
+            => Ok((s, Type::LabelGen(gen))),
+        Err(r) => Err(r),
+        _ => todo!()
+    }
+}
+
 fn integer(s: &str) -> IResult<&str, Type> {
     let res = terminated(tag("int"), multispace0)(s);
     match res {
@@ -424,13 +443,6 @@ fn single_index(s: &str) -> IResult<&str, Type> {
         ))(s)
 }
 
-fn indices(s: &str) -> IResult<&str, Type> {
-    alt((
-            indices_chain,
-            single_index
-                  ))(s)
-}
-
 fn empty(s: &str) -> IResult<&str, Type> {
     match tag("Empty")(s) {
         Ok((s, _)) => Ok((s, Type::Empty)),
@@ -445,7 +457,8 @@ pub fn ltype(s: &str) -> IResult<&str, Type> {
     terminated(alt((
             empty,
             interface,
-            indices,
+            index_generic,
+            label_generic,
             number,
             integer,
             boolean,

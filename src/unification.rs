@@ -27,6 +27,16 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             }
         }
 
+        // Label generic substitution
+        Type::LabelGen(name) => {
+            if let Some((_, replacement)) = substitutions.iter()
+                .find(|(idx_name, _)| idx_name == &Type::LabelGen(name.clone())) {
+                replacement.clone()
+            } else {
+                type_.clone()
+            }
+        }
+
         // Arithmetic operations
         Type::Add(t1, t2) => {
             let v1 = type_substitution(t1, substitutions);
@@ -139,6 +149,11 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
         // Generic case
         (t, Type::Generic(g)) | (Type::Generic(g), t) => {
             Some(vec![(Type::Generic(g.clone()), t.clone())])
+        }
+
+        // label generic case with label
+        (Type::Char, Type::LabelGen(g)) | (Type::LabelGen(g), Type::Char) => {
+            Some(vec![(Type::LabelGen(g.clone()), Type::Char)])
         }
 
         // Index generic case with number
