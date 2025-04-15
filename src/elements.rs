@@ -29,6 +29,7 @@ use nom::character::complete::digit1;
 use crate::kind::Kind;
 use std::collections::HashSet;
 use crate::Context;
+use crate::types::label;
 
 pub fn number(s: &str) -> IResult<&str,Lang> {
     let res = terminated(tuple((digit1, tag("."), digit1)), multispace0)(s);
@@ -145,13 +146,13 @@ pub fn variable(s: &str) -> IResult<&str, Lang> {
 
 pub fn argument(s: &str) -> IResult<&str, ArgumentType> {
     let res = tuple((
-        terminated(alpha1, multispace0),
+        terminated(label, multispace0),
         terminated(tag(":"), multispace0),
         ltype,
         opt(terminated(tag(","), multispace0))
                 ))(s);
     match res {
-        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1.to_string(), e2, false))),
+        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false))),
         Err(r) => Err(r)
     }
 }
@@ -1056,6 +1057,12 @@ mod tests {
     #[test]
     fn test_chain_string0() {
         let res = element_chain("'wow' + 'hey'").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    } 
+
+    #[test]
+    fn test_chain_struct() {
+        let res = element_chain("5.:{x: 0}").unwrap().1;
         assert_eq!(res, Lang::Empty);
     } 
 

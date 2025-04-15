@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use crate::r#type::Type;
+use crate::Context;
+use crate::type_comparison::is_subtype;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TypeCategory {
@@ -150,13 +152,13 @@ impl TypeNominal {
        }
    }
 
-   pub fn get_class(&self, typ: &Type) -> String {
+   pub fn get_class(&self, typ: &Type, cont: &Context) -> String {
        match typ {
            Type::Empty => "Empty".to_string(),
            Type::Any => "Empty".to_string(),
            _ => {
                self.body.iter()
-                   .find(|(typ_, _nominal)| typ_ == typ)
+                   .find(|(typ_, _nominal)| is_subtype(cont, typ, typ_))
                    .unwrap().1.0.clone()
            }
        }

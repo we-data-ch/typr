@@ -178,20 +178,35 @@ impl Lang {
                 (format!("{} >= {}", e2_str, e1_str), cont2)
             },
             Lang::Dot(e1, e2) => {
-                let (e1_str, cont1) = e1.to_r(cont);
-                let (e2_str, cont2) = e2.to_r(&cont1);
                 match *e1.clone() {
-                    Lang::Variable(_, _, _, _, _) => 
-                        (format!("{}${}", e2_str, e1_str), cont2),
-                Lang::FunctionApp(name, args) 
-                    if Var::from_language((*name).clone()).unwrap().get_name() == "map"
-                        => {
-                            let new_args = [(**e2).clone()].into_iter()
-                                .chain(args.into_iter())
-                                .collect::<Vec<_>>();
-                            Lang::FunctionApp(name, new_args).to_r(&cont2)
-                        },
-                    _ => (format!("{} |> {}", e2_str, e1_str), cont2),
+                    Lang::Variable(_, _, _, _, _) => {
+                        let (e1_str, cont1) = e1.to_r(cont);
+                        let (e2_str, cont2) = e2.to_r(&cont1);
+                        (format!("{}${}", e2_str, e1_str), cont2)
+                    },
+                    Lang::FunctionApp(name, args) 
+                        if Var::from_language((*name).clone()).unwrap().get_name() == "map"
+                            => {
+                                let (e1_str, cont1) = e1.to_r(cont);
+                                let (e2_str, cont2) = e2.to_r(&cont1);
+                                let new_args = [(**e2).clone()].into_iter()
+                                    .chain(args.into_iter())
+                                    .collect::<Vec<_>>();
+                                Lang::FunctionApp(name, new_args).to_r(&cont2)
+                            },
+                    Lang::Record(fields) => {
+                        dbg!(&e2);
+                        let (e2_str, cont2) = e2.to_r(cont);
+                        let at = fields[0].clone();
+                        let res = format!("within({}, {{ {} -> {} }})", 
+                                e2_str, at.get_argument(), at.get_value().to_r(&cont).0);
+                        (res, cont2)
+                    }
+                    _ => {
+                        let (e1_str, cont1) = e1.to_r(cont);
+                        let (e2_str, cont2) = e2.to_r(&cont);
+                        (format!("{} |> {}", e2_str, e1_str), cont2)
+                    }
                 }
             },
             Lang::Pipe(e1, e2) => {
@@ -287,8 +302,10 @@ impl Lang {
                     Lang::Function(_, _, _, _) => {
                         let related_type = var.get_type();
                         let class = cont.get_class(&related_type);
-                        if class == "Empty" || &class[0..7] == "Generic" {
+                        if class.len() > 7 && &class[0..7] == "Generic" {
                             (format!("{}.default <- {}", new_name, body_str), new_cont)
+                        } else if class == "Empty" {
+                            (format!("{} <- {}", new_name, body_str), new_cont)
                         } else {
                             (format!("{}.{} <- {}", new_name, class, body_str), new_cont)
                         }
@@ -327,7 +344,6 @@ impl Lang {
                 let body = arg_strs.join(", ");
                 let typ = type_checker::typing(cont, self).0;
                 let class = cont.get_class(&typ);
-                
                 match cont.get_classes(&typ) {
                     Some(res) => (format!("structure(list({}), class = c('Record', '{}', {}))", body, class, res), current_cont),
                     _ => (format!("structure(list({}), class = c('Record', '{}'))", body, class), current_cont)
@@ -527,11 +543,11 @@ impl Lang {
             },
             Lang::Function(_kinds, args, _ret_typ, body) => {
                 let params = args.iter()
-                    .map(|arg_typ| arg_typ.get_argument())
+                    .map(|arg_typ| arg_typ.get_argument_str())
                     .collect::<Vec<_>>().join(", ");
                 let cont2 = args.iter()
                     .map(|arg_typ| (arg_typ.get_argument(), arg_typ.get_type()))
-                    .map(|(arg, typ)| (Var::from_name(&arg), typ))
+                    .map(|(arg, typ)| (Var::from_name(&(arg.get_label())), typ))
                     .fold(cont.clone(), |ctx, (arg, typ)| ctx.clone().push_var_type(arg, typ, &ctx));
                 (format!("({}) => {{ {} }}", 
                          params, body.to_typescript(&cont2).0), cont.clone())
@@ -731,10 +747,10 @@ impl Lang {
             },
             Lang::Function(_kinds, args, _ret_typ, body) => {
                 let params = args.iter()
-                    .map(|arg_typ| arg_typ.get_argument())
+                    .map(|arg_typ| arg_typ.get_argument_str())
                     .collect::<Vec<_>>().join(", ");
                 let cont2 = args.iter()
-                    .map(|arg_typ| (arg_typ.get_argument(), arg_typ.get_type()))
+                    .map(|arg_typ| (arg_typ.get_argument_str(), arg_typ.get_type()))
                     .map(|(arg, typ)| (Var::from_name(&arg), typ))
                     .fold(cont.clone(), |ctx, (arg, typ)| ctx.clone().push_var_type(arg, typ, &ctx));
                 (format!("({}) => {{ {} }}", 

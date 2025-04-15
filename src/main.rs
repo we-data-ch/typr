@@ -126,8 +126,10 @@ enum Commands {
 fn parse_target(target_str: &str) -> TargetLanguage {
     match target_str.to_lowercase().as_str() {
         "r" => TargetLanguage::R,
-        "typescript" | "ts" => TargetLanguage::TypeScript,
-        "assemblyscript" | "as" => TargetLanguage::AssemblyScript,
+        "typescript" | "ts" | "javascript" | "js" 
+            => TargetLanguage::TypeScript,
+        "assemblyscript" | "as" | "webassembly" | "wasm" 
+            => TargetLanguage::AssemblyScript,
         _ => {
             eprintln!("Langage cible non reconnu: {}. Utilisation de R par défaut.", target_str);
             TargetLanguage::R
@@ -453,6 +455,7 @@ fn test(target: TargetLanguage) {
     println!("Tests non implémentés pour l'instant.");
 }
 
+//main
 fn run_single_file(path: &PathBuf, target: TargetLanguage) {
     
     let file_name = path.file_name().unwrap().to_str().unwrap();

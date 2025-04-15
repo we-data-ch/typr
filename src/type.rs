@@ -66,6 +66,14 @@ impl Type {
         .collect()
     }
 
+    pub fn get_label(&self) -> String {
+        match self {
+            Type::Label(l) => l.to_string(),
+            Type::LabelGen(l) => l.to_string(),
+            _ => panic!("The type {} wasn't a label", self)
+        }
+    }
+
     fn add_kinds_in_functions_if_not(&self) -> Type {
         match self {
             Type::Function(_kinds, args, ret) => {
@@ -193,7 +201,8 @@ impl Type {
 
     pub fn extract_generics(&self) -> Vec<Type> {
         match self {
-            Type::Generic(_) | Type::IndexGen(_) => vec![self.clone()],
+            Type::Generic(_) | Type::IndexGen(_) | Type::LabelGen(_)
+                => vec![self.clone()],
             Type::Function(kinds, args, ret_typ) => {
                 kinds.iter()
                     .map(|ak| ak.get_argument())
@@ -210,6 +219,14 @@ impl Type {
                    .collect::<HashSet<_>>()
                    .into_iter().cloned().collect::<Vec<_>>()
             },
+                Type::Record(v) => {
+                   v.iter() 
+                       .flat_map(|argt| 
+                                 [argt.get_argument(), argt.get_type()])
+                       .flat_map(|typ| typ.extract_generics())
+                       .collect::<HashSet<_>>()
+                       .into_iter().collect::<Vec<_>>()
+                }
             _ => vec![]
         }
     }
@@ -316,6 +333,8 @@ impl fmt::Display for Type {
             Type::Minus(id1, id2) => format!("minus({}, {})", id1, id2),
             Type::Mul(id1, id2) => format!("mul({}, {})", id1, id2),
             Type::Div(id1, id2) => format!("division({}, {})", id1, id2),
+            Type::LabelGen(l) => format!("%{}", l),
+            Type::Label(l) => format!("{}", l),
             Type::Empty => "any".to_string(),
             _ => "".to_string()
         };

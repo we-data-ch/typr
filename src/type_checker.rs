@@ -9,7 +9,8 @@ use crate::tag::Tag;
 use crate::index::Index;
 use crate::unification;
 use crate::type_comparison::is_matching;
-
+use crate::type_comparison::reduce_type;
+use crate::argument_type::ArgumentType;
 
 fn get_tag_names(tags: &[Tag]) -> Vec<String> {
     tags.iter()
@@ -50,8 +51,10 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let ty = if ty == &Type::Empty {Type::Any} else {ty.clone()};
             let expr_ty = typing(&context, expr).0;
             let new_context = type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
-                let best_ty = type_comparison::get_best_type(&ty, &expr_ty);
-                context.clone().push_var_type(name.clone().into(), best_ty, context)
+                //let best_ty = type_comparison::get_best_type(&ty, &expr_ty);
+                context.clone()
+                    .push_var_type(name.clone().into(), ty.clone(), context)
+                    .push_var_type(name.clone().into(), expr_ty.clone(), context)
             }).expect(&format!("Type error:\n {} don't match {}", expr_ty, ty));
             // Generic function for R transpilation (the other targets won't write it)
             match expr_ty {
@@ -124,10 +127,10 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         }
         Lang::Dot(e1, e2) => {
             let ty2 = typing(context, e2).0;
-            match (ty2, *e1.clone()) {
+            match (reduce_type(context, &ty2), *e1.clone()) {
                 (Type::Record(fields), Lang::Variable(name, _, _, _, _)) => {
                     fields.iter()
-                        .find(|arg_typ2| arg_typ2.get_argument() == name)
+                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect("Field not found")
                 },
@@ -139,6 +142,19 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                                 .collect::<Vec<_>>();
                             typing(context, &Lang::FunctionApp(name, new_args))
                         },
+                (Type::Record(fields1), Lang::Record(fields2)) => {
+                    let at = fields2[0].clone();
+                    let fields3 = fields1.iter()
+                        .map(|arg_typ2| {
+                            match arg_typ2.get_argument_str() == at.get_argument() {
+                                true => ArgumentType::new(
+                                            &at.get_argument(),
+                                            &typing(context, &at.get_value()).0),
+                                false => arg_typ2.clone()
+                            }
+                        }).collect::<Vec<_>>();
+                    (Type::Record(fields3), context.clone())
+                },
                 _ => panic!("Type error")
             }
         },
@@ -147,7 +163,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             match (ty2, *e1.clone()) {
                 (Type::Record(fields), Lang::Variable(name, _, _, _, _)) => {
                     fields.iter()
-                        .find(|arg_typ2| arg_typ2.get_argument() == name)
+                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect("Field not found")
                 },
@@ -159,7 +175,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 .map(|arg_typ| arg_typ.get_type())
                 .collect::<Vec<_>>();
             let sub_context = params.into_iter()
-                .map(|arg_typ| Var::from_name(&arg_typ.get_argument()))
+                .map(|arg_typ| 
+                     Var::from_name(&arg_typ.get_argument_str())
+                        .set_type(arg_typ.get_type()))
                 .zip(param_types.clone().into_iter())
                 .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
             let res = typing(&sub_context, body);

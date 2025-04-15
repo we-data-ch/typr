@@ -6,9 +6,34 @@ use crate::context::Context;
 use crate::tag::Tag;
 use crate::is_subset;
 
+fn contains_supertype(cont: &Context, superset: &[ArgumentType], item: &ArgumentType) -> bool {
+    let arg = item.get_argument();
+    let typ = item.get_type();
+    superset.iter()
+        .any(|argt| 
+             is_subtype(cont, &arg, &argt.get_argument())
+             && is_subtype(cont, &typ, &argt.get_type()))
+}
+
+
+
 // Implementation of the Prolog rules as Rust functions
-pub fn all_in(subset: &[ArgumentType], superset: &[ArgumentType]) -> bool {
-    subset.iter().all(|item| superset.contains(item))
+pub fn all_subtype(cont: &Context, set1: &[ArgumentType], set2: &[ArgumentType]) -> bool {
+    set1.iter().zip(set2.iter())
+        .all(|(argt1, argt2)| {
+           is_subtype(cont, &argt1.get_argument(), &argt2.get_argument())
+           && is_subtype(cont, &argt1.get_type(), &argt2.get_type())
+        })
+}
+
+fn contains_all(cont: &Context, vec1: &[ArgumentType], vec2: &[ArgumentType]) -> bool {
+    vec1.iter()
+        .any(|sub| {
+            vec2.iter()
+                .any(|sup| 
+                     (sub.get_argument() == sup.get_argument())
+                     && is_subtype(cont, &sub.get_type(), &sup.get_type()))
+        })
 }
 
 fn to_self(t1: Type, t2: Type) -> Type {
@@ -46,6 +71,13 @@ pub fn check_interface_functions(
     is_subset(functions, &functions2)
 }
 
+fn has_generic_label(v: &[ArgumentType]) -> bool {
+    v.iter().any(|arg| match arg.get_argument() {
+        Type::LabelGen(_) => true,
+        _ => false
+    })
+}
+
 pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
     match (type1, type2) {
         (typ1, typ2) if typ1 == typ2 => true,
@@ -67,7 +99,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (type1, Type::Interface(args)) => {
             check_interface_functions(
                 &args.iter()
-                    .map(|arg| (Var::default().set_name(&arg.0), arg.1.clone()))
+                    .map(|arg| (Var::default().set_name(&arg.get_argument_str()), arg.1.clone()))
                     .collect::<Vec<_>>(),
                 type1,
                 context
@@ -75,7 +107,13 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         }
 
         // Record subtyping
-        (Type::Record(r1), Type::Record(r2)) => all_in(r2, r1),
+        (Type::Record(r1), Type::Record(r2)) => {
+            if has_generic_label(r2) && (r1.len() == r2.len()) {
+                all_subtype(context, r1, r2)
+            } else {
+                contains_all(context, r1, r2)
+            }
+        },
 
         (Type::Union(types1), Type::Union(_types2)) => {
             types1.iter().all(|t1| is_subtype(context, &t1.to_type(), type2))
@@ -104,6 +142,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
 }
 
 pub fn is_matching(context: &Context, type1: &Type, type2: &Type) -> bool {
+
 
     // Basic equality
     if type1 == type2 {

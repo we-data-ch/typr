@@ -245,11 +245,11 @@ pub fn record_intersection(
 ) -> Option<(Vec<ArgumentType>, Vec<ArgumentType>)> {
     // Get labels (left elements) from both records
     let labels1: Vec<String> = record1.iter()
-        .map(|arg| arg.0.clone())  // Assuming ArgumentType has a label field
+        .map(|arg| arg.get_argument_str().clone())  // Assuming ArgumentType has a label field
         .collect();
     
     let labels2: Vec<String> = record2.iter()
-        .map(|arg| arg.0.clone())
+        .map(|arg| arg.get_argument_str())
         .collect();
 
     // Find intersection of labels
@@ -264,10 +264,10 @@ pub fn record_intersection(
 
     for label in &common_labels {
         if let Some(value1) = record1.iter()
-            .find(|arg| &arg.0 == label)
+            .find(|arg| arg.get_argument_str() == *label)
             .cloned() {
             if let Some(value2) = record2.iter()
-                .find(|arg| &arg.0 == label)
+                .find(|arg| arg.get_argument_str() == *label)
                 .cloned() {
                 values1.push(value1);
                 values2.push(value2);

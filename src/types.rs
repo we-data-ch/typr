@@ -83,7 +83,7 @@ fn generic(s: &str) -> IResult<&str, Type> {
     }
 }
 
-fn index(s: &str) -> IResult<&str, Type> {
+fn simple_index(s: &str) -> IResult<&str, Type> {
     let res = terminated(digit1, multispace0)(s);
     match res {
         Ok((s, fl)) => Ok((s, Type::Index(fl.parse::<u32>().unwrap()))),
@@ -91,10 +91,14 @@ fn index(s: &str) -> IResult<&str, Type> {
     }
 }
 
+fn index(s: &str) -> IResult<&str,Type> {
+    alt((index_generic, simple_index))(s)
+}
+
 fn array_type(s: &str) -> IResult<&str, Type> {
     let res = tuple((
             terminated(tag("["), multispace0),
-            index_generic,
+            index,
             terminated(tag(","), multispace0),
             ltype,
             terminated(tag("]"), multispace0),
@@ -122,16 +126,20 @@ fn simple_label(s: &str) -> IResult<&str, Type> {
     }
 }
 
+pub fn label(s: &str) -> IResult<&str, Type> {
+    alt((label_generic, simple_label))(s)
+}
+
 pub fn argument(s: &str) -> IResult<&str, ArgumentType> {
     let res = tuple((
-        terminated(alt((label_generic, simple_label)), multispace0),
+        terminated(label, multispace0),
         terminated(tag(":"), multispace0),
         alt((ltype, embedded_ltype)),
         opt(terminated(tag(","), multispace0))
                 ))(s);
     match res {
-        Ok((s, (e1, _, Type::Embedded(ty), _))) => Ok((s, ArgumentType(e1.to_string(), *ty.clone(), true))),
-        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1.to_string(), e2, false))),
+        Ok((s, (e1, _, Type::Embedded(ty), _))) => Ok((s, ArgumentType(e1, *ty.clone(), true))),
+        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false))),
         Err(r) => Err(r)
     }
 }
@@ -339,14 +347,14 @@ fn interface_simple_function(s: &str) -> IResult<&str, Type> {
 
 fn interface_function(s: &str) -> IResult<&str, ArgumentType> {
     let res = tuple((
-        terminated(recognize(variable), multispace0),
+        terminated(label, multispace0),
         terminated(tag(":"), multispace0),
         alt((pseudo_function_signature, interface_simple_function)),
         opt(terminated(tag(","), multispace0))
                 ))(s);
     match res {
         Ok((s, (e, _, f, _))) => 
-            Ok((s, ArgumentType(e.to_string(), f, false))),
+            Ok((s, ArgumentType(e, f, false))),
         Err(r) => Err(r)
     }
 }
@@ -372,7 +380,7 @@ fn tuple_type(s: &str) -> IResult<&str, Type> {
     match res {
         Ok((s, (_op, v, _cl))) => {
             let v_final = v.iter().enumerate()
-                    .map(|(id, x)| ArgumentType(id.to_string(), x.clone(), false))
+                    .map(|(id, x)| ArgumentType::new(&id.to_string(), &x))
                     .collect::<Vec<_>>();
             Ok((s, Type::Record(v_final)))
         },
@@ -438,7 +446,7 @@ fn indices_chain(s: &str) -> IResult<&str, Type> {
 
 fn single_index(s: &str) -> IResult<&str, Type> {
     alt((
-            index,
+            simple_index,
             index_generic
         ))(s)
 }
@@ -459,6 +467,7 @@ pub fn ltype(s: &str) -> IResult<&str, Type> {
             interface,
             index_generic,
             label_generic,
+            simple_index,
             number,
             integer,
             boolean,
@@ -508,14 +517,26 @@ mod tests {
     }
 
     #[test]
-    fn test_array_gen() {
-        let res = array_type("[N, T]").unwrap().1;
+    fn test_array_gen1() {
+        let res = array_type("[3, int]").unwrap().1;
         assert_eq!(res.to_string(), "tarray(gen('n'), gen('t'))");
     }
 
     #[test]
+    fn test_array_gen2() {
+        let res = array_type("[#N, T]").unwrap().1;
+        assert_eq!(res.to_string(), "tarray(gen('n'), gen('t'))");
+    }
+
+    #[test]
+    fn test_array_gen3() {
+        let res = array_type("[#N, int]").unwrap().1;
+        assert_eq!(res.to_string(), "tarray(gen('n'), int)");
+    }
+
+    #[test]
     fn test_ltype_array_gen() {
-        let res = ltype("[N, T]").unwrap().1;
+        let res = ltype("[#N, T]").unwrap().1;
         assert_eq!(res.to_string(), "tarray(gen('n'), gen('t'))");
     }
 

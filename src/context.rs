@@ -77,16 +77,16 @@ impl Context {
 
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let types = typ.type_extraction();
-        let res = VarType(self.types.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
-        let type_list: Vec<_> = res.get_types().iter().cloned().collect();
+        let var_type = VarType(self.types.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
+        let type_list: Vec<_> = var_type.get_types().iter().cloned().collect();
         let new_subtypes = self.subtypes.clone().update(&type_list, context);
         let nominals = types.iter()
             .fold(self.nominals.clone(), |nom, typ_| nom.push_type(typ_.clone()));
         Context {
-            types: res, 
+            types: var_type, 
             nominals: nominals.clone(),
             subtypes: new_subtypes,
-            adt: self.clone().add_to_adt(&wasm_types(&types, &nominals)).adt,
+            adt: self.clone().add_to_adt(&wasm_types(&types, &nominals, context)).adt,
             ..self
         }
     }
@@ -100,12 +100,12 @@ impl Context {
     }
 
     pub fn get_class(&self, t: &Type) -> String {
-        self.nominals.get_class(t)
+        self.nominals.get_class(t, self)
     }
 
     pub fn get_classes(&self, t: &Type) -> Option<String> {
         self.subtypes.get_supertypes(t)
-            .into_iter().map(|typ| self.nominals.get_class(&typ))
+            .into_iter().map(|typ| self.nominals.get_class(&typ, self))
             .map(|x| format!("'{}'", x))
             .reduce(|acc, x| format!("{}, {}", acc, x))
     }
@@ -130,7 +130,7 @@ impl Context {
                     .map(|arg_typ| (arg_typ.get_argument(), arg_typ.get_type()))
                     .flat_map(|(arg, ty)| {
                         let funcs = self.get_functions(&ty);
-                        funcs.iter().map(|(var, fun)| (arg.clone(), var.clone(), fun.clone())).collect::<Vec<_>>()
+                        funcs.iter().map(|(var, fun)| (arg.get_label(), var.clone(), fun.clone())).collect::<Vec<_>>()
                     })
                     .map(|(arg, var, fun): (String, Var, Type)| 
                          (arg, var.clone().set_type(new_t.clone()),
@@ -293,9 +293,9 @@ fn add_if_absent(mut vec: Vec<Lang>, val: Lang) -> Vec<Lang> {
     vec // Retourne le nouveau vecteur
 }
 
-fn wasm_types(types: &[Type], nominals: &TypeNominal) -> Vec<Lang> {
+fn wasm_types(types: &[Type], nominals: &TypeNominal, cont: &Context) -> Vec<Lang> {
     types.iter().flat_map(|typ| {
-        let name = nominals.get_class(typ);
+        let name = nominals.get_class(typ, cont);
         match typ {
             Type::Record(_) | Type::Tag(_, _) | Type::Function(_, _, _)
                 => Some(Lang::Alias(Var::from_name(&name), vec![], typ.clone())),

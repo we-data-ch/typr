@@ -47,6 +47,8 @@ fn format(ty: &Type) -> String {
             format!("Union({})", formatted_types.join(", "))
         }
         Type::Any => "any".to_string(),
+        Type::IndexGen(i) => format!("#{}", i),
+        Type::LabelGen(l) => format!("%{}", l),
         _ => "Unknown".to_string(),
     }
 }
