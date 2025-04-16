@@ -195,10 +195,9 @@ impl Lang {
                                 Lang::FunctionApp(name, new_args).to_r(&cont2)
                             },
                     Lang::Record(fields) => {
-                        dbg!(&e2);
                         let (e2_str, cont2) = e2.to_r(cont);
                         let at = fields[0].clone();
-                        let res = format!("within({}, {{ {} -> {} }})", 
+                        let res = format!("within({}, {{ {} <- {} }})", 
                                 e2_str, at.get_argument(), at.get_value().to_r(&cont).0);
                         (res, cont2)
                     }
@@ -344,9 +343,10 @@ impl Lang {
                 let body = arg_strs.join(", ");
                 let typ = type_checker::typing(cont, self).0;
                 let class = cont.get_class(&typ);
+                let res = cont.get_classes(&typ);
                 match cont.get_classes(&typ) {
-                    Some(res) => (format!("structure(list({}), class = c('Record', '{}', {}))", body, class, res), current_cont),
-                    _ => (format!("structure(list({}), class = c('Record', '{}'))", body, class), current_cont)
+                    Some(res) => (format!("structure(list({}), class = c('list', 'Record', '{}', {}))", body, class, res), current_cont),
+                    _ => (format!("structure(list({}), class = c('list', 'Record', '{}'))", body, class), current_cont)
                 }
             },
             Lang::Char(s) => 

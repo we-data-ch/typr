@@ -656,5 +656,11 @@ mod tesus {
         let res = base_type_exp("type Combo = .Truc(int) | .Wow(int);").unwrap().1;
         assert_eq!(res, Lang::Empty);
     }
+    
+    #[test]
+    fn test_type_record() {
+        let res = base_type_exp("type Plot = { x: [#N, num], y: [#N, num], t: char };").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
 
 }

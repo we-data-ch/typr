@@ -51,10 +51,14 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let ty = if ty == &Type::Empty {Type::Any} else {ty.clone()};
             let expr_ty = typing(&context, expr).0;
             let new_context = type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
-                //let best_ty = type_comparison::get_best_type(&ty, &expr_ty);
-                context.clone()
-                    .push_var_type(name.clone().into(), ty.clone(), context)
-                    .push_var_type(name.clone().into(), expr_ty.clone(), context)
+                if ty != Type::Any {
+                    context.clone()
+                        .push_var_type(name.clone().into(), ty.clone(), context)
+                        .push_var_type(name.clone().into(), expr_ty.clone(), context)
+                } else {
+                    context.clone()
+                        .push_var_type(name.clone().into(), expr_ty.clone(), context)
+                }
             }).expect(&format!("Type error:\n {} don't match {}", expr_ty, ty));
             // Generic function for R transpilation (the other targets won't write it)
             match expr_ty {
@@ -233,7 +237,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         panic!("The arguments types doesnt match:\nexpected: {:?}\nrecieved: {:?}", param_types, arg_types);
                     }
                 }
-                _ => panic!("{} is not a function but a {}", fn_var_name.to_r(&Context::new(vec![], vec![])).0, fn_ty),
+                _ => panic!("{} is not a function but a {}", fn_var_name.to_r(&Context::new(vec![], vec![])).0, fn_ty.to_typescript()),
             }
         }
         Lang::Tag(name, expr) => {
