@@ -1,0 +1,107 @@
+# PLOT FUNCTION ----------
+let plot <- fn(a: [#N, num], b: [#N, num], c: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool): .None {
+	...
+};
+
+type Plot = { x: [#N, num], y: [#N, num], type: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool};
+
+
+let bplot <- fn(): Plot {
+	:{ x: [0.5], y: [0.5], type: "p", xlim: [0.0, 5.0], ylim: [0.0, 5.0], log: "", main: "", sub: "", xlab: "", ylab: "", ann: true, axes: true}
+};
+
+let show <- fn(p: Plot): .None {
+	plot(p.x, p.y, p.type, p.xlim, p.ylim, p.log, p.main, p.sub, p.xlab, p.ylab, p.ann, p.axes)
+};
+
+type BPlot = { x: [1, num], y: [1, num], type: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool};
+#---------------------
+
+let as__character <- fn(a: A): char {
+	...
+};
+
+let as__numeric <- fn(a: A): num {
+	...
+};
+
+let as__integer <- fn(a: A): int {
+	...
+};
+
+let as__logical <- fn(a: A): int {
+	...
+};
+
+let map <- fn(a: [#N, T], f: (T) -> U): [#N, U] {
+	...
+};
+
+let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K, int] {
+	...
+};
+
+let rev <- fn(a: [#N, T]): [#N, T] {
+	...
+};
+
+let mean <- fn(a: [#N, T]): T  {
+	...
+};
+
+let sd <- fn(a: [#N, T]): T  {
+	...
+};
+
+let min <- fn(a: [#N, T]): T  {
+	...
+};
+
+let max <- fn(a: [#N, T]): T  {
+	...
+};
+
+let add <- fn(a: int, b: int): int {
+	...
+};
+
+let add <- fn(a: num, b: num): num {
+	...
+};
+
+let minus <- fn(a: int, b: int): int {
+	...
+};
+
+let minus <- fn(a: num, b: num): num {
+	...
+};
+
+let mul <- fn(a: int, b: int): int {
+	...
+};
+
+let mul <- fn(a: num, b: num): num {
+	...
+};
+
+let div <- fn(a: int, b: int): int {
+	...
+};
+
+let div <- fn(a: num, b: num): num {
+	...
+};
+
+let plot <- fn(a: [#N, num], b: [#N, num], type: char): T {
+	...
+};
+
+let get <- fn(a: {}, b: char): T {
+	...
+};
+
+let print <- fn(a: char): T {
+	...
+};
+

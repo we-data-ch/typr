@@ -187,8 +187,8 @@ impl Lang {
                     Lang::FunctionApp(name, args) 
                         if Var::from_language((*name).clone()).unwrap().get_name() == "map"
                             => {
-                                let (e1_str, cont1) = e1.to_r(cont);
-                                let (e2_str, cont2) = e2.to_r(&cont1);
+                                let (_e1_str, cont1) = e1.to_r(cont);
+                                let (_e2_str, cont2) = e2.to_r(&cont1);
                                 let new_args = [(**e2).clone()].into_iter()
                                     .chain(args.into_iter())
                                     .collect::<Vec<_>>();
@@ -202,7 +202,7 @@ impl Lang {
                         (res, cont2)
                     }
                     _ => {
-                        let (e1_str, cont1) = e1.to_r(cont);
+                        let (e1_str, _cont1) = e1.to_r(cont);
                         let (e2_str, cont2) = e2.to_r(&cont);
                         (format!("{} |> {}", e2_str, e1_str), cont2)
                     }
@@ -343,7 +343,7 @@ impl Lang {
                 let body = arg_strs.join(", ");
                 let typ = type_checker::typing(cont, self).0;
                 let class = cont.get_class(&typ);
-                let res = cont.get_classes(&typ);
+                let _res = cont.get_classes(&typ);
                 match cont.get_classes(&typ) {
                     Some(res) => (format!("structure(list({}), class = c('list', 'Record', '{}', {}))", body, class, res), current_cont),
                     _ => (format!("structure(list({}), class = c('list', 'Record', '{}'))", body, class), current_cont)

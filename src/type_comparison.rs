@@ -6,17 +6,6 @@ use crate::context::Context;
 use crate::tag::Tag;
 use crate::is_subset;
 
-fn contains_supertype(cont: &Context, superset: &[ArgumentType], item: &ArgumentType) -> bool {
-    let arg = item.get_argument();
-    let typ = item.get_type();
-    superset.iter()
-        .any(|argt| 
-             is_subtype(cont, &arg, &argt.get_argument())
-             && is_subtype(cont, &typ, &argt.get_type()))
-}
-
-
-
 // Implementation of the Prolog rules as Rust functions
 pub fn all_subtype(cont: &Context, set1: &[ArgumentType], set2: &[ArgumentType]) -> bool {
     set1.iter().zip(set2.iter())
@@ -213,12 +202,5 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
         }
 
         _ => type_.clone()
-    }
-}
-
-pub fn get_best_type(type1: &Type, type2: &Type) -> Type {
-    match (type1, type2) {
-        (Type::Any, type2) => type2.clone(), 
-        _ => type1.clone()
     }
 }

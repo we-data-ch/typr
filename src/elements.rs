@@ -753,16 +753,14 @@ pub fn bang_exp(s: &str) -> IResult<&str, Lang> {
 fn check_minus_sign(v: Vec<(Lang, Op)>) -> Vec<(Lang, Op)> {
     if v.len() > 0 {
         let mut v2 = v.clone();
-        let (lang, op) = v2.pop().unwrap();
+        let (lang, op) = v2.first().unwrap();
         let first = match (op.clone(), lang.clone()) {
             (Op::Minus, Lang::Integer(l)) => (Lang::Integer(-l), Op::Empty),
             (Op::Minus, Lang::Number(l)) => (Lang::Number(-l), Op::Empty),
-            _ => (lang, op)
+            _ => (lang.clone(), op.clone())
         };
         v2.insert(0, first); v2
-    } else {
-        v.clone()
-    }
+    } else { v.clone() }
 }
 
 fn element_chain(s: &str) -> IResult<&str, Lang> {
@@ -1115,7 +1113,7 @@ mod tests {
 
     #[test]
     fn test_variable_field() {
-        let res = element_chain("p.x()").unwrap().1;
+        let res = element_chain("p.x").unwrap().1;
         assert_eq!(res, Lang::Empty);
     }
 

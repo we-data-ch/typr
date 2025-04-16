@@ -1,0 +1,30 @@
+@startuml
+title Diagramme de composants – Transpilateur avec métaprogrammation et typechecking
+
+package "Transpilateur" {
+  
+  [Analyseur lexical] --> [Analyseur syntaxique]
+  [Analyseur syntaxique] --> [AST : Arbre Syntaxique Abstrait]
+  [AST : Arbre Syntaxique Abstrait] --> [Vérificateur de types]
+  [Vérificateur de types] --> [Module de Métaprogrammation]
+  [Module de Métaprogrammation] --> [Générateur de code]
+
+  [Générateur de code] --> [Backend Lang A]
+  [Générateur de code] --> [Backend Lang B]
+  [Générateur de code] --> [Backend Lang C]
+}
+
+note right of [Module de Métaprogrammation]
+  Manipule l'AST :
+  - Injection de code
+  - Optimisations
+  - Transformations personnalisées
+end note
+
+note right of [Vérificateur de types]
+  Vérifie :
+  - Cohérence des types
+  - Déductions et contraintes
+end note
+
+@enduml

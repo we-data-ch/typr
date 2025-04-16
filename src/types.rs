@@ -8,7 +8,6 @@ use nom::branch::alt;
 use nom::combinator::opt;
 use nom::character::complete::alpha1;
 use crate::argument_type::ArgumentType;
-use crate::elements::variable;
 use nom::character::complete::one_of;
 use nom::sequence::delimited;
 use nom::multi::many1;
@@ -18,9 +17,6 @@ use crate::tag::Tag;
 
 use crate::elements::scope;
 use crate::elements::function_symbol;
-use nom::combinator::recognize;
-use crate::operators::op;
-use crate::operators::Op;
 use crate::r#type::Type;
 use std::collections::HashSet;
 use crate::argument_kind::ArgumentKind;
@@ -418,37 +414,6 @@ fn integer(s: &str) -> IResult<&str, Type> {
         Ok((s, _)) => Ok((s, Type::Integer)),
         Err(r) => Err(r)
     }
-}
-
-fn reverse_type_operators(v: &mut Vec<(Option<Op>, Type)>) -> Type {
-    let first = v.pop().unwrap();
-    match first {
-        (Some(Op::Add), t) 
-            => Type::Add(Box::new(reverse_type_operators(v)), Box::new(t)),
-        (Some(Op::Minus), t)
-            => Type::Minus(Box::new(reverse_type_operators(v)) , Box::new(t)),
-        (Some(Op::Mul), t)
-            => Type::Mul(Box::new(reverse_type_operators(v)) , Box::new(t)),
-        (Some(Op::Div), t)
-            => Type::Div(Box::new(reverse_type_operators(v)), Box::new(t)),
-        (None, t) => t,
-        _ => todo!()
-    }
-}
-
-fn indices_chain(s: &str) -> IResult<&str, Type> {
-    let res = many1(tuple((opt(op), single_index)))(s);
-    match res {
-        Ok((s, v)) => Ok((s, reverse_type_operators(&mut v.clone()))),
-        Err(r) => Err(r)
-    }
-}
-
-fn single_index(s: &str) -> IResult<&str, Type> {
-    alt((
-            simple_index,
-            index_generic
-        ))(s)
 }
 
 fn empty(s: &str) -> IResult<&str, Type> {
