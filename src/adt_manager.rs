@@ -1,5 +1,6 @@
 use crate::Adt;
 
+#[derive(Debug)]
 pub struct AdtManager {
     pub body: Adt,
     pub header: Adt
@@ -21,9 +22,15 @@ impl AdtManager {
     }
 
     pub fn add_to_header(self, adt: Adt) -> AdtManager {
+        let header = adt.iter()
+            .filter(|&x| x.is_undefined())
+            .cloned().collect::<Vec<_>>();
+        let body = adt.iter()
+            .filter(|&x| !x.is_undefined())
+            .cloned().collect::<Vec<_>>();
         AdtManager {
-            header: self.header.add(adt),
-            ..self
+            body: self.body.add(Adt(body)),
+            header: self.header.add(Adt(header))
         }
     }
 

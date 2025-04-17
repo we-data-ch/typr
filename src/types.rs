@@ -15,11 +15,13 @@ use nom::sequence::preceded;
 use nom::character::complete::digit1;
 use crate::tag::Tag;
 
+
 use crate::elements::scope;
 use crate::elements::function_symbol;
 use crate::r#type::Type;
 use std::collections::HashSet;
 use crate::argument_kind::ArgumentKind;
+use crate::operators::{Op, op};
 
 fn ltype_arg(s: &str) -> IResult<&str, Type> {
     let res = tuple((ltype, terminated(opt(tag(",")), multispace0)))(s);
@@ -94,7 +96,7 @@ fn index(s: &str) -> IResult<&str,Type> {
 fn array_type(s: &str) -> IResult<&str, Type> {
     let res = tuple((
             terminated(tag("["), multispace0),
-            index,
+            index_algebra,
             terminated(tag(","), multispace0),
             ltype,
             terminated(tag("]"), multispace0),
@@ -423,6 +425,56 @@ fn empty(s: &str) -> IResult<&str, Type> {
     }
 }
 
+fn compute_operators(v: &mut Vec<(Type, Op)>) -> Type {
+    // (params, op)
+    let first = v.pop().unwrap();
+    match first {
+        (p, Op::Add) => {
+            let res = compute_operators(v); let pp = p;
+            Type::Add(Box::new(res), Box::new(pp))
+        },
+        (p, Op::Minus) => { 
+            let res = compute_operators(v); let pp = p;
+            Type::Minus(Box::new(res), Box::new(pp))
+        },
+        (p, Op::Mul) => {
+            let res = compute_operators(v); let pp = p;
+            Type::Mul(Box::new(res), Box::new(pp))
+        },
+        (p, Op::Div) => {
+            let res = compute_operators(v); let pp = p;
+            Type::Div(Box::new(res), Box::new(pp))
+        },
+        (p, Op::Empty) => p,
+        _ => panic!()
+    }
+}
+
+
+fn index_operator(s: &str) -> IResult<&str, (Type, Op)> {
+    let res = tuple((
+                opt(op),
+                index
+                ))(s);
+    match res {
+        Ok((s, (Some(ope), ele))) => Ok((s, (ele, ope))),
+        Ok((s, (None, ele))) => Ok((s, (ele, Op::Empty))),
+        Err(r) => Err(r)
+    }
+}
+
+fn index_chain(s: &str) -> IResult<&str, Type> {
+    let res = many1(index_operator)(s);
+    match res {
+        Ok((s, v)) => Ok((s, compute_operators(&mut v.clone()))),
+        Err(r) => Err(r)
+    }
+}
+
+fn index_algebra(s: &str) -> IResult<&str, Type> {
+    alt((index_chain, index))(s)
+}
+
 
 //ltype to not use the reserved symbol "type"
 // main
@@ -430,9 +482,8 @@ pub fn ltype(s: &str) -> IResult<&str, Type> {
     terminated(alt((
             empty,
             interface,
-            index_generic,
             label_generic,
-            simple_index,
+            index_algebra,
             number,
             integer,
             boolean,
@@ -450,6 +501,7 @@ pub fn ltype(s: &str) -> IResult<&str, Type> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operators::Op;
 
     #[test]
     fn test_function_type() {
@@ -609,12 +661,8 @@ mod tests {
 
     #[test]
     fn test_type_op2() {
-        let res = reverse_type_operators(&mut vec![
-                                         (None, Type::Index(93)),
-                                         (Some(Op::Add), Type::Index(8)),
-                                         (Some(Op::Div), Type::Index(100))
-        ]);
-        assert_eq!(res, Type::Empty);
+        let res = index_algebra("3+4+5").unwrap().1;
+        assert_eq!(res.to_string(), "");
     }
 
     #[test]

@@ -845,6 +845,17 @@ impl Lang {
             name.to_string()
         } else { "".to_string() }
     }
+
+    pub fn is_undefined(&self) -> bool {
+        if let Lang::Let(_, _, rhs) = self {
+            if let Lang::Function(_, _, _, body) = *rhs.clone() {
+                if let Lang::Scope(v) = *body.clone() {
+                       let ele = v.first().unwrap();
+                       if let Lang::Empty = ele {true} else {false}
+                } else {false}
+            } else {false}
+        } else { false }
+    }
 }
 
 fn typescript_type(s: &str, cont: &Context) -> String {

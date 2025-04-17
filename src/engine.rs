@@ -67,6 +67,7 @@ pub fn type_check(adt: &Adt) -> Context {
     context
 }
 
+//1. 
 pub fn parse_code(path: &PathBuf, target: TargetLanguage) -> AdtManager {
     let typr_std = match target {
         TargetLanguage::R => include_str!("../configs/r/std.ty"),
@@ -74,8 +75,8 @@ pub fn parse_code(path: &PathBuf, target: TargetLanguage) -> AdtManager {
         TargetLanguage::AssemblyScript => include_str!("../configs/assemblyscript/std.ty")
     };
     let adt_manager = AdtManager::new()
-        .add_to_body(parse(&read_file(path)).unwrap().1)
-        .add_to_header(parse(typr_std).unwrap().1);
+        .add_to_header(parse(typr_std).unwrap().1)
+        .add_to_body(parse(&read_file(path)).unwrap().1);
     let adt = metaprogrammation(adt_manager.body.clone());
     adt_manager.set_body(adt)
 }

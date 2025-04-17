@@ -663,4 +663,10 @@ mod tesus {
         assert_eq!(res, Lang::Empty);
     }
 
+    #[test]
+    fn test_let_seq() {
+        let res = parse("let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K, int] { ... };").unwrap().1;
+        assert_eq!(res.0, vec![]);
+    }
+
 }

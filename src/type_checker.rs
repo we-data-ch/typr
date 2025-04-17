@@ -47,9 +47,9 @@ fn unify_types(types: &[Type]) -> Type {
 pub fn eval(context: &Context, expr: &Lang) -> Context {
     match expr {
         Lang::Sequence(exprs) => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
-        Lang::Let(name, ty, expr) => {
+        Lang::Let(name, ty, exp) => {
             let ty = if ty == &Type::Empty {Type::Any} else {ty.clone()};
-            let expr_ty = typing(&context, expr).0;
+            let expr_ty = typing(&context, exp).0;
             let new_context = type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
                 if ty != Type::Any {
                     context.clone()
@@ -60,13 +60,10 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                         .push_var_type(name.clone().into(), expr_ty.clone(), context)
                 }
             }).expect(&format!("Type error:\n {} don't match {}", expr_ty, ty));
-            // Generic function for R transpilation (the other targets won't write it)
-            match expr_ty {
-                Type::Function(kinds, args, _) 
-                    if (args.len() > 0) && (kinds.len() == 0) => {
-                    new_context.add_to_adt(&[Lang::GenFunc(build_generic_function(&name.get_name()))])
-                },
-                _ => new_context
+            if !expr.is_undefined() {
+                new_context.add_to_adt(&[Lang::GenFunc(build_generic_function(&name.get_name()))])
+            } else {
+                new_context
             }
         },
         Lang::Alias(name, params, typ) => {
