@@ -113,3 +113,59 @@ let print <- fn(a: char): .None {
 let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K, int] {
 	...
 };
+
+let substr <- fn(a: char, b: int, e: int): char {
+	...
+};
+
+let sub <- fn(a: char, b: char, c: char): char {
+	...
+};
+
+let replace <- fn(s: char, old: char, new: char): char {
+	sub(old, new, s)
+};
+
+let gsub <- fn(a: char, b: char, c: char): char {
+	...
+};
+
+let replace_all <- fn(s: char, old: char, new: char): char {
+	gsub(old, new, s)
+};
+
+let strsplit <- fn(s: char, d: char): [#N, char] {
+	...
+};
+
+let split <- fn(s: char, d: char): [#N, char] {
+	strsplit(s, d)
+};
+
+let join <- fn(a: [#N, char], s: char): char {
+	...
+};
+
+let tolower <- fn(a: char): char {
+	...
+};
+
+let toupper <- fn(a: char): char {
+	...
+};
+
+let startsWith <- fn(a: char, b: char): bool {
+	...
+};
+
+let endsWith <- fn(a: char, b: char): bool {
+	...
+};
+
+let grepl <- fn(a: char, b: char): bool {
+	...
+};
+
+let contains <- fn(a: char, b: char): bool {
+	...
+};

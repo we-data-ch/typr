@@ -25,3 +25,7 @@ set <- function(var, label, val) {
 	var[[label]] <- val;
 	return(var)
 }
+
+join <- function(vec, sep) {
+	paste(vec, collapse=sep)
+}
