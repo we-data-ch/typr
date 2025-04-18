@@ -119,6 +119,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (Type::Integer, Type::IndexGen(_)) => true,
         (Type::Label(_), Type::LabelGen(_)) => true,
         (Type::Char, Type::LabelGen(_)) => true,
+        (Type::IndexGen(_), Type::IndexGen(_)) => true,
 
         // Params subtyping
         (Type::Params(p1), Type::Params(p2)) => {
@@ -186,7 +187,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 );
                 reduce_type(context, &substituted)
             } else {
-                type_.clone()
+                panic!("The alias {} wasn't founded", name)
             }
         }
 

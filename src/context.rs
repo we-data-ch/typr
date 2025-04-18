@@ -7,6 +7,7 @@ use crate::subtypes::Subtypes;
 use crate::nominal_context::TypeNominal;
 use crate::argument_type::ArgumentType;
 use crate::vartype::VarType;
+use crate::type_comparison;
 
 #[derive(Debug, Clone)]
 pub struct Context {
@@ -62,14 +63,14 @@ impl Context {
     }
 
     pub fn get(&self, var: &Var) -> Option<Type> {
-        self.iter().map(|(var2, type_)| {
-            match var2 {
-                Var(name, path, perm, bo, typ)
-                    if Lang::Variable(name.clone(), path.clone(), *perm, *bo, typ.clone()) == var.clone().to_language()
-                        => Some(type_.clone()),
-                    _ => None
-            }
-        }).flatten().next()
+        self.iter().flat_map(|(var2, type_)| {
+            let Var(name1, path1, perm1, bo1, typ1) = var;
+            let Var(name2, path2, perm2, bo2, typ2) = var2;
+            let conditions = (name1 == name2) &&
+                (path1 == path2) && (perm1 == perm2) &&
+                (bo1 == bo2) && (type_comparison::is_matching(self, typ1, typ2));
+            if conditions { Some(type_.clone()) } else { None }
+        }).next()
     }
 
     pub fn iter(&self) -> std::slice::Iter<(Var, Type)> {

@@ -223,7 +223,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         let unification_map = arg_param_types.iter()
                             .zip(args.iter())
                             .map(|((arg, par), val)| index_conversion(arg, par, val))
-                            .flat_map(|(arg, par)| unification::unify(&arg, &par))
+                            .flat_map(|(arg, par)| unification::unify(context, &arg, &par))
                             .reduce(|res1, res2| res1.iter().chain(res2.iter()).cloned().collect())
                             .unwrap_or(vec![])
                             .into_iter().collect::<HashSet<_>>()

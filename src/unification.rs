@@ -1,5 +1,7 @@
 use crate::r#type::Type;
 use crate::argument_type::ArgumentType;
+use crate::Context;
+use crate::type_comparison;
 
 pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     if substitutions.is_empty() {
@@ -222,9 +224,11 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
     }
 }
 
-pub fn unify(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
+pub fn unify(cont: &Context, type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
+    let new_type1 = type_comparison::reduce_type(cont, type1);
+    let new_type2 = type_comparison::reduce_type(cont, type2);
     // try unification helper
-    unification_helper(&vec![], type1, type2)
+    unification_helper(&vec![], &new_type1, &new_type2)
 }
 
 // Helper functions needed for unification

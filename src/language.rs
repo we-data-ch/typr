@@ -325,11 +325,12 @@ impl Lang {
                 }
                 
                 let vector = format!("c({})", val_strs.join(","));
-                let shape = Lang::Array(v.to_vec()).shape();
+                let dim = typing(&current_cont, &Lang::Array(v.to_vec())).0;
+                let res = dim.get_shape().unwrap();
                 
                 (format!("array({}, dim = c({}))",
                     vector,
-                    shape.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")),
+                    res),
                 current_cont)
             },
             Lang::Record(args) => {

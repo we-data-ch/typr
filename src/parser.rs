@@ -669,4 +669,10 @@ mod tesus {
         assert_eq!(res.0, vec![]);
     }
 
+    #[test]
+    fn test_let_mat() {
+        let res = parse("let a: Mat<3, 2> <- [[1, 2], [4, 5], [7, 8]];").unwrap().1;
+        assert_eq!(res.0, vec![]);
+    }
+
 }
