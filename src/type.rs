@@ -306,9 +306,11 @@ impl Type {
 
     pub fn get_shape(&self) -> Option<String> {
         if let Type::Array(i, t) = self {
-            if let Some(rest) = t.get_shape() {
-                Some(format!("{}, {}", i, rest))
-            } else { Some(i.to_string()) }
+            match (*i.clone(), t.get_shape()) {
+                (Type::Index(j), Some(rest)) => Some(format!("{}, {}", j, rest)),
+                (Type::Index(j), None) => Some(j.to_string()),
+                _ => None
+            }
         } else { None }
     }
 }
