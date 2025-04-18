@@ -48,6 +48,7 @@ impl From<Vec<(Lang, Type)>> for  Context {
    } 
 }
 
+//main
 impl Context {
     pub fn new(types: Vec<(Var, Type)>, kinds: Vec<(Type, Kind)>) -> Context {
         Context {
@@ -210,7 +211,17 @@ impl Context {
             ..self.clone()
         })
     }
-
+    pub fn add_arg_types(&self, params: &[ArgumentType]) -> Context {
+        let param_types = params.iter()
+            .map(|arg_typ| arg_typ.get_type())
+            .collect::<Vec<_>>();
+        params.into_iter()
+            .map(|arg_typ| 
+                 Var::from_name(&arg_typ.get_argument_str())
+                    .set_type(arg_typ.get_type()))
+            .zip(param_types.clone().into_iter())
+            .fold(self.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont))
+    }
 }
 
 fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {

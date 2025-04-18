@@ -14,6 +14,7 @@ use nom::multi::many1;
 use nom::sequence::preceded;
 use nom::character::complete::digit1;
 use crate::tag::Tag;
+use nom::character::complete::alphanumeric1;
 
 
 use crate::elements::scope;
@@ -205,7 +206,7 @@ fn type_params(s: &str) -> IResult<&str, Vec<Type>> {
 pub fn pascal_case(s: &str) -> IResult<&str, String> {
     let res = terminated(tuple((
             one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
-            alpha1)), multispace0)(s);
+            alphanumeric1)), multispace0)(s);
     match res {
         Ok((s, (t1, t2))) => Ok((s, format!("{}{}", t1, t2))),
         Err(r) => Err(r)

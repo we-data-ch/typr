@@ -542,9 +542,18 @@ fn vectorial_bloc(s: &str) -> IResult<&str, Lang> {
     }
 }
 
+fn lambda(s: &str) -> IResult<&str, Lang> {
+    let res = preceded(tag("$"), element_chain)(s);
+    match res {
+        Ok((s, e)) => Ok((s, Lang::Lambda(Box::new(e)))),
+        Err(r) => Err(r)
+    }
+}
+
 // main
 fn single_element(s: &str) -> IResult<&str,Lang> {
     alt((
+            lambda,
             boolean,
             range,
             number,
@@ -561,7 +570,7 @@ fn single_element(s: &str) -> IResult<&str,Lang> {
             tag_exp,
             scope,
             tuple_exp,
-            array,
+            array
         ))(s)
 }
 
@@ -1114,6 +1123,18 @@ mod tests {
     #[test]
     fn test_variable_field() {
         let res = element_chain("p.x").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
+
+    #[test]
+    fn test_lang_alias0() {
+        let res = element_chain("x + 1").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
+
+    #[test]
+    fn test_lang_alias1() {
+        let res = lambda("$x + 1").unwrap().1;
         assert_eq!(res, Lang::Empty);
     }
 

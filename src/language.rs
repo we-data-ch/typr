@@ -57,6 +57,7 @@ pub enum Lang {
     Test(Vec<Lang>),
     Return(Box<Lang>),
     VecBloc(String),
+    Lambda(Box<Lang>),
     Any,
     Empty
 }
@@ -230,7 +231,8 @@ impl Lang {
                 (results.join("\n"), current_cont)
             },
             Lang::Function(_args_kind, args, _typ, body) => {
-                let (body_str, new_cont) = body.to_r(cont);
+                let sub_cont = cont.add_arg_types(args);
+                let (body_str, new_cont) = body.to_r(&sub_cont);
                 (format!("function({}) {{ {} }}", 
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
                         body_str), 
@@ -419,6 +421,7 @@ impl Lang {
                 let (exp_str, new_cont) = exp.to_r(cont);
                 (format!("return ({})", exp_str), new_cont)
             },
+            Lang::Lambda(bloc) => (format!("function(x) {{ {} }}", bloc.to_r(cont).0), cont.clone()),
             Lang::VecBloc(bloc) => (bloc.to_string(), cont.clone()),
             _ => ("".to_string(), cont.clone())
         };

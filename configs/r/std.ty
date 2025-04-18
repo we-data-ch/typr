@@ -17,12 +17,125 @@ let show <- fn(p: Plot): .None {
 type BPlot = { x: [1, num], y: [1, num], type: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool};
 #---------------------
 
+# System execution ----------
+
+let system2 <- fn(command: char, args: [#N, char], stdout: char, stderr: char, stdin: char): char {
+	...
+};
+
+type System2 = { command: char, args: [#N, char], stdout: char, stderr: char, stdin: char};
+
+
+let bsystem2 <- fn(command: char): System2 {
+	:{ command: command, args: [""], stdout: "", stderr: "", stdin: ""}
+};
+
+type BSystem2 = { command: char, args: [1, char], stdout: char, stderr: char, stdin: char};
+
+let exec <- fn(s: System2): char {
+	system2(s.command, s.args, s.stdout, s.stderr, s.stdin)
+};
+# --------------------------------
+
+let dot <- fn(m: [#M, [#P, int]], n: [#P, [#N, int]]): [#M, [#N, int]] {
+	...
+};
+
+let t <- fn(m: [#M, [#N, T]]): [#N, [#M, T]] {
+	...
+};
+
+# File System management ----------
+
+let getwd <- fn(): char {
+	...
+};
+
+let setwd <- fn(path: char): char {
+	...
+};
+
+let dir <- fn(): [#N, char] {
+	...
+};
+
+let list__files <- fn(): [#N, char] {
+	...	
+};
+
+let file__exists <- fn(file: char): bool {
+	...
+};
+
+let file__create <- fn(file: char): bool {
+	...
+};
+
+let file__remove <- fn(file: char): bool {
+	...
+};
+
+let file__rename <- fn(old: char, new: char): bool {
+	...
+};
+
+let file__copy <- fn(source: char, dest: char): bool {
+	...
+};
+
+let dir__create <- fn(source: char, dest: char): bool {
+	...
+};
+
+let unlink <- fn(target: char): bool {
+	...
+};
+
+
+# --------------------------------
+
 let nchar <- fn(a: char): int {
 	...
 };
 
 let len <- fn(a: char): int {
 	nchar(a)
+};
+
+let sys__info <- fn(): char {
+	...
+};
+
+let sys__getenv <- fn(): [#N, char] {
+	...
+};
+
+let sys__setenv <- fn(var: char, val: char): [#N, char] {
+	...
+};
+
+let sys__time <- fn(): char {
+	...
+};
+
+let sys__date <- fn(): char {
+	...
+};
+
+let sys__sleep <- fn(n: int): .None {
+	...
+};
+
+let sys__which <- fn(n: char): char {
+	...
+};
+
+let sys__timezone <- fn(): char {
+	...
+};
+
+let sys__setlocale <- fn(): .None {
+	...
 };
 
 let as__character <- fn(a: A): char {
@@ -169,3 +282,4 @@ let grepl <- fn(a: char, b: char): bool {
 let contains <- fn(a: char, b: char): bool {
 	...
 };
+
