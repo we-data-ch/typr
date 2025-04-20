@@ -185,16 +185,6 @@ impl Lang {
                         let (e2_str, cont2) = e2.to_r(&cont1);
                         (format!("{}${}", e2_str, e1_str), cont2)
                     },
-                    Lang::FunctionApp(name, args) 
-                        if Var::from_language((*name).clone()).unwrap().get_name() == "map"
-                            => {
-                                let (_e1_str, cont1) = e1.to_r(cont);
-                                let (_e2_str, cont2) = e2.to_r(&cont1);
-                                let new_args = [(**e2).clone()].into_iter()
-                                    .chain(args.into_iter())
-                                    .collect::<Vec<_>>();
-                                Lang::FunctionApp(name, new_args).to_r(&cont2)
-                            },
                     Lang::Record(fields) => {
                         let (e2_str, cont2) = e2.to_r(cont);
                         let at = fields[0].clone();
@@ -328,9 +318,6 @@ impl Lang {
                 let dim = typing(&current_cont, &Lang::Array(v.to_vec())).0;
                 let shape = dim.get_shape().unwrap();
 
-                dbg!(&dim);
-                dbg!(&shape);
-                
                 (format!("array({}, dim = c({}))",
                     vector,
                     shape),

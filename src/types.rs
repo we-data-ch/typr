@@ -401,7 +401,7 @@ fn index_generic(s: &str) -> IResult<&str, Type> {
 
 fn label_generic(s: &str) -> IResult<&str, Type> {
     let res = tuple((
-            tag("%"),
+            tag("@"),
             generic))(s);
     match res {
         Ok((s, (_tag, Type::Generic(gen)))) 
@@ -476,11 +476,35 @@ fn index_algebra(s: &str) -> IResult<&str, Type> {
     alt((index_chain, index))(s)
 }
 
+fn propagate_multiplicity(t: Type) -> Type {
+    match t {
+        Type::Record(ref body) => {
+            if body.len() == 1 {
+                let argt = body[0].clone();
+                Type::Record(vec![ArgumentType(
+                    Type::Multi(Box::new(argt.get_argument())),
+                    Type::Multi(Box::new(argt.get_type())),
+                    false)])
+            } else { panic!("The Record {} should have only one couple 'label: type'", t) }
+        },
+        _ => t 
+    }
+}
+
+fn multitype(s: &str) -> IResult<&str, Type> {
+    let res = preceded(tag("+"), ltype)(s);
+    match res {
+        Ok((s, t)) 
+            => Ok((s, Type::Multi(Box::new(propagate_multiplicity(t))))),
+        Err(r) => Err(r)
+    }
+}
 
 //ltype to not use the reserved symbol "type"
 // main
 pub fn ltype(s: &str) -> IResult<&str, Type> {
     terminated(alt((
+            multitype,
             empty,
             interface,
             label_generic,
@@ -677,5 +701,24 @@ mod tests {
         let res = ltype("[#I + #I, int]").unwrap().1;
         assert_eq!(res.to_string(), "");
     }
+
+    #[test]
+    fn test_multitype0() {
+        let res = ltype("+bool").unwrap().1;
+        assert_eq!(res, Type::Empty);
+    }
+
+    #[test]
+    fn test_multitype1() {
+        let res = ltype("+{age: int}").unwrap().1;
+        assert_eq!(res, Type::Empty);
+    }
+
+    #[test]
+    fn test_multitype2() {
+        let res = ltype("+{@L: T}").unwrap().1;
+        assert_eq!(res, Type::Empty);
+    }
+
 
 }

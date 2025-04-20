@@ -317,6 +317,12 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         },
         Lang::Scope(expr) => typing(context, &Lang::Sequence(expr.to_vec())),
         Lang::VecBloc(_) => (Type::Any, context.clone()),
+        Lang::Tuple(elements) => {
+            (Type::Tuple(elements.iter()
+                .map(|x| typing(context, x).0)
+                .collect()),
+                context.clone())
+        },
         _ => (Type::Any, context.clone()),
     }
 }

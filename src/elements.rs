@@ -458,9 +458,9 @@ fn match_exp(s: &str) -> IResult<&str, Lang> {
 
 fn tuple_exp(s: &str) -> IResult<&str, Lang> {
     let res = tuple((
-            terminated(tag("("), multispace0),
+            terminated(tag("{"), multispace0),
             values,
-            terminated(tag(")"), multispace0),
+            terminated(tag("}"), multispace0),
                     ))(s);
     match res {
         Ok((s, (_o, vals, _c))) => 
@@ -568,8 +568,8 @@ fn single_element(s: &str) -> IResult<&str,Lang> {
             array_indexing,
             variable,
             tag_exp,
-            scope,
             tuple_exp,
+            scope,
             array
         ))(s)
 }

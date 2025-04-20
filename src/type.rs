@@ -43,6 +43,8 @@ pub enum Type {
     Mul(Box<Type>, Box<Type>),
     Failed(String),
     Opaque(String),
+    Multi(Box<Type>),
+    Tuple(Vec<Type>),
     Empty,
     Any
 }

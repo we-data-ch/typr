@@ -44,11 +44,18 @@ fn format(ty: &Type) -> String {
         Type::Empty => "Empty".to_string(),
         Type::Union(types) => {
             let formatted_types = types.iter().map(|ty| format(&ty.to_type())).collect::<Vec<_>>();
-            format!("Union({})", formatted_types.join(", "))
+            format!("{}", formatted_types.join(" | "))
         }
         Type::Any => "any".to_string(),
         Type::IndexGen(i) => format!("#{}", i),
         Type::LabelGen(l) => format!("%{}", l),
+        Type::Tuple(elements) => {
+            let body = elements.iter()
+                .map(format)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{{{}}}", body)
+        },
         _ => "Unknown".to_string(),
     }
 }

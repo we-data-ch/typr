@@ -25,3 +25,16 @@ Tout les types jugés "équivalents" (par définition ou par aliasing) vont avoi
 Tout les sous types entreront dans une hiérarchie. Les types enfants prendront d'avantages des types parents.
 
 
+{} => tout record et tuple
+
+{@L: T} => Tout record (sauf record vide) mais catch le premier label avec son type
+{+@L: +T} => Tout record (sauf record vide) mais on catch chaque couple
++{@L: T} => La même chose qu'en haut
+{+@L: T} => Tout record (sauf record vide) mais on catch que les labels
+{@L: +T} => Tout record (sauf record vide) mais on catch que les types
+
+{#N: T} => Tout tuple mais catch le premier couple
+{T} => Tout tuple mais catch le premier couple
+{+#N: +T} => Tout tuple mais catch le premier couple
+{+T} => Tout tuple mais catch que les types
+{+#N: T} => Tout tuple mais catch les labels
