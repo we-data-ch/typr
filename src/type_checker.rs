@@ -203,13 +203,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::FunctionApp(fn_var_name, args) => {
-            let var_name = if args.len() > 0 {
-                let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
-                Var::from_language(*fn_var_name.clone())
-                    .unwrap().set_type(first)
-            } else {
-                Var::from_language(*fn_var_name.clone()).unwrap()
-            };
+            let var_name = fn_var_name.infer_var_name(args, context);
             let fn_ty = typing(context, &var_name.to_language()).0;
             match fn_ty {
                 Type::Function(_kinds, param_types, ret_ty) => {

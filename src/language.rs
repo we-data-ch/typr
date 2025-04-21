@@ -80,6 +80,7 @@ pub fn build_generic_function(s: &str) -> String {
     format!("{} <- function(x, ...) {{\n\tUseMethod('{}')\n}}", s, s)
 }
 
+//main
 impl Lang {
     fn set_type(&self, typ: &Type) -> Lang {
         match self {
@@ -849,6 +850,15 @@ impl Lang {
                 } else {false}
             } else {false}
         } else { false }
+    }
+    pub fn infer_var_name(&self, args: &Vec<Lang>, context: &Context) -> Var {
+        if args.len() > 0 {
+                        let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
+                        Var::from_language(self.clone())
+                            .unwrap().set_type(first)
+                    } else {
+                        Var::from_language(self.clone()).unwrap()
+            }
     }
 }
 
