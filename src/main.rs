@@ -24,6 +24,8 @@ mod adt_manager;
 mod subtypes;
 mod engine;
 mod vartype;
+mod unification_map;
+mod function_type;
 
 use parser::parse;
 use my_io::read_file;

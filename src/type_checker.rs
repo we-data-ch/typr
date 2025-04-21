@@ -11,6 +11,7 @@ use crate::unification;
 use crate::type_comparison::is_matching;
 use crate::type_comparison::reduce_type;
 use crate::argument_type::ArgumentType;
+use crate::unification_map::UnificationMap;
 
 fn get_tag_names(tags: &[Tag]) -> Vec<String> {
     tags.iter()
@@ -101,6 +102,33 @@ fn index_conversion(arg_type: &Type, par_type: &Type, value: &Lang) -> (Type, Ty
             => (par_type.clone(), Type::Index(*i as u32)),
         _ => (par_type.clone(), arg_type.clone())
     }
+}
+
+fn match_types(ctx: &Context, type1: &Type, type2: &Type, value: &Lang) 
+    -> Option<Vec<(Type, Type)>> {
+    type_comparison::is_matching(ctx, type1, type2)
+        .then(|| Some(index_conversion(type1, type2, value))
+                .map(|(arg, par)| unification::unify(ctx, &arg, &par))
+                .unwrap()
+              ).unwrap()
+}
+
+fn get_unification_map(context: &Context, args: &[Lang], param_types: &[Type]) 
+    -> Option<Vec<Vec<(Type, Type)>>> {
+    args.iter()
+        .map(|arg| typing(context, arg).0)
+        .zip(param_types.iter())
+        .zip(args.iter())
+        .map(|((arg, par), val)| match_types(context, &arg, par, val))
+        .collect()
+}
+
+fn apply_unification_type(context: &Context, map: Option<Vec<Vec<(Type, Type)>>>, ret_ty: &Type) -> (Type, Context) {
+    let unification_map = map.unwrap()
+            .iter().cloned().flatten().collect::<UnificationMap>();
+    let new_type = unification_map.type_substitution(ret_ty)
+        .index_calculation();
+    (new_type, context.clone().push_unifications(unification_map.0))
 }
 
 pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
@@ -203,33 +231,15 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::FunctionApp(fn_var_name, args) => {
-            let var_name = fn_var_name.infer_var_name(args, context);
-            let fn_ty = typing(context, &var_name.to_language()).0;
-            match fn_ty {
-                Type::Function(_kinds, param_types, ret_ty) => {
-                    let arg_types = args.iter()
-                        .map(|arg| typing(context, arg).0).collect::<Vec<_>>();
-                    let arg_param_types = arg_types.iter()
-                        .zip(param_types.iter()).collect::<Vec<_>>();
-                    let conditions = arg_param_types.iter() 
-                        .all(|(arg, par)| type_comparison::is_matching(context, arg, par));
-                    if conditions {
-                        let unification_map = arg_param_types.iter()
-                            .zip(args.iter())
-                            .map(|((arg, par), val)| index_conversion(arg, par, val))
-                            .flat_map(|(arg, par)| unification::unify(context, &arg, &par))
-                            .reduce(|res1, res2| res1.iter().chain(res2.iter()).cloned().collect())
-                            .unwrap_or(vec![])
-                            .into_iter().collect::<HashSet<_>>()
-                            .into_iter().collect::<Vec<_>>();
-                        let new_type = unification::type_substitution(&(*ret_ty), &unification_map).index_calculation();
-                        (new_type, context.clone().push_unifications(unification_map))
-                    } else {
-                        panic!("The arguments types doesnt match:\nexpected: {:?}\nrecieved: {:?}", param_types, arg_types);
-                    }
-                }
-                _ => panic!("{} is not a function but a {}", fn_var_name.to_r(&Context::new(vec![], vec![])).0, fn_ty.to_typescript()),
-            }
+            let function_elements = fn_var_name.clone()
+                .get_related_function(args, context);
+            function_elements.is_some().then(|| {
+                let (_, param_types, ret_ty) = function_elements.unwrap();
+                let unification_map = get_unification_map(context, args, &param_types);
+                unification_map.is_some()
+                    .then(|| apply_unification_type(context, unification_map, &ret_ty))
+                    .expect(&format!("The given values don't match:\nexpected:{:?}\nrecieved: {:?}", args, param_types))
+            }).expect("This is not a function but a") 
         }
         Lang::Tag(name, expr) => {
             let ty = typing(context, expr).0;

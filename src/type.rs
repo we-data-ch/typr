@@ -315,6 +315,12 @@ impl Type {
             }
         } else { None }
     }
+
+    pub fn get_function_elements(&self) -> Option<(Vec<ArgumentKind>, Vec<Type>, Type)> {
+        if let Type::Function(kinds, args, ret_ty) = self {
+            Some((kinds.clone(), args.clone(), (**ret_ty).clone()))
+        } else { None }
+    }
 }
 
 use std::fmt;
