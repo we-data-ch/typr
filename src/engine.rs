@@ -11,6 +11,7 @@ use crate::metaprogrammation;
 use std::io::Write;
 use std::path::PathBuf;
 use crate::TargetLanguage;
+use crate::Environment;
 
 pub fn write_adt_to_typescript(adt: &Adt, cont: &Context) -> () {
     let rstd = include_str!("../configs/typescript/std.ts");
@@ -61,8 +62,8 @@ pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf)
     app.write_all(content.as_bytes()).unwrap();
 }
 
-pub fn type_check(adt: &Adt) -> Context {
-    let (typ, context) = typing(&Context::default(), &Lang::Sequence(adt.0.clone()));
+pub fn type_check(adt: &Adt, target: TargetLanguage, environ: Environment) -> Context {
+    let (typ, context) = typing(&Context::default().set_target(target), &Lang::Sequence(adt.0.clone()));
     type_printer::pretty_print(&typ);
     context
 }

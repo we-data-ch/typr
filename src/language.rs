@@ -58,6 +58,7 @@ pub enum Lang {
     Return(Box<Lang>),
     VecBloc(String),
     Lambda(Box<Lang>),
+    Library(String),
     Any,
     Empty
 }
@@ -415,6 +416,7 @@ impl Lang {
             },
             Lang::Lambda(bloc) => (format!("function(x) {{ {} }}", bloc.to_r(cont).0), cont.clone()),
             Lang::VecBloc(bloc) => (bloc.to_string(), cont.clone()),
+            Lang::Library(name) => (format!("library({})", name), cont.clone()),
             _ => ("".to_string(), cont.clone())
         };
         

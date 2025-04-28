@@ -30,6 +30,8 @@ use crate::kind::Kind;
 use std::collections::HashSet;
 use crate::Context;
 use crate::types::label;
+use crate::types::if_type;
+use std::process::Command;
 
 pub fn number(s: &str) -> IResult<&str,Lang> {
     let res = terminated(tuple((opt(tag("-")), digit1, tag("."), digit1)), multispace0)(s);
@@ -87,7 +89,7 @@ fn body_char(s: &str) -> IResult<&str, char> {
     one_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789")(s)
 }
 
-fn variable_exp(s: &str) -> IResult<&str, String> {
+pub fn variable_exp(s: &str) -> IResult<&str, String> {
     let res = tuple((starting_char, many0(body_char)))(s);
     match res {
         Ok((s, (s1, v))) => Ok((s, format!("{}{}", s1, v.iter().collect::<String>()))),
@@ -220,7 +222,7 @@ pub fn simple_function(s: &str) -> IResult<&str, Lang> {
         many0(argument),
         terminated(tag(")"), multispace0),
         opt(terminated(tag(":"), multispace0)),
-        opt(terminated(ltype, multispace0)),
+        opt(terminated(alt((if_type, ltype)), multispace0)),
         scope
           ))(s);
     match res {
@@ -549,6 +551,7 @@ fn lambda(s: &str) -> IResult<&str, Lang> {
         Err(r) => Err(r)
     }
 }
+
 
 // main
 fn single_element(s: &str) -> IResult<&str,Lang> {

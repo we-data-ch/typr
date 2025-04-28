@@ -8,9 +8,13 @@ use crate::nominal_context::TypeNominal;
 use crate::argument_type::ArgumentType;
 use crate::vartype::VarType;
 use crate::type_comparison;
+use crate::TargetLanguage;
+use crate::Environment;
 
 #[derive(Debug, Clone)]
 pub struct Context {
+   pub environment: Environment,
+   pub target: TargetLanguage,
    pub types: VarType,
    kinds: Vec<(Type, Kind)>,
    nominals: TypeNominal,
@@ -22,6 +26,8 @@ pub struct Context {
 impl Default for Context {
     fn default() -> Self {
         Context { 
+            environment: Environment::StandAlone,
+            target: TargetLanguage::R,
             types: VarType::new(),
             kinds: vec![],
             nominals: TypeNominal::new(),
@@ -39,6 +45,8 @@ impl From<Vec<(Lang, Type)>> for  Context {
                 (Var::from_language(lan.clone()).unwrap(), typ.clone())})
            .collect();
         Context { 
+            environment: Environment::StandAlone,
+            target: TargetLanguage::R,
             types: VarType(val2),
             kinds: vec![],
             nominals: TypeNominal::new(),
@@ -53,6 +61,8 @@ impl From<Vec<(Lang, Type)>> for  Context {
 impl Context {
     pub fn new(types: Vec<(Var, Type)>, kinds: Vec<(Type, Kind)>) -> Context {
         Context {
+            environment: Environment::StandAlone,
+            target: TargetLanguage::R,
             types: VarType(types),
             kinds: kinds,
             nominals: TypeNominal::new(),
@@ -79,6 +89,7 @@ impl Context {
 
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let types = typ.type_extraction();
+        //dbg!(&types);
         let var_type = VarType(self.types.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
         let type_list: Vec<_> = var_type.get_types().iter().cloned().collect();
         let new_subtypes = self.subtypes.clone().update(&type_list, context);
@@ -94,6 +105,7 @@ impl Context {
     }
 
     pub fn get_type_from_variable(&self, var: Var) -> Type {
+        //dbg!(&self.types);
         self.types.iter()
            .find(|(v, _)| var.match_with(v, self))
            .map(|(_, ty)| ty)
@@ -223,6 +235,21 @@ impl Context {
             .zip(param_types.clone().into_iter())
             .fold(self.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont))
     }
+
+    pub fn set_target(&self, t: TargetLanguage) -> Context {
+        Context {
+            target: t,
+            ..self.clone()
+        }
+    }
+
+    pub fn set_environment(&self, e: Environment) -> Context {
+        Context {
+            environment: e,
+            ..self.clone()
+        }
+    }
+
 }
 
 fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {

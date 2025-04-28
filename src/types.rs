@@ -38,7 +38,7 @@ fn function_type(s: &str) -> IResult<&str, Type> {
             many0(ltype_arg),
             terminated(tag(")"), multispace0),
             terminated(tag("->"), multispace0),
-            terminated(ltype, multispace0)
+            terminated(alt((if_type, ltype)), multispace0)
           ))(s);
     match res {
         Ok((s, (_, v, _, _, t))) => {
@@ -110,7 +110,7 @@ fn array_type(s: &str) -> IResult<&str, Type> {
 }
 
 fn embedded_ltype(s: &str) -> IResult<&str, Type> {
-    let res = preceded(tag("*"), ltype)(s);
+    let res = preceded(tag("@"), ltype)(s);
     match res {
         Ok((s, ty)) => Ok((s, Type::Embedded(Box::new(ty)))),
         Err(r) => Err(r)
@@ -401,7 +401,7 @@ fn index_generic(s: &str) -> IResult<&str, Type> {
 
 fn label_generic(s: &str) -> IResult<&str, Type> {
     let res = tuple((
-            tag("@"),
+            tag("$"),
             generic))(s);
     match res {
         Ok((s, (_tag, Type::Generic(gen)))) 
@@ -476,26 +476,57 @@ fn index_algebra(s: &str) -> IResult<&str, Type> {
     alt((index_chain, index))(s)
 }
 
-fn propagate_multiplicity(t: Type) -> Type {
+fn propagate_multiplicity(t: &Type) -> Option<Type> {
     match t {
         Type::Record(ref body) => {
             if body.len() == 1 {
                 let argt = body[0].clone();
-                Type::Record(vec![ArgumentType(
+                Some(Type::Record(vec![ArgumentType(
                     Type::Multi(Box::new(argt.get_argument())),
                     Type::Multi(Box::new(argt.get_type())),
-                    false)])
+                    false)]))
             } else { panic!("The Record {} should have only one couple 'label: type'", t) }
         },
-        _ => t 
+        _ => None 
     }
 }
 
 fn multitype(s: &str) -> IResult<&str, Type> {
-    let res = preceded(tag("+"), ltype)(s);
+    let res = preceded(tag("*"), ltype)(s);
     match res {
         Ok((s, t)) 
-            => Ok((s, Type::Multi(Box::new(propagate_multiplicity(t))))),
+            => {
+                if let Some(new_t) = propagate_multiplicity(&t) {
+                    Ok((s, new_t))
+                } else {
+                    Ok((s, Type::Multi(Box::new(t))))
+                }
+            }
+        Err(r) => Err(r)
+    }
+}
+
+fn type_condition(s: &str) -> IResult<&str, Type> {
+    let res = tuple((ltype, op, ltype))(s);
+    match res {
+        Ok((s, (t1, ope, t2))) => {
+            let new_ope = ope.to_type()
+                .expect("This is not a valid type operator");
+            Ok((s, Type::Condition(
+                        Box::new(t1),
+                        Box::new(new_ope),
+                        Box::new(t2))))
+        },
+        Err(r) => Err(r)
+    }
+}
+
+pub fn if_type(s: &str) -> IResult<&str,Type> {
+    // if conditions
+    let res = tuple((ltype, tag("if "), many1(type_condition)))(s);
+    match res {
+        Ok((s, (typ, _if, t_conds))) 
+            => Ok((s, Type::If(Box::new(typ), t_conds))),
         Err(r) => Err(r)
     }
 }
@@ -720,5 +751,16 @@ mod tests {
         assert_eq!(res, Type::Empty);
     }
 
+    #[test]
+    fn test_if_type() {
+        let res = if_type("bool if $B in $L").unwrap().1;
+        assert_eq!(res, Type::Empty);
+    }
+
+    #[test]
+    fn test_type_condition() {
+        let res = type_condition("$B in $L").unwrap().1;
+        assert_eq!(res, Type::Empty);
+    }
 
 }

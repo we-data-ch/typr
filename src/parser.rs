@@ -21,6 +21,7 @@ use nom::character::complete::line_ending;
 use crate::elements::bang_exp;
 use nom::multi::many0;
 use crate::adt::Adt;
+use crate::elements::variable_exp;
 
 fn pattern_var(s: &str) -> IResult<&str, (Vec<Lang>, Option<String>)> {
     let res = alt((tag_exp, variable))(s);
@@ -366,11 +367,25 @@ fn tests(s: &str) -> IResult<&str, Vec<Lang>> {
     }
 }
 
+fn library(s: &str) -> IResult<&str, Vec<Lang>> {
+    let res = tuple((
+               tag("library("), 
+               variable_exp,
+               tag(");"),
+               multispace0))(s);
+
+    match res {
+        Ok((s, (lib, var, t, _))) 
+            => Ok((s, vec![Lang::Library(var)])),
+        Err(r) => Err(r)
+    }
+}
+
 // main
 fn base_parse(s: &str) -> IResult<&str, Vec<Lang>> {
     let res = tuple((
         opt(multispace0),
-        many0(alt((tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp))),
+        many0(alt((library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp))),
         opt(alt((return_exp, parse_elements)))
               ))(s);
     match res {

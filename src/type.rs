@@ -45,10 +45,14 @@ pub enum Type {
     Opaque(String),
     Multi(Box<Type>),
     Tuple(Vec<Type>),
+    If(Box<Type>, Vec<Type>),
+    Condition(Box<Type>, Box<Type>, Box<Type>),
+    In,
     Empty,
     Any
 }
 
+//main
 impl Type {
     pub fn type_extraction(&self) -> Vec<Type> {
         match self {
@@ -320,6 +324,15 @@ impl Type {
         if let Type::Function(kinds, args, ret_ty) = self {
             Some((kinds.clone(), args.clone(), (**ret_ty).clone()))
         } else { None }
+    }
+
+    pub fn get_type_pattern(&self) -> Option<ArgumentType> {
+        if let Type::Record(fields) = self {
+            let res = (fields.len() == 1)
+                .then(|| fields[0].clone())
+                .expect("The type {} should have only one member to be a type pattern");
+            Some(res)
+        } else {None}
     }
 }
 

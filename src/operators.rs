@@ -3,6 +3,7 @@ use nom::bytes::complete::tag;
 use nom::branch::alt;
 use nom::character::complete::multispace0;
 use nom::sequence::terminated;
+use crate::Type;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Op {
@@ -33,6 +34,16 @@ pub enum Op {
     Modu2,
     Empty
 }
+
+impl Op {
+    pub fn to_type(&self) -> Option<Type> {
+        match self {
+            Op::In => Some(Type::In),
+            _ => None
+        }
+    }
+}
+
 
 fn bool_op(s: &str) -> IResult<&str, &str> {
     terminated(
@@ -72,7 +83,7 @@ pub fn op(s: &str) -> IResult<&str, Op> {
             )),
         multispace0)(s);
     match res {
-        Ok((s, "in")) => Ok((s, Op::In)),
+        Ok((s, "in ")) => Ok((s, Op::In)),
         Ok((s, "and")) => Ok((s, Op::And)),
         Ok((s, "or")) => Ok((s, Op::Or)),
         Ok((s, "+")) => Ok((s, Op::Add)),

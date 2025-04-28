@@ -137,6 +137,20 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     }
 }
 
+fn match_wildcard(fields: &[ArgumentType], arg_type: ArgumentType) -> Vec<(Type, Type)> {
+    let (labels, types) = fields.iter()
+        .fold((vec![], vec![]),
+        |(mut lbl, mut typ), el| {
+            lbl.push(el.get_argument());
+            typ.push(el.get_type());
+            (lbl, typ)
+        });
+    vec![
+        (arg_type.get_argument(), Type::Tuple(labels)),
+        (arg_type.get_type(), Type::Tuple(types))
+    ]
+}
+
 // Add these new functions to the previous implementation
 
 fn unification_helper(values: &[Type], type1: &Type, type2: &Type
@@ -214,6 +228,8 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
                     }
                 }
                 Some(all_matches)
+            } else if let Some(arg_type) = type2.get_type_pattern() {
+               Some(match_wildcard(fields1, arg_type))
             } else {
                 None
             }

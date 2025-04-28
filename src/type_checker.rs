@@ -12,6 +12,12 @@ use crate::type_comparison::is_matching;
 use crate::type_comparison::reduce_type;
 use crate::argument_type::ArgumentType;
 use crate::unification_map::UnificationMap;
+use std::process::Command;
+use crate::AdtManager;
+use std::fs::File;
+use crate::parse;
+use std::fs;
+use crate::Environment;
 
 fn get_tag_names(tags: &[Tag]) -> Vec<String> {
     tags.iter()
@@ -43,6 +49,35 @@ fn unify_types(types: &[Type]) -> Type {
         }
         unified_type
     }
+}
+
+fn install_package(name: &str) -> () {
+    let status = Command::new("Rscript")
+        .args([
+            "-e",
+            &format!("if (!requireNamespace(\"{}\", quietly = TRUE)) install.packages(\"{}\")", name, name)])
+        .status()
+        .expect("failed to execute Rscript");
+}
+
+fn install_header(name: &str, context: &Context) -> Context {
+    let full_path = if context.environment == Environment::Project {
+        String::from("headers/") + name + ".ty"
+    } else {
+        name.to_string() + ".ty"
+    };
+    // copy it from the package
+    // create an header file if not exist
+    if !std::path::Path::new(&full_path).exists() {
+        let _ = File::create(&full_path); 
+    }
+    
+    let content = fs::read_to_string(full_path).unwrap();
+    let adt_manager = AdtManager::new()
+        .add_to_header(parse(&content).unwrap().1);
+    let context2 = context.clone();
+    adt_manager.get_adt_with_header().iter()
+            .fold(context2, |ctx, expr| eval(&ctx, expr))
 }
 
 pub fn eval(context: &Context, expr: &Lang) -> Context {
@@ -87,9 +122,13 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                 }
                 context.clone()
             } else {
-                panic!("Variableiable not found");
+                panic!("Variable not found");
             }
         }
+        Lang::Library(name) => {
+            install_package(name);
+            install_header(name, context)
+        },
         _ => context.clone()
     }
 }
@@ -211,7 +250,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
             let res = typing(&sub_context, body);
                 if !is_matching(context, &res.0, ret_ty) {
-                    panic!("Error:\nThe output type of the function don't match it's type annotation\nExpected: {}\nFound: {}", ret_ty, res.0)
+                    panic!("Error:\nThe output type of the function don't match it's type annotation\nExpected: {:?}\nFound: {}", ret_ty, res.0)
                 }
             let new_context = res.1.unifications.into_iter()
                 .fold(context.clone(), |cont, uni_vec| cont.push_unifications(uni_vec));

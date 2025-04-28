@@ -56,11 +56,17 @@ pub fn is_subset<T: Eq + std::hash::Hash>(v1: &[T], v2: &[T]) -> bool {
     v1.iter().all(|x| set_v2.contains(x))
 }
 
-#[derive(Parser, Clone, Copy, PartialEq)]
+#[derive(Debug, Parser, Clone, Copy, PartialEq)]
 enum TargetLanguage {
     R,
     TypeScript,
     AssemblyScript,
+}
+
+#[derive(Debug, Parser, Clone, Copy, PartialEq)]
+enum Environment {
+    StandAlone,
+    Project
 }
 
 impl std::fmt::Display for TargetLanguage {
@@ -150,6 +156,7 @@ fn new(name: &str, target: TargetLanguage) {
     let mut directories = vec![
         "TypR",        // Pour les scripts TypR (commun à tous les projets)
         "tests",       // Pour les tests (commun à tous les projets)
+        "data",       // Pour les tests (commun à tous les projets)
     ];
     
     // Ajouter les dossiers spécifiques au langage cible
@@ -334,13 +341,13 @@ fn new(name: &str, target: TargetLanguage) {
 
 fn check(target: TargetLanguage) {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"), target);
-    let _ = type_check(&adt_manager.get_adt_with_header());
+    let _ = type_check(&adt_manager.get_adt_with_header(), target, Environment::Project);
     println!("✓ Vérification du code réussie!");
 }
 
 fn build(target: TargetLanguage) {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"), target);
-    let context = type_check(&adt_manager.get_adt_with_header());
+    let context = type_check(&adt_manager.get_adt_with_header(), target, Environment::Project);
     
     match target {
         TargetLanguage::R => {
@@ -463,7 +470,7 @@ fn run_single_file(path: &PathBuf, target: TargetLanguage) {
     let file_name = path.file_name().unwrap().to_str().unwrap();
     let adt_manager = parse_code(&PathBuf::from(file_name), target);
     //HEADER
-    let context = type_check(&adt_manager.get_adt_with_header());
+    let context = type_check(&adt_manager.get_adt_with_header(), target, Environment::StandAlone);
     
     let dir = PathBuf::from(".");
     

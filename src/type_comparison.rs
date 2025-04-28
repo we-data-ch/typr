@@ -99,6 +99,8 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (Type::Record(r1), Type::Record(r2)) => {
             if has_generic_label(r2) && (r1.len() == r2.len()) {
                 all_subtype(context, r1, r2)
+            } else if let Some(arg_typ) = type2.get_type_pattern() {
+                true
             } else {
                 contains_all(context, r1, r2)
             }
@@ -201,7 +203,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
         Type::Tag(name, inner) => {
             Type::Tag(name.clone(), Box::new(reduce_type(context, inner)))
         }
-
+        Type::If(typ, _conditions) => *typ.clone(),
         _ => type_.clone()
     }
 }

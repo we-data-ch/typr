@@ -33,10 +33,12 @@ impl Adt {
         
         for exp in self.iter() {
             let (exp_str, new_cont) = exp.to_r(&current_cont);
-            results.push(exp_str);
+            if exp_str != "".to_string() {
+                results.push(exp_str);
+            }
             current_cont = new_cont;
         }
-        results.join("\n")
+        results.join("\n\n")
     }
 
     pub fn to_typescript(&self, cont: &Context) -> String {

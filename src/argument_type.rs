@@ -28,6 +28,8 @@ impl ArgumentType {
         match self.0.clone() {
             Type::Label(l) => l.to_string(),
             Type::LabelGen(l) => l.to_string().to_uppercase(),
+            Type::Multi(t) => ArgumentType(*t, self.1.clone(), false)
+                .get_argument_str(),
             _ => panic!("The argument wasn't a label")
         }
     }
