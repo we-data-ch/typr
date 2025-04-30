@@ -876,6 +876,11 @@ mod tests {
         let res = single_element("fn (a: num, b: bool) : num {...}").unwrap().1;
         assert_eq!(res, Lang::Empty);
     }
+    #[test]
+    fn test_parse_function2() {
+        let res = single_element("fn (a: int): .Some({char, char}) { Some(:{'un', 'hello'}) };").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
 
     #[test]
     fn test_parse_elements_function() {

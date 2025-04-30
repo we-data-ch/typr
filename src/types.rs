@@ -373,15 +373,12 @@ fn interface(s: &str) -> IResult<&str, Type> {
 
 fn tuple_type(s: &str) -> IResult<&str, Type> {
     let res = tuple((
-                tag("("),
+                tag("{"),
                 many0(ltype_parameter),
-                tag(")")))(s);
+                tag("}")))(s);
     match res {
         Ok((s, (_op, v, _cl))) => {
-            let v_final = v.iter().enumerate()
-                    .map(|(id, x)| ArgumentType::new(&id.to_string(), &x))
-                    .collect::<Vec<_>>();
-            Ok((s, Type::Record(v_final)))
+            Ok((s, Type::Tuple(v)))
         },
         Err(r) => Err(r)
     }
@@ -687,7 +684,7 @@ mod tests {
 
     #[test]
     fn test_tuple_type1() {
-        let res = tuple_type("(num, num, num)").unwrap().1;
+        let res = tuple_type("{num, num, num}").unwrap().1;
         assert_eq!(res.to_string(), "");
     }
 

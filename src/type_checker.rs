@@ -435,7 +435,7 @@ fn unify_type(ty1: &Type, ty2: &Type) -> Type {
                             Tag::from_type(ty1.clone()).unwrap(),
                             Tag::from_type(ty2.clone()).unwrap()])
             } else {
-                panic!("Type error");
+                Type::Empty
             }
         }
         (Type::Union(union1), Type::Tag(name, params)) => {

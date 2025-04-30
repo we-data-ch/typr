@@ -179,7 +179,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
             Type::Record(args.iter()
                 .map(|arg| reduce_param(context, arg))
                 .collect())
-        }
+        },
         Type::Alias(name, concret_types, _base_type) => {
             let var = Var::from_name(name).set_type(Type::Params(concret_types.to_vec()));
             if let Some((aliased_type, generics)) = context.get_with_gen(&var) {
@@ -192,7 +192,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 );
                 reduce_type(context, &substituted)
             } else {
-                panic!("The alias {} wasn't founded", name)
+                panic!("The alias {} wasn't found", name)
             }
         }
 
