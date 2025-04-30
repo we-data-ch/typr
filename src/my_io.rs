@@ -24,24 +24,52 @@ pub fn read_file_from_name(name: &str) -> String {
 
 pub fn execute_r() -> () {
     println!("Execution: ");
-    let output = Command::new("Rscript")
+    match Command::new("Rscript")
         .arg(get_os_file("app.R"))
-        .output()
-        .expect("Échec lors de l'exécution de la commande");
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    println!("{}", stdout);
+        .output() 
+    {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            
+            if output.status.success() {
+                println!("Execution: \n{}", stdout);
+            } else {
+                println!("Error (code {}): \n{}", output.status, stderr);
+                if !stdout.is_empty() {
+                    println!("Sortie standard: \n{}", stdout);
+                }
+            }
+        },
+        Err(e) => {
+            println!("Échec lors de l'exécution de la commande: {}", e);
+        }
+    }
 }
 
-pub fn execute_r_with_path(execution_path: &PathBuf) -> () {
-    let output = Command::new("Rscript")
+pub fn execute_r_with_path(execution_path: &PathBuf, file_name: &str) -> () {
+    match Command::new("Rscript")
         .current_dir(execution_path)
-        .arg(get_os_file("main.R"))
+        .arg(get_os_file(file_name))
         .output()
-        .expect("Échec lors de l'exécution de la commande");
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    println!("{}", stdout);
+    {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            
+            if output.status.success() {
+                println!("Execution: \n{}", stdout);
+            } else {
+                println!("Error (code {}): \n{}", output.status, stderr);
+                if !stdout.is_empty() {
+                    println!("Sortie standard: \n{}", stdout);
+                }
+            }
+        },
+        Err(e) => {
+            println!("Échec lors de l'exécution de la commande: {}", e);
+        }
+    }
 }
 
 pub fn execute_typescript() -> () {

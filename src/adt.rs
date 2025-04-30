@@ -28,7 +28,7 @@ impl Adt {
     }
 
     pub fn to_r(&self, cont: &Context) -> String {
-        let mut current_cont = cont.clone();
+        let mut current_cont = cont.update_classes();
         let mut results = Vec::new();
         
         for exp in self.iter() {

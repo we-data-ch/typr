@@ -59,6 +59,7 @@ pub enum Lang {
     VecBloc(String),
     Lambda(Box<Lang>),
     Library(String),
+    Exp(String),
     Any,
     Empty
 }
@@ -79,6 +80,28 @@ fn my_to_str<T: ToString>(v: &[T]) -> String {
 
 pub fn build_generic_function(s: &str) -> String {
     format!("{} <- function(x, ...) {{\n\tUseMethod('{}')\n}}", s, s)
+}
+
+fn condition_to_if(var: &Lang, condition: &Lang) -> (String, Lang) {
+    match (var, condition) {
+        (Lang::Variable(name, _, _ , _, _), Lang::Tag(tag_name, body)) => {
+            (format!("{}[[1]] == '{}'", name, tag_name), (**body).clone())
+        },
+        _ => panic!("The element you put next to 'match' isn't a variable or your left part of your branches aren't true tags")
+    }
+}
+
+
+fn to_if_statement(var: Lang, branches: &[(Box<Lang>, Box<Lang>)], context: &Context) -> String {
+    branches.iter()
+        .map(|(condition, body)| (condition_to_if(&var, condition), body))
+        .map(|((cond, sub_var), body)| (cond, body.lang_substitution(&sub_var, &var, context)))
+        .enumerate()
+        .map(|(id, (cond, body))| if id == 0 {
+            format!("if ({}) {{ \n {} \n }}", cond, body)
+        } else {
+            format!("else if ({}) {{ \n {} \n }}", cond, body)
+        }).collect::<Vec<_>>().join(" ")
 }
 
 //main
@@ -286,24 +309,33 @@ impl Lang {
             },
             Lang::GenFunc(func) => 
                 (func.to_string(), cont.clone()),
-            Lang::Let(var, _s2, body) => {
+            Lang::Let(var, ttype, body) => {
                 let new_path = Self::format_path(&var.get_path());
                 let (body_str, new_cont) = body.to_r(cont);
                 let new_name = new_path + &var.get_name();
                 
-                match **body {
+                let r_code = match **body {
                     Lang::Function(_, _, _, _) => {
                         let related_type = var.get_type();
                         let class = cont.get_class(&related_type);
                         if class.len() > 7 && &class[0..7] == "Generic" {
-                            (format!("{}.default <- {}", new_name, body_str), new_cont)
+                            format!("{}.default <- {}", new_name, body_str)
                         } else if class == "Empty" {
-                            (format!("{} <- {}", new_name, body_str), new_cont)
+                            format!("{} <- {}", new_name, body_str)
                         } else {
-                            (format!("{}.{} <- {}", new_name, class, body_str), new_cont)
+                            format!("{}.{} <- {}", new_name, class, body_str)
                         }
                     }
-                    _ => (format!("{} <- {}", new_name, body_str), new_cont)
+                    _ => format!("{} <- {}", new_name, body_str)
+                };
+
+                match ttype {
+                    Type::Any | Type::Empty => (r_code, new_cont),
+                    target_type => {
+                        let class = new_cont.get_class(target_type);
+                        let classes = new_cont.get_classes(target_type).unwrap();
+                        (format!("{}\nclass({}) <- c('{}', {})", r_code, new_name, class, classes), new_cont)
+                    } 
                 }
             },
             Lang::Array(v) => {
@@ -417,6 +449,8 @@ impl Lang {
             Lang::Lambda(bloc) => (format!("function(x) {{ {} }}", bloc.to_r(cont).0), cont.clone()),
             Lang::VecBloc(bloc) => (bloc.to_string(), cont.clone()),
             Lang::Library(name) => (format!("library({})", name), cont.clone()),
+            Lang::Match(var, branches) => (to_if_statement((**var).clone(), branches, cont), cont.clone()),
+            Lang::Exp(exp) => (exp.clone(), cont.clone()),
             _ => ("".to_string(), cont.clone())
         };
         
@@ -868,6 +902,17 @@ impl Lang {
         let var_name = self.infer_var_name(args, context);
         let fn_ty = typing(context, &var_name.to_language()).0;
         fn_ty.get_function_elements()
+    }
+
+    pub fn lang_substitution(&self, sub_var: &Lang, var: &Lang, context: &Context) -> String {
+        if let Lang::Variable(name, _, _, _, _) = var {
+            let res = match self {
+                Lang::Variable(_, _, _, _, _) if self == sub_var 
+                    => Lang::Exp(format!("{}[[2]]", name.to_string())),
+                lang => lang.clone()
+            };
+            res.to_r(context).0
+        } else { panic!("var is not a variable") }
     }
 }
 

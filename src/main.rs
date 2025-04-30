@@ -351,7 +351,7 @@ fn build(target: TargetLanguage) {
     
     match target {
         TargetLanguage::R => {
-            write_adt_to_r_with_path(&adt_manager.get_adt_without_header(), &context, &PathBuf::from("R"));
+            write_adt_to_r_with_path(&adt_manager.get_adt_without_header(), &context, &PathBuf::from("R"), "main.R");
             println!("✓ Code R généré avec succès dans le dossier R/");
         },
         TargetLanguage::TypeScript => {
@@ -373,7 +373,7 @@ fn run(target: TargetLanguage) {
     
     match target {
         TargetLanguage::R => {
-            execute_r_with_path(&PathBuf::from("R"));
+            execute_r_with_path(&PathBuf::from("R"), "main.R");
         },
         TargetLanguage::TypeScript => {
             // Compiler et exécuter le TypeScript
@@ -476,8 +476,9 @@ fn run_single_file(path: &PathBuf, target: TargetLanguage) {
     
     match target {
         TargetLanguage::R => {
-            write_adt_to_r_with_path(&adt_manager.get_adt_without_header(), &context, &dir);
-            execute_r_with_path(&dir);
+            let new_file_name = file_name.replace(".ty", ".R");
+            write_adt_to_r_with_path(&adt_manager.get_adt_without_header(), &context, &dir, &new_file_name);
+            execute_r_with_path(&dir, &new_file_name);
         },
         TargetLanguage::TypeScript => {
             // Générer et exécuter le TypeScript

@@ -361,7 +361,7 @@ fn pascal_case(s: &str) -> IResult<&str, String> {
 fn parenthese_value(s: &str) -> IResult<&str, Lang> {
     delimited(
             terminated(tag("("), multispace0),
-            single_element,
+            parse_elements,
             terminated(tag(")"), multispace0)
           )(s)
 }
@@ -431,9 +431,9 @@ fn if_exp(s: &str) -> IResult<&str, Lang> {
 
 fn branch(s: &str) -> IResult<&str, (Box<Lang>, Box<Lang>)> {
     let res = tuple((
-            tag_exp,
+            terminated(tag_exp, multispace0),
             terminated(tag("=>"), multispace0),
-            single_element,
+            terminated(single_element, multispace0),
             opt(terminated(tag(","), multispace0)),
                     ))(s);
     match res {
@@ -460,7 +460,7 @@ fn match_exp(s: &str) -> IResult<&str, Lang> {
 
 fn tuple_exp(s: &str) -> IResult<&str, Lang> {
     let res = tuple((
-            terminated(tag("{"), multispace0),
+            terminated(tag(":{"), multispace0),
             values,
             terminated(tag("}"), multispace0),
                     ))(s);
@@ -986,6 +986,12 @@ mod tests {
     }
 
     #[test]
+    fn test_match2() {
+        let res = match_exp("match res { None => true, Some(t) => false }").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
+
+    #[test]
     fn test_variable1() {
         let res = variable("hey").unwrap().1;
         assert_eq!(res, Lang::Empty);
@@ -1005,13 +1011,19 @@ mod tests {
 
     #[test]
     fn test_var_tag1() {
-        let res = single_element("Mod::a").unwrap().1;
+        let res = single_element("Some(s.substr(a.len() + 1, s.len()))").unwrap().1;
         assert_eq!(res, Lang::Empty);
     }
 
     #[test]
     fn test_var_tag2() {
-        let res = parse_elements("Mod::a").unwrap().1;
+        let res = tag_exp("Some(s.substr(a.len() + 1, s.len()))").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
+
+    #[test]
+    fn test_my_element1() {
+        let res = single_element("s.substr(a.len() + 1, s.len())").unwrap().1;
         assert_eq!(res, Lang::Empty);
     }
 

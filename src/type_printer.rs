@@ -25,7 +25,7 @@ fn format(ty: &Type) -> String {
             format!("fn<{}>({}) -> {}", formatted_kinds.join(", "), formatted_params.join(", "), format(ret_ty))
         }
         Type::Tag(name, param) => {
-            if **param == Type::Any{
+            if (**param == Type::Any) || (**param == Type::Empty){
                 format!(".{}", name)
             } else {
                 format!(".{}({})", name, format(param))

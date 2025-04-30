@@ -83,29 +83,42 @@ impl Context {
         }).next()
     }
 
+    pub fn get_with_gen(&self, var: &Var) -> Option<(Type, Vec<Type>)> {
+        let Var(name1, path1, perm1, bo1, params1) = var;
+        self.iter().flat_map(|(var2, type_)| {
+            let Var(name2, path2, perm2, bo2, params2) = var2;
+            let conditions = (name1 == name2) &&
+                (path1 == path2) && (perm1 == perm2) &&
+                (bo1 == bo2) && (type_comparison::is_matching(self, params1, params2));
+            if conditions { 
+                if let Type::Params(types) = params2 {
+                    Some((type_.clone(), types.clone()))
+                } else { None }
+            } else { None }
+        }).next()
+    }
+
     pub fn iter(&self) -> std::slice::Iter<(Var, Type)> {
         self.types.0.iter()
     }
 
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let types = typ.type_extraction();
-        //dbg!(&types);
         let var_type = VarType(self.types.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
         let type_list: Vec<_> = var_type.get_types().iter().cloned().collect();
-        let new_subtypes = self.subtypes.clone().update(&type_list, context);
+        //let new_subtypes = self.subtypes.clone().update(&type_list, context);
         let nominals = types.iter()
             .fold(self.nominals.clone(), |nom, typ_| nom.push_type(typ_.clone()));
         Context {
             types: var_type, 
             nominals: nominals.clone(),
-            subtypes: new_subtypes,
+            //subtypes: new_subtypes,
             adt: self.clone().add_to_adt(&wasm_types(&types, &nominals, context)).adt,
             ..self
         }
     }
 
     pub fn get_type_from_variable(&self, var: Var) -> Type {
-        //dbg!(&self.types);
         self.types.iter()
            .find(|(v, _)| var.match_with(v, self))
            .map(|(_, ty)| ty)
@@ -250,6 +263,13 @@ impl Context {
         }
     }
 
+    pub fn update_classes(&self) -> Context {
+        let types = self.types.get_types().iter().cloned().collect::<Vec<_>>();
+        Context {
+            subtypes: self.subtypes.clone().update(&types, self),
+            ..self.clone()
+        }
+    }
 }
 
 fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {

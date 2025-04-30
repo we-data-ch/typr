@@ -1,3 +1,48 @@
+# ERROR HANDLING ----------
+let stop <- fn(msg: char): Empty {
+	...
+};
+
+
+# OPTION TYPE -------------
+type Option<T> = .Some(T) | .None;
+
+let unwrap <- fn(value: Option<T>): T {
+	match value {
+		Some(v)	=> v,
+		None => stop("The value is not unwrappable.") 
+	}
+};
+
+let expect <- fn(value: Option<T>, msg: char): T {
+	match value {
+		Some(v)	=> v,
+		None => stop(msg) 
+	}
+};
+
+
+let unwrap_or <- fn(value: Option<T>, alternative: T): T {
+	match value {
+		Some(v) => v,
+		None => alternative
+	}
+};
+
+let is_some <- fn(value: Option<T>): bool {
+	match value {
+		Some(v) => true,
+		None => false
+	}
+};
+
+let is_none <- fn(value: Option<T>): bool {
+	match value {
+		Some(v) => false,
+		None => true
+	}
+};
+
 # PLOT FUNCTION ----------
 let plot <- fn(a: [#N, num], b: [#N, num], c: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool): .None {
 	...

@@ -38,3 +38,15 @@ Tout les sous types entreront dans une hiérarchie. Les types enfants prendront 
 {+#N: +T} => Tout tuple mais catch le premier couple
 {+T} => Tout tuple mais catch que les types
 {+#N: T} => Tout tuple mais catch les labels
+
+# Match to if
+
+match res {
+	None => true,
+	Some(t) => false
+}
+
+alors on doit mettre:
+
+if (res[[1]] == None) { true }
+else if (res[[1]] == Some) { false }

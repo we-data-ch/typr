@@ -2,6 +2,7 @@ use crate::r#type::Type;
 use crate::argument_type::ArgumentType;
 use crate::Context;
 use crate::type_comparison;
+use crate::tag::Tag;
 
 pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     if substitutions.is_empty() {
@@ -130,6 +131,14 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
                 name.clone(),
                 Box::new(type_substitution(inner_type, substitutions))
             )
+        }
+
+        Type::Union(types) => {
+            let new_types = types.iter()
+                .map(|typ| {
+                    Tag::from_type(type_substitution(&typ.to_type(), substitutions)).unwrap()
+                }).collect::<Vec<_>>();
+            Type::Union(new_types)
         }
 
         // Default case: return the type unchanged

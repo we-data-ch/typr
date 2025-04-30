@@ -111,8 +111,11 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         },
 
         // Union subtyping
-        (type1, Type::Union(types)) => {
+        (Type::Tag(name, body), Type::Union(types)) => {
             types.iter().any(|t| is_matching(context, type1, &t.to_type()))
+        },
+        (Type::Tag(name1, body1), Type::Tag(name2, body2)) => {
+            (name1 == name2) && is_matching(context, body1, body2)
         },
 
         // Generic subtyping
@@ -177,14 +180,14 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 .map(|arg| reduce_param(context, arg))
                 .collect())
         }
-        Type::Alias(name, params, _base_type) => {
-            let var = Var::from_name(name).set_type(Type::Params(params.to_vec()));
-            if let Some(aliased_type) = context.get(&var) {
+        Type::Alias(name, concret_types, _base_type) => {
+            let var = Var::from_name(name).set_type(Type::Params(concret_types.to_vec()));
+            if let Some((aliased_type, generics)) = context.get_with_gen(&var) {
                 let substituted = type_substitution(
                     &aliased_type,
-                    &params.iter()
-                        .enumerate()
-                        .map(|(i, t)| (Type::Generic(i.to_string()), t.clone()))
+                    &generics.iter()
+                        .zip(concret_types.iter())
+                        .map(|(gen, typ)| (gen.clone(), typ.clone()))
                         .collect::<Vec<_>>()
                 );
                 reduce_type(context, &substituted)
@@ -205,5 +208,23 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
         }
         Type::If(typ, _conditions) => *typ.clone(),
         _ => type_.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::subtypes::is_true_subtype;
+
+    #[test]
+    fn test_matching(){
+        let typ1 = Type::Union(vec![
+                               Tag("Some".to_string(), Type::Integer),
+                               Tag("None".to_string(), Type::Empty)]);
+        let typ2 = Type::Union(vec![
+                               Tag("Some".to_string(), Type::Generic("T".to_string())),
+                               Tag("None".to_string(), Type::Empty)]);
+        let ctx = Context::default();
+        assert_eq!(is_true_subtype(&ctx, &typ1, &typ2), true);
     }
 }

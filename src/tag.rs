@@ -7,7 +7,7 @@ use crate::type_checker::typing;
 type Name = String;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
-pub struct Tag(Name, Type);
+pub struct Tag(pub Name, pub Type);
 
 impl Tag {
     pub fn new(name: String, typ: Type) -> Tag {
@@ -24,13 +24,21 @@ impl Tag {
 
     pub fn from_language(lang: Lang, context: &Context) -> Option<Tag> {
         match lang {
-            Lang::Tag(name, typ) => Some(Tag(name, typing(context, &(*typ)).0)),
+            Lang::Tag(name, typ) => Some(Tag(name, Type::Any)),
             _ => None
         }
     }
 
     pub fn to_type(&self) -> Type {
         Type::Tag(self.0.clone(), Box::new(self.1.clone()))
+    }
+
+    pub fn get_name(&self) -> String {
+        self.0.clone()
+    }
+
+    pub fn get_type(&self) -> Type {
+        self.1.clone()
     }
 
 }

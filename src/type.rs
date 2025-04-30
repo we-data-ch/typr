@@ -328,10 +328,8 @@ impl Type {
 
     pub fn get_type_pattern(&self) -> Option<ArgumentType> {
         if let Type::Record(fields) = self {
-            let res = (fields.len() == 1)
+            (fields.len() == 1)
                 .then(|| fields[0].clone())
-                .expect("The type {} should have only one member to be a type pattern");
-            Some(res)
         } else {None}
     }
 }

@@ -50,13 +50,13 @@ pub fn write_adt_to_assemblyscript_with_path(adt: &Adt, cont: &Context, output_d
     app.write_all(content.as_bytes()).unwrap();
 }
 
-pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf) -> () {
+pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf, file_name: &str) -> () {
     let rstd = include_str!("../configs/r/std.R");
     let std_path = output_dir.join("std.R");
     let mut rstd_file = File::create(std_path).unwrap();
     rstd_file.write_all(rstd.as_bytes()).unwrap();
 
-    let app_path = output_dir.join("main.R");
+    let app_path = output_dir.join(file_name);
     let mut app = File::create(app_path).unwrap();
     let content = format!("source('std.R', echo = FALSE)\n{}\n{}", Adt(cont.adt.clone()).to_r(cont), adt.to_r(cont));
     app.write_all(content.as_bytes()).unwrap();
