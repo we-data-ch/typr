@@ -10,6 +10,7 @@ use crate::type_checker;
 use crate::Context;
 use crate::typing;
 use crate::unification;
+use crate::help_data::HelpData;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Lang {
@@ -18,7 +19,7 @@ pub enum Lang {
     And(Box<Lang>, Box<Lang>),
     Or(Box<Lang>, Box<Lang>),
     Union(Box<Lang>, Box<Lang>),
-    Number(f32),
+    Number(f32, HelpData),
     Integer(i32),
     In(Box<Lang>, Box<Lang>),
     Add(Box<Lang>, Box<Lang>),
@@ -171,7 +172,7 @@ impl Lang {
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 (format!("{} %% {}", e2_str, e1_str), cont2)
             },
-            Lang::Number(n) => 
+            Lang::Number(n, _) => 
                 (format!("{}", n), cont.clone()),
             Lang::Add(e1, e2) => {
                 let (e1_str, cont1) = e1.to_r(cont);
@@ -462,7 +463,7 @@ impl Lang {
         match self {
             Lang::Bool(b) => (format!("{}", b), cont.clone()),
             Lang::Integer(i) => (format!("{}", i), cont.clone()),
-            Lang::Number(n) => (format!("{}", n), cont.clone()),
+            Lang::Number(n, _) => (format!("{}", n), cont.clone()),
             Lang::Char(c) => (format!("\"{}\"", c), cont.clone()),
             Lang::Empty => ("null".to_string(), cont.clone()),
             Lang::Array(v) => {
@@ -651,7 +652,7 @@ impl Lang {
         match self {
             Lang::Bool(b) => (format!("{}", b), cont.clone()),
             Lang::Integer(i) => (format!("{}", i), cont.clone()),
-            Lang::Number(n) => (format!("{}", n), cont.clone()),
+            Lang::Number(n, _) => (format!("{}", n), cont.clone()),
             Lang::Char(c) => (format!("\"{}\"", c), cont.clone()),
             Lang::Empty => ("null".to_string(), cont.clone()),
             Lang::Array(v) => {

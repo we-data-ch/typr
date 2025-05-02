@@ -37,7 +37,7 @@ fn format(ty: &Type) -> String {
         }
         Type::Generic(name) => name.to_uppercase(),
         Type::Index(gen) => format!("#{}", gen),
-        Type::Number => "num".to_string(),
+        Type::Number(_) => "num".to_string(),
         Type::Boolean => "bool".to_string(),
         Type::Integer => "int".to_string(),
         Type::Char => "char".to_string(),

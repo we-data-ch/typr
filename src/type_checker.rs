@@ -233,7 +233,7 @@ fn get_variable_type(lang: &Lang, tags: &[Tag]) -> Option<(Var, Type)> {
 
 pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
     match expr {
-        Lang::Number(_) => (Type::Number, context.clone()),
+        Lang::Number(_, h) => (Type::Number(h.clone()), context.clone()),
         Lang::Integer(_) => (Type::Integer, context.clone()),
         Lang::Bool(_) => (Type::Boolean, context.clone()),
         Lang::Char(_) => (Type::Char, context.clone()),

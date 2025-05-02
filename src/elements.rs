@@ -43,7 +43,7 @@ fn number_helper(s: Span) -> IResult<Span, Lang> {
         Ok((s, (sign, d1, _dot, d2))) => {
             let sign2 = sign.unwrap_or(LocatedSpan::new_extra("", d1.clone().extra));
             let n = format!("{}{}.{}", sign2, d1, d2).parse::<f32>().unwrap();
-            Ok((s, Lang::Number(n)))
+            Ok((s, Lang::Number(n, sign2.into())))
         },
         Err(r) => Err(r),
     }
@@ -314,7 +314,7 @@ fn array_indexing(s: Span) -> IResult<Span, Lang> {
             terminated(tag("]"), multispace0)
           ).parse(s);
     match res {
-        Ok((s, (exp, _, Lang::Number(n), _))) 
+        Ok((s, (exp, _, Lang::Number(n, _), _))) 
             => Ok((s, Lang::ArrayIndexing(Box::new(exp), n))),
         Err(r) => Err(r),
         _ => todo!()
@@ -786,7 +786,7 @@ fn check_minus_sign(v: Vec<(Lang, Op)>) -> Vec<(Lang, Op)> {
         let (lang, op) = v2.first().unwrap();
         let first = match (op.clone(), lang.clone()) {
             (Op::Minus, Lang::Integer(l)) => (Lang::Integer(-l), Op::Empty),
-            (Op::Minus, Lang::Number(l)) => (Lang::Number(-l), Op::Empty),
+            (Op::Minus, Lang::Number(l, h)) => (Lang::Number(-l, h), Op::Empty),
             _ => (lang.clone(), op.clone())
         };
         v2.insert(0, first); v2

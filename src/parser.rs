@@ -84,14 +84,14 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         typ.clone().unwrap_or(Type::Empty),
                         Box::new(body))]))
                 }
-        Ok((s, (_let, (pat_var, Some(_)), typ, _eq, body))) => {
+        Ok((s, (_let, (pat_var, Some(_)), typ, eq, body))) => {
             if pat_var.len() == 1 {
                 Ok((s, 
                     vec![
                     Lang::Let(
                         Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
                         typ.clone().unwrap_or(Type::Empty),
-                        Box::new(Lang::Dot(Box::new(Lang::Number(0.0)),
+                        Box::new(Lang::Dot(Box::new(Lang::Number(0.0, eq.into())),
                         Box::new(body))))]))
 
             } else {

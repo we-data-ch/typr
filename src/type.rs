@@ -6,6 +6,7 @@ use crate::tag::Tag;
 use crate::context::generate_arg;
 use crate::kind::Kind;
 use std::collections::HashSet;
+use crate::help_data::HelpData;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -19,7 +20,7 @@ type Path = String;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
 pub enum Type {
-    Number,
+    Number(HelpData),
     Integer,
     Boolean,
     Char,
@@ -125,7 +126,7 @@ impl Type {
        match self {
            Type::Boolean => "boolean".to_string(),
            Type::Integer => "number".to_string(),
-           Type::Number => "number".to_string(),
+           Type::Number(_) => "number".to_string(),
            Type::Char => "string".to_string(),
            Type::Record(body) => {
                 let res = body.iter()
@@ -167,7 +168,7 @@ impl Type {
        match self {
            Type::Boolean => "bool".to_string(),
            Type::Integer => "i32".to_string(),
-           Type::Number => "f64".to_string(),
+           Type::Number(_) => "f64".to_string(),
            Type::Char => "string".to_string(),
            Type::Record(body) => {
                 let res = body.iter()
@@ -349,7 +350,7 @@ impl fmt::Display for Type {
                         .map(|at| at.to_string()).collect::<Vec<_>>().join(", "))
             },
             Type::Index(i) => i.to_string(),
-            Type::Number => "num".to_string(),
+            Type::Number(_) => "num".to_string(),
             Type::Integer => "int".to_string(),
             Type::Boolean => "bool".to_string(),
             Type::Char => "char".to_string(),

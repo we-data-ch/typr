@@ -45,7 +45,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
-                (Type::Number, Type::Number) => Type::Number,
+                (Type::Number(h), Type::Number(_)) => Type::Number(h),
                 (Type::Integer, Type::Integer) => Type::Integer,
                 _ => Type::Add(Box::new(v1), Box::new(v2))
             }
@@ -55,7 +55,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
-                (Type::Number, Type::Number) => Type::Number,
+                (Type::Number(h), Type::Number(_)) => Type::Number(h),
                 (Type::Integer, Type::Integer) => Type::Integer,
                 _ => Type::Minus(Box::new(v1), Box::new(v2))
             }
@@ -65,7 +65,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
-                (Type::Number, Type::Number) => Type::Number,
+                (Type::Number(h), Type::Number(_)) => Type::Number(h),
                 (Type::Integer, Type::Integer) => Type::Integer,
                 _ => Type::Mul(Box::new(v1), Box::new(v2))
             }
@@ -75,7 +75,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
-                (Type::Number, Type::Number) => Type::Number,
+                (Type::Number(h), Type::Number(_)) => Type::Number(h),
                 (Type::Integer, Type::Integer) => Type::Integer,
                 _ => Type::Div(Box::new(v1), Box::new(v2))
             }
@@ -182,8 +182,8 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
         }
 
         // Index generic case with number
-        (Type::Number, Type::IndexGen(g)) | (Type::IndexGen(g), Type::Number) => {
-            Some(vec![(Type::IndexGen(g.clone()), Type::Number)])
+        (Type::Number(h), Type::IndexGen(g)) | (Type::IndexGen(g), Type::Number(h)) => {
+            Some(vec![(Type::IndexGen(g.clone()), Type::Number(h.clone()))])
         }
 
         (Type::Index(i), Type::IndexGen(g)) | (Type::IndexGen(g), Type::Index(i)) => {

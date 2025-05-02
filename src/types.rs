@@ -172,7 +172,7 @@ fn record_type(s: Span) -> IResult<Span, Type> {
 fn number(s: Span) -> IResult<Span, Type> {
     let res = terminated(tag("num"), multispace0).parse(s);
     match res {
-        Ok((s, _)) => Ok((s, Type::Number)),
+        Ok((s, nu)) => Ok((s, Type::Number(nu.into()))),
         Err(r) => Err(r)
     }
 }
@@ -258,9 +258,9 @@ fn tag_default(s: Span) -> IResult<Span, Type> {
 }
 
 fn get_primitive(ls: LocatedSpan<&str, String>) -> Type {
-    match ls.into_fragment() {
+    match ls.clone().into_fragment() {
         "bool" => Type::Tag("Bool".to_string(), Box::new(Type::Boolean)),
-        "num" => Type::Tag("Num".to_string(), Box::new(Type::Number)),
+        "num" => Type::Tag("Num".to_string(), Box::new(Type::Number(ls.into()))),
         "char" => Type::Tag("Char".to_string(), Box::new(Type::Char)),
         _ => todo!()
     }
