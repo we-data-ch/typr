@@ -379,6 +379,7 @@ impl Lang {
             Lang::Char(s) => 
                 ("'".to_string() + s + "'", cont.clone()),
             Lang::If(cond, exp, els) if els == &Box::new(Lang::Empty) => {
+                println!("if statement");
                 let (cond_str, cont1) = cond.to_r(cont);
                 let (exp_str, cont2) = exp.to_r(&cont1);
                 

@@ -1,13 +1,16 @@
 use crate::my_io::read_file_from_name;
+use crate::my_io::get_os_file;
 use crate::adt::Adt;
 use crate::Lang;
 use crate::parse;
+use nom_locate::LocatedSpan;
 
 
 fn import_file_module_code(line: &Lang) -> Lang {
     match line {
         Lang::ModImp(name) => {
-            let new_adt = metaprogrammation(parse(&read_file_from_name(&name)).unwrap().1);
+            let file = get_os_file(&format!("{}.ty", name));
+            let new_adt = metaprogrammation(parse(LocatedSpan::new_extra(&read_file_from_name(&name), file)).unwrap().1);
             Lang::Module(name.to_string(), new_adt.0)
         }
         n => n.clone()

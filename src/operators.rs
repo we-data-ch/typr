@@ -4,6 +4,10 @@ use nom::branch::alt;
 use nom::character::complete::multispace0;
 use nom::sequence::terminated;
 use crate::Type;
+use nom::Parser;
+use nom_locate::{position, LocatedSpan};
+
+type Span<'a> = LocatedSpan<&'a str, String>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Op {
@@ -45,7 +49,7 @@ impl Op {
 }
 
 
-fn bool_op(s: &str) -> IResult<&str, &str> {
+fn bool_op(s: Span) -> IResult<Span, Span> {
     terminated(
         alt((
             tag("<="),
@@ -55,10 +59,42 @@ fn bool_op(s: &str) -> IResult<&str, &str> {
             tag(">"),
             tag("and"),
             tag("or"),
-            )), multispace0)(s)
+            )), multispace0).parse(s)
 }
 
-pub fn op(s: &str) -> IResult<&str, Op> {
+fn get_op(ls: LocatedSpan<&str, String>) -> Op {
+    match ls.into_fragment() {
+        "in " => Op::In,
+        "and" => Op::And,
+        "or" => Op::Or,
+        "+" => Op::Add,
+        "++" => Op::Add2,
+        "-" => Op::Minus,
+        "--" => Op::Minus2,
+        "*" => Op::Mul,
+        "**" => Op::Mul2,
+        "/" => Op::Div,
+        "//" => Op::Div2,
+        "@" => Op::At,
+        "@@" => Op::At2,
+        "%%" => Op::Modu2,
+        "%" => Op::Modu,
+        "|>" => Op::Pipe,
+        "|>>" => Op::Pipe2,
+        "." => Op::Dot,
+        ".." => Op::Dot2,
+        "|" => Op::Union,
+        "==" => Op::Eq,
+        "<=" => Op::LesserOrEqual,
+        ">=" => Op::GreaterOrEqual,
+        "<" => Op::LesserThan,
+        ">" => Op::GreaterThan,
+        _ => todo!()
+    }
+
+}
+
+pub fn op(s: Span) -> IResult<Span, Op> {
     let res = terminated(
         alt((
             bool_op,
@@ -81,35 +117,10 @@ pub fn op(s: &str) -> IResult<&str, Op> {
             tag("."),
             tag("|")
             )),
-        multispace0)(s);
+        multispace0).parse(s);
     match res {
-        Ok((s, "in ")) => Ok((s, Op::In)),
-        Ok((s, "and")) => Ok((s, Op::And)),
-        Ok((s, "or")) => Ok((s, Op::Or)),
-        Ok((s, "+")) => Ok((s, Op::Add)),
-        Ok((s, "++")) => Ok((s, Op::Add2)),
-        Ok((s, "-")) => Ok((s, Op::Minus)),
-        Ok((s, "--")) => Ok((s, Op::Minus2)),
-        Ok((s, "*")) => Ok((s, Op::Mul)),
-        Ok((s, "**")) => Ok((s, Op::Mul2)),
-        Ok((s, "/")) => Ok((s, Op::Div)),
-        Ok((s, "//")) => Ok((s, Op::Div2)),
-        Ok((s, "@")) => Ok((s, Op::At)),
-        Ok((s, "@@")) => Ok((s, Op::At2)),
-        Ok((s, "%%")) => Ok((s, Op::Modu2)),
-        Ok((s, "%")) => Ok((s, Op::Modu)),
-        Ok((s, "|>")) => Ok((s, Op::Pipe)),
-        Ok((s, "|>>")) => Ok((s, Op::Pipe2)),
-        Ok((s, ".")) => Ok((s, Op::Dot)),
-        Ok((s, "..")) => Ok((s, Op::Dot2)),
-        Ok((s, "|")) => Ok((s, Op::Union)),
-        Ok((s, "==")) => Ok((s, Op::Eq)),
-        Ok((s, "<=")) => Ok((s, Op::LesserOrEqual)),
-        Ok((s, ">=")) => Ok((s, Op::GreaterOrEqual)),
-        Ok((s, "<")) => Ok((s, Op::LesserThan)),
-        Ok((s, ">")) => Ok((s, Op::GreaterThan)),
+        Ok((s, ls)) => Ok((s, get_op(ls))),
         Err(r) => Err(r),
-        _ => todo!()
     }
 }
 

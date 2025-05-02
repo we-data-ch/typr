@@ -1,19 +1,13 @@
 use std::process::exit;
 use nom::IResult;
-use nom::branch::alt;
-use nom::sequence::terminated;
 use nom::character::complete::multispace0;
 use crate::language::Lang;
 use crate::var::Var;
 use nom::bytes::complete::tag;
-use nom::sequence::tuple;
 use crate::operators::{Op, op};
-use nom::sequence::delimited;
 use nom::character::complete::alpha1;
 use nom::character::complete::alphanumeric1;
 use nom::combinator::opt;
-use nom::multi::many0;
-use nom::multi::many1;
 use crate::argument_type::ArgumentType;
 use crate::argument_value::ArgumentValue;
 use crate::argument_kind::ArgumentKind;
@@ -21,7 +15,6 @@ use crate::types::ltype;
 use nom::character::complete::one_of;
 use nom::character::complete::none_of;
 use crate::r#type::Type;
-use nom::sequence::preceded;
 use nom::character::complete::multispace1;
 use crate::parser::parse_exp;
 use crate::var::Permission;
@@ -31,13 +24,24 @@ use std::collections::HashSet;
 use crate::Context;
 use crate::types::label;
 use crate::types::if_type;
-use std::process::Command;
+use nom::sequence::terminated;
+use nom::branch::alt;
+use nom::sequence::delimited;
+use nom::multi::many0;
+use nom::multi::many1;
+use nom::sequence::preceded;
+use nom::Parser;
+use nom::sequence::pair;
+use nom_locate::{position, LocatedSpan};
+use crate::syntax_error;
 
-pub fn number(s: &str) -> IResult<&str,Lang> {
-    let res = terminated(tuple((opt(tag("-")), digit1, tag("."), digit1)), multispace0)(s);
+type Span<'a> = LocatedSpan<&'a str, String>;
+
+fn number_helper(s: Span) -> IResult<Span, Lang> {
+    let res = (opt(tag("-")), digit1, tag("."), digit1).parse(s);
     match res {
         Ok((s, (sign, d1, _dot, d2))) => {
-            let sign2 = sign.unwrap_or("");
+            let sign2 = sign.unwrap_or(LocatedSpan::new_extra("", d1.clone().extra));
             let n = format!("{}{}.{}", sign2, d1, d2).parse::<f32>().unwrap();
             Ok((s, Lang::Number(n)))
         },
@@ -45,74 +49,80 @@ pub fn number(s: &str) -> IResult<&str,Lang> {
     }
 }
 
-fn integer(s: &str) -> IResult<&str, Lang> {
-    let res = terminated(digit1, multispace0)(s);
+pub fn number(s: Span) -> IResult<Span,Lang> {
+    terminated(number_helper, multispace0).parse(s)
+}
+
+fn integer(s: Span) -> IResult<Span, Lang> {
+    let res = terminated(digit1, multispace0).parse(s);
     match res {
         Ok((s, d)) => Ok((s, Lang::Integer(d.parse::<i32>().unwrap()))),
         Err(r) => Err(r)
     }
 }
 
-fn boolean(s: &str) -> IResult<&str,Lang> {
+fn get_value(l: LocatedSpan<&str, String>) -> Lang {
+    match l.into_fragment() {
+        "true" | "TRUE" => Lang::Bool(true),
+        "false" | "FALSE" => Lang::Bool(false),
+        _ => panic!("No other boolean notation alolwed")
+    }
+}
+
+fn boolean(s: Span) -> IResult<Span,Lang> {
     let res = alt((
                 terminated(tag("true"), multispace0),
                 terminated(tag("TRUE"), multispace0),
                 terminated(tag("false"), multispace0),
                 terminated(tag("FALSE"), multispace0),
-                  ))(s);
+                  )).parse(s);
     match res {
-        Ok((s, "true")) => Ok((s, Lang::Bool(true))),
-        Ok((s, "TRUE")) => Ok((s, Lang::Bool(true))),
-        Ok((s, "false")) => Ok((s, Lang::Bool(false))),
-        Ok((s, "FALSE")) => Ok((s, Lang::Bool(false))),
+        Ok((s, ls)) => Ok((s, get_value(ls))),
         Err(r) => Err(r),
-        _ => todo!()
     }
 }
 
-fn chars(s: &str) -> IResult<&str, Lang> {
+fn chars(s: Span) -> IResult<Span, Lang> {
     let res = terminated(alt((
             delimited(tag("\""), many0(none_of("\"")), tag("\"")),
             delimited(tag("'"), many0(none_of("'")), tag("'")),
-                  )), multispace0)(s);
+                  )), multispace0).parse(s);
     match res {
         Ok((s, st)) => Ok((s, Lang::Char(st.iter().collect()))),
         Err(r) => Err(r)
     }
 }
 
-fn starting_char(s: &str) -> IResult<&str, char> {
+fn starting_char(s: Span) -> IResult<Span, char> {
     one_of("abcdefghijklmnopqrstuvwxyz_")(s)
 }
 
-fn body_char(s: &str) -> IResult<&str, char> {
+fn body_char(s: Span) -> IResult<Span, char> {
     one_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789")(s)
 }
 
-pub fn variable_exp(s: &str) -> IResult<&str, String> {
-    let res = tuple((starting_char, many0(body_char)))(s);
+pub fn variable_exp(s: Span) -> IResult<Span, String> {
+    let res = (starting_char, many0(body_char)).parse(s);
     match res {
         Ok((s, (s1, v))) => Ok((s, format!("{}{}", s1, v.iter().collect::<String>()))),
         Err(r) => Err(r)
     }
 }
 
-fn type_annotation(s: &str) -> IResult<&str, Type> {
-    delimited(tag("<"), ltype, tag(">"))(s)
+fn type_annotation(s: Span) -> IResult<Span, Type> {
+    delimited(tag("<"), ltype, tag(">")).parse(s)
 }
 
-fn module_path(s: &str) -> IResult<&str, String> {
-    let res = many1(terminated(pascal_case, tag("::")))(s);
+fn module_path(s: Span) -> IResult<Span, String> {
+    let res = many1(terminated(pascal_case, tag("::"))).parse(s);
     match res {
         Ok((s, v)) => Ok((s, v.join("/"))),
         Err(r) => Err(r)
     }
 }
 
-pub fn variable(s: &str) -> IResult<&str, Lang> {
-    let res = terminated(
-        tuple((opt(module_path), variable_exp, opt(type_annotation))),
-        multispace0)(s);
+fn variable_helper(s: Span) -> IResult<Span, Lang> {
+    let res = (opt(module_path), variable_exp, opt(type_annotation)).parse(s);
     match res {
         Ok((s, (Some(mp), v, Some(ty)))) 
             => Ok((s, Lang::Variable(
@@ -146,62 +156,72 @@ pub fn variable(s: &str) -> IResult<&str, Lang> {
     }
 }
 
+pub fn variable(s: Span) -> IResult<Span, Lang> {
+    terminated(variable_helper, multispace0).parse(s)
+}
 
-pub fn argument(s: &str) -> IResult<&str, ArgumentType> {
-    let res = tuple((
+
+pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
+    let res = (
         terminated(label, multispace0),
         terminated(tag(":"), multispace0),
         ltype,
         opt(terminated(tag(","), multispace0))
-                ))(s);
+                ).parse(s);
     match res {
         Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false))),
         Err(r) => Err(r)
     }
 }
 
-fn equality_params(s: &str) -> IResult<&str, &str> {
-    terminated(alt((tag(":"), tag("="))), multispace0)(s)
+fn equality_params(s: Span) -> IResult<Span, Span> {
+    terminated(alt((tag(":"), tag("="))), multispace0).parse(s)
 }
 
-fn argument_val(s: &str) -> IResult<&str, ArgumentValue> {
-    let res = tuple((
+fn argument_val(s: Span) -> IResult<Span, ArgumentValue> {
+    let res = (
         terminated(alphanumeric1, multispace0),
         equality_params,
         single_element,
         opt(terminated(tag(","), multispace0))
-                ))(s);
+                ).parse(s);
     match res {
         Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentValue(e1.to_string(), e2))),
         Err(r) => Err(r)
     }
 }
 
-fn lkind(s: &str) -> IResult<&str, Kind> {
-    let res = alt((tag("Type"), tag("Dim")))(s);
-    match res {
-        Ok((s, "Type")) => Ok((s, Kind::Type)),
-        Ok((s, "Kind")) => Ok((s, Kind::Dim)),
-        Err(r) => Err(r),
-        _ => todo!()
+fn get_kind(ls: LocatedSpan<&str, String>) -> Kind {
+    match ls.into_fragment() {
+        "Type" => Kind::Type,
+        "Kind" => Kind::Dim,
+        _ => panic!("No other string for Kinds allowed")
     }
 }
 
-pub fn argument_kind(s: &str) -> IResult<&str, ArgumentKind> {
-    let res = tuple((
+fn lkind(s: Span) -> IResult<Span, Kind> {
+    let res = alt((tag("Type"), tag("Dim"))).parse(s);
+    match res {
+        Ok((s, ls)) => Ok((s, get_kind(ls))),
+        Err(r) => Err(r),
+    }
+}
+
+pub fn argument_kind(s: Span) -> IResult<Span, ArgumentKind> {
+    let res = (
         ltype,
         terminated(tag(":"), multispace0),
         lkind,
         opt(terminated(tag(","), multispace0))
-                ))(s);
+                ).parse(s);
     match res {
         Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentKind(e1, e2))),
         Err(r) => Err(r)
     }
 }
 
-pub fn function_symbol(s: &str) -> IResult<&str, &str> {
-    alt((tag("function"), tag("func"), tag("fn")))(s)
+pub fn function_symbol(s: Span) -> IResult<Span, Span> {
+    alt((tag("function"), tag("func"), tag("fn"))).parse(s)
 }
 
 fn extract_generics(args: &[ArgumentType], ret_typ: &Type) -> Vec<ArgumentKind> {
@@ -215,8 +235,8 @@ fn extract_generics(args: &[ArgumentType], ret_typ: &Type) -> Vec<ArgumentKind> 
         .collect::<Vec<_>>()
 }
 
-pub fn simple_function(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+pub fn simple_function(s: Span) -> IResult<Span, Lang> {
+    let res = (
         terminated(function_symbol, multispace0),
         terminated(tag("("), multispace0),
         many0(argument),
@@ -224,15 +244,15 @@ pub fn simple_function(s: &str) -> IResult<&str, Lang> {
         opt(terminated(tag(":"), multispace0)),
         opt(terminated(alt((if_type, ltype)), multispace0)),
         scope
-          ))(s);
+          ).parse(s);
     match res {
         Ok((s, (_, _, args, _, Some(_), Some(typ), exp))) =>{
             let gen_vec = extract_generics(&args, &typ);
             Ok((s, Lang::Function(gen_vec, args, typ, Box::new(exp))))
         },
-        Ok((_s, (_, _, _args, _, None, None, _exp))) 
+        Ok((_s, (_, _, _args, cp, None, None, _exp))) 
             => {
-                println!("You forgot to specify the function return type: 'fn(...): Type'");
+                syntax_error(cp, "You forgot to specify the function return type: 'fn(...): Type'");
                 exit(1)
             }, 
         Ok((_s, (_, _, _args, _, Some(_), None, _exp))) 
@@ -252,8 +272,8 @@ pub fn simple_function(s: &str) -> IResult<&str, Lang> {
     }
 }
 
-fn complex_function(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+fn complex_function(s: Span) -> IResult<Span, Lang> {
+    let res = (
         terminated(tag("fn"), multispace0),
         terminated(tag("<"), multispace0),
         many0(argument_kind),
@@ -264,7 +284,7 @@ fn complex_function(s: &str) -> IResult<&str, Lang> {
         terminated(tag(":"), multispace0),
         terminated(ltype, multispace0),
         scope
-          ))(s);
+          ).parse(s);
     match res {
         Ok((s, (_, _, arg_kinds, _, _, args, _, _, typ, exp))) => 
             Ok((s, Lang::Function(arg_kinds, args, typ, Box::new(exp)))),
@@ -272,27 +292,27 @@ fn complex_function(s: &str) -> IResult<&str, Lang> {
     }
 }
 
-fn function(s: &str) -> IResult<&str, Lang> {
+fn function(s: Span) -> IResult<Span, Lang> {
     alt((
         simple_function,
         complex_function
-    ))(s)
+    )).parse(s)
 }
 
-fn values(s: &str) -> IResult<&str, Vec<Lang>> {
+fn values(s: Span) -> IResult<Span, Vec<Lang>> {
     many0(
         terminated(
             parse_elements,
-            terminated(opt(tag(",")), multispace0)))(s)
+            terminated(opt(tag(",")), multispace0))).parse(s)
 }
 
-fn array_indexing(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+fn array_indexing(s: Span) -> IResult<Span, Lang> {
+    let res = (
             alt((scope, variable)),
             terminated(tag("["), multispace0),
             number,
             terminated(tag("]"), multispace0)
-          ))(s);
+          ).parse(s);
     match res {
         Ok((s, (exp, _, Lang::Number(n), _))) 
             => Ok((s, Lang::ArrayIndexing(Box::new(exp), n))),
@@ -301,46 +321,45 @@ fn array_indexing(s: &str) -> IResult<&str, Lang> {
     }
 }
 
-fn function_application(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+fn function_application(s: Span) -> IResult<Span, Lang> {
+    let res = (
             alt((scope, variable)),
             terminated(tag("("), multispace0),
             values,
             terminated(tag(")"), multispace0)
-          ))(s);
+          ).parse(s);
     match res {
         Ok((s, (exp, _, v, _))) => Ok((s, Lang::FunctionApp(Box::new(exp), v.clone()))),
         Err(r) => Err(r)
     }
 }
 
-fn array(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+fn array(s: Span) -> IResult<Span, Lang> {
+    let res = (
             terminated(tag("["), multispace0),
             values,
             terminated(tag("]"), multispace0)
-          ))(s);
+          ).parse(s);
     match res {
         Ok((s, (_, v, _))) => Ok((s, Lang::Array(v.clone()))),
         Err(r) => Err(r)
     }
 }
 
-fn record_identifier(s: &str) -> IResult<&str, &str> {
-    alt((tag("record"), tag("object"), tag("list"), tag(":")))(s)
+fn record_identifier(s: Span) -> IResult<Span, Span> {
+    alt((tag("record"), tag("object"), tag("list"), tag(":"))).parse(s)
 }
 
-fn record(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+fn record(s: Span) -> IResult<Span, Lang> {
+    let res = (
         opt(record_identifier),
         terminated(tag("{"), multispace0),
         many0(argument_val),
-        terminated(tag("}"), multispace0)))(s);
+        terminated(tag("}"), multispace0)).parse(s);
     match res {
         Ok((s, (Some(_), _, args, _))) => Ok((s, Lang::Record(args.clone()))),
-        Ok((_s, (None, _, args, _))) => {
-            println!("You forgot to put a record identifier before the bracket: ':{{...}}'");
-            println!("{}", args.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", "));
+        Ok((_s, (None, ob, args, _))) => {
+            syntax_error(ob, "You forgot to put a record identifier before the bracket: ':{...}'");
             exit(1)
         } 
         Err(r) => Err(r)
@@ -348,28 +367,30 @@ fn record(s: &str) -> IResult<&str, Lang> {
 
 }
 
-fn pascal_case(s: &str) -> IResult<&str, String> {
-    let res = terminated(tuple((
-            one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
-            alpha1)), multispace0)(s);
+fn pascal_case_helper(s: Span) -> IResult<Span, String> {
+    let res = (one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), alpha1).parse(s);
     match res {
         Ok((s, (t1, t2))) => Ok((s, format!("{}{}", t1, t2))),
         Err(r) => Err(r)
     }
 }
 
-fn parenthese_value(s: &str) -> IResult<&str, Lang> {
+fn pascal_case(s: Span) -> IResult<Span, String> {
+    terminated(pascal_case_helper, multispace0).parse(s)
+}
+
+fn parenthese_value(s: Span) -> IResult<Span, Lang> {
     delimited(
             terminated(tag("("), multispace0),
             parse_elements,
             terminated(tag(")"), multispace0)
-          )(s)
+          ).parse(s)
 }
 
-pub fn tag_exp(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+pub fn tag_exp(s: Span) -> IResult<Span, Lang> {
+    let res = (
             pascal_case,
-            opt(parenthese_value)))(s);
+            opt(parenthese_value)).parse(s);
     match res {
         Ok((s, (n, None))) => Ok((s, Lang::Tag(n, Box::new(Lang::Empty)))),
         Ok((s, (n, Some(val)))) => Ok((s, Lang::Tag(n, Box::new(val)))),
@@ -378,21 +399,21 @@ pub fn tag_exp(s: &str) -> IResult<&str, Lang> {
 }
 
 
-fn dotdotdot(s: &str) -> IResult<&str, Lang> {
-    let res = terminated(tag("..."), multispace0)(s);
+fn dotdotdot(s: Span) -> IResult<Span, Lang> {
+    let res = terminated(tag("..."), multispace0).parse(s);
     match res {
         Ok((s, _)) => Ok((s, Lang::Empty)),
         Err(r) => Err(r)
     }
 }
 
-fn else_exp(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+fn else_exp(s: Span) -> IResult<Span, Lang> {
+    let res = (
             terminated(tag("else"), multispace0),
             terminated(tag("{"), multispace0),
             parse_elements,
             terminated(tag("}"), multispace0),
-                    ))(s);
+                    ).parse(s);
     match res {
         Ok((s, (_else, _o, exp, _c))) 
             => Ok((s, exp)),
@@ -400,15 +421,14 @@ fn else_exp(s: &str) -> IResult<&str, Lang> {
     }
 }
 
-fn else_if_exp(s: &str) -> IResult<&str, Lang> {
+fn else_if_exp(s: Span) -> IResult<Span, Lang> {
     preceded(
             terminated(tag("else"), multispace1),
-            if_exp
-                    )(s)
+            if_exp).parse(s)
 }
 
-fn if_exp(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+fn if_exp(s: Span) -> IResult<Span, Lang> {
+    let res = (
             terminated(tag("if"), multispace0),
             terminated(tag("("), multispace0),
             parse_elements,
@@ -417,7 +437,7 @@ fn if_exp(s: &str) -> IResult<&str, Lang> {
             parse_elements,
             terminated(tag("}"), multispace0),
             opt(alt((else_if_exp, else_exp)))
-                    ))(s);
+                    ).parse(s);
     match res {
         Ok((s, (_if, _op, cond, _cp, _o, exp, _c, els))) 
             => Ok((s, 
@@ -429,13 +449,13 @@ fn if_exp(s: &str) -> IResult<&str, Lang> {
     }
 }
 
-fn branch(s: &str) -> IResult<&str, (Box<Lang>, Box<Lang>)> {
-    let res = tuple((
+fn branch(s: Span) -> IResult<Span, (Box<Lang>, Box<Lang>)> {
+    let res = (
             terminated(tag_exp, multispace0),
             terminated(tag("=>"), multispace0),
             terminated(single_element, multispace0),
             opt(terminated(tag(","), multispace0)),
-                    ))(s);
+                    ).parse(s);
     match res {
         Ok((s, (part1, _arr, part2, _vir)))
             => Ok((s, (Box::new(part1), Box::new(part2)))),
@@ -443,14 +463,14 @@ fn branch(s: &str) -> IResult<&str, (Box<Lang>, Box<Lang>)> {
     }
 }
 
-fn match_exp(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+fn match_exp(s: Span) -> IResult<Span, Lang> {
+    let res = (
             terminated(tag("match"), multispace0),
             variable,
             terminated(tag("{"), multispace0),
             many0(branch),
             terminated(tag("}"), multispace0),
-                    ))(s);
+                    ).parse(s);
     match res {
         Ok((s, (_m, val, _o, bs, _c))) 
             => Ok((s, Lang::Match(Box::new(val), bs))),
@@ -458,12 +478,12 @@ fn match_exp(s: &str) -> IResult<&str, Lang> {
     }
 }
 
-fn tuple_exp(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+fn tuple_exp(s: Span) -> IResult<Span, Lang> {
+    let res = (
             terminated(tag(":{"), multispace0),
             values,
             terminated(tag("}"), multispace0),
-                    ))(s);
+                    ).parse(s);
     match res {
         Ok((s, (_o, vals, _c))) => 
             Ok((s, Lang::Tuple(vals))),
@@ -471,8 +491,8 @@ fn tuple_exp(s: &str) -> IResult<&str, Lang> {
     }
 }
 
-fn int_or_var(s: &str) -> IResult<&str, Lang> {
-    alt((integer, variable))(s)
+fn int_or_var(s: Span) -> IResult<Span, Lang> {
+    alt((integer, variable)).parse(s)
 }
 
 fn create_range(params: &[Lang]) -> Lang {
@@ -487,17 +507,17 @@ fn create_range(params: &[Lang]) -> Lang {
     }
 }
 
-fn range(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+fn range(s: Span) -> IResult<Span, Lang> {
+    let res = (
             int_or_var,
             tag(":"),
-            opt(tuple((int_or_var, tag(":")))),
-            int_or_var))(s);
+            opt(terminated(int_or_var, tag(":"))),
+            int_or_var).parse(s);
     //from_name().to_language()
     match res {
         Ok((s, (iv1, _sep, None, iv2))) 
             => Ok((s, create_range(&[iv1.clone(), iv2.clone()]))),
-        Ok((s, (iv1, _sep, Some((iv0, _sep2)), iv2)))
+        Ok((s, (iv1, _sep, Some(iv0), iv2)))
             => Ok((s, create_range(&[iv1.clone(), iv2.clone(), iv0.clone()]))),
         Err(r) => Err(r),
     }
@@ -515,11 +535,10 @@ fn pure_string((lang, op): (Lang, Op)) -> String {
     }
 }
 
-fn element_operator2(s: &str) -> IResult<&str, (Lang, Op)> {
-    let res = tuple((
-                opt(op),
+fn element_operator2(s: Span) -> IResult<Span, (Lang, Op)> {
+    let res = (opt(op),
                 alt((number, integer, variable))
-                ))(s);
+                ).parse(s);
     match res {
         Ok((s, (Some(ope), ele))) => Ok((s, (ele, ope))),
         Ok((s, (None, ele))) => Ok((s, (ele, Op::Empty))),
@@ -527,12 +546,12 @@ fn element_operator2(s: &str) -> IResult<&str, (Lang, Op)> {
     }
 }
 
-fn vectorial_bloc(s: &str) -> IResult<&str, Lang> {
+fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
     let res = delimited(
                     tag("@{ "),
                     many1(element_operator2),
                     tag("}@")
-                    )(s);
+                    ).parse(s);
     match res {
         Ok((s, v)) => {
             let new_v = v.into_iter()
@@ -544,8 +563,8 @@ fn vectorial_bloc(s: &str) -> IResult<&str, Lang> {
     }
 }
 
-fn lambda(s: &str) -> IResult<&str, Lang> {
-    let res = preceded(tag("$"), element_chain)(s);
+fn lambda(s: Span) -> IResult<Span, Lang> {
+    let res = preceded(tag("$"), element_chain).parse(s);
     match res {
         Ok((s, e)) => Ok((s, Lang::Lambda(Box::new(e)))),
         Err(r) => Err(r)
@@ -554,7 +573,7 @@ fn lambda(s: &str) -> IResult<&str, Lang> {
 
 
 // main
-fn single_element(s: &str) -> IResult<&str,Lang> {
+fn single_element(s: Span) -> IResult<Span,Lang> {
     alt((
             lambda,
             boolean,
@@ -574,14 +593,14 @@ fn single_element(s: &str) -> IResult<&str,Lang> {
             tuple_exp,
             scope,
             array
-        ))(s)
+        )).parse(s)
 }
 
-pub fn scope(s: &str) -> IResult<&str, Lang> {
+pub fn scope(s: Span) -> IResult<Span, Lang> {
     let res = delimited(
         terminated(alt((tag("("), tag("{"))), multispace0),
         parse_exp,
-        terminated(alt((tag(")"), tag("}"))), multispace0))(s);
+        terminated(alt((tag(")"), tag("}"))), multispace0)).parse(s);
     match res {
         Ok((s, Lang::Empty)) => Ok((s, Lang::Scope(vec![]))),
         Ok((s, Lang::Sequence(v))) => Ok((s, Lang::Scope(v.clone()))),
@@ -733,11 +752,10 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
     }
 }
 
-fn element_operator(s: &str) -> IResult<&str, (Lang, Op)> {
-    let res = tuple((
-                opt(op),
+fn element_operator(s: Span) -> IResult<Span, (Lang, Op)> {
+    let res = (opt(op),
                 single_element
-                ))(s);
+                ).parse(s);
     match res {
         Ok((s, (Some(ope), ele))) => Ok((s, (ele, ope))),
         Ok((s, (None, ele))) => Ok((s, (ele, Op::Empty))),
@@ -745,11 +763,11 @@ fn element_operator(s: &str) -> IResult<&str, (Lang, Op)> {
     }
 }
 
-pub fn bang_exp(s: &str) -> IResult<&str, Lang> {
-    let res = tuple((
+pub fn bang_exp(s: Span) -> IResult<Span, Lang> {
+    let res = (
         many1(element_operator),
         terminated(tag("!;"), multispace0)
-                    ))(s);
+                    ).parse(s);
     match res {
         Ok((s, (v, _bang))) => {
             let base = v[0].0.clone();
@@ -775,8 +793,8 @@ fn check_minus_sign(v: Vec<(Lang, Op)>) -> Vec<(Lang, Op)> {
     } else { v.clone() }
 }
 
-fn element_chain(s: &str) -> IResult<&str, Lang> {
-    let res = many1(element_operator)(s);
+fn element_chain(s: Span) -> IResult<Span, Lang> {
+    let res = many1(element_operator).parse(s);
     match res {
         Ok((s, v)) => {
             let v2 = check_minus_sign(v);
@@ -787,12 +805,12 @@ fn element_chain(s: &str) -> IResult<&str, Lang> {
 }
 
 // main
-pub fn parse_elements(s: &str) -> IResult<&str, Lang> {
+pub fn parse_elements(s: Span) -> IResult<Span, Lang> {
     alt((
         vectorial_bloc,
         element_chain,
         single_element
-        ))(s)
+        )).parse(s)
 }
 
 #[cfg(test)]
@@ -969,6 +987,12 @@ mod tests {
     #[test]
     fn test_if2() {
         let res = parse_elements("if (true) { 7 }").unwrap().1;
+        assert_eq!(res, Lang::Empty);
+    }
+
+    #[test]
+    fn test_if3() {
+        let res = parse_elements("if num < 18 { true } else { false }").unwrap().1;
         assert_eq!(res, Lang::Empty);
     }
 

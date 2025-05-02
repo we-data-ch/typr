@@ -26,6 +26,7 @@ mod engine;
 mod vartype;
 mod unification_map;
 mod function_type;
+mod error_message;
 
 use parser::parse;
 use my_io::read_file;
@@ -50,6 +51,7 @@ use crate::engine::write_adt_to_typescript;
 use crate::my_io::execute_typescript;
 use crate::engine::write_adt_to_assemblyscript_with_path;
 use crate::engine::write_adt_to_typescript_with_path;
+use crate::error_message::syntax_error;
 
 pub fn is_subset<T: Eq + std::hash::Hash>(v1: &[T], v2: &[T]) -> bool {
     let set_v2: HashSet<_> = v2.iter().collect();
@@ -446,6 +448,7 @@ fn run(target: TargetLanguage) {
         },
     }
 }
+
 
 fn test(target: TargetLanguage) {
     println!("Exécution des tests pour {}...", target);

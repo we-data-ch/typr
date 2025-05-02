@@ -12,6 +12,8 @@ use std::io::Write;
 use std::path::PathBuf;
 use crate::TargetLanguage;
 use crate::Environment;
+use nom_locate::LocatedSpan;
+use crate::my_io::get_os_file;
 
 pub fn write_adt_to_typescript(adt: &Adt, cont: &Context) -> () {
     let rstd = include_str!("../configs/typescript/std.ts");
@@ -75,9 +77,10 @@ pub fn parse_code(path: &PathBuf, target: TargetLanguage) -> AdtManager {
         TargetLanguage::TypeScript => include_str!("../configs/typescript/std.ty"),
         TargetLanguage::AssemblyScript => include_str!("../configs/assemblyscript/std.ty")
     };
+    let file = get_os_file(path.to_str().unwrap());
     let adt_manager = AdtManager::new()
-        .add_to_header(parse(typr_std).unwrap().1)
-        .add_to_body(parse(&read_file(path)).unwrap().1);
+        .add_to_header(parse(LocatedSpan::new_extra(typr_std, "std.ty".to_string())).unwrap().1)
+        .add_to_body(parse(LocatedSpan::new_extra(&read_file(path), file)).unwrap().1);
     let adt = metaprogrammation(adt_manager.body.clone());
     adt_manager.set_body(adt)
 }

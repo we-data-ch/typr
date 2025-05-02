@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 
-fn get_os_file(file: &str) -> String {
+pub fn get_os_file(file: &str) -> String {
     if cfg!(windows){
        file.replace("\\", r"\") 
     } else {

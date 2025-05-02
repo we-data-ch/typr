@@ -18,6 +18,7 @@ use std::fs::File;
 use crate::parse;
 use std::fs;
 use crate::Environment;
+use nom_locate::LocatedSpan;
 
 fn get_tag_names(tags: &[Tag]) -> Vec<String> {
     tags.iter()
@@ -72,9 +73,9 @@ fn install_header(name: &str, context: &Context) -> Context {
         let _ = File::create(&full_path); 
     }
     
-    let content = fs::read_to_string(full_path).unwrap();
+    let content = fs::read_to_string(full_path.clone()).unwrap();
     let adt_manager = AdtManager::new()
-        .add_to_header(parse(&content).unwrap().1);
+        .add_to_header(parse(LocatedSpan::new_extra(&content, full_path)).unwrap().1);
     let context2 = context.clone();
     adt_manager.get_adt_with_header().iter()
             .fold(context2, |ctx, expr| eval(&ctx, expr))
