@@ -31,8 +31,7 @@ use nom::multi::many0;
 use nom::multi::many1;
 use nom::sequence::preceded;
 use nom::Parser;
-use nom::sequence::pair;
-use nom_locate::{position, LocatedSpan};
+use nom_locate::LocatedSpan;
 use crate::syntax_error;
 use crate::help_data::HelpData;
 
@@ -120,7 +119,7 @@ fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
     match res {
         Ok((s, v)) => {
             let res = v.iter()
-                .map(|(name, h)| name.clone())
+                .map(|(name, _)| name.clone())
                 .collect::<Vec<_>>()
                 .join("/");
             Ok((s, (res, v[0].1.clone())))
@@ -367,7 +366,7 @@ fn record(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (Some(start), _, args, _))) 
             => Ok((s, Lang::Record(args.clone(), start.into()))),
-        Ok((_s, (None, ob, args, _))) => {
+        Ok((_s, (None, ob, _args, _))) => {
             syntax_error(ob, "You forgot to put a record identifier before the bracket: ':{...}'");
             exit(1)
         } 

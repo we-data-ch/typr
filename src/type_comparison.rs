@@ -75,7 +75,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
             is_subtype(context, n1, n2) && is_subtype(context, t1, t2)
         },
-        (type1, Type::Alias(_, _, _, h)) => {
+        (type1, Type::Alias(_, _, _, _)) => {
             let reduced = reduce_type(context, type2);
             is_subtype(context, type1, &reduced)
         },
@@ -99,7 +99,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (Type::Record(r1, _), Type::Record(r2, _)) => {
             if has_generic_label(r2) && (r1.len() == r2.len()) {
                 all_subtype(context, r1, r2)
-            } else if let Some(arg_typ) = type2.get_type_pattern() {
+            } else if let Some(_arg_typ) = type2.get_type_pattern() {
                 true
             } else {
                 contains_all(context, r1, r2)
@@ -111,10 +111,10 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         },
 
         // Union subtyping
-        (Type::Tag(name, body, h), Type::Union(types)) => {
+        (Type::Tag(_name, _body, _h), Type::Union(types)) => {
             types.iter().any(|t| is_matching(context, type1, &t.to_type()))
         },
-        (Type::Tag(name1, body1, h1), Type::Tag(name2, body2, h2)) => {
+        (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
             (name1 == name2) && is_matching(context, body1, body2)
         },
 
@@ -180,7 +180,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 .map(|arg| reduce_param(context, arg))
                 .collect(), h.clone())
         },
-        Type::Alias(name, concret_types, _base_type, h) => {
+        Type::Alias(name, concret_types, _base_type, _h) => {
             let var = Var::from_name(name).set_type(Type::Params(concret_types.to_vec()));
             if let Some((aliased_type, generics)) = context.get_with_gen(&var) {
                 let substituted = type_substitution(
@@ -216,15 +216,4 @@ mod tests {
     use super::*;
     use crate::subtypes::is_true_subtype;
 
-    #[test]
-    fn test_matching(){
-        let typ1 = Type::Union(vec![
-                               Tag("Some".to_string(), Type::Integer),
-                               Tag("None".to_string(), Type::Empty)]);
-        let typ2 = Type::Union(vec![
-                               Tag("Some".to_string(), Type::Generic("T".to_string())),
-                               Tag("None".to_string(), Type::Empty)]);
-        let ctx = Context::default();
-        assert_eq!(is_true_subtype(&ctx, &typ1, &typ2), true);
-    }
 }

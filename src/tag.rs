@@ -1,8 +1,5 @@
 use crate::Type;
 use serde::Serialize;
-use crate::Lang;
-use crate::context::Context;
-use crate::type_checker::typing;
 use crate::help_data::HelpData;
 
 type Name = String;
@@ -23,12 +20,12 @@ impl Tag {
         }
     }
 
-    pub fn from_language(lang: Lang, context: &Context) -> Option<Tag> {
-        match lang {
-            Lang::Tag(name, typ, h) => Some(Tag(name, Type::Any, h)),
-            _ => None
-        }
-    }
+    //pub fn from_language(lang: Lang, _context: &Context) -> Option<Tag> {
+        //match lang {
+            //Lang::Tag(name, _typ, h) => Some(Tag(name, Type::Any, h)),
+            //_ => None
+        //}
+    //}
 
     pub fn to_type(&self) -> Type {
         Type::Tag(self.0.clone(), Box::new(self.1.clone()), self.2.clone())

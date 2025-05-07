@@ -64,7 +64,7 @@ pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf,
     app.write_all(content.as_bytes()).unwrap();
 }
 
-pub fn type_check(adt: &Adt, target: TargetLanguage, environ: Environment) -> Context {
+pub fn type_check(adt: &Adt, target: TargetLanguage, _environ: Environment) -> Context {
     let (typ, context) = typing(&Context::default().set_target(target), &Lang::Sequence(adt.0.clone()));
     type_printer::pretty_print(&typ);
     context

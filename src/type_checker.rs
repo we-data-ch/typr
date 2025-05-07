@@ -21,23 +21,8 @@ use crate::Environment;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 
-fn get_tag_names(tags: &[Tag]) -> Vec<String> {
-    tags.iter()
-        .filter_map(|tag| match tag.to_type() {
-            Type::Tag(name, _, _) => Some(name.clone()),
-            _ => None,
-        })
-        .collect()
-}
 
-fn subset<T: Eq + std::hash::Hash>(subset: &[T], set: &[T]) -> bool {
-    let set: HashSet<_> = set.iter().collect();
-    subset.iter().all(|item| set.contains(item))
-}
 
-fn same_values<T: Eq + std::hash::Hash>(list1: &[T], list2: &[T]) -> bool {
-    list1.len() == list2.len() && subset(list1, list2) && subset(list2, list1)
-}
 
 fn unify_types(types: &[Type]) -> Type {
     if types.is_empty() {
@@ -54,7 +39,7 @@ fn unify_types(types: &[Type]) -> Type {
 }
 
 fn install_package(name: &str) -> () {
-    let status = Command::new("Rscript")
+    let _status = Command::new("Rscript")
         .args([
             "-e",
             &format!("if (!requireNamespace(\"{}\", quietly = TRUE)) install.packages(\"{}\")", name, name)])
@@ -104,7 +89,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                 new_context
             }
         },
-        Lang::Alias(name, params, typ, h) => {
+        Lang::Alias(name, params, typ, _h) => {
             let var = name.clone().set_type(Type::Params(params.to_vec()));
             let new_context = context.clone()
                 .push_var_type(var, typ.clone(), context);
@@ -135,15 +120,15 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
     }
 }
 
-// for the sugar syntax that can catch value as type for array
-// 4 -> Index(4) if an index parameter is needed
-fn index_conversion(arg_type: &Type, par_type: &Type, value: &Lang) -> (Type, Type) {
-    match (par_type, arg_type, value) {
-        (Type::IndexGen(_, h), _, Lang::Integer(i, _)) 
-            => (par_type.clone(), Type::Index(*i as u32, h.clone())),
-        _ => (par_type.clone(), arg_type.clone())
-    }
-}
+//// for the sugar syntax that can catch value as type for array
+//// 4 -> Index(4) if an index parameter is needed
+//fn index_conversion(arg_type: &Type, par_type: &Type, value: &Lang) -> (Type, Type) {
+    //match (par_type, arg_type, value) {
+        //(Type::IndexGen(_, h), _, Lang::Integer(i, _)) 
+            //=> (par_type.clone(), Type::Index(*i as u32, h.clone())),
+        //_ => (par_type.clone(), arg_type.clone())
+    //}
+//}
 
 fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         match (type1, type2) {
@@ -181,14 +166,14 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                        .flat_map(|(typ1, typ2)| get_gen_type(&typ1.to_type(), &typ2.to_type()))
                        .fold(vec![], |acc: Vec<(Type, Type)>, vec| acc.iter().chain(vec.iter()).cloned().collect::<Vec<_>>()))
                 },
-                (Type::Tag(name1, typ1, h1), Type::Tag(name2, typ2, h2)) => {
+                (Type::Tag(_name1, typ1, _h1), Type::Tag(_name2, typ2, _h2)) => {
                     get_gen_type(typ1, typ2)
                 }
             _ => None
         }
 }
 
-fn match_types(ctx: &Context, type1: &Type, type2: &Type, value: &Lang) 
+fn match_types(ctx: &Context, type1: &Type, type2: &Type, _value: &Lang) 
     -> Option<Vec<(Type, Type)>> {
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
@@ -217,7 +202,7 @@ fn apply_unification_type(context: &Context, map: Option<Vec<Vec<(Type, Type)>>>
 }
 
 fn get_variable_type(lang: &Lang, tags: &[Tag]) -> Option<(Var, Type)> {
-    if let Lang::Tag(name, variable, h) = lang {
+    if let Lang::Tag(name, variable, _h) = lang {
         let res = tags.iter()
             .find(|&tag| name == &tag.get_name());
         match res {
@@ -432,7 +417,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
 
 fn unify_type(ty1: &Type, ty2: &Type) -> Type {
     match (ty1, ty2) {
-        (Type::Tag(name1, params1, h1), Type::Tag(name2, params2, h2)) => {
+        (Type::Tag(name1, params1, _h1), Type::Tag(name2, params2, _h2)) => {
             if name1 == name2 && params1 == params2 {
                 Type::Union(vec![
                             Tag::from_type(ty1.clone()).unwrap(),

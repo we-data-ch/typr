@@ -107,7 +107,7 @@ impl Context {
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let types = typ.type_extraction();
         let var_type = VarType(self.types.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
-        let type_list: Vec<_> = var_type.get_types().iter().cloned().collect();
+        let _type_list: Vec<_> = var_type.get_types().iter().cloned().collect();
         //let new_subtypes = self.subtypes.clone().update(&type_list, context);
         let nominals = types.iter()
             .fold(self.nominals.clone(), |nom, typ_| nom.push_type(typ_.clone()));

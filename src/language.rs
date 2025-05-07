@@ -246,7 +246,7 @@ impl Lang {
                 
                 (results.join("\n"), current_cont)
             },
-            Lang::Function(_args_kind, args, _typ, body, h) => {
+            Lang::Function(_args_kind, args, _typ, body, _h) => {
                 let sub_cont = cont.add_arg_types(args);
                 let (body_str, new_cont) = body.to_r(&sub_cont);
                 (format!("function({}) {{ {} }}", 
@@ -316,7 +316,7 @@ impl Lang {
                 let new_name = new_path + &var.get_name();
                 
                 let r_code = match (**body).clone() {
-                    Lang::Function(_, _, _, _, h) => {
+                    Lang::Function(_, _, _, _, _) => {
                         let related_type = var.get_type();
                         let class = cont.get_class(&related_type);
                         if class.len() > 7 && &class[0..7] == "Generic" {
@@ -633,7 +633,7 @@ impl Lang {
                     _ => (format!("{} |> {}", e2_str, e1_str), cont2),
                 }
             },
-            Lang::Alias(var, args, typ, h) => {
+            Lang::Alias(var, args, typ, _h) => {
                 if args.len() > 0 {
                     let res = args.iter()
                         .map(|typ| typ.to_typescript())
@@ -701,7 +701,7 @@ impl Lang {
             Lang::Let(var, _typ, body) => {
                 if var.get_name() == "main" {
                     match *body.clone() {
-                        Lang::Function(_kinds, _params, _ret, body2, h) => {
+                        Lang::Function(_kinds, _params, _ret, body2, _h) => {
                             let (body_str, new_cont) = body2.to_assemblyscript(cont);
                             (format!("export function main(): void {{\n{}\n}}", body_str), new_cont)
                         },
@@ -709,7 +709,7 @@ impl Lang {
                     }
                 } else {
                    match *body.clone() {
-                       Lang::Function(kinds, params, ret, body2, h) => {
+                       Lang::Function(kinds, params, ret, body2, _h) => {
                            let first = params.iter().nth(0).unwrap().get_type();
                            let class = cont.get_class(&first);
                            let res = params.iter()
@@ -778,7 +778,7 @@ impl Lang {
                 
                 (result, current_cont)
             },
-            Lang::Function(_kinds, args, _ret_typ, body, h) => {
+            Lang::Function(_kinds, args, _ret_typ, body, _h) => {
                 let params = args.iter()
                     .map(|arg_typ| arg_typ.get_argument_str())
                     .collect::<Vec<_>>().join(", ");
@@ -837,7 +837,7 @@ impl Lang {
                     _ => (format!("{} |> {}", e2_str, e1_str), cont2),
                 }
             },
-            Lang::Alias(var, args, typ, h) => {
+            Lang::Alias(var, args, typ, _h) => {
                 if args.len() > 0 {
                     let res = args.iter()
                         .map(|typ| typ.to_assemblyscript())
@@ -881,7 +881,7 @@ impl Lang {
 
     pub fn is_undefined(&self) -> bool {
         if let Lang::Let(_, _, rhs) = self {
-            if let Lang::Function(_, _, _, body, h) = *rhs.clone() {
+            if let Lang::Function(_, _, _, body, _h) = *rhs.clone() {
                 if let Lang::Scope(v) = *body.clone() {
                        let ele = v.first().unwrap();
                        if let Lang::Empty = ele {true} else {false}

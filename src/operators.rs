@@ -5,7 +5,7 @@ use nom::character::complete::multispace0;
 use nom::sequence::terminated;
 use crate::Type;
 use nom::Parser;
-use nom_locate::{position, LocatedSpan};
+use nom_locate::LocatedSpan;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 

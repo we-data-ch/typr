@@ -19,7 +19,7 @@ fn format(ty: &Type) -> String {
             }
         },
         Type::Array(dim, ty, _) => format!("[{}, {}]", dim, format(ty)),
-        Type::Function(kinds, params, ret_ty, h) => {
+        Type::Function(kinds, params, ret_ty, _h) => {
             let formatted_kinds = kinds.iter().map(|arg_kind| format_kind(&arg_kind.get_kind())).collect::<Vec<_>>();
             let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();
             format!("fn<{}>({}) -> {}", formatted_kinds.join(", "), formatted_params.join(", "), format(ret_ty))

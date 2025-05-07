@@ -21,7 +21,7 @@ use nom::sequence::preceded;
 use nom::multi::many1;
 use nom::sequence::delimited;
 use nom::Parser;
-use nom_locate::{position, LocatedSpan};
+use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
@@ -220,7 +220,7 @@ fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
     match res {
         Ok((s, v)) => {
             let res =  v.iter()
-                .map(|(string, hd)| string.clone())
+                .map(|(string, _)| string.clone())
                 .collect::<Vec<_>>()
                 .join("/");
             Ok((s, (res, v[0].1.clone())))

@@ -22,14 +22,14 @@ use nom::branch::alt;
 use nom::sequence::preceded;
 use nom::multi::many0;
 use nom::Parser;
-use nom_locate::{position, LocatedSpan};
+use nom_locate::LocatedSpan;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
 fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
     let res = alt((tag_exp, variable)).parse(s);
     match res {
-        Ok((s, Lang::Tag(name, val, h)))
+        Ok((s, Lang::Tag(name, val, _h)))
             => {
                 if let Lang::Variable(name2, path, perm, mutopa, typ) = *val {
                     Ok((s, 
@@ -259,7 +259,7 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
         terminated(tag(";"), multispace0)
           ).parse(s);
     match res {
-        Ok((s, (_mod, (name, h), _op, Lang::Sequence(v), _cl, _dv))) => 
+        Ok((s, (_mod, (name, _), _op, Lang::Sequence(v), _cl, _dv))) => 
             Ok((s, vec![Lang::Module(name, v)])),
         Err(r) => Err(r),
         _ => todo!()
@@ -313,7 +313,7 @@ fn mod_imp(s: Span) -> IResult<Span, Vec<Lang>> {
             pascal_case,
             terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (_mod, (name, h), _sc))) 
+        Ok((s, (_mod, (name, _), _sc))) 
             => Ok((s, vec![Lang::ModImp(name.to_string())])),
         Err(r) => Err(r)
     }
@@ -365,7 +365,7 @@ fn library(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (_lib, var, _cl, Some(_col), _))) 
             => Ok((s, vec![Lang::Library(var)])),
-        Ok((s, (_lib, var, _cl, None, _))) 
+        Ok((_, (_lib, _var, _cl, None, _))) 
             => panic!("You forgot to put a ';' at the end of the line"),
         Err(r) => Err(r)
     }

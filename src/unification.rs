@@ -3,7 +3,6 @@ use crate::argument_type::ArgumentType;
 use crate::Context;
 use crate::type_comparison;
 use crate::tag::Tag;
-use crate::help_data::HelpData;
 
 pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     if substitutions.is_empty() {
@@ -223,7 +222,7 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
         }
 
         // Tag case
-        (Type::Tag(name1, type1, h1), Type::Tag(name2, type2, h2)) if name1 == name2 => {
+        (Type::Tag(name1, type1, _h1), Type::Tag(name2, type2, _h2)) if name1 == name2 => {
             unification_helper(values, type1, type2)
         }
 
