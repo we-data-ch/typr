@@ -3,6 +3,7 @@ use crate::argument_type::ArgumentType;
 use crate::Context;
 use crate::type_comparison;
 use crate::tag::Tag;
+use crate::help_data::HelpData;
 
 pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     if substitutions.is_empty() {
@@ -11,7 +12,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
 
     match type_ {
         // Generic type substitution
-        Type::Generic(_) => {
+        Type::Generic(_, _) => {
             if let Some((_, replacement)) = substitutions.iter()
                 .find(|(gen_name, _)| gen_name == type_) {
                 replacement.clone()
@@ -21,9 +22,9 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         }
 
         // Index generic substitution
-        Type::IndexGen(name) => {
+        Type::IndexGen(name, h) => {
             if let Some((_, replacement)) = substitutions.iter()
-                .find(|(idx_name, _)| idx_name == &Type::IndexGen(name.clone())) {
+                .find(|(idx_name, _)| idx_name == &Type::IndexGen(name.clone(), h.clone())) {
                 replacement.clone()
             } else {
                 type_.clone()
@@ -31,9 +32,9 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         }
 
         // Label generic substitution
-        Type::LabelGen(name) => {
+        Type::LabelGen(name, h) => {
             if let Some((_, replacement)) = substitutions.iter()
-                .find(|(idx_name, _)| idx_name == &Type::LabelGen(name.clone())) {
+                .find(|(idx_name, _)| idx_name == &Type::LabelGen(name.clone(), h.clone())) {
                 replacement.clone()
             } else {
                 type_.clone()
@@ -46,7 +47,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
-                (Type::Integer, Type::Integer) => Type::Integer,
+                (Type::Integer(h), Type::Integer(_)) => Type::Integer(h),
                 _ => Type::Add(Box::new(v1), Box::new(v2))
             }
         }
@@ -56,7 +57,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
-                (Type::Integer, Type::Integer) => Type::Integer,
+                (Type::Integer(h), Type::Integer(_)) => Type::Integer(h),
                 _ => Type::Minus(Box::new(v1), Box::new(v2))
             }
         }
@@ -66,7 +67,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
-                (Type::Integer, Type::Integer) => Type::Integer,
+                (Type::Integer(h), Type::Integer(_)) => Type::Integer(h),
                 _ => Type::Mul(Box::new(v1), Box::new(v2))
             }
         }
@@ -76,21 +77,22 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
-                (Type::Integer, Type::Integer) => Type::Integer,
+                (Type::Integer(h), Type::Integer(_)) => Type::Integer(h),
                 _ => Type::Div(Box::new(v1), Box::new(v2))
             }
         }
 
         // Array type substitution
-        Type::Array(size, element_type) => {
+        Type::Array(size, element_type, h) => {
             Type::Array(
                 Box::new(type_substitution(size, substitutions)),
-                Box::new(type_substitution(element_type, substitutions))
+                Box::new(type_substitution(element_type, substitutions)),
+                h.clone()
             )
         }
 
         // Record type substitution
-        Type::Record(fields) => {
+        Type::Record(fields, h) => {
             Type::Record(
                 fields.iter()
                     .map(|arg_type| {
@@ -99,37 +101,40 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
                             type_substitution(&arg_type.1, substitutions),
                             arg_type.2)
                     })
-                    .collect()
+                    .collect(), h.clone()
             )
         }
 
         // Function type substitution
-        Type::Function(kinds, params, return_type) => {
+        Type::Function(kinds, params, return_type, h) => {
             Type::Function(
                 kinds.clone(),
                 params.iter()
                     .map(|param| type_substitution(param, substitutions))
                     .collect(),
-                Box::new(type_substitution(return_type, substitutions))
+                Box::new(type_substitution(return_type, substitutions)),
+                h.clone()
             )
         }
 
         // Alias type substitution
-        Type::Alias(name, params, base_type) => {
+        Type::Alias(name, params, base_type, h) => {
             Type::Alias(
                 name.clone(),
                 params.iter()
                     .map(|param| type_substitution(param, substitutions))
                     .collect(),
-                base_type.clone()
+                base_type.clone(),
+                h.clone()
             )
         }
 
         // Tag type substitution
-        Type::Tag(name, inner_type) => {
+        Type::Tag(name, inner_type, h) => {
             Type::Tag(
                 name.clone(),
-                Box::new(type_substitution(inner_type, substitutions))
+                Box::new(type_substitution(inner_type, substitutions)),
+                h.clone()
             )
         }
 
@@ -172,26 +177,26 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
         (_, Type::Any) => Some(vec![]),
 
         // Generic case
-        (t, Type::Generic(g)) | (Type::Generic(g), t) => {
-            Some(vec![(Type::Generic(g.clone()), t.clone())])
+        (t, Type::Generic(g, h)) | (Type::Generic(g, h), t) => {
+            Some(vec![(Type::Generic(g.clone(), h.clone()), t.clone())])
         }
 
         // label generic case with label
-        (Type::Char, Type::LabelGen(g)) | (Type::LabelGen(g), Type::Char) => {
-            Some(vec![(Type::LabelGen(g.clone()), Type::Char)])
+        (Type::Char(h), Type::LabelGen(g, h2)) | (Type::LabelGen(g, h2), Type::Char(h)) => {
+            Some(vec![(Type::LabelGen(g.clone(), h2.clone()), Type::Char(h.clone()))])
         }
 
         // Index generic case with number
-        (Type::Number(h), Type::IndexGen(g)) | (Type::IndexGen(g), Type::Number(h)) => {
-            Some(vec![(Type::IndexGen(g.clone()), Type::Number(h.clone()))])
+        (Type::Number(h), Type::IndexGen(g, h2)) | (Type::IndexGen(g, h2), Type::Number(h)) => {
+            Some(vec![(Type::IndexGen(g.clone(), h2.clone()), Type::Number(h.clone()))])
         }
 
-        (Type::Index(i), Type::IndexGen(g)) | (Type::IndexGen(g), Type::Index(i)) => {
-            Some(vec![(Type::IndexGen(g.clone()), Type::Index(i.clone()))])
+        (Type::Index(i, h2), Type::IndexGen(g, h)) | (Type::IndexGen(g, h), Type::Index(i, h2)) => {
+            Some(vec![(Type::IndexGen(g.clone(), h.clone()), Type::Index(i.clone(), h2.clone()))])
         }
 
         // Function case
-        (Type::Function(_, params1, ret1), Type::Function(_, params2, ret2)) => {
+        (Type::Function(_, params1, ret1, _), Type::Function(_, params2, ret2, _)) => {
             if params1.len() != params2.len() {
                 return None;
             }
@@ -209,7 +214,7 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
         }
 
         // Array case
-        (Type::Array(size1, elem1), Type::Array(size2, elem2)) => {
+        (Type::Array(size1, elem1, _), Type::Array(size2, elem2, _)) => {
             let size_matches = unification_helper(values, size1, size2)?;
             let elem_matches = unification_helper(values, elem1, elem2)?;
             let mut combined = size_matches;
@@ -218,12 +223,12 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
         }
 
         // Tag case
-        (Type::Tag(name1, type1), Type::Tag(name2, type2)) if name1 == name2 => {
+        (Type::Tag(name1, type1, h1), Type::Tag(name2, type2, h2)) if name1 == name2 => {
             unification_helper(values, type1, type2)
         }
 
         // Record case
-        (Type::Record(fields1), Type::Record(fields2)) => {
+        (Type::Record(fields1, _), Type::Record(fields2, _)) => {
             if let Some((intersection1, intersection2)) = record_intersection(fields1, fields2) {
                 let types1: Vec<_> = intersection1.iter().map(|arg| &arg.1).collect();
                 let types2: Vec<_> = intersection2.iter().map(|arg| &arg.1).collect();

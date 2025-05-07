@@ -24,21 +24,21 @@ pub enum TypeCategory {
 impl TypeCategory {
     fn from_type(t: Type) -> TypeCategory {
         match t {
-            Type::Array(_, _) => TypeCategory::Array,
-            Type::Function(_, _, _) => TypeCategory::Function,
-            Type::Record(_) => TypeCategory::Record,
-            Type::Index(_) => TypeCategory::Index,
-            Type::Alias(_, _, _) => TypeCategory::Alias,
-            Type::Tag(_, _) => TypeCategory::Tag,
+            Type::Array(_, _, _) => TypeCategory::Array,
+            Type::Function(_, _, _, _) => TypeCategory::Function,
+            Type::Record(_, _) => TypeCategory::Record,
+            Type::Index(_, _) => TypeCategory::Index,
+            Type::Alias(_, _, _, _) => TypeCategory::Alias,
+            Type::Tag(_, _, _) => TypeCategory::Tag,
             Type::Union(_) => TypeCategory::Union,
             Type::Interface(_) => TypeCategory::Interface,
-            Type::Boolean => TypeCategory::Boolean,
-            Type::Integer => TypeCategory::Integer,
+            Type::Boolean(_) => TypeCategory::Boolean,
+            Type::Integer(_) => TypeCategory::Integer,
             Type::Number(_) => TypeCategory::Number,
-            Type::Char => TypeCategory::Char,
-            Type::Generic(_) => TypeCategory::Generic,
-            Type::IndexGen(_) => TypeCategory::Generic,
-            Type::LabelGen(_) => TypeCategory::Generic,
+            Type::Char(_) => TypeCategory::Char,
+            Type::Generic(_, _) => TypeCategory::Generic,
+            Type::IndexGen(_, _) => TypeCategory::Generic,
+            Type::LabelGen(_, _) => TypeCategory::Generic,
             _ => TypeCategory::Rest
         }
     }
@@ -101,14 +101,14 @@ impl TypeNominal {
 
     fn get_nth(&self, type_: Type) -> (Categories, usize) {
       match type_ {
-          Type::Array(_, _) => self.get_nth_helper(TypeCategory::Array),
-          Type::Function(_, _, _) => self.get_nth_helper(TypeCategory::Function),
-          Type::Record(_) => self.get_nth_helper(TypeCategory::Record),
-          Type::Number(_) | Type::Integer | Type::Char | Type::Boolean => (self.categories.clone(), 100 as usize),
-          Type::Embedded(_) | Type::Generic(_) | Type::IndexGen(_) => (self.categories.clone(), 0 as usize),
-          Type::Index(_) => self.get_nth_helper(TypeCategory::Index),
-          Type::Alias(_, _, _) => self.get_nth_helper(TypeCategory::Alias),
-          Type::Tag(_, _) => self.get_nth_helper(TypeCategory::Tag),
+          Type::Array(_, _, _) => self.get_nth_helper(TypeCategory::Array),
+          Type::Function(_, _, _, _) => self.get_nth_helper(TypeCategory::Function),
+          Type::Record(_, _) => self.get_nth_helper(TypeCategory::Record),
+          Type::Number(_) | Type::Integer(_) | Type::Char(_) | Type::Boolean(_) => (self.categories.clone(), 100 as usize),
+          Type::Embedded(_, _) | Type::Generic(_, _) | Type::IndexGen(_, _) => (self.categories.clone(), 0 as usize),
+          Type::Index(_, _) => self.get_nth_helper(TypeCategory::Index),
+          Type::Alias(_, _, _, _) => self.get_nth_helper(TypeCategory::Alias),
+          Type::Tag(_, _, _) => self.get_nth_helper(TypeCategory::Tag),
           Type::Union(_) => self.get_nth_helper(TypeCategory::Union),
           Type::Interface(_) => self.get_nth_helper(TypeCategory::Interface),
           Type::Failed(_) | Type::Params(_) | Type::Empty => (self.categories.clone(), 0 as usize),

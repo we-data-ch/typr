@@ -22,6 +22,7 @@ use nom::multi::many1;
 use nom::sequence::delimited;
 use nom::Parser;
 use nom_locate::{position, LocatedSpan};
+use crate::help_data::HelpData;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -42,14 +43,14 @@ fn function_type(s: Span) -> IResult<Span, Type> {
             terminated(alt((if_type, ltype)), multispace0)
           ).parse(s);
     match res {
-        Ok((s, (_, v, _, _, t))) => {
+        Ok((s, (start, v, _, _, t))) => {
             let kind_vec = v.iter()
                 .flat_map(|typ| typ.extract_generics())
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .map(|typ| ArgumentKind::from((typ.clone(), typ.get_kind())))
                 .collect::<Vec<_>>();
-            Ok((s, Type::Function(kind_vec, v.clone(), Box::new(t))))
+            Ok((s, Type::Function(kind_vec, v.clone(), Box::new(t), start.into())))
         },
         Err(r) => Err(r)
     }
@@ -78,7 +79,7 @@ fn generic(s: Span) -> IResult<Span, Type> {
             self_tag
                   )).parse(s);
     match res {
-        Ok((s, g)) => Ok((s, Type::Generic(g))),
+        Ok((s, g)) => Ok((s, Type::Generic(g, HelpData::default()))),
         Err(r) => Err(r)
     }
 }
@@ -86,7 +87,7 @@ fn generic(s: Span) -> IResult<Span, Type> {
 fn simple_index(s: Span) -> IResult<Span, Type> {
     let res = terminated(digit1, multispace0).parse(s);
     match res {
-        Ok((s, fl)) => Ok((s, Type::Index(fl.parse::<u32>().unwrap()))),
+        Ok((s, fl)) => Ok((s, Type::Index(fl.parse::<u32>().unwrap(), fl.into()))),
         Err(r) => Err(r)
     }
 }
@@ -105,15 +106,16 @@ fn array_type(s: Span) -> IResult<Span, Type> {
                   ).parse(s);
 
     match res {
-        Ok((s, (_, num, _, typ, _))) => Ok((s, Type::Array(Box::new(num), Box::new(typ)))),
+        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::Array(Box::new(num), Box::new(typ), start.into()))),
         Err(r) => Err(r)
     }
 }
 
 fn embedded_ltype(s: Span) -> IResult<Span, Type> {
-    let res = preceded(tag("@"), ltype).parse(s);
+    let res = (tag("@"), ltype).parse(s);
     match res {
-        Ok((s, ty)) => Ok((s, Type::Embedded(Box::new(ty)))),
+        Ok((s, (at, ty))) 
+            => Ok((s, Type::Embedded(Box::new(ty), at.into()))),
         Err(r) => Err(r)
     }
 }
@@ -121,7 +123,8 @@ fn embedded_ltype(s: Span) -> IResult<Span, Type> {
 fn simple_label(s: Span) -> IResult<Span, Type> {
     let res = alpha1(s);
     match res {
-        Ok((s, lab)) => Ok((s, Type::Label(lab.to_string()))),
+        Ok((s, lab)) 
+            => Ok((s, Type::Label(lab.clone().into_fragment().to_string(), lab.into()))),
         Err(r) => Err(r)
     }
 }
@@ -138,7 +141,8 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
         opt(terminated(tag(","), multispace0))
                 ).parse(s);
     match res {
-        Ok((s, (e1, _, Type::Embedded(ty), _))) => Ok((s, ArgumentType(e1, *ty.clone(), true))),
+        Ok((s, (e1, _, Type::Embedded(ty, _), _))) 
+            => Ok((s, ArgumentType(e1, *ty.clone(), true))),
         Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false))),
         Err(r) => Err(r)
     }
@@ -164,7 +168,7 @@ fn record_type(s: Span) -> IResult<Span, Type> {
             terminated(tag("}"), multispace0)
                     ).parse(s);
     match res {
-        Ok((s, (_, v, _))) => Ok((s, Type::Record(v.clone()))),
+        Ok((s, (start, v, _))) => Ok((s, Type::Record(v.clone(), start.into()))),
         Err(r) => Err(r)
     }
 }
@@ -180,7 +184,7 @@ fn number(s: Span) -> IResult<Span, Type> {
 fn boolean(s: Span) -> IResult<Span, Type> {
     let res = terminated(tag("bool"), multispace0).parse(s);
     match res {
-        Ok((s, _)) => Ok((s, Type::Boolean)),
+        Ok((s, b)) => Ok((s, Type::Boolean(b.into()))),
         Err(r) => Err(r)
     }
 }
@@ -203,18 +207,24 @@ fn type_params(s: Span) -> IResult<Span, Vec<Type>> {
 }
 
 
-pub fn pascal_case(s: Span) -> IResult<Span, String> {
+pub fn pascal_case(s: Span) -> IResult<Span, (String, HelpData)> {
     let res = terminated((one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), alphanumeric1), multispace0).parse(s);
     match res {
-        Ok((s, (t1, t2))) => Ok((s, format!("{}{}", t1, t2))),
+        Ok((s, (t1, t2))) => Ok((s.clone(), (format!("{}{}", t1, t2), s.into()))),
         Err(r) => Err(r)
     }
 }
 
-fn module_path(s: Span) -> IResult<Span, String> {
+fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
     let res = many1(terminated(pascal_case, tag("::"))).parse(s);
     match res {
-        Ok((s, v)) => Ok((s, v.join("/"))),
+        Ok((s, v)) => {
+            let res =  v.iter()
+                .map(|(string, hd)| string.clone())
+                .collect::<Vec<_>>()
+                .join("/");
+            Ok((s, (res, v[0].1.clone())))
+        },
         Err(r) => Err(r)
     }
 }
@@ -226,10 +236,14 @@ pub fn type_alias(s: Span) -> IResult<Span, Type> {
             opt(type_params)
           ).parse(s);
     match res {
-        Ok((s, (Some(p), name, Some(v)))) => Ok((s, Type::Alias(name, v.clone(), p))),
-        Ok((s, (None, name, Some(v)))) => Ok((s, Type::Alias(name, v.clone(), "".to_string()))),
-        Ok((s, (Some(p), name, None))) => Ok((s, Type::Alias(name, vec![], p))),
-        Ok((s, (None, name, None))) => Ok((s, Type::Alias(name, vec![], "".to_string()))),
+        Ok((s, (Some(p), (name, h), Some(v)))) 
+            => Ok((s, Type::Alias(name, v.clone(), p.0, h))),
+        Ok((s, (None, (name, h), Some(v)))) 
+            => Ok((s, Type::Alias(name, v.clone(), "".to_string(), h))),
+        Ok((s, (Some(p), (name, h), None))) 
+            => Ok((s, Type::Alias(name, vec![], p.0, h))),
+        Ok((s, (None, (name, h), None))) 
+            => Ok((s, Type::Alias(name, vec![], "".to_string(), h))),
         Err(r) => Err(r),
     }
 }
@@ -247,8 +261,10 @@ fn tag_default_helper(s: Span) -> IResult<Span, Type> {
             pascal_case,
             opt(parenthese_value)).parse(s);
     match res {
-        Ok((s, (_, n, Some(val)))) => Ok((s, Type::Tag(n, Box::new(val)))),
-        Ok((s, (_, n, None))) => Ok((s, Type::Tag(n, Box::new(Type::Empty)))),
+        Ok((s, (_, (n, h), Some(val)))) 
+            => Ok((s, Type::Tag(n, Box::new(val), h))),
+        Ok((s, (_, (n, h), None))) 
+            => Ok((s, Type::Tag(n, Box::new(Type::Empty), h))),
         Err(r) => Err(r)
     }
 }
@@ -259,9 +275,12 @@ fn tag_default(s: Span) -> IResult<Span, Type> {
 
 fn get_primitive(ls: LocatedSpan<&str, String>) -> Type {
     match ls.clone().into_fragment() {
-        "bool" => Type::Tag("Bool".to_string(), Box::new(Type::Boolean)),
-        "num" => Type::Tag("Num".to_string(), Box::new(Type::Number(ls.into()))),
-        "char" => Type::Tag("Char".to_string(), Box::new(Type::Char)),
+        "bool" 
+            => Type::Tag("Bool".to_string(), Box::new(Type::Boolean(ls.clone().into())), ls.into()),
+        "num" 
+            => Type::Tag("Num".to_string(), Box::new(Type::Number(ls.clone().into())), ls.into()),
+        "char" 
+            => Type::Tag("Char".to_string(), Box::new(Type::Char(ls.clone().into())), ls.into()),
         _ => todo!()
     }
 }
@@ -313,7 +332,7 @@ fn union(s: Span) -> IResult<Span, Type> {
 fn chars(s: Span) -> IResult<Span, Type> {
     let res = tag("char")(s);
     match res {
-        Ok((s, _st)) => Ok((s, Type::Char)),
+        Ok((s, st)) => Ok((s, Type::Char(st.into()))),
         Err(r) => Err(r)
     }
 }
@@ -328,8 +347,8 @@ fn pseudo_function_signature(s: Span) -> IResult<Span, Type> {
         terminated(ltype, multispace0)
           ).parse(s);
     match res {
-        Ok((s, (_, _, args, _, _, typ))) => 
-            Ok((s, Type::Function(vec![], args, Box::new(typ)))),
+        Ok((s, (start, _, args, _, _, typ))) => 
+            Ok((s, Type::Function(vec![], args, Box::new(typ), start.into()))),
         Err(r) => Err(r)
     }
 }
@@ -345,8 +364,8 @@ fn interface_simple_function(s: Span) -> IResult<Span, Type> {
         scope
           ).parse(s);
     match res {
-        Ok((s, (_fn, _par1, vt, _par2, _dp, ty, _body))) 
-            => Ok((s, Type::Function(vec![], vt, Box::new(ty)))),
+        Ok((s, (start, _par1, vt, _par2, _dp, ty, _body))) 
+            => Ok((s, Type::Function(vec![], vt, Box::new(ty), start.into()))),
         Err(r) => Err(r)
     }
 }
@@ -396,8 +415,8 @@ fn index_generic(s: Span) -> IResult<Span, Type> {
             tag("#"),
             generic).parse(s);
     match res {
-        Ok((s, (_tag, Type::Generic(gen)))) 
-            => Ok((s, Type::IndexGen(gen))),
+        Ok((s, (tag, Type::Generic(gen, _)))) 
+            => Ok((s, Type::IndexGen(gen, tag.into()))),
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -408,8 +427,8 @@ fn label_generic(s: Span) -> IResult<Span, Type> {
             tag("$"),
             generic).parse(s);
     match res {
-        Ok((s, (_tag, Type::Generic(gen)))) 
-            => Ok((s, Type::LabelGen(gen))),
+        Ok((s, (tag, Type::Generic(gen, _)))) 
+            => Ok((s, Type::LabelGen(gen, tag.into()))),
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -418,7 +437,7 @@ fn label_generic(s: Span) -> IResult<Span, Type> {
 fn integer(s: Span) -> IResult<Span, Type> {
     let res = terminated(tag("int"), multispace0).parse(s);
     match res {
-        Ok((s, _)) => Ok((s, Type::Integer)),
+        Ok((s, _)) => Ok((s.clone(), Type::Integer(s.into()))),
         Err(r) => Err(r)
     }
 }
@@ -482,13 +501,13 @@ fn index_algebra(s: Span) -> IResult<Span, Type> {
 
 fn propagate_multiplicity(t: &Type) -> Option<Type> {
     match t {
-        Type::Record(ref body) => {
+        Type::Record(body, h) => {
             if body.len() == 1 {
                 let argt = body[0].clone();
                 Some(Type::Record(vec![ArgumentType(
-                    Type::Multi(Box::new(argt.get_argument())),
-                    Type::Multi(Box::new(argt.get_type())),
-                    false)]))
+                    Type::Multi(Box::new(argt.get_argument()), HelpData::default()),
+                    Type::Multi(Box::new(argt.get_type()), HelpData::default()),
+                    false)], h.clone()))
             } else { panic!("The Record {} should have only one couple 'label: type'", t) }
         },
         _ => None 
@@ -503,7 +522,7 @@ fn multitype(s: Span) -> IResult<Span, Type> {
                 if let Some(new_t) = propagate_multiplicity(&t) {
                     Ok((s, new_t))
                 } else {
-                    Ok((s, Type::Multi(Box::new(t))))
+                    Ok((s, Type::Multi(Box::new(t.clone()), t.get_help_data())))
                 }
             }
         Err(r) => Err(r)

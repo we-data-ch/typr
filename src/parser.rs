@@ -29,7 +29,7 @@ type Span<'a> = LocatedSpan<&'a str, String>;
 fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
     let res = alt((tag_exp, variable)).parse(s);
     match res {
-        Ok((s, Lang::Tag(name, val)))
+        Ok((s, Lang::Tag(name, val, h)))
             => {
                 if let Lang::Variable(name2, path, perm, mutopa, typ) = *val {
                     Ok((s, 
@@ -70,11 +70,11 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             single_parse,
           ).parse(s);
     match res {
-        Ok((s, (_let, (pat_var, None), typ, _eq, Lang::Function(ki, params, ty, body)))) 
+        Ok((s, (_let, (pat_var, None), typ, _eq, Lang::Function(ki, params, ty, body, h)))) 
             if params.len() > 0 => {
                 let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false);
                 Ok((s, vec![Lang::Let(newvar, typ.unwrap_or(Type::Empty),
-                Box::new(Lang::Function(ki, params, ty, body)))]))
+                Box::new(Lang::Function(ki, params, ty, body, h)))]))
             },
         Ok((s, (_let, (pat_var, None), typ, _eq, body))) => {
                 Ok((s, 
@@ -139,14 +139,14 @@ fn base_mut_exp(s: Span) -> IResult<Span, Lang> {
             single_parse,
           ).parse(s);
     match res {
-        Ok((s, (_met, var, typ, _eq, Lang::Function(ki, params, ty, body)))) 
+        Ok((s, (_met, var, typ, _eq, Lang::Function(ki, params, ty, body, h)))) 
             if params.len() > 0 => {
                 let newvar = Var::from_language(var)
                     .unwrap()
                     .set_type(params[0].1.clone())
                     .set_mutability(true);
                 Ok((s, Lang::Let(newvar, typ.unwrap_or(Type::Empty),
-                Box::new(Lang::Function(ki, params, ty, body)))))
+                Box::new(Lang::Function(ki, params, ty, body, h)))))
             },
         Ok((s, (_let, var, typ, _eq, body))) => {
             Ok((s, Lang::Let(
@@ -185,12 +185,12 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
             terminated(tag(";"), multispace0) 
           ).parse(s);
     match res {
-        Ok((s, (_ty, Type::Alias(name, params, path), _eq, ty, _))) 
+        Ok((s, (_ty, Type::Alias(name, params, path, h), _eq, ty, _))) 
             => Ok((s, Lang::Alias(
                         Var::from_name(&name)
                             .set_type(Type::Params(params.clone()))
                             .add_path(&path),
-                        params, ty))),
+                        params, ty, h))),
         Ok((s, (_ty, _, _eq, _ty2, _)))
             => Ok((s, Lang::Empty)),
         Err(r) => Err(r),
@@ -203,11 +203,11 @@ fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     ).parse(s);
     match res {
         Ok((s, (Some(_pu), ali))) => Ok((s, vec![ali])),
-        Ok((s, (None, Lang::Alias(var, params, typ)))) 
+        Ok((s, (None, Lang::Alias(var, params, typ, h)))) 
             => Ok((s, vec![Lang::Alias(
                         var.set_permission(false),
                         params,
-                        typ)])),
+                        typ, h)])),
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -221,13 +221,13 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
             terminated(tag(";"), multispace0) 
           ).parse(s);
     match res {
-        Ok((s, (_ty, Type::Alias(name, params, path), _eq, ty, _))) 
+        Ok((s, (_ty, Type::Alias(name, params, path, h), _eq, ty, _))) 
             => Ok((s, Lang::Alias(
                         Var::from_name(&name)
                             .set_type(Type::Params(params.clone()))
                             .add_path(&path)
                             .set_opacity(true),
-                        params, ty))),
+                        params, ty, h))),
         Ok((s, (_ty, _, _eq, _ty2, _)))
             => Ok((s, Lang::Empty)),
         Err(r) => Err(r),
@@ -238,13 +238,13 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(terminated(tag("pub"), multispace0)),
                 base_opaque_exp).parse(s);
     match res {
-        Ok((s, (Some(_pu), Lang::Alias(var, params, typ)))) 
-            => Ok((s, vec![Lang::Alias(var.set_opacity(true), params, typ)])),
-        Ok((s, (None, Lang::Alias(var, params, typ)))) 
+        Ok((s, (Some(_pu), Lang::Alias(var, params, typ, h)))) 
+            => Ok((s, vec![Lang::Alias(var.set_opacity(true), params, typ, h)])),
+        Ok((s, (None, Lang::Alias(var, params, typ, h)))) 
             => Ok((s, vec![Lang::Alias(
                         var.set_permission(false).set_opacity(true),
                         params,
-                        typ)])),
+                        typ, h)])),
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -259,7 +259,7 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
         terminated(tag(";"), multispace0)
           ).parse(s);
     match res {
-        Ok((s, (_mod, name, _op, Lang::Sequence(v), _cl, _dv))) => 
+        Ok((s, (_mod, (name, h), _op, Lang::Sequence(v), _cl, _dv))) => 
             Ok((s, vec![Lang::Module(name, v)])),
         Err(r) => Err(r),
         _ => todo!()
@@ -313,7 +313,8 @@ fn mod_imp(s: Span) -> IResult<Span, Vec<Lang>> {
             pascal_case,
             terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (_mod, name, _sc))) => Ok((s, vec![Lang::ModImp(name.to_string())])),
+        Ok((s, (_mod, (name, h), _sc))) 
+            => Ok((s, vec![Lang::ModImp(name.to_string())])),
         Err(r) => Err(r)
     }
 }

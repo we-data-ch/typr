@@ -1,7 +1,7 @@
 use nom_locate::LocatedSpan;
 use serde::Serialize;
 
-#[derive(Debug, PartialEq, Serialize, Eq, Clone, Hash)]
+#[derive(Debug, PartialEq, Serialize, Eq, Clone, Hash, Default)]
 pub struct HelpData {
    offset: usize,
    file_name: String
@@ -16,6 +16,7 @@ impl HelpData {
         self.file_name.clone()
     }
 }
+
 
 impl From<LocatedSpan<&str, String>> for  HelpData {
    fn from(ls: LocatedSpan<&str, String>) -> Self {

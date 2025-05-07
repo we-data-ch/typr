@@ -11,6 +11,7 @@ use crate::type_comparison;
 use crate::TargetLanguage;
 use crate::Environment;
 use crate::type_comparison::is_matching;
+use crate::help_data::HelpData;
 
 #[derive(Debug, Clone)]
 pub struct Context {
@@ -154,7 +155,7 @@ impl Context {
 
     pub fn get_embeddings(&self, t: &Type) -> (Vec<(Var, Type)>, Context) {
         match t {
-            Type::Record(arg_typs) => {
+            Type::Record(arg_typs, _) => {
                 let new_t = t.clone().without_embeddings();
                 let type_functions = arg_typs.iter()
                     .filter(|arg_typ| arg_typ.is_embedded())
@@ -190,7 +191,7 @@ impl Context {
         var_typ.iter().map(|(par, var, typ)| {
             let t = var.get_type();
             match typ {
-                Type::Function(kinds, args, t2) => {
+                Type::Function(kinds, args, t2, h) => {
                    let manips = args.iter().enumerate()
                        .map(|(i, argtyp)| manip(&generate_arg(i), argtyp.clone(), t.clone(), par))
                        .collect::<Vec<_>>();
@@ -207,7 +208,7 @@ impl Context {
                         Type::Empty,
                         Box::new(
                            Lang::Function(kinds.to_vec(), new_args, new_t2,
-                                          Box::new(build_concret_function(&manips, manip1, var.clone())))
+                                          Box::new(build_concret_function(&manips, manip1, var.clone())), h.clone())
                                 )
                             )
                 },
@@ -287,7 +288,7 @@ fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
                 Box::new(Var::from_name("set").to_language()),
                 vec![
                     Var::from_name("a").to_language(),
-                    Lang::Char(param.to_string()),
+                    Lang::Char(param.to_string(), HelpData::default()),
                     Lang::FunctionApp(Box::new(name.to_language()), args)
                 ]
             )
@@ -325,7 +326,7 @@ impl Manip {
                     Box::new(Var::from_name("get").to_language()),
                     vec![
                         Var::from_name(&argname).to_language(),
-                        Lang::Char(field.to_string())
+                        Lang::Char(field.to_string(), HelpData::default())
                     ])
             },
             _ => todo!()
@@ -361,8 +362,8 @@ fn wasm_types(types: &[Type], nominals: &TypeNominal, cont: &Context) -> Vec<Lan
     types.iter().flat_map(|typ| {
         let name = nominals.get_class(typ, cont);
         match typ {
-            Type::Record(_) | Type::Tag(_, _) | Type::Function(_, _, _)
-                => Some(Lang::Alias(Var::from_name(&name), vec![], typ.clone())),
+            Type::Record(_, _) | Type::Tag(_, _, _) | Type::Function(_, _, _, _)
+                => Some(Lang::Alias(Var::from_name(&name), vec![], typ.clone(), typ.get_help_data())),
             _ => None
         }
     }).collect::<Vec<_>>()

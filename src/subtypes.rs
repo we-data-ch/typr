@@ -9,8 +9,8 @@ pub struct Subtypes(HashSet<(Type, Type)>);
 
 fn not_alias_reverse_subtyping(typ1: &Type, typ2: &Type) -> bool {
     match (typ1, typ2) {
-        (Type::Alias(_, _, _), Type::Alias(_, _, _)) => true,
-        (Type::Alias(_, _, _), _) => false,
+        (Type::Alias(_, _, _, _), Type::Alias(_, _, _, _)) => true,
+        (Type::Alias(_, _, _, _), _) => false,
         _ => true
     }
 }

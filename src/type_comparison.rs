@@ -27,7 +27,7 @@ fn contains_all(cont: &Context, vec1: &[ArgumentType], vec2: &[ArgumentType]) ->
 
 fn to_self(t1: Type, t2: Type) -> Type {
     if  t1 == t2 {
-        Type::Alias("Self".to_string(), vec![], "".to_string())
+        Type::Alias("Self".to_string(), vec![], "".to_string(), t1.get_help_data())
     } else {
        t1
     }
@@ -36,14 +36,14 @@ fn to_self(t1: Type, t2: Type) -> Type {
 fn set_self(fs: &[(Var, Type)]) -> Vec<(Var, Type)> {
     fs.iter().map(|(var, typ)| {
         match typ {
-            Type::Function(kinds, arg_types, ret_type) => {
+            Type::Function(kinds, arg_types, ret_type, h) => {
                 if arg_types.len() > 0 {
                     let first = arg_types.first().cloned().unwrap();
                     let args = arg_types.iter()
                         .map(|typ_ele| to_self(typ_ele.clone(), first.clone()))
                         .collect();
                     let ret2 = to_self((**ret_type).clone(), first);
-                    (var.clone().set_type(Type::Empty), Type::Function(kinds.clone(), args, Box::new(ret2)))
+                    (var.clone().set_type(Type::Empty), Type::Function(kinds.clone(), args, Box::new(ret2), h.clone()))
                 } else { (var.clone().set_type(Type::Empty), typ.clone()) }
             },
             _ => (var.clone(), typ.clone())
@@ -62,7 +62,7 @@ pub fn check_interface_functions(
 
 fn has_generic_label(v: &[ArgumentType]) -> bool {
     v.iter().any(|arg| match arg.get_argument() {
-        Type::LabelGen(_) => true,
+        Type::LabelGen(_, _) => true,
         _ => false
     })
 }
@@ -72,14 +72,14 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (typ1, typ2) if typ1 == typ2 => true,
         // Array subtyping
         (_, Type::Any) => true,
-        (Type::Array(n1, t1), Type::Array(n2, t2)) => {
+        (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
             is_subtype(context, n1, n2) && is_subtype(context, t1, t2)
         },
-        (type1, Type::Alias(_, _, _)) => {
+        (type1, Type::Alias(_, _, _, h)) => {
             let reduced = reduce_type(context, type2);
             is_subtype(context, type1, &reduced)
         },
-        (Type::Function(_, args1, ret_typ1), Type::Function(_, args2, ret_typ2)) => {
+        (Type::Function(_, args1, ret_typ1, _), Type::Function(_, args2, ret_typ2, _)) => {
             args1.iter().chain([&(**ret_typ1)])
                 .zip(args2.iter().chain([&(**ret_typ2)]))
                 .all(|(typ1, typ2)| is_subtype(context, typ1, typ2))
@@ -96,7 +96,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         }
 
         // Record subtyping
-        (Type::Record(r1), Type::Record(r2)) => {
+        (Type::Record(r1, _), Type::Record(r2, _)) => {
             if has_generic_label(r2) && (r1.len() == r2.len()) {
                 all_subtype(context, r1, r2)
             } else if let Some(arg_typ) = type2.get_type_pattern() {
@@ -111,20 +111,20 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         },
 
         // Union subtyping
-        (Type::Tag(name, body), Type::Union(types)) => {
+        (Type::Tag(name, body, h), Type::Union(types)) => {
             types.iter().any(|t| is_matching(context, type1, &t.to_type()))
         },
-        (Type::Tag(name1, body1), Type::Tag(name2, body2)) => {
+        (Type::Tag(name1, body1, h1), Type::Tag(name2, body2, h2)) => {
             (name1 == name2) && is_matching(context, body1, body2)
         },
 
         // Generic subtyping
-        (_, Type::Generic(_)) => true,
-        (Type::Index(_), Type::IndexGen(_)) => true,
-        (Type::Integer, Type::IndexGen(_)) => true,
-        (Type::Label(_), Type::LabelGen(_)) => true,
-        (Type::Char, Type::LabelGen(_)) => true,
-        (Type::IndexGen(_), Type::IndexGen(_)) => true,
+        (_, Type::Generic(_, _)) => true,
+        (Type::Index(_, _), Type::IndexGen(_, _)) => true,
+        (Type::Integer(_), Type::IndexGen(_, _)) => true,
+        (Type::Label(_, _), Type::LabelGen(_, _)) => true,
+        (Type::Char(_), Type::LabelGen(_, _)) => true,
+        (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
 
         // Params subtyping
         (Type::Params(p1), Type::Params(p2)) => {
@@ -175,12 +175,12 @@ pub fn reduce_param(
 
 pub fn reduce_type(context: &Context, type_: &Type) -> Type {
     match type_ {
-        Type::Record(args) => {
+        Type::Record(args, h) => {
             Type::Record(args.iter()
                 .map(|arg| reduce_param(context, arg))
-                .collect())
+                .collect(), h.clone())
         },
-        Type::Alias(name, concret_types, _base_type) => {
+        Type::Alias(name, concret_types, _base_type, h) => {
             let var = Var::from_name(name).set_type(Type::Params(concret_types.to_vec()));
             if let Some((aliased_type, generics)) = context.get_with_gen(&var) {
                 let substituted = type_substitution(
@@ -203,8 +203,8 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 .collect())
         }
 
-        Type::Tag(name, inner) => {
-            Type::Tag(name.clone(), Box::new(reduce_type(context, inner)))
+        Type::Tag(name, inner, h) => {
+            Type::Tag(name.clone(), Box::new(reduce_type(context, inner)), h.clone())
         }
         Type::If(typ, _conditions) => *typ.clone(),
         _ => type_.clone()

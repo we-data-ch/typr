@@ -21,20 +21,20 @@ type Path = String;
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
 pub enum Type {
     Number(HelpData),
-    Integer,
-    Boolean,
-    Char,
-    Embedded(Box<Type>),
-    Function(Vec<ArgumentKind>, Vec<Type>, Box<Type>),
-    Generic(String),
-    IndexGen(String),
-    LabelGen(String),
-    Label(String),
-    Array(Box<Type>, Box<Type>),
-    Record(Vec<ArgumentType>),
-    Index(u32),
-    Alias(String, Vec<Type>, Path),
-    Tag(String, Box<Type>),
+    Integer(HelpData),
+    Boolean(HelpData),
+    Char(HelpData),
+    Embedded(Box<Type>, HelpData),
+    Function(Vec<ArgumentKind>, Vec<Type>, Box<Type>, HelpData),
+    Generic(String, HelpData),
+    IndexGen(String, HelpData),
+    LabelGen(String, HelpData),
+    Label(String, HelpData),
+    Array(Box<Type>, Box<Type>, HelpData),
+    Record(Vec<ArgumentType>, HelpData),
+    Index(u32, HelpData),
+    Alias(String, Vec<Type>, Path, HelpData),
+    Tag(String, Box<Type>, HelpData),
     Union(Vec<Tag>),
     Interface(Vec<ArgumentType>),
     Params(Vec<Type>),
@@ -44,7 +44,7 @@ pub enum Type {
     Mul(Box<Type>, Box<Type>),
     Failed(String),
     Opaque(String),
-    Multi(Box<Type>),
+    Multi(Box<Type>, HelpData),
     Tuple(Vec<Type>),
     If(Box<Type>, Vec<Type>),
     Condition(Box<Type>, Box<Type>, Box<Type>),
@@ -57,7 +57,7 @@ pub enum Type {
 impl Type {
     pub fn type_extraction(&self) -> Vec<Type> {
         match self {
-            Type::Function(_, args, ret)
+            Type::Function(_, args, ret, _)
                 => {
                     let mut sol = args.clone();
                     sol.push((**ret).clone());
@@ -75,15 +75,15 @@ impl Type {
 
     pub fn get_label(&self) -> String {
         match self {
-            Type::Label(l) => l.to_string(),
-            Type::LabelGen(l) => l.to_string(),
+            Type::Label(l, _) => l.to_string(),
+            Type::LabelGen(l, _) => l.to_string(),
             _ => panic!("The type {} wasn't a label", self)
         }
     }
 
     fn add_kinds_in_functions_if_not(&self) -> Type {
         match self {
-            Type::Function(_kinds, args, ret) => {
+            Type::Function(_kinds, args, ret, h) => {
                 let new_kinds = args.iter()
                     .chain([(**ret).clone()].iter())
                     .flat_map(|typ| typ.extract_generics())
@@ -91,7 +91,7 @@ impl Type {
                     .iter()
                     .map(|typ| ArgumentKind::from((typ.clone(), typ.get_kind())))
                     .collect::<Vec<_>>();
-                Type::Function(new_kinds, args.clone(), ret.clone())
+                Type::Function(new_kinds, args.clone(), ret.clone(), h.clone())
             },
             typ => typ.clone()
         }
@@ -99,12 +99,12 @@ impl Type {
 
     pub fn replace_function_types(self: Type, t1: Type, t2: Type) -> Type {
         match self {
-            Type::Function(kinds, args, ret) => {
+            Type::Function(kinds, args, ret, h) => {
                 let new_args = args.iter()
                     .map(|typ| if *typ == t1 { t2.clone() } else {t1.clone()})
                     .collect::<Vec<_>>();
                 let new_ret = if *ret == t1 { t2 } else { *ret };
-                Type::Function(kinds.clone(), new_args, Box::new(new_ret))
+                Type::Function(kinds.clone(), new_args, Box::new(new_ret), h)
             },
             _ => self
         }
@@ -112,11 +112,11 @@ impl Type {
 
     pub fn without_embeddings(self) -> Type {
         match self {
-            Type::Record(args) => {
+            Type::Record(args, h) => {
                 let new_args = args.iter()
                     .map(|arg| arg.remove_embeddings())
                     .collect();
-                Type::Record(new_args)
+                Type::Record(new_args, h.clone())
             },
             typ => typ
         }
@@ -124,21 +124,21 @@ impl Type {
 
     pub fn to_typescript(&self) -> String {
        match self {
-           Type::Boolean => "boolean".to_string(),
-           Type::Integer => "number".to_string(),
+           Type::Boolean(_) => "boolean".to_string(),
+           Type::Integer(_) => "number".to_string(),
            Type::Number(_) => "number".to_string(),
-           Type::Char => "string".to_string(),
-           Type::Record(body) => {
+           Type::Char(_) => "string".to_string(),
+           Type::Record(body, _) => {
                 let res = body.iter()
                     .map(|at| format!("{}: {}", at.get_argument(), at.get_type().to_typescript()))
                     .collect::<Vec<_>>().join(", ");
                 format!("{{ {} }}", res)
            },
-           Type::Array(_size, body) => format!("{}[]", body.to_typescript()),
-           Type::IndexGen(id) => id.to_uppercase(),
-           Type::Generic(val) => val.to_uppercase(), 
-           Type::Index(val) => val.to_string(),
-           Type::Function(kinds, args, ret) => {
+           Type::Array(_size, body, _) => format!("{}[]", body.to_typescript()),
+           Type::IndexGen(id, _) => id.to_uppercase(),
+           Type::Generic(val, _) => val.to_uppercase(), 
+           Type::Index(val, _) => val.to_string(),
+           Type::Function(kinds, args, ret, _) => {
                let res = args.iter()
                     .enumerate()
                     .map(|(i, typ)| format!("{}: {}", generate_arg(i), typ.to_typescript()))
@@ -153,7 +153,8 @@ impl Type {
                    format!("<{}>({}) => {}", res2, res, ret.to_typescript())
                }
            },
-           Type::Tag(name, typ) => format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript()),
+           Type::Tag(name, typ, _) 
+               => format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript()),
            Type::Any => "null".to_string(),
            Type::Empty => "null".to_string(),
            Type::Add(_,_) => "T".to_string(),
@@ -166,21 +167,21 @@ impl Type {
 
     pub fn to_assemblyscript(&self) -> String {
        match self {
-           Type::Boolean => "bool".to_string(),
-           Type::Integer => "i32".to_string(),
+           Type::Boolean(_) => "bool".to_string(),
+           Type::Integer(_) => "i32".to_string(),
            Type::Number(_) => "f64".to_string(),
-           Type::Char => "string".to_string(),
-           Type::Record(body) => {
+           Type::Char(_) => "string".to_string(),
+           Type::Record(body, _) => {
                 let res = body.iter()
                     .map(|at| format!("{}: {}", at.get_argument(), at.get_type().to_typescript()))
                     .collect::<Vec<_>>().join(", ");
                 format!("{{ {} }}", res)
            },
-           Type::Array(_size, body) => format!("{}[]", body.to_typescript()),
-           Type::IndexGen(id) => id.to_uppercase(),
-           Type::Generic(val) => val.to_uppercase(), 
-           Type::Index(val) => val.to_string(),
-           Type::Function(kinds, args, ret) => {
+           Type::Array(_size, body, _) => format!("{}[]", body.to_typescript()),
+           Type::IndexGen(id, _) => id.to_uppercase(),
+           Type::Generic(val, _) => val.to_uppercase(), 
+           Type::Index(val, _) => val.to_string(),
+           Type::Function(kinds, args, ret, _) => {
                let res = args.iter()
                     .enumerate()
                     .map(|(i, typ)| format!("{}: {}", generate_arg(i), typ.to_typescript()))
@@ -195,7 +196,7 @@ impl Type {
                    format!("<{}>({}) => {}", res2, res, ret.to_typescript())
                }
            },
-           Type::Tag(name, typ) => format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript()),
+           Type::Tag(name, typ, _) => format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript()),
            Type::Any => "null".to_string(),
            Type::Empty => "null".to_string(),
            Type::Add(_,_) => "T".to_string(),
@@ -208,9 +209,9 @@ impl Type {
 
     pub fn extract_generics(&self) -> Vec<Type> {
         match self {
-            Type::Generic(_) | Type::IndexGen(_) | Type::LabelGen(_)
+            Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _)
                 => vec![self.clone()],
-            Type::Function(kinds, args, ret_typ) => {
+            Type::Function(kinds, args, ret_typ, _) => {
                 kinds.iter()
                     .map(|ak| ak.get_argument())
                     .chain(args.iter().cloned())
@@ -219,14 +220,14 @@ impl Type {
                     .iter().flat_map(|typ| typ.extract_generics())
                     .collect::<Vec<_>>()
             }
-            Type::Array(ind, typ) => {
+            Type::Array(ind, typ, _) => {
                typ.extract_generics() 
                    .iter()
                    .chain(ind.extract_generics().iter())
                    .collect::<HashSet<_>>()
                    .into_iter().cloned().collect::<Vec<_>>()
             },
-                Type::Record(v) => {
+                Type::Record(v, _) => {
                    v.iter() 
                        .flat_map(|argt| 
                                  [argt.get_argument(), argt.get_type()])
@@ -240,7 +241,7 @@ impl Type {
 
     pub fn get_kind(&self) -> Kind {
         match self {
-            Type::IndexGen(_) | Type::Index(_) => Kind::Dim,
+            Type::IndexGen(_, _) | Type::Index(_, _) => Kind::Dim,
             _ => Kind::Type
         }
     }
@@ -255,11 +256,12 @@ impl Type {
                 => a.index_calculation().mul_index(&b.index_calculation()),
             Type::Div(a, b) 
                 => a.index_calculation().div_index(&b.index_calculation()),
-            Type::Array(ind, typ) =>
+            Type::Array(ind, typ, h) =>
                 Type::Array(
                     Box::new(ind.index_calculation()), 
-                    Box::new(typ.index_calculation())),
-                    Type::Function(_kinds, args, ret_typ) => {
+                    Box::new(typ.index_calculation()),
+                    h.clone()),
+                    Type::Function(_kinds, args, ret_typ, h) => {
                         let new_args = args.iter()
                             .map(|typ| typ.index_calculation())
                             .collect::<Vec<_>>();
@@ -271,7 +273,7 @@ impl Type {
                         Type::Function(
                             new_kinds,
                             new_args,
-                            Box::new(ret_typ.index_calculation()))
+                            Box::new(ret_typ.index_calculation()), h.clone())
                     }
             _ => self.clone()
         }
@@ -279,82 +281,93 @@ impl Type {
 
     fn sum_index(&self, i: &Type) -> Type {
         match (self, i) {
-            (Type::Index(a), Type::Index(b)) => Type::Index(a+b),
-            (Type::Record(a), Type::Record(b)) 
+            (Type::Index(a, h), Type::Index(b, _)) => Type::Index(a+b, h.clone()),
+            (Type::Record(a, h), Type::Record(b, _)) 
                 => Type::Record(
                     a.iter()
                     .chain(b.iter())
                     .cloned()
-                    .collect::<Vec<_>>()),
+                    .collect::<Vec<_>>(), h.clone()),
             _ => panic!("Type {} and {} can't be added", self, i)
         }
     }
 
     fn minus_index(&self, i: &Type) -> Type {
         match (self, i) {
-            (Type::Index(a), Type::Index(b)) => Type::Index(a-b),
+            (Type::Index(a, h), Type::Index(b, _)) => Type::Index(a-b, h.clone()),
             _ => panic!("Type {} and {} can't be added", self, i)
         }
     }
 
     fn mul_index(&self, i: &Type) -> Type {
         match (self, i) {
-            (Type::Index(a), Type::Index(b)) => Type::Index(a*b),
+            (Type::Index(a, h), Type::Index(b, _)) => Type::Index(a*b, h.clone()),
             _ => panic!("Type {} and {} can't be added", self, i)
         }
     }
 
     fn div_index(&self, i: &Type) -> Type {
         match (self, i) {
-            (Type::Index(a), Type::Index(b)) => Type::Index(a.div_euclid(*b)),
+            (Type::Index(a, h), Type::Index(b, _)) => Type::Index(a.div_euclid(*b), h.clone()),
             _ => panic!("Type {} and {} can't be added", self, i)
         }
     }
 
     pub fn get_shape(&self) -> Option<String> {
-        if let Type::Array(i, t) = self {
+        if let Type::Array(i, t, _) = self {
             match (*i.clone(), t.get_shape()) {
-                (Type::Index(j), Some(rest)) => Some(format!("{}, {}", j, rest)),
-                (Type::Index(j), None) => Some(j.to_string()),
+                (Type::Index(j, _), Some(rest)) => Some(format!("{}, {}", j, rest)),
+                (Type::Index(j, _), None) => Some(j.to_string()),
                 _ => None
             }
         } else { None }
     }
 
     pub fn get_function_elements(&self) -> Option<(Vec<ArgumentKind>, Vec<Type>, Type)> {
-        if let Type::Function(kinds, args, ret_ty) = self {
+        if let Type::Function(kinds, args, ret_ty, _) = self {
             Some((kinds.clone(), args.clone(), (**ret_ty).clone()))
         } else { None }
     }
 
     pub fn get_type_pattern(&self) -> Option<ArgumentType> {
-        if let Type::Record(fields) = self {
+        if let Type::Record(fields, _) = self {
             (fields.len() == 1)
                 .then(|| fields[0].clone())
         } else {None}
     }
+
+    pub fn is_boolean(&self) -> bool {
+        if let Type::Boolean(_) = self {
+            true
+        } else { false }
+    }
+
+    pub fn get_help_data(&self) -> HelpData {
+        todo!();
+    }
+
 }
 
 use std::fmt;
 impl fmt::Display for Type {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
-            Type::Embedded(t) => format!("tembedded({})", t),
-            Type::Alias(name, params, path) => format!("var('{}', '{}', public, false, params({}))", name, path, to_string(params)),
-            Type::Function(k, v, t) => format!("tfn({}, {}, {})", to_string(k), to_string(v), t) ,
-            Type::Generic(g) => format!("gen('{}')", g.to_lowercase()),
-            Type::IndexGen(g) => format!("ind('{}')", g.to_lowercase()),
-            Type::Array(n, t) => format!("tarray({}, {})", n, t),
-            Type::Record(r) => {
+            Type::Embedded(t, _) => format!("tembedded({})", t),
+            Type::Alias(name, params, path, _) => format!("var('{}', '{}', public, false, params({}))", name, path, to_string(params)),
+            Type::Function(k, v, t, _) => format!("tfn({}, {}, {})", to_string(k), to_string(v), t) ,
+            Type::Generic(g, _) => format!("gen('{}')", g.to_lowercase()),
+            Type::IndexGen(g, _) => format!("ind('{}')", g.to_lowercase()),
+            Type::Array(n, t, _) => format!("tarray({}, {})", n, t),
+            Type::Record(r, _) => {
                 format!("{{ {} }}", r.iter()
                         .map(|at| at.to_string()).collect::<Vec<_>>().join(", "))
             },
-            Type::Index(i) => i.to_string(),
+            Type::Index(i, _) => i.to_string(),
             Type::Number(_) => "num".to_string(),
-            Type::Integer => "int".to_string(),
-            Type::Boolean => "bool".to_string(),
-            Type::Char => "char".to_string(),
-            Type::Tag(s, t) => format!("ttag('{}', {})", s, t),
+            Type::Integer(_) => "int".to_string(),
+            Type::Boolean(_) => "bool".to_string(),
+            Type::Char(_) => "char".to_string(),
+            Type::Tag(s, t, _) => format!("ttag('{}', {})", s, t),
             Type::Union(v) => format!("union({})", to_string(v)),
             Type::Interface(v) => format!("interface({})", to_string(v)),
             Type::Params(v) => format!("params({})", to_string(v)),
@@ -362,8 +375,8 @@ impl fmt::Display for Type {
             Type::Minus(id1, id2) => format!("minus({}, {})", id1, id2),
             Type::Mul(id1, id2) => format!("mul({}, {})", id1, id2),
             Type::Div(id1, id2) => format!("division({}, {})", id1, id2),
-            Type::LabelGen(l) => format!("%{}", l),
-            Type::Label(l) => format!("{}", l),
+            Type::LabelGen(l, _) => format!("%{}", l),
+            Type::Label(l, _) => format!("{}", l),
             Type::Empty => "any".to_string(),
             _ => "".to_string()
         };

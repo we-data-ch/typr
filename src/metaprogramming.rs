@@ -28,10 +28,10 @@ fn private_public_change(module_name: &str, adt: Adt) -> Vec<Lang> {
                 => Lang::Let(
                     var.clone().add_path(module_name),
                     typ.clone(), body.clone()),
-            Lang::Alias(var, params, typ) 
+            Lang::Alias(var, params, typ, h) 
                 => Lang::Alias(
                     var.clone().add_path(module_name),
-                    params.clone(), typ.clone()),
+                    params.clone(), typ.clone(), h.clone()),
             _ => Lang::Empty
         }
     }).collect::<Vec<_>>()

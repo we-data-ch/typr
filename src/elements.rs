@@ -34,6 +34,7 @@ use nom::Parser;
 use nom::sequence::pair;
 use nom_locate::{position, LocatedSpan};
 use crate::syntax_error;
+use crate::help_data::HelpData;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -56,15 +57,15 @@ pub fn number(s: Span) -> IResult<Span,Lang> {
 fn integer(s: Span) -> IResult<Span, Lang> {
     let res = terminated(digit1, multispace0).parse(s);
     match res {
-        Ok((s, d)) => Ok((s, Lang::Integer(d.parse::<i32>().unwrap()))),
+        Ok((s, d)) => Ok((s, Lang::Integer(d.parse::<i32>().unwrap(), d.into()))),
         Err(r) => Err(r)
     }
 }
 
 fn get_value(l: LocatedSpan<&str, String>) -> Lang {
-    match l.into_fragment() {
-        "true" | "TRUE" => Lang::Bool(true),
-        "false" | "FALSE" => Lang::Bool(false),
+    match l.clone().into_fragment() {
+        "true" | "TRUE" => Lang::Bool(true, l.into()),
+        "false" | "FALSE" => Lang::Bool(false, l.into()),
         _ => panic!("No other boolean notation alolwed")
     }
 }
@@ -84,11 +85,12 @@ fn boolean(s: Span) -> IResult<Span,Lang> {
 
 fn chars(s: Span) -> IResult<Span, Lang> {
     let res = terminated(alt((
-            delimited(tag("\""), many0(none_of("\"")), tag("\"")),
-            delimited(tag("'"), many0(none_of("'")), tag("'")),
+            (tag("\""), many0(none_of("\"")), tag("\"")),
+            (tag("'"), many0(none_of("'")), tag("'")),
                   )), multispace0).parse(s);
     match res {
-        Ok((s, st)) => Ok((s, Lang::Char(st.iter().collect()))),
+        Ok((s, (start, st, _end))) 
+            => Ok((s, Lang::Char(st.clone().iter().collect(), start.into()))),
         Err(r) => Err(r)
     }
 }
@@ -113,10 +115,16 @@ fn type_annotation(s: Span) -> IResult<Span, Type> {
     delimited(tag("<"), ltype, tag(">")).parse(s)
 }
 
-fn module_path(s: Span) -> IResult<Span, String> {
+fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
     let res = many1(terminated(pascal_case, tag("::"))).parse(s);
     match res {
-        Ok((s, v)) => Ok((s, v.join("/"))),
+        Ok((s, v)) => {
+            let res = v.iter()
+                .map(|(name, h)| name.clone())
+                .collect::<Vec<_>>()
+                .join("/");
+            Ok((s, (res, v[0].1.clone())))
+        },
         Err(r) => Err(r)
     }
 }
@@ -127,7 +135,7 @@ fn variable_helper(s: Span) -> IResult<Span, Lang> {
         Ok((s, (Some(mp), v, Some(ty)))) 
             => Ok((s, Lang::Variable(
                         v.to_string(),
-                        mp,
+                        mp.0,
                         Permission::Private,
                         false,
                         ty))),
@@ -141,7 +149,7 @@ fn variable_helper(s: Span) -> IResult<Span, Lang> {
         Ok((s, (Some(mp), v, None))) 
             => Ok((s, Lang::Variable(
                         v.to_string(),
-                        mp,
+                        mp.0,
                         Permission::Private,
                         false,
                         Type::Empty))),
@@ -248,7 +256,7 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (_, _, args, _, Some(_), Some(typ), exp))) =>{
             let gen_vec = extract_generics(&args, &typ);
-            Ok((s, Lang::Function(gen_vec, args, typ, Box::new(exp))))
+            Ok((s, Lang::Function(gen_vec, args, typ, Box::new(exp), HelpData::default())))
         },
         Ok((_s, (_, _, _args, cp, None, None, _exp))) 
             => {
@@ -286,8 +294,8 @@ fn complex_function(s: Span) -> IResult<Span, Lang> {
         scope
           ).parse(s);
     match res {
-        Ok((s, (_, _, arg_kinds, _, _, args, _, _, typ, exp))) => 
-            Ok((s, Lang::Function(arg_kinds, args, typ, Box::new(exp)))),
+        Ok((s, (start, _, arg_kinds, _, _, args, _, _, typ, exp))) => 
+            Ok((s, Lang::Function(arg_kinds, args, typ, Box::new(exp), start.into()))),
         Err(r) => Err(r)
     }
 }
@@ -357,7 +365,8 @@ fn record(s: Span) -> IResult<Span, Lang> {
         many0(argument_val),
         terminated(tag("}"), multispace0)).parse(s);
     match res {
-        Ok((s, (Some(_), _, args, _))) => Ok((s, Lang::Record(args.clone()))),
+        Ok((s, (Some(start), _, args, _))) 
+            => Ok((s, Lang::Record(args.clone(), start.into()))),
         Ok((_s, (None, ob, args, _))) => {
             syntax_error(ob, "You forgot to put a record identifier before the bracket: ':{...}'");
             exit(1)
@@ -367,15 +376,16 @@ fn record(s: Span) -> IResult<Span, Lang> {
 
 }
 
-fn pascal_case_helper(s: Span) -> IResult<Span, String> {
+fn pascal_case_helper(s: Span) -> IResult<Span, (String, HelpData)> {
     let res = (one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), alpha1).parse(s);
     match res {
-        Ok((s, (t1, t2))) => Ok((s, format!("{}{}", t1, t2))),
+        Ok((s, (t1, t2))) 
+            => Ok((s.clone(), (format!("{}{}", t1, t2), s.into()))),
         Err(r) => Err(r)
     }
 }
 
-fn pascal_case(s: Span) -> IResult<Span, String> {
+fn pascal_case(s: Span) -> IResult<Span, (String, HelpData)> {
     terminated(pascal_case_helper, multispace0).parse(s)
 }
 
@@ -392,8 +402,10 @@ pub fn tag_exp(s: Span) -> IResult<Span, Lang> {
             pascal_case,
             opt(parenthese_value)).parse(s);
     match res {
-        Ok((s, (n, None))) => Ok((s, Lang::Tag(n, Box::new(Lang::Empty)))),
-        Ok((s, (n, Some(val)))) => Ok((s, Lang::Tag(n, Box::new(val)))),
+        Ok((s, (n, None))) 
+            => Ok((s, Lang::Tag(n.0, Box::new(Lang::Empty), n.1))),
+        Ok((s, (n, Some(val)))) 
+            => Ok((s, Lang::Tag(n.0, Box::new(val), n.1))),
         Err(r) => Err(r)
     }
 }
@@ -499,7 +511,7 @@ fn create_range(params: &[Lang]) -> Lang {
     if params.len() == 2 {
         Lang::FunctionApp(
            Box::new(Var::from_name("seq").to_language()),
-           vec![params[0].clone(), params[1].clone(), Lang::Integer(1)])
+           vec![params[0].clone(), params[1].clone(), Lang::Integer(1, HelpData::default())])
     } else {
         Lang::FunctionApp(
            Box::new(Var::from_name("seq").to_language()),
@@ -785,7 +797,7 @@ fn check_minus_sign(v: Vec<(Lang, Op)>) -> Vec<(Lang, Op)> {
         let mut v2 = v.clone();
         let (lang, op) = v2.first().unwrap();
         let first = match (op.clone(), lang.clone()) {
-            (Op::Minus, Lang::Integer(l)) => (Lang::Integer(-l), Op::Empty),
+            (Op::Minus, Lang::Integer(l, h)) => (Lang::Integer(-l, h), Op::Empty),
             (Op::Minus, Lang::Number(l, h)) => (Lang::Number(-l, h), Op::Empty),
             _ => (lang.clone(), op.clone())
         };

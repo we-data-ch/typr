@@ -1,6 +1,7 @@
 use std::fmt;
 use serde::Serialize;
 use crate::r#type::Type;
+use crate::help_data::HelpData;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)] // 3 argument is for the embedding
 pub struct ArgumentType(pub Type, pub Type, pub bool);
@@ -12,7 +13,7 @@ impl ArgumentType {
 
     pub fn new(name: &str, type_: &Type) -> Self {
         ArgumentType(
-            Type::Label(name.to_string()),
+            Type::Label(name.to_string(), HelpData::default()),
             type_.clone(), false)
     }
 
@@ -26,10 +27,10 @@ impl ArgumentType {
 
     pub fn get_argument_str(&self) -> String {
         match self.0.clone() {
-            Type::Label(l) => l.to_string(),
-            Type::LabelGen(l) => l.to_string().to_uppercase(),
-            Type::Multi(t) => ArgumentType(*t, self.1.clone(), false)
-                .get_argument_str(),
+            Type::Label(l, _) => l.to_string(),
+            Type::LabelGen(l, _) => l.to_string().to_uppercase(),
+            Type::Multi(t, _) 
+                => ArgumentType(*t, self.1.clone(), false).get_argument_str(),
             _ => panic!("The argument wasn't a label")
         }
     }
@@ -52,7 +53,7 @@ impl fmt::Display for ArgumentType {
 impl From<(String, Type)> for ArgumentType {
    fn from(val: (String, Type)) -> Self {
         ArgumentType(
-            Type::Label(val.0),
+            Type::Label(val.0, val.1.get_help_data()),
             val.1, false)
    } 
 }

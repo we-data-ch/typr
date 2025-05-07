@@ -19,11 +19,12 @@ use crate::parse;
 use std::fs;
 use crate::Environment;
 use nom_locate::LocatedSpan;
+use crate::help_data::HelpData;
 
 fn get_tag_names(tags: &[Tag]) -> Vec<String> {
     tags.iter()
         .filter_map(|tag| match tag.to_type() {
-            Type::Tag(name, _) => Some(name.clone()),
+            Type::Tag(name, _, _) => Some(name.clone()),
             _ => None,
         })
         .collect()
@@ -103,7 +104,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                 new_context
             }
         },
-        Lang::Alias(name, params, typ) => {
+        Lang::Alias(name, params, typ, h) => {
             let var = name.clone().set_type(Type::Params(params.to_vec()));
             let new_context = context.clone()
                 .push_var_type(var, typ.clone(), context);
@@ -138,17 +139,17 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
 // 4 -> Index(4) if an index parameter is needed
 fn index_conversion(arg_type: &Type, par_type: &Type, value: &Lang) -> (Type, Type) {
     match (par_type, arg_type, value) {
-        (Type::IndexGen(_), _, Lang::Integer(i)) 
-            => (par_type.clone(), Type::Index(*i as u32)),
+        (Type::IndexGen(_, h), _, Lang::Integer(i, _)) 
+            => (par_type.clone(), Type::Index(*i as u32, h.clone())),
         _ => (par_type.clone(), arg_type.clone())
     }
 }
 
 fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         match (type1, type2) {
-            (_, Type::Generic(_)) | (_, Type::IndexGen(_)) | (_, Type::LabelGen(_))
+            (_, Type::Generic(_, _)) | (_, Type::IndexGen(_, _)) | (_, Type::LabelGen(_, _))
                 => Some(vec![(type1.clone(), type2.clone())]),
-            (Type::Function(_, args1, ret_typ1), Type::Function(_, args2, ret_typ2)) => {
+            (Type::Function(_, args1, ret_typ1, _), Type::Function(_, args2, ret_typ2, _)) => {
                 let res = args1.iter()
                     .zip(args2.iter())
                     .chain([(&(**ret_typ1), &(**ret_typ2))].iter().cloned())
@@ -157,12 +158,12 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                     .collect::<Vec<_>>();
                 if res.len() > 0 { Some(res) } else { None }
             }
-            (Type::Array(ind1, typ1), Type::Array(ind2, typ2)) => {
+            (Type::Array(ind1, typ1, _), Type::Array(ind2, typ2, _)) => {
                let gen1 = get_gen_type(ind1, ind2).unwrap_or(vec![]);
                let gen2 = get_gen_type(typ1, typ2).unwrap_or(vec![]);
                Some(gen1.iter().chain(gen2.iter()).cloned().collect())
             },
-            (Type::Record(v1), Type::Record(v2)) => {
+            (Type::Record(v1, _), Type::Record(v2, _)) => {
                    let res = v1.iter() 
                        .zip(v2.iter())
                        .flat_map(|(argt1, argt2)| {
@@ -180,7 +181,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                        .flat_map(|(typ1, typ2)| get_gen_type(&typ1.to_type(), &typ2.to_type()))
                        .fold(vec![], |acc: Vec<(Type, Type)>, vec| acc.iter().chain(vec.iter()).cloned().collect::<Vec<_>>()))
                 },
-                (Type::Tag(name1, typ1), Type::Tag(name2, typ2)) => {
+                (Type::Tag(name1, typ1, h1), Type::Tag(name2, typ2, h2)) => {
                     get_gen_type(typ1, typ2)
                 }
             _ => None
@@ -216,7 +217,7 @@ fn apply_unification_type(context: &Context, map: Option<Vec<Vec<(Type, Type)>>>
 }
 
 fn get_variable_type(lang: &Lang, tags: &[Tag]) -> Option<(Var, Type)> {
-    if let Lang::Tag(name, variable) = lang {
+    if let Lang::Tag(name, variable, h) = lang {
         let res = tags.iter()
             .find(|&tag| name == &tag.get_name());
         match res {
@@ -234,13 +235,13 @@ fn get_variable_type(lang: &Lang, tags: &[Tag]) -> Option<(Var, Type)> {
 pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
     match expr {
         Lang::Number(_, h) => (Type::Number(h.clone()), context.clone()),
-        Lang::Integer(_) => (Type::Integer, context.clone()),
-        Lang::Bool(_) => (Type::Boolean, context.clone()),
-        Lang::Char(_) => (Type::Char, context.clone()),
+        Lang::Integer(_, h) => (Type::Integer(h.clone()), context.clone()),
+        Lang::Bool(_, h) => (Type::Boolean(h.clone()), context.clone()),
+        Lang::Char(_, h) => (Type::Char(h.clone()), context.clone()),
         Lang::Empty => (Type::Empty, context.clone()),
         Lang::And(e1, e2) | Lang::Or(e1, e2) => {
-            if typing(context, e1).0 == Type::Boolean && typing(context, e2).0 == Type::Boolean {
-                (Type::Boolean, context.clone())
+            if typing(context, e1).0.is_boolean() && typing(context, e2).0.is_boolean() {
+                (Type::Boolean(HelpData::default()), context.clone())
             } else {
                 panic!("Type error");
             }
@@ -249,7 +250,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let ty1 = typing(context, e1).0;
             let ty2 = typing(context, e2).0;
             if ty1 == ty2 {
-                (Type::Boolean, context.clone())
+                (Type::Boolean(HelpData::default()), context.clone())
             } else {
                 panic!("Type error");
             }
@@ -257,7 +258,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::Dot(e1, e2) => {
             let ty2 = typing(context, e2).0;
             match (reduce_type(context, &ty2), *e1.clone()) {
-                (Type::Record(fields), Lang::Variable(name, _, _, _, _)) => {
+                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _)) => {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
@@ -271,7 +272,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                                 .collect::<Vec<_>>();
                             typing(context, &Lang::FunctionApp(name, new_args))
                         },
-                (Type::Record(fields1), Lang::Record(fields2)) => {
+                (Type::Record(fields1, h), Lang::Record(fields2, _)) => {
                     let at = fields2[0].clone();
                     let fields3 = fields1.iter()
                         .map(|arg_typ2| {
@@ -282,7 +283,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                                 false => arg_typ2.clone()
                             }
                         }).collect::<Vec<_>>();
-                    (Type::Record(fields3), context.clone())
+                    (Type::Record(fields3, h.clone()), context.clone())
                 },
                 _ => panic!("Type error")
             }
@@ -290,7 +291,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::Pipe(e1, e2) => {
             let ty2 = typing(context, e2).0;
             match (ty2, *e1.clone()) {
-                (Type::Record(fields), Lang::Variable(name, _, _, _, _)) => {
+                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _)) => {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
@@ -299,7 +300,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 _ => panic!("Type error")
             }
         },
-        Lang::Function(kinds, params, ret_ty, body) => {
+        Lang::Function(kinds, params, ret_ty, body, h) => {
             let param_types = params.iter()
                 .map(|arg_typ| arg_typ.get_type())
                 .collect::<Vec<_>>();
@@ -315,7 +316,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 }
             let new_context = res.1.unifications.into_iter()
                 .fold(context.clone(), |cont, uni_vec| cont.push_unifications(uni_vec));
-            (Type::Function(kinds.clone(), param_types, Box::new(ret_ty.clone())), new_context)
+            (Type::Function(kinds.clone(), param_types, Box::new(ret_ty.clone()), h.clone()), new_context)
         }
         Lang::Sequence(exprs) => {
             if exprs.len() == 1 {
@@ -341,12 +342,12 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                     .expect(&format!("The given values don't match:\nexpected:{:?}\nrecieved: {:?}", args, param_types))
             }).expect("This is not a function but a") 
         }
-        Lang::Tag(name, expr) => {
+        Lang::Tag(name, expr, h) => {
             let ty = typing(context, expr).0;
-            (Type::Tag(name.clone(), Box::new(ty)), context.clone())
+            (Type::Tag(name.clone(), Box::new(ty), h.clone()), context.clone())
         }
         Lang::If(cond, true_branch, false_branch) => {
-            if typing(context, cond).0 == Type::Boolean {
+            if typing(context, cond).0.is_boolean() {
                 let true_ty = typing(context, true_branch).0;
                 let false_ty = typing(context, false_branch).0;
                 (unify_type(&true_ty, &false_ty), context.clone())
@@ -358,20 +359,21 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
             if types.windows(2).all(|w| w[0] == w[1]) {
                 let new_type = Type::Array(
-                    Box::new(Type::Index(exprs.len() as u32)),
-                    Box::new(types[0].clone()));
+                    Box::new(Type::Index(exprs.len() as u32, HelpData::default())),
+                    Box::new(types[0].clone()),
+                    HelpData::default());
                 (new_type, context.clone())
             } else {
                 panic!("Type error");
             }
         }
-        Lang::Record(fields) => {
+        Lang::Record(fields, h) => {
             let field_types = fields.iter()
                 .map(|arg_val| {
                     (arg_val.get_argument(),
                     typing(context, &arg_val.get_value()).0).into()
                 }).collect();
-            (Type::Record(field_types), context.clone())
+            (Type::Record(field_types, h.clone()), context.clone())
         }
         Lang::Match(val, branches) => {
             let val_ty = reduce_type(context, &typing(context, val).0);
@@ -393,7 +395,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::ArrayIndexing(expr, index) => {
             let ty = typing(context, expr).0;
             match ty {
-                Type::Array(len, elem_ty) => {
+                Type::Array(len, elem_ty, _) => {
                     let index2 = Index::from_type(&(*len)).unwrap().get_value();
                     if (*index as u32) <  index2 {
                         (*elem_ty, context.clone())
@@ -430,7 +432,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
 
 fn unify_type(ty1: &Type, ty2: &Type) -> Type {
     match (ty1, ty2) {
-        (Type::Tag(name1, params1), Type::Tag(name2, params2)) => {
+        (Type::Tag(name1, params1, h1), Type::Tag(name2, params2, h2)) => {
             if name1 == name2 && params1 == params2 {
                 Type::Union(vec![
                             Tag::from_type(ty1.clone()).unwrap(),
@@ -439,14 +441,14 @@ fn unify_type(ty1: &Type, ty2: &Type) -> Type {
                 Type::Empty
             }
         }
-        (Type::Union(union1), Type::Tag(name, params)) => {
+        (Type::Union(union1), Type::Tag(name, params, h)) => {
             let mut union2 = union1.clone();
-            union2.push(Tag::new(name.clone(), *params.clone()));
+            union2.push(Tag::new(name.clone(), *params.clone(), h.clone()));
             Type::Union(union2)
         }
-        (Type::Tag(name, params), Type::Union(union1)) => {
+        (Type::Tag(name, params, h), Type::Union(union1)) => {
             let mut union2 = union1.clone();
-            union2.push(Tag::new(name.clone(), *params.clone()));
+            union2.push(Tag::new(name.clone(), *params.clone(), h.clone()));
             Type::Union(union2)
         }
         (Type::Any, _) | (_, Type::Any) => Type::Any,
