@@ -45,22 +45,22 @@ pub enum Lang {
     Alias(Var, Vec<Type>, Type, HelpData),
     Tag(String, Box<Lang>, HelpData),
     If(Box::<Lang>, Box<Lang>, Box<Lang>, HelpData),
-    Match(Box<Lang>, Vec<(Box<Lang>, Box<Lang>)>),
+    Match(Box<Lang>, Vec<(Box<Lang>, Box<Lang>)>, HelpData),
     Tuple(Vec<Lang>, HelpData),
-    Sequence(Vec<Lang>),
-    Assign(Box<Lang>, Box<Lang>),
-    Comment(String),
-    Range(i32, i32, i32),
-    ModImp(String),
-    Import(Type), // type alias
-    Header(Box<Lang>),
-    GenFunc(String),
-    Test(Vec<Lang>),
-    Return(Box<Lang>),
-    VecBloc(String),
-    Lambda(Box<Lang>),
-    Library(String),
-    Exp(String),
+    Sequence(Vec<Lang>, HelpData),
+    Assign(Box<Lang>, Box<Lang>, HelpData),
+    Comment(String, HelpData),
+    Range(i32, i32, i32, HelpData),
+    ModImp(String, HelpData),
+    Import(Type, HelpData), // type alias
+    Header(Box<Lang>, HelpData),
+    GenFunc(String, HelpData),
+    Test(Vec<Lang>, HelpData),
+    Return(Box<Lang>, HelpData),
+    VecBloc(String, HelpData),
+    Lambda(Box<Lang>, HelpData),
+    Library(String, HelpData),
+    Exp(String, HelpData),
     Any(HelpData),
     Empty(HelpData)
 }
@@ -116,10 +116,10 @@ impl Lang {
     }
     pub fn shape(&self) -> Vec<usize> {
         match self {
-            Lang::Array(vec, h) => {
+            Lang::Array(vec, _) => {
                 let dimensions = vec.len(); // Taille actuelle de ce niveau
                 if let Some(first) = vec.get(0) {
-                    if let Lang::Array(_, h2) = first {
+                    if let Lang::Array(_, _) = first {
                         // Descend récursivement dans la première sous-structure
                         let mut sub_shape = first.shape();
                         sub_shape.insert(0, dimensions);
@@ -265,7 +265,7 @@ impl Lang {
                 };
                 (Self::format_path(path) + &name, cont.clone())
             }
-            Lang::FunctionApp(exp, vals, h) => {
+            Lang::FunctionApp(exp, vals, _) => {
                 let (exp_str, cont1) = exp.to_r(cont);
                 let (unification_map, _cont2) = cont1.pop_unifications();
                 let exp_typ = typing(cont, exp).0;
@@ -304,13 +304,13 @@ impl Lang {
                     _ => (format!("{}({})", exp_str, args), current_cont)
                 }
             },
-            Lang::ArrayIndexing(exp, val, h) => {
+            Lang::ArrayIndexing(exp, val, _) => {
                 let (exp_str, new_cont) = exp.to_r(cont);
                 (format!("{}[{}]", exp_str, val), new_cont)
             },
-            Lang::GenFunc(func) => 
+            Lang::GenFunc(func, _) => 
                 (func.to_string(), cont.clone()),
-            Lang::Let(var, ttype, body, h) => {
+            Lang::Let(var, ttype, body, _) => {
                 let new_path = Self::format_path(&var.get_path());
                 let (body_str, new_cont) = body.to_r(cont);
                 let new_name = new_path + &var.get_name();
@@ -379,21 +379,21 @@ impl Lang {
             },
             Lang::Char(s, _) => 
                 ("'".to_string() + s + "'", cont.clone()),
-            Lang::If(cond, exp, els, h) if els == &Box::new(Lang::Empty(HelpData::default())) => {
+            Lang::If(cond, exp, els, _) if els == &Box::new(Lang::Empty(HelpData::default())) => {
                 println!("if statement");
                 let (cond_str, cont1) = cond.to_r(cont);
                 let (exp_str, cont2) = exp.to_r(&cont1);
                 
                 (format!("if({}) {{\n {} \n}}", cond_str, exp_str), cont2)
             },
-            Lang::If(cond, exp, els, h) => {
+            Lang::If(cond, exp, els, _) => {
                 let (cond_str, cont1) = cond.to_r(cont);
                 let (exp_str, cont2) = exp.to_r(&cont1);
                 let (els_str, cont3) = els.to_r(&cont2);
                 
                 (format!("if ({}) {{\n {} \n}} else {}", cond_str, exp_str, els_str), cont3)
             },
-            Lang::Tuple(vals, h) => {
+            Lang::Tuple(vals, _) => {
                 let mut current_cont = cont.clone();
                 let mut val_entries = Vec::new();
                 
@@ -405,15 +405,15 @@ impl Lang {
                 
                 (format!("structure(list({}), class = 'Tuple')", val_entries.join(", ")), current_cont)
             },
-            Lang::Assign(var, exp) => {
+            Lang::Assign(var, exp, _) => {
                 let (var_str, cont1) = var.to_r(cont);
                 let (exp_str, cont2) = exp.to_r(&cont1);
                 
                 (format!("{} <- {}", var_str, exp_str), cont2)
             },
-            Lang::Comment(txt) => 
+            Lang::Comment(txt, _) => 
                 ("# ".to_string() + txt, cont.clone()),
-            Lang::Range(i1, i2, i0) => 
+            Lang::Range(i1, i2, i0, _) => 
                 (format!("array(seq({},{},{}), dim = c({}))", i1, i2, i0, i2-i1/i0), cont.clone()),
             Lang::Integer(i, _) => 
                 (format!("{}L", i), cont.clone()),
@@ -430,9 +430,9 @@ impl Lang {
             },
             Lang::Empty(_) => 
                 ("NA".to_string(), cont.clone()),
-            Lang::ModuleDecl(name, h) => 
+            Lang::ModuleDecl(name, _) => 
                 (format!("{} <- new.env()", name), cont.clone()),
-            Lang::Sequence(exps) => {
+            Lang::Sequence(exps, _) => {
                 let mut current_cont = cont.clone();
                 let mut results = Vec::new();
                 
@@ -444,15 +444,16 @@ impl Lang {
                 
                 (results.join("\n\n"), current_cont)
             },
-            Lang::Return(exp) => {
+            Lang::Return(exp, _) => {
                 let (exp_str, new_cont) = exp.to_r(cont);
                 (format!("return ({})", exp_str), new_cont)
             },
-            Lang::Lambda(bloc) => (format!("function(x) {{ {} }}", bloc.to_r(cont).0), cont.clone()),
-            Lang::VecBloc(bloc) => (bloc.to_string(), cont.clone()),
-            Lang::Library(name) => (format!("library({})", name), cont.clone()),
-            Lang::Match(var, branches) => (to_if_statement((**var).clone(), branches, cont), cont.clone()),
-            Lang::Exp(exp) => (exp.clone(), cont.clone()),
+            Lang::Lambda(bloc, _) 
+                => (format!("function(x) {{ {} }}", bloc.to_r(cont).0), cont.clone()),
+            Lang::VecBloc(bloc, _) => (bloc.to_string(), cont.clone()),
+            Lang::Library(name, _) => (format!("library({})", name), cont.clone()),
+            Lang::Match(var, branches, _) => (to_if_statement((**var).clone(), branches, cont), cont.clone()),
+            Lang::Exp(exp, _) => (exp.clone(), cont.clone()),
             _ => ("".to_string(), cont.clone())
         };
         
@@ -466,7 +467,7 @@ impl Lang {
             Lang::Number(n, _) => (format!("{}", n), cont.clone()),
             Lang::Char(c, _) => (format!("\"{}\"", c), cont.clone()),
             Lang::Empty(_) => ("null".to_string(), cont.clone()),
-            Lang::Array(v, h) => {
+            Lang::Array(v, _) => {
                 let mut current_cont = cont.clone();
                 let mut val_strs = Vec::new();
                 
@@ -490,7 +491,7 @@ impl Lang {
                 
                 (format!("{{ {} }}", arg_strs.join(", ")), current_cont)
             },
-            Lang::Tuple(vals, h) => {
+            Lang::Tuple(vals, _) => {
                 let mut current_cont = cont.clone();
                 let mut val_entries = Vec::new();
                 
@@ -507,9 +508,9 @@ impl Lang {
                 
                 (format!("{{ _type: '{}', _body: {} }}", s, t_str), new_cont)
             },
-            Lang::Variable(v, path, _perm, _muta, _ty, _) => 
+            Lang::Variable(v, path, _perm, _muta, _ty, _h) => 
                 (Self::format_path(path) + v, cont.clone()),
-            Lang::Let(var, _typ, body, h) => {
+            Lang::Let(var, _typ, body, _h) => {
                 if var.get_name() == "main" {
                     match *body.clone() {
                         Lang::Function(_kinds, _params, _ret, body2, _) => {
@@ -545,7 +546,7 @@ impl Lang {
                    } 
                 }
             },
-            Lang::FunctionApp(var, params, h) => {
+            Lang::FunctionApp(var, params, _) => {
                 let first = params.iter().nth(0).unwrap();
                 let typ = typing(cont, first).0;
                 
@@ -597,7 +598,7 @@ impl Lang {
                 
                 (result_strs.join("\n"), current_cont)
             },
-            Lang::Sequence(exps) => {
+            Lang::Sequence(exps, _) => {
                 let mut current_cont = cont.clone();
                 let mut result_strs = Vec::new();
                 
@@ -609,7 +610,7 @@ impl Lang {
                 
                 (result_strs.join("\n\n"), current_cont)
             },
-            Lang::Return(exp) => {
+            Lang::Return(exp, _) => {
                 let (exp_str, new_cont) = exp.to_typescript(cont);
                 (format!("return {};", exp_str), new_cont)
             },
@@ -655,7 +656,7 @@ impl Lang {
             Lang::Number(n, _) => (format!("{}", n), cont.clone()),
             Lang::Char(c, _) => (format!("\"{}\"", c), cont.clone()),
             Lang::Empty(_) => ("null".to_string(), cont.clone()),
-            Lang::Array(v, h) => {
+            Lang::Array(v, _) => {
                 let mut current_cont = cont.clone();
                 let mut val_strs = Vec::new();
                 
@@ -698,7 +699,7 @@ impl Lang {
             },
             Lang::Variable(v, path, _perm, _muta, _ty, _) => 
                 (Self::format_path(path) + v, cont.clone()),
-            Lang::Let(var, _typ, body, h) => {
+            Lang::Let(var, _typ, body, _) => {
                 if var.get_name() == "main" {
                     match *body.clone() {
                         Lang::Function(_kinds, _params, _ret, body2, _h) => {
@@ -749,7 +750,7 @@ impl Lang {
                    } 
                 }
             },
-            Lang::FunctionApp(var, params, h) => {
+            Lang::FunctionApp(var, params, _) => {
                 let first = params.iter().nth(0).unwrap();
                 let typ = typing(cont, first).0;
                 
@@ -801,7 +802,7 @@ impl Lang {
                 
                 (result_strs.join("\n"), current_cont)
             },
-            Lang::Sequence(exps) => {
+            Lang::Sequence(exps, _) => {
                 let mut current_cont = cont.clone();
                 let mut result_strs = Vec::new();
                 
@@ -813,7 +814,7 @@ impl Lang {
                 
                 (result_strs.join("\n\n"), current_cont)
             },
-            Lang::Return(exp) => {
+            Lang::Return(exp, _) => {
                 let (exp_str, new_cont) = exp.to_assemblyscript(cont);
                 (format!("return {};", exp_str), new_cont)
             },
@@ -880,7 +881,7 @@ impl Lang {
     }
 
     pub fn is_undefined(&self) -> bool {
-        if let Lang::Let(_, _, rhs, h) = self {
+        if let Lang::Let(_, _, rhs, _) = self {
             if let Lang::Function(_, _, _, body, _h) = *rhs.clone() {
                 if let Lang::Scope(v, _) = *body.clone() {
                        let ele = v.first().unwrap();
@@ -909,8 +910,8 @@ impl Lang {
     pub fn lang_substitution(&self, sub_var: &Lang, var: &Lang, context: &Context) -> String {
         if let Lang::Variable(name, _, _, _, _, _) = var {
             let res = match self {
-                Lang::Variable(_, _, _, _, _, _) if self == sub_var 
-                    => Lang::Exp(format!("{}[[2]]", name.to_string())),
+                Lang::Variable(_, _, _, _, _, h) if self == sub_var 
+                    => Lang::Exp(format!("{}[[2]]", name.to_string()), h.clone()),
                 lang => lang.clone()
             };
             res.to_r(context).0
@@ -951,13 +952,13 @@ fn wasm_type(s: &str) -> String {
 }
 
 impl From<Lang> for HelpData {
-   fn from(val: Lang) -> Self {
+   fn from(_val: Lang) -> Self {
         todo!();
    } 
 }
 
 impl From<Vec<Lang>> for HelpData {
-   fn from(val: Vec<Lang>) -> Self {
+   fn from(_val: Vec<Lang>) -> Self {
         todo!();
    } 
 }

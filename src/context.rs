@@ -76,8 +76,8 @@ impl Context {
 
     pub fn get(&self, var: &Var) -> Option<Type> {
         self.iter().flat_map(|(var2, type_)| {
-            let Var(name1, path1, perm1, bo1, typ1, h1) = var;
-            let Var(name2, path2, perm2, bo2, typ2, h2) = var2;
+            let Var(name1, path1, perm1, bo1, typ1, _h1) = var;
+            let Var(name2, path2, perm2, bo2, typ2, _h2) = var2;
             let conditions = (name1 == name2) &&
                 (path1 == path2) && (perm1 == perm2) &&
                 (bo1 == bo2) && (type_comparison::is_matching(self, typ1, typ2));
@@ -86,9 +86,9 @@ impl Context {
     }
 
     pub fn get_with_gen(&self, var: &Var) -> Option<(Type, Vec<Type>)> {
-        let Var(name1, path1, perm1, bo1, params1, h1) = var;
+        let Var(name1, path1, perm1, bo1, params1, _h1) = var;
         self.iter().flat_map(|(var2, type_)| {
-            let Var(name2, path2, perm2, bo2, params2, h2) = var2;
+            let Var(name2, path2, perm2, bo2, params2, _h2) = var2;
             let conditions = (name1 == name2) &&
                 (path1 == path2) && (perm1 == perm2) &&
                 (bo1 == bo2) && (type_comparison::is_matching(self, params1, params2));

@@ -115,7 +115,7 @@ pub fn variable_exp(s: Span) -> IResult<Span, (String, HelpData)> {
     match res {
         Ok((s, ((s1, h), v))) => {
             let res2 =  v.iter()
-                .map(|(val, hh)| val.clone())
+                .map(|(val, _h)| val.clone())
                 .collect::<String>();
             Ok((s, (format!("{}{}", s1, res2), h.clone())))
         },
@@ -503,7 +503,7 @@ fn match_exp(s: Span) -> IResult<Span, Lang> {
                     ).parse(s);
     match res {
         Ok((s, (_m, val, _o, bs, _c))) 
-            => Ok((s, Lang::Match(Box::new(val), bs))),
+            => Ok((s, Lang::Match(Box::new(val), bs, _m.into()))),
         Err(r) => Err(r)
     }
 }
@@ -579,17 +579,17 @@ fn element_operator2(s: Span) -> IResult<Span, (Lang, Op)> {
 }
 
 fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
-    let res = delimited(
+    let res =   (
                     tag("@{ "),
                     many1(element_operator2),
-                    tag("}@")
+                    tag(" }@")
                     ).parse(s);
     match res {
-        Ok((s, v)) => {
-            let new_v = v.into_iter()
+        Ok((s, (start, v, _end))) => {
+            let new_v = v.clone().into_iter()
                 .map(|e| pure_string(e))
                 .collect::<Vec<_>>().join("");
-            Ok((s, Lang::VecBloc(new_v)))
+            Ok((s, Lang::VecBloc(new_v.clone(), start.into())))
         },
         Err(r) => Err(r)
     }
@@ -598,7 +598,8 @@ fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
 fn lambda(s: Span) -> IResult<Span, Lang> {
     let res = preceded(tag("$"), element_chain).parse(s);
     match res {
-        Ok((s, e)) => Ok((s, Lang::Lambda(Box::new(e)))),
+        Ok((s, e)) 
+            => Ok((s, Lang::Lambda(Box::new(e.clone()), e.into()))),
         Err(r) => Err(r)
     }
 }
@@ -635,7 +636,8 @@ pub fn scope(s: Span) -> IResult<Span, Lang> {
         terminated(alt((tag(")"), tag("}"))), multispace0)).parse(s);
     match res {
         Ok((s, Lang::Empty(h))) => Ok((s, Lang::Scope(vec![], h.clone()))),
-        Ok((s, Lang::Sequence(v))) => Ok((s, Lang::Scope(v.clone(), v.into()))),
+        Ok((s, Lang::Sequence(v, _h))) 
+            => Ok((s, Lang::Scope(v.clone(), v.into()))),
         Ok((s, rest)) => Ok((s, Lang::Scope(vec![rest.clone()], rest.into()))),
         Err(r) => Err(r),
     }
@@ -827,7 +829,8 @@ pub fn bang_exp(s: Span) -> IResult<Span, Lang> {
             Ok((s, 
                 Lang::Assign(
                     Box::new(base),
-                    Box::new(op_reverse(&mut v.clone())))))
+                    Box::new(op_reverse(&mut v.clone())),
+                    _bang.into())))
         },
         Err(r) => Err(r)
     }

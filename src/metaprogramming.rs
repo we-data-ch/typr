@@ -9,7 +9,7 @@ use crate::help_data::HelpData;
 
 fn import_file_module_code(line: &Lang) -> Lang {
     match line {
-        Lang::ModImp(name) => {
+        Lang::ModImp(name, _h) => {
             let file = get_os_file(&format!("{}.ty", name));
             let new_adt = metaprogrammation(parse(LocatedSpan::new_extra(&read_file_from_name(&name), file)).unwrap().1);
             Lang::Module(name.to_string(), new_adt.0, HelpData::default())

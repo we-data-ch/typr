@@ -262,7 +262,7 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
         terminated(tag(";"), multispace0)
           ).parse(s);
     match res {
-        Ok((s, (modu, (name, _), _op, Lang::Sequence(v), _cl, _dv))) => 
+        Ok((s, (modu, (name, _), _op, Lang::Sequence(v, _h), _cl, _dv))) => 
             Ok((s, vec![Lang::Module(name, v, modu.into())])),
         Err(r) => Err(r),
         _ => todo!()
@@ -272,7 +272,8 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
 pub fn return_exp(s: Span) -> IResult<Span, Lang> {
     let res = terminated(delimited(tag("return "), parse_elements, tag(";")), multispace0).parse(s);
     match res {
-        Ok((s, el)) => Ok((s, Lang::Return(Box::new(el)))),
+        Ok((s, el)) 
+            => Ok((s, Lang::Return(Box::new(el.clone()), el.into()))),
         Err(r) => Err(r)
     }
 }
@@ -286,7 +287,8 @@ fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
             parse_elements,
             terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (var, _eq, exp, _pv))) => Ok((s, vec![Lang::Assign(Box::new(var), Box::new(exp))])),
+        Ok((s, (var, _eq, exp, _pv))) 
+            => Ok((s, vec![Lang::Assign(Box::new(var.clone()), Box::new(exp), var.into())])),
         Err(r) => Err(r)
     } 
 }
@@ -298,7 +300,8 @@ fn comment(s: Span) -> IResult<Span, Vec<Lang>> {
             opt(line_ending),
             multispace0).parse(s);
     match res {
-        Ok((s, (_hashtag, txt, _, _))) => Ok((s, vec![Lang::Comment(txt.to_string())])),
+        Ok((s, (_hashtag, txt, _, _))) 
+            => Ok((s, vec![Lang::Comment(txt.to_string(), _hashtag.into())])),
         Err(r) => Err(r)
     }
 }
@@ -317,7 +320,7 @@ fn mod_imp(s: Span) -> IResult<Span, Vec<Lang>> {
             terminated(tag(";"), multispace0)).parse(s);
     match res {
         Ok((s, (_mod, (name, _), _sc))) 
-            => Ok((s, vec![Lang::ModImp(name.to_string())])),
+            => Ok((s, vec![Lang::ModImp(name.to_string(), _mod.into())])),
         Err(r) => Err(r)
     }
 }
@@ -344,7 +347,7 @@ fn import_type(s: Span) -> IResult<Span, Vec<Lang>> {
             terminated(tag(";"), multispace0)).parse(s);
 
     match res {
-        Ok((s, (_use, alias, _sc))) => Ok((s, vec![Lang::Import(alias)])),
+        Ok((s, (_use, alias, _sc))) => Ok((s, vec![Lang::Import(alias, _use.into())])),
         Err(r) => Err(r)
     }
 }
@@ -353,7 +356,7 @@ fn tests(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("Test"),
                 delimited(tag("["), base_parse, tag("]"))).parse(s);
     match res {
-        Ok((s, (_t, body))) => Ok((s, vec![Lang::Test(body)])),
+        Ok((s, (_t, body))) => Ok((s, vec![Lang::Test(body, _t.into())])),
         Err(r) => Err(r)
     }
 }
@@ -367,7 +370,7 @@ fn library(s: Span) -> IResult<Span, Vec<Lang>> {
 
     match res {
         Ok((s, (_lib, (var, h), _cl, Some(_col), _))) 
-            => Ok((s, vec![Lang::Library(var)])),
+            => Ok((s, vec![Lang::Library(var, h.clone())])),
         Ok((_, (_lib, _var, _cl, None, _))) 
             => panic!("You forgot to put a ';' at the end of the line"),
         Err(r) => Err(r)
@@ -393,7 +396,7 @@ fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
 pub fn parse_exp(s: Span) -> IResult<Span, Lang> {
     let res = base_parse(s);
     match res {
-        Ok((s, v)) => Ok((s, Lang::Sequence(v.clone()))),
+        Ok((s, v)) => Ok((s, Lang::Sequence(v.clone(), v.into()))),
         Err(r) => Err(r)
     }
 }

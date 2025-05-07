@@ -354,7 +354,7 @@ impl From<Vec<Type>> for HelpData {
 }
 
 impl From<Type> for HelpData {
-   fn from(val: Type) -> Self {
+   fn from(_val: Type) -> Self {
        todo!();
    } 
 }
