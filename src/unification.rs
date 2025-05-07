@@ -3,7 +3,6 @@ use crate::argument_type::ArgumentType;
 use crate::Context;
 use crate::type_comparison;
 use crate::tag::Tag;
-use crate::r#type::GetHelpData;
 
 pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     if substitutions.is_empty() {
@@ -160,8 +159,8 @@ fn match_wildcard(fields: &[ArgumentType], arg_type: ArgumentType) -> Vec<(Type,
             (lbl, typ)
         });
     vec![
-        (arg_type.get_argument(), Type::Tuple(labels.clone(), labels.get_help_data())),
-        (arg_type.get_type(), Type::Tuple(types.clone(), types.get_help_data()))
+        (arg_type.get_argument(), Type::Tuple(labels.clone(), labels.into())),
+        (arg_type.get_type(), Type::Tuple(types.clone(), types.into()))
     ]
 }
 

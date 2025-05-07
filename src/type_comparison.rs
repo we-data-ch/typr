@@ -5,7 +5,6 @@ use crate::var::Var;
 use crate::context::Context;
 use crate::tag::Tag;
 use crate::is_subset;
-use crate::r#type::GetHelpData;
 use crate::help_data::HelpData;
 
 // Implementation of the Prolog rules as Rust functions
@@ -29,7 +28,7 @@ fn contains_all(cont: &Context, vec1: &[ArgumentType], vec2: &[ArgumentType]) ->
 
 fn to_self(t1: Type, t2: Type) -> Type {
     if  t1 == t2 {
-        Type::Alias("Self".to_string(), vec![], "".to_string(), t1.get_help_data())
+        Type::Alias("Self".to_string(), vec![], "".to_string(), t1.into())
     } else {
        t1
     }
@@ -183,7 +182,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 .collect(), h.clone())
         },
         Type::Alias(name, concret_types, _base_type, _h) => {
-            let var = Var::from_name(name).set_type(Type::Params(concret_types.to_vec(), concret_types.get_help_data()));
+            let var = Var::from_name(name).set_type(Type::Params(concret_types.to_vec(), concret_types.clone().into()));
             if let Some((aliased_type, generics)) = context.get_with_gen(&var) {
                 let substituted = type_substitution(
                     &aliased_type,

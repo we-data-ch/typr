@@ -23,7 +23,6 @@ use nom::sequence::preceded;
 use nom::multi::many0;
 use nom::Parser;
 use nom_locate::LocatedSpan;
-use crate::r#type::GetHelpData;
 use crate::help_data::HelpData;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
@@ -94,7 +93,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
                         typ.clone().unwrap_or(Type::Empty(HelpData::default())),
                         Box::new(Lang::Dot(Box::new(Lang::Number(0.0, eq.into())),
-                        Box::new(body))))]))
+                        Box::new(body), pat_var.into())))]))
 
             } else {
                 Ok((s,
@@ -190,11 +189,11 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
         Ok((s, (_ty, Type::Alias(name, params, path, h), _eq, ty, _))) 
             => Ok((s, Lang::Alias(
                         Var::from_name(&name)
-                            .set_type(Type::Params(params.clone(), params[0].get_help_data()))
+                            .set_type(Type::Params(params.clone(), params[0].clone().into()))
                             .add_path(&path),
                         params, ty, h))),
         Ok((s, (_ty, _, _eq, _ty2, _)))
-            => Ok((s, Lang::Empty)),
+            => Ok((s, Lang::Empty(_ty.into()))),
         Err(r) => Err(r),
     }
 }
@@ -226,12 +225,12 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
         Ok((s, (_ty, Type::Alias(name, params, path, h), _eq, ty, _))) 
             => Ok((s, Lang::Alias(
                         Var::from_name(&name)
-                            .set_type(Type::Params(params.clone(), params.get_help_data()))
+                            .set_type(Type::Params(params.clone(), params.clone().into()))
                             .add_path(&path)
                             .set_opacity(true),
                         params, ty, h))),
         Ok((s, (_ty, _, _eq, _ty2, _)))
-            => Ok((s, Lang::Empty)),
+            => Ok((s, Lang::Empty(_ty.into()))),
         Err(r) => Err(r),
     }
 }

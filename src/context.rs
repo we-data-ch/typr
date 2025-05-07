@@ -363,7 +363,7 @@ fn wasm_types(types: &[Type], nominals: &TypeNominal, cont: &Context) -> Vec<Lan
         let name = nominals.get_class(typ, cont);
         match typ {
             Type::Record(_, _) | Type::Tag(_, _, _) | Type::Function(_, _, _, _)
-                => Some(Lang::Alias(Var::from_name(&name), vec![], typ.clone(), typ.get_help_data())),
+                => Some(Lang::Alias(Var::from_name(&name), vec![], typ.clone(), typ.clone().into())),
             _ => None
         }
     }).collect::<Vec<_>>()

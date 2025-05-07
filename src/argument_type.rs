@@ -53,7 +53,7 @@ impl fmt::Display for ArgumentType {
 impl From<(String, Type)> for ArgumentType {
    fn from(val: (String, Type)) -> Self {
         ArgumentType(
-            Type::Label(val.0, val.1.get_help_data()),
+            Type::Label(val.0, val.1.clone().into()),
             val.1, false)
    } 
 }

@@ -224,15 +224,15 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::Integer(_, h) => (Type::Integer(h.clone()), context.clone()),
         Lang::Bool(_, h) => (Type::Boolean(h.clone()), context.clone()),
         Lang::Char(_, h) => (Type::Char(h.clone()), context.clone()),
-        Lang::Empty => (Type::Empty(HelpData::default()), context.clone()),
-        Lang::And(e1, e2) | Lang::Or(e1, e2) => {
+        Lang::Empty(h) => (Type::Empty(h.clone()), context.clone()),
+        Lang::And(e1, e2, _) | Lang::Or(e1, e2, _) => {
             if typing(context, e1).0.is_boolean() && typing(context, e2).0.is_boolean() {
                 (Type::Boolean(HelpData::default()), context.clone())
             } else {
                 panic!("Type error");
             }
         }
-        Lang::Eq(e1, e2) | Lang::LesserOrEqual(e1, e2) | Lang::GreaterOrEqual(e1, e2) | Lang::GreaterThan(e1, e2) | Lang::LesserThan(e1, e2) => {
+        Lang::Eq(e1, e2, _) | Lang::LesserOrEqual(e1, e2, _) | Lang::GreaterOrEqual(e1, e2, _) | Lang::GreaterThan(e1, e2, _) | Lang::LesserThan(e1, e2, _) => {
             let ty1 = typing(context, e1).0;
             let ty2 = typing(context, e2).0;
             if ty1 == ty2 {
@@ -241,7 +241,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 panic!("Type error");
             }
         }
-        Lang::Dot(e1, e2) => {
+        Lang::Dot(e1, e2, _) => {
             let ty2 = typing(context, e2).0;
             match (reduce_type(context, &ty2), *e1.clone()) {
                 (Type::Record(fields, _), Lang::Variable(name, _, _, _, _)) => {
@@ -274,7 +274,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 _ => panic!("Type error")
             }
         },
-        Lang::Pipe(e1, e2) => {
+        Lang::Pipe(e1, e2, _) => {
             let ty2 = typing(context, e2).0;
             match (ty2, *e1.clone()) {
                 (Type::Record(fields, _), Lang::Variable(name, _, _, _, _)) => {
@@ -401,10 +401,10 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 ty.clone())).unwrap();
             (context.get_type_from_variable(var), context.clone())
         },
-        Lang::Scope(expr) if expr.len() == 1 => {
+        Lang::Scope(expr, _) if expr.len() == 1 => {
             typing(context, &expr[0])
         },
-        Lang::Scope(expr) => typing(context, &Lang::Sequence(expr.to_vec())),
+        Lang::Scope(expr, _) => typing(context, &Lang::Sequence(expr.to_vec())),
         Lang::VecBloc(_) => (Type::Any(HelpData::default()), context.clone()),
         Lang::Tuple(elements, h) => {
             (Type::Tuple(elements.iter()

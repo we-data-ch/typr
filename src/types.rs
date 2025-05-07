@@ -456,19 +456,19 @@ fn compute_operators(v: &mut Vec<(Type, Op)>) -> Type {
     match first {
         (p, Op::Add) => {
             let res = compute_operators(v); let pp = p;
-            Type::Add(Box::new(res.clone()), Box::new(pp), res.get_help_data())
+            Type::Add(Box::new(res.clone()), Box::new(pp), res.into())
         },
         (p, Op::Minus) => { 
             let res = compute_operators(v); let pp = p;
-            Type::Minus(Box::new(res.clone()), Box::new(pp), res.get_help_data())
+            Type::Minus(Box::new(res.clone()), Box::new(pp), res.into())
         },
         (p, Op::Mul) => {
             let res = compute_operators(v); let pp = p;
-            Type::Mul(Box::new(res.clone()), Box::new(pp), res.get_help_data())
+            Type::Mul(Box::new(res.clone()), Box::new(pp), res.into())
         },
         (p, Op::Div) => {
             let res = compute_operators(v); let pp = p;
-            Type::Div(Box::new(res.clone()), Box::new(pp), res.get_help_data())
+            Type::Div(Box::new(res.clone()), Box::new(pp), res.into())
         },
         (p, Op::Empty) => p,
         _ => panic!()
@@ -523,7 +523,7 @@ fn multitype(s: Span) -> IResult<Span, Type> {
                 if let Some(new_t) = propagate_multiplicity(&t) {
                     Ok((s, new_t))
                 } else {
-                    Ok((s, Type::Multi(Box::new(t.clone()), t.get_help_data())))
+                    Ok((s, Type::Multi(Box::new(t.clone()), t.into())))
                 }
             }
         Err(r) => Err(r)
@@ -540,7 +540,7 @@ fn type_condition(s: Span) -> IResult<Span, Type> {
                         Box::new(t1),
                         Box::new(new_ope.clone()),
                         Box::new(t2), 
-                        new_ope.get_help_data())))
+                        new_ope.into())))
         },
         Err(r) => Err(r)
     }
@@ -551,7 +551,7 @@ pub fn if_type(s: Span) -> IResult<Span,Type> {
     let res = (ltype, tag("if "), many1(type_condition)).parse(s);
     match res {
         Ok((s, (typ, _if, t_conds))) 
-            => Ok((s, Type::If(Box::new(typ.clone()), t_conds, typ.get_help_data()))),
+            => Ok((s, Type::If(Box::new(typ.clone()), t_conds, typ.into()))),
         Err(r) => Err(r)
     }
 }

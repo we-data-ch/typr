@@ -32,7 +32,7 @@ fn private_public_change(module_name: &str, adt: Adt) -> Vec<Lang> {
                 => Lang::Alias(
                     var.clone().add_path(module_name),
                     params.clone(), typ.clone(), h.clone()),
-            _ => Lang::Empty
+            _ => Lang::Empty(line.clone().into())
         }
     }).collect::<Vec<_>>()
 }

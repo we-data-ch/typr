@@ -18,21 +18,21 @@ pub enum Lang {
     Integer(i32, HelpData),
     Bool(bool, HelpData),
     Char(String, HelpData),
-    And(Box<Lang>, Box<Lang>),
-    Or(Box<Lang>, Box<Lang>),
-    Union(Box<Lang>, Box<Lang>),
-    In(Box<Lang>, Box<Lang>),
-    Add(Box<Lang>, Box<Lang>),
-    Eq(Box<Lang>, Box<Lang>),
-    Modu(Box<Lang>, Box<Lang>),
-    Modu2(Box<Lang>, Box<Lang>),
-    LesserThan(Box<Lang>, Box<Lang>),
-    GreaterThan(Box<Lang>, Box<Lang>),
-    LesserOrEqual(Box<Lang>, Box<Lang>),
-    GreaterOrEqual(Box<Lang>, Box<Lang>),
-    Pipe(Box<Lang>, Box<Lang>),
-    Dot(Box<Lang>, Box<Lang>),
-    Scope(Vec<Lang>),
+    And(Box<Lang>, Box<Lang>, HelpData),
+    Or(Box<Lang>, Box<Lang>, HelpData),
+    Union(Box<Lang>, Box<Lang>, HelpData),
+    In(Box<Lang>, Box<Lang>, HelpData),
+    Add(Box<Lang>, Box<Lang>, HelpData),
+    Eq(Box<Lang>, Box<Lang>, HelpData),
+    Modu(Box<Lang>, Box<Lang>, HelpData),
+    Modu2(Box<Lang>, Box<Lang>, HelpData),
+    LesserThan(Box<Lang>, Box<Lang>, HelpData),
+    GreaterThan(Box<Lang>, Box<Lang>, HelpData),
+    LesserOrEqual(Box<Lang>, Box<Lang>, HelpData),
+    GreaterOrEqual(Box<Lang>, Box<Lang>, HelpData),
+    Pipe(Box<Lang>, Box<Lang>, HelpData),
+    Dot(Box<Lang>, Box<Lang>, HelpData),
+    Scope(Vec<Lang>, HelpData),
     Function(Vec<ArgumentKind>, Vec<ArgumentType>, Type, Box<Lang>, HelpData),
     Module(String, Vec<Lang>),
     ModuleDecl(String),
@@ -61,8 +61,8 @@ pub enum Lang {
     Lambda(Box<Lang>),
     Library(String),
     Exp(String),
-    Any,
-    Empty
+    Any(HelpData),
+    Empty(HelpData)
 }
 
 impl From<Var> for Lang {
@@ -147,64 +147,64 @@ impl Lang {
         let result = match self {
             Lang::Bool(b, _) => 
                 (format!("{}", b.to_string().to_uppercase()), cont.clone()),
-            Lang::In(b1, b2) => {
+            Lang::In(b1, b2, _) => {
                 let (b1_str, cont1) = b1.to_r(cont);
                 let (b2_str, cont2) = b2.to_r(&cont1);
                 (format!("{} %in% {}", b2_str, b1_str), cont2)
             },
-            Lang::And(b1, b2) => {
+            Lang::And(b1, b2, _) => {
                 let (b1_str, cont1) = b1.to_r(cont);
                 let (b2_str, cont2) = b2.to_r(&cont1);
                 (format!("{} & {}", b1_str, b2_str), cont2)
             },
-            Lang::Or(b1, b2) => {
+            Lang::Or(b1, b2, _) => {
                 let (b1_str, cont1) = b1.to_r(cont);
                 let (b2_str, cont2) = b2.to_r(&cont1);
                 (format!("{} | {}", b1_str, b2_str), cont2)
             },
-            Lang::Modu(e1, e2) => {
+            Lang::Modu(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_r(cont);
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 (format!("{} % {}", e2_str, e1_str), cont2)
             },
-            Lang::Modu2(e1, e2) => {
+            Lang::Modu2(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_r(cont);
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 (format!("{} %% {}", e2_str, e1_str), cont2)
             },
             Lang::Number(n, _) => 
                 (format!("{}", n), cont.clone()),
-            Lang::Add(e1, e2) => {
+            Lang::Add(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_r(cont);
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 (format!("add({}, {})", e1_str, e2_str), cont2)
             },
-            Lang::Eq(e1, e2) => {
+            Lang::Eq(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_r(cont);
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 (format!("{} == {}", e2_str, e1_str), cont2)
             },
-            Lang::LesserThan(e1, e2) => {
+            Lang::LesserThan(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_r(cont);
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 (format!("{} < {}", e2_str, e1_str), cont2)
             },
-            Lang::GreaterThan(e1, e2) => {
+            Lang::GreaterThan(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_r(cont);
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 (format!("{} > {}", e2_str, e1_str), cont2)
             },
-            Lang::LesserOrEqual(e1, e2) => {
+            Lang::LesserOrEqual(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_r(cont);
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 (format!("{} <= {}", e2_str, e1_str), cont2)
             },
-            Lang::GreaterOrEqual(e1, e2) => {
+            Lang::GreaterOrEqual(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_r(cont);
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 (format!("{} >= {}", e2_str, e1_str), cont2)
             },
-            Lang::Dot(e1, e2) => {
+            Lang::Dot(e1, e2, _) => {
                 match *e1.clone() {
                     Lang::Variable(_, _, _, _, _) => {
                         let (e1_str, cont1) = e1.to_r(cont);
@@ -225,7 +225,7 @@ impl Lang {
                     }
                 }
             },
-            Lang::Pipe(e1, e2) => {
+            Lang::Pipe(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_r(cont);
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 match *e1.clone() {
@@ -234,7 +234,7 @@ impl Lang {
                     _ => (format!("{} |> {}", e2_str, e1_str), cont2),
                 }
             },
-            Lang::Scope(exps) => {
+            Lang::Scope(exps, _) => {
                 let mut current_cont = cont.clone();
                 let mut results = Vec::new();
                 
@@ -379,7 +379,7 @@ impl Lang {
             },
             Lang::Char(s, _) => 
                 ("'".to_string() + s + "'", cont.clone()),
-            Lang::If(cond, exp, els) if els == &Box::new(Lang::Empty) => {
+            Lang::If(cond, exp, els) if els == &Box::new(Lang::Empty(HelpData::default())) => {
                 println!("if statement");
                 let (cond_str, cont1) = cond.to_r(cont);
                 let (exp_str, cont2) = exp.to_r(&cont1);
@@ -428,7 +428,7 @@ impl Lang {
                     _ => (format!("structure(list('{}', {}), class = c('Tag', '{}'))", s, t_str, class), new_cont)
                 }
             },
-            Lang::Empty => 
+            Lang::Empty(_) => 
                 ("NA".to_string(), cont.clone()),
             Lang::ModuleDecl(name) => 
                 (format!("{} <- new.env()", name), cont.clone()),
@@ -465,7 +465,7 @@ impl Lang {
             Lang::Integer(i, _) => (format!("{}", i), cont.clone()),
             Lang::Number(n, _) => (format!("{}", n), cont.clone()),
             Lang::Char(c, _) => (format!("\"{}\"", c), cont.clone()),
-            Lang::Empty => ("null".to_string(), cont.clone()),
+            Lang::Empty(_) => ("null".to_string(), cont.clone()),
             Lang::Array(v) => {
                 let mut current_cont = cont.clone();
                 let mut val_strs = Vec::new();
@@ -585,7 +585,7 @@ impl Lang {
                 (format!("({}) => {{ {} }}", 
                          params, body.to_typescript(&cont2).0), cont.clone())
             }
-            Lang::Scope(langs) => {
+            Lang::Scope(langs, _) => {
                 let mut current_cont = cont.clone();
                 let mut result_strs = Vec::new();
                 
@@ -613,7 +613,7 @@ impl Lang {
                 let (exp_str, new_cont) = exp.to_typescript(cont);
                 (format!("return {};", exp_str), new_cont)
             },
-            Lang::Dot(e1, e2) => {
+            Lang::Dot(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_typescript(cont);
                 let (e2_str, cont2) = e2.to_typescript(&cont1);
                 
@@ -623,7 +623,7 @@ impl Lang {
                     _ => (format!("{} |> {}", e2_str, e1_str), cont2),
                 }
             },
-            Lang::Pipe(e1, e2) => {
+            Lang::Pipe(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_typescript(cont);
                 let (e2_str, cont2) = e2.to_typescript(&cont1);
                 
@@ -654,7 +654,7 @@ impl Lang {
             Lang::Integer(i, _) => (format!("{}", i), cont.clone()),
             Lang::Number(n, _) => (format!("{}", n), cont.clone()),
             Lang::Char(c, _) => (format!("\"{}\"", c), cont.clone()),
-            Lang::Empty => ("null".to_string(), cont.clone()),
+            Lang::Empty(_) => ("null".to_string(), cont.clone()),
             Lang::Array(v) => {
                 let mut current_cont = cont.clone();
                 let mut val_strs = Vec::new();
@@ -789,7 +789,7 @@ impl Lang {
                 (format!("({}) => {{ {} }}", 
                          params, body.to_assemblyscript(&cont2).0), cont.clone())
             }
-            Lang::Scope(langs) => {
+            Lang::Scope(langs, _) => {
                 let mut current_cont = cont.clone();
                 let mut result_strs = Vec::new();
                 
@@ -817,7 +817,7 @@ impl Lang {
                 let (exp_str, new_cont) = exp.to_assemblyscript(cont);
                 (format!("return {};", exp_str), new_cont)
             },
-            Lang::Dot(e1, e2) => {
+            Lang::Dot(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_assemblyscript(cont);
                 let (e2_str, cont2) = e2.to_assemblyscript(&cont1);
                 
@@ -827,7 +827,7 @@ impl Lang {
                     _ => (format!("{} |> {}", e2_str, e1_str), cont2),
                 }
             },
-            Lang::Pipe(e1, e2) => {
+            Lang::Pipe(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_assemblyscript(cont);
                 let (e2_str, cont2) = e2.to_assemblyscript(&cont1);
                 
@@ -882,9 +882,9 @@ impl Lang {
     pub fn is_undefined(&self) -> bool {
         if let Lang::Let(_, _, rhs) = self {
             if let Lang::Function(_, _, _, body, _h) = *rhs.clone() {
-                if let Lang::Scope(v) = *body.clone() {
+                if let Lang::Scope(v, _) = *body.clone() {
                        let ele = v.first().unwrap();
-                       if let Lang::Empty = ele {true} else {false}
+                       if let Lang::Empty(_) = ele {true} else {false}
                 } else {false}
             } else {false}
         } else { false }
@@ -948,4 +948,16 @@ fn wasm_type(s: &str) -> String {
         "integer" => "i32".to_string(),
         x => format!("Check `wasm_type` function for: {}", x)
     }
+}
+
+impl From<Lang> for HelpData {
+   fn from(val: Lang) -> Self {
+        todo!();
+   } 
+}
+
+impl From<Vec<Lang>> for HelpData {
+   fn from(val: Vec<Lang>) -> Self {
+        todo!();
+   } 
 }

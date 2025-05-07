@@ -401,10 +401,10 @@ pub fn tag_exp(s: Span) -> IResult<Span, Lang> {
             pascal_case,
             opt(parenthese_value)).parse(s);
     match res {
-        Ok((s, (n, None))) 
-            => Ok((s, Lang::Tag(n.0, Box::new(Lang::Empty), n.1))),
-        Ok((s, (n, Some(val)))) 
-            => Ok((s, Lang::Tag(n.0, Box::new(val), n.1))),
+        Ok((s, ((n, h), None))) 
+            => Ok((s, Lang::Tag(n, Box::new(Lang::Empty(h.clone())), h))),
+        Ok((s, ((n, h), Some(val)))) 
+            => Ok((s, Lang::Tag(n, Box::new(val), h))),
         Err(r) => Err(r)
     }
 }
@@ -413,7 +413,7 @@ pub fn tag_exp(s: Span) -> IResult<Span, Lang> {
 fn dotdotdot(s: Span) -> IResult<Span, Lang> {
     let res = terminated(tag("..."), multispace0).parse(s);
     match res {
-        Ok((s, _)) => Ok((s, Lang::Empty)),
+        Ok((s, d)) => Ok((s, Lang::Empty(d.into()))),
         Err(r) => Err(r)
     }
 }
@@ -455,7 +455,7 @@ fn if_exp(s: Span) -> IResult<Span, Lang> {
                    Lang::If(
                        Box::new(cond),
                        Box::new(exp),
-                       Box::new(els.unwrap_or(Lang::Empty))))),
+                       Box::new(els.unwrap_or(Lang::Empty(HelpData::default())))))),
         Err(r) => Err(r)
     }
 }
@@ -613,9 +613,9 @@ pub fn scope(s: Span) -> IResult<Span, Lang> {
         parse_exp,
         terminated(alt((tag(")"), tag("}"))), multispace0)).parse(s);
     match res {
-        Ok((s, Lang::Empty)) => Ok((s, Lang::Scope(vec![]))),
-        Ok((s, Lang::Sequence(v))) => Ok((s, Lang::Scope(v.clone()))),
-        Ok((s, rest)) => Ok((s, Lang::Scope(vec![rest]))),
+        Ok((s, Lang::Empty(h))) => Ok((s, Lang::Scope(vec![], h.clone()))),
+        Ok((s, Lang::Sequence(v))) => Ok((s, Lang::Scope(v.clone(), v.into()))),
+        Ok((s, rest)) => Ok((s, Lang::Scope(vec![rest.clone()], rest.into()))),
         Err(r) => Err(r),
     }
 }
@@ -624,23 +624,34 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
     // (params, op)
     let first = v.pop().unwrap();
     match first {
-        (p, Op::In(_)) => Lang::In(Box::new(p), Box::new(op_reverse(v))),
-        (p, Op::And) => Lang::And(Box::new(p), Box::new(op_reverse(v))),
-        (p, Op::Or) => Lang::Or(Box::new(p), Box::new(op_reverse(v))),
-        (p, Op::Union) => Lang::Union(Box::new(p), Box::new(op_reverse(v))),
-        (p, Op::Eq) => Lang::Eq(Box::new(p), Box::new(op_reverse(v))),
-        (p, Op::LesserThan) => Lang::LesserThan(Box::new(p), Box::new(op_reverse(v))),
-        (p, Op::GreaterThan) => Lang::GreaterThan(Box::new(p), Box::new(op_reverse(v))),
-        (p, Op::LesserOrEqual) => Lang::LesserOrEqual(Box::new(p), Box::new(op_reverse(v))),
-        (p, Op::GreaterOrEqual) => Lang::GreaterOrEqual(Box::new(p), Box::new(op_reverse(v))),
-        (p, Op::Modu) => Lang::Modu(Box::new(p), Box::new(op_reverse(v))),
-        (p, Op::Modu2) => Lang::Modu2(Box::new(p), Box::new(op_reverse(v))),
+        (p, Op::In(_)) 
+			=> Lang::In(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::And) 
+			=> Lang::And(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::Or) 
+			=> Lang::Or(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::Union) 
+			=> Lang::Union(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::Eq) 
+			=> Lang::Eq(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::LesserThan) 
+			=> Lang::LesserThan(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::GreaterThan) 
+			=> Lang::GreaterThan(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::LesserOrEqual) 
+			=> Lang::LesserOrEqual(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::GreaterOrEqual) 
+			=> Lang::GreaterOrEqual(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::Modu) 
+            => Lang::Modu(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::Modu2) 
+            => Lang::Modu2(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (Lang::FunctionApp(name, params), Op::Pipe) 
             => { // (UFC) add the "object" as te first parameter of the function call
                 let res = [op_reverse(v)].iter().chain(params.iter()).cloned().collect::<Vec<_>>();
                 Lang::FunctionApp(name, res)
             }
-        (p, Op::Pipe) => Lang::Pipe(Box::new(p), Box::new(op_reverse(v))),
+        (p, Op::Pipe) => Lang::Pipe(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::Pipe2) => {
             let res = match p.clone() {
                 Lang::FunctionApp(name, _) => *name.clone(),
@@ -649,7 +660,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
             let func = Lang::FunctionApp(
                 Box::new(Lang::Variable("map".to_string(), "".to_string(), Permission::Private, false, Type::Empty(HelpData::default()))),
                 vec![res.clone()]);
-            Lang::Pipe(Box::new(func), Box::new(op_reverse(v)))
+            Lang::Pipe(Box::new(func), Box::new(op_reverse(v)), p.into())
         },
         (p, Op::Add) 
             => {let res = op_reverse(v); let pp = p;
@@ -748,7 +759,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
             }
         //a..f() -> [a, (f, dot2)] -> dot(f, a)
         //dot(map(f), a)
-        (p, Op::Dot) => Lang::Dot(Box::new(p), Box::new(op_reverse(v))),
+        (p, Op::Dot) => Lang::Dot(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::Dot2) => {
             let res = match p.clone() {
                 Lang::FunctionApp(name, _) => *name.clone(),
@@ -757,7 +768,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
             let func = Lang::FunctionApp(
                 Box::new(Var::from_name("map").to_language()),
                 vec![res.clone()]);
-            Lang::Dot(Box::new(func), Box::new(op_reverse(v)))
+            Lang::Dot(Box::new(func), Box::new(op_reverse(v)), p.into())
         },
         (p, Op::Empty) => p
     }

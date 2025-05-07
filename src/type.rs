@@ -342,22 +342,21 @@ impl Type {
         } else { false }
     }
 
-    pub fn get_help_data(&self) -> HelpData {
-        todo!();
-    }
-
 }
 
-pub trait GetHelpData {
-    fn get_help_data(&self) -> HelpData;
-}
 
-impl GetHelpData for Vec<Type> {
-    fn get_help_data(&self) -> HelpData {
-        if self.len() > 0 {
-            self[0].get_help_data()
+impl From<Vec<Type>> for HelpData {
+   fn from(val: Vec<Type>) -> Self {
+        if val.len() > 0 {
+            val[0].clone().into()
         } else { HelpData::default() }
-    }
+   } 
+}
+
+impl From<Type> for HelpData {
+   fn from(val: Type) -> Self {
+       todo!();
+   } 
 }
 
 use std::fmt;
