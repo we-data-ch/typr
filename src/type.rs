@@ -18,7 +18,7 @@ fn to_string<T: ToString>(v: &[T]) -> String {
 
 type Path = String;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Eq, Hash)]
 pub enum Type {
     Number(HelpData),
     Integer(HelpData),
@@ -39,9 +39,9 @@ pub enum Type {
     Interface(Vec<ArgumentType>, HelpData),
     Params(Vec<Type>, HelpData),
     Add(Box<Type>, Box<Type>, HelpData),
+    Mul(Box<Type>, Box<Type>, HelpData),
     Minus(Box<Type>, Box<Type>, HelpData),
     Div(Box<Type>, Box<Type>, HelpData),
-    Mul(Box<Type>, Box<Type>, HelpData),
     Failed(String, HelpData),
     Opaque(String, HelpData),
     Multi(Box<Type>, HelpData),
@@ -354,8 +354,22 @@ impl From<Vec<Type>> for HelpData {
 }
 
 impl From<Type> for HelpData {
-   fn from(_val: Type) -> Self {
-       todo!();
+   fn from(val: Type) -> Self {
+       match val {
+           Type::Empty(h) => h,
+           Type::Generic(_, h) => h,
+           Type::IndexGen(_, h) => h,
+           Type::Minus(_, _, h) => h,
+           Type::Add(_, _, h) => h,
+           Type::Mul(_, _, h) => h,
+           Type::Div(_, _, h) => h,
+           Type::Tag(_, _, h) => h,
+           Type::Function(_, _, _, h) => h,
+           Type::Char(h) => h,
+           Type::Integer(h) => h,
+           Type::Record(_, h) => h,
+           e => panic!("The type element {:?} is not yet implemented", e)
+       }.clone()
    } 
 }
 
@@ -392,5 +406,54 @@ impl fmt::Display for Type {
             _ => "".to_string()
         };
         write!(f, "{}", res)       
+    }
+}
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Type::Number(_), Type::Number(_)) => true,
+            (Type::Integer(_), Type::Integer(_)) => true,
+            (Type::Boolean(_), Type::Boolean(_)) => true,
+            (Type::Char(_), Type::Char(_)) => true,
+            (Type::Embedded(e1, _), Type::Embedded(e2, _)) => e1 == e2,
+            (Type::Function(a1, b1, c1, _), Type::Function(a2, b2, c2, _)) 
+                => a1 == a2 && b1 == b2 && c1 == c2,
+            (Type::Generic(e1, _), Type::Generic(e2, _)) => e1 == e2,
+            (Type::IndexGen(e1, _), Type::IndexGen(e2, _)) => e1 == e2,
+            (Type::LabelGen(e1, _), Type::LabelGen(e2, _)) => e1 == e2,
+            (Type::Label(e1, _), Type::Label(e2, _)) => e1 == e2,
+            (Type::Array(a1, b1, _), Type::Array(a2, b2, _)) 
+                => a1 == a2 && b1 == b2,
+            (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
+            (Type::Index(e1, _), Type::Index(e2, _)) => e1 == e2,
+            (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) 
+                => a1 == a2 && b1 == b2 && c1 == c2,
+            (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) 
+                => a1 == a2 && b1 == b2,
+            (Type::Union(e1, _), Type::Union(e2, _)) => e1 == e2,
+            (Type::Interface(e1, _), Type::Interface(e2, _)) => e1 == e2,
+            (Type::Params(e1, _), Type::Params(e2, _)) => e1 == e2,
+            (Type::Add(a1, b1, _), Type::Add(a2, b2, _)) 
+                => a1 == a2 && b1 == b2,
+            (Type::Minus(a1, b1, _), Type::Minus(a2, b2, _)) 
+                => a1 == a2 && b1 == b2,
+            (Type::Mul(a1, b1, _), Type::Mul(a2, b2, _)) 
+                => a1 == a2 && b1 == b2,
+            (Type::Div(a1, b1, _), Type::Div(a2, b2, _)) 
+                => a1 == a2 && b1 == b2,
+            (Type::Failed(e1, _), Type::Failed(e2, _)) => e1 == e2,
+            (Type::Opaque(e1, _), Type::Opaque(e2, _)) => e1 == e2,
+            (Type::Multi(e1, _), Type::Multi(e2, _)) => e1 == e2,
+            (Type::Tuple(e1, _), Type::Tuple(e2, _)) => e1 == e2,
+            (Type::If(a1, b1, _), Type::If(a2, b2, _)) 
+                => a1 == a2 && b1 == b2,
+            (Type::Condition(a1, b1, c1, _), Type::Condition(a2, b2, c2, _)) 
+                => a1 == a2 && b1 == b2 && c1 == c2,
+            (Type::In(_), Type::In(_)) => true,
+            (Type::Empty(_), Type::Empty(_)) => true,
+            (Type::Any(_), Type::Any(_)) => true,
+            _ => false
+        }
     }
 }

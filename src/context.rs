@@ -12,6 +12,7 @@ use crate::TargetLanguage;
 use crate::Environment;
 use crate::type_comparison::is_matching;
 use crate::help_data::HelpData;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
 pub struct Context {
@@ -133,7 +134,6 @@ impl Context {
     }
 
     pub fn get_classes(&self, t: &Type) -> Option<String> {
-        //self.subtypes.get_supertypes(t)
         self.get_supertypes(t)
             .into_iter().map(|typ| self.nominals.get_class(&typ, self))
             .map(|x| format!("'{}'", x))
@@ -144,7 +144,8 @@ impl Context {
         self.types.iter()
             .filter(|ty| is_matching(self, t, &ty.1))
             .map(|x| x.1.clone())
-            .collect()
+            .collect::<HashSet<_>>()
+            .iter().cloned().collect()
     }
 
     pub fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {

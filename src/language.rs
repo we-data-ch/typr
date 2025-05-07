@@ -333,9 +333,10 @@ impl Lang {
                 match ttype {
                     Type::Any(_) | Type::Empty(_) => (r_code, new_cont),
                     target_type => {
-                        let class = new_cont.get_class(target_type);
+                        //let class = new_cont.get_class(target_type);
                         let classes = new_cont.get_classes(target_type).unwrap();
-                        (format!("{}\nclass({}) <- c('{}', {})", r_code, new_name, class, classes), new_cont)
+                        //(format!("{}\nclass({}) <- c('{}', {})", r_code, new_name, class, classes), new_cont)
+                        (format!("{}\nclass({}) <- c({})", r_code, new_name, classes), new_cont)
                     } 
                 }
             },
@@ -952,13 +953,25 @@ fn wasm_type(s: &str) -> String {
 }
 
 impl From<Lang> for HelpData {
-   fn from(_val: Lang) -> Self {
-        todo!();
+   fn from(val: Lang) -> Self {
+       match val {
+           Lang::Number(_, h) => h,
+           Lang::Integer(_, h) => h,
+           Lang::Bool(_, h) => h,
+           Lang::Char(_, h) => h,
+           Lang::Variable(_, _, _, _, _, h) => h,
+           Lang::Match(_, _, h) => h,
+           Lang::FunctionApp(_, _, h) => h,
+           Lang::Empty(h) => h,
+           e => panic!("Language element {:?} not yet implemented", e)
+       }.clone()
    } 
 }
 
 impl From<Vec<Lang>> for HelpData {
-   fn from(_val: Vec<Lang>) -> Self {
-        todo!();
+   fn from(val: Vec<Lang>) -> Self {
+       if val.len() > 0 {
+            val[0].clone().into()
+       } else { HelpData::default() }
    } 
 }
