@@ -3,6 +3,7 @@ use crate::argument_type::ArgumentType;
 use crate::Context;
 use crate::type_comparison;
 use crate::tag::Tag;
+use crate::r#type::GetHelpData;
 
 pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     if substitutions.is_empty() {
@@ -41,43 +42,43 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         }
 
         // Arithmetic operations
-        Type::Add(t1, t2) => {
+        Type::Add(t1, t2, h) => {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
                 (Type::Integer(h), Type::Integer(_)) => Type::Integer(h),
-                _ => Type::Add(Box::new(v1), Box::new(v2))
+                _ => Type::Add(Box::new(v1), Box::new(v2), h.clone())
             }
         }
 
-        Type::Minus(t1, t2) => {
+        Type::Minus(t1, t2, h) => {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
                 (Type::Integer(h), Type::Integer(_)) => Type::Integer(h),
-                _ => Type::Minus(Box::new(v1), Box::new(v2))
+                _ => Type::Minus(Box::new(v1), Box::new(v2), h.clone())
             }
         }
 
-        Type::Mul(t1, t2) => {
+        Type::Mul(t1, t2, h) => {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
                 (Type::Integer(h), Type::Integer(_)) => Type::Integer(h),
-                _ => Type::Mul(Box::new(v1), Box::new(v2))
+                _ => Type::Mul(Box::new(v1), Box::new(v2), h.clone())
             }
         }
 
-        Type::Div(t1, t2) => {
+        Type::Div(t1, t2, h) => {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
                 (Type::Integer(h), Type::Integer(_)) => Type::Integer(h),
-                _ => Type::Div(Box::new(v1), Box::new(v2))
+                _ => Type::Div(Box::new(v1), Box::new(v2), h.clone())
             }
         }
 
@@ -137,12 +138,12 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             )
         }
 
-        Type::Union(types) => {
+        Type::Union(types, h) => {
             let new_types = types.iter()
                 .map(|typ| {
                     Tag::from_type(type_substitution(&typ.to_type(), substitutions)).unwrap()
                 }).collect::<Vec<_>>();
-            Type::Union(new_types)
+            Type::Union(new_types, h.clone())
         }
 
         // Default case: return the type unchanged
@@ -159,8 +160,8 @@ fn match_wildcard(fields: &[ArgumentType], arg_type: ArgumentType) -> Vec<(Type,
             (lbl, typ)
         });
     vec![
-        (arg_type.get_argument(), Type::Tuple(labels)),
-        (arg_type.get_type(), Type::Tuple(types))
+        (arg_type.get_argument(), Type::Tuple(labels.clone(), labels.get_help_data())),
+        (arg_type.get_type(), Type::Tuple(types.clone(), types.get_help_data()))
     ]
 }
 
@@ -172,8 +173,8 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
         // Direct equality case
         (t1, t2) if t1 == t2 => Some(vec![]),
         // Any case
-        (Type::Any, _) => Some(vec![]),
-        (_, Type::Any) => Some(vec![]),
+        (Type::Any(_), _) => Some(vec![]),
+        (_, Type::Any(_)) => Some(vec![]),
 
         // Generic case
         (t, Type::Generic(g, h)) | (Type::Generic(g, h), t) => {

@@ -6,6 +6,7 @@ use nom::sequence::terminated;
 use crate::Type;
 use nom::Parser;
 use nom_locate::LocatedSpan;
+use crate::help_data::HelpData;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -25,7 +26,7 @@ pub enum Op {
     Minus2,
     Mul,
     Mul2,
-    In,
+    In(HelpData),
     At,
     At2,
     Div,
@@ -42,7 +43,7 @@ pub enum Op {
 impl Op {
     pub fn to_type(&self) -> Option<Type> {
         match self {
-            Op::In => Some(Type::In),
+            Op::In(h) => Some(Type::In(h.clone())),
             _ => None
         }
     }
@@ -63,8 +64,8 @@ fn bool_op(s: Span) -> IResult<Span, Span> {
 }
 
 fn get_op(ls: LocatedSpan<&str, String>) -> Op {
-    match ls.into_fragment() {
-        "in " => Op::In,
+    match ls.clone().into_fragment() {
+        "in " => Op::In(ls.into()),
         "and" => Op::And,
         "or" => Op::Or,
         "+" => Op::Add,
@@ -126,7 +127,7 @@ pub fn op(s: Span) -> IResult<Span, Op> {
 
 fn get_string(op: &Op) -> String {
     match op {
-        Op::In => "in".to_string(),
+        Op::In(_) => "in".to_string(),
         Op::And => "and".to_string(),
         Op::Or => "or".to_string(),
         Op::Add => "+".to_string(),

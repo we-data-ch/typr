@@ -5,6 +5,8 @@ use crate::var::Var;
 use crate::context::Context;
 use crate::tag::Tag;
 use crate::is_subset;
+use crate::r#type::GetHelpData;
+use crate::help_data::HelpData;
 
 // Implementation of the Prolog rules as Rust functions
 pub fn all_subtype(cont: &Context, set1: &[ArgumentType], set2: &[ArgumentType]) -> bool {
@@ -43,8 +45,8 @@ fn set_self(fs: &[(Var, Type)]) -> Vec<(Var, Type)> {
                         .map(|typ_ele| to_self(typ_ele.clone(), first.clone()))
                         .collect();
                     let ret2 = to_self((**ret_type).clone(), first);
-                    (var.clone().set_type(Type::Empty), Type::Function(kinds.clone(), args, Box::new(ret2), h.clone()))
-                } else { (var.clone().set_type(Type::Empty), typ.clone()) }
+                    (var.clone().set_type(Type::Empty(HelpData::default())), Type::Function(kinds.clone(), args, Box::new(ret2), h.clone()))
+                } else { (var.clone().set_type(Type::Empty(HelpData::default())), typ.clone()) }
             },
             _ => (var.clone(), typ.clone())
         }
@@ -71,7 +73,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
     match (type1, type2) {
         (typ1, typ2) if typ1 == typ2 => true,
         // Array subtyping
-        (_, Type::Any) => true,
+        (_, Type::Any(_)) => true,
         (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
             is_subtype(context, n1, n2) && is_subtype(context, t1, t2)
         },
@@ -85,7 +87,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
                 .all(|(typ1, typ2)| is_subtype(context, typ1, typ2))
         }
         // Interface subtyping
-        (type1, Type::Interface(args)) => {
+        (type1, Type::Interface(args, _)) => {
             check_interface_functions(
                 &args.iter()
                     .map(|arg| (Var::default().set_name(&arg.get_argument_str()), arg.1.clone()))
@@ -106,12 +108,12 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
             }
         },
 
-        (Type::Union(types1), Type::Union(_types2)) => {
+        (Type::Union(types1, _), Type::Union(_types2, _)) => {
             types1.iter().all(|t1| is_subtype(context, &t1.to_type(), type2))
         },
 
         // Union subtyping
-        (Type::Tag(_name, _body, _h), Type::Union(types)) => {
+        (Type::Tag(_name, _body, _h), Type::Union(types, _)) => {
             types.iter().any(|t| is_matching(context, type1, &t.to_type()))
         },
         (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
@@ -127,7 +129,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
 
         // Params subtyping
-        (Type::Params(p1), Type::Params(p2)) => {
+        (Type::Params(p1, _), Type::Params(p2, _)) => {
             p1.len() == p2.len() && 
             p1.iter().zip(p2.iter()).all(|(t1, t2)| is_subtype(context, t1, t2))
         }
@@ -146,8 +148,8 @@ pub fn is_matching(context: &Context, type1: &Type, type2: &Type) -> bool {
 
     // Handle special cases
     match (type1, type2) {
-        (Type::Empty, _) | (_, Type::Empty) => true,
-        (Type::Any, _) | (_, Type::Any) => true,
+        (Type::Empty(_), _) | (_, Type::Empty(_)) => true,
+        (Type::Any(_), _) | (_, Type::Any(_)) => true,
         
         // Reduce types and check again
         _ => {
@@ -181,7 +183,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 .collect(), h.clone())
         },
         Type::Alias(name, concret_types, _base_type, _h) => {
-            let var = Var::from_name(name).set_type(Type::Params(concret_types.to_vec()));
+            let var = Var::from_name(name).set_type(Type::Params(concret_types.to_vec(), concret_types.get_help_data()));
             if let Some((aliased_type, generics)) = context.get_with_gen(&var) {
                 let substituted = type_substitution(
                     &aliased_type,
@@ -196,17 +198,17 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
             }
         }
 
-        Type::Union(types) => {
+        Type::Union(types, h) => {
             Type::Union(types.iter()
                 .map(|t| reduce_type(context, &t.to_type()))
                 .flat_map(Tag::from_type)
-                .collect())
+                .collect(), h.clone())
         }
 
         Type::Tag(name, inner, h) => {
             Type::Tag(name.clone(), Box::new(reduce_type(context, inner)), h.clone())
         }
-        Type::If(typ, _conditions) => *typ.clone(),
+        Type::If(typ, _conditions, _) => *typ.clone(),
         _ => type_.clone()
     }
 }

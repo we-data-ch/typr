@@ -264,7 +264,7 @@ fn tag_default_helper(s: Span) -> IResult<Span, Type> {
         Ok((s, (_, (n, h), Some(val)))) 
             => Ok((s, Type::Tag(n, Box::new(val), h))),
         Ok((s, (_, (n, h), None))) 
-            => Ok((s, Type::Tag(n, Box::new(Type::Empty), h))),
+            => Ok((s, Type::Tag(n, Box::new(Type::Empty(HelpData::default())), h))),
         Err(r) => Err(r)
     }
 }
@@ -323,7 +323,7 @@ fn union(s: Span) -> IResult<Span, Type> {
            let res = [t].iter()
                .chain(v.iter()).cloned()
                .flat_map(Tag::from_type).collect();
-           Ok((s, Type::Union(res)))
+           Ok((s.clone(), Type::Union(res, s.into())))
        },
        Err(r) => Err(r)
    }
@@ -392,7 +392,8 @@ fn interface(s: Span) -> IResult<Span, Type> {
             terminated(tag("}"), multispace0)
                     ).parse(s);
     match res {
-        Ok((s, (_, _, v, _))) => Ok((s, Type::Interface(v))),
+        Ok((s, (i, _, v, _))) 
+            => Ok((s, Type::Interface(v, i.into()))),
         Err(r) => Err(r)
     }
 }
@@ -403,8 +404,8 @@ fn tuple_type(s: Span) -> IResult<Span, Type> {
                 many0(ltype_parameter),
                 tag("}")).parse(s);
     match res {
-        Ok((s, (_op, v, _cl))) => {
-            Ok((s, Type::Tuple(v)))
+        Ok((s, (ope, v, _cl))) => {
+            Ok((s, Type::Tuple(v, ope.into())))
         },
         Err(r) => Err(r)
     }
@@ -444,7 +445,7 @@ fn integer(s: Span) -> IResult<Span, Type> {
 
 fn empty(s: Span) -> IResult<Span, Type> {
     match tag("Empty")(s) {
-        Ok((s, _)) => Ok((s, Type::Empty)),
+        Ok((s, e)) => Ok((s, Type::Empty(e.into()))),
         Err(r) => Err(r)
     }
 }
@@ -455,19 +456,19 @@ fn compute_operators(v: &mut Vec<(Type, Op)>) -> Type {
     match first {
         (p, Op::Add) => {
             let res = compute_operators(v); let pp = p;
-            Type::Add(Box::new(res), Box::new(pp))
+            Type::Add(Box::new(res.clone()), Box::new(pp), res.get_help_data())
         },
         (p, Op::Minus) => { 
             let res = compute_operators(v); let pp = p;
-            Type::Minus(Box::new(res), Box::new(pp))
+            Type::Minus(Box::new(res.clone()), Box::new(pp), res.get_help_data())
         },
         (p, Op::Mul) => {
             let res = compute_operators(v); let pp = p;
-            Type::Mul(Box::new(res), Box::new(pp))
+            Type::Mul(Box::new(res.clone()), Box::new(pp), res.get_help_data())
         },
         (p, Op::Div) => {
             let res = compute_operators(v); let pp = p;
-            Type::Div(Box::new(res), Box::new(pp))
+            Type::Div(Box::new(res.clone()), Box::new(pp), res.get_help_data())
         },
         (p, Op::Empty) => p,
         _ => panic!()
@@ -537,8 +538,9 @@ fn type_condition(s: Span) -> IResult<Span, Type> {
                 .expect("This is not a valid type operator");
             Ok((s, Type::Condition(
                         Box::new(t1),
-                        Box::new(new_ope),
-                        Box::new(t2))))
+                        Box::new(new_ope.clone()),
+                        Box::new(t2), 
+                        new_ope.get_help_data())))
         },
         Err(r) => Err(r)
     }
@@ -549,7 +551,7 @@ pub fn if_type(s: Span) -> IResult<Span,Type> {
     let res = (ltype, tag("if "), many1(type_condition)).parse(s);
     match res {
         Ok((s, (typ, _if, t_conds))) 
-            => Ok((s, Type::If(Box::new(typ), t_conds))),
+            => Ok((s, Type::If(Box::new(typ.clone()), t_conds, typ.get_help_data()))),
         Err(r) => Err(r)
     }
 }

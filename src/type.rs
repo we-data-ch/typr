@@ -35,22 +35,22 @@ pub enum Type {
     Index(u32, HelpData),
     Alias(String, Vec<Type>, Path, HelpData),
     Tag(String, Box<Type>, HelpData),
-    Union(Vec<Tag>),
-    Interface(Vec<ArgumentType>),
-    Params(Vec<Type>),
-    Add(Box<Type>, Box<Type>),
-    Minus(Box<Type>, Box<Type>),
-    Div(Box<Type>, Box<Type>),
-    Mul(Box<Type>, Box<Type>),
-    Failed(String),
-    Opaque(String),
+    Union(Vec<Tag>, HelpData),
+    Interface(Vec<ArgumentType>, HelpData),
+    Params(Vec<Type>, HelpData),
+    Add(Box<Type>, Box<Type>, HelpData),
+    Minus(Box<Type>, Box<Type>, HelpData),
+    Div(Box<Type>, Box<Type>, HelpData),
+    Mul(Box<Type>, Box<Type>, HelpData),
+    Failed(String, HelpData),
+    Opaque(String, HelpData),
     Multi(Box<Type>, HelpData),
-    Tuple(Vec<Type>),
-    If(Box<Type>, Vec<Type>),
-    Condition(Box<Type>, Box<Type>, Box<Type>),
-    In,
-    Empty,
-    Any
+    Tuple(Vec<Type>, HelpData),
+    If(Box<Type>, Vec<Type>, HelpData),
+    Condition(Box<Type>, Box<Type>, Box<Type>, HelpData),
+    In(HelpData),
+    Empty(HelpData),
+    Any(HelpData)
 }
 
 //main
@@ -63,7 +63,7 @@ impl Type {
                     sol.push((**ret).clone());
                     sol.push(self.clone()); sol
                 }
-            Type::Union(tags) => {
+            Type::Union(tags, _) => {
                let mut sol = tags.iter().map(|tag| tag.to_type()).collect::<Vec<_>>();
                sol.push(self.clone()); sol
             },
@@ -155,12 +155,12 @@ impl Type {
            },
            Type::Tag(name, typ, _) 
                => format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript()),
-           Type::Any => "null".to_string(),
-           Type::Empty => "null".to_string(),
-           Type::Add(_,_) => "T".to_string(),
-           Type::Minus(_,_) => "T".to_string(),
-           Type::Div(_,_) => "T".to_string(),
-           Type::Mul(_,_) => "T".to_string(),
+           Type::Any(_) => "null".to_string(),
+           Type::Empty(_) => "null".to_string(),
+           Type::Add(_,_, _) => "T".to_string(),
+           Type::Minus(_,_, _) => "T".to_string(),
+           Type::Div(_,_, _) => "T".to_string(),
+           Type::Mul(_,_, _) => "T".to_string(),
            _ => format!("the type: {} is not yet in to_typescript()", self)
        } 
     }
@@ -197,12 +197,12 @@ impl Type {
                }
            },
            Type::Tag(name, typ, _) => format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript()),
-           Type::Any => "null".to_string(),
-           Type::Empty => "null".to_string(),
-           Type::Add(_,_) => "T".to_string(),
-           Type::Minus(_,_) => "T".to_string(),
-           Type::Div(_,_) => "T".to_string(),
-           Type::Mul(_,_) => "T".to_string(),
+           Type::Any(_) => "null".to_string(),
+           Type::Empty(_) => "null".to_string(),
+           Type::Add(_,_, _) => "T".to_string(),
+           Type::Minus(_,_, _) => "T".to_string(),
+           Type::Div(_,_, _) => "T".to_string(),
+           Type::Mul(_,_, _) => "T".to_string(),
            _ => format!("the type: {} is not yet in to_typescript()", self)
        } 
     }
@@ -248,13 +248,13 @@ impl Type {
 
     pub fn index_calculation(&self) -> Type {
         match self {
-            Type::Add(a, b) 
+            Type::Add(a, b, _) 
                 => a.index_calculation().sum_index(&b.index_calculation()),
-            Type::Minus(a, b) 
+            Type::Minus(a, b, _) 
                 => a.index_calculation().minus_index(&b.index_calculation()),
-            Type::Mul(a, b) 
+            Type::Mul(a, b, _) 
                 => a.index_calculation().mul_index(&b.index_calculation()),
-            Type::Div(a, b) 
+            Type::Div(a, b, _) 
                 => a.index_calculation().div_index(&b.index_calculation()),
             Type::Array(ind, typ, h) =>
                 Type::Array(
@@ -348,6 +348,18 @@ impl Type {
 
 }
 
+pub trait GetHelpData {
+    fn get_help_data(&self) -> HelpData;
+}
+
+impl GetHelpData for Vec<Type> {
+    fn get_help_data(&self) -> HelpData {
+        if self.len() > 0 {
+            self[0].get_help_data()
+        } else { HelpData::default() }
+    }
+}
+
 use std::fmt;
 impl fmt::Display for Type {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -368,16 +380,16 @@ impl fmt::Display for Type {
             Type::Boolean(_) => "bool".to_string(),
             Type::Char(_) => "char".to_string(),
             Type::Tag(s, t, _) => format!("ttag('{}', {})", s, t),
-            Type::Union(v) => format!("union({})", to_string(v)),
-            Type::Interface(v) => format!("interface({})", to_string(v)),
-            Type::Params(v) => format!("params({})", to_string(v)),
-            Type::Add(id1, id2) => format!("add({}, {})", id1, id2),
-            Type::Minus(id1, id2) => format!("minus({}, {})", id1, id2),
-            Type::Mul(id1, id2) => format!("mul({}, {})", id1, id2),
-            Type::Div(id1, id2) => format!("division({}, {})", id1, id2),
+            Type::Union(v, _) => format!("union({})", to_string(v)),
+            Type::Interface(v, _) => format!("interface({})", to_string(v)),
+            Type::Params(v, _) => format!("params({})", to_string(v)),
+            Type::Add(id1, id2, _) => format!("add({}, {})", id1, id2),
+            Type::Minus(id1, id2, _) => format!("minus({}, {})", id1, id2),
+            Type::Mul(id1, id2, _) => format!("mul({}, {})", id1, id2),
+            Type::Div(id1, id2, _) => format!("division({}, {})", id1, id2),
             Type::LabelGen(l, _) => format!("%{}", l),
             Type::Label(l, _) => format!("{}", l),
-            Type::Empty => "any".to_string(),
+            Type::Empty(_) => "any".to_string(),
             _ => "".to_string()
         };
         write!(f, "{}", res)       

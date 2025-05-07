@@ -1,5 +1,6 @@
 use crate::Type;
 use crate::kind::Kind;
+use crate::help_data::HelpData;
 
 fn format_kind(ki: &Kind) -> String {
    match ki {
@@ -25,7 +26,7 @@ fn format(ty: &Type) -> String {
             format!("fn<{}>({}) -> {}", formatted_kinds.join(", "), formatted_params.join(", "), format(ret_ty))
         }
         Type::Tag(name, param, _) => {
-            if (**param == Type::Any) || (**param == Type::Empty){
+            if (**param == Type::Any(HelpData::default())) || (**param == Type::Empty(HelpData::default())){
                 format!(".{}", name)
             } else {
                 format!(".{}({})", name, format(param))
@@ -41,15 +42,15 @@ fn format(ty: &Type) -> String {
         Type::Boolean(_) => "bool".to_string(),
         Type::Integer(_) => "int".to_string(),
         Type::Char(_) => "char".to_string(),
-        Type::Empty => "Empty".to_string(),
-        Type::Union(types) => {
+        Type::Empty(_) => "Empty".to_string(),
+        Type::Union(types, _) => {
             let formatted_types = types.iter().map(|ty| format(&ty.to_type())).collect::<Vec<_>>();
             format!("{}", formatted_types.join(" | "))
         }
-        Type::Any => "any".to_string(),
+        Type::Any(_) => "any".to_string(),
         Type::IndexGen(i, _) => format!("#{}", i),
         Type::LabelGen(l, _) => format!("%{}", l),
-        Type::Tuple(elements) => {
+        Type::Tuple(elements, _) => {
             let body = elements.iter()
                 .map(format)
                 .collect::<Vec<_>>()

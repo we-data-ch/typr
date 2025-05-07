@@ -93,7 +93,7 @@ impl Context {
                 (path1 == path2) && (perm1 == perm2) &&
                 (bo1 == bo2) && (type_comparison::is_matching(self, params1, params2));
             if conditions { 
-                if let Type::Params(types) = params2 {
+                if let Type::Params(types, _) = params2 {
                     Some((type_.clone(), types.clone()))
                 } else { None }
             } else { None }
@@ -205,7 +205,7 @@ impl Context {
                    let new_t2 = if t_end == t { typ.clone() } else {t_end.clone()};
                    Lang::Let(
                        var.clone(),
-                        Type::Empty,
+                        Type::Empty(HelpData::default()),
                         Box::new(
                            Lang::Function(kinds.to_vec(), new_args, new_t2,
                                           Box::new(build_concret_function(&manips, manip1, var.clone())), h.clone())

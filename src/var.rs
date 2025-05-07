@@ -5,6 +5,7 @@ use std::fmt;
 use serde::Serialize;
 use crate::context::Context;
 use crate::type_comparison;
+use crate::help_data::HelpData;
 
 type Name = String;
 type Path = String;
@@ -43,7 +44,7 @@ impl Var {
             "".to_string(),
             Permission::Private,
             false,
-            Type::Empty)
+            Type::Empty(HelpData::default()))
     }
 
     pub fn to_language(self) -> Lang {
@@ -136,7 +137,7 @@ impl fmt::Display for Var {
 
 impl Default for Var {
     fn default() -> Self {
-        Var("".to_string(), "".to_string(), Permission::Private, false, Type::Empty)
+        Var("".to_string(), "".to_string(), Permission::Private, false, Type::Empty(HelpData::default()))
     }
 }
 

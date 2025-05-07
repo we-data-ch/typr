@@ -30,8 +30,8 @@ impl TypeCategory {
             Type::Index(_, _) => TypeCategory::Index,
             Type::Alias(_, _, _, _) => TypeCategory::Alias,
             Type::Tag(_, _, _) => TypeCategory::Tag,
-            Type::Union(_) => TypeCategory::Union,
-            Type::Interface(_) => TypeCategory::Interface,
+            Type::Union(_, _) => TypeCategory::Union,
+            Type::Interface(_, _) => TypeCategory::Interface,
             Type::Boolean(_) => TypeCategory::Boolean,
             Type::Integer(_) => TypeCategory::Integer,
             Type::Number(_) => TypeCategory::Number,
@@ -109,10 +109,10 @@ impl TypeNominal {
           Type::Index(_, _) => self.get_nth_helper(TypeCategory::Index),
           Type::Alias(_, _, _, _) => self.get_nth_helper(TypeCategory::Alias),
           Type::Tag(_, _, _) => self.get_nth_helper(TypeCategory::Tag),
-          Type::Union(_) => self.get_nth_helper(TypeCategory::Union),
-          Type::Interface(_) => self.get_nth_helper(TypeCategory::Interface),
-          Type::Failed(_) | Type::Params(_) | Type::Empty => (self.categories.clone(), 0 as usize),
-          Type::Add(_, _) | Type::Mul(_, _) | Type::Div(_, _) | Type::Minus(_, _) => (self.categories.clone(), 0 as usize),
+          Type::Union(_, _) => self.get_nth_helper(TypeCategory::Union),
+          Type::Interface(_, _) => self.get_nth_helper(TypeCategory::Interface),
+          Type::Failed(_, _) | Type::Params(_, _) | Type::Empty(_) => (self.categories.clone(), 0 as usize),
+          Type::Add(_, _, _) | Type::Mul(_, _, _) | Type::Div(_, _, _) | Type::Minus(_, _, _) => (self.categories.clone(), 0 as usize),
           _ => self.get_nth_helper(TypeCategory::Rest)
       }
    } 
@@ -154,8 +154,8 @@ impl TypeNominal {
 
    pub fn get_class(&self, typ: &Type, cont: &Context) -> String {
        match typ {
-           Type::Empty => "Empty".to_string(),
-           Type::Any => "Empty".to_string(),
+           Type::Empty(_) => "Empty".to_string(),
+           Type::Any(_) => "Empty".to_string(),
            _ => {
                self.body.iter()
                    .find(|(typ_, _nominal)| is_subtype(cont, typ, typ_))

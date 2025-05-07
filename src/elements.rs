@@ -146,19 +146,19 @@ fn variable_helper(s: Span) -> IResult<Span, Lang> {
                         false,
                         ty))),
         Ok((s, (Some(mp), v, None))) 
-            => Ok((s, Lang::Variable(
+            => Ok((s.clone(), Lang::Variable(
                         v.to_string(),
                         mp.0,
                         Permission::Private,
                         false,
-                        Type::Empty))),
+                        Type::Empty(s.into())))),
         Ok((s, (None, v, None))) 
-            => Ok((s, Lang::Variable(
+            => Ok((s.clone(), Lang::Variable(
                         v.to_string(),
                         "".to_string(),
                         Permission::Private,
                         false,
-                        Type::Empty))),
+                        Type::Empty(s.into())))),
         Err(r) => Err(r)
     }
 }
@@ -496,8 +496,8 @@ fn tuple_exp(s: Span) -> IResult<Span, Lang> {
             terminated(tag("}"), multispace0),
                     ).parse(s);
     match res {
-        Ok((s, (_o, vals, _c))) => 
-            Ok((s, Lang::Tuple(vals))),
+        Ok((s, (o, vals, _c))) => 
+            Ok((s, Lang::Tuple(vals, o.into()))),
         Err(r) => Err(r)
     }
 }
@@ -624,7 +624,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
     // (params, op)
     let first = v.pop().unwrap();
     match first {
-        (p, Op::In) => Lang::In(Box::new(p), Box::new(op_reverse(v))),
+        (p, Op::In(_)) => Lang::In(Box::new(p), Box::new(op_reverse(v))),
         (p, Op::And) => Lang::And(Box::new(p), Box::new(op_reverse(v))),
         (p, Op::Or) => Lang::Or(Box::new(p), Box::new(op_reverse(v))),
         (p, Op::Union) => Lang::Union(Box::new(p), Box::new(op_reverse(v))),
@@ -647,7 +647,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                 rest => rest.clone()
             };
             let func = Lang::FunctionApp(
-                Box::new(Lang::Variable("map".to_string(), "".to_string(), Permission::Private, false, Type::Empty)),
+                Box::new(Lang::Variable("map".to_string(), "".to_string(), Permission::Private, false, Type::Empty(HelpData::default()))),
                 vec![res.clone()]);
             Lang::Pipe(Box::new(func), Box::new(op_reverse(v)))
         },
@@ -658,7 +658,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         "".to_string(),
                         Permission::Private,
                         false,
-                        Type::Empty));
+                        Type::Empty(HelpData::default())));
                 Lang::FunctionApp(var, vec![res, pp]) },
         (p, Op::Add2) 
             => {let res = op_reverse(v); let pp = p;
@@ -667,7 +667,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         "".to_string(),
                         Permission::Private,
                         false,
-                        Type::Empty));
+                        Type::Empty(HelpData::default())));
                 Lang::FunctionApp(var, vec![res, pp]) },
         (p, Op::Minus) 
             => {let res = op_reverse(v); let pp = p;
@@ -676,7 +676,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         "".to_string(),
                         Permission::Private,
                         false,
-                        Type::Empty));
+                        Type::Empty(HelpData::default())));
                 Lang::FunctionApp(var, vec![res, pp]) },
         (p, Op::Minus2) 
             => {let res = op_reverse(v); let pp = p;
@@ -685,7 +685,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         "".to_string(),
                         Permission::Private,
                         false,
-                        Type::Empty));
+                        Type::Empty(HelpData::default())));
                 Lang::FunctionApp(var, vec![res, pp]) },
         (p, Op::Mul) 
             => {let res = op_reverse(v); let pp = p;
@@ -694,7 +694,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         "".to_string(),
                         Permission::Private,
                         false,
-                        Type::Empty));
+                        Type::Empty(HelpData::default())));
                 Lang::FunctionApp(var, vec![res, pp]) },
         (p, Op::Mul2) 
             => {let res = op_reverse(v); let pp = p;
@@ -703,7 +703,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         "".to_string(),
                         Permission::Private,
                         false,
-                        Type::Empty));
+                        Type::Empty(HelpData::default())));
                 Lang::FunctionApp(var, vec![res, pp]) },
         (p, Op::Div) 
             => {let res = op_reverse(v); let pp = p;
@@ -712,7 +712,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         "".to_string(),
                         Permission::Private,
                         false,
-                        Type::Empty));
+                        Type::Empty(HelpData::default())));
                 Lang::FunctionApp(var, vec![res, pp]) },
         (p, Op::Div2) 
             => {let res = op_reverse(v); let pp = p;
@@ -721,7 +721,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         "".to_string(),
                         Permission::Private,
                         false,
-                        Type::Empty));
+                        Type::Empty(HelpData::default())));
                 Lang::FunctionApp(var, vec![res, pp]) },
         (p, Op::At) 
             => {let res = op_reverse(v); let pp = p;
@@ -730,7 +730,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         "".to_string(),
                         Permission::Private,
                         false,
-                        Type::Empty));
+                        Type::Empty(HelpData::default())));
                 Lang::FunctionApp(var, vec![res, pp]) },
         (p, Op::At2) 
             => {let res = op_reverse(v); let pp = p;
@@ -739,7 +739,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                         "".to_string(),
                         Permission::Private,
                         false,
-                        Type::Empty));
+                        Type::Empty(HelpData::default())));
                 Lang::FunctionApp(var, vec![res, pp]) },
         (Lang::FunctionApp(name, params), Op::Dot) 
             => { // (UFC) add the "object" as te first parameter of the function call

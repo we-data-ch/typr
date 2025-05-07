@@ -46,7 +46,7 @@ pub enum Lang {
     Tag(String, Box<Lang>, HelpData),
     If(Box::<Lang>, Box<Lang>, Box<Lang>),
     Match(Box<Lang>, Vec<(Box<Lang>, Box<Lang>)>),
-    Tuple(Vec<Lang>),
+    Tuple(Vec<Lang>, HelpData),
     Sequence(Vec<Lang>),
     Assign(Box<Lang>, Box<Lang>),
     Comment(String),
@@ -259,7 +259,7 @@ impl Lang {
                     v.replace("__", ".")
                 } else {
                     match _ty {
-                        Type::Empty | Type::Any => v.clone(),
+                        Type::Empty(_) | Type::Any(_) => v.clone(),
                         _ => v.clone() + "." + &cont.get_class(_ty)
                     }
                 };
@@ -331,7 +331,7 @@ impl Lang {
                 };
 
                 match ttype {
-                    Type::Any | Type::Empty => (r_code, new_cont),
+                    Type::Any(_) | Type::Empty(_) => (r_code, new_cont),
                     target_type => {
                         let class = new_cont.get_class(target_type);
                         let classes = new_cont.get_classes(target_type).unwrap();
@@ -393,7 +393,7 @@ impl Lang {
                 
                 (format!("if ({}) {{\n {} \n}} else {}", cond_str, exp_str, els_str), cont3)
             },
-            Lang::Tuple(vals) => {
+            Lang::Tuple(vals, h) => {
                 let mut current_cont = cont.clone();
                 let mut val_entries = Vec::new();
                 
@@ -490,7 +490,7 @@ impl Lang {
                 
                 (format!("{{ {} }}", arg_strs.join(", ")), current_cont)
             },
-            Lang::Tuple(vals) => {
+            Lang::Tuple(vals, h) => {
                 let mut current_cont = cont.clone();
                 let mut val_entries = Vec::new();
                 
@@ -679,7 +679,7 @@ impl Lang {
                 
                 (format!("{{ {} }}", arg_strs.join(", ")), current_cont)
             },
-            Lang::Tuple(vals) => {
+            Lang::Tuple(vals, _) => {
                 let mut current_cont = cont.clone();
                 let mut val_entries = Vec::new();
                 
