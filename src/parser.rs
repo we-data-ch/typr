@@ -32,16 +32,16 @@ fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
     match res {
         Ok((s, Lang::Tag(name, val, _h)))
             => {
-                if let Lang::Variable(name2, path, perm, mutopa, typ) = *val {
+                if let Lang::Variable(name2, path, perm, mutopa, typ, h) = *val {
                     Ok((s, 
-                        (vec![Lang::Variable(name2.to_string(), path.to_string(), perm, mutopa, typ)],
+                        (vec![Lang::Variable(name2.to_string(), path.to_string(), perm, mutopa, typ, h.clone())],
                         Some(name.to_string()))))
                 } else {
                     Ok((s, (vec![], Some(name.to_string()))))
                 }
             } ,
-        Ok((s, Lang::Variable(name, path, perm, mutopa, typ)))
-            => Ok((s, (vec![Lang::Variable(name, path, perm, mutopa, typ)], None))),
+        Ok((s, Lang::Variable(name, path, perm, mutopa, typ, h)))
+            => Ok((s, (vec![Lang::Variable(name, path, perm, mutopa, typ, h.clone())], None))),
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -75,7 +75,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             if params.len() > 0 => {
                 let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false);
                 Ok((s, vec![Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
-                Box::new(Lang::Function(ki, params, ty, body, h)))]))
+                Box::new(Lang::Function(ki, params, ty, body, h)), _let.into())]))
             },
         Ok((s, (_let, (pat_var, None), typ, _eq, body))) => {
                 Ok((s, 
@@ -83,7 +83,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     Lang::Let(
                         Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
                         typ.clone().unwrap_or(Type::Empty(HelpData::default())),
-                        Box::new(body))]))
+                        Box::new(body), _let.into())]))
                 }
         Ok((s, (_let, (pat_var, Some(_)), typ, eq, body))) => {
             if pat_var.len() == 1 {
@@ -93,12 +93,12 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
                         typ.clone().unwrap_or(Type::Empty(HelpData::default())),
                         Box::new(Lang::Dot(Box::new(Lang::Number(0.0, eq.into())),
-                        Box::new(body), pat_var.into())))]))
+                        Box::new(body), pat_var.into())), _let.into())]))
 
             } else {
                 Ok((s,
                 pat_var.iter().map(|x| {
-                    Lang::Let(Var::from_language(x.clone()).unwrap().set_permission(false), typ.clone().unwrap_or(Type::Empty(HelpData::default())), Box::new(body.clone()))
+                    Lang::Let(Var::from_language(x.clone()).unwrap().set_permission(false), typ.clone().unwrap_or(Type::Empty(HelpData::default())), Box::new(body.clone()), HelpData::default())
                 }).collect::<Vec<_>>()
                    ))
             }
@@ -118,10 +118,10 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
         Ok((s, (Some(_pu), le))) => {
             let new_le = le.iter().map(|x| {
                 match x {
-                    Lang::Let(var, typ, body) 
+                    Lang::Let(var, typ, body, h) 
                         => Lang::Let(var.clone().set_permission(true),
                                     typ.clone(),
-                                    body.clone()),
+                                    body.clone(), h.clone()),
                     lan => lan.clone()
                 }
             }).collect();
@@ -147,14 +147,15 @@ fn base_mut_exp(s: Span) -> IResult<Span, Lang> {
                     .set_type(params[0].1.clone())
                     .set_mutability(true);
                 Ok((s, Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
-                Box::new(Lang::Function(ki, params, ty, body, h)))))
+                Box::new(Lang::Function(ki, params, ty, body, h.clone())), h)))
             },
         Ok((s, (_let, var, typ, _eq, body))) => {
             Ok((s, Lang::Let(
                         Var::from_language(var)
                             .unwrap()
                             .set_mutability(true),
-                            typ.unwrap_or(Type::Empty(HelpData::default())), Box::new(body))))
+                            typ.unwrap_or(Type::Empty(HelpData::default())), Box::new(body),
+                            _let.into())))
         },
         Err(r) => Err(r)
     }
@@ -166,11 +167,12 @@ fn mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
         base_mut_exp).parse(s);
     match res {
         Ok((s, (None, le))) => Ok((s, vec![le])),
-        Ok((s, (Some(_pu), Lang::Let(var, typ, body)))) 
+        Ok((s, (Some(_pu), Lang::Let(var, typ, body, h)))) 
             => Ok((s, vec![Lang::Let(
                     var.clone().set_permission(true),
                     typ.clone(),
-                    body.clone())] 
+                    body.clone(),
+                    h.clone())] 
                    )),
         Err(r) => Err(r),
         _ => todo!()
@@ -260,8 +262,8 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
         terminated(tag(";"), multispace0)
           ).parse(s);
     match res {
-        Ok((s, (_mod, (name, _), _op, Lang::Sequence(v), _cl, _dv))) => 
-            Ok((s, vec![Lang::Module(name, v)])),
+        Ok((s, (modu, (name, _), _op, Lang::Sequence(v), _cl, _dv))) => 
+            Ok((s, vec![Lang::Module(name, v, modu.into())])),
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -325,10 +327,10 @@ fn import_var(s: Span) -> IResult<Span, Vec<Lang>> {
                 variable,
                 terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (_use, Lang::Variable(name, path, perm, mutop, typ), _sc))) => {
-            let var1 =  Lang::Variable(name.clone(), path.clone(), perm.clone(), mutop.clone(), typ.clone());
-            let var2 =  Lang::Variable(name.clone(), "".to_string(), perm.clone(), mutop.clone(), typ.clone());
-            let shortcut = Lang::Let(Var::from_language(var2).unwrap(), Type::Any(HelpData::default()), Box::new(var1));
+        Ok((s, (_use, Lang::Variable(name, path, perm, mutop, typ, h), _sc))) => {
+            let var1 =  Lang::Variable(name.clone(), path.clone(), perm.clone(), mutop.clone(), typ.clone(), h.clone());
+            let var2 =  Lang::Variable(name.clone(), "".to_string(), perm.clone(), mutop.clone(), typ.clone(), h.clone());
+            let shortcut = Lang::Let(Var::from_language(var2).unwrap(), Type::Any(HelpData::default()), Box::new(var1), h.clone());
             Ok((s, vec![shortcut]))
         }
         Err(r) => Err(r),
@@ -364,7 +366,7 @@ fn library(s: Span) -> IResult<Span, Vec<Lang>> {
                multispace0).parse(s);
 
     match res {
-        Ok((s, (_lib, var, _cl, Some(_col), _))) 
+        Ok((s, (_lib, (var, h), _cl, Some(_col), _))) 
             => Ok((s, vec![Lang::Library(var)])),
         Ok((_, (_lib, _var, _cl, None, _))) 
             => panic!("You forgot to put a ';' at the end of the line"),

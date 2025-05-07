@@ -76,8 +76,8 @@ impl Context {
 
     pub fn get(&self, var: &Var) -> Option<Type> {
         self.iter().flat_map(|(var2, type_)| {
-            let Var(name1, path1, perm1, bo1, typ1) = var;
-            let Var(name2, path2, perm2, bo2, typ2) = var2;
+            let Var(name1, path1, perm1, bo1, typ1, h1) = var;
+            let Var(name2, path2, perm2, bo2, typ2, h2) = var2;
             let conditions = (name1 == name2) &&
                 (path1 == path2) && (perm1 == perm2) &&
                 (bo1 == bo2) && (type_comparison::is_matching(self, typ1, typ2));
@@ -86,9 +86,9 @@ impl Context {
     }
 
     pub fn get_with_gen(&self, var: &Var) -> Option<(Type, Vec<Type>)> {
-        let Var(name1, path1, perm1, bo1, params1) = var;
+        let Var(name1, path1, perm1, bo1, params1, h1) = var;
         self.iter().flat_map(|(var2, type_)| {
-            let Var(name2, path2, perm2, bo2, params2) = var2;
+            let Var(name2, path2, perm2, bo2, params2, h2) = var2;
             let conditions = (name1 == name2) &&
                 (path1 == path2) && (perm1 == perm2) &&
                 (bo1 == bo2) && (type_comparison::is_matching(self, params1, params2));
@@ -209,8 +209,8 @@ impl Context {
                         Box::new(
                            Lang::Function(kinds.to_vec(), new_args, new_t2,
                                           Box::new(build_concret_function(&manips, manip1, var.clone())), h.clone())
-                                )
-                            )
+                                ),
+                            h.clone())
                 },
                 _ => todo!()
             }
@@ -289,12 +289,13 @@ fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
                 vec![
                     Var::from_name("a").to_language(),
                     Lang::Char(param.to_string(), HelpData::default()),
-                    Lang::FunctionApp(Box::new(name.to_language()), args)
-                ]
+                    Lang::FunctionApp(Box::new(name.to_language()), args.clone(), args.clone().into()),
+                ],
+                args.into()
             )
         },
         _ => {
-            Lang::FunctionApp(Box::new(name.to_language()), args)
+            Lang::FunctionApp(Box::new(name.to_language()), args.clone(), args.into())
         }
     }
 }
@@ -327,7 +328,7 @@ impl Manip {
                     vec![
                         Var::from_name(&argname).to_language(),
                         Lang::Char(field.to_string(), HelpData::default())
-                    ])
+                    ], HelpData::default())
             },
             _ => todo!()
         }

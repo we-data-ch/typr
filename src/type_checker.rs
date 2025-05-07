@@ -70,7 +70,7 @@ fn install_header(name: &str, context: &Context) -> Context {
 pub fn eval(context: &Context, expr: &Lang) -> Context {
     match expr {
         Lang::Sequence(exprs) => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
-        Lang::Let(name, ty, exp) => {
+        Lang::Let(name, ty, exp, h) => {
             let ty = if ty == &Type::Empty(HelpData::default()) {Type::Any(HelpData::default())} else {ty.clone()};
             let expr_ty = typing(&context, exp).0;
             let new_context = type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
@@ -244,19 +244,19 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::Dot(e1, e2, _) => {
             let ty2 = typing(context, e2).0;
             match (reduce_type(context, &ty2), *e1.clone()) {
-                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _)) => {
+                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _, _)) => {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect("Field not found")
                 },
-                (_, Lang::FunctionApp(name, args)) 
+                (_, Lang::FunctionApp(name, args, h)) 
                     if Var::from_language((*name).clone()).unwrap().get_name() == "map"
                         => {
                             let new_args = [(**e2).clone()].into_iter()
                                 .chain(args.into_iter())
                                 .collect::<Vec<_>>();
-                            typing(context, &Lang::FunctionApp(name, new_args))
+                            typing(context, &Lang::FunctionApp(name, new_args, h))
                         },
                 (Type::Record(fields1, h), Lang::Record(fields2, _)) => {
                     let at = fields2[0].clone();
@@ -277,7 +277,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::Pipe(e1, e2, _) => {
             let ty2 = typing(context, e2).0;
             match (ty2, *e1.clone()) {
-                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _)) => {
+                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _, _)) => {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
@@ -317,7 +317,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 typing(&new_context, &exp)
             }
         },
-        Lang::FunctionApp(fn_var_name, args) => {
+        Lang::FunctionApp(fn_var_name, args, h) => {
             let function_elements = fn_var_name.clone()
                 .get_related_function(args, context);
             function_elements.is_some().then(|| {
@@ -332,7 +332,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let ty = typing(context, expr).0;
             (Type::Tag(name.clone(), Box::new(ty), h.clone()), context.clone())
         }
-        Lang::If(cond, true_branch, false_branch) => {
+        Lang::If(cond, true_branch, false_branch, h) => {
             if typing(context, cond).0.is_boolean() {
                 let true_ty = typing(context, true_branch).0;
                 let false_ty = typing(context, false_branch).0;
@@ -341,7 +341,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 panic!("Type error");
             }
         }
-        Lang::Array(exprs) => {
+        Lang::Array(exprs, h) => {
             let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
             if types.windows(2).all(|w| w[0] == w[1]) {
                 let new_type = Type::Array(
@@ -378,7 +378,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 _ => panic!("Type error"),
             }
         }
-        Lang::ArrayIndexing(expr, index) => {
+        Lang::ArrayIndexing(expr, index, h) => {
             let ty = typing(context, expr).0;
             match ty {
                 Type::Array(len, elem_ty, _) => {
@@ -392,13 +392,14 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 _ => panic!("Type error"),
             }
         },
-        Lang::Variable(na, pa, pe, sp, ty) => {
+        Lang::Variable(na, pa, pe, sp, ty, h) => {
             let var = Var::from_language(
                 Lang::Variable(na.clone(),
                 pa.clone(),
                 pe.clone(),
                 sp.clone(),
-                ty.clone())).unwrap();
+                ty.clone(),
+                h.clone())).unwrap();
             (context.get_type_from_variable(var), context.clone())
         },
         Lang::Scope(expr, _) if expr.len() == 1 => {

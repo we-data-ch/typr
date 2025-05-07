@@ -4,6 +4,7 @@ use crate::adt::Adt;
 use crate::Lang;
 use crate::parse;
 use nom_locate::LocatedSpan;
+use crate::help_data::HelpData;
 
 
 fn import_file_module_code(line: &Lang) -> Lang {
@@ -11,7 +12,7 @@ fn import_file_module_code(line: &Lang) -> Lang {
         Lang::ModImp(name) => {
             let file = get_os_file(&format!("{}.ty", name));
             let new_adt = metaprogrammation(parse(LocatedSpan::new_extra(&read_file_from_name(&name), file)).unwrap().1);
-            Lang::Module(name.to_string(), new_adt.0)
+            Lang::Module(name.to_string(), new_adt.0, HelpData::default())
         }
         n => n.clone()
     }
@@ -24,10 +25,10 @@ fn import_file_modules_code(adt: Adt) -> Adt {
 fn private_public_change(module_name: &str, adt: Adt) -> Vec<Lang> {
     adt.0.iter().map(|line| {
         match line {
-            Lang::Let(var, typ, body) 
+            Lang::Let(var, typ, body, h) 
                 => Lang::Let(
                     var.clone().add_path(module_name),
-                    typ.clone(), body.clone()),
+                    typ.clone(), body.clone(), h.clone()),
             Lang::Alias(var, params, typ, h) 
                 => Lang::Alias(
                     var.clone().add_path(module_name),
@@ -39,11 +40,11 @@ fn private_public_change(module_name: &str, adt: Adt) -> Vec<Lang> {
 
 fn unnest_module(line: &Lang) -> Vec<Lang> {
     match line {
-        Lang::Module(name, body) 
+        Lang::Module(name, body, h) 
             => {
                 let new_adt = unnest_modules(body.clone().into());
                 let mut lines = private_public_change(name, new_adt);
-                lines.insert(0, Lang::ModuleDecl(name.to_string()));
+                lines.insert(0, Lang::ModuleDecl(name.to_string(), h.clone()));
                 lines
             },
         lang => vec![lang.clone()]
