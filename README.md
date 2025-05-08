@@ -2,11 +2,11 @@
 
 ## What is TypR ?
 
-A faster, safer, cooler R that can transpile to `Typescript`/`Javascript`/`WebAssembly`.
+It's not only R with types. It's a faster, safer, cooler R that can transpile to `Typescript`/`Javascript`/`WebAssembly`.
 
 TypR is a superset of the legendary R. It add cool types, a beautiful syntax and powerful modern features.
 
-The project is still new and can have some bugs. All the syntax basis and the features are arleady there so there won't be some big breaking change but additional features.
+The project is still new and have bugs (that will be fixed soon). All the syntax basis and the features are arleady there so there won't be some big breaking change but a refinement of the core elements (and bug fix).
 
 ![](images/TypR_logo.png)
 
@@ -22,8 +22,8 @@ To install TypR, you will need to install `Rust` (of course you should have R in
 
 You should be sure those tools are installed and accessible through the terminal.
 
-## For Typescript/Javascript
-It's not complet yet, but you can transpile TypR code to Typescript/Javascript using node.
+## For Typescript/Javascript/Wasm
+It's not complet yet, but you can transpile TypR code to Typescript/Javascript/Wasm using node.
 
 - node: https://nodejs.org/en 
 
@@ -39,7 +39,12 @@ And you're good to go.
 
 ## Usage
 
-Actually, the executable of TypR can only type-check the targeted file. The prefered file extension is `.ty`. For instance, if you want to execute the `app.ty` file you just need this command:
+Actually, the executable of TypR can:
+- Type check the code
+- Generate the target code (mainly R actually)
+- Create project folder
+
+The prefered file extension is `.ty`. It has not it's own syntax highliter yet but I recommend you to use use the one from Scala. For instance, if you want to execute the `app.ty` file you just need this command:
 
 ```bash
 typr app.ty
@@ -54,13 +59,13 @@ typr app.ty
 
 #### What is TypR 
 
-TypR is a word game with Typescript (a superset of JavaScript) and the common way of naming things in the R community. The initial goal is to create a better experience with building Packages for R (I want them to be easily compatible with the CRAN's requirements to be easy to ship). Indeed, TypR *is not only a type checker* but bring greater tools to build packages for data science in general and want to be an easy way to convert research paper into code. TypR add great static types and a flexible syntax with some cool tricks (metaprogramming) that make it great to work with.
+"TypR" is a word game with Typescript (a superset of JavaScript) and the common way of naming things in the R community. The initial goal is to create a better experience with building Packages for R (I want them to be easily compatible with the CRAN's requirements and to be easy to ship). Indeed, TypR *is not only a type checker* but bring greater tools to build packages for data science in general and want to be an easy way to convert research paper into code. TypR add great static types and a flexible syntax with some cool tricks (metaprogramming) that make it great to work with.
 
 #### What TypR is not
 
-Although R looks like the next cool kid in the area with a syntax greatly inspired by R and Rust, and many interesting feature from Go, Nim, Roc. It doesn't try to replace them at all but tend to help package builder and manager to reach their goals. 
+Although TypR looks like the next cool kid in the town with a syntax greatly inspired by R and Rust, and many interesting feature from Go, Nim and Roc. It doesn't try to replace them at all but tend to help package builder and manager to reach their goals. This will help many developper, to bring value into the R community and the datascience community in a broader scope. 
 
-TypR is not fundamentally OOP. Like R who is more a functional programming language, TypR follow this path for good reasons. Firstly because the realm of datascience is flooded with programming languages who are more on the Object oriented programming side who has his own strength but his own weaknesses. Especially because it has his own limits in element representation (uniquely done with OOP) and strange design pattern. Functional programming offer a bit more high level representation with less headache and the power of creating easy pipelines and parallelizable code.
+Even though it follow it's principles. TypR is not fundamentally OOP. Like R who is more of a functional programming language, TypR follow this path for good reasons. Firstly because the realm of datascience is flooded with programming languages who are more on the Object oriented programming side. Don't get me wrong, it has its own strength but its own weaknesses too. Especially because it has his own limits in element representation (uniquely done with OOP) and strange design pattern. Functional programming offer a bit more high level representation with less headache and the power of creating easy pipelines and parallelizable code.
 
 ### Transpilation process
 
