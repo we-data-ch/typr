@@ -330,15 +330,8 @@ impl Lang {
                     _ => format!("{} <- {}", new_name, body_str)
                 };
 
-                match ttype {
-                    Type::Any(_) | Type::Empty(_) => (r_code, new_cont),
-                    target_type => {
-                        //let class = new_cont.get_class(target_type);
-                        let classes = new_cont.get_classes(target_type).unwrap();
-                        //(format!("{}\nclass({}) <- c('{}', {})", r_code, new_name, class, classes), new_cont)
-                        (format!("{}\nclass({}) <- c({})", r_code, new_name, classes), new_cont)
-                    } 
-                }
+                let classes = new_cont.get_classes(ttype).unwrap();
+                (format!("{}\nclass({}) <- c({})", r_code, new_name, classes), new_cont)
             },
             Lang::Array(v, h) => {
                 let mut current_cont = cont.clone();
@@ -882,13 +875,17 @@ impl Lang {
     }
 
     pub fn is_undefined(&self) -> bool {
-        if let Lang::Let(_, _, rhs, _) = self {
-            if let Lang::Function(_, _, _, body, _h) = *rhs.clone() {
-                if let Lang::Scope(v, _) = *body.clone() {
-                       let ele = v.first().unwrap();
-                       if let Lang::Empty(_) = ele {true} else {false}
-                } else {false}
+        if let Lang::Function(_, _, _, body, _h) = self.clone() {
+            if let Lang::Scope(v, _) = *body.clone() {
+                   let ele = v.first().unwrap();
+                   if let Lang::Empty(_) = ele {true} else {false}
             } else {false}
+        } else {false}
+    }
+
+    pub fn is_function(&self) -> bool {
+        if let Lang::Function(_, _, _, _, _) = self.clone() { 
+            true 
         } else { false }
     }
     pub fn infer_var_name(&self, args: &Vec<Lang>, context: &Context) -> Var {
@@ -921,6 +918,17 @@ impl Lang {
 
     pub fn get_help_data(&self) -> HelpData {
         todo!();
+    }
+
+    pub fn to_dependent_type(&self) -> Option<Type> {
+        match self {
+            //todo: if the user give a negative index as dependent value type
+            Lang::Integer(i, h) 
+                => Some(Type::Index(i.clone() as u32, h.clone())),
+            Lang::Char(c, h) 
+                => Some(Type::Label(c.clone(), h.clone())),
+            _ => None
+        }
     }
 }
 
@@ -963,6 +971,7 @@ impl From<Lang> for HelpData {
            Lang::Match(_, _, h) => h,
            Lang::FunctionApp(_, _, h) => h,
            Lang::Empty(h) => h,
+           Lang::Array(_, h) => h,
            e => panic!("Language element {:?} not yet implemented", e)
        }.clone()
    } 

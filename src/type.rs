@@ -342,6 +342,14 @@ impl Type {
         } else { false }
     }
 
+    pub fn dependent_type(&self, dep_typ: &Type) -> bool {
+        match (dep_typ, self) {
+            (Type::Integer(_), Type::IndexGen(_, _)) => true,
+            (Type::Char(_), Type::LabelGen(_, _)) => true,
+            _ => false
+        }
+    }
+
 }
 
 

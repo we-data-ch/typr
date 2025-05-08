@@ -167,58 +167,58 @@ fn match_wildcard(fields: &[ArgumentType], arg_type: ArgumentType) -> Vec<(Type,
 // Add these new functions to the previous implementation
 
 fn unification_helper(values: &[Type], type1: &Type, type2: &Type
-) -> Option<Vec<(Type, Type)>> {
+) -> Vec<(Type, Type)> {
     match (type1, type2) {
         // Direct equality case
-        (t1, t2) if t1 == t2 => Some(vec![]),
+        (t1, t2) if t1 == t2 => vec![],
         // Any case
-        (Type::Any(_), _) => Some(vec![]),
-        (_, Type::Any(_)) => Some(vec![]),
+        (Type::Any(_), _) => vec![],
+        (_, Type::Any(_)) => vec![],
 
         // Generic case
         (t, Type::Generic(g, h)) | (Type::Generic(g, h), t) => {
-            Some(vec![(Type::Generic(g.clone(), h.clone()), t.clone())])
+            vec![(Type::Generic(g.clone(), h.clone()), t.clone())]
         }
 
         // label generic case with label
         (Type::Char(h), Type::LabelGen(g, h2)) | (Type::LabelGen(g, h2), Type::Char(h)) => {
-            Some(vec![(Type::LabelGen(g.clone(), h2.clone()), Type::Char(h.clone()))])
+            vec![(Type::LabelGen(g.clone(), h2.clone()), Type::Char(h.clone()))]
         }
 
         // Index generic case with number
-        (Type::Number(h), Type::IndexGen(g, h2)) | (Type::IndexGen(g, h2), Type::Number(h)) => {
-            Some(vec![(Type::IndexGen(g.clone(), h2.clone()), Type::Number(h.clone()))])
+        (Type::Integer(h), Type::IndexGen(g, h2)) | (Type::IndexGen(g, h2), Type::Integer(h)) => {
+            vec![(Type::IndexGen(g.clone(), h2.clone()), Type::Integer(h.clone()))]
         }
 
         (Type::Index(i, h2), Type::IndexGen(g, h)) | (Type::IndexGen(g, h), Type::Index(i, h2)) => {
-            Some(vec![(Type::IndexGen(g.clone(), h.clone()), Type::Index(i.clone(), h2.clone()))])
+            vec![(Type::IndexGen(g.clone(), h.clone()), Type::Index(i.clone(), h2.clone()))]
         }
 
         // Function case
         (Type::Function(_, params1, ret1, _), Type::Function(_, params2, ret2, _)) => {
             if params1.len() != params2.len() {
-                return None;
+                return vec![];
             }
 
             // Unify return types
-            let mut matches = unification_helper(values, ret1, ret2)?;
+            let mut matches = unification_helper(values, ret1, ret2);
 
             // Unify parameters
             for (p1, p2) in params1.iter().zip(params2.iter()) {
-                let param_matches = unification_helper(values, p1, p2)?;
+                let param_matches = unification_helper(values, p1, p2);
                 merge_substitutions(&mut matches, param_matches);
             }
 
-            Some(matches)
+            matches
         }
 
         // Array case
         (Type::Array(size1, elem1, _), Type::Array(size2, elem2, _)) => {
-            let size_matches = unification_helper(values, size1, size2)?;
-            let elem_matches = unification_helper(values, elem1, elem2)?;
+            let size_matches = unification_helper(values, size1, size2);
+            let elem_matches = unification_helper(values, elem1, elem2);
             let mut combined = size_matches;
             merge_substitutions(&mut combined, elem_matches);
-            Some(combined)
+            combined
         }
 
         // Tag case
@@ -234,26 +234,23 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
                 
                 let mut all_matches = vec![];
                 for (t1, t2) in types1.iter().zip(types2.iter()) {
-                    if let Some(matches) = unification_helper(values, t1, t2) {
-                        merge_substitutions(&mut all_matches, matches);
-                    } else {
-                        return None;
-                    }
+                    let matches = unification_helper(values, t1, t2);
+                    merge_substitutions(&mut all_matches, matches);
                 }
-                Some(all_matches)
+                all_matches
             } else if let Some(arg_type) = type2.get_type_pattern() {
-               Some(match_wildcard(fields1, arg_type))
+               match_wildcard(fields1, arg_type)
             } else {
-                None
+                vec![]
             }
         }
 
         // Default case - types are not unifiable
-        _ => None
+        _ => vec![]
     }
 }
 
-pub fn unify(cont: &Context, type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
+pub fn unify(cont: &Context, type1: &Type, type2: &Type) -> Vec<(Type, Type)> {
     let new_type1 = type_comparison::reduce_type(cont, type1);
     let new_type2 = type_comparison::reduce_type(cont, type2);
     // try unification helper

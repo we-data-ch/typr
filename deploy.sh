@@ -1,3 +1,2 @@
-sleep 3
+cargo build
 cp -f target/debug/typr ~/sh/typr
-#cp -f configs/* /home/fabrice/temp

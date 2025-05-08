@@ -124,13 +124,13 @@ Each basic type gives a vector of size 1 in R. Boleans are now the two lower-cas
 |------------|-------|---------|
 | Integers   | int   | integer |
 | Numerics   | num   | numeric |
-| Characters | chars | bool    |
+| Characters | char | bool    |
 | Booleans   | bool  | logical |
 
 ```scala
 let a: int = 5;
 let b: num = 5.0; 
-let c: chars = "5";
+let c: char = "5";
 let d: bool = true;
 ```
 
@@ -252,7 +252,7 @@ Will generate:
 
 ```
 Type checking: 
-{name: chars, age: int}
+{name: char, age: int}
 
 Execution: 
 $name
@@ -286,7 +286,7 @@ Will generate:
 
 ```
 Type checking: 
-{0: chars, 1: int}
+{0: char, 1: int}
 
 Execution: 
 [[1]]
@@ -338,7 +338,7 @@ Tags can also handle one type with them:
 
 ```scala
 let results: .Val(num) = Val(7.3);
-let person: .Person({name: chars, age: int}) = Person(:{name: "Marc", age: 37});
+let person: .Person({name: char, age: int}) = Person(:{name: "Marc", age: 37});
 ```
 
 Okay but what are their power ? Well they can be unified together inside a union type ! But here we will see how useful it is for return type in a if close:
@@ -351,7 +351,7 @@ if (true) {
 }
 ```
 
-Here, TypR wont accept this code since `7` (`int`) and `"seven"` (`chars`) aren't the same type. But if we use tags:
+Here, TypR wont accept this code since `7` (`int`) and `"seven"` (`char`) aren't the same type. But if we use tags:
 
 ```scala
 if (true) {
@@ -361,7 +361,7 @@ if (true) {
 }
 ```
 
-The return type will be `.Value(int) | .String(chars)` meaning TypR will automaticaly unify the results if they are tags. Tags must be "unwrapped" to access the values within, forcing a user to handle the different cases.
+The return type will be `.Value(int) | .String(char)` meaning TypR will automaticaly unify the results if they are tags. Tags must be "unwrapped" to access the values within, forcing a user to handle the different cases.
 
 #### Union
 
@@ -531,9 +531,9 @@ In OOP language we think in term of class and object, in language with a functio
 
 ```scala
 module Cat {
-	type Cat = {name: chars, age: int};
+	type Cat = {name: char, age: int};
 	
-	pub let cry <- fn(c: Cat): chars {
+	pub let cry <- fn(c: Cat): char {
 		"meow"
 	};
 };

@@ -84,7 +84,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                         .push_var_type(name.clone().into(), expr_ty.clone(), context)
                 }
             }).expect(&format!("Type error:\n {} don't match {}", expr_ty, ty));
-            if !expr.is_undefined() {
+            if exp.is_function() && !exp.is_undefined() {
                 new_context.add_to_adt(&[Lang::GenFunc(build_generic_function(&name.get_name()), HelpData::default())])
             } else {
                 new_context
@@ -175,14 +175,23 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         }
 }
 
-fn match_types(ctx: &Context, type1: &Type, type2: &Type, _value: &Lang) 
+fn match_types(ctx: &Context, type1: &Type, type2: &Type, value: &Lang) 
     -> Option<Vec<(Type, Type)>> {
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
     let res = get_gen_type(&type1, &type2).unwrap_or(vec![]);
-    Some(res.iter()
+    let unif_map = res.iter()
         .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
-        .fold(vec![], |acc: Vec<(Type, Type)>, vec| acc.iter().chain(vec.iter()).cloned().collect::<Vec<_>>()))
+        .map(|(t1, t2)| {
+            if t1.dependent_type(&t2) {
+                println!("Dependent Type");
+                (t1.clone(), value.to_dependent_type().unwrap())
+            } else {
+                println!("No dependent Type");
+                (t1.clone(), t2.clone())
+            }
+        }).collect::<Vec<_>>();
+    Some(unif_map)
 }
 
 fn get_unification_map(context: &Context, args: &[Lang], param_types: &[Type]) 
@@ -319,6 +328,8 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::FunctionApp(fn_var_name, args, _h) => {
+            let res1 = Var::from_language(*fn_var_name.clone())
+                .unwrap().get_name();
             let function_elements = fn_var_name.clone()
                 .get_related_function(args, context);
             function_elements.is_some().then(|| {
