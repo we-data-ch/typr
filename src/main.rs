@@ -53,6 +53,7 @@ use crate::my_io::execute_typescript;
 use crate::engine::write_adt_to_assemblyscript_with_path;
 use crate::engine::write_adt_to_typescript_with_path;
 use crate::help_message::syntax_error;
+use crate::context::CompileMode;
 
 pub fn is_subset<T: Eq + std::hash::Hash>(v1: &[T], v2: &[T]) -> bool {
     let set_v2: HashSet<_> = v2.iter().collect();
@@ -344,28 +345,27 @@ fn new(name: &str, target: TargetLanguage) {
 
 fn check(target: TargetLanguage) {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"), target);
-    let _ = type_check(&adt_manager.get_adt_with_header(), target, Environment::Project);
+    let _ = type_check(&adt_manager, target, Environment::Project);
     println!("✓ Vérification du code réussie!");
 }
 
 fn build(target: TargetLanguage) {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"), target);
-    let context = type_check(&adt_manager.get_adt_with_header(), target, Environment::Project);
+    let context = type_check(&adt_manager, target, Environment::Project);
     
     match target {
         TargetLanguage::R => {
-            write_adt_to_r_with_path(&adt_manager.get_adt_without_header(), &context, &PathBuf::from("R"), "main.R");
+            write_adt_to_r_with_path(&adt_manager.get_body(), &context, &PathBuf::from("R"), "main.R");
             println!("✓ Code R généré avec succès dans le dossier R/");
         },
         TargetLanguage::TypeScript => {
             // Fonction à implémenter pour générer du TypeScript
-            write_adt_to_typescript_with_path(&adt_manager.get_adt_without_header(), &context, &PathBuf::from("src"));
-            //write_adt_to_typescript(&adt_manager.get_adt_without_header(), &context);
+            write_adt_to_typescript_with_path(&adt_manager.get_body(), &context, &PathBuf::from("src"));
             println!("✓ Code TypeScript généré avec succès dans le dossier src/");
         },
         TargetLanguage::AssemblyScript => {
             // Fonction à implémenter pour générer de l'AssemblyScript
-            write_adt_to_assemblyscript_with_path(&adt_manager.get_adt_without_header(), &context, &PathBuf::from("assembly"));
+            write_adt_to_assemblyscript_with_path(&adt_manager.get_body(), &context, &PathBuf::from("assembly"));
             println!("✓ Code AssemblyScript généré avec succès dans le dossier assembly/");
         },
     }
@@ -474,24 +474,23 @@ fn run_single_file(path: &PathBuf, target: TargetLanguage) {
     let file_name = path.file_name().unwrap().to_str().unwrap();
     let adt_manager = parse_code(&PathBuf::from(file_name), target);
     //HEADER
-    let context = type_check(&adt_manager.get_adt_with_header(), target, Environment::StandAlone);
+    let context = type_check(&adt_manager, target, Environment::StandAlone);
     
     let dir = PathBuf::from(".");
     
     match target {
         TargetLanguage::R => {
             let new_file_name = file_name.replace(".ty", ".R");
-            write_adt_to_r_with_path(&adt_manager.get_adt_without_header(), &context, &dir, &new_file_name);
+            write_adt_to_r_with_path(&adt_manager.get_body(), &context, &dir, &new_file_name);
             execute_r_with_path(&dir, &new_file_name);
         },
         TargetLanguage::TypeScript => {
             // Générer et exécuter le TypeScript
-            write_adt_to_typescript(&adt_manager.get_adt_without_header(), &context);
+            write_adt_to_typescript(&adt_manager.get_body(), &context);
             execute_typescript();
         },
         TargetLanguage::AssemblyScript => {
             // Générer et exécuter l'AssemblyScript
-            // write_adt_to_assemblyscript_with_path(&adt_manager.get_adt_without_header(), &context, &temp_dir);
             // execute_assemblyscript_with_path(&temp_dir);
             println!("Exécution AssemblyScript non implémentée pour l'instant.");
         },

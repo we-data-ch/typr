@@ -1,4 +1,5 @@
 use crate::Adt;
+use crate::Lang;
 
 #[derive(Debug)]
 pub struct AdtManager {
@@ -22,11 +23,16 @@ impl AdtManager {
     }
 
     pub fn add_to_header(self, adt: Adt) -> AdtManager {
-        let header = adt.iter()
-            .filter(|&x| x.is_undefined())
+        let new_adt = adt.iter()
+            .flat_map(|x| if let Lang::Let(_ , _, body, _) = x {Some((x.clone(), body))} else {None})
+            .collect::<Vec<_>>();
+        let header = new_adt.iter()
+            .filter(|(_, body)| body.is_undefined())
+            .map(|(x, _)| x)
             .cloned().collect::<Vec<_>>();
-        let body = adt.iter()
-            .filter(|&x| !x.is_undefined())
+        let body = new_adt.iter()
+            .filter(|(_, body)| !body.is_undefined())
+            .map(|(x, _)| x)
             .cloned().collect::<Vec<_>>();
         AdtManager {
             body: self.body.add(Adt(body)),
@@ -34,12 +40,12 @@ impl AdtManager {
         }
     }
 
-    pub fn get_adt_with_header(&self) -> Adt {
-        self.header.clone().add(self.body.clone())
+    pub fn get_body(&self) -> Adt {
+        self.body.clone()
     }
 
-    pub fn get_adt_without_header(&self) -> Adt {
-        self.body.clone()
+    pub fn get_header(&self) -> Adt {
+        self.header.clone()
     }
 
     pub fn set_body(self, adt: Adt) -> AdtManager {

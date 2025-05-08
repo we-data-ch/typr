@@ -14,8 +14,16 @@ use crate::type_comparison::is_matching;
 use crate::help_data::HelpData;
 use std::collections::HashSet;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum CompileMode {
+    Header,
+    Body,
+    Module
+}
+
 #[derive(Debug, Clone)]
 pub struct Context {
+   pub compile_mode: CompileMode,
    pub environment: Environment,
    pub target: TargetLanguage,
    pub types: VarType,
@@ -29,6 +37,7 @@ pub struct Context {
 impl Default for Context {
     fn default() -> Self {
         Context { 
+            compile_mode: CompileMode::Body,
             environment: Environment::StandAlone,
             target: TargetLanguage::R,
             types: VarType::new(),
@@ -48,14 +57,8 @@ impl From<Vec<(Lang, Type)>> for  Context {
                 (Var::from_language(lan.clone()).unwrap(), typ.clone())})
            .collect();
         Context { 
-            environment: Environment::StandAlone,
-            target: TargetLanguage::R,
             types: VarType(val2),
-            kinds: vec![],
-            nominals: TypeNominal::new(),
-            subtypes: Subtypes::new(),
-            adt: vec![],
-            unifications: vec![]
+            ..Context::default()
         }
    } 
 }
@@ -64,14 +67,9 @@ impl From<Vec<(Lang, Type)>> for  Context {
 impl Context {
     pub fn new(types: Vec<(Var, Type)>, kinds: Vec<(Type, Kind)>) -> Context {
         Context {
-            environment: Environment::StandAlone,
-            target: TargetLanguage::R,
             types: VarType(types),
             kinds: kinds,
-            nominals: TypeNominal::new(),
-            subtypes: Subtypes::new(),
-            adt: vec![],
-            unifications: vec![]
+            ..Context::default()
         }
     }
 
@@ -275,6 +273,13 @@ impl Context {
         Context {
             subtypes: self.subtypes.clone().update(&types, self),
             ..self.clone()
+        }
+    }
+
+    pub fn set_compile_mode(self, cm: CompileMode) -> Context {
+        Context {
+            compile_mode: cm,
+            ..self
         }
     }
 }

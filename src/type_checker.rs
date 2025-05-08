@@ -20,8 +20,7 @@ use std::fs;
 use crate::Environment;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
-
-
+use crate::CompileMode;
 
 
 fn unify_types(types: &[Type]) -> Type {
@@ -63,7 +62,7 @@ fn install_header(name: &str, context: &Context) -> Context {
     let adt_manager = AdtManager::new()
         .add_to_header(parse(LocatedSpan::new_extra(&content, full_path)).unwrap().1);
     let context2 = context.clone();
-    adt_manager.get_adt_with_header().iter()
+    adt_manager.get_header().iter()
             .fold(context2, |ctx, expr| eval(&ctx, expr))
 }
 
@@ -84,7 +83,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                         .push_var_type(name.clone().into(), expr_ty.clone(), context)
                 }
             }).expect(&format!("Type error:\n {} don't match {}", expr_ty, ty));
-            if exp.is_function() && !exp.is_undefined() {
+            if exp.is_function() && !exp.is_undefined() && new_context.compile_mode == CompileMode::Body {
                 new_context.add_to_adt(&[Lang::GenFunc(build_generic_function(&name.get_name()), HelpData::default())])
             } else {
                 new_context
@@ -318,6 +317,8 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             if exprs.len() == 1 {
                 let res = exprs.clone().pop().unwrap();
                 typing(context, &res)
+            } else if exprs.len() == 0 {
+                (Type::Empty(HelpData::default()), context.clone()) 
             } else {
                 let context2 = context.clone();
                 let mut exprs2 = exprs.clone();

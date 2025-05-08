@@ -15,6 +15,7 @@ use crate::Environment;
 use nom_locate::LocatedSpan;
 use crate::my_io::get_os_file;
 use crate::help_data::HelpData;
+use crate::context::CompileMode;
 
 pub fn write_adt_to_typescript(adt: &Adt, cont: &Context) -> () {
     let rstd = include_str!("../configs/typescript/std.ts");
@@ -65,11 +66,14 @@ pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf,
     app.write_all(content.as_bytes()).unwrap();
 }
 
-pub fn type_check(adt: &Adt, target: TargetLanguage, _environ: Environment) -> Context {
-    let (typ, context) = 
-        typing(&Context::default().set_target(target), &Lang::Sequence(adt.0.clone(), HelpData::default()));
+pub fn type_check(adtm: &AdtManager, target: TargetLanguage, _environ: Environment) -> Context {
+    let base_context = Context::default()
+        .set_target(target)
+        .set_compile_mode(CompileMode::Header);
+    let context = typing(&base_context, &Lang::Sequence(adtm.get_header().0.clone(), HelpData::default())).1.set_compile_mode(CompileMode::Body);
+    let (typ, new_context) = typing(&context, &Lang::Sequence(adtm.get_body().0.clone(), HelpData::default()));
     type_printer::pretty_print(&typ);
-    context
+    new_context
 }
 
 //1. 
