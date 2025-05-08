@@ -99,6 +99,7 @@ num
 
 Execution: 
 [1] 5
+# [some other types]
 ```
 
 As you can see, typR display two things. The first is the result of the type checking. TypR know that you defined a numeric so the expression `a` evaluate to the type `num` (=numeric).
@@ -137,6 +138,8 @@ let a: int = 5;
 let b: num = 5.0; 
 let c: char = "5";
 let d: bool = true;
+
+a
 ```
 
 Structural types:
@@ -163,6 +166,8 @@ TypR's array can only hold one type. It mean, all the member of the array must h
 ```scala
 let a: [3, bool] = [true, false, true];
 let b = [true, false, true];
+
+a
 ```
 
 Here `a` and `b` have both the type `[3, bool]` with and without the type inference. 
@@ -284,14 +289,14 @@ Here, we accessed the name of the person. Records are mainly there to keep toget
 R tuples are a specific case of records. Indeed, they are just records who automaticaly generate numered labels. Here:
 
 ```scala
-("John", 19)
+:{"John", 19}
 ```
 
 Will generate:
 
 ```
 Type checking: 
-{0: char, 1: int}
+{char, int}
 
 Execution: 
 [[1]]
@@ -316,6 +321,8 @@ You can define a function with a type annotation but it's better to focus only o
 let f <- fn(a: int, b: int): bool {
 	a == b
 };
+
+f(8, 9) # will give false
 ```
 
 TypR functions are the most complex elements of TypR since many action (metaprogramming + type checking) must be done in the calling. But a lot of sugar has been added so everyone can use them seemlessely.
@@ -335,6 +342,8 @@ Tags are values that one can use on the fly. Each flag is unique and has its own
 let none: .None = None;
 let nan: .NaN = NaN;
 le na: .NA = NA;
+
+none
 ```
 
 If the tag is named `[tag_name]`, then it's base type is `:[tag_name]`. They are R's factors on steroïd and even Rust's enums on steroïd. You can use them to define some collections (like the Day of the week, gender, etc.).
@@ -344,6 +353,8 @@ Tags can also handle one type with them:
 ```scala
 let results: .Val(num) = Val(7.3);
 let person: .Person({name: char, age: int}) = Person(:{name: "Marc", age: 37});
+
+results
 ```
 
 Okay but what are their power ? Well they can be unified together inside a union type ! But here we will see how useful it is for return type in a if close:
@@ -400,14 +411,14 @@ You can define an interface in this fashion:
 ```scala
 type Addable = interface {
 	add: fn(a: Self, b: Self): Self,
-}
+};
 ```
 
 You can then define a function that take any addable type in this way:
 
 ```scala
 let time3 <- fn(n: Addable) {
-	add(n, add(n, n))
+	add(n, (add(n, n))
 };
 ```
 
@@ -436,7 +447,7 @@ For instance, we can see the definition of the add function for interger types:
 
 ```scala
 let incr <- fn(a: int): int {
-	...
+	a + 1
 };
 ```
 
@@ -467,13 +478,15 @@ Imagine we create a type named point:
 type Point = {x: int, y: int};
 
 let p1 = :{x: 2, y: 1};
+
+p1
 ```
 
 You can define a function `add` to add two points. Let's assume you just add each coordinates.
 
 ```scala
 let add <- fn(p1: Point, p2: Point): Point {
-	...	
+	:{x: ((p.x) + (q.x)), y: ((p.y) + (q.y))}
 };
 ```
 
@@ -536,7 +549,7 @@ In OOP language we think in term of class and object, in language with a functio
 
 ```scala
 module Cat {
-	type Cat = {name: char, age: int};
+	pub type Cat = {name: char, age: int};
 	
 	pub let cry <- fn(c: Cat): char {
 		"meow"
