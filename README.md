@@ -4,7 +4,7 @@
 
 It's not only R with types. It's a faster, safer, cooler R that can transpile to `Typescript`/`Javascript`/`WebAssembly`.
 
-TypR is a superset of the legendary R. It add cool types, a beautiful syntax and powerful modern features.
+TypR is a superset of the legendary R written in Rust. It add cool types, a beautiful syntax and powerful modern features.
 
 The project is still new and have bugs (that will be fixed soon). All the syntax basis and the features are arleady there so there won't be some big breaking change but a refinement of the core elements (and bug fix).
 
@@ -25,11 +25,11 @@ You should be sure those tools are installed and accessible through the terminal
 ## For Typescript/Javascript/Wasm
 It's not complet yet, but you can transpile TypR code to Typescript/Javascript/Wasm using node.
 
-- node: https://nodejs.org/en 
+- Node's installation page: https://nodejs.org/en 
 
 ### Installation
 
-After that, you just need to install the executable:
+After that, you just need to install the executable with cargo (installed with Rust):
 
 ```bash
 cargo install typr
@@ -42,9 +42,15 @@ And you're good to go.
 Actually, the executable of TypR can:
 - Type check the code
 - Generate the target code (mainly R actually)
-- Create project folder
+- Create project folders 
 
-The prefered file extension is `.ty`. It has not it's own syntax highliter yet but I recommend you to use use the one from Scala. For instance, if you want to execute the `app.ty` file you just need this command:
+You can sse all the faculties of the CLI with the help option:
+
+```bash
+typr --help
+```
+
+The prefered file extension is `.ty`. It has not it's own syntax highliter yet but I recommend you to use the one from Scala. For instance, if you want to execute a file named `app.ty`, you just need this command:
 
 ```bash
 typr app.ty
@@ -63,9 +69,9 @@ typr app.ty
 
 #### What TypR is not
 
-Although TypR looks like the next cool kid in the town with a syntax greatly inspired by R and Rust, and many interesting feature from Go, Nim and Roc. It doesn't try to replace them at all but tend to help package builder and manager to reach their goals. This will help many developper, to bring value into the R community and the datascience community in a broader scope. 
+Although TypR looks like the next cool kid in the town with a syntax greatly inspired by R, Rust and has many interesting feature from Go, Nim and Roc, it doesn't try to replace them at all but tend to help package builder and manager to reach their goals. This will help many developper, to bring value into the R community and the datascience community in a broader scope. 
 
-Even though it follow it's principles. TypR is not fundamentally OOP. Like R who is more of a functional programming language, TypR follow this path for good reasons. Firstly because the realm of datascience is flooded with programming languages who are more on the Object oriented programming side. Don't get me wrong, it has its own strength but its own weaknesses too. Especially because it has his own limits in element representation (uniquely done with OOP) and strange design pattern. Functional programming offer a bit more high level representation with less headache and the power of creating easy pipelines and parallelizable code.
+Even though it follow its principles, TypR is not fundamentally OOP. As well as R who is more of a functional programming language, TypR follow this path for good reasons. Firstly because the realm of datascience is flooded with programming languages who are more on the Object oriented programming side. Don't get me wrong, it has its own strength but its own weaknesses too. Especially because it has his own limits in element representation (uniquely done with OOP) and strange design patterns that could be made easier with functional programming. Functional programming offer a bit more high level representation with less headache and the power of creating easy pipelines and parallelizable code.
 
 ### Transpilation process
 
@@ -73,7 +79,7 @@ To explain TypR in an other way, it's a core calculus with quite a bit of syntax
 
 ![](images/transpiler_3_lang.png)
 
-To build the corresponding code for each target language, TypR use a context based on the parsing of the syntax and the typechecking of it's construct to build enough knowledge to make inference and simplify the work of developpers. For R, it use the S3 object oriented system underneath. For Typescript/Javascript and Assemblyscript/Wasm it use monomorphization. TypR needs to transpile to Typescript before creating an equivalent javascript file. It also needs to transpile to Assemblyscript before creating wasm files.
+To build the corresponding code for each target language, TypR use a context based on the parsing of the syntax and the type checking of it's construct to build enough knowledge to make inference and simplify the work of developpers. For R, it use the S3 object oriented system underneath. For Typescript/Javascript and Assemblyscript/Wasm it use monomorphization. TypR needs to transpile to Typescript before creating an equivalent javascript file. It also needs to transpile to Assemblyscript before creating wasm files.
 
 ### First code
 
@@ -99,13 +105,14 @@ num
 
 Execution: 
 [1] 5
+# [some other types]
 ```
 
 As you can see, typR display two things. The first is the result of the type checking. TypR know that you defined a numeric so the expression `a` evaluate to the type `num` (=numeric).
 
 The second thing displayed is the evaluation of the value of the variable `a`. Since we created it with the value `5` it take it as it is.
 
-The `typr` binary created two files to do this task. They exist in the current directory and are respectively named `adt.pl` and `app.R`. `adt.pl` is the file (prolog file) containing the information about the code and the related types. TypR is able to reason about types with it and gives us the type checking we previously saw. The `app.R` is the file with the type annotation removed (but TypR don't only do that):
+The `typr` binary created two files to do this task. They exist in the current directory and are respectively named `std.R` and `app.R`. `std.ty` is the file containing a set of predefined variables and types that will be present in each project. There are some default rR functiona and predefined TypR functions. The `app.R` is the main file with the type annotation removed:
 
 ```R
 # [other prebuild stuffs to work with typR]
@@ -137,6 +144,8 @@ let a: int = 5;
 let b: num = 5.0; 
 let c: char = "5";
 let d: bool = true;
+
+a
 ```
 
 Structural types:
@@ -163,6 +172,8 @@ TypR's array can only hold one type. It mean, all the member of the array must h
 ```scala
 let a: [3, bool] = [true, false, true];
 let b = [true, false, true];
+
+a
 ```
 
 Here `a` and `b` have both the type `[3, bool]` with and without the type inference. 
@@ -284,14 +295,14 @@ Here, we accessed the name of the person. Records are mainly there to keep toget
 R tuples are a specific case of records. Indeed, they are just records who automaticaly generate numered labels. Here:
 
 ```scala
-("John", 19)
+:{"John", 19}
 ```
 
 Will generate:
 
 ```
 Type checking: 
-{0: char, 1: int}
+{char, int}
 
 Execution: 
 [[1]]
@@ -316,6 +327,8 @@ You can define a function with a type annotation but it's better to focus only o
 let f <- fn(a: int, b: int): bool {
 	a == b
 };
+
+f(8, 9) # will give false
 ```
 
 TypR functions are the most complex elements of TypR since many action (metaprogramming + type checking) must be done in the calling. But a lot of sugar has been added so everyone can use them seemlessely.
@@ -335,6 +348,8 @@ Tags are values that one can use on the fly. Each flag is unique and has its own
 let none: .None = None;
 let nan: .NaN = NaN;
 le na: .NA = NA;
+
+none
 ```
 
 If the tag is named `[tag_name]`, then it's base type is `:[tag_name]`. They are R's factors on steroïd and even Rust's enums on steroïd. You can use them to define some collections (like the Day of the week, gender, etc.).
@@ -344,6 +359,8 @@ Tags can also handle one type with them:
 ```scala
 let results: .Val(num) = Val(7.3);
 let person: .Person({name: char, age: int}) = Person(:{name: "Marc", age: 37});
+
+results
 ```
 
 Okay but what are their power ? Well they can be unified together inside a union type ! But here we will see how useful it is for return type in a if close:
@@ -400,14 +417,14 @@ You can define an interface in this fashion:
 ```scala
 type Addable = interface {
 	add: fn(a: Self, b: Self): Self,
-}
+};
 ```
 
 You can then define a function that take any addable type in this way:
 
 ```scala
 let time3 <- fn(n: Addable) {
-	add(n, add(n, n))
+	add(n, (add(n, n))
 };
 ```
 
@@ -436,7 +453,7 @@ For instance, we can see the definition of the add function for interger types:
 
 ```scala
 let incr <- fn(a: int): int {
-	...
+	a + 1
 };
 ```
 
@@ -467,13 +484,15 @@ Imagine we create a type named point:
 type Point = {x: int, y: int};
 
 let p1 = :{x: 2, y: 1};
+
+p1
 ```
 
 You can define a function `add` to add two points. Let's assume you just add each coordinates.
 
 ```scala
 let add <- fn(p1: Point, p2: Point): Point {
-	...	
+	:{x: ((p.x) + (q.x)), y: ((p.y) + (q.y))}
 };
 ```
 
@@ -536,7 +555,7 @@ In OOP language we think in term of class and object, in language with a functio
 
 ```scala
 module Cat {
-	type Cat = {name: char, age: int};
+	pub type Cat = {name: char, age: int};
 	
 	pub let cry <- fn(c: Cat): char {
 		"meow"
