@@ -183,10 +183,8 @@ fn match_types(ctx: &Context, type1: &Type, type2: &Type, value: &Lang)
         .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
         .map(|(t1, t2)| {
             if t1.dependent_type(&t2) {
-                println!("Dependent Type");
                 (t1.clone(), value.to_dependent_type().unwrap())
             } else {
-                println!("No dependent Type");
                 (t1.clone(), t2.clone())
             }
         }).collect::<Vec<_>>();
@@ -280,7 +278,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         }).collect::<Vec<_>>();
                     (Type::Record(fields3, h.clone()), context.clone())
                 },
-                _ => panic!("Type error")
+                (a, b) => panic!("Type error we cant combine {:?} and {:?}", a, b)
             }
         },
         Lang::Pipe(e1, e2, _) => {
@@ -296,14 +294,14 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::Function(kinds, params, ret_ty, body, h) => {
-            let param_types = params.iter()
+            let list_of_types = params.iter()
                 .map(|arg_typ| arg_typ.get_type())
                 .collect::<Vec<_>>();
             let sub_context = params.into_iter()
                 .map(|arg_typ| 
                      Var::from_name(&arg_typ.get_argument_str())
                         .set_type(arg_typ.get_type()))
-                .zip(param_types.clone().into_iter())
+                .zip(list_of_types.clone().into_iter())
                 .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
             let res = typing(&sub_context, body);
                 if !is_matching(context, &res.0, ret_ty) {
@@ -311,12 +309,19 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 }
             let new_context = res.1.unifications.into_iter()
                 .fold(context.clone(), |cont, uni_vec| cont.push_unifications(uni_vec));
-            (Type::Function(kinds.clone(), param_types, Box::new(ret_ty.clone()), h.clone()), new_context)
+            (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), new_context)
         }
         Lang::Sequence(exprs, _h) => {
             if exprs.len() == 1 {
                 let res = exprs.clone().pop().unwrap();
-                typing(context, &res)
+                match context.compile_mode {
+                    CompileMode::Body => {
+                        typing(context, &res)
+                    },
+                    _ => {
+                        (Type::Empty(HelpData::default()), eval(context, &res))
+                    }
+                }
             } else if exprs.len() == 0 {
                 (Type::Empty(HelpData::default()), context.clone()) 
             } else {
@@ -349,9 +354,14 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             if typing(context, cond).0.is_boolean() {
                 let true_ty = typing(context, true_branch).0;
                 let false_ty = typing(context, false_branch).0;
-                (unify_type(&true_ty, &false_ty), context.clone())
+                if true_ty.is_tag_or_union() && false_ty.is_tag_or_union() {
+                    let res = unify_type(&true_ty, &false_ty);
+                    (res, context.clone())
+                } else {
+                    panic!("Error: {} is not matching {}", true_ty, false_ty);
+                }
             } else {
-                panic!("Type error");
+                panic!("Type error: {:?} isn't a boolean expression", cond);
             }
         }
         Lang::Array(exprs, _h) => {
@@ -435,11 +445,11 @@ fn unify_type(ty1: &Type, ty2: &Type) -> Type {
     match (ty1, ty2) {
         (Type::Tag(name1, params1, h1), Type::Tag(name2, params2, _h2)) => {
             if name1 == name2 && params1 == params2 {
+                ty1.clone()
+            } else {
                 Type::Union(vec![
                             Tag::from_type(ty1.clone()).unwrap(),
                             Tag::from_type(ty2.clone()).unwrap()], h1.clone())
-            } else {
-                Type::Empty(HelpData::default())
             }
         }
         (Type::Union(union1, h1), Type::Tag(name, params, h2)) => {

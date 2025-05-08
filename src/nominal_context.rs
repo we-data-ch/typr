@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use crate::r#type::Type;
 use crate::Context;
 use crate::type_comparison::is_subtype;
+use crate::type_comparison::reduce_type;
+use crate::help_data::HelpData;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TypeCategory {
@@ -158,8 +160,13 @@ impl TypeNominal {
            Type::Any(_) => "Empty".to_string(),
            _ => {
                self.body.iter()
-                   .find(|(typ_, _nominal)| is_subtype(cont, typ, typ_))
-                   .unwrap().1.0.clone()
+                   .find(|(typ_, _nominal)| {
+                       let typ1 = reduce_type(cont, typ);
+                       let typ2 = reduce_type(cont, typ_);
+                     is_subtype(cont, &typ1, &typ2)
+                   }).cloned()
+                   .unwrap_or((Type::Empty(HelpData::default()), Nominal("Empty".to_string())))
+                   .1.0.clone()
            }
        }
    }

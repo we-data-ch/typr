@@ -101,25 +101,10 @@ impl Var {
         self.4.clone()
     }
 
-    //pub fn get_is_mutable(&self) -> bool {
-        //self.3.clone()
-    //}
-
-    //pub fn get_is_opaque(&self) -> bool {
-        //self.3.clone()
-    //}
-
-    //pub fn is_alias(&self) -> bool {
-        //match self {
-            //Var(_, _, _, _, Type::Params(_)) => true,
-            //_ => false
-        //}
-    //}
-
     pub fn match_with(&self, var: &Var, context: &Context) -> bool {
         [(self.get_name() == var.get_name()),
         (self.get_path() == var.get_path()),
-        (self.get_permission() == var.get_permission()),
+        //(self.get_permission() == var.get_permission()),
         type_comparison::is_matching(context, &self.get_type(), &var.get_type())].iter().all(|&x| x)
     }
 }

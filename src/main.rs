@@ -475,6 +475,7 @@ fn run_single_file(path: &PathBuf, target: TargetLanguage) {
     let adt_manager = parse_code(&PathBuf::from(file_name), target);
     //HEADER
     let context = type_check(&adt_manager, target, Environment::StandAlone);
+
     
     let dir = PathBuf::from(".");
     

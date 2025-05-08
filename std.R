@@ -1,18 +1,8 @@
-add <- function(x, ...) { UseMethod('add') }
-minus <- function(x, ...) { UseMethod('minus') }
-mul <- function(x, ...) { UseMethod('mul') }
-div <- function(x, ...) { UseMethod('div') }
+add <- function(a, b) {a + b}
+minus <- function(a, b) {a - b}
+mul <- function(a, b) {a * b}
+div <- function(a, b) {a / b}
 map <- function(x, ...) { UseMethod('map') }
-into <- function(x, ...) { UseMethod('into') }
-dot <- function(x, ...) { UseMethod('dot') }
-add.integer <- function(a, b) {a + b}
-add.numeric <- function(a, b) {a + b}
-minus.integer <- function(a, b) {a - b}
-minus.numeric <- function(a, b) {a - b}
-mul.integer <- function(a, b) {a * b}
-mul.numeric <- function(a, b) {a * b}
-div.integer <- function(a, b) {a / b}
-div.numeric <- function(a, b) {a / b}
 map.default <- sapply
 filter.default <- function(vec, condition) {
   vec[condition(vec)]

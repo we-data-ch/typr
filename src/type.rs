@@ -7,6 +7,8 @@ use crate::context::generate_arg;
 use crate::kind::Kind;
 use std::collections::HashSet;
 use crate::help_data::HelpData;
+use crate::type_printer::format;
+use std::fmt;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -350,6 +352,18 @@ impl Type {
         }
     }
 
+    pub fn pretty(&self) -> String {
+        format(self)
+    }
+
+    pub fn is_tag_or_union(&self) -> bool {
+        match self {
+            Type::Tag(_, _, _) => true,
+            Type::Union(_, _) => true,
+            _ => false
+        }
+    }
+
 }
 
 
@@ -379,42 +393,6 @@ impl From<Type> for HelpData {
            e => panic!("The type element {:?} is not yet implemented", e)
        }.clone()
    } 
-}
-
-use std::fmt;
-impl fmt::Display for Type {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let res = match self {
-            Type::Embedded(t, _) => format!("tembedded({})", t),
-            Type::Alias(name, params, path, _) => format!("var('{}', '{}', public, false, params({}))", name, path, to_string(params)),
-            Type::Function(k, v, t, _) => format!("tfn({}, {}, {})", to_string(k), to_string(v), t) ,
-            Type::Generic(g, _) => format!("gen('{}')", g.to_lowercase()),
-            Type::IndexGen(g, _) => format!("ind('{}')", g.to_lowercase()),
-            Type::Array(n, t, _) => format!("tarray({}, {})", n, t),
-            Type::Record(r, _) => {
-                format!("{{ {} }}", r.iter()
-                        .map(|at| at.to_string()).collect::<Vec<_>>().join(", "))
-            },
-            Type::Index(i, _) => i.to_string(),
-            Type::Number(_) => "num".to_string(),
-            Type::Integer(_) => "int".to_string(),
-            Type::Boolean(_) => "bool".to_string(),
-            Type::Char(_) => "char".to_string(),
-            Type::Tag(s, t, _) => format!("ttag('{}', {})", s, t),
-            Type::Union(v, _) => format!("union({})", to_string(v)),
-            Type::Interface(v, _) => format!("interface({})", to_string(v)),
-            Type::Params(v, _) => format!("params({})", to_string(v)),
-            Type::Add(id1, id2, _) => format!("add({}, {})", id1, id2),
-            Type::Minus(id1, id2, _) => format!("minus({}, {})", id1, id2),
-            Type::Mul(id1, id2, _) => format!("mul({}, {})", id1, id2),
-            Type::Div(id1, id2, _) => format!("division({}, {})", id1, id2),
-            Type::LabelGen(l, _) => format!("%{}", l),
-            Type::Label(l, _) => format!("{}", l),
-            Type::Empty(_) => "any".to_string(),
-            _ => "".to_string()
-        };
-        write!(f, "{}", res)       
-    }
 }
 
 impl PartialEq for Type {
@@ -463,5 +441,11 @@ impl PartialEq for Type {
             (Type::Any(_), Type::Any(_)) => true,
             _ => false
         }
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", format(self))
     }
 }

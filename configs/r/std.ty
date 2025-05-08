@@ -1,3 +1,4 @@
-let nchar <- fn(a: char): int {
+let add <- fn(a: int, b: int): int {
 	...
 };
+

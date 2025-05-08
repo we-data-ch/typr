@@ -9,7 +9,7 @@ fn format_kind(ki: &Kind) -> String {
    }.to_string()
 }
 
-fn format(ty: &Type) -> String {
+pub fn format(ty: &Type) -> String {
     match ty {
         Type::Alias(name, params, _path, _) => {
             if params.len() == 0 {

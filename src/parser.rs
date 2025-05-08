@@ -189,11 +189,14 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
           ).parse(s);
     match res {
         Ok((s, (_ty, Type::Alias(name, params, path, h), _eq, ty, _))) 
-            => Ok((s, Lang::Alias(
-                        Var::from_name(&name)
-                            .set_type(Type::Params(params.clone(), params[0].clone().into()))
-                            .add_path(&path),
-                        params, ty, h))),
+            => {
+                let h2 = if params.len() > 0 { params[0].clone().into()} else { HelpData::default() };
+                Ok((s, Lang::Alias(
+                                Var::from_name(&name)
+                                    .set_type(Type::Params(params.clone(), h2))
+                                    .add_path(&path),
+                                params, ty, h)))
+            },
         Ok((s, (_ty, _, _eq, _ty2, _)))
             => Ok((s, Lang::Empty(_ty.into()))),
         Err(r) => Err(r),

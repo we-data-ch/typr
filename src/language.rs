@@ -972,6 +972,12 @@ impl From<Lang> for HelpData {
            Lang::FunctionApp(_, _, h) => h,
            Lang::Empty(h) => h,
            Lang::Array(_, h) => h,
+           Lang::Eq(_, _, h) => h,
+           Lang::Dot(_, _, h) => h,
+           Lang::Record(_, h) => h,
+           Lang::Scope(_, h) => h,
+           Lang::Let(_, _, _, h) => h,
+           Lang::Alias(_, _, _, h) => h,
            e => panic!("Language element {:?} not yet implemented", e)
        }.clone()
    } 

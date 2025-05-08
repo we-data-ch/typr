@@ -120,6 +120,9 @@ impl Context {
     }
 
     pub fn get_type_from_variable(&self, var: Var) -> Type {
+        if var.get_name() == "my_var" {
+            dbg!(&self.types);
+        }
         self.types.iter()
            .find(|(v, _)| var.match_with(v, self))
            .map(|(_, ty)| ty)
