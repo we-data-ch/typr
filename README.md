@@ -4,7 +4,7 @@
 
 It's not only R with types. It's a faster, safer, cooler R that can transpile to `Typescript`/`Javascript`/`WebAssembly`.
 
-TypR is a superset of the legendary R. It add cool types, a beautiful syntax and powerful modern features.
+TypR is a superset of the legendary R written in Rust. It add cool types, a beautiful syntax and powerful modern features.
 
 The project is still new and have bugs (that will be fixed soon). All the syntax basis and the features are arleady there so there won't be some big breaking change but a refinement of the core elements (and bug fix).
 
@@ -25,11 +25,11 @@ You should be sure those tools are installed and accessible through the terminal
 ## For Typescript/Javascript/Wasm
 It's not complet yet, but you can transpile TypR code to Typescript/Javascript/Wasm using node.
 
-- node: https://nodejs.org/en 
+- Node's installation page: https://nodejs.org/en 
 
 ### Installation
 
-After that, you just need to install the executable:
+After that, you just need to install the executable with cargo (installed with Rust):
 
 ```bash
 cargo install typr
@@ -42,9 +42,15 @@ And you're good to go.
 Actually, the executable of TypR can:
 - Type check the code
 - Generate the target code (mainly R actually)
-- Create project folder
+- Create project folders 
 
-The prefered file extension is `.ty`. It has not it's own syntax highliter yet but I recommend you to use use the one from Scala. For instance, if you want to execute the `app.ty` file you just need this command:
+You can sse all the faculties of the CLI with the help option:
+
+```bash
+typr --help
+```
+
+The prefered file extension is `.ty`. It has not it's own syntax highliter yet but I recommend you to use the one from Scala. For instance, if you want to execute a file named `app.ty`, you just need this command:
 
 ```bash
 typr app.ty
@@ -63,9 +69,9 @@ typr app.ty
 
 #### What TypR is not
 
-Although TypR looks like the next cool kid in the town with a syntax greatly inspired by R and Rust, and many interesting feature from Go, Nim and Roc. It doesn't try to replace them at all but tend to help package builder and manager to reach their goals. This will help many developper, to bring value into the R community and the datascience community in a broader scope. 
+Although TypR looks like the next cool kid in the town with a syntax greatly inspired by R, Rust and has many interesting feature from Go, Nim and Roc, it doesn't try to replace them at all but tend to help package builder and manager to reach their goals. This will help many developper, to bring value into the R community and the datascience community in a broader scope. 
 
-Even though it follow it's principles. TypR is not fundamentally OOP. Like R who is more of a functional programming language, TypR follow this path for good reasons. Firstly because the realm of datascience is flooded with programming languages who are more on the Object oriented programming side. Don't get me wrong, it has its own strength but its own weaknesses too. Especially because it has his own limits in element representation (uniquely done with OOP) and strange design pattern. Functional programming offer a bit more high level representation with less headache and the power of creating easy pipelines and parallelizable code.
+Even though it follow its principles, TypR is not fundamentally OOP. As well as R who is more of a functional programming language, TypR follow this path for good reasons. Firstly because the realm of datascience is flooded with programming languages who are more on the Object oriented programming side. Don't get me wrong, it has its own strength but its own weaknesses too. Especially because it has his own limits in element representation (uniquely done with OOP) and strange design patterns that could be made easier with functional programming. Functional programming offer a bit more high level representation with less headache and the power of creating easy pipelines and parallelizable code.
 
 ### Transpilation process
 
@@ -73,7 +79,7 @@ To explain TypR in an other way, it's a core calculus with quite a bit of syntax
 
 ![](images/transpiler_3_lang.png)
 
-To build the corresponding code for each target language, TypR use a context based on the parsing of the syntax and the typechecking of it's construct to build enough knowledge to make inference and simplify the work of developpers. For R, it use the S3 object oriented system underneath. For Typescript/Javascript and Assemblyscript/Wasm it use monomorphization. TypR needs to transpile to Typescript before creating an equivalent javascript file. It also needs to transpile to Assemblyscript before creating wasm files.
+To build the corresponding code for each target language, TypR use a context based on the parsing of the syntax and the type checking of it's construct to build enough knowledge to make inference and simplify the work of developpers. For R, it use the S3 object oriented system underneath. For Typescript/Javascript and Assemblyscript/Wasm it use monomorphization. TypR needs to transpile to Typescript before creating an equivalent javascript file. It also needs to transpile to Assemblyscript before creating wasm files.
 
 ### First code
 
@@ -106,7 +112,7 @@ As you can see, typR display two things. The first is the result of the type che
 
 The second thing displayed is the evaluation of the value of the variable `a`. Since we created it with the value `5` it take it as it is.
 
-The `typr` binary created two files to do this task. They exist in the current directory and are respectively named `adt.pl` and `app.R`. `adt.pl` is the file (prolog file) containing the information about the code and the related types. TypR is able to reason about types with it and gives us the type checking we previously saw. The `app.R` is the file with the type annotation removed (but TypR don't only do that):
+The `typr` binary created two files to do this task. They exist in the current directory and are respectively named `std.R` and `app.R`. `std.ty` is the file containing a set of predefined variables and types that will be present in each project. There are some default rR functiona and predefined TypR functions. The `app.R` is the main file with the type annotation removed:
 
 ```R
 # [other prebuild stuffs to work with typR]
