@@ -278,7 +278,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         }).collect::<Vec<_>>();
                     (Type::Record(fields3, h.clone()), context.clone())
                 },
-                (a, b) => panic!("Type error we cant combine {:?} and {:?}", a, b)
+                (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
             }
         },
         Lang::Function(kinds, params, ret_ty, body, h) => {

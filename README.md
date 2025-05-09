@@ -149,10 +149,10 @@ Each basic type gives a vector of size 1 in R. Boleans are now the two lower-cas
 | Booleans   | bool  | logical |
 
 ```scala
-let a: int = 5;
-let b: num = 5.0; 
-let c: char = "5";
-let d: bool = true;
+let a: int <- 5;
+let b: num <- 5.0; 
+let c: char <- "5";
+let d: bool <- true;
 
 a
 ```
@@ -179,8 +179,8 @@ TypR's array can only hold one type. It mean, all the member of the array must h
 *Exemples*
 
 ```scala
-let a: [3, bool] = [true, false, true];
-let b = [true, false, true];
+let a: [3, bool] <- [true, false, true];
+let b <- [true, false, true];
 
 a
 ```
@@ -292,7 +292,7 @@ To make a distinction with a scope and avoid long names like "list" or "record" 
 To access a member by it's label, you just have to call it in this fashion:
 
 ```scala
-let person = :{name: "John", age: 19};
+let person <- :{name: "John", age: 19};
 
 person.name
 ```
@@ -354,9 +354,9 @@ R don't have such a construct since, Tags, unions and even interface are an abst
 Tags are values that one can use on the fly. Each flag is unique and has its own type. It's useful do define some elements like:
 
 ```scala
-let none: .None = None;
-let nan: .NaN = NaN;
-le na: .NA = NA;
+let none: .None <- None;
+let nan: .NaN <- NaN;
+let na: .NA <- NA;
 
 none
 ```
@@ -366,8 +366,8 @@ If the tag is named `[tag_name]`, then it's base type is `:[tag_name]`. They are
 Tags can also handle one type with them:
 
 ```scala
-let results: .Val(num) = Val(7.3);
-let person: .Person({name: char, age: int}) = Person(:{name: "Marc", age: 37});
+let results: .Val(num) <- Val(7.3);
+let person: .Person({name: char, age: int}) <- Person(:{name: "Marc", age: 37});
 
 results
 ```
@@ -492,7 +492,7 @@ Imagine we create a type named point:
 ```scala
 type Point = {x: int, y: int};
 
-let p1 = :{x: 2, y: 1};
+let p1 <- :{x: 2, y: 1};
 
 p1
 ```
@@ -563,6 +563,7 @@ In this exemple, my_var is defined in 3 different place with a different value a
 In OOP language we think in term of class and object, in language with a functional programming paradim orientation like TypR, we think in term of types. A type can be refered at any moment in the program and function that works with this type can also be declared at any moment in the program. This is why module exists: if needed, we can group types and their related functions in the same place and give it a name for reference.
 
 ```scala
+# not working yet
 module Cat {
 	pub type Cat = {name: char, age: int};
 	

@@ -103,36 +103,36 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Créer un nouveau projet
+    /// Creat a new project
     New {
-        /// Nom du projet
+        /// Project Name
         name: String,
         
-        /// Langage cible (r, typescript, assemblyscript)
+        /// Target languages (r, typescript, assemblyscript)
         #[arg(short, long, value_name = "TARGET", default_value = "r")]
         target: String,
     },
-    /// Vérifier le parsing et le typechecking
+    /// check parsing and typechecking
     Check {
-        /// Langage cible (r, typescript, assemblyscript)
+        /// Target language (r, typescript, assemblyscript)
         #[arg(short, long, value_name = "TARGET", default_value = "r")]
         target: String,
     },
-    /// Faire le check et construire le code cible
+    /// Check and build the targeted code
     Build {
-        /// Langage cible (r, typescript, assemblyscript)
+        /// Target language (r, typescript, assemblyscript)
         #[arg(short, long, value_name = "TARGET", default_value = "r")]
         target: String,
     },
-    /// Faire le build et exécuter le code cible
+    /// Build and execute the targeted code
     Run {
-        /// Langage cible (r, typescript, assemblyscript)
+        /// Target language (r, typescript, assemblyscript)
         #[arg(short, long, value_name = "TARGET", default_value = "r")]
         target: String,
     },
-    /// Lancer les tests
+    /// Run tests
     Test {
-        /// Langage cible (r, typescript, assemblyscript)
+        /// Target language (r, typescript, assemblyscript)
         #[arg(short, long, value_name = "TARGET", default_value = "r")]
         target: String,
     },
