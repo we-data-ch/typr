@@ -1,6 +1,14 @@
 # Typr
 
-## What is TypR ?
+- [What is TypR?](#what-is-typr)
+- [Installation](#installation)
+- [For R](#for-r)
+- [For Typescript/Javascript/Wasm](#for-typescriptjavascriptwasm)
+- [Usage](#usage)
+- [Basic documentation](#basic-documentation)
+- [Support this project](#support-this-project)
+
+## What is TypR?
 
 It's not only R with types. It's a faster, safer, cooler R that can transpile to `Typescript`/`Javascript`/`WebAssembly`.
 
@@ -14,7 +22,7 @@ There is also a more mature project named vapour written in go who has some cool
 
 ## Installation
 
-## For R (basic)
+## For R
 To install TypR, you will need to install `Rust` (of course you should have R installed in your system):
 
 - R's installation page: https://www.r-project.org/
@@ -56,7 +64,7 @@ The prefered file extension is `.ty`. It has not it's own syntax highliter yet b
 typr app.ty
 ```
 
-## Documentation (minimal)
+## Basic documentation
 
 - First presentation video in French (subtitles in English): https://www.youtube.com/watch?v=5fWRaAPeJBs  
 - Second presentation video in French (subtitle in English): https://www.youtube.com/watch?v=vUf31KiV3J4
@@ -576,13 +584,17 @@ Since it allow almost any type, it's better to use them for structural and gener
 
 Index Generics take the 
 
-
 - Generics + Index Generics
 - Type embedding
 - Interface inference
 - Row polymorphism
 
-### Functional programming with TypR
+## Support this project
 
-### Object oriented programming with TypR
+If you find this project useful or interesting, there are several ways you can support it:
 
+- **Contribute** by improving the code, reporting issues, or suggesting features  
+- **Donate** via [Patreon](https://patreon.com/FabriceHategekimana?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink) to help sustain development  
+- **Share** the project with others who might benefit from it
+
+Every contribution, no matter how small, helps this project grow. Thank you!
