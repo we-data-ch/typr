@@ -67,8 +67,8 @@ typr app.ty
 
 ## Basic documentation
 
-- First presentation video in French (subtitles in English): https://www.youtube.com/watch?v=5fWRaAPeJBs  
-- Second presentation video in French (subtitle in English): https://www.youtube.com/watch?v=vUf31KiV3J4
+- Dedicated playlist on youtube French (subtitles in English) but full English version is comming soon): https://www.youtube.com/watch?v=ASPhszv88CM&list=PLSYhtt87oGAJH8Pe-VMcoBkQfek7VJ0hM 
+
 
 ### Philosophy: flexibillity and type safety
 
