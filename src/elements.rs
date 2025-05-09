@@ -674,7 +674,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                 let res = [op_reverse(v)].iter().chain(params.iter()).cloned().collect::<Vec<_>>();
                 Lang::FunctionApp(name, res, h.clone())
             }
-        (p, Op::Pipe) => Lang::Pipe(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::Pipe) => Lang::Chain(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::Pipe2) => {
             let res = match p.clone() {
                 Lang::FunctionApp(name, _, _) => *name.clone(),
@@ -683,7 +683,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
             let func = Lang::FunctionApp(
                 Box::new(Lang::Variable("map".to_string(), "".to_string(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())),
                 vec![res.clone()], res.into());
-            Lang::Pipe(Box::new(func), Box::new(op_reverse(v)), p.into())
+            Lang::Chain(Box::new(func), Box::new(op_reverse(v)), p.into())
         },
         (p, Op::Add) 
             => {let res = op_reverse(v); let pp = p;
@@ -792,7 +792,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
             }
         //a..f() -> [a, (f, dot2)] -> dot(f, a)
         //dot(map(f), a)
-        (p, Op::Dot) => Lang::Dot(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::Dot) => Lang::Chain(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::Dot2) => {
             let res = match p.clone() {
                 Lang::FunctionApp(name, _, _) => *name.clone(),
@@ -801,7 +801,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
             let func = Lang::FunctionApp(
                 Box::new(Var::from_name("map").to_language()),
                 vec![res.clone()], res.into());
-            Lang::Dot(Box::new(func), Box::new(op_reverse(v)), p.into())
+            Lang::Chain(Box::new(func), Box::new(op_reverse(v)), p.into())
         },
         (p, Op::Empty) => p
     }

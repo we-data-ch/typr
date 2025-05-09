@@ -248,7 +248,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 panic!("Type error");
             }
         }
-        Lang::Dot(e1, e2, _) => {
+        Lang::Chain(e1, e2, _) => {
             let ty2 = typing(context, e2).0;
             match (reduce_type(context, &ty2), *e1.clone()) {
                 (Type::Record(fields, _), Lang::Variable(name, _, _, _, _, _)) => {
@@ -279,18 +279,6 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                     (Type::Record(fields3, h.clone()), context.clone())
                 },
                 (a, b) => panic!("Type error we cant combine {:?} and {:?}", a, b)
-            }
-        },
-        Lang::Pipe(e1, e2, _) => {
-            let ty2 = typing(context, e2).0;
-            match (ty2, *e1.clone()) {
-                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _, _)) => {
-                    fields.iter()
-                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
-                        .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
-                        .expect("Field not found")
-                },
-                _ => panic!("Type error")
             }
         },
         Lang::Function(kinds, params, ret_ty, body, h) => {
@@ -334,7 +322,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::FunctionApp(fn_var_name, args, _h) => {
-            let res1 = Var::from_language(*fn_var_name.clone())
+            let _res1 = Var::from_language(*fn_var_name.clone())
                 .unwrap().get_name();
             let function_elements = fn_var_name.clone()
                 .get_related_function(args, context);

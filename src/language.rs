@@ -30,8 +30,7 @@ pub enum Lang {
     GreaterThan(Box<Lang>, Box<Lang>, HelpData),
     LesserOrEqual(Box<Lang>, Box<Lang>, HelpData),
     GreaterOrEqual(Box<Lang>, Box<Lang>, HelpData),
-    Pipe(Box<Lang>, Box<Lang>, HelpData),
-    Dot(Box<Lang>, Box<Lang>, HelpData),
+    Chain(Box<Lang>, Box<Lang>, HelpData),
     Scope(Vec<Lang>, HelpData),
     Function(Vec<ArgumentKind>, Vec<ArgumentType>, Type, Box<Lang>, HelpData),
     Module(String, Vec<Lang>, HelpData),
@@ -204,7 +203,7 @@ impl Lang {
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 (format!("{} >= {}", e2_str, e1_str), cont2)
             },
-            Lang::Dot(e1, e2, _) => {
+            Lang::Chain(e1, e2, _) => {
                 match *e1.clone() {
                     Lang::Variable(_, _, _, _, _, _) => {
                         let (e1_str, cont1) = e1.to_r(cont);
@@ -223,15 +222,6 @@ impl Lang {
                         let (e2_str, cont2) = e2.to_r(&cont);
                         (format!("{} |> {}", e2_str, e1_str), cont2)
                     }
-                }
-            },
-            Lang::Pipe(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_r(cont);
-                let (e2_str, cont2) = e2.to_r(&cont1);
-                match *e1.clone() {
-                    Lang::Variable(_, _, _, _, _, _) => 
-                        (format!("{}${}", e2_str, e1_str), cont2),
-                    _ => (format!("{} |> {}", e2_str, e1_str), cont2),
                 }
             },
             Lang::Scope(exps, _) => {
@@ -608,17 +598,7 @@ impl Lang {
                 let (exp_str, new_cont) = exp.to_typescript(cont);
                 (format!("return {};", exp_str), new_cont)
             },
-            Lang::Dot(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_typescript(cont);
-                let (e2_str, cont2) = e2.to_typescript(&cont1);
-                
-                match *e1.clone() {
-                    Lang::Variable(_, _, _, _, _, _) => 
-                        (format!("{}.{}", e2_str, e1_str), cont2),
-                    _ => (format!("{} |> {}", e2_str, e1_str), cont2),
-                }
-            },
-            Lang::Pipe(e1, e2, _) => {
+            Lang::Chain(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_typescript(cont);
                 let (e2_str, cont2) = e2.to_typescript(&cont1);
                 
@@ -812,17 +792,7 @@ impl Lang {
                 let (exp_str, new_cont) = exp.to_assemblyscript(cont);
                 (format!("return {};", exp_str), new_cont)
             },
-            Lang::Dot(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_assemblyscript(cont);
-                let (e2_str, cont2) = e2.to_assemblyscript(&cont1);
-                
-                match *e1.clone() {
-                    Lang::Variable(_, _, _, _, _, _) => 
-                        (format!("{}.{}", e2_str, e1_str), cont2),
-                    _ => (format!("{} |> {}", e2_str, e1_str), cont2),
-                }
-            },
-            Lang::Pipe(e1, e2, _) => {
+            Lang::Chain(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_assemblyscript(cont);
                 let (e2_str, cont2) = e2.to_assemblyscript(&cont1);
                 
@@ -973,7 +943,7 @@ impl From<Lang> for HelpData {
            Lang::Empty(h) => h,
            Lang::Array(_, h) => h,
            Lang::Eq(_, _, h) => h,
-           Lang::Dot(_, _, h) => h,
+           Lang::Chain(_, _, h) => h,
            Lang::Record(_, h) => h,
            Lang::Scope(_, h) => h,
            Lang::Let(_, _, _, h) => h,

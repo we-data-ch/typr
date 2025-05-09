@@ -58,7 +58,7 @@ pub fn check_interface_functions(
     context: &Context
 ) -> bool {
     let functions2 = set_self(&context.get_functions(self_type));
-    is_subset(functions, &functions2)
+    is_subset(functions, &functions2, context)
 }
 
 fn has_generic_label(v: &[ArgumentType]) -> bool {
@@ -87,10 +87,16 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         }
         // Interface subtyping
         (type1, Type::Interface(args, _)) => {
+            let res = args.iter()
+                .map(|arg| {
+                    let var = Var::default()
+                        .set_name(&arg.get_argument_str());
+                        //.set_type(arg.get_type());
+                    (var, arg.get_type().clone())
+                })
+                .collect::<Vec<_>>();
             check_interface_functions(
-                &args.iter()
-                    .map(|arg| (Var::default().set_name(&arg.get_argument_str()), arg.1.clone()))
-                    .collect::<Vec<_>>(),
+                &res,
                 type1,
                 context
             )
@@ -138,7 +144,6 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
 }
 
 pub fn is_matching(context: &Context, type1: &Type, type2: &Type) -> bool {
-
 
     // Basic equality
     if type1 == type2 {

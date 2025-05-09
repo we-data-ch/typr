@@ -110,6 +110,7 @@ impl Context {
         //let new_subtypes = self.subtypes.clone().update(&type_list, context);
         let nominals = types.iter()
             .fold(self.nominals.clone(), |nom, typ_| nom.push_type(typ_.clone()));
+        dbg!(&nominals);
         Context {
             types: var_type, 
             nominals: nominals.clone(),
@@ -137,6 +138,7 @@ impl Context {
     pub fn get_classes(&self, t: &Type) -> Option<String> {
         self.get_supertypes(t)
             .into_iter().map(|typ| self.nominals.get_class(&typ, self))
+            .collect::<HashSet<_>>().iter()
             .map(|x| format!("'{}'", x))
             .reduce(|acc, x| format!("{}, {}", acc, x))
     }
@@ -150,8 +152,12 @@ impl Context {
     }
 
     pub fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {
-        self.get_supertypes(t).iter()
-            .chain([t.clone()].iter()).flat_map(|typ| self.types.get_functions(typ))
+        self.types.iter()
+            .filter(|(var, _typ)| {
+                let related_typ = var.get_type();
+                related_typ != Type::Empty(HelpData::default())
+                    && is_matching(self, t, &related_typ) 
+            }).cloned()
             .collect()
     }
 

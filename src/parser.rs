@@ -92,7 +92,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     Lang::Let(
                         Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
                         typ.clone().unwrap_or(Type::Empty(HelpData::default())),
-                        Box::new(Lang::Dot(Box::new(Lang::Number(0.0, eq.into())),
+                        Box::new(Lang::Chain(Box::new(Lang::Number(0.0, eq.into())),
                         Box::new(body), pat_var.into())), _let.into())]))
 
             } else {

@@ -139,7 +139,9 @@ impl TypeNominal {
    }
 
    fn contains(&self, typ: &Type) -> bool {
-       self.body.iter().find(|(typ_, _nom)| typ == typ_).is_some()
+       self.body.iter()
+           .find(|(typ_, _nom)| typ == typ_ || (typ.is_generic() && typ_.is_generic()))
+           .is_some()
    }
 
    pub fn push_type(&self, typ: Type) -> TypeNominal {

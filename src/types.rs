@@ -23,6 +23,8 @@ use nom::sequence::delimited;
 use nom::Parser;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
+use crate::elements::variable;
+use crate::Lang;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -121,10 +123,12 @@ fn embedded_ltype(s: Span) -> IResult<Span, Type> {
 }
 
 fn simple_label(s: Span) -> IResult<Span, Type> {
-    let res = alpha1(s);
-    match res {
-        Ok((s, lab)) 
-            => Ok((s, Type::Label(lab.clone().into_fragment().to_string(), lab.into()))),
+    let res = variable(s);
+    match res.clone() {
+        Ok((s, Lang::Variable(name, _, _, _, _, h))) 
+            => Ok((s, Type::Label(name.clone(), h.clone()))),
+        Ok((_s, _)) 
+            => panic!("Error: {:?} shouldn't be something different from a variable", res),
         Err(r) => Err(r)
     }
 }

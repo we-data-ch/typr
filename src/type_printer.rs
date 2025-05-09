@@ -57,7 +57,8 @@ pub fn format(ty: &Type) -> String {
                 .join(", ");
             format!("{{{}}}", body)
         },
-        _ => "Unknown".to_string(),
+        Type::Label(l, _) => l.to_string(),
+        t => format!("{:?}", t)
     }
 }
 

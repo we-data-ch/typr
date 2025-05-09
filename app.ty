@@ -1,6 +1,0 @@
-if (true) {
-	Value(7)
-} else {
-	String("seven")
-}
-

@@ -364,6 +364,15 @@ impl Type {
         }
     }
 
+    pub fn is_generic(&self) -> bool {
+        match self {
+            Type::Generic(_, _) => true,
+            Type::IndexGen(_, _) => true,
+            Type::LabelGen(_, _) => true,
+            _ => false
+        }
+    }
+
 }
 
 
