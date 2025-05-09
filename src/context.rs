@@ -110,7 +110,6 @@ impl Context {
         //let new_subtypes = self.subtypes.clone().update(&type_list, context);
         let nominals = types.iter()
             .fold(self.nominals.clone(), |nom, typ_| nom.push_type(typ_.clone()));
-        dbg!(&nominals);
         Context {
             types: var_type, 
             nominals: nominals.clone(),
@@ -121,9 +120,6 @@ impl Context {
     }
 
     pub fn get_type_from_variable(&self, var: Var) -> Type {
-        if var.get_name() == "my_var" {
-            dbg!(&self.types);
-        }
         self.types.iter()
            .find(|(v, _)| var.match_with(v, self))
            .map(|(_, ty)| ty)
