@@ -6,6 +6,7 @@
 - [For Typescript/Javascript/Wasm](#for-typescriptjavascriptwasm)
 - [Usage](#usage)
 - [Basic documentation](#basic-documentation)
+- [Roadmap](#roadmap)
 - [Support this project](#support-this-project)
 
 ## What is TypR?
@@ -582,12 +583,19 @@ In complex terms, generics is a way to create functions that allows functions to
 
 Since it allow almost any type, it's better to use them for structural and general purpose. For instance, it's great to describe data structures that can works with many types (like array, graphs, tree, etc.). It's also greate to use it to shape function composition.
 
-Index Generics take the 
+## Roadmap
 
-- Generics + Index Generics
-- Type embedding
-- Interface inference
-- Row polymorphism
+This project needs more refinement and the documentation will evolve throug it's iterations. Mainly, I am trying to reach thos goals:
+
+- Update the documentation
+- Dedicated WebSite
+- Finish the type embedding's implementation
+- Better interface inference
+- Label Generics
+- Vectorial blocs
+- Finish Typescript/Javascript implementation
+- JS blocs
+- Finish WASM implementation
 
 ## Support this project
 
