@@ -121,7 +121,7 @@ As you can see, typR display two things. The first is the result of the type che
 
 The second thing displayed is the evaluation of the value of the variable `a`. Since we created it with the value `5` it take it as it is.
 
-The `typr` binary created two files to do this task. They exist in the current directory and are respectively named `std.R` and `app.R`. `std.ty` is the file containing a set of predefined variables and types that will be present in each project. There are some default rR functiona and predefined TypR functions. The `app.R` is the main file with the type annotation removed:
+The `typr` binary created two files to do this task. They exist in the current directory and are respectively named `std.R` and `app.R`. `std.ty` is the file containing a set of predefined variables and types that will be present in each project. There are some default R functions and predefined TypR functions. The `app.R` is the main file with the type annotation removed:
 
 ```R
 # [other prebuild stuffs to work with typR]
