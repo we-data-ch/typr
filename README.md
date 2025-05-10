@@ -38,7 +38,7 @@ It's not complet yet, but you can transpile TypR code to Typescript/Javascript/W
 
 ### Installation
 
-After that, you just need to install the executable with cargo (installed with Rust):
+After that, you just need to install the cli `typr` (the transpiler) with `cargo` (installed with Rust):
 
 ```bash
 cargo install typr
