@@ -11,15 +11,15 @@
 
 ## What is TypR?
 
-It's not only R with types. It's a faster, safer, cooler R that can transpile to `Typescript`/`Javascript`/`WebAssembly`.
+It's not only R with types. It's a faster, safer, cooler R that can transpile to `R` and also `Typescript`/`Javascript`/`WebAssembly`.
 
-TypR is a superset of the legendary R written in Rust. It add cool types, a beautiful syntax and powerful modern features.
+TypR is a safer counterpart of the legendary R with a transpiler written in Rust. It add cool types, a beautiful syntax and powerful modern features.
 
 The project is still new and have bugs (that will be fixed soon). All the syntax basis and the features are arleady there so there won't be some big breaking change but a refinement of the core elements (and bug fix).
 
 ![](images/TypR_logo.png)
 
-There is also a more mature project named vapour written in go who has some cool features: https://vapour.run/
+There is also a more mature project named vapour written in go who has great features: https://vapour.run/
 
 ## Installation
 
@@ -174,7 +174,7 @@ Structural types:
 One can build an array from any types. Array keep the informations about the array size and it's type. As any other types, you don't need mention the type annotation. TypR can infer it for you.
 
 *Difference with R*
-TypR's array can only hold one type. It mean, all the member of the array must have the same type.
+Like R, TypR's array can only hold one type but this type can't change through time. It mean, all the member of the array must have the same type.
 
 *Exemples*
 
