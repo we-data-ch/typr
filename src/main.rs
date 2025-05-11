@@ -28,6 +28,7 @@ mod unification_map;
 mod function_type;
 mod help_message;
 mod help_data;
+mod adt_header;
 
 use parser::parse;
 use my_io::read_file;

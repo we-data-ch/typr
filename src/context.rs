@@ -13,6 +13,8 @@ use crate::Environment;
 use crate::type_comparison::is_matching;
 use crate::help_data::HelpData;
 use std::collections::HashSet;
+use crate::adt_header::AdtHeader;
+use crate::Adt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompileMode {
@@ -30,7 +32,7 @@ pub struct Context {
    kinds: Vec<(Type, Kind)>,
    nominals: TypeNominal,
    pub subtypes: Subtypes,
-   pub adt: Vec<Lang>,
+   pub adt: AdtHeader,
    pub unifications: Vec<Vec<(Type, Type)>>
 }
 
@@ -44,7 +46,7 @@ impl Default for Context {
             kinds: vec![],
             nominals: TypeNominal::new(),
             subtypes: Subtypes::new(),
-            adt: vec![],
+            adt: AdtHeader::default(),
             unifications: vec![]
         }
     }
@@ -114,7 +116,7 @@ impl Context {
             types: var_type, 
             nominals: nominals.clone(),
             //subtypes: new_subtypes,
-            adt: self.clone().add_to_adt(&wasm_types(&types, &nominals, context)).adt,
+            adt: self.clone().add_generic_function(&wasm_types(&types, &nominals, context)).adt,
             ..self
         }
     }
@@ -176,7 +178,7 @@ impl Context {
                 let new_cont = 
                     type_functions.iter()
                     .fold(self.clone(), |ctx, tf| ctx.clone().push_var_type(tf.1.clone(), tf.2.clone(), &ctx));
-                let new_cont2 = new_cont.clone().add_to_adt(&self.build_concret_functions(&type_functions));
+                let new_cont2 = new_cont.clone().add_generic_function(&self.build_concret_functions(&type_functions));
                 (type_functions.iter().map(|(_arg, var, fun)| (var.clone(), fun.clone())).collect(),
                 new_cont2)
             },
@@ -184,9 +186,24 @@ impl Context {
         }
     }
 
-    pub fn add_to_adt(self, data: &[Lang]) -> Context {
+    pub fn add_generic_function(self, data: &[Lang]) -> Context {
+        let adt_header = self.adt.set_generic_methods(
+            data.iter()
+                .fold(self.adt.generic_methods.clone(),
+                |adt, lang| add_if_absent(adt, lang.clone())));
         Context {
-            adt: data.iter().fold(self.adt, |adt, lang| add_if_absent(adt, lang.clone())),
+            adt: adt_header,
+            ..self
+        }
+    }
+
+    pub fn add_module_declarations(self, data: &[Lang]) -> Context {
+        let adt_header = self.adt.set_module(
+            data.iter()
+                .fold(self.adt.modules.clone(),
+                |adt, lang| add_if_absent(adt, lang.clone())));
+        Context {
+            adt: adt_header,
             ..self
         }
     }

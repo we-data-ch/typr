@@ -288,8 +288,14 @@ impl Lang {
                 let args = val_strs.join(", ");
                 
                 match *exp.clone() {
-                    Lang::Variable(var, _path, _perm, _spec, _typ, _) => {
-                        (format!("{}({})", var.replace("__", "."), args), current_cont)
+                    Lang::Variable(name, path, _perm, _spec, _typ, _) => {
+                        let new_name = name.replace("__", ".");
+                        if path != "" {
+                            (format!("eval(quote({}({})), envir = {})",
+                                new_name, args, path), current_cont)
+                        } else {
+                            (format!("{}({})", name.replace("__", "."), args), current_cont)
+                        }
                     },
                     _ => (format!("{}({})", exp_str, args), current_cont)
                 }
@@ -305,23 +311,24 @@ impl Lang {
                 let (body_str, new_cont) = body.to_r(cont);
                 let new_name = new_path + &var.get_name();
                 
-                let r_code = match (**body).clone() {
+                let (r_code, new_name2) = match (**body).clone() {
                     Lang::Function(_, _, _, _, _) => {
                         let related_type = var.get_type();
                         let class = cont.get_class(&related_type);
                         if class.len() > 7 && &class[0..7] == "Generic" {
-                            format!("{}.default <- {}", new_name, body_str)
+                            (format!("{}.default <- {}", new_name, body_str), new_name)
                         } else if class == "Empty" {
-                            format!("{} <- {}", new_name, body_str)
+                            (format!("{} <- {}", new_name, body_str), new_name)
                         } else {
-                            format!("{}.{} <- {}", new_name, class, body_str)
+                            let new_name2 = format!("{}.{}", new_name, class);
+                            (format!("{} <- {}", new_name2, body_str), new_name2)
                         }
                     }
-                    _ => format!("{} <- {}", new_name, body_str)
+                    _ => (format!("{} <- {}", new_name, body_str), new_name)
                 };
 
                 let classes = new_cont.get_classes(ttype).unwrap();
-                (format!("{}\nclass({}) <- c({})", r_code, new_name, classes), new_cont)
+                (format!("{}\nclass({}) <- c({})", r_code, new_name2, classes), new_cont)
             },
             Lang::Array(v, h) => {
                 let mut current_cont = cont.clone();

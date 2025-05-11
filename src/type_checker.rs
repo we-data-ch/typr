@@ -84,7 +84,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                 }
             }).expect(&format!("Type error:\n {} don't match {}", expr_ty, ty));
             if exp.is_function() && !exp.is_undefined() && new_context.compile_mode == CompileMode::Body {
-                new_context.add_to_adt(&[Lang::GenFunc(build_generic_function(&name.get_name()), HelpData::default())])
+                new_context.add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), HelpData::default())])
             } else {
                 new_context
             }
@@ -117,6 +117,8 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             install_package(name);
             install_header(name, context)
         },
+        Lang::ModuleDecl(name, _h) 
+            => context.clone().add_module_declarations(&[expr.clone()]),
         _ => context.clone()
     }
 }
