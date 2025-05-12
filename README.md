@@ -19,6 +19,8 @@ The project is still new and have bugs (that will be fixed soon). All the syntax
 
 ![](images/TypR_logo.png)
 
+## Vapour
+
 There is also a more mature project named vapour written in go who has great features: https://vapour.run/
 
 ## Installation
