@@ -28,7 +28,7 @@ fn contains_all(cont: &Context, vec1: &[ArgumentType], vec2: &[ArgumentType]) ->
 
 fn to_self(t1: Type, t2: Type) -> Type {
     if  t1 == t2 {
-        Type::Alias("Self".to_string(), vec![], "".to_string(), t1.into())
+        Type::Alias("Self".to_string(), vec![], "".into(), t1.into())
     } else {
        t1
     }
@@ -186,9 +186,12 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 .map(|arg| reduce_param(context, arg))
                 .collect(), h.clone())
         },
-        Type::Alias(name, concret_types, _base_type, _h) => {
-            let var = Var::from_name(name).set_type(Type::Params(concret_types.to_vec(), concret_types.clone().into()));
-            if let Some((aliased_type, generics)) = context.get_with_gen(&var) {
+        Type::Alias(name, concret_types, path, _h) => {
+            dbg!(&type_);
+            let var = Var::from_type(type_.clone())
+                .expect(&format!("The alias {} is malformed", type_))
+                .set_path(path.clone());
+            if let Some((aliased_type, generics)) = context.get_matching_alias_signature(&var) {
                 let substituted = type_substitution(
                     &aliased_type,
                     &generics.iter()
@@ -198,7 +201,8 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 );
                 reduce_type(context, &substituted)
             } else {
-                panic!("The alias {} wasn't found", name)
+                panic!("The alias {} wasn't found in the context\n{}", 
+                       var, context.display_typing_context());
             }
         }
 

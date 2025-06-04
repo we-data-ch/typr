@@ -145,37 +145,22 @@ fn variable_helper(s: Span) -> IResult<Span, Lang> {
     let res = (opt(module_path), variable_exp, opt(type_annotation)).parse(s);
     match res {
         Ok((s, (Some(mp), (v, h), Some(ty)))) 
-            => Ok((s, Lang::Variable(
-                        v.to_string(),
-                        mp.0,
-                        Permission::Private,
-                        false,
-                        ty,
-                        h.clone()))),
+            => Ok((s, Var::from_name(&v)
+                   .set_path(mp.0.into())
+                   .set_type(ty)
+                   .set_help_data(h.clone()).into())),
         Ok((s, (None, (v, h), Some(ty)))) 
-            => Ok((s, Lang::Variable(
-                        v.to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        ty,
-                        h.clone()))),
+            => Ok((s, Var::from_name(&v)
+                        .set_type(ty)
+                        .set_help_data(h).into())),
         Ok((s, (Some(mp), (v, h), None))) 
-            => Ok((s.clone(), Lang::Variable(
-                        v.to_string(),
-                        mp.0,
-                        Permission::Private,
-                        false,
-                        Type::Empty(s.into()),
-                        h.clone()))),
+            => Ok((s.clone(), Var::from_name(&v)
+                        .set_path(mp.0.into())
+                        .set_help_data(h)
+                        .into())),
         Ok((s, (None, (v, h), None))) 
-            => Ok((s.clone(), Lang::Variable(
-                        v.to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        Type::Empty(s.into()),
-                        h.clone()))),
+            => Ok((s.clone(), Var::from_name(&v)
+                        .set_help_data(h).into())),
         Err(r) => Err(r)
     }
 }
@@ -681,109 +666,49 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                 rest => rest.clone()
             };
             let func = Lang::FunctionApp(
-                Box::new(Lang::Variable("map".to_string(), "".to_string(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())),
+                Box::new(Lang::Variable("map".to_string(), "".into(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())),
                 vec![res.clone()], res.into());
             Lang::Chain(Box::new(func), Box::new(op_reverse(v)), p.into())
         },
         (p, Op::Add) 
             => {let res = op_reverse(v); let pp = p;
-                let var = Box::new(Lang::Variable(
-                        "add".to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        Type::Empty(HelpData::default()),
-                        HelpData::default()));
+                let var = Box::new(Lang::from(Var::from_name("add")));
                 Lang::FunctionApp(var, vec![res.clone(), pp], res.into()) },
         (p, Op::Add2) 
             => {let res = op_reverse(v); let pp = p;
-                let var = Box::new(Lang::Variable(
-                        "add2".to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        Type::Empty(HelpData::default()),
-                        HelpData::default()));
+                let var = Box::new(Lang::from(Var::from_name("add2")));
                 Lang::FunctionApp(var, vec![res.clone(), pp], res.into()) },
         (p, Op::Minus) 
             => {let res = op_reverse(v); let pp = p;
-                let var = Box::new(Lang::Variable(
-                        "minus".to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        Type::Empty(HelpData::default()),
-                        HelpData::default()));
+                let var = Box::new(Lang::from(Var::from_name("minus")));
                 Lang::FunctionApp(var, vec![res.clone(), pp], res.into()) },
         (p, Op::Minus2) 
             => {let res = op_reverse(v); let pp = p;
-                let var = Box::new(Lang::Variable(
-                        "minus2".to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        Type::Empty(HelpData::default()),
-                        HelpData::default()));
+                let var = Box::new(Lang::from(Var::from_name("minus2")));
                 Lang::FunctionApp(var, vec![res.clone(), pp], res.into()) },
         (p, Op::Mul) 
             => {let res = op_reverse(v); let pp = p;
-                let var = Box::new(Lang::Variable(
-                        "mul".to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        Type::Empty(HelpData::default()),
-                        HelpData::default()));
+                let var = Box::new(Lang::from(Var::from_name("mul")));
                 Lang::FunctionApp(var, vec![res.clone(), pp], res.into()) },
         (p, Op::Mul2) 
             => {let res = op_reverse(v); let pp = p;
-                let var = Box::new(Lang::Variable(
-                        "mul2".to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        Type::Empty(HelpData::default()),
-                        HelpData::default()));
+                let var = Box::new(Lang::from(Var::from_name("mul2")));
                 Lang::FunctionApp(var, vec![res.clone(), pp], res.into()) },
         (p, Op::Div) 
             => {let res = op_reverse(v); let pp = p;
-                let var = Box::new(Lang::Variable(
-                        "div".to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        Type::Empty(HelpData::default()),
-                        HelpData::default()));
+                let var = Box::new(Lang::from(Var::from_name("div")));
                 Lang::FunctionApp(var, vec![res.clone(), pp], res.into()) },
         (p, Op::Div2) 
             => {let res = op_reverse(v); let pp = p;
-                let var = Box::new(Lang::Variable(
-                        "div2".to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        Type::Empty(HelpData::default()),
-                        HelpData::default()));
+                let var = Box::new(Lang::from(Var::from_name("div2")));
                 Lang::FunctionApp(var, vec![res.clone(), pp], res.into()) },
         (p, Op::At) 
             => {let res = op_reverse(v); let pp = p;
-                let var = Box::new(Lang::Variable(
-                        "at".to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        Type::Empty(HelpData::default()),
-                        HelpData::default()));
+                let var = Box::new(Lang::from(Var::from_name("at")));
                 Lang::FunctionApp(var, vec![res.clone(), pp], res.into()) },
         (p, Op::At2) 
             => {let res = op_reverse(v); let pp = p;
-                let var = Box::new(Lang::Variable(
-                        "at2".to_string(),
-                        "".to_string(),
-                        Permission::Private,
-                        false,
-                        Type::Empty(HelpData::default()),
-                        HelpData::default()));
+                let var = Box::new(Lang::from(Var::from_name("at2")));
                 Lang::FunctionApp(var, vec![res.clone(), pp], res.into()) },
         (Lang::FunctionApp(name, params, h), Op::Dot) 
             => { // (UFC) add the "object" as te first parameter of the function call
@@ -868,6 +793,7 @@ pub fn parse_elements(s: Span) -> IResult<Span, Lang> {
         single_element
         )).parse(s)
 }
+
 
 #[cfg(test)]
 mod tests {

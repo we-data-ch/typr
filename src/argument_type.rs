@@ -42,6 +42,10 @@ impl ArgumentType {
     pub fn is_embedded(&self) -> bool {
         self.2
     }
+
+    pub fn set_type(self, typ: Type) -> ArgumentType {
+        ArgumentType(self.0, typ, self.2)
+    }
 }
 
 impl fmt::Display for ArgumentType {

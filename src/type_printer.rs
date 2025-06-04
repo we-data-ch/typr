@@ -58,6 +58,10 @@ pub fn format(ty: &Type) -> String {
             format!("{{{}}}", body)
         },
         Type::Label(l, _) => l.to_string(),
+        Type::Add(a, b, _) => format!("{}+{}", a, b),
+        Type::Minus(a, b, _) => format!("{}-{}", a, b),
+        Type::Mul(a, b, _) => format!("{}*{}", a, b),
+        Type::Div(a, b, _) => format!("{}/{}", a, b),
         t => format!("{:?}", t)
     }
 }

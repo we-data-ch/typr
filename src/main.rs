@@ -29,6 +29,8 @@ mod function_type;
 mod help_message;
 mod help_data;
 mod adt_header;
+mod lang_builder;
+mod path;
 
 use parser::parse;
 use my_io::read_file;

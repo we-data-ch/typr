@@ -21,6 +21,7 @@ use crate::Environment;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 use crate::CompileMode;
+use crate::lang_builder;
 
 
 fn unify_types(types: &[Type]) -> Type {
@@ -71,13 +72,12 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Sequence(exprs, _h) 
             => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, exp, _h) => {
-            let ty = if ty == &Type::Empty(HelpData::default()) {Type::Any(HelpData::default())} else {ty.clone()};
+            let ty = if ty == &lang_builder::empty_type() {Type::Any(HelpData::default())} else {ty.clone()};
             let expr_ty = typing(&context, exp).0;
             let new_context = type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
-                if ty != Type::Any(HelpData::default()) {
+                if ty != lang_builder::any_type() {
                     context.clone()
                         .push_var_type(name.clone().into(), ty.clone(), context)
-                        //.push_var_type(name.clone().into(), expr_ty.clone(), context)
                 } else {
                     context.clone()
                         .push_var_type(name.clone().into(), expr_ty.clone(), context)

@@ -22,17 +22,25 @@ fn import_file_modules_code(adt: Adt) -> Adt {
     adt.iter().map(import_file_module_code).collect::<Vec<_>>().into()
 }
 
-fn private_public_change(module_name: &str, adt: Adt) -> Vec<Lang> {
+fn accessibility_change(module_name: &str, adt: Adt) -> Vec<Lang> {
     adt.0.iter().map(|line| {
+        dbg!(&line);
         match line {
             Lang::Let(var, typ, body, h) 
                 => Lang::Let(
-                    var.clone().add_path(module_name),
-                    typ.clone(), body.clone(), h.clone()),
+                    var.clone().add_path(module_name.into()),
+                    typ.to_owned().add_path(module_name.into()), body.clone(), h.clone()),
             Lang::Alias(var, params, typ, h) 
                 => Lang::Alias(
-                    var.clone().add_path(module_name),
-                    params.clone(), typ.clone(), h.clone()),
+                    var.clone().add_path(module_name.into()),
+                    params.clone(), typ.to_owned().add_path(module_name.into()), h.clone()),
+            Lang::Function(k, a, r, b, h) => {
+                let arg_typ = a.iter()
+                    .map(|a_t| a_t.to_owned().set_type(a_t.get_type().add_path(module_name.into())))
+                    .collect::<Vec<_>>();
+                Lang::Function(k.to_owned(), arg_typ.to_owned(),
+                    r.to_owned().add_path(module_name.into()), b.to_owned(), h.to_owned())
+            },
             _ => Lang::Empty(line.clone().into())
         }
     }).collect::<Vec<_>>()
@@ -43,7 +51,7 @@ fn unnest_module(line: &Lang) -> Vec<Lang> {
         Lang::Module(name, body, h) 
             => {
                 let new_adt = unnest_modules(body.clone().into());
-                let mut lines = private_public_change(name, new_adt);
+                let mut lines = accessibility_change(name, new_adt);
                 lines.insert(0, Lang::ModuleDecl(name.to_string(), h.clone()));
                 lines
             },
@@ -56,6 +64,5 @@ fn unnest_modules(adt: Adt) -> Adt {
 }
 
 pub fn metaprogrammation(adt: Adt) -> Adt {
-    //type_embedding(import_types(import_modules(adt)))
     unnest_modules(import_file_modules_code(adt))
 }

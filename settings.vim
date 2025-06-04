@@ -1,1 +1,1 @@
-command! Deploy !bash deploy.sh
+command! Deploy !bash deploy.sh &

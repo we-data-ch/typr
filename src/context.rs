@@ -28,7 +28,7 @@ pub struct Context {
    pub compile_mode: CompileMode,
    pub environment: Environment,
    pub target: TargetLanguage,
-   pub types: VarType,
+   pub typing_context: VarType,
    kinds: Vec<(Type, Kind)>,
    nominals: TypeNominal,
    pub subtypes: Subtypes,
@@ -42,7 +42,7 @@ impl Default for Context {
             compile_mode: CompileMode::Body,
             environment: Environment::StandAlone,
             target: TargetLanguage::R,
-            types: VarType::new(),
+            typing_context: VarType::new(),
             kinds: vec![],
             nominals: TypeNominal::new(),
             subtypes: Subtypes::new(),
@@ -59,7 +59,7 @@ impl From<Vec<(Lang, Type)>> for  Context {
                 (Var::from_language(lan.clone()).unwrap(), typ.clone())})
            .collect();
         Context { 
-            types: VarType(val2),
+            typing_context: VarType(val2),
             ..Context::default()
         }
    } 
@@ -69,7 +69,7 @@ impl From<Vec<(Lang, Type)>> for  Context {
 impl Context {
     pub fn new(types: Vec<(Var, Type)>, kinds: Vec<(Type, Kind)>) -> Context {
         Context {
-            types: VarType(types),
+            typing_context: VarType(types),
             kinds: kinds,
             ..Context::default()
         }
@@ -86,34 +86,37 @@ impl Context {
         }).next()
     }
 
-    pub fn get_with_gen(&self, var: &Var) -> Option<(Type, Vec<Type>)> {
-        let Var(name1, path1, perm1, bo1, params1, _h1) = var;
-        self.iter().flat_map(|(var2, type_)| {
-            let Var(name2, path2, perm2, bo2, params2, _h2) = var2;
-            let conditions = (name1 == name2) &&
-                (path1 == path2) && (perm1 == perm2) &&
-                (bo1 == bo2) && (type_comparison::is_matching(self, params1, params2));
-            if conditions { 
-                if let Type::Params(types, _) = params2 {
-                    Some((type_.clone(), types.clone()))
-                } else { None }
-            } else { None }
+    fn is_matching(&self, var1: &Var, var2: &Var) -> bool {
+        let Var(name1, path1, perm1, bo1, params1, _h1) = var1;
+        let Var(name2, path2, perm2, bo2, params2, _h2) = var2;
+        (name1 == name2) &&
+            (path1 == path2) && (perm1 == perm2) &&
+            (bo1 == bo2) && (type_comparison::is_matching(self, params1, params2))
+    }
+
+    pub fn get_matching_alias_signature(&self, var: &Var) -> Option<(Type, Vec<Type>)> {
+        self.iter().flat_map(|(var2, target_type)| {
+            match (self.is_matching(var, var2), var2.get_type()) {
+                (true, Type::Params(types, _)) 
+                    => Some((target_type.clone(), types.clone())),
+                _ => None
+            }
         }).next()
     }
 
     pub fn iter(&self) -> std::slice::Iter<(Var, Type)> {
-        self.types.0.iter()
+        self.typing_context.0.iter()
     }
 
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let types = typ.type_extraction();
-        let var_type = VarType(self.types.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
+        let var_type = VarType(self.typing_context.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
         let _type_list: Vec<_> = var_type.get_types().iter().cloned().collect();
         //let new_subtypes = self.subtypes.clone().update(&type_list, context);
         let nominals = types.iter()
             .fold(self.nominals.clone(), |nom, typ_| nom.push_type(typ_.clone()));
         Context {
-            types: var_type, 
+            typing_context: var_type, 
             nominals: nominals.clone(),
             //subtypes: new_subtypes,
             adt: self.clone().add_generic_function(&wasm_types(&types, &nominals, context)).adt,
@@ -122,10 +125,10 @@ impl Context {
     }
 
     pub fn get_type_from_variable(&self, var: Var) -> Type {
-        self.types.iter()
+        self.typing_context.iter()
            .find(|(v, _)| var.match_with(v, self))
            .map(|(_, ty)| ty)
-           .expect(&format!("The variable {}, wasn't found in the context", var))
+           .expect(&format!("The variable {}, wasn't found in the context\n{}", var, self.display_typing_context()))
            .clone()
     }
 
@@ -142,7 +145,7 @@ impl Context {
     }
 
     pub fn get_supertypes(&self, t: &Type) -> Vec<Type> {
-        self.types.iter()
+        self.typing_context.iter()
             .filter(|ty| is_matching(self, t, &ty.1))
             .map(|x| x.1.clone())
             .collect::<HashSet<_>>()
@@ -150,7 +153,7 @@ impl Context {
     }
 
     pub fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {
-        self.types.iter()
+        self.typing_context.iter()
             .filter(|(var, _typ)| {
                 let related_typ = var.get_type();
                 related_typ != Type::Empty(HelpData::default())
@@ -291,7 +294,7 @@ impl Context {
     }
 
     pub fn update_classes(&self) -> Context {
-        let types = self.types.get_types().iter().cloned().collect::<Vec<_>>();
+        let types = self.typing_context.get_types().iter().cloned().collect::<Vec<_>>();
         Context {
             subtypes: self.subtypes.clone().update(&types, self),
             ..self.clone()
@@ -303,6 +306,18 @@ impl Context {
             compile_mode: cm,
             ..self
         }
+    }
+
+    pub fn display_typing_context(&self) -> String {
+       let res = self.iter()
+            .map(|(var, typ)| format!("{} ==> {}", var.to_string(), typ.to_string()))
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!("CONTEXT:\n{}", res)
+    }
+
+    pub fn error(&self, msg: String) -> String {
+        format!("{}{}", msg, self.display_typing_context())
     }
 }
 

@@ -9,6 +9,7 @@ use std::collections::HashSet;
 use crate::help_data::HelpData;
 use crate::type_printer::format;
 use std::fmt;
+use crate::path::Path;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -18,7 +19,6 @@ fn to_string<T: ToString>(v: &[T]) -> String {
     format!("[{}]", res)
 }
 
-type Path = String;
 
 #[derive(Debug, Clone, Serialize, Eq, Hash)]
 pub enum Type {
@@ -373,6 +373,16 @@ impl Type {
         }
     }
 
+    pub fn add_path(self, path: Path) -> Type {
+        match self.clone() {
+            Type::Alias(name, params, path2, h) 
+                => {
+                    Type::Alias(name, params, path2.add_path(path), h)
+                },
+            _ => self.to_owned()
+        }
+    }
+
 }
 
 
@@ -456,6 +466,17 @@ impl PartialEq for Type {
 
 impl fmt::Display for Type {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", format(self))
+        match self {
+            Type::Function(k, p, r, h) 
+                => write!(f, "({}) -> {}", Type::Params(p.clone(), h.clone()), r),
+            Type::Params(v, _) => {
+                let res = v.iter()
+                .map(|x| x.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+                write!(f, "{}", res)
+            }
+            _ => write!(f, "{}", format(self))
+        }
     }
 }

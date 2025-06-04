@@ -500,7 +500,7 @@ p1
 You can define a function `add` to add two points. Let's assume you just add each coordinates.
 
 ```scala
-let add <- fn(p1: Point, p2: Point): Point {
+let add <- fn(p: Point, q: Point): Point {
 	:{x: ((p.x) + (q.x)), y: ((p.y) + (q.y))}
 };
 ```

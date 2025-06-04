@@ -6,9 +6,9 @@ use serde::Serialize;
 use crate::context::Context;
 use crate::type_comparison;
 use crate::help_data::HelpData;
+use crate::path::Path;
 
 type Name = String;
-type Path = String;
 type IsMutableOpaque = bool;
 
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Eq, Hash)]
@@ -38,10 +38,21 @@ impl Var {
         }
     }
 
+    pub fn from_type(t: Type) -> Option<Var> {
+        match t {
+            Type::Alias(name, concret_types, _base_type, _h) => {
+                    let var = Var::from_name(&name)
+                        .set_type(Type::Params(concret_types.to_vec(), concret_types.clone().into()));
+                    Some(var)
+            },
+            _ => None
+        }
+    }
+
     pub fn from_name(name: &str) -> Self {
         Var(
             name.to_string(),
-            "".to_string(),
+            "".into(),
             Permission::Private,
             false,
             Type::Empty(HelpData::default()),
@@ -73,11 +84,11 @@ impl Var {
         Var(self.0, self.1, self.2, opa, self.4, self.5)
     }
 
-    pub fn add_path(self, name: &str) -> Var {
-        if self.1 == "" {
-            Var(self.0, name.to_string(), self.2, self.3, self.4, self.5)
+    pub fn add_path(self, name: Path) -> Var {
+        if self.1 == Path::default() {
+            Var(self.0, name.into(), self.2, self.3, self.4, self.5)
         } else {
-            Var(self.0, self.1 + "/" + name, self.2, self.3, self.4, self.5)
+            Var(self.0, self.1 + name, self.2, self.3, self.4, self.5)
         }
     }
 
@@ -93,8 +104,8 @@ impl Var {
         self.2
     }
 
-    pub fn set_path(self, new_path: &str) -> Var {
-        Var(self.0, new_path.to_string(), self.2, self.3, self.4, self.5)
+    pub fn set_path(self, new_path: Path) -> Var {
+        Var(self.0, new_path, self.2, self.3, self.4, self.5)
     }
 
     pub fn get_type(&self) -> Type {
@@ -107,23 +118,26 @@ impl Var {
         //(self.get_permission() == var.get_permission()),
         type_comparison::is_matching(context, &self.get_type(), &var.get_type())].iter().all(|&x| x)
     }
+
+    pub fn set_help_data(self, h: HelpData) -> Var {
+        Var(self.0, self.1, self.2, self.3, self.4, h)
+    }
+
+    pub fn to_r(self) -> String {
+        format!("{}{}", self.1.to_r(), self.0)
+    }
 }
 
 impl fmt::Display for Var {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.1 == "" { 
-            write!(f, "var('{}', empty, {}, {}, {})",
-            self.0, self.2, self.3, self.4)       
-        } else {
-            write!(f, "var('{}', '{}', {}, {}, {})", 
-                   self.0, self.1, self.2, self.3, self.4)
-        }
+            write!(f, "{}{}<{}>",
+            self.1, self.0, self.4)       
     }
 }
 
 impl Default for Var {
     fn default() -> Self {
-        Var("".to_string(), "".to_string(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())
+        Var("".to_string(), "".into(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())
     }
 }
 

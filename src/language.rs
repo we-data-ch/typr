@@ -11,6 +11,7 @@ use crate::Context;
 use crate::typing;
 use crate::unification;
 use crate::help_data::HelpData;
+use crate::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Lang {
@@ -35,7 +36,7 @@ pub enum Lang {
     Function(Vec<ArgumentKind>, Vec<ArgumentType>, Type, Box<Lang>, HelpData),
     Module(String, Vec<Lang>, HelpData),
     ModuleDecl(String, HelpData),
-    Variable(String, String, Permission, bool, Type, HelpData),
+    Variable(String, Path, Permission, bool, Type, HelpData),
     FunctionApp(Box<Lang>, Vec<Lang>, HelpData),
     ArrayIndexing(Box<Lang>, f32, HelpData),
     Let(Var, Type, Box<Lang>, HelpData),
@@ -66,7 +67,7 @@ pub enum Lang {
 
 impl From<Var> for Lang {
    fn from(val: Var) -> Self {
-       Lang::Variable(val.0, val.1, val.2, val.3, val.4, val.5)
+       Lang::Variable(val.0, val.1.into(), val.2, val.3, val.4, val.5)
    } 
 }
 
@@ -132,13 +133,6 @@ impl Lang {
                 }
             }
             _ => vec![], // Retourne une forme vide si ce n'est pas un tableau
-        }
-    }
-
-    fn format_path(path: &str) -> String {
-        match path {
-            "" => "".to_string(),
-            pat => pat.replace("/", "$") + "$"
         }
     }
 
@@ -253,7 +247,7 @@ impl Lang {
                         _ => v.clone() + "." + &cont.get_class(_ty)
                     }
                 };
-                (Self::format_path(path) + &name, cont.clone())
+                ((path.clone().to_r() + &name).to_string(), cont.clone())
             }
             Lang::FunctionApp(exp, vals, _) => {
                 let (exp_str, cont1) = exp.to_r(cont);
@@ -290,7 +284,7 @@ impl Lang {
                 match *exp.clone() {
                     Lang::Variable(name, path, _perm, _spec, _typ, _) => {
                         let new_name = name.replace("__", ".");
-                        if path != "" {
+                        if path != Path::default() {
                             (format!("eval(quote({}({})), envir = {})",
                                 new_name, args, path), current_cont)
                         } else {
@@ -307,9 +301,9 @@ impl Lang {
             Lang::GenFunc(func, _) => 
                 (func.to_string(), cont.clone()),
             Lang::Let(var, ttype, body, _) => {
-                let new_path = Self::format_path(&var.get_path());
+                let new_path = &var.get_path();
                 let (body_str, new_cont) = body.to_r(cont);
-                let new_name = new_path + &var.get_name();
+                let new_name = var.clone().to_r();
                 
                 let (r_code, new_name2) = match (**body).clone() {
                     Lang::Function(_, _, _, _, _) => {
@@ -500,7 +494,7 @@ impl Lang {
                 (format!("{{ _type: '{}', _body: {} }}", s, t_str), new_cont)
             },
             Lang::Variable(v, path, _perm, _muta, _ty, _h) => 
-                (Self::format_path(path) + v, cont.clone()),
+                ((path.to_owned() + v.to_owned().into()).to_string(), cont.clone()),
             Lang::Let(var, _typ, body, _h) => {
                 if var.get_name() == "main" {
                     match *body.clone() {
@@ -679,7 +673,7 @@ impl Lang {
                 (format!("{{ _type: '{}', _body: {} }}", s, t_str), new_cont)
             },
             Lang::Variable(v, path, _perm, _muta, _ty, _) => 
-                (Self::format_path(path) + v, cont.clone()),
+                ((path.to_owned() + v.to_owned().into()).to_string(), cont.clone()),
             Lang::Let(var, _typ, body, _) => {
                 if var.get_name() == "main" {
                     match *body.clone() {
@@ -967,3 +961,16 @@ impl From<Vec<Lang>> for HelpData {
        } else { HelpData::default() }
    } 
 }
+
+use std::fmt;
+impl fmt::Display for Lang {
+    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let res = match self {
+            Lang::Variable(name, path, permision, bo, typ, _h) 
+                => format!("{}{} -> {}", path, name, typ),
+            _ => format!("{:?}", self)
+        };
+        write!(f, "{}", res)       
+    }
+}
+

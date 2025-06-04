@@ -34,7 +34,7 @@ fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
             => {
                 if let Lang::Variable(name2, path, perm, mutopa, typ, h) = *val {
                     Ok((s, 
-                        (vec![Lang::Variable(name2.to_string(), path.to_string(), perm, mutopa, typ, h.clone())],
+                        (vec![Lang::Variable(name2.to_string(), path, perm, mutopa, typ, h.clone())],
                         Some(name.to_string()))))
                 } else {
                     Ok((s, (vec![], Some(name.to_string()))))
@@ -194,7 +194,7 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
                 Ok((s, Lang::Alias(
                                 Var::from_name(&name)
                                     .set_type(Type::Params(params.clone(), h2))
-                                    .add_path(&path),
+                                    .add_path(path),
                                 params, ty, h)))
             },
         Ok((s, (_ty, _, _eq, _ty2, _)))
@@ -231,7 +231,7 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
             => Ok((s, Lang::Alias(
                         Var::from_name(&name)
                             .set_type(Type::Params(params.clone(), params.clone().into()))
-                            .add_path(&path)
+                            .add_path(path)
                             .set_opacity(true),
                         params, ty, h))),
         Ok((s, (_ty, _, _eq, _ty2, _)))
@@ -335,7 +335,7 @@ fn import_var(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (_use, Lang::Variable(name, path, perm, mutop, typ, h), _sc))) => {
             let var1 =  Lang::Variable(name.clone(), path.clone(), perm.clone(), mutop.clone(), typ.clone(), h.clone());
-            let var2 =  Lang::Variable(name.clone(), "".to_string(), perm.clone(), mutop.clone(), typ.clone(), h.clone());
+            let var2 =  Lang::Variable(name.clone(), "".into(), perm.clone(), mutop.clone(), typ.clone(), h.clone());
             let shortcut = Lang::Let(Var::from_language(var2).unwrap(), Type::Any(HelpData::default()), Box::new(var1), h.clone());
             Ok((s, vec![shortcut]))
         }
