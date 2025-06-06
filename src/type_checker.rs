@@ -123,16 +123,6 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
     }
 }
 
-//// for the sugar syntax that can catch value as type for array
-//// 4 -> Index(4) if an index parameter is needed
-//fn index_conversion(arg_type: &Type, par_type: &Type, value: &Lang) -> (Type, Type) {
-    //match (par_type, arg_type, value) {
-        //(Type::IndexGen(_, h), _, Lang::Integer(i, _)) 
-            //=> (par_type.clone(), Type::Index(*i as u32, h.clone())),
-        //_ => (par_type.clone(), arg_type.clone())
-    //}
-//}
-
 fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         match (type1, type2) {
             (_, Type::Generic(_, _)) | (_, Type::IndexGen(_, _)) | (_, Type::LabelGen(_, _))
@@ -183,13 +173,7 @@ fn match_types(ctx: &Context, type1: &Type, type2: &Type, value: &Lang)
     let res = get_gen_type(&type1, &type2).unwrap_or(vec![]);
     let unif_map = res.iter()
         .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
-        .map(|(t1, t2)| {
-            if t1.dependent_type(&t2) {
-                (t1.clone(), value.to_dependent_type().unwrap())
-            } else {
-                (t1.clone(), t2.clone())
-            }
-        }).collect::<Vec<_>>();
+        .collect::<Vec<_>>();
     Some(unif_map)
 }
 
@@ -232,7 +216,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::Number(_, h) => (Type::Number(h.clone()), context.clone()),
         Lang::Integer(i, h) => (Type::Integer((*i).into(), h.clone()), context.clone()),
         Lang::Bool(_, h) => (Type::Boolean(h.clone()), context.clone()),
-        Lang::Char(_, h) => (Type::Char(h.clone()), context.clone()),
+        Lang::Char(s, h) => (Type::Char(s.to_owned().into(), h.clone()), context.clone()),
         Lang::Empty(h) => (Type::Empty(h.clone()), context.clone()),
         Lang::And(e1, e2, _) | Lang::Or(e1, e2, _) => {
             if typing(context, e1).0.is_boolean() && typing(context, e2).0.is_boolean() {

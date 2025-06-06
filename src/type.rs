@@ -10,10 +10,8 @@ use crate::help_data::HelpData;
 use crate::type_printer::format;
 use std::fmt;
 use crate::path::Path;
-use std::ops::Add;
-use std::ops::Sub;
-use std::ops::Mul;
-use std::ops::Div;
+use crate::tint::Tint;
+use crate::tchar::Tchar;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -23,102 +21,6 @@ fn to_string<T: ToString>(v: &[T]) -> String {
     format!("[{}]", res)
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, Hash)]
-pub enum Tint {
-    Val(i32),
-    Unknown
-}
-
-impl fmt::Display for Tint {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let res = match self {
-            Tint::Val(i) => *i,
-            _ => -1 as i32
-        };
-        write!(f, "{}", res)       
-    }
-}
-
-impl Add for Tint {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        match (self, other) {
-            (Tint::Val(i1), Tint::Val(i2)) => Tint::Val(i1+i2),
-            (Tint::Unknown, t) => panic!("Can't add opaque int type with {:?}", t),
-            (t, Tint::Unknown) => panic!("Can't add {:?} with opaque int type", t)
-        }
-    }
-}
-
-impl Sub for Tint {
-    type Output = Self;
-    fn sub(self, other: Self) -> Self {
-        match (self, other) {
-            (Tint::Val(i1), Tint::Val(i2)) => Tint::Val(i1-i2),
-            (Tint::Unknown, t) => panic!("Can't substract opaque int type with {:?}", t),
-            (t, Tint::Unknown) => panic!("Can't substract {:?} with opaque int type", t)
-        }
-    }
-}
-
-impl Mul for Tint {
-    type Output = Self;
-    fn mul(self, other: Self) -> Self {
-        match (self, other) {
-            (Tint::Val(i1), Tint::Val(i2)) => Tint::Val(i1*i2),
-            (Tint::Unknown, t) => panic!("Can't substract opaque int type with {:?}", t),
-            (t, Tint::Unknown) => panic!("Can't substract {:?} with opaque int type", t)
-        }
-    }
-}
-
-impl Div for Tint {
-    type Output = Self;
-    fn div(self, other: Self) -> Self {
-        match (self, other) {
-            (Tint::Val(i1), Tint::Val(i2)) => Tint::Val(i1/i2),
-            (Tint::Unknown, t) => panic!("Can't substract opaque int type with {:?}", t),
-            (t, Tint::Unknown) => panic!("Can't substract {:?} with opaque int type", t)
-        }
-    }
-}
-
-impl From<i32> for  Tint {
-   fn from(val: i32) -> Self {
-        Tint::Val(val)
-   } 
-}
-
-impl From<u32> for  Tint {
-   fn from(val: u32) -> Self {
-        Tint::Val(val as i32)
-   } 
-}
-
-impl From<usize> for  Tint {
-   fn from(val: usize) -> Self {
-        Tint::Val(val as i32)
-   } 
-}
-
-impl From<&str> for  Tint {
-   fn from(val: &str) -> Self {
-        if val == "" {
-           Tint::Unknown 
-        } else {
-            Tint::Val(val.parse::<i32>().unwrap_or(0))
-        }
-   } 
-}
-
-impl From<Tint> for u32 {
-   fn from(val: Tint) -> Self {
-       match val {
-           Tint::Val(i) => i as u32,
-           Tint::Unknown => 0 as u32
-       }
-   } 
-}
 
 
 #[derive(Debug, Clone, Serialize, Eq, Hash)]
@@ -126,13 +28,12 @@ pub enum Type {
     Number(HelpData),
     Integer(Tint, HelpData),
     Boolean(HelpData),
-    Char(HelpData),
+    Char(Tchar, HelpData),
     Embedded(Box<Type>, HelpData),
     Function(Vec<ArgumentKind>, Vec<Type>, Box<Type>, HelpData),
     Generic(String, HelpData),
     IndexGen(String, HelpData),
     LabelGen(String, HelpData),
-    Label(String, HelpData),
     Array(Box<Type>, Box<Type>, HelpData),
     Record(Vec<ArgumentType>, HelpData),
     Alias(String, Vec<Type>, Path, HelpData),
@@ -177,7 +78,7 @@ impl Type {
 
     pub fn get_label(&self) -> String {
         match self {
-            Type::Label(l, _) => l.to_string(),
+            Type::Char(l, _) => l.to_string(),
             Type::LabelGen(l, _) => l.to_string(),
             _ => panic!("The type {} wasn't a label", self)
         }
@@ -229,7 +130,7 @@ impl Type {
            Type::Boolean(_) => "boolean".to_string(),
            Type::Integer(_, _) => "number".to_string(),
            Type::Number(_) => "number".to_string(),
-           Type::Char(_) => "string".to_string(),
+           Type::Char(_, _) => "string".to_string(),
            Type::Record(body, _) => {
                 let res = body.iter()
                     .map(|at| format!("{}: {}", at.get_argument(), at.get_type().to_typescript()))
@@ -272,7 +173,7 @@ impl Type {
            Type::Boolean(_) => "bool".to_string(),
            Type::Integer(_, _) => "i32".to_string(),
            Type::Number(_) => "f64".to_string(),
-           Type::Char(_) => "string".to_string(),
+           Type::Char(_, _) => "string".to_string(),
            Type::Record(body, _) => {
                 let res = body.iter()
                     .map(|at| format!("{}: {}", at.get_argument(), at.get_type().to_typescript()))
@@ -447,7 +348,7 @@ impl Type {
     pub fn dependent_type(&self, dep_typ: &Type) -> bool {
         match (dep_typ, self) {
             (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
-            (Type::Char(_), Type::LabelGen(_, _)) => true,
+            (Type::Char(_, _), Type::LabelGen(_, _)) => true,
             _ => false
         }
     }
@@ -506,7 +407,7 @@ impl From<Type> for HelpData {
            Type::Div(_, _, h) => h,
            Type::Tag(_, _, h) => h,
            Type::Function(_, _, _, h) => h,
-           Type::Char(h) => h,
+           Type::Char(_, h) => h,
            Type::Integer(_, h) => h,
            Type::Record(_, h) => h,
            Type::Boolean(h) => h,
@@ -521,14 +422,14 @@ impl PartialEq for Type {
             (Type::Number(_), Type::Number(_)) => true,
             (Type::Integer(_, _), Type::Integer(_, _)) => true,
             (Type::Boolean(_), Type::Boolean(_)) => true,
-            (Type::Char(_), Type::Char(_)) => true,
+            (Type::Char(_, _), Type::Char(_, _)) => true,
             (Type::Embedded(e1, _), Type::Embedded(e2, _)) => e1 == e2,
             (Type::Function(a1, b1, c1, _), Type::Function(a2, b2, c2, _)) 
                 => a1 == a2 && b1 == b2 && c1 == c2,
             (Type::Generic(e1, _), Type::Generic(e2, _)) => e1 == e2,
             (Type::IndexGen(e1, _), Type::IndexGen(e2, _)) => e1 == e2,
             (Type::LabelGen(e1, _), Type::LabelGen(e2, _)) => e1 == e2,
-            (Type::Label(e1, _), Type::Label(e2, _)) => e1 == e2,
+            (Type::Char(e1, _), Type::Char(e2, _)) => e1 == e2,
             (Type::Array(a1, b1, _), Type::Array(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,

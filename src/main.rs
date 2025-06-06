@@ -31,6 +31,9 @@ mod help_data;
 mod adt_header;
 mod lang_builder;
 mod path;
+mod generic;
+mod tint;
+mod tchar;
 
 use parser::parse;
 use my_io::read_file;

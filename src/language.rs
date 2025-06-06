@@ -897,7 +897,7 @@ impl Lang {
             Lang::Integer(i, h) 
                 => Some(Type::Integer((*i).into(), h.clone())),
             Lang::Char(c, h) 
-                => Some(Type::Label(c.clone(), h.clone())),
+                => Some(Type::Char(c.to_owned().into(), h.clone())),
             _ => None
         }
     }

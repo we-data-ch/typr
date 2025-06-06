@@ -25,7 +25,8 @@ use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 use crate::elements::variable;
 use crate::Lang;
-use crate::r#type::Tint;
+use crate::tint::Tint;
+use crate::tchar::Tchar;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -128,7 +129,7 @@ fn simple_label(s: Span) -> IResult<Span, Type> {
     let res = variable(s);
     match res.clone() {
         Ok((s, Lang::Variable(name, _, _, _, _, h))) 
-            => Ok((s, Type::Label(name.clone(), h.clone()))),
+            => Ok((s, Type::Char(name.to_owned().into(), h.clone()))),
         Ok((_s, _)) 
             => panic!("Error: {:?} shouldn't be something different from a variable", res),
         Err(r) => Err(r)
@@ -286,7 +287,7 @@ fn get_primitive(ls: LocatedSpan<&str, String>) -> Type {
         "num" 
             => Type::Tag("Num".to_string(), Box::new(Type::Number(ls.clone().into())), ls.into()),
         "char" 
-            => Type::Tag("Char".to_string(), Box::new(Type::Char(ls.clone().into())), ls.into()),
+            => Type::Tag("Char".to_string(), Box::new(Type::Char(Tchar::Unknown, ls.clone().into())), ls.into()),
         _ => todo!()
     }
 }
@@ -338,7 +339,7 @@ fn union(s: Span) -> IResult<Span, Type> {
 fn chars(s: Span) -> IResult<Span, Type> {
     let res = tag("char")(s);
     match res {
-        Ok((s, st)) => Ok((s, Type::Char(st.into()))),
+        Ok((s, st)) => Ok((s, Type::Char(st.clone().into(), st.into()))),
         Err(r) => Err(r)
     }
 }

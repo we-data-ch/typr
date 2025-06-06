@@ -13,7 +13,7 @@ impl ArgumentType {
 
     pub fn new(name: &str, type_: &Type) -> Self {
         ArgumentType(
-            Type::Label(name.to_string(), HelpData::default()),
+            Type::Char(name.to_string().into(), HelpData::default()),
             type_.clone(), false)
     }
 
@@ -27,7 +27,7 @@ impl ArgumentType {
 
     pub fn get_argument_str(&self) -> String {
         match self.0.clone() {
-            Type::Label(l, _) => l.to_string(),
+            Type::Char(l, _) => l.to_string(),
             Type::LabelGen(l, _) => l.to_string().to_uppercase(),
             Type::Multi(t, _) 
                 => ArgumentType(*t, self.1.clone(), false).get_argument_str(),
@@ -57,7 +57,7 @@ impl fmt::Display for ArgumentType {
 impl From<(String, Type)> for ArgumentType {
    fn from(val: (String, Type)) -> Self {
         ArgumentType(
-            Type::Label(val.0, val.1.clone().into()),
+            Type::Char(val.0.into(), val.1.clone().into()),
             val.1, false)
    } 
 }

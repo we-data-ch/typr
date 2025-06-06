@@ -41,7 +41,7 @@ pub fn format(ty: &Type) -> String {
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
         Type::Integer(_, _) => "int".to_string(),
-        Type::Char(_) => "char".to_string(),
+        Type::Char(_, _) => "char".to_string(),
         Type::Empty(_) => "Empty".to_string(),
         Type::Union(types, _) => {
             let formatted_types = types.iter().map(|ty| format(&ty.to_type())).collect::<Vec<_>>();
@@ -57,7 +57,7 @@ pub fn format(ty: &Type) -> String {
                 .join(", ");
             format!("{{{}}}", body)
         },
-        Type::Label(l, _) => l.to_string(),
+        Type::Char(l, _) => l.to_string(),
         Type::Add(a, b, _) => format!("{}+{}", a, b),
         Type::Minus(a, b, _) => format!("{}-{}", a, b),
         Type::Mul(a, b, _) => format!("{}*{}", a, b),

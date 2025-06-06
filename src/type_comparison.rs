@@ -129,8 +129,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (_, Type::Generic(_, _)) => true,
         (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
         (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
-        (Type::Label(_, _), Type::LabelGen(_, _)) => true,
-        (Type::Char(_), Type::LabelGen(_, _)) => true,
+        (Type::Char(_, _), Type::LabelGen(_, _)) => true,
         (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
 
         // Params subtyping

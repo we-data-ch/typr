@@ -181,17 +181,13 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
         }
 
         // label generic case with label
-        (Type::Char(h), Type::LabelGen(g, h2)) | (Type::LabelGen(g, h2), Type::Char(h)) => {
-            vec![(Type::LabelGen(g.clone(), h2.clone()), Type::Char(h.clone()))]
+        (Type::Char(s, h), Type::LabelGen(g, h2)) | (Type::LabelGen(g, h2), Type::Char(s, h)) => {
+            vec![(Type::LabelGen(g.clone(), h2.clone()), Type::Char(s.clone(), h.clone()))]
         }
 
         // Index generic case with number
         (Type::Integer(i, h), Type::IndexGen(g, h2)) | (Type::IndexGen(g, h2), Type::Integer(i, h)) => {
             vec![(Type::IndexGen(g.clone(), h2.clone()), Type::Integer(*i, h.clone()))]
-        }
-
-        (Type::Integer(i, h2), Type::IndexGen(g, h)) | (Type::IndexGen(g, h), Type::Integer(i, h2)) => {
-            vec![(Type::IndexGen(g.clone(), h.clone()), Type::Integer(i.clone(), h2.clone()))]
         }
 
         // Function case
