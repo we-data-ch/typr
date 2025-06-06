@@ -12,6 +12,8 @@ into.default <- function(element, vecteur) {
   return(element %in% vecteur)
 }
 
+dot <- function (x, ...) UseMethod("dot")
+
 dot.default <- function(a, b) {
 	a %*% b
 }

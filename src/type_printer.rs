@@ -37,10 +37,10 @@ pub fn format(ty: &Type) -> String {
             format!("{{{}}}", formatted_fields.join(", "))
         }
         Type::Generic(name, _) => name.to_uppercase(),
-        Type::Index(gen, _) => format!("#{}", gen),
+        Type::Integer(gen, _) => format!("#{}", gen),
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
-        Type::Integer(_) => "int".to_string(),
+        Type::Integer(_, _) => "int".to_string(),
         Type::Char(_) => "char".to_string(),
         Type::Empty(_) => "Empty".to_string(),
         Type::Union(types, _) => {

@@ -7,7 +7,7 @@ pub struct Index(u32, HelpData);
 impl Index {
     pub fn from_type(typ: &Type) -> Option<Index> {
         match typ {
-            Type::Index(id, h) => Some(Index(*id, h.clone())),
+            Type::Integer(id, h) => Some(Index((*id).into(), h.clone())),
             _ => None
         }
     }

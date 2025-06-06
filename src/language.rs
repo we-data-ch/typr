@@ -895,7 +895,7 @@ impl Lang {
         match self {
             //todo: if the user give a negative index as dependent value type
             Lang::Integer(i, h) 
-                => Some(Type::Index(i.clone() as u32, h.clone())),
+                => Some(Type::Integer((*i).into(), h.clone())),
             Lang::Char(c, h) 
                 => Some(Type::Label(c.clone(), h.clone())),
             _ => None

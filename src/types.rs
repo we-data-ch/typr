@@ -25,6 +25,7 @@ use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 use crate::elements::variable;
 use crate::Lang;
+use crate::r#type::Tint;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -89,7 +90,8 @@ fn generic(s: Span) -> IResult<Span, Type> {
 fn simple_index(s: Span) -> IResult<Span, Type> {
     let res = terminated(digit1, multispace0).parse(s);
     match res {
-        Ok((s, fl)) => Ok((s, Type::Index(fl.parse::<u32>().unwrap(), fl.into()))),
+        Ok((s, fl)) 
+            => Ok((s, Type::Integer(fl.parse::<i32>().unwrap().into(), fl.into()))),
         Err(r) => Err(r)
     }
 }
@@ -442,7 +444,7 @@ fn label_generic(s: Span) -> IResult<Span, Type> {
 fn integer(s: Span) -> IResult<Span, Type> {
     let res = terminated(tag("int"), multispace0).parse(s);
     match res {
-        Ok((s, _)) => Ok((s.clone(), Type::Integer(s.into()))),
+        Ok((s, _)) => Ok((s.clone(), Type::Integer(Tint::Unknown, s.into()))),
         Err(r) => Err(r)
     }
 }

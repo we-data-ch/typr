@@ -10,6 +10,10 @@ use crate::help_data::HelpData;
 use crate::type_printer::format;
 use std::fmt;
 use crate::path::Path;
+use std::ops::Add;
+use std::ops::Sub;
+use std::ops::Mul;
+use std::ops::Div;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -19,11 +23,108 @@ fn to_string<T: ToString>(v: &[T]) -> String {
     format!("[{}]", res)
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, Hash)]
+pub enum Tint {
+    Val(i32),
+    Unknown
+}
+
+impl fmt::Display for Tint {
+    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let res = match self {
+            Tint::Val(i) => *i,
+            _ => -1 as i32
+        };
+        write!(f, "{}", res)       
+    }
+}
+
+impl Add for Tint {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        match (self, other) {
+            (Tint::Val(i1), Tint::Val(i2)) => Tint::Val(i1+i2),
+            (Tint::Unknown, t) => panic!("Can't add opaque int type with {:?}", t),
+            (t, Tint::Unknown) => panic!("Can't add {:?} with opaque int type", t)
+        }
+    }
+}
+
+impl Sub for Tint {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        match (self, other) {
+            (Tint::Val(i1), Tint::Val(i2)) => Tint::Val(i1-i2),
+            (Tint::Unknown, t) => panic!("Can't substract opaque int type with {:?}", t),
+            (t, Tint::Unknown) => panic!("Can't substract {:?} with opaque int type", t)
+        }
+    }
+}
+
+impl Mul for Tint {
+    type Output = Self;
+    fn mul(self, other: Self) -> Self {
+        match (self, other) {
+            (Tint::Val(i1), Tint::Val(i2)) => Tint::Val(i1*i2),
+            (Tint::Unknown, t) => panic!("Can't substract opaque int type with {:?}", t),
+            (t, Tint::Unknown) => panic!("Can't substract {:?} with opaque int type", t)
+        }
+    }
+}
+
+impl Div for Tint {
+    type Output = Self;
+    fn div(self, other: Self) -> Self {
+        match (self, other) {
+            (Tint::Val(i1), Tint::Val(i2)) => Tint::Val(i1/i2),
+            (Tint::Unknown, t) => panic!("Can't substract opaque int type with {:?}", t),
+            (t, Tint::Unknown) => panic!("Can't substract {:?} with opaque int type", t)
+        }
+    }
+}
+
+impl From<i32> for  Tint {
+   fn from(val: i32) -> Self {
+        Tint::Val(val)
+   } 
+}
+
+impl From<u32> for  Tint {
+   fn from(val: u32) -> Self {
+        Tint::Val(val as i32)
+   } 
+}
+
+impl From<usize> for  Tint {
+   fn from(val: usize) -> Self {
+        Tint::Val(val as i32)
+   } 
+}
+
+impl From<&str> for  Tint {
+   fn from(val: &str) -> Self {
+        if val == "" {
+           Tint::Unknown 
+        } else {
+            Tint::Val(val.parse::<i32>().unwrap_or(0))
+        }
+   } 
+}
+
+impl From<Tint> for u32 {
+   fn from(val: Tint) -> Self {
+       match val {
+           Tint::Val(i) => i as u32,
+           Tint::Unknown => 0 as u32
+       }
+   } 
+}
+
 
 #[derive(Debug, Clone, Serialize, Eq, Hash)]
 pub enum Type {
     Number(HelpData),
-    Integer(HelpData),
+    Integer(Tint, HelpData),
     Boolean(HelpData),
     Char(HelpData),
     Embedded(Box<Type>, HelpData),
@@ -34,7 +135,6 @@ pub enum Type {
     Label(String, HelpData),
     Array(Box<Type>, Box<Type>, HelpData),
     Record(Vec<ArgumentType>, HelpData),
-    Index(u32, HelpData),
     Alias(String, Vec<Type>, Path, HelpData),
     Tag(String, Box<Type>, HelpData),
     Union(Vec<Tag>, HelpData),
@@ -127,7 +227,7 @@ impl Type {
     pub fn to_typescript(&self) -> String {
        match self {
            Type::Boolean(_) => "boolean".to_string(),
-           Type::Integer(_) => "number".to_string(),
+           Type::Integer(_, _) => "number".to_string(),
            Type::Number(_) => "number".to_string(),
            Type::Char(_) => "string".to_string(),
            Type::Record(body, _) => {
@@ -139,7 +239,7 @@ impl Type {
            Type::Array(_size, body, _) => format!("{}[]", body.to_typescript()),
            Type::IndexGen(id, _) => id.to_uppercase(),
            Type::Generic(val, _) => val.to_uppercase(), 
-           Type::Index(val, _) => val.to_string(),
+           Type::Integer(val, _) => val.to_string(),
            Type::Function(kinds, args, ret, _) => {
                let res = args.iter()
                     .enumerate()
@@ -170,7 +270,7 @@ impl Type {
     pub fn to_assemblyscript(&self) -> String {
        match self {
            Type::Boolean(_) => "bool".to_string(),
-           Type::Integer(_) => "i32".to_string(),
+           Type::Integer(_, _) => "i32".to_string(),
            Type::Number(_) => "f64".to_string(),
            Type::Char(_) => "string".to_string(),
            Type::Record(body, _) => {
@@ -182,7 +282,7 @@ impl Type {
            Type::Array(_size, body, _) => format!("{}[]", body.to_typescript()),
            Type::IndexGen(id, _) => id.to_uppercase(),
            Type::Generic(val, _) => val.to_uppercase(), 
-           Type::Index(val, _) => val.to_string(),
+           Type::Integer(val, _) => val.to_string(),
            Type::Function(kinds, args, ret, _) => {
                let res = args.iter()
                     .enumerate()
@@ -243,7 +343,7 @@ impl Type {
 
     pub fn get_kind(&self) -> Kind {
         match self {
-            Type::IndexGen(_, _) | Type::Index(_, _) => Kind::Dim,
+            Type::IndexGen(_, _) | Type::Integer(_, _) => Kind::Dim,
             _ => Kind::Type
         }
     }
@@ -283,7 +383,7 @@ impl Type {
 
     fn sum_index(&self, i: &Type) -> Type {
         match (self, i) {
-            (Type::Index(a, h), Type::Index(b, _)) => Type::Index(a+b, h.clone()),
+            (Type::Integer(a, h), Type::Integer(b, _)) => Type::Integer(*a+*b, h.clone()),
             (Type::Record(a, h), Type::Record(b, _)) 
                 => Type::Record(
                     a.iter()
@@ -296,21 +396,21 @@ impl Type {
 
     fn minus_index(&self, i: &Type) -> Type {
         match (self, i) {
-            (Type::Index(a, h), Type::Index(b, _)) => Type::Index(a-b, h.clone()),
+            (Type::Integer(a, h), Type::Integer(b, _)) => Type::Integer(*a-*b, h.clone()),
             _ => panic!("Type {} and {} can't be added", self, i)
         }
     }
 
     fn mul_index(&self, i: &Type) -> Type {
         match (self, i) {
-            (Type::Index(a, h), Type::Index(b, _)) => Type::Index(a*b, h.clone()),
+            (Type::Integer(a, h), Type::Integer(b, _)) => Type::Integer(*a*(*b), h.clone()),
             _ => panic!("Type {} and {} can't be added", self, i)
         }
     }
 
     fn div_index(&self, i: &Type) -> Type {
         match (self, i) {
-            (Type::Index(a, h), Type::Index(b, _)) => Type::Index(a.div_euclid(*b), h.clone()),
+            (Type::Integer(a, h), Type::Integer(b, _)) => Type::Integer(*a/(*b), h.clone()),
             _ => panic!("Type {} and {} can't be added", self, i)
         }
     }
@@ -318,8 +418,8 @@ impl Type {
     pub fn get_shape(&self) -> Option<String> {
         if let Type::Array(i, t, _) = self {
             match (*i.clone(), t.get_shape()) {
-                (Type::Index(j, _), Some(rest)) => Some(format!("{}, {}", j, rest)),
-                (Type::Index(j, _), None) => Some(j.to_string()),
+                (Type::Integer(j, _), Some(rest)) => Some(format!("{}, {}", j, rest)),
+                (Type::Integer(j, _), None) => Some(j.to_string()),
                 _ => None
             }
         } else { None }
@@ -346,7 +446,7 @@ impl Type {
 
     pub fn dependent_type(&self, dep_typ: &Type) -> bool {
         match (dep_typ, self) {
-            (Type::Integer(_), Type::IndexGen(_, _)) => true,
+            (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
             (Type::Char(_), Type::LabelGen(_, _)) => true,
             _ => false
         }
@@ -407,7 +507,7 @@ impl From<Type> for HelpData {
            Type::Tag(_, _, h) => h,
            Type::Function(_, _, _, h) => h,
            Type::Char(h) => h,
-           Type::Integer(h) => h,
+           Type::Integer(_, h) => h,
            Type::Record(_, h) => h,
            Type::Boolean(h) => h,
            e => panic!("The type element {:?} is not yet implemented", e)
@@ -419,7 +519,7 @@ impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Type::Number(_), Type::Number(_)) => true,
-            (Type::Integer(_), Type::Integer(_)) => true,
+            (Type::Integer(_, _), Type::Integer(_, _)) => true,
             (Type::Boolean(_), Type::Boolean(_)) => true,
             (Type::Char(_), Type::Char(_)) => true,
             (Type::Embedded(e1, _), Type::Embedded(e2, _)) => e1 == e2,
@@ -432,7 +532,7 @@ impl PartialEq for Type {
             (Type::Array(a1, b1, _), Type::Array(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
-            (Type::Index(e1, _), Type::Index(e2, _)) => e1 == e2,
+            (Type::Integer(e1, _), Type::Integer(e2, _)) => e1 == e2,
             (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) 
                 => a1 == a2 && b1 == b2 && c1 == c2,
             (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) 

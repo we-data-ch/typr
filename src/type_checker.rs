@@ -230,7 +230,7 @@ fn get_variable_type(lang: &Lang, tags: &[Tag]) -> Option<(Var, Type)> {
 pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
     match expr {
         Lang::Number(_, h) => (Type::Number(h.clone()), context.clone()),
-        Lang::Integer(_, h) => (Type::Integer(h.clone()), context.clone()),
+        Lang::Integer(i, h) => (Type::Integer((*i).into(), h.clone()), context.clone()),
         Lang::Bool(_, h) => (Type::Boolean(h.clone()), context.clone()),
         Lang::Char(_, h) => (Type::Char(h.clone()), context.clone()),
         Lang::Empty(h) => (Type::Empty(h.clone()), context.clone()),
@@ -358,7 +358,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
             if types.windows(2).all(|w| w[0] == w[1]) {
                 let new_type = Type::Array(
-                    Box::new(Type::Index(exprs.len() as u32, HelpData::default())),
+                    Box::new(Type::Integer(exprs.len().into(), HelpData::default())),
                     Box::new(types[0].clone()),
                     HelpData::default());
                 (new_type, context.clone())
