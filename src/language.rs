@@ -12,6 +12,7 @@ use crate::typing;
 use crate::unification;
 use crate::help_data::HelpData;
 use crate::path::Path;
+use crate::function_type::FunctionType;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Lang {
@@ -870,7 +871,7 @@ impl Lang {
     }
 
     pub fn get_related_function(self, args: &Vec<Lang>, context: &Context) 
-        -> Option<(Vec<ArgumentKind>, Vec<Type>, Type)> {
+        -> Option<FunctionType> {
         let var_name = self.infer_var_name(args, context);
         let fn_ty = typing(context, &var_name.to_language()).0;
         fn_ty.get_function_elements()

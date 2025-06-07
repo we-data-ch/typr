@@ -187,9 +187,9 @@ fn get_unification_map(context: &Context, args: &[Lang], param_types: &[Type])
         .collect()
 }
 
-fn apply_unification_type(context: &Context, map: Option<Vec<Vec<(Type, Type)>>>, ret_ty: &Type) -> (Type, Context) {
-    let unification_map = map.unwrap()
-            .iter().cloned().flatten().collect::<UnificationMap>();
+fn apply_unification_type(context: &Context, map: Vec<Vec<(Type, Type)>>, ret_ty: &Type) -> (Type, Context) {
+    let unification_map = map.iter()
+            .cloned().flatten().collect::<UnificationMap>();
     let new_type = unification_map.type_substitution(ret_ty)
         .index_calculation();
     (new_type, context.clone().push_unifications(unification_map.0))
@@ -308,16 +308,12 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::FunctionApp(fn_var_name, args, _h) => {
-            let _res1 = Var::from_language(*fn_var_name.clone())
-                .unwrap().get_name();
-            let function_elements = fn_var_name.clone()
-                .get_related_function(args, context);
-            function_elements.is_some().then(|| {
-                let (_, param_types, ret_ty) = function_elements.unwrap();
-                let unification_map = get_unification_map(context, args, &param_types);
-                unification_map.is_some()
-                    .then(|| apply_unification_type(context, unification_map, &ret_ty))
-                    .expect(&format!("The given values don't match:\nexpected:{:?}\nrecieved: {:?}", args, param_types))
+            fn_var_name.clone()
+                .get_related_function(args, context)
+                .map(|func| {
+                    get_unification_map(context, args, &func.get_param_types())
+                        .map(|unification_map| apply_unification_type(context, unification_map, &func.get_ret_type()))
+                        .expect(&format!("The given values don't match:\nexpected:{:?}\nrecieved: {:?}", args, func.get_param_types()))
             }).expect("This is not a function but a") 
         }
         Lang::Tag(name, expr, h) => {

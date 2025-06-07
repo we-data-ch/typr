@@ -12,6 +12,7 @@ use std::fmt;
 use crate::path::Path;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
+use crate::function_type::FunctionType;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -326,9 +327,9 @@ impl Type {
         } else { None }
     }
 
-    pub fn get_function_elements(&self) -> Option<(Vec<ArgumentKind>, Vec<Type>, Type)> {
-        if let Type::Function(kinds, args, ret_ty, _) = self {
-            Some((kinds.clone(), args.clone(), (**ret_ty).clone()))
+    pub fn get_function_elements(&self) -> Option<FunctionType> {
+        if let Type::Function(kinds, args, ret_ty, h) = self {
+            Some(FunctionType(kinds.clone(), args.clone(), (**ret_ty).clone(), h.clone()))
         } else { None }
     }
 

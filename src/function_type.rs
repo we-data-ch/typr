@@ -2,7 +2,17 @@ use crate::argument_kind::ArgumentKind;
 use crate::Type;
 use crate::help_data::HelpData;
 
-pub struct FunctionType(Vec<ArgumentKind>, Vec<Type>, Type, HelpData);
+pub struct FunctionType(pub Vec<ArgumentKind>, pub Vec<Type>, pub Type, pub HelpData);
+
+impl FunctionType {
+    pub fn get_param_types(&self) -> Vec<Type> {
+        self.1.clone()
+    }
+
+    pub fn get_ret_type(&self) -> Type {
+        self.2.clone()
+    }
+}
 
 impl TryFrom<Type> for FunctionType {
     type Error = String;
