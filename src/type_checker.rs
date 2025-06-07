@@ -22,6 +22,7 @@ use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 use crate::CompileMode;
 use crate::lang_builder;
+use crate::error_message::ErrorMessage;
 
 
 fn unify_types(types: &[Type]) -> Type {
@@ -166,7 +167,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         }
 }
 
-fn match_types(ctx: &Context, type1: &Type, type2: &Type, value: &Lang) 
+pub fn match_types(ctx: &Context, type1: &Type, type2: &Type) 
     -> Option<Vec<(Type, Type)>> {
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
@@ -177,22 +178,10 @@ fn match_types(ctx: &Context, type1: &Type, type2: &Type, value: &Lang)
     Some(unif_map)
 }
 
-fn get_unification_map(context: &Context, args: &[Lang], param_types: &[Type]) 
-    -> Option<Vec<Vec<(Type, Type)>>> {
-    args.iter()
-        .map(|arg| typing(context, arg).0)
-        .zip(param_types.iter())
-        .zip(args.iter())
-        .map(|((arg, par), val)| match_types(context, &arg, par, val))
-        .collect()
-}
-
-fn apply_unification_type(context: &Context, map: Vec<Vec<(Type, Type)>>, ret_ty: &Type) -> (Type, Context) {
-    let unification_map = map.iter()
-            .cloned().flatten().collect::<UnificationMap>();
-    let new_type = unification_map.type_substitution(ret_ty)
+fn apply_unification_type(context: &Context, map: UnificationMap, ret_ty: &Type) -> (Type, Context) {
+    let new_type = map.type_substitution(ret_ty)
         .index_calculation();
-    (new_type, context.clone().push_unifications(unification_map.0))
+    (new_type, context.clone().push_unifications(map.0))
 }
 
 fn get_variable_type(lang: &Lang, tags: &[Tag]) -> Option<(Var, Type)> {
@@ -308,13 +297,16 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::FunctionApp(fn_var_name, args, _h) => {
-            fn_var_name.clone()
+            let name = Var::from_language((**fn_var_name).clone()).unwrap_or(Var::default()).get_name();
+            let func = fn_var_name.clone()
                 .get_related_function(args, context)
-                .map(|func| {
-                    get_unification_map(context, args, &func.get_param_types())
-                        .map(|unification_map| apply_unification_type(context, unification_map, &func.get_ret_type()))
-                        .expect(&format!("The given values don't match:\nexpected:{:?}\nrecieved: {:?}", args, func.get_param_types()))
-            }).expect("This is not a function but a") 
+                .expect("This is not a function but a");
+            let param_types = func.get_param_types();
+            context
+                .get_unification_map(args, &param_types)
+                .map(|x| dbg!(x))
+                .expect(&ErrorMessage::UnificationMatch(args.to_vec(), param_types).to_string())
+                .apply_unification_type(context, &func.get_ret_type())
         }
         Lang::Tag(name, expr, h) => {
             let ty = typing(context, expr).0;

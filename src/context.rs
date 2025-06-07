@@ -15,6 +15,9 @@ use crate::help_data::HelpData;
 use std::collections::HashSet;
 use crate::adt_header::AdtHeader;
 use crate::Adt;
+use crate::typing;
+use crate::type_checker::match_types;
+use crate::unification_map::UnificationMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompileMode {
@@ -318,6 +321,17 @@ impl Context {
 
     pub fn error(&self, msg: String) -> String {
         format!("{}{}", msg, self.display_typing_context())
+    }
+
+    pub fn get_unification_map(&self, args: &[Lang], param_types: &[Type]) 
+        -> Option<UnificationMap> {
+        let res = args.iter()
+            .map(|arg| typing(self, arg).0)
+            .zip(param_types.iter())
+            .flat_map(|(arg, par)| match_types(self, &arg, par))
+            .flatten()
+            .collect::<Vec<_>>();
+        (res.len() > 0).then(|| UnificationMap(res))
     }
 }
 

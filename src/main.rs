@@ -34,6 +34,7 @@ mod path;
 mod generic;
 mod tint;
 mod tchar;
+mod error_message;
 
 use parser::parse;
 use my_io::read_file;
