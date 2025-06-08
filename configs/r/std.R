@@ -41,3 +41,8 @@ sys.which <- function(s) { Sys.which(s) }
 sys.timezone <- function() { Sys.timezone() }
 sys.setlocale <- function() { Sys.setlocale() }
 
+
+struct <- function(x, new_class) {
+	class(x) <- c(class(x), new_class)
+	return(x)
+}

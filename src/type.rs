@@ -322,7 +322,7 @@ impl Type {
             match (*i.clone(), t.get_shape()) {
                 (Type::IndexGen(_, _), _) => Some("dim(===)".to_string()),
                 (Type::Integer(j, _), Some(rest)) => Some(format!("{}, {}", j, rest)),
-                (Type::Integer(j, _), None) => Some(format!("{}, {}", j, t)),
+                (Type::Integer(j, _), None) => Some(format!("{}", j)),
                 _ => None
             }
         } else { None }

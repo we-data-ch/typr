@@ -343,7 +343,7 @@ impl Lang {
                     format!("array({}, dim = c({}))", vector, shape)
                 };
 
-                (format!("structure({}, class = {})", array, classes)
+                (format!("struct({}, {})", array, classes)
                  ,cont.to_owned())
             },
             Lang::Record(args, _) => {
@@ -361,8 +361,8 @@ impl Lang {
                 let class = cont.get_class(&typ);
                 let _res = cont.get_classes(&typ);
                 match cont.get_classes(&typ) {
-                    Some(res) => (format!("structure(list({}), class = c('list', 'Record', '{}', {}))", body, class, res), current_cont),
-                    _ => (format!("structure(list({}), class = c('list', 'Record', '{}'))", body, class), current_cont)
+                    Some(res) => (format!("struct(list({}), c('list', 'Record', '{}', {}))", body, class, res), current_cont),
+                    _ => (format!("struct(list({}), c('list', 'Record', '{}'))", body, class), current_cont)
                 }
             },
             Lang::Char(s, _) => 
@@ -391,7 +391,7 @@ impl Lang {
                     current_cont = new_cont;
                 }
                 
-                (format!("structure(list({}), class = 'Tuple')", val_entries.join(", ")), current_cont)
+                (format!("struct(list({}), 'Tuple')", val_entries.join(", ")), current_cont)
             },
             Lang::Assign(var, exp, _) => {
                 let (var_str, cont1) = var.to_r(cont);
@@ -412,8 +412,8 @@ impl Lang {
                 
                 match cont.get_classes(&typ) {
                     Some(res) => 
-                        (format!("structure(list('{}', {}), class = c('Tag', '{}', {}))", s, t_str, class, res), new_cont),
-                    _ => (format!("structure(list('{}', {}), class = c('Tag', '{}'))", s, t_str, class), new_cont)
+                        (format!("struct(list('{}', {}), c('Tag', '{}', {}))", s, t_str, class, res), new_cont),
+                    _ => (format!("struct(list('{}', {}), c('Tag', '{}'))", s, t_str, class), new_cont)
                 }
             },
             Lang::Empty(_) => 
