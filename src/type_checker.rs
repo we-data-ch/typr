@@ -304,7 +304,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let param_types = func.get_param_types();
             context
                 .get_unification_map(args, &param_types)
-                .expect(&ErrorMessage::UnificationMatch(args.to_vec(), param_types).to_string())
+                .unwrap_or(UnificationMap::new(vec![]))
                 .apply_unification_type(context, &func.get_ret_type())
         }
         Lang::Tag(name, expr, h) => {
