@@ -258,7 +258,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         },
         Lang::Function(kinds, params, ret_ty, body, h) => {
             let list_of_types = params.iter()
-                .map(|arg_typ| arg_typ.get_type())
+                .map(ArgumentType::get_type)
                 .collect::<Vec<_>>();
             let sub_context = params.into_iter()
                 .map(|arg_typ| 
@@ -304,7 +304,6 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let param_types = func.get_param_types();
             context
                 .get_unification_map(args, &param_types)
-                .map(|x| dbg!(x))
                 .expect(&ErrorMessage::UnificationMatch(args.to_vec(), param_types).to_string())
                 .apply_unification_type(context, &func.get_ret_type())
         }

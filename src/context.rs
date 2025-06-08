@@ -331,7 +331,7 @@ impl Context {
             .flat_map(|(arg, par)| match_types(self, &arg, par))
             .flatten()
             .collect::<Vec<_>>();
-        (res.len() > 0).then(|| UnificationMap(res))
+        (res.len() > 0).then(|| UnificationMap::new(res))
     }
 }
 

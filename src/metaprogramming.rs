@@ -24,7 +24,6 @@ fn import_file_modules_code(adt: Adt) -> Adt {
 
 fn accessibility_change(module_name: &str, adt: Adt) -> Vec<Lang> {
     adt.0.iter().map(|line| {
-        dbg!(&line);
         match line {
             Lang::Let(var, typ, body, h) 
                 => Lang::Let(

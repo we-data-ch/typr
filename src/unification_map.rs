@@ -1,11 +1,44 @@
 use crate::Type;
 use crate::unification;
 use crate::Context;
+use std::collections::HashMap;
+
+struct SafeHashMap {
+    map: Vec<(Type, Type)>
+}
+
+impl SafeHashMap {
+    fn new() -> Self {
+        SafeHashMap {
+            map: vec![]
+        }
+    }
+
+    fn insert(&mut self, key: Type, value: Type) {
+        match self.map.iter().find(|(k, v)| k == &key) {
+            Some((ke, va)) => if (!(va.exact_match(&value))) { 
+                panic!("{} doesn't match {}", va, value);
+            },
+            None => self.map.push((key, value))
+        }
+    }
+
+    fn to_vec(self) -> Vec<(Type, Type)> {
+        self.map.clone()
+    }
+}
 
 #[derive(Debug)]
 pub struct UnificationMap(pub Vec<(Type, Type)>);
 
 impl UnificationMap {
+    pub fn new(v: Vec<(Type, Type)>) -> Self {
+        let mut safe_map = SafeHashMap::new();
+        for (key, val) in v {
+            safe_map.insert(key, val)
+        }
+        UnificationMap(safe_map.to_vec())
+    }
     pub fn type_substitution(&self, ret_ty: &Type) -> Type {
         unification::type_substitution(ret_ty, &self.0)
     }

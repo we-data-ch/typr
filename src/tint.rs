@@ -13,11 +13,10 @@ pub enum Tint {
 
 impl fmt::Display for Tint {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let res = match self {
-            Tint::Val(i) => *i,
-            _ => -1 as i32
-        };
-        write!(f, "{}", res)       
+        match self {
+            Tint::Val(i) => write!(f, "{}", i),
+            _ => write!(f, "{}", "int")
+        }
     }
 }
 

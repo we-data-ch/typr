@@ -320,8 +320,9 @@ impl Type {
     pub fn get_shape(&self) -> Option<String> {
         if let Type::Array(i, t, _) = self {
             match (*i.clone(), t.get_shape()) {
+                (Type::IndexGen(_, _), _) => Some("dim(===)".to_string()),
                 (Type::Integer(j, _), Some(rest)) => Some(format!("{}, {}", j, rest)),
-                (Type::Integer(j, _), None) => Some(j.to_string()),
+                (Type::Integer(j, _), None) => Some(format!("{}, {}", j, t)),
                 _ => None
             }
         } else { None }
@@ -385,6 +386,14 @@ impl Type {
         }
     }
 
+    pub fn exact_match(&self, other: &Type) -> bool {
+        match (self, other) {
+            (Type::Integer(a, _), Type::Integer(b, _)) => a == b,
+            (Type::Char(a, _), Type::Char(b, _)) => a == b,
+            _ => self == other
+        }
+    }
+
 }
 
 
@@ -421,20 +430,18 @@ impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Type::Number(_), Type::Number(_)) => true,
-            (Type::Integer(_, _), Type::Integer(_, _)) => true,
+            (Type::Integer(n, _), Type::Integer(m, _)) => true,
             (Type::Boolean(_), Type::Boolean(_)) => true,
-            (Type::Char(_, _), Type::Char(_, _)) => true,
+            (Type::Char(n, _), Type::Char(m, _)) => true, 
             (Type::Embedded(e1, _), Type::Embedded(e2, _)) => e1 == e2,
             (Type::Function(a1, b1, c1, _), Type::Function(a2, b2, c2, _)) 
                 => a1 == a2 && b1 == b2 && c1 == c2,
             (Type::Generic(e1, _), Type::Generic(e2, _)) => e1 == e2,
             (Type::IndexGen(e1, _), Type::IndexGen(e2, _)) => e1 == e2,
             (Type::LabelGen(e1, _), Type::LabelGen(e2, _)) => e1 == e2,
-            (Type::Char(e1, _), Type::Char(e2, _)) => e1 == e2,
             (Type::Array(a1, b1, _), Type::Array(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
-            (Type::Integer(e1, _), Type::Integer(e2, _)) => e1 == e2,
             (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) 
                 => a1 == a2 && b1 == b2 && c1 == c2,
             (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) 

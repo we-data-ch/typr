@@ -2,13 +2,21 @@ use std::fmt;
 use serde::Serialize;
 use crate::r#type::Type;
 use crate::help_data::HelpData;
+use crate::tchar::Tchar;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)] // 3 argument is for the embedding
 pub struct ArgumentType(pub Type, pub Type, pub bool);
 
 impl ArgumentType {
     pub fn to_r(&self) -> String {
-        self.0.to_string()
+        match &self.0 {
+            Type::Char(c, _) => 
+                match c {
+                    Tchar::Val(x) => x.to_string(),
+                    _ => "".to_string()
+                },
+            t => t.to_string()
+        }
     }
 
     pub fn new(name: &str, type_: &Type) -> Self {
@@ -27,7 +35,11 @@ impl ArgumentType {
 
     pub fn get_argument_str(&self) -> String {
         match self.0.clone() {
-            Type::Char(l, _) => l.to_string(),
+            Type::Char(l, _) => 
+                match l {
+                    Tchar::Val(c) => c.to_string(),
+                    _ => panic!("A parameter can't be an empty value")
+                }
             Type::LabelGen(l, _) => l.to_string().to_uppercase(),
             Type::Multi(t, _) 
                 => ArgumentType(*t, self.1.clone(), false).get_argument_str(),

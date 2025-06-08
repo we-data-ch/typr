@@ -326,23 +326,25 @@ impl Lang {
                 (format!("{}\nclass({}) <- c({})", r_code, new_name2, classes), new_cont)
             },
             Lang::Array(v, h) => {
-                let mut current_cont = cont.clone();
-                let mut val_strs = Vec::new();
+                let str_linearized_array = &self.linearize_array()
+                    .iter()
+                    .map(|lang| lang.to_r(&cont).0)
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 
-                for val in v {
-                    let (val_str, new_cont) = val.to_r(&current_cont);
-                    val_strs.push(val_str);
-                    current_cont = new_cont;
-                }
-                
-                let vector = format!("c({})", val_strs.join(","));
-                let dim = typing(&current_cont, &Lang::Array(v.to_vec(), h.clone())).0;
+                let dim = typing(&cont, &self).0;
                 let shape = dim.get_shape().unwrap();
+                let classes = cont.get_classes(&dim).unwrap_or("".to_string());
+                let vector = format!("c({})", str_linearized_array);
+                let array = if shape.contains("dim(===)") {
+                    format!("array({}, dim = c({}))", vector,
+                                shape.replace("===", &v[0].to_r(&cont).0))
+                } else {
+                    format!("array({}, dim = c({}))", vector, shape)
+                };
 
-                (format!("array({}, dim = c({}))",
-                    vector,
-                    shape),
-                current_cont)
+                (format!("structure({}, class = {})", array, classes)
+                 ,cont.to_owned())
             },
             Lang::Record(args, _) => {
                 let mut current_cont = cont.clone();
@@ -900,6 +902,16 @@ impl Lang {
             Lang::Char(c, h) 
                 => Some(Type::Char(c.to_owned().into(), h.clone())),
             _ => None
+        }
+    }
+
+    pub fn linearize_array(&self) -> Vec<Lang> {
+        match self {
+            Lang::Array(v, _) 
+                => v.iter()
+                .fold(vec![], |acc, x| 
+                      acc.iter().chain(x.linearize_array().iter()).cloned().collect()),
+            _ => vec![self.to_owned()]
         }
     }
 }

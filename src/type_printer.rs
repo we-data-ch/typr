@@ -1,6 +1,7 @@
 use crate::Type;
 use crate::kind::Kind;
 use crate::help_data::HelpData;
+use crate::tint::Tint;
 
 fn format_kind(ki: &Kind) -> String {
    match ki {
@@ -19,7 +20,13 @@ pub fn format(ty: &Type) -> String {
                 format!("{}<{}>", name, paras.join(", "))
             }
         },
-        Type::Array(dim, ty, _) => format!("[{}, {}]", dim, format(ty)),
+        Type::Array(dim, ty, _) => {
+            let res = match **ty {
+                Type::Integer(_, _) => "int".to_string(),
+                _ => format(ty)
+            };
+            format!("[{}, {}]", dim, res)
+        },
         Type::Function(kinds, params, ret_ty, _h) => {
             let formatted_kinds = kinds.iter().map(|arg_kind| format_kind(&arg_kind.get_kind())).collect::<Vec<_>>();
             let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();
@@ -37,10 +44,14 @@ pub fn format(ty: &Type) -> String {
             format!("{{{}}}", formatted_fields.join(", "))
         }
         Type::Generic(name, _) => name.to_uppercase(),
-        Type::Integer(gen, _) => format!("#{}", gen),
+        Type::Integer(tint, _) => {
+            match tint {
+                Tint::Val(i) => format!("{}", i),
+                _ => "int".to_string()
+            }
+        },
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
-        Type::Integer(_, _) => "int".to_string(),
         Type::Char(_, _) => "char".to_string(),
         Type::Empty(_) => "Empty".to_string(),
         Type::Union(types, _) => {

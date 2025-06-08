@@ -186,7 +186,6 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 .collect(), h.clone())
         },
         Type::Alias(name, concret_types, path, _h) => {
-            dbg!(&type_);
             let var = Var::from_type(type_.clone())
                 .expect(&format!("The alias {} is malformed", type_))
                 .set_path(path.clone());
