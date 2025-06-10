@@ -21,7 +21,7 @@ use crate::Environment;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 use crate::CompileMode;
-use crate::lang_builder;
+use crate::builder;
 
 
 fn unify_types(types: &[Type]) -> Type {
@@ -72,10 +72,10 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Sequence(exprs, _h) 
             => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, exp, _h) => {
-            let ty = if ty == &lang_builder::empty_type() {Type::Any(HelpData::default())} else {ty.clone()};
+            let ty = if ty == &builder::empty_type() {Type::Any(HelpData::default())} else {ty.clone()};
             let expr_ty = typing(&context, exp).0;
             let new_context = type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
-                if ty != lang_builder::any_type() {
+                if ty != builder::any_type() {
                     context.clone()
                         .push_var_type(name.clone().into(), ty.clone(), context)
                 } else {
@@ -125,6 +125,9 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
 
 fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         match (type1, type2) {
+            (Type::Integer(i, _), Type::Integer(j, _)) => {
+                (i == j).then(|| vec![])
+            },
             (_, Type::Generic(_, _)) | (_, Type::IndexGen(_, _)) | (_, Type::LabelGen(_, _))
                 => Some(vec![(type1.clone(), type2.clone())]),
             (Type::Function(_, args1, ret_typ1, _), Type::Function(_, args2, ret_typ2, _)) => {
@@ -137,7 +140,8 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                 if res.len() > 0 { Some(res) } else { None }
             }
             (Type::Array(ind1, typ1, _), Type::Array(ind2, typ2, _)) => {
-               let gen1 = get_gen_type(ind1, ind2).unwrap_or(vec![]);
+               let gen1 = get_gen_type(ind1, ind2)
+                    .expect(&format!("{} and {} don't match", type1, type2));
                let gen2 = get_gen_type(typ1, typ2).unwrap_or(vec![]);
                Some(gen1.iter().chain(gen2.iter()).cloned().collect())
             },
@@ -170,7 +174,8 @@ pub fn match_types(ctx: &Context, type1: &Type, type2: &Type)
     -> Option<Vec<(Type, Type)>> {
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
-    let res = get_gen_type(&type1, &type2).unwrap_or(vec![]);
+    let res = get_gen_type(&type1, &type2)
+        .expect("The matching don't work");
     let unif_map = res.iter()
         .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
         .collect::<Vec<_>>();

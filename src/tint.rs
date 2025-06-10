@@ -100,3 +100,13 @@ impl From<Tint> for u32 {
        }
    } 
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tint_val(){
+        assert_eq!(Tint::Val(2), Tint::Val(3));
+    }
+}

@@ -29,7 +29,7 @@ mod function_type;
 mod help_message;
 mod help_data;
 mod adt_header;
-mod lang_builder;
+mod builder;
 mod path;
 mod generic;
 mod tint;

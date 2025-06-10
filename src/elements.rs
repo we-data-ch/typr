@@ -798,370 +798,371 @@ pub fn parse_elements(s: Span) -> IResult<Span, Lang> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::builder;
 
     #[test]
     fn test_single_element() {
-        let res = single_element("4;").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = single_element("4;".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_sop0() {
-        let res = op("+").unwrap().1;
+        let res = op("+".into()).unwrap().1;
         assert_eq!(res, Op::Add);
     }
 
     #[test]
     fn test_el_op0() {
-        let res = element_operator("+ 2").unwrap().1;
-        assert_eq!(res, (Lang::Empty, Op::And));
+        let res = element_operator("+ 2".into()).unwrap().1;
+        assert_eq!(res, (builder::empty_lang(), Op::And));
     }
 
     #[test]
     fn test_el_op1() {
-        let res = element_operator("2").unwrap().1;
-        assert_eq!(res, (Lang::Empty, Op::And));
+        let res = element_operator("2".into()).unwrap().1;
+        assert_eq!(res, (builder::empty_lang(), Op::And));
     }
 
     #[test]
     fn test_chain0() {
-        let res = element_chain("2").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = element_chain("2".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_chain1() {
-        let res = element_chain("2 + 9").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = element_chain("2 + 9".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_chain2() {
-        let res = element_chain("3 + 2 + 4 + 7 + 6").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = element_chain("3 + 2 + 4 + 7 + 6".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_chain3() {
-        let res = element_chain("3 .add(2).add(4).add(7).add(6)").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = element_chain("3 .add(2).add(4).add(7).add(6)".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_chain4() {
-        let res = element_chain("7 .combine(2, 3).okay(true)").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = element_chain("7 .combine(2, 3).okay(true)".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
     
     #[test]
     fn test_chain5() {
-        let res = single_element("combine(3, 2, 3)").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = single_element("combine(3, 2, 3)".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_function_no_parameters(){
-        let res = function("fn () : Number { 7 }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = function("fn () : Number { 7 }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_function_with_parameters(){
-        let res = function("fn (a: number, b: bool) : Number { 7 }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = function("fn (a: number, b: bool) : Number { 7 }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_parse_function1() {
-        let res = single_element("fn (a: num, b: bool) : num {...}").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = single_element("fn (a: num, b: bool) : num {...}".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
     #[test]
     fn test_parse_function2() {
-        let res = single_element("fn (a: int): .Some({char, char}) { Some(:{'un', 'hello'}) };").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = single_element("fn (a: int): .Some({char, char}) { Some(:{'un', 'hello'}) };".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_parse_elements_function() {
-        let res = parse_elements("fn (a: number, b: bool) : Number { 7 }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = parse_elements("fn (a: number, b: bool) : Number { 7 }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_function_application1() {
-        let res = function_application("incr()").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = function_application("incr()".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_function_application2() {
-        let res = single_element("incr()").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = single_element("incr()".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_function_application3() {
-        let res = parse_elements("incr()").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = parse_elements("incr()".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_function_application4() {
-        let res = parse_elements("{7}()").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = parse_elements("{7}()".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_function_application5() {
-        let res = parse_elements("{7}(4)").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = parse_elements("{7}(4)".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_function_application6() {
-        let res = function_application("{7}(4)").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = function_application("{7}(4)".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_scope1() {
-        let res = scope("{7}").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = scope("{7}".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_scope2() {
-        let res = scope("{let a <- 7;}").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = scope("{let a <- 7;}".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_scope3() {
-        let res = scope("{let a = 7; a;}").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = scope("{let a = 7; a;}".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_array() {
-        let res = array("[1, 2, 3]").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = array("[1, 2, 3]".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_char1() {
-        let res = chars("\"Hello world\"").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = chars("\"Hello world\"".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_char2() {
-        let res = single_element("'Hello world'").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = single_element("'Hello world'".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_if1() {
-        let res = if_exp("if (true) { 7 }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = if_exp("if (true) { 7 }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_if2() {
-        let res = parse_elements("if (true) { 7 }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = parse_elements("if (true) { 7 }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_if3() {
-        let res = parse_elements("if num < 18 { true } else { false }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = parse_elements("if num < 18 { true } else { false }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_branch1() {
-        let res = branch("True => 3").unwrap().1;
-        assert_eq!(res, (Box::new(Lang::Empty), Box::new(Lang::Empty)));
+        let res = branch("True => 3".into()).unwrap().1;
+        assert_eq!(res, (Box::new(builder::empty_lang()), Box::new(builder::empty_lang())));
     }
 
     #[test]
     fn test_branch2() {
-        let res = branch("Int(i) => 3").unwrap().1;
-        assert_eq!(res, (Box::new(Lang::Empty), Box::new(Lang::Empty)));
+        let res = branch("Int(i) => 3".into()).unwrap().1;
+        assert_eq!(res, (Box::new(builder::empty_lang()), Box::new(builder::empty_lang())));
     }
 
     #[test]
     fn test_match1() {
-        let res = match_exp("match a { True => 3, False => 4, }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = match_exp("match a { True => 3, False => 4, }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_match2() {
-        let res = match_exp("match res { None => true, Some(t) => false }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = match_exp("match res { None => true, Some(t) => false }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_variable1() {
-        let res = variable("hey").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = variable("hey".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_variable2() {
-        let res = variable("Person::hey").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = variable("Person::hey".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_variable3() {
-        let res = variable("Person::Course::hey").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = variable("Person::Course::hey".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_var_tag1() {
-        let res = single_element("Some(s.substr(a.len() + 1, s.len()))").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = single_element("Some(s.substr(a.len() + 1, s.len()))".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_var_tag2() {
-        let res = tag_exp("Some(s.substr(a.len() + 1, s.len()))").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = tag_exp("Some(s.substr(a.len() + 1, s.len()))".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_my_element1() {
-        let res = single_element("s.substr(a.len() + 1, s.len())").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = single_element("s.substr(a.len() + 1, s.len())".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_func_appli1() {
-        let res = parse_elements("Mod::new(7)").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = parse_elements("Mod::new(7)".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_func_appli2() {
-        let res = parse_elements("Count::new(7)").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = parse_elements("Count::new(7)".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_index_function() {
-        let res = single_element("fn(a: #N): [#N, int] { ... }").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = single_element("fn(a: #N): [#N, int] { ... }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_range1() {
-        let res = range("1:3").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = range("1:3".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
     
     #[test]
     fn test_range2() {
-        let res = single_element("1:3").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = single_element("1:3".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_range3() {
-        let res = parse_elements("1:3").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = parse_elements("1:3".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_range4() {
-        let res = parse_elements("1:a").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = parse_elements("1:a".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_shape0() {
-        let res = single_element("[[1, 2], [3, 4]]").unwrap().1;
+        let res = single_element("[[1, 2], [3, 4]]".into()).unwrap().1;
         assert_eq!(res.shape(), vec![0 as usize]);
     }
 
     #[test]
     fn test_fn_op1() {
-        let res = single_element("fn(n: int): bool { 3 >= n }").unwrap().1;
+        let res = single_element("fn(n: int): bool { 3 >= n }".into()).unwrap().1;
         assert_eq!(res.shape(), vec![0 as usize]);
     }
 
     #[test]
     fn test_parse_greater_than1() {
-        let res = element_chain("3 <= n").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = element_chain("3 <= n".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_parse_greater_than2() {
-        let res = element_operator("<= 3").unwrap().1;
-        assert_eq!(res, (Lang::Empty, Op::Empty));
+        let res = element_operator("<= 3".into()).unwrap().1;
+        assert_eq!(res, (builder::empty_lang(), Op::Empty));
     }
 
     #[test]
     fn test_chain_string0() {
-        let res = element_chain("'wow' + 'hey'").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = element_chain("'wow' + 'hey'".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     } 
 
     #[test]
     fn test_chain_struct() {
-        let res = element_chain("5.:{x: 0}").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = element_chain("5.:{x: 0}".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     } 
 
     #[test]
     fn test_vectorial_bloc1() {
-        let res = vectorial_bloc("@{ 3 }@").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = vectorial_bloc("@{ 3 }@".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_vectorial_bloc2() {
-        let res = vectorial_bloc("@{ 3 + 4 }@").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = vectorial_bloc("@{ 3 + 4 }@".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_vectorial_bloc3() {
-        let res = vectorial_bloc("@{ 4*v + 12 }@").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = vectorial_bloc("@{ 4*v + 12 }@".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_vectorial_bloc4() {
-        let res = single_element("@{ 4*v + 12 }@").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = single_element("@{ 4*v + 12 }@".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_vectorial_bloc5() {
-        let res = element_chain("@{ 4*v + 12 }@").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = element_chain("@{ 4*v + 12 }@".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_variable_field() {
-        let res = element_chain("p.x").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = element_chain("p.x".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_lang_alias0() {
-        let res = element_chain("x + 1").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = element_chain("x + 1".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_lang_alias1() {
-        let res = lambda("$x + 1").unwrap().1;
-        assert_eq!(res, Lang::Empty);
+        let res = lambda("$x + 1".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
     }
 
 }

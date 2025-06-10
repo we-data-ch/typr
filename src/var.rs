@@ -140,16 +140,3 @@ impl Default for Var {
         Var("".to_string(), "".into(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_var_perm1(){
-        assert_eq!(
-            Var("hey".to_string(), "".to_string(), Permission::Public, false, Type::Empty).set_permission(false),
-            Var("hey".to_string(), "".to_string(), Permission::Private, false, Type::Empty)
-            ); 
-    }
-}

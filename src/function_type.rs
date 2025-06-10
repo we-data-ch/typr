@@ -2,6 +2,7 @@ use crate::argument_kind::ArgumentKind;
 use crate::Type;
 use crate::help_data::HelpData;
 
+#[derive(Debug)]
 pub struct FunctionType(pub Vec<ArgumentKind>, pub Vec<Type>, pub Type, pub HelpData);
 
 impl FunctionType {
