@@ -22,7 +22,6 @@ use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 use crate::CompileMode;
 use crate::lang_builder;
-use crate::error_message::ErrorMessage;
 
 
 fn unify_types(types: &[Type]) -> Type {
@@ -118,7 +117,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             install_package(name);
             install_header(name, context)
         },
-        Lang::ModuleDecl(name, _h) 
+        Lang::ModuleDecl(_name, _h) 
             => context.clone().add_module_declarations(&[expr.clone()]),
         _ => context.clone()
     }
@@ -176,12 +175,6 @@ pub fn match_types(ctx: &Context, type1: &Type, type2: &Type)
         .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
         .collect::<Vec<_>>();
     Some(unif_map)
-}
-
-fn apply_unification_type(context: &Context, map: UnificationMap, ret_ty: &Type) -> (Type, Context) {
-    let new_type = map.type_substitution(ret_ty)
-        .index_calculation();
-    (new_type, context.clone().push_unifications(map.0))
 }
 
 fn get_variable_type(lang: &Lang, tags: &[Tag]) -> Option<(Var, Type)> {
@@ -297,7 +290,6 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::FunctionApp(fn_var_name, args, _h) => {
-            let name = Var::from_language((**fn_var_name).clone()).unwrap_or(Var::default()).get_name();
             let func = fn_var_name.clone()
                 .get_related_function(args, context)
                 .expect("This is not a function but a");

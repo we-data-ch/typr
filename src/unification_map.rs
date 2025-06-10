@@ -1,7 +1,6 @@
 use crate::Type;
 use crate::unification;
 use crate::Context;
-use std::collections::HashMap;
 
 struct SafeHashMap {
     map: Vec<(Type, Type)>
@@ -15,8 +14,8 @@ impl SafeHashMap {
     }
 
     fn insert(&mut self, key: Type, value: Type) {
-        match self.map.iter().find(|(k, v)| k == &key) {
-            Some((ke, va)) => if (!(va.exact_match(&value))) { 
+        match self.map.iter().find(|(k, _v)| k == &key) {
+            Some((_ke, va)) => if !(va.exact_match(&value)) { 
                 panic!("{} doesn't match {}", va, value);
             },
             None => self.map.push((key, value))

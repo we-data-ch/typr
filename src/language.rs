@@ -302,7 +302,6 @@ impl Lang {
             Lang::GenFunc(func, _) => 
                 (func.to_string(), cont.clone()),
             Lang::Let(var, ttype, body, _) => {
-                let new_path = &var.get_path();
                 let (body_str, new_cont) = body.to_r(cont);
                 let new_name = var.clone().to_r();
                 
@@ -325,7 +324,7 @@ impl Lang {
                 let classes = new_cont.get_classes(ttype).unwrap();
                 (format!("{}\nclass({}) <- c({})", r_code, new_name2, classes), new_cont)
             },
-            Lang::Array(v, h) => {
+            Lang::Array(v, _h) => {
                 let str_linearized_array = &self.linearize_array()
                     .iter()
                     .map(|lang| lang.to_r(&cont).0)
@@ -962,6 +961,8 @@ impl From<Lang> for HelpData {
            Lang::Scope(_, h) => h,
            Lang::Let(_, _, _, h) => h,
            Lang::Alias(_, _, _, h) => h,
+           Lang::Lambda(_, h) => h,
+           Lang::Function(_, _, _, _, h) => h,
            e => panic!("Language element {:?} not yet implemented", e)
        }.clone()
    } 
@@ -979,7 +980,7 @@ use std::fmt;
 impl fmt::Display for Lang {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
-            Lang::Variable(name, path, permision, bo, typ, _h) 
+            Lang::Variable(name, path, _permision, _bo, typ, _h) 
                 => format!("{}{} -> {}", path, name, typ),
             _ => format!("{:?}", self)
         };

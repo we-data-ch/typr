@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use std::fmt;
 use crate::Lang;
 use crate::Type;

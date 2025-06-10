@@ -128,7 +128,6 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         // Generic subtyping
         (_, Type::Generic(_, _)) => true,
         (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
-        (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
         (Type::Char(_, _), Type::LabelGen(_, _)) => true,
         (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
 
@@ -185,7 +184,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 .map(|arg| reduce_param(context, arg))
                 .collect(), h.clone())
         },
-        Type::Alias(name, concret_types, path, _h) => {
+        Type::Alias(_name, concret_types, path, _h) => {
             let var = Var::from_type(type_.clone())
                 .expect(&format!("The alias {} is malformed", type_))
                 .set_path(path.clone());

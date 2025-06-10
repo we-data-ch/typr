@@ -141,7 +141,6 @@ impl Type {
            Type::Array(_size, body, _) => format!("{}[]", body.to_typescript()),
            Type::IndexGen(id, _) => id.to_uppercase(),
            Type::Generic(val, _) => val.to_uppercase(), 
-           Type::Integer(val, _) => val.to_string(),
            Type::Function(kinds, args, ret, _) => {
                let res = args.iter()
                     .enumerate()
@@ -184,7 +183,6 @@ impl Type {
            Type::Array(_size, body, _) => format!("{}[]", body.to_typescript()),
            Type::IndexGen(id, _) => id.to_uppercase(),
            Type::Generic(val, _) => val.to_uppercase(), 
-           Type::Integer(val, _) => val.to_string(),
            Type::Function(kinds, args, ret, _) => {
                let res = args.iter()
                     .enumerate()
@@ -430,9 +428,9 @@ impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Type::Number(_), Type::Number(_)) => true,
-            (Type::Integer(n, _), Type::Integer(m, _)) => true,
+            (Type::Integer(_, _), Type::Integer(_, _)) => true,
             (Type::Boolean(_), Type::Boolean(_)) => true,
-            (Type::Char(n, _), Type::Char(m, _)) => true, 
+            (Type::Char(_, _), Type::Char(_, _)) => true, 
             (Type::Embedded(e1, _), Type::Embedded(e2, _)) => e1 == e2,
             (Type::Function(a1, b1, c1, _), Type::Function(a2, b2, c2, _)) 
                 => a1 == a2 && b1 == b2 && c1 == c2,
@@ -476,7 +474,7 @@ impl PartialEq for Type {
 impl fmt::Display for Type {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Type::Function(k, p, r, h) 
+            Type::Function(_k, p, r, h) 
                 => write!(f, "({}) -> {}", Type::Params(p.clone(), h.clone()), r),
             Type::Params(v, _) => {
                 let res = v.iter()

@@ -7,17 +7,10 @@ use std::ops::Add;
 pub struct Path(String);
 
 impl Path {
-    fn format_path(&self) -> Path {
-        match &self.0[..] {
-            "" => Path("".to_string()),
-            pat => Path(pat.replace("::", "$") + "$")
-        }
-    }
-
     pub fn to_r(self) -> String {
         match &self.0[..] {
             "" => "".to_string(),
-            pat => self.0.replace("::", "$") + "$"
+            _ => self.0.replace("::", "$") + "$"
         }
     }
 

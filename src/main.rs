@@ -45,7 +45,6 @@ use crate::adt::Adt;
 use crate::type_checker::typing;
 use crate::context::Context;
 use crate::adt_manager::AdtManager;
-use std::collections::HashSet;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::fs;
@@ -71,14 +70,14 @@ pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool
 }
 
 #[derive(Debug, Parser, Clone, Copy, PartialEq)]
-enum TargetLanguage {
+pub enum TargetLanguage {
     R,
     TypeScript,
     AssemblyScript,
 }
 
 #[derive(Debug, Parser, Clone, Copy, PartialEq)]
-enum Environment {
+pub enum Environment {
     StandAlone,
     Project
 }

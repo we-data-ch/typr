@@ -68,7 +68,6 @@ pub fn format(ty: &Type) -> String {
                 .join(", ");
             format!("{{{}}}", body)
         },
-        Type::Char(l, _) => l.to_string(),
         Type::Add(a, b, _) => format!("{}+{}", a, b),
         Type::Minus(a, b, _) => format!("{}-{}", a, b),
         Type::Mul(a, b, _) => format!("{}*{}", a, b),

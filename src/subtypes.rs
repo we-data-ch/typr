@@ -7,14 +7,6 @@ use crate::type_comparison::reduce_type;
 #[derive(Debug, Clone)]
 pub struct Subtypes(HashSet<(Type, Type)>);
 
-fn not_alias_reverse_subtyping(typ1: &Type, typ2: &Type) -> bool {
-    match (typ1, typ2) {
-        (Type::Alias(_, _, _, _), Type::Alias(_, _, _, _)) => true,
-        (Type::Alias(_, _, _, _), _) => false,
-        _ => true
-    }
-}
-
 pub fn is_true_subtype(context: &Context, typ1: &Type, typ2: &Type) -> bool {
     (typ1 != typ2) 
         && is_subtype(context, typ1, typ2) 

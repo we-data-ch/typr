@@ -14,7 +14,6 @@ use crate::type_comparison::is_matching;
 use crate::help_data::HelpData;
 use std::collections::HashSet;
 use crate::adt_header::AdtHeader;
-use crate::Adt;
 use crate::typing;
 use crate::type_checker::match_types;
 use crate::unification_map::UnificationMap;
