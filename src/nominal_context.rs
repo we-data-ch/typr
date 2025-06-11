@@ -10,7 +10,6 @@ pub enum TypeCategory {
     Array,
     Function,
     Record,
-    Index,
     Alias,
     Tag,
     Union,
@@ -29,7 +28,6 @@ impl TypeCategory {
             Type::Array(_, _, _) => TypeCategory::Array,
             Type::Function(_, _, _, _) => TypeCategory::Function,
             Type::Record(_, _) => TypeCategory::Record,
-            Type::Integer(_, _) => TypeCategory::Index,
             Type::Alias(_, _, _, _) => TypeCategory::Alias,
             Type::Tag(_, _, _) => TypeCategory::Tag,
             Type::Union(_, _) => TypeCategory::Union,
@@ -52,7 +50,6 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Array => "Array",
             TypeCategory::Function => "Function",
             TypeCategory::Record => "Record",
-            TypeCategory::Index => "Index",
             TypeCategory::Tag => "Tag",
             TypeCategory::Alias => "Alias",
             TypeCategory::Union => "Union",
@@ -83,7 +80,6 @@ impl TypeNominal {
         categories.insert(TypeCategory::Array, 0 as usize);
         categories.insert(TypeCategory::Function, 0 as usize);
         categories.insert(TypeCategory::Record, 0 as usize);
-        categories.insert(TypeCategory::Index, 0 as usize);
         categories.insert(TypeCategory::Alias, 0 as usize);
         categories.insert(TypeCategory::Tag, 0 as usize);
         categories.insert(TypeCategory::Union, 0 as usize);
@@ -158,6 +154,9 @@ impl TypeNominal {
        match typ {
            Type::Empty(_) => "Empty".to_string(),
            Type::Any(_) => "Empty".to_string(),
+           Type::Integer(_, _) => "integer".to_string(),
+           Type::Number(_) => "numeric".to_string(),
+           Type::Char(_, _) => "character".to_string(),
            _ => {
                self.body.iter()
                    .find(|(typ_, _nominal)| {

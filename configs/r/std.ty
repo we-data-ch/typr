@@ -1,0 +1,7 @@
+let add <- fn(a: int, b: int): int {
+	...
+};
+
+let mul <- fn(a: int, b: int): int {
+	...
+};

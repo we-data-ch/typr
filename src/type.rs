@@ -392,6 +392,19 @@ impl Type {
         }
     }
 
+    pub fn for_var(self) -> Type {
+        match self.to_owned() {
+            Type::Function(_k, p, _r, _h) => {
+                if p.len() > 0 {
+                   p[0].to_owned()
+                } else {
+                    self
+                }
+            },
+            t => t
+        }
+    }
+
 }
 
 

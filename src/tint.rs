@@ -11,6 +11,15 @@ pub enum Tint {
     Unknown
 }
 
+impl Tint {
+    pub fn gen_of(&self, other: &Tint) -> bool {
+        match (self, other) {
+            (Tint::Unknown, _) => true,
+            _ => false
+        }
+    }
+}
+
 impl fmt::Display for Tint {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

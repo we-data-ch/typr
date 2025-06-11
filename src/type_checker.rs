@@ -126,7 +126,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
 fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         match (type1, type2) {
             (Type::Integer(i, _), Type::Integer(j, _)) => {
-                (i == j).then(|| vec![])
+                (j.gen_of(i)).then(|| vec![])
             },
             (_, Type::Generic(_, _)) | (_, Type::IndexGen(_, _)) | (_, Type::LabelGen(_, _))
                 => Some(vec![(type1.clone(), type2.clone())]),
@@ -137,7 +137,8 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                     .flat_map(|(typ1, typ2)| get_gen_type(typ1, typ2))
                     .flat_map(|x| x)
                     .collect::<Vec<_>>();
-                if res.len() > 0 { Some(res) } else { None }
+                //if res.len() > 0 { Some(res) } else { None }
+                Some(res)
             }
             (Type::Array(ind1, typ1, _), Type::Array(ind2, typ2, _)) => {
                let gen1 = get_gen_type(ind1, ind2)
@@ -175,7 +176,7 @@ pub fn match_types(ctx: &Context, type1: &Type, type2: &Type)
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
     let res = get_gen_type(&type1, &type2)
-        .expect("The matching don't work");
+        .expect(&format!("The matching {} == {} don't work", type1, type2));
     let unif_map = res.iter()
         .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
         .collect::<Vec<_>>();
@@ -261,7 +262,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let sub_context = params.into_iter()
                 .map(|arg_typ| 
                      Var::from_name(&arg_typ.get_argument_str())
-                        .set_type(arg_typ.get_type()))
+                        .set_type(arg_typ.get_type().for_var()))
                 .zip(list_of_types.clone().into_iter())
                 .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
             let res = typing(&sub_context, body);
