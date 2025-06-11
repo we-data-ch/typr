@@ -21,8 +21,8 @@ impl TypeHierarchy {
             .cloned().collect()
     }
 
-    pub fn update(&mut self, types: &[Type], context: &Context) -> TypeHierarchy {
-        types.iter().map(|typ| {
+    pub fn update(&mut self, types: &[Type], _context: &Context) -> TypeHierarchy {
+        types.iter().for_each(|typ| {
             let category = typ.to_category() ;
              let mut set = self.0.get(&category).unwrap().clone();
              set.insert(typ.clone());

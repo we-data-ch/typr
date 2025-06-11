@@ -128,6 +128,9 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
             (Type::Integer(i, _), Type::Integer(j, _)) => {
                 (j.gen_of(i)).then(|| vec![])
             },
+            (Type::Char(c, _), Type::Char(d, _)) => {
+                (d.gen_of(c)).then(|| vec![])
+            },
             (_, Type::Generic(_, _)) | (_, Type::IndexGen(_, _)) | (_, Type::LabelGen(_, _))
                 => Some(vec![(type1.clone(), type2.clone())]),
             (Type::Function(_, args1, ret_typ1, _), Type::Function(_, args2, ret_typ2, _)) => {

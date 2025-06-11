@@ -3,7 +3,6 @@ use crate::r#type::Type;
 use crate::language::Lang;
 use crate::var::Var;
 use crate::kind::Kind;
-use crate::subtypes::Subtypes;
 use crate::nominal_context::TypeNominal;
 use crate::argument_type::ArgumentType;
 use crate::vartype::VarType;
@@ -17,6 +16,7 @@ use crate::adt_header::AdtHeader;
 use crate::typing;
 use crate::type_checker::match_types;
 use crate::unification_map::UnificationMap;
+use crate::type_hierarchy::TypeHierarchy;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompileMode {
@@ -33,7 +33,7 @@ pub struct Context {
    pub typing_context: VarType,
    kinds: Vec<(Type, Kind)>,
    nominals: TypeNominal,
-   pub subtypes: Subtypes,
+   pub subtypes: TypeHierarchy,
    pub adt: AdtHeader,
    pub unifications: Vec<Vec<(Type, Type)>>
 }
@@ -47,7 +47,7 @@ impl Default for Context {
             typing_context: VarType::new(),
             kinds: vec![],
             nominals: TypeNominal::new(),
-            subtypes: Subtypes::new(),
+            subtypes: TypeHierarchy::new(),
             adt: AdtHeader::default(),
             unifications: vec![]
         }

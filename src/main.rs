@@ -21,7 +21,6 @@ mod type_printer;
 mod tag;
 mod index;
 mod adt_manager;
-mod subtypes;
 mod engine;
 mod vartype;
 mod unification_map;

@@ -7,6 +7,15 @@ pub enum Tchar {
     Unknown
 }
 
+impl Tchar {
+    pub fn gen_of(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Tchar::Unknown, _) => true,
+            _ => false
+        }
+    }
+}
+
 use std::fmt;
 impl fmt::Display for Tchar {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

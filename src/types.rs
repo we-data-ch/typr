@@ -339,7 +339,7 @@ fn union(s: Span) -> IResult<Span, Type> {
 fn chars(s: Span) -> IResult<Span, Type> {
     let res = tag("char")(s);
     match res {
-        Ok((s, st)) => Ok((s, Type::Char(st.clone().into(), st.into()))),
+        Ok((s, st)) => Ok((s, Type::Char(Tchar::Unknown, st.into()))),
         Err(r) => Err(r)
     }
 }

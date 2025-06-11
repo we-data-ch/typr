@@ -24,6 +24,7 @@ pub enum TypeCategory {
 
 impl TypeCategory {
     fn from_type(t: Type) -> TypeCategory {
+
         match t {
             Type::Array(_, _, _) => TypeCategory::Array,
             Type::Function(_, _, _, _) => TypeCategory::Function,

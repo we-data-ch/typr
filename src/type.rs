@@ -526,6 +526,7 @@ impl From<Type> for HelpData {
            Type::Integer(_, h) => h,
            Type::Record(_, h) => h,
            Type::Boolean(h) => h,
+           Type::Array(_, _, h) => h,
            e => panic!("The type element {:?} is not yet implemented", e)
        }.clone()
    } 

@@ -1,143 +1,3 @@
-# ERROR HANDLING ----------
-let stop <- fn(msg: char): Empty {
-	...
-};
-
-
-# OPTION TYPE -------------
-type Option<T> = .Some(T) | .None;
-
-let unwrap <- fn(value: Option<T>): T {
-	match value {
-		Some(v)	=> v,
-		None => stop("The value is not unwrappable.") 
-	}
-};
-
-let expect <- fn(value: Option<T>, msg: char): T {
-	match value {
-		Some(v)	=> v,
-		None => stop(msg) 
-	}
-};
-
-
-let unwrap_or <- fn(value: Option<T>, alternative: T): T {
-	match value {
-		Some(v) => v,
-		None => alternative
-	}
-};
-
-let is_some <- fn(value: Option<T>): bool {
-	match value {
-		Some(v) => true,
-		None => false
-	}
-};
-
-let is_none <- fn(value: Option<T>): bool {
-	match value {
-		Some(v) => false,
-		None => true
-	}
-};
-
-# PLOT FUNCTION ----------
-let plot <- fn(a: [#N, num], b: [#N, num], c: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool): .None {
-	...
-};
-
-type Plot = { x: [#N, num], y: [#N, num], type: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool};
-
-
-let bplot <- fn(): Plot {
-	:{ x: [0.5], y: [0.5], type: "p", xlim: [0.0, 5.0], ylim: [0.0, 5.0], log: "", main: "", sub: "", xlab: "", ylab: "", ann: true, axes: true}
-};
-
-let show <- fn(p: Plot): .None {
-	plot(p.x, p.y, p.type, p.xlim, p.ylim, p.log, p.main, p.sub, p.xlab, p.ylab, p.ann, p.axes)
-};
-
-type BPlot = { x: [1, num], y: [1, num], type: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool};
-#---------------------
-
-# System execution ----------
-
-let system2 <- fn(command: char, args: [#N, char], stdout: char, stderr: char, stdin: char): char {
-	...
-};
-
-type System2 = { command: char, args: [#N, char], stdout: char, stderr: char, stdin: char};
-
-
-let bsystem2 <- fn(command: char): System2 {
-	:{ command: command, args: [""], stdout: "", stderr: "", stdin: ""}
-};
-
-type BSystem2 = { command: char, args: [1, char], stdout: char, stderr: char, stdin: char};
-
-let exec <- fn(s: System2): char {
-	system2(s.command, s.args, s.stdout, s.stderr, s.stdin)
-};
-# --------------------------------
-
-let dot <- fn(m: [#M, [#P, int]], n: [#P, [#N, int]]): [#M, [#N, int]] {
-	...
-};
-
-let t <- fn(m: [#M, [#N, T]]): [#N, [#M, T]] {
-	...
-};
-
-# File System management ----------
-
-let getwd <- fn(): char {
-	...
-};
-
-let setwd <- fn(path: char): char {
-	...
-};
-
-let dir <- fn(): [#N, char] {
-	...
-};
-
-let list__files <- fn(): [#N, char] {
-	...	
-};
-
-let file__exists <- fn(file: char): bool {
-	...
-};
-
-let file__create <- fn(file: char): bool {
-	...
-};
-
-let file__remove <- fn(file: char): bool {
-	...
-};
-
-let file__rename <- fn(old: char, new: char): bool {
-	...
-};
-
-let file__copy <- fn(source: char, dest: char): bool {
-	...
-};
-
-let dir__create <- fn(source: char, dest: char): bool {
-	...
-};
-
-let unlink <- fn(target: char): bool {
-	...
-};
-
-
-# --------------------------------
 
 let nchar <- fn(a: char): int {
 	...
@@ -328,3 +188,153 @@ let contains <- fn(a: char, b: char): bool {
 	...
 };
 
+# File System management ----------
+
+let getwd <- fn(): char {
+	...
+};
+
+let setwd <- fn(path: char): char {
+	...
+};
+
+let dir <- fn(): [#N, char] {
+	...
+};
+
+let list__files <- fn(): [#N, char] {
+	...	
+};
+
+let file__exists <- fn(file: char): bool {
+	...
+};
+
+let file__create <- fn(file: char): bool {
+	...
+};
+
+let file__remove <- fn(file: char): bool {
+	...
+};
+
+let file__rename <- fn(old: char, new: char): bool {
+	...
+};
+
+let file__copy <- fn(source: char, dest: char): bool {
+	...
+};
+
+let dir__create <- fn(source: char, dest: char): bool {
+	...
+};
+
+let unlink <- fn(target: char): bool {
+	...
+};
+
+
+# --------------------------------
+
+
+let dot <- fn(m: [#M, [#P, int]], n: [#P, [#N, int]]): [#M, [#N, int]] {
+	...
+};
+
+let t <- fn(m: [#M, [#N, T]]): [#N, [#M, T]] {
+	...
+};
+
+let lvec <- fn(a: [#M, T]): [1, [#M, T]] {
+	[a]
+};
+
+let cvec <- fn(a: [#M, T]): [#M, [1, T]] {
+	a.lvec().t()
+};
+
+
+# ERROR HANDLING ----------
+let stop <- fn(msg: char): Empty {
+	...
+};
+
+
+# OPTION TYPE -------------
+type Option<T> = .Some(T) | .None;
+
+let unwrap <- fn(value: Option<T>): T {
+	match value {
+		Some(v)	=> v,
+		None => stop("The value is not unwrappable.") 
+	}
+};
+
+let expect <- fn(value: Option<T>, msg: char): T {
+	match value {
+		Some(v)	=> v,
+		None => stop(msg) 
+	}
+};
+
+
+let unwrap_or <- fn(value: Option<T>, alternative: T): T {
+	match value {
+		Some(v) => v,
+		None => alternative
+	}
+};
+
+let is_some <- fn(value: Option<T>): bool {
+	match value {
+		Some(v) => true,
+		None => false
+	}
+};
+
+let is_none <- fn(value: Option<T>): bool {
+	match value {
+		Some(v) => false,
+		None => true
+	}
+};
+
+# PLOT FUNCTION ----------
+let plot <- fn(a: [#N, num], b: [#N, num], c: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool): .None {
+	...
+};
+
+type Plot = { x: [#N, num], y: [#N, num], type: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool};
+
+
+let bplot <- fn(): Plot {
+	:{ x: [0.5], y: [0.5], type: "p", xlim: [0.0, 5.0], ylim: [0.0, 5.0], log: "", main: "", sub: "", xlab: "", ylab: "", ann: true, axes: true}
+};
+
+let show <- fn(p: Plot): .None {
+	plot(p.x, p.y, p.type, p.xlim, p.ylim, p.log, p.main, p.sub, p.xlab, p.ylab, p.ann, p.axes)
+};
+
+type BPlot = { x: [1, num], y: [1, num], type: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool};
+#---------------------
+
+# System execution ----------
+
+let system2 <- fn(command: char, args: [#N, char], stdout: char, stderr: char, stdin: char): char {
+	...
+};
+
+type System2 = { command: char, args: [#N, char], stdout: char, stderr: char, stdin: char};
+
+
+let bsystem2 <- fn(command: char): System2 {
+	:{ command: command, args: [""], stdout: "", stderr: "", stdin: ""}
+};
+
+type BSystem2 = { command: char, args: [1, char], stdout: char, stderr: char, stdin: char};
+
+let exec <- fn(s: System2): char {
+	system2(s.command, s.args, s.stdout, s.stderr, s.stdin)
+};
+# --------------------------------
