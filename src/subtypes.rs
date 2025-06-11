@@ -4,6 +4,7 @@ use crate::Context;
 use crate::Type;
 use crate::type_comparison::reduce_type;
 
+
 #[derive(Debug, Clone)]
 pub struct Subtypes(HashSet<(Type, Type)>);
 

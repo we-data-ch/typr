@@ -17,6 +17,7 @@ use crate::type_comparison::has_generic_label;
 use crate::type_comparison::all_subtype2;
 use crate::type_comparison::contains_all2;
 use std::cmp::Ordering;
+use crate::nominal_context::TypeCategory;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -478,6 +479,26 @@ impl Type {
             _ => false
         }
     }
+    
+    pub fn to_category(&self) -> TypeCategory {
+        match self {
+            Type::Array(_, _, _) => TypeCategory::Array,
+            Type::Function(_, _, _, _) => TypeCategory::Function,
+            Type::Record(_, _) => TypeCategory::Record,
+            Type::Alias(_, _, _, _) => TypeCategory::Alias,
+            Type::Tag(_, _, _) => TypeCategory::Tag,
+            Type::Union(_, _) => TypeCategory::Union,
+            Type::Interface(_, _) => TypeCategory::Interface,
+            Type::Boolean(_) => TypeCategory::Boolean,
+            Type::Number(_) => TypeCategory::Number,
+            Type::Char(_, _) => TypeCategory::Char,
+            Type::Generic(_, _) => TypeCategory::Generic,
+            Type::IndexGen(_, _) => TypeCategory::Generic,
+            Type::LabelGen(_, _) => TypeCategory::Generic,
+            _ => TypeCategory::Rest
+        }
+    }
+
 }
 
 
