@@ -13,6 +13,10 @@ use crate::path::Path;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
 use crate::function_type::FunctionType;
+use crate::type_comparison::has_generic_label;
+use crate::type_comparison::all_subtype2;
+use crate::type_comparison::contains_all2;
+use std::cmp::Ordering;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -405,6 +409,75 @@ impl Type {
         }
     }
 
+    pub fn is_subtype(&self, other: &Type) -> bool {
+        match (self, other) {
+            (typ1, typ2) if typ1 == typ2 => true,
+            // Array subtyping
+            (_, Type::Any(_)) => true,
+            (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
+                n1.is_subtype(n2) && t1.is_subtype(t2)
+            },
+            (Type::Function(_, args1, ret_typ1, _), Type::Function(_, args2, ret_typ2, _)) => {
+                args1.iter().chain([&(**ret_typ1)])
+                    .zip(args2.iter().chain([&(**ret_typ2)]))
+                    .all(|(typ1, typ2)| typ1.is_subtype(typ2))
+            }
+            // Interface subtyping
+            (_type1, Type::Interface(_args, _)) => {
+                //let res = args.iter()
+                    //.map(|arg| {
+                        //let var = Var::default()
+                            //.set_name(&arg.get_argument_str());
+                            ////.set_type(arg.get_type());
+                        //(var, arg.get_type().clone())
+                    //})
+                    //.collect::<Vec<_>>();
+                //check_interface_functions(
+                    //&res,
+                    //type1,
+                    //context
+                //)
+                todo!();
+            }
+
+            // Record subtyping
+            (Type::Record(r1, _), Type::Record(r2, _)) => {
+                if has_generic_label(r2) && (r1.len() == r2.len()) {
+                    all_subtype2(r1, r2)
+                } else if let Some(_arg_typ) = other.get_type_pattern() {
+                    true
+                } else {
+                    contains_all2(r1, r2)
+                }
+            },
+
+            (Type::Union(types1, _), Type::Union(_types2, _)) => {
+                types1.iter().all(|t1| t1.to_type().is_subtype(other))
+            },
+
+            // Union subtyping
+            (Type::Tag(_name, _body, _h), Type::Union(types, _)) => {
+                types.iter().any(|t| self.is_subtype(&t.to_type()))
+            },
+            (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
+                (name1 == name2) && body1.is_subtype(body2)
+            },
+
+            // Generic subtyping
+            (_, Type::Generic(_, _)) => true,
+            (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
+            (Type::Char(_, _), Type::LabelGen(_, _)) => true,
+            (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
+
+            // Params subtyping
+            (Type::Params(p1, _), Type::Params(p2, _)) => {
+                p1.len() == p2.len() && 
+                p1.iter().zip(p2.iter()).all(|(t1, t2)| t1.is_subtype(t2))
+            }
+
+            _ => false
+        }
+    }
 }
 
 
@@ -497,6 +570,26 @@ impl fmt::Display for Type {
                 write!(f, "{}", res)
             }
             _ => write!(f, "{}", format(self))
+        }
+    }
+}
+
+impl PartialOrd for Type {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.is_subtype(other) {
+            Some(Ordering::Less)
+        } else {
+            Some(Ordering::Greater)
+        }
+    }
+}
+
+impl Ord for Type {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.is_subtype(other) {
+            Ordering::Less
+        } else {
+            Ordering::Greater
         }
     }
 }

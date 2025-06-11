@@ -16,6 +16,14 @@ pub fn all_subtype(cont: &Context, set1: &[ArgumentType], set2: &[ArgumentType])
         })
 }
 
+pub fn all_subtype2(set1: &[ArgumentType], set2: &[ArgumentType]) -> bool {
+    set1.iter().zip(set2.iter())
+        .all(|(argt1, argt2)| {
+           argt1.get_argument().is_subtype(&argt2.get_argument())
+           && argt1.get_argument().is_subtype(&argt2.get_type())
+        })
+}
+
 fn contains_all(cont: &Context, vec1: &[ArgumentType], vec2: &[ArgumentType]) -> bool {
     vec1.iter()
         .any(|sub| {
@@ -23,6 +31,16 @@ fn contains_all(cont: &Context, vec1: &[ArgumentType], vec2: &[ArgumentType]) ->
                 .any(|sup| 
                      (sub.get_argument() == sup.get_argument())
                      && is_subtype(cont, &sub.get_type(), &sup.get_type()))
+        })
+}
+
+pub fn contains_all2(vec1: &[ArgumentType], vec2: &[ArgumentType]) -> bool {
+    vec1.iter()
+        .any(|sub| {
+            vec2.iter()
+                .any(|sup| 
+                     (sub.get_argument() == sup.get_argument())
+                     && sub.get_type().is_subtype(&sup.get_type()))
         })
 }
 
@@ -61,7 +79,7 @@ pub fn check_interface_functions(
     is_subset(functions, &functions2, context)
 }
 
-fn has_generic_label(v: &[ArgumentType]) -> bool {
+pub fn has_generic_label(v: &[ArgumentType]) -> bool {
     v.iter().any(|arg| match arg.get_argument() {
         Type::LabelGen(_, _) => true,
         _ => false
@@ -169,12 +187,9 @@ pub fn reduce_param(
     param: &ArgumentType  // List of pairs [X, Y1]
 ) -> ArgumentType {     // Returns list of pairs [X, Y2]
     
-    let name = &param.0;
-    let type_ = &param.1;
-    let rest = &param.2;
     // Reduce the type part of each parameter
-    let reduced_type = reduce_type(context, type_);
-    ArgumentType(name.clone(), reduced_type, rest.clone())
+    let reduced_type = reduce_type(context, &param.get_type());
+    ArgumentType(param.get_argument(), reduced_type, param.2.to_owned())
 }
 
 pub fn reduce_type(context: &Context, type_: &Type) -> Type {
