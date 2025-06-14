@@ -162,7 +162,7 @@ fn new(name: &str, target: TargetLanguage) {
     // Créer le dossier principal
     if let Err(e) = fs::create_dir(name) {
         eprintln!("Erreur lors de la création du dossier du projet: {}", e);
-        std::process::exit(1);
+        //std::process::exit(1);
     }
 
     // Créer la structure de base du projet
@@ -177,7 +177,6 @@ fn new(name: &str, target: TargetLanguage) {
         TargetLanguage::R => {
             directories.extend(vec![
                 "R",           // Pour les scripts R
-                "data",        // Pour les données
                 "man",         // Pour la documentation
                 "vignettes",   // Pour les tutoriels
             ]);

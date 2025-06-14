@@ -2,6 +2,7 @@ use crate::Type;
 use crate::unification;
 use crate::Context;
 
+#[derive(Debug)]
 struct SafeHashMap {
     map: Vec<(Type, Type)>
 }
@@ -14,6 +15,8 @@ impl SafeHashMap {
     }
 
     fn insert(&mut self, key: Type, value: Type) {
+        let key = key.generalize();
+        //let value = value.generalize();
         match self.map.iter().find(|(k, _v)| k == &key) {
             Some((_ke, va)) => if !(va.exact_match(&value)) { 
                 panic!("{} doesn't match {}", va, value);
@@ -34,7 +37,7 @@ impl UnificationMap {
     pub fn new(v: Vec<(Type, Type)>) -> Self {
         let mut safe_map = SafeHashMap::new();
         for (key, val) in v {
-            safe_map.insert(key, val)
+            safe_map.insert(key, val);
         }
         UnificationMap(safe_map.to_vec())
     }

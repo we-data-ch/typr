@@ -499,6 +499,17 @@ impl Type {
         }
     }
 
+    // for removing litteral data for Integer and Char
+    pub fn generalize(self) -> Type {
+        match self {
+            Type::Integer(Tint::Val(_), h) 
+                => Type::Integer(Tint::Unknown, h),
+            Type::Char(Tchar::Val(_), h) 
+                => Type::Char(Tchar::Unknown, h),
+            t => t
+        }
+    }
+
 }
 
 

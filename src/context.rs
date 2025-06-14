@@ -322,12 +322,12 @@ impl Context {
         format!("{}{}", msg, self.display_typing_context())
     }
 
-    pub fn get_unification_map(&self, args: &[Lang], param_types: &[Type]) 
+    pub fn get_unification_map(&self, values: &[Lang], param_types: &[Type]) 
         -> Option<UnificationMap> {
-        let res = args.iter()
-            .map(|arg| typing(self, arg).0)
+        let res = values.iter()
+            .map(|val| typing(self, val).0)
             .zip(param_types.iter())
-            .flat_map(|(arg, par)| match_types(self, &arg, par))
+            .flat_map(|(val_typ, par_typ)| match_types(self, &val_typ, par_typ))
             .flatten()
             .collect::<Vec<_>>();
         (res.len() > 0).then(|| UnificationMap::new(res))

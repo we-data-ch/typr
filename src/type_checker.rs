@@ -170,6 +170,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                 (Type::Tag(_name1, typ1, _h1), Type::Tag(_name2, typ2, _h2)) => {
                     get_gen_type(typ1, typ2)
                 }
+            (t1, t2) if t1 == t2 => Some(vec![]),
             _ => None
         }
 }
@@ -298,13 +299,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 typing(&new_context, &exp)
             }
         },
-        Lang::FunctionApp(fn_var_name, args, _h) => {
+        Lang::FunctionApp(fn_var_name, values, _h) => {
             let func = fn_var_name.clone()
-                .get_related_function(args, context)
+                .get_related_function(values, context)
                 .expect("This is not a function but a");
             let param_types = func.get_param_types();
             context
-                .get_unification_map(args, &param_types)
+                .get_unification_map(values, &param_types)
                 .unwrap_or(UnificationMap::new(vec![]))
                 .apply_unification_type(context, &func.get_ret_type())
         }
