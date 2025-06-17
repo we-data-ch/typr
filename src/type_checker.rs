@@ -329,9 +329,15 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         }
         Lang::Array(exprs, _h) => {
             let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
-            if types.windows(2).all(|w| w[0] == w[1]) {
+            if exprs.len() == 0 {
                 let new_type = Type::Array(
-                    Box::new(Type::Integer(exprs.len().into(), HelpData::default())),
+                    Box::new(builder::integer(0)),
+                    Box::new(builder::any_type()),
+                    HelpData::default());
+                (new_type, context.clone())
+            } else if types.windows(2).all(|w| w[0] == w[1]) {
+                let new_type = Type::Array(
+                    Box::new(builder::integer(exprs.len() as i32)),
                     Box::new(types[0].clone()),
                     HelpData::default());
                 (new_type, context.clone())

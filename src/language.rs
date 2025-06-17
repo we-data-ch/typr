@@ -333,8 +333,14 @@ impl Lang {
                 
                 let dim = typing(&cont, &self).0;
                 let shape = dim.get_shape().unwrap();
-                let classes = cont.get_classes(&dim).unwrap_or("".to_string());
-                let vector = format!("c({})", str_linearized_array);
+                let classes = cont.get_classes(&dim).unwrap_or("''".to_string());
+
+                let vector = if str_linearized_array == "" {
+                   "logical(0)".to_string()
+                } else {
+                    format!("{}", str_linearized_array)
+                };
+
                 let array = if shape.contains("dim(===)") {
                     format!("array({}, dim = c({}))", vector,
                                 shape.replace("===", &v[0].to_r(&cont).0))
@@ -909,7 +915,9 @@ impl Lang {
             Lang::Array(v, _) 
                 => v.iter()
                 .fold(vec![], |acc, x| 
-                      acc.iter().chain(x.linearize_array().iter()).cloned().collect()),
+                      acc.iter()
+                      .chain(x.linearize_array().iter())
+                      .cloned().collect()),
             _ => vec![self.to_owned()]
         }
     }

@@ -91,6 +91,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (typ1, typ2) if typ1 == typ2 => true,
         // Array subtyping
         (_, Type::Any(_)) => true,
+        (Type::Any(_), _) => true,
         (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
             is_subtype(context, n1, n2) && is_subtype(context, t1, t2)
         },

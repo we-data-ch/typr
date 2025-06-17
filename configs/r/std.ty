@@ -1,3 +1,8 @@
 let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K, int] {
 	...
 };
+
+let append <- fn(a: [#M, T], e: T): [#M+1, T] {
+	...
+};
+

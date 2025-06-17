@@ -15,9 +15,10 @@ impl SafeHashMap {
     }
 
     fn insert(&mut self, key: Type, value: Type) {
-        let key = key.generalize();
-        //let value = value.generalize();
         match self.map.iter().find(|(k, _v)| k == &key) {
+            Some((Type::Generic(_, _), Type::Integer(_, _))) => { 
+               self.map.push((key, value.generalize())) 
+            },
             Some((_ke, va)) => if !(va.exact_match(&value)) { 
                 panic!("{} doesn't match {}", va, value);
             },

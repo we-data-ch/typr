@@ -8,6 +8,9 @@ filter.default <- function(vec, condition) {
   vec[condition(vec)]
 }
 
+append <- function(x, ...) { UseMethod('append') }
+append.default <- function(a, e) { c(a, e) }
+
 into.default <- function(element, vecteur) {
   return(element %in% vecteur)
 }
