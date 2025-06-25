@@ -581,7 +581,7 @@ fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
 }
 
 fn lambda(s: Span) -> IResult<Span, Lang> {
-    let res = preceded(tag("$"), element_chain).parse(s);
+    let res = preceded(tag("~"), element_chain).parse(s);
     match res {
         Ok((s, e)) 
             => Ok((s, Lang::Lambda(Box::new(e.clone()), e.into()))),

@@ -2,6 +2,7 @@ use crate::Type;
 use crate::kind::Kind;
 use crate::help_data::HelpData;
 use crate::tint::Tint;
+use crate::tchar::Tchar;
 
 fn format_kind(ki: &Kind) -> String {
    match ki {
@@ -52,7 +53,12 @@ pub fn format(ty: &Type) -> String {
         },
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
-        Type::Char(_, _) => "char".to_string(),
+        Type::Char(tchar, _) => {
+            match tchar {
+                Tchar::Val(c) => format!("{}", c),
+                _ => "char".to_string()
+            }
+        },
         Type::Empty(_) => "Empty".to_string(),
         Type::Union(types, _) => {
             let formatted_types = types.iter().map(|ty| format(&ty.to_type())).collect::<Vec<_>>();

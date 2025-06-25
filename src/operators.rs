@@ -84,6 +84,8 @@ fn get_op(ls: LocatedSpan<&str, String>) -> Op {
         "|>>" => Op::Pipe2,
         "." => Op::Dot,
         ".." => Op::Dot2,
+        "$" => Op::Dot,
+        "$$" => Op::Dot2,
         "|" => Op::Union,
         "==" => Op::Eq,
         "<=" => Op::LesserOrEqual,
@@ -116,6 +118,8 @@ pub fn op(s: Span) -> IResult<Span, Op> {
             tag("|>"),
             tag(".."),
             tag("."),
+            tag("$$"),
+            tag("$"),
             tag("|")
             )),
         multispace0).parse(s);

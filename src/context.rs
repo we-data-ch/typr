@@ -120,7 +120,7 @@ impl Context {
         Context {
             typing_context: var_type, 
             nominals: nominals.clone(),
-            //subtypes: new_subtypes,
+            //subtypes: self.subtypes.a,
             adt: self.clone().add_generic_function(&wasm_types(&types, &nominals, context)).adt,
             ..self
         }
@@ -297,8 +297,10 @@ impl Context {
 
     pub fn update_classes(&self) -> Context {
         let types = self.typing_context.get_types().iter().cloned().collect::<Vec<_>>();
+        let mut new_subtypes = self.subtypes.to_owned();
+        new_subtypes.update(&types);
         Context {
-            subtypes: self.subtypes.clone().update(&types, self),
+            subtypes: new_subtypes,
             ..self.clone()
         }
     }

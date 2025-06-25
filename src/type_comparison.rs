@@ -237,6 +237,5 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::subtypes::is_true_subtype;
 
 }

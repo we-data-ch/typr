@@ -10,7 +10,6 @@ pub enum TypeCategory {
     Array,
     Function,
     Record,
-    Alias,
     Tag,
     Union,
     Interface,
@@ -29,7 +28,6 @@ impl TypeCategory {
             Type::Array(_, _, _) => TypeCategory::Array,
             Type::Function(_, _, _, _) => TypeCategory::Function,
             Type::Record(_, _) => TypeCategory::Record,
-            Type::Alias(_, _, _, _) => TypeCategory::Alias,
             Type::Tag(_, _, _) => TypeCategory::Tag,
             Type::Union(_, _) => TypeCategory::Union,
             Type::Interface(_, _) => TypeCategory::Interface,
@@ -52,7 +50,6 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Function => "Function",
             TypeCategory::Record => "Record",
             TypeCategory::Tag => "Tag",
-            TypeCategory::Alias => "Alias",
             TypeCategory::Union => "Union",
             TypeCategory::Interface => "Interface",
             TypeCategory::Boolean => "logical",
@@ -81,7 +78,6 @@ impl TypeNominal {
         categories.insert(TypeCategory::Array, 0 as usize);
         categories.insert(TypeCategory::Function, 0 as usize);
         categories.insert(TypeCategory::Record, 0 as usize);
-        categories.insert(TypeCategory::Alias, 0 as usize);
         categories.insert(TypeCategory::Tag, 0 as usize);
         categories.insert(TypeCategory::Union, 0 as usize);
         categories.insert(TypeCategory::Interface, 0 as usize);
@@ -104,7 +100,6 @@ impl TypeNominal {
           Type::Record(_, _) => self.get_nth_helper(TypeCategory::Record),
           Type::Number(_) | Type::Integer(_, _) | Type::Char(_, _) | Type::Boolean(_) => (self.categories.clone(), 100 as usize),
           Type::Embedded(_, _) | Type::Generic(_, _) | Type::IndexGen(_, _) => (self.categories.clone(), 0 as usize),
-          Type::Alias(_, _, _, _) => self.get_nth_helper(TypeCategory::Alias),
           Type::Tag(_, _, _) => self.get_nth_helper(TypeCategory::Tag),
           Type::Union(_, _) => self.get_nth_helper(TypeCategory::Union),
           Type::Interface(_, _) => self.get_nth_helper(TypeCategory::Interface),

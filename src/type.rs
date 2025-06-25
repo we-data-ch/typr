@@ -18,6 +18,8 @@ use crate::type_comparison::all_subtype2;
 use crate::type_comparison::contains_all2;
 use std::cmp::Ordering;
 use crate::nominal_context::TypeCategory;
+use crate::Context;
+use crate::type_comparison::reduce_type;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -485,7 +487,6 @@ impl Type {
             Type::Array(_, _, _) => TypeCategory::Array,
             Type::Function(_, _, _, _) => TypeCategory::Function,
             Type::Record(_, _) => TypeCategory::Record,
-            Type::Alias(_, _, _, _) => TypeCategory::Alias,
             Type::Tag(_, _, _) => TypeCategory::Tag,
             Type::Union(_, _) => TypeCategory::Union,
             Type::Interface(_, _) => TypeCategory::Interface,
@@ -508,6 +509,10 @@ impl Type {
                 => Type::Char(Tchar::Unknown, h),
             t => t
         }
+    }
+
+    pub fn reduce(&self, context: &Context) -> Type {
+        reduce_type(context, self)
     }
 
 }

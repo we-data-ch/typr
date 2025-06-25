@@ -338,7 +338,7 @@ impl Lang {
                 let vector = if str_linearized_array == "" {
                    "logical(0)".to_string()
                 } else {
-                    format!("{}", str_linearized_array)
+                    format!("c({})", str_linearized_array)
                 };
 
                 let array = if shape.contains("dim(===)") {
@@ -971,6 +971,7 @@ impl From<Lang> for HelpData {
            Lang::Alias(_, _, _, h) => h,
            Lang::Lambda(_, h) => h,
            Lang::Function(_, _, _, _, h) => h,
+           Lang::LesserThan(_, _, h) => h,
            e => panic!("Language element {:?} not yet implemented", e)
        }.clone()
    } 

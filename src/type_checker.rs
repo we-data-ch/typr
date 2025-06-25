@@ -73,14 +73,18 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, exp, _h) => {
             let ty = if ty == &builder::empty_type() {Type::Any(HelpData::default())} else {ty.clone()};
+            let reduced_ty = ty.reduce(context);
+
             let expr_ty = typing(&context, exp).0;
-            let new_context = type_comparison::is_matching(&context, &expr_ty, &ty).then(|| {
+            let reduced_expr_ty = expr_ty.reduce(context);
+
+            let new_context = type_comparison::is_matching(&context, &reduced_expr_ty, &reduced_ty).then(|| {
                 if ty != builder::any_type() {
-                    context.clone()
-                        .push_var_type(name.clone().into(), ty.clone(), context)
+                    context.to_owned()
+                        .push_var_type(name.to_owned().into(), reduced_ty.to_owned(), context)
                 } else {
-                    context.clone()
-                        .push_var_type(name.clone().into(), expr_ty.clone(), context)
+                    context.to_owned()
+                        .push_var_type(name.to_owned().into(), reduced_expr_ty.to_owned(), context)
                 }
             }).expect(&format!("Type error:\n {} don't match {}", expr_ty, ty));
             if exp.is_function() && !exp.is_undefined() && new_context.compile_mode == CompileMode::Body {
@@ -331,13 +335,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
             if exprs.len() == 0 {
                 let new_type = Type::Array(
-                    Box::new(builder::integer(0)),
+                    Box::new(builder::integer_type(0)),
                     Box::new(builder::any_type()),
                     HelpData::default());
                 (new_type, context.clone())
             } else if types.windows(2).all(|w| w[0] == w[1]) {
                 let new_type = Type::Array(
-                    Box::new(builder::integer(exprs.len() as i32)),
+                    Box::new(builder::integer_type(exprs.len() as i32)),
                     Box::new(types[0].clone()),
                     HelpData::default());
                 (new_type, context.clone())
