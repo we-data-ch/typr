@@ -67,10 +67,31 @@ impl fmt::Display for TypeCategory {
 struct Categories(HashMap<TypeCategory, usize>);
 
 #[derive(Debug, Clone)]
+struct AliasNominal(Vec<(Type, Nominal)>);
+
+impl AliasNominal {
+    pub fn new() -> Self {
+        AliasNominal(vec![])
+    }
+
+    pub fn get_nominal(&self, typ: &Type) -> Option<String> {
+        self.0.iter()
+            .find(|(typ2, _)| typ == typ2)
+            .map(|(_, nom)| nom.0.to_owned())
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, (Type, Nominal)> {
+        self.0.iter()
+    }
+
+}
+
+#[derive(Debug, Clone)]
 pub struct TypeNominal {
-    pub body: Vec<(Type, Nominal)>,
+    pub body: AliasNominal, 
     categories: Categories
 }
+
 
 impl TypeNominal {
     pub fn new() -> Self {
@@ -88,7 +109,7 @@ impl TypeNominal {
         categories.insert(TypeCategory::Generic, 0 as usize);
         categories.insert(TypeCategory::Rest, 0 as usize);
         TypeNominal {
-            body: vec![],
+            body: AliasNominal::new(),
             categories: Categories(categories)
         }
     }
@@ -136,12 +157,24 @@ impl TypeNominal {
 
    pub fn push_type(&self, typ: Type) -> TypeNominal {
        if self.contains(&typ) {
-            self.clone()
+            self.to_owned()
        } else {
            let cat_nom = self.new_nominal(typ.clone());
            TypeNominal {
-               body: self.body.iter().chain([(typ, cat_nom.1)].iter()).cloned().collect::<Vec<_>>(),
+               body: AliasNominal(self.body.iter().chain([(typ, cat_nom.1)].iter()).cloned().collect::<Vec<_>>()),
                categories: cat_nom.0
+           }
+       }
+   }
+
+   pub fn push_alias(&self, alias_name: String, typ: Type) -> TypeNominal {
+       if self.contains(&typ) {
+            self.to_owned()
+       } else {
+           let nominal = Nominal(alias_name);
+           TypeNominal {
+               body: AliasNominal(self.body.iter().chain([(typ, nominal)].iter()).cloned().collect::<Vec<_>>()),
+               ..self.to_owned()
            }
        }
    }
@@ -155,13 +188,14 @@ impl TypeNominal {
            Type::Char(_, _) => "character".to_string(),
            _ => {
                self.body.iter()
-                   .find(|(typ_, _nominal)| {
+                   .find(|(typ_, _)| {
                        let typ1 = reduce_type(cont, typ);
                        let typ2 = reduce_type(cont, typ_);
                      is_subtype(cont, &typ1, &typ2)
-                   }).cloned()
-                   .unwrap_or((Type::Empty(HelpData::default()), Nominal("Empty".to_string())))
-                   .1.0.clone()
+                   })
+                    .map(|(_, nominal)| nominal.clone())
+                   .unwrap_or(Nominal("Empty".to_string()))
+                   .0.clone()
            }
        }
    }
@@ -170,6 +204,22 @@ impl TypeNominal {
        self.body.iter()
            .find(|(_type, nominal)| class == nominal.0)
            .unwrap().0.clone()
+   }
+
+   pub fn get_nominal(&self, typ: Type) -> (TypeNominal, String) {
+       match self.body.get_nominal(&typ) {
+           Some(nom) => (self.to_owned(), nom),
+           None => self.generate_nominal(typ)
+       }
+   }
+
+   pub fn generate_nominal(&self, typ: Type) -> (TypeNominal, String) {
+       let new_type_nominal = self.push_type(typ.clone());
+       let type_category = typ.to_category();
+       let categories = new_type_nominal.categories.0.clone();
+       let index = categories.get(&type_category)
+           .expect(&format!("The type category {} wasn't found", type_category));
+       (new_type_nominal, format!("{}{}", type_category, index))
    }
 
 }

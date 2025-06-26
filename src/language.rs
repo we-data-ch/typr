@@ -234,9 +234,10 @@ impl Lang {
             Lang::Function(_args_kind, args, _typ, body, _h) => {
                 let sub_cont = cont.add_arg_types(args);
                 let (body_str, new_cont) = body.to_r(&sub_cont);
-                (format!("function({}) {{ {} }}", 
+                let classes = cont.get_classes(&typing(&sub_cont, self).0).unwrap();
+                (format!("(function({}) {{\n {} \n}}) |>\n\t struct({})", 
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
-                        body_str), 
+                        body_str, classes), 
                 new_cont)
             },
             Lang::Variable(v, path, _perm, _muta, _ty, _) => {
@@ -322,7 +323,7 @@ impl Lang {
                 };
 
                 let classes = new_cont.get_classes(ttype).unwrap();
-                (format!("{}\nclass({}) <- c({})", r_code, new_name2, classes), new_cont)
+                (format!("{} |> \n\tstruct({})", r_code, classes), new_cont)
             },
             Lang::Array(v, _h) => {
                 let str_linearized_array = &self.linearize_array()
@@ -348,7 +349,7 @@ impl Lang {
                     format!("array({}, dim = c({}))", vector, shape)
                 };
 
-                (format!("struct({}, {})", array, classes)
+                (format!("{} |> \n\tstruct({})", array, classes)
                  ,cont.to_owned())
             },
             Lang::Record(args, _) => {

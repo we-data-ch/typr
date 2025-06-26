@@ -101,7 +101,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let (fn_typ, new_context2) = new_context.get_embeddings(typ);
             let new_context3 = fn_typ.iter()
                 .fold(new_context2, |ctx, var_typfun| ctx.push_var_type(var_typfun.0.clone(), var_typfun.1.clone(), context));
-            new_context3
+            new_context3.push_alias(name.get_name(), typ.to_owned())
         },
         Lang::Assign(var, expr, _h) => {
             let type1 = context.get_type_from_variable(Var::from_language((**var).clone()).unwrap());

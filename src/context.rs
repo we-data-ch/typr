@@ -113,14 +113,15 @@ impl Context {
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let types = typ.type_extraction();
         let var_type = VarType(self.typing_context.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
-        let _type_list: Vec<_> = var_type.get_types().iter().cloned().collect();
-        //let new_subtypes = self.subtypes.clone().update(&type_list, context);
+        let type_list: Vec<_> = var_type.get_types().iter().cloned().collect();
         let nominals = types.iter()
             .fold(self.nominals.clone(), |nom, typ_| nom.push_type(typ_.clone()));
+        let mut typ_hie = self.subtypes.clone();
+        typ_hie.update(&type_list);
         Context {
             typing_context: var_type, 
             nominals: nominals.clone(),
-            //subtypes: self.subtypes.a,
+            subtypes: typ_hie,
             adt: self.clone().add_generic_function(&wasm_types(&types, &nominals, context)).adt,
             ..self
         }
@@ -138,12 +139,33 @@ impl Context {
         self.nominals.get_class(t, self)
     }
 
+    //pub fn get_classes(&self, t: &Type) -> Option<String> {
+        //self.get_supertypes(t)
+            //.into_iter().map(|typ| self.nominals.get_class(&typ, self))
+            //.collect::<HashSet<_>>().iter()
+            //.map(|x| format!("'{}'", x))
+            //.reduce(|acc, x| format!("{}, {}", acc, x))
+    //}
+
     pub fn get_classes(&self, t: &Type) -> Option<String> {
-        self.get_supertypes(t)
-            .into_iter().map(|typ| self.nominals.get_class(&typ, self))
-            .collect::<HashSet<_>>().iter()
-            .map(|x| format!("'{}'", x))
-            .reduce(|acc, x| format!("{}, {}", acc, x))
+        let super_types = self.subtypes.get_supertypes(t);
+        let (type_hierarchy, classes) = super_types.iter()
+            .fold((self.nominals.clone(), vec![]), 
+                  |acc, typ| {
+                      let (noms, nom_str) = acc.0.get_nominal(typ.to_owned());
+                      (noms, acc.1.iter().chain([format!("'{}'", nom_str)].iter()).cloned().collect())
+                  });
+        if classes.len() == 0 {
+            None
+        } else {
+            Some(
+                format!("c({})",
+                    classes.iter().cloned().collect::<HashSet<_>>()
+                        .iter().cloned().collect::<Vec<_>>()
+                        .join(", ")
+                        )
+                )
+        }
     }
 
     pub fn get_supertypes(&self, t: &Type) -> Vec<Type> {
@@ -272,12 +294,20 @@ impl Context {
     pub fn add_arg_types(&self, params: &[ArgumentType]) -> Context {
         let param_types = params.iter()
             .map(|arg_typ| arg_typ.get_type())
+            .map(|typ| match typ.to_owned() {
+                Type::Function(_, typs, _, _) => {
+                    if typs.len() > 0 {
+                        typs[0].clone()
+                    } else { typ }
+                },
+                t => t
+            })
             .collect::<Vec<_>>();
         params.into_iter()
-            .map(|arg_typ| 
-                 Var::from_name(&arg_typ.get_argument_str())
-                    .set_type(arg_typ.get_type()))
             .zip(param_types.clone().into_iter())
+            .map(|(arg_typ, par_typ)| 
+                 (Var::from_name(&arg_typ.get_argument_str())
+                    .set_type(par_typ), arg_typ.get_type()))
             .fold(self.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont))
     }
 
@@ -334,6 +364,14 @@ impl Context {
             .collect::<Vec<_>>();
         (res.len() > 0).then(|| UnificationMap::new(res))
     }
+
+    pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
+        Context {
+            nominals: self.nominals.push_alias(alias_name.to_string(), typ),
+            ..self
+        }
+    }
+
 }
 
 fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
