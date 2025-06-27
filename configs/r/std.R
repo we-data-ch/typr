@@ -49,3 +49,9 @@ struct <- function(x, new_class) {
 	class(x) <- union(class(x), new_class)
 	return(x)
 }
+
+let_type <- function(x, new_class) {
+  class(x) <- new_class
+  return(x)
+}
+

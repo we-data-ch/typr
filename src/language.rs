@@ -13,6 +13,7 @@ use crate::unification;
 use crate::help_data::HelpData;
 use crate::path::Path;
 use crate::function_type::FunctionType;
+use crate::type_comparison::reduce_type;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Lang {
@@ -234,10 +235,15 @@ impl Lang {
             Lang::Function(_args_kind, args, _typ, body, _h) => {
                 let sub_cont = cont.add_arg_types(args);
                 let (body_str, new_cont) = body.to_r(&sub_cont);
-                let classes = cont.get_classes(&typing(&sub_cont, self).0).unwrap();
-                (format!("(function({}) {{\n {} \n}}) |>\n\t struct({})", 
+                let fn_type = typing(&sub_cont, self).0;
+                dbg!(&fn_type.pretty());
+                let class = cont.get_class(&fn_type);
+                dbg!(&class);
+                let classes = cont.get_classes(&fn_type)
+                    .unwrap_or("''".to_string());
+                (format!("(function({}) {{\n {} \n}}) |>\n\t struct(c('{}', {}))", 
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
-                        body_str, classes), 
+                        body_str, class, classes), 
                 new_cont)
             },
             Lang::Variable(v, path, _perm, _muta, _ty, _) => {
@@ -254,12 +260,15 @@ impl Lang {
             Lang::FunctionApp(exp, vals, _) => {
                 let (exp_str, cont1) = exp.to_r(cont);
                 let (unification_map, _cont2) = cont1.pop_unifications();
-                let exp_typ = typing(cont, exp).0;
-                let new_exp_typ = unification::type_substitution(&exp_typ, &unification_map.unwrap_or(vec![]));
+                let fn_type = typing(cont, exp).0;
+                let new_fn_typ = unification::type_substitution(&fn_type, &unification_map.unwrap_or(vec![]));
 
-                let new_vals = match new_exp_typ {
+                let new_vals = match new_fn_typ {
                     Type::Function(_, args, _, _) => {
-                        vals.into_iter().zip(args.into_iter())
+                        let new_args = args.into_iter()
+                            .map(|arg| reduce_type(&cont1, &arg))
+                            .collect::<Vec<_>>();
+                        vals.into_iter().zip(new_args.iter())
                             .map(|(val, arg)| {
                                 match arg {
                                     Type::Function(_, args2, _, _) 
@@ -309,7 +318,8 @@ impl Lang {
                 let (r_code, _new_name2) = match (**body).clone() {
                     Lang::Function(_, _, _, _, _) => {
                         let related_type = var.get_type();
-                        let class = cont.get_class(&related_type);
+                        let related_type_reduced = reduce_type(cont, &related_type).generalize();
+                        let class = cont.get_class(&related_type_reduced);
                         if class.len() > 7 && &class[0..7] == "Generic" {
                             (format!("{}.default <- {}", new_name, body_str), new_name)
                         } else if class == "Empty" {
@@ -322,10 +332,14 @@ impl Lang {
                     _ => (format!("{} <- {}", new_name, body_str), new_name)
                 };
 
-                let classes = new_cont
-                    .get_classes(ttype)
-                    .unwrap_or("''".to_string());
-                (format!("{} |> \n\tstruct({})", r_code, classes), new_cont)
+                let classes_res = new_cont.get_classes(ttype);
+
+                match classes_res {
+                    Some(classes) =>
+                        (format!("{} |> \n\tlet_type({})", r_code, classes),
+                        new_cont),
+                    None => (r_code, new_cont)
+                }
             },
             Lang::Array(v, _h) => {
                 let str_linearized_array = &self.linearize_array()
@@ -367,7 +381,6 @@ impl Lang {
                 let body = arg_strs.join(", ");
                 let typ = type_checker::typing(cont, self).0;
                 let class = cont.get_class(&typ);
-                let _res = cont.get_classes(&typ);
                 match cont.get_classes(&typ) {
                     Some(res) => (format!("struct(list({}), c('list', 'Record', '{}', {}))", body, class, res), current_cont),
                     _ => (format!("struct(list({}), c('list', 'Record', '{}'))", body, class), current_cont)

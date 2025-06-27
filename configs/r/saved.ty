@@ -33,7 +33,3 @@ let dot <- fn(m: [#M, [#P, int]], n: [#P, [#N, int]]): [#M, [#N, int]] {
 let t <- fn(m: [#M, [#N, T]]): [#N, [#M, T]] {
 	...
 };
-
-let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K, int] {
-	...
-};

@@ -273,10 +273,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), context.to_owned())
             } else {
                 let sub_context = params.into_iter()
-                    .map(|arg_typ| 
-                         Var::from_name(&arg_typ.get_argument_str())
-                            .set_type(arg_typ.get_type().for_var()))
-                    .zip(list_of_types.clone().into_iter())
+                    .map(|arg_typ| {
+                        let new_type = reduce_type(context, &arg_typ.get_type())
+                            .for_var();
+                        Var::from_name(&arg_typ.get_argument_str())
+                            .set_type(new_type)
+                    })
+                    .zip(list_of_types.clone().into_iter().map(|typ| reduce_type(context, &typ)))
                     .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
                 let res = typing(&sub_context, body);
                 let reduced_type = reduce_type(&sub_context, &res.0);
@@ -314,7 +317,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::FunctionApp(fn_var_name, values, _h) => {
             let func = fn_var_name.clone()
                 .get_related_function(values, context)
-                .expect("This is not a function but a");
+                .expect(&format!("Can't find the function in the context:\n {}", context.display_typing_context()));
             let param_types = func.get_param_types();
             context
                 .get_unification_map(values, &param_types)
@@ -396,15 +399,8 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 _ => panic!("Type error"),
             }
         },
-        Lang::Variable(na, pa, pe, sp, ty, h) => {
-            let var = Var::from_language(
-                Lang::Variable(na.clone(),
-                pa.clone(),
-                pe.clone(),
-                sp.clone(),
-                ty.clone(),
-                h.clone())).unwrap();
-            (context.get_type_from_variable(var), context.clone())
+        Lang::Variable(_, _, _, _, _, _) => {
+            (context.get_type_from_variable(Var::from_language(expr.clone()).unwrap()), context.clone())
         },
         Lang::Scope(expr, _) if expr.len() == 1 => {
             typing(context, &expr[0])

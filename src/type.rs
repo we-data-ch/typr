@@ -20,6 +20,8 @@ use std::cmp::Ordering;
 use crate::nominal_context::TypeCategory;
 use crate::Context;
 use crate::type_comparison::reduce_type;
+use std::hash::Hash;
+use std::hash::Hasher;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -31,7 +33,7 @@ fn to_string<T: ToString>(v: &[T]) -> String {
 
 
 
-#[derive(Debug, Clone, Serialize, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Eq)]
 pub enum Type {
     Number(HelpData),
     Integer(Tint, HelpData),
@@ -628,6 +630,44 @@ impl Ord for Type {
             Ordering::Less
         } else {
             Ordering::Greater
+        }
+    }
+}
+
+impl Hash for Type {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // Utiliser un discriminant pour différencier les variantes
+        match self {
+            Type::Number(_) => 0.hash(state),
+            Type::Integer(_, _) => 1.hash(state),
+            Type::Boolean(_) => 2.hash(state),
+            Type::Char(_, _) => 3.hash(state),
+            Type::Embedded(e2, _) => 4.hash(state),
+            Type::Function(a2, b2, c2, _) => 5.hash(state),
+            Type::Generic(e2, _) => 6.hash(state),
+            Type::IndexGen(e2, _) => 7.hash(state),
+            Type::LabelGen(e2, _) => 8.hash(state),
+            Type::Array(a2, b2, _) => 9.hash(state),
+            Type::Record(e2, _) => 10.hash(state),
+            Type::Alias(a2, b2, c2, _) => 11.hash(state),
+            Type::Tag(a2, b2, _) => 12.hash(state),
+            Type::Union(e2, _) => 13.hash(state),
+            Type::Interface(e2, _) => 14.hash(state),
+            Type::Params(e2, _) => 15.hash(state),
+            Type::Add(a2, b2, _) => 16.hash(state),
+            Type::Minus(a2, b2, _) => 17.hash(state),
+            Type::Mul(a2, b2, _) => 18.hash(state),
+            Type::Div(a2, b2, _) => 19.hash(state),
+            Type::Failed(e2, _) => 20.hash(state),
+            Type::Opaque(e2, _) => 21.hash(state),
+            Type::Multi(e2, _) => 22.hash(state),
+            Type::Tuple(e2, _) => 23.hash(state),
+            Type::If(a2, b2, _) => 24.hash(state),
+            Type::Condition(a2, b2, c2, _) => 25.hash(state),
+            Type::In(_) => 26.hash(state),
+            Type::Empty(_) => 27.hash(state),
+            Type::Any(_) => 28.hash(state),
+            _ => todo!()
         }
     }
 }

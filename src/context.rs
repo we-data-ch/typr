@@ -17,6 +17,7 @@ use crate::typing;
 use crate::type_checker::match_types;
 use crate::unification_map::UnificationMap;
 use crate::type_graph::TypeGraph;
+use crate::type_comparison::reduce_type;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompileMode {
@@ -136,7 +137,7 @@ impl Context {
     }
 
     pub fn get_class(&self, t: &Type) -> String {
-        self.nominals.get_class(t, self)
+        self.nominals.get_nominal(t.clone()).1
     }
 
     pub fn get_classes(&self, t: &Type) -> Option<String> {
@@ -285,7 +286,7 @@ impl Context {
     }
     pub fn add_arg_types(&self, params: &[ArgumentType]) -> Context {
         let param_types = params.iter()
-            .map(|arg_typ| arg_typ.get_type())
+            .map(|arg_typ| reduce_type(self, &arg_typ.get_type()).for_var())
             .map(|typ| match typ.to_owned() {
                 Type::Function(_, typs, _, _) => {
                     if typs.len() > 0 {
@@ -299,7 +300,7 @@ impl Context {
             .zip(param_types.clone().into_iter())
             .map(|(arg_typ, par_typ)| 
                  (Var::from_name(&arg_typ.get_argument_str())
-                    .set_type(par_typ), arg_typ.get_type()))
+                    .set_type(par_typ), reduce_type(self, &arg_typ.get_type())))
             .fold(self.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont))
     }
 
@@ -366,6 +367,10 @@ impl Context {
 
     pub fn is_in_header_mode(&self) -> bool {
         self.compile_mode == CompileMode::Header 
+    }
+
+    pub fn display_nominals(&self) -> String {
+        self.nominals.display_nominals()
     }
 
 }

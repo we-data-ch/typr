@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use crate::r#type::Type;
 use crate::Context;
-use crate::type_comparison::is_subtype;
-use crate::type_comparison::reduce_type;
+use crate::builder;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TypeCategory {
@@ -66,21 +65,38 @@ impl fmt::Display for TypeCategory {
 struct Categories(HashMap<TypeCategory, usize>);
 
 #[derive(Debug, Clone)]
-pub struct AliasNominal(Vec<(Type, Nominal)>);
+pub struct AliasNominal(HashMap<Type, Nominal>);
 
 impl AliasNominal {
     pub fn new() -> Self {
-        AliasNominal(vec![])
+        AliasNominal(HashMap::new())
     }
 
     pub fn get_nominal(&self, typ: &Type) -> Option<String> {
-        self.0.iter()
-            .find(|(typ2, _)| typ == typ2)
-            .map(|(_, nom)| nom.0.to_owned())
+        self.0.get(typ).map(|nom| nom.0.clone())
     }
 
-    pub fn iter(&self) -> std::slice::Iter<'_, (Type, Nominal)> {
-        self.0.iter()
+    pub fn push_alias(&mut self, alias_name: &str, typ: &Type) {
+       let nominal = Nominal(alias_name.to_string());
+       self.0.insert(typ.to_owned(), nominal);
+    }
+
+    pub fn contains(&self, typ: &Type) -> bool {
+       self.0.keys()
+           .find(|typ_| typ == *typ_ || (typ.is_generic() && typ_.is_generic()))
+           .is_some()
+    }
+
+    pub fn push_type(&mut self, typ: Type, cat_nom: Nominal) {
+        self.0.entry(typ).or_insert(cat_nom);
+    }
+
+    pub fn display_nominals(&self) -> String {
+        "-----------------\n".to_string() +
+        &self.0.iter().map(|(typ, nom)| {
+            typ.pretty() + " ===> " + &nom.0
+        }).collect::<Vec<_>>().join("\n") +
+        "\n-----------------\n"
     }
 
 }
@@ -149,36 +165,33 @@ impl TypeNominal {
    }
 
    fn contains(&self, typ: &Type) -> bool {
-       self.body.iter()
-           .find(|(typ_, _nom)| typ == typ_ || (typ.is_generic() && typ_.is_generic()))
-           .is_some()
+       self.body.contains(typ)
    }
 
    pub fn push_type(&self, typ: Type) -> TypeNominal {
-       if self.contains(&typ) {
+       if self.contains(&typ) || typ.clone().to_category() == TypeCategory::Rest {
             self.to_owned()
        } else {
            let cat_nom = self.new_nominal(typ.clone());
+           let mut alias_nominal = self.body.to_owned();
+           alias_nominal.push_type(typ, cat_nom.1);
            TypeNominal {
-               body: AliasNominal(self.body.iter().chain([(typ, cat_nom.1)].iter()).cloned().collect::<Vec<_>>()),
+               body: alias_nominal,
                categories: cat_nom.0
            }
        }
    }
 
    pub fn push_alias(&self, alias_name: String, typ: Type) -> TypeNominal {
-       if self.contains(&typ) {
-            self.to_owned()
-       } else {
-           let nominal = Nominal(alias_name);
-           TypeNominal {
-               body: AliasNominal(self.body.iter().chain([(typ, nominal)].iter()).cloned().collect::<Vec<_>>()),
-               ..self.to_owned()
-           }
+       let mut alias_nominal = self.body.to_owned();
+       alias_nominal.push_alias(&alias_name, &typ);
+       TypeNominal {
+           body: alias_nominal,
+           ..self.to_owned()
        }
    }
 
-   pub fn get_class(&self, typ: &Type, cont: &Context) -> String {
+   pub fn get_class(&self, typ: &Type, _cont: &Context) -> String {
        match typ {
            Type::Empty(_) => "Empty".to_string(),
            Type::Any(_) => "Empty".to_string(),
@@ -186,29 +199,27 @@ impl TypeNominal {
            Type::Number(_) => "numeric".to_string(),
            Type::Char(_, _) => "character".to_string(),
            _ => {
-               self.body.iter()
-                   .find(|(typ_, _)| {
-                       let typ1 = reduce_type(cont, typ);
-                       let typ2 = reduce_type(cont, typ_);
-                     is_subtype(cont, &typ1, &typ2)
-                   })
-                    .map(|(_, nominal)| nominal.clone())
-                   .unwrap_or(Nominal("Empty".to_string()))
-                   .0.clone()
+               self.body.get_nominal(typ).unwrap_or("Empty".to_string())
            }
        }
    }
 
    pub fn get_type_from_class(&self, class: &str) -> Type {
-       self.body.iter()
+       self.body.0.iter()
            .find(|(_type, nominal)| class == nominal.0)
            .unwrap().0.clone()
    }
 
    pub fn get_nominal(&self, typ: Type) -> (TypeNominal, String) {
-       match self.body.get_nominal(&typ) {
-           Some(nom) => (self.to_owned(), nom),
-           None => self.generate_nominal(typ)
+       match typ {
+           Type::Integer(_, _) => (self.to_owned(), "integer".to_string()),
+           Type::Char(_, _) => (self.to_owned(), "character".to_string()),
+           Type::Boolean(_) => (self.to_owned(), "logical".to_string()),
+           Type::Number(_) => (self.to_owned(), "double".to_string()),
+           _ => match self.body.get_nominal(&typ) {
+               Some(nom) => (self.to_owned(), nom),
+               None => self.generate_nominal(typ)
+           }
        }
    }
 
@@ -219,6 +230,10 @@ impl TypeNominal {
        let index = categories.get(&type_category)
            .expect(&format!("The type category {} wasn't found", type_category));
        (new_type_nominal, format!("{}{}", type_category, index))
+   }
+
+   pub fn display_nominals(&self) -> String {
+       self.body.display_nominals()
    }
 
 }
@@ -238,4 +253,41 @@ impl From<(Type, usize)> for Nominal {
            Nominal(format!("{}", category))
        }
    } 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::builder;
+    use crate::tint::Tint;
+    use crate::help_data::HelpData;
+
+    #[test]
+    fn test_get_nominal1(){
+        let tn = TypeNominal::new();
+        //let typ = builder::integer_type_default();
+        let typ = Type::Integer(Tint::Unknown, HelpData::example());
+        let tn = tn.push_type(typ.clone());
+        assert_eq!(tn.get_nominal(typ).1, "integer");
+    }
+
+    #[test]
+    fn test_get_nominal2(){
+        let tn = TypeNominal::new();
+        let typ = builder::integer_type(3);
+        let rec = builder::record_type(&[("a".to_string(), typ.clone())]);
+        let tn = tn.push_type(rec.clone());
+        assert_eq!(tn.get_nominal(rec).1, "Record_0");
+    }
+
+    #[test]
+    fn test_get_push_alias(){
+        let tn = TypeNominal::new();
+        let typ = builder::integer_type(3);
+        let rec = builder::record_type(&[("a".to_string(), typ.clone())]);
+        let tn = tn.push_alias("Counter".to_string(), rec.clone());
+        let tn = tn.push_type(rec.clone());
+        assert_eq!(tn.get_nominal(rec).1, "Counter");
+    }
+
 }
