@@ -3,7 +3,6 @@ use crate::r#type::Type;
 use crate::Context;
 use crate::type_comparison::is_subtype;
 use crate::type_comparison::reduce_type;
-use crate::help_data::HelpData;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TypeCategory {
@@ -67,7 +66,7 @@ impl fmt::Display for TypeCategory {
 struct Categories(HashMap<TypeCategory, usize>);
 
 #[derive(Debug, Clone)]
-struct AliasNominal(Vec<(Type, Nominal)>);
+pub struct AliasNominal(Vec<(Type, Nominal)>);
 
 impl AliasNominal {
     pub fn new() -> Self {

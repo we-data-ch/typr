@@ -591,7 +591,7 @@ fn lambda(s: Span) -> IResult<Span, Lang> {
 
 
 // main
-fn single_element(s: Span) -> IResult<Span,Lang> {
+pub fn single_element(s: Span) -> IResult<Span,Lang> {
     alt((
             lambda,
             boolean,

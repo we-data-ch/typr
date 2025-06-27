@@ -3,12 +3,10 @@ use std::collections::HashSet;
 use crate::Type;
 use crate::context::Context;
 use crate::Lang;
-use crate::type_comparison;
 use crate::var::Var;
 use crate::tag::Tag;
 use crate::index::Index;
 use crate::unification;
-use crate::type_comparison::is_matching;
 use crate::type_comparison::reduce_type;
 use crate::argument_type::ArgumentType;
 use crate::unification_map::UnificationMap;
@@ -78,7 +76,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let expr_ty = typing(&context, exp).0;
             let reduced_expr_ty = expr_ty.reduce(context);
 
-            let new_context = type_comparison::is_matching(&context, &reduced_expr_ty, &reduced_ty).then(|| {
+            let new_context = reduced_expr_ty.is_subtype(&reduced_ty).then(|| {
                 if ty != builder::any_type() {
                     context.to_owned()
                         .push_var_type(name.to_owned().into(), reduced_ty.to_owned(), context)
@@ -105,11 +103,15 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         },
         Lang::Assign(var, expr, _h) => {
             let type1 = context.get_type_from_variable(Var::from_language((**var).clone()).unwrap());
+            let type1_reduced = reduce_type(context, &type1);
             let type2 = typing(&context, expr).0;
-            if type_comparison::is_matching(&context, &type1, &type2) {
+            let type2_reduced = reduce_type(context, &type2);
+            if type1_reduced.is_subtype(&type2_reduced) {
                 let var_ty = typing(&context, var).0;
+                let var_ty_reduced = reduce_type(&context, &var_ty);
                 let expr_ty = typing(&context, expr).0;
-                if !type_comparison::is_matching(&context, &var_ty, &expr_ty) {
+                let expr_ty_reduced = reduce_type(&context, &expr_ty);
+                if !var_ty_reduced.is_subtype(&expr_ty_reduced) {
                     panic!("Type error");
                 }
                 context.clone()
@@ -267,20 +269,26 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let list_of_types = params.iter()
                 .map(ArgumentType::get_type)
                 .collect::<Vec<_>>();
-            let sub_context = params.into_iter()
-                .map(|arg_typ| 
-                     Var::from_name(&arg_typ.get_argument_str())
-                        .set_type(arg_typ.get_type().for_var()))
-                .zip(list_of_types.clone().into_iter())
-                .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
-            let res = typing(&sub_context, body);
-                if !is_matching(context, &res.0, ret_ty) {
-                    panic!("Error:\nThe output type of the function don't match it's type annotation\nExpected: {:?}\nFound: {}", ret_ty, res.0)
-                }
-            let new_context = res.1.unifications.into_iter()
-                .fold(context.clone(), |cont, uni_vec| cont.push_unifications(uni_vec));
-            (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), new_context)
-        }
+            if body.is_empty_scope() && context.is_in_header_mode() {
+                (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), context.to_owned())
+            } else {
+                let sub_context = params.into_iter()
+                    .map(|arg_typ| 
+                         Var::from_name(&arg_typ.get_argument_str())
+                            .set_type(arg_typ.get_type().for_var()))
+                    .zip(list_of_types.clone().into_iter())
+                    .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
+                let res = typing(&sub_context, body);
+                let reduced_type = reduce_type(&sub_context, &res.0);
+                let reduced_ret_ty = reduce_type(&context, &ret_ty);
+                    if !reduced_type.is_subtype(&reduced_ret_ty) {
+                        panic!("Error:\nThe output type of the function don't match it's type annotation\nExpected: {:?}\nFound: {}", ret_ty, res.0)
+                    }
+                let new_context = res.1.unifications.into_iter()
+                    .fold(context.clone(), |cont, uni_vec| cont.push_unifications(uni_vec));
+                (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), new_context)
+            }
+            }
         Lang::Sequence(exprs, _h) => {
             if exprs.len() == 1 {
                 let res = exprs.clone().pop().unwrap();

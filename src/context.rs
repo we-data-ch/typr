@@ -16,7 +16,7 @@ use crate::adt_header::AdtHeader;
 use crate::typing;
 use crate::type_checker::match_types;
 use crate::unification_map::UnificationMap;
-use crate::type_hierarchy::TypeHierarchy;
+use crate::type_graph::TypeGraph;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompileMode {
@@ -33,7 +33,7 @@ pub struct Context {
    pub typing_context: VarType,
    kinds: Vec<(Type, Kind)>,
    nominals: TypeNominal,
-   pub subtypes: TypeHierarchy,
+   pub subtypes: TypeGraph,
    pub adt: AdtHeader,
    pub unifications: Vec<Vec<(Type, Type)>>
 }
@@ -47,7 +47,7 @@ impl Default for Context {
             typing_context: VarType::new(),
             kinds: vec![],
             nominals: TypeNominal::new(),
-            subtypes: TypeHierarchy::new(),
+            subtypes: TypeGraph::new(),
             adt: AdtHeader::default(),
             unifications: vec![]
         }
@@ -139,17 +139,9 @@ impl Context {
         self.nominals.get_class(t, self)
     }
 
-    //pub fn get_classes(&self, t: &Type) -> Option<String> {
-        //self.get_supertypes(t)
-            //.into_iter().map(|typ| self.nominals.get_class(&typ, self))
-            //.collect::<HashSet<_>>().iter()
-            //.map(|x| format!("'{}'", x))
-            //.reduce(|acc, x| format!("{}, {}", acc, x))
-    //}
-
     pub fn get_classes(&self, t: &Type) -> Option<String> {
-        let super_types = self.subtypes.get_supertypes(t);
-        let (type_hierarchy, classes) = super_types.iter()
+        let super_types = self.subtypes.clone().get_all_supertypes(t);
+        let (_type_hierarchy, classes) = super_types.iter()
             .fold((self.nominals.clone(), vec![]), 
                   |acc, typ| {
                       let (noms, nom_str) = acc.0.get_nominal(typ.to_owned());
@@ -370,6 +362,10 @@ impl Context {
             nominals: self.nominals.push_alias(alias_name.to_string(), typ),
             ..self
         }
+    }
+
+    pub fn is_in_header_mode(&self) -> bool {
+        self.compile_mode == CompileMode::Header 
     }
 
 }

@@ -306,7 +306,7 @@ impl Lang {
                 let (body_str, new_cont) = body.to_r(cont);
                 let new_name = var.clone().to_r();
                 
-                let (r_code, new_name2) = match (**body).clone() {
+                let (r_code, _new_name2) = match (**body).clone() {
                     Lang::Function(_, _, _, _, _) => {
                         let related_type = var.get_type();
                         let class = cont.get_class(&related_type);
@@ -322,7 +322,9 @@ impl Lang {
                     _ => (format!("{} <- {}", new_name, body_str), new_name)
                 };
 
-                let classes = new_cont.get_classes(ttype).unwrap();
+                let classes = new_cont
+                    .get_classes(ttype)
+                    .unwrap_or("''".to_string());
                 (format!("{} |> \n\tstruct({})", r_code, classes), new_cont)
             },
             Lang::Array(v, _h) => {
@@ -922,6 +924,17 @@ impl Lang {
             _ => vec![self.to_owned()]
         }
     }
+
+    pub fn is_empty_scope(&self) -> bool {
+        if let Lang::Scope(body, _) = self {
+            if body.len() == 1 {
+                if let Lang::Empty(_) = body[0] {
+                    true
+                } else { false }
+            } else { false }
+        } else { false }
+    } 
+    
 }
 
 fn typescript_type(s: &str, cont: &Context) -> String {
@@ -998,3 +1011,17 @@ impl fmt::Display for Lang {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::elements::single_element;
+
+    #[test]
+    fn test_empty_scope(){
+        let res = single_element("fn(): bool { ... }".into()).unwrap().1;
+        if let Lang::Function(_, _, _, body, _) = res {
+            assert!(body.is_empty_scope());
+        } else { assert!(false, "This expression is not a function"); }
+    }
+}

@@ -427,19 +427,6 @@ impl Type {
             }
             // Interface subtyping
             (_type1, Type::Interface(_args, _)) => {
-                //let res = args.iter()
-                    //.map(|arg| {
-                        //let var = Var::default()
-                            //.set_name(&arg.get_argument_str());
-                            ////.set_type(arg.get_type());
-                        //(var, arg.get_type().clone())
-                    //})
-                    //.collect::<Vec<_>>();
-                //check_interface_functions(
-                    //&res,
-                    //type1,
-                    //context
-                //)
                 todo!();
             }
 
@@ -513,6 +500,18 @@ impl Type {
 
     pub fn reduce(&self, context: &Context) -> Type {
         reduce_type(context, self)
+    }
+
+    fn get_type_shape(&self) -> usize {
+        match self {
+            Type::Function(_, v, _, _) => v.len(),
+            Type::Tuple(v, _) => v.len(),
+            _ => 0 as usize
+        }
+    }
+
+    pub fn same_shape(&self, other: &Type) -> bool {
+        self.get_type_shape() == other.get_type_shape()
     }
 
 }

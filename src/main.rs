@@ -34,7 +34,7 @@ mod generic;
 mod tint;
 mod tchar;
 mod error_message;
-mod type_hierarchy;
+mod type_graph;
 
 use parser::parse;
 use my_io::read_file;
