@@ -7,6 +7,7 @@ pub enum ErrorMessage {
     UnificationMatch(Vec<Lang>, Vec<Type>),
     Unknown
 }
+
 impl fmt::Display for ErrorMessage {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {

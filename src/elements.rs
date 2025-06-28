@@ -266,7 +266,7 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
             }, 
         Ok((_s, (_, _, _args, _, Some(_), None, _exp))) 
             => {
-            println!("You forgot to specify the function return type after the ':' : 'fn(...): Type'");
+            println!("Hey You forgot to specify the function return type after the ':' : 'fn(...): Type'");
             exit(1)
             },
         Ok((_s, (_, _, _args, _, None, Some(typ), _exp))) 

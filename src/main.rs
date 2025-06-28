@@ -35,6 +35,8 @@ mod tint;
 mod tchar;
 mod error_message;
 mod type_graph;
+use crate::help_message::TypeError;
+use crate::help_message::ErrorMsg;
 
 use parser::parse;
 use my_io::read_file;

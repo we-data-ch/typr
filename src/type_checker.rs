@@ -20,6 +20,8 @@ use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 use crate::CompileMode;
 use crate::builder;
+use crate::TypeError;
+use crate::help_message::ErrorMsg;
 
 
 fn unify_types(types: &[Type]) -> Type {
@@ -70,25 +72,28 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Sequence(exprs, _h) 
             => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, exp, _h) => {
-            let ty = if ty == &builder::empty_type() {Type::Any(HelpData::default())} else {ty.clone()};
-            let reduced_ty = ty.reduce(context);
-
             let expr_ty = typing(&context, exp).0;
             let reduced_expr_ty = expr_ty.reduce(context);
-
-            let new_context = reduced_expr_ty.is_subtype(&reduced_ty).then(|| {
-                if ty != builder::any_type() {
-                    context.to_owned()
-                        .push_var_type(name.to_owned().into(), reduced_ty.to_owned(), context)
-                } else {
-                    context.to_owned()
+            if ty.is_empty() {
+                context.to_owned()
                         .push_var_type(name.to_owned().into(), reduced_expr_ty.to_owned(), context)
-                }
-            }).expect(&format!("Type error:\n {} don't match {}", expr_ty, ty));
-            if exp.is_function() && !exp.is_undefined() && new_context.compile_mode == CompileMode::Body {
-                new_context.add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), HelpData::default())])
             } else {
-                new_context
+                let reduced_ty = ty.reduce(context);
+
+                let new_context = reduced_expr_ty.is_subtype(&reduced_ty).then(|| {
+                    if *ty != builder::any_type() {
+                        context.to_owned()
+                            .push_var_type(name.to_owned().into(), reduced_ty.to_owned(), context)
+                    } else {
+                        context.to_owned()
+                            .push_var_type(name.to_owned().into(), reduced_expr_ty.to_owned(), context)
+                    }
+                }).expect(&TypeError::Let(ty.clone(), expr_ty).display());
+                if exp.is_function() && !exp.is_undefined() && new_context.compile_mode == CompileMode::Body {
+                    new_context.add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), HelpData::default())])
+                } else {
+                    new_context
+                }
             }
         },
         Lang::Alias(name, params, typ, h) => {
@@ -317,7 +322,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::FunctionApp(fn_var_name, values, _h) => {
             let func = fn_var_name.clone()
                 .get_related_function(values, context)
-                .expect(&format!("Can't find the function in the context:\n {}", context.display_typing_context()));
+                .expect(&TypeError::UndefinedFunction((**fn_var_name).clone()).display());
             let param_types = func.get_param_types();
             context
                 .get_unification_map(values, &param_types)

@@ -1,5 +1,6 @@
 use nom_locate::LocatedSpan;
 use serde::Serialize;
+use std::fs;
 
 #[derive(Debug, PartialEq, Serialize, Eq, Clone, Hash, Default)]
 pub struct HelpData {
@@ -14,6 +15,13 @@ impl HelpData {
     
     pub fn get_file_name(&self) -> String {
         self.file_name.clone()
+    }
+
+    pub fn get_file_data(&self) -> (String, String) {
+        let file_name = self.get_file_name();
+        let text = fs::read_to_string(&file_name)
+            .unwrap_or_else(|e| panic!("Error while reading file: '{}' {}", file_name, e));
+        (file_name, text)
     }
 
     pub fn example() -> Self {

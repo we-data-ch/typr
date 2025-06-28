@@ -236,9 +236,7 @@ impl Lang {
                 let sub_cont = cont.add_arg_types(args);
                 let (body_str, new_cont) = body.to_r(&sub_cont);
                 let fn_type = typing(&sub_cont, self).0;
-                dbg!(&fn_type.pretty());
                 let class = cont.get_class(&fn_type);
-                dbg!(&class);
                 let classes = cont.get_classes(&fn_type)
                     .unwrap_or("''".to_string());
                 (format!("(function({}) {{\n {} \n}}) |>\n\t struct(c('{}', {}))", 
@@ -912,7 +910,56 @@ impl Lang {
     }
 
     pub fn get_help_data(&self) -> HelpData {
-        todo!();
+        match self {
+            Lang::Number(_, h) => h,
+            Lang::Integer(_, h) => h,
+            Lang::Char(_, h) => h,
+            Lang::Bool(_, h) => h,
+            Lang::And(_, _, h) => h,
+            Lang::Or(_, _, h) => h,
+            Lang::Union(_, _, h) => h,
+            Lang::In(_, _, h) => h,
+            Lang::Add(_, _, h) => h,
+            Lang::Eq(_, _, h) => h,
+            Lang::Modu(_, _, h) => h,
+            Lang::Modu2(_, _, h) => h,
+            Lang::LesserThan(_, _, h) => h,
+            Lang::GreaterThan(_, _, h) => h,
+            Lang::LesserOrEqual(_, _, h) => h,
+            Lang::GreaterOrEqual(_, _, h) => h,
+            Lang::Chain(_, _, h) => h,
+            Lang::Scope(_, h) => h,
+            Lang::Function(_, _, _, _, h) => h,
+            Lang::Module(_, _, h) => h,
+            Lang::ModuleDecl(_, h) => h,
+            Lang::Variable(_, _, _, _, _, h) => h,
+            Lang::FunctionApp(_, _, h) => h,
+            Lang::ArrayIndexing(_, _, h) => h,
+            Lang::Let(_, _, _, h) => h,
+            Lang::Array(_, h) => h,
+            Lang::Record(_, h) => h,
+            Lang::Alias(_, _, _, h) => h,
+            Lang::Tag(_, _, h) => h,
+            Lang::If(_, _, _, h) => h,
+            Lang::Match(_, _, h) => h,
+            Lang::Tuple(_, h) => h,
+            Lang::Sequence(_, h) => h,
+            Lang::Assign(_, _, h) => h,
+            Lang::Comment(_, h) => h,
+            Lang::Range(_, _, _, h) => h,
+            Lang::ModImp(_, h) => h,
+            Lang::Import(_, h) => h,
+            Lang::Header(_, h) => h,
+            Lang::GenFunc(_, h) => h,
+            Lang::Test(_, h) => h,
+            Lang::Return(_, h) => h,
+            Lang::VecBloc(_, h) => h,
+            Lang::Lambda(_, h) => h,
+            Lang::Library(_, h) => h,
+            Lang::Exp(_, h) => h,
+            Lang::Any(h) => h,
+            Lang::Empty(h) => h,
+        }.clone()
     }
 
     pub fn to_dependent_type(&self) -> Option<Type> {

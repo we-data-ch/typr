@@ -18,6 +18,8 @@ use crate::type_checker::match_types;
 use crate::unification_map::UnificationMap;
 use crate::type_graph::TypeGraph;
 use crate::type_comparison::reduce_type;
+use crate::TypeError;
+use crate::help_message::ErrorMsg;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompileMode {
@@ -132,7 +134,8 @@ impl Context {
         self.typing_context.iter()
            .find(|(v, _)| var.match_with(v, self))
            .map(|(_, ty)| ty)
-           .expect(&format!("The variable {}, wasn't found in the context\n{}", var, self.display_typing_context()))
+           .expect(&TypeError::UndefinedVariable(var.to_language()).display())
+           //.expect(&format!("The variable {}, wasn't found in the context\n{}", var, self.display_typing_context()))
            .clone()
     }
 

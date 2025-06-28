@@ -516,6 +516,47 @@ impl Type {
         self.get_type_shape() == other.get_type_shape()
     }
 
+    pub fn get_help_data(&self) -> HelpData {
+        match self {
+            Type::Integer(_, h) => h.clone(),
+            Type::Number(h) => h.clone(),
+            Type::Char(_, h) => h.clone(),
+            Type::Boolean(h) => h.clone(),
+            Type::Embedded(_, h) => h.clone(),
+            Type::Function(_, _, _, h) => h.clone(),
+            Type::Generic(_, h) => h.clone(),
+            Type::IndexGen(_, h) => h.clone(),
+            Type::LabelGen(_, h) => h.clone(),
+            Type::Array(_, _, h) => h.clone(),
+            Type::Record(_, h) => h.clone(),
+            Type::Alias(_, _, _, h) => h.clone(),
+            Type::Tag(_, _, h) => h.clone(),
+            Type::Union(_, h) => h.clone(),
+            Type::Interface(_, h) => h.clone(),
+            Type::Params(_, h) => h.clone(),
+            Type::Add(_, _, h) => h.clone(),
+            Type::Mul(_, _, h) => h.clone(),
+            Type::Minus(_, _, h) => h.clone(),
+            Type::Div(_, _, h) => h.clone(),
+            Type::Failed(_, h) => h.clone(),
+            Type::Opaque(_, h) => h.clone(),
+            Type::Multi(_, h) => h.clone(),
+            Type::Tuple(_, h) => h.clone(),
+            Type::If(_, _, h) => h.clone(),
+            Type::Condition(_, _, _, h) => h.clone(),
+            Type::In(h) => h.clone(),
+            Type::Empty(h) => h.clone(),
+            Type::Any(h) => h.clone(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Type::Empty(_) => true,
+            _ => false
+        }
+    }
+
 }
 
 
@@ -642,32 +683,31 @@ impl Hash for Type {
             Type::Integer(_, _) => 1.hash(state),
             Type::Boolean(_) => 2.hash(state),
             Type::Char(_, _) => 3.hash(state),
-            Type::Embedded(e2, _) => 4.hash(state),
-            Type::Function(a2, b2, c2, _) => 5.hash(state),
-            Type::Generic(e2, _) => 6.hash(state),
-            Type::IndexGen(e2, _) => 7.hash(state),
-            Type::LabelGen(e2, _) => 8.hash(state),
-            Type::Array(a2, b2, _) => 9.hash(state),
-            Type::Record(e2, _) => 10.hash(state),
-            Type::Alias(a2, b2, c2, _) => 11.hash(state),
-            Type::Tag(a2, b2, _) => 12.hash(state),
-            Type::Union(e2, _) => 13.hash(state),
-            Type::Interface(e2, _) => 14.hash(state),
-            Type::Params(e2, _) => 15.hash(state),
-            Type::Add(a2, b2, _) => 16.hash(state),
-            Type::Minus(a2, b2, _) => 17.hash(state),
-            Type::Mul(a2, b2, _) => 18.hash(state),
-            Type::Div(a2, b2, _) => 19.hash(state),
-            Type::Failed(e2, _) => 20.hash(state),
-            Type::Opaque(e2, _) => 21.hash(state),
-            Type::Multi(e2, _) => 22.hash(state),
-            Type::Tuple(e2, _) => 23.hash(state),
-            Type::If(a2, b2, _) => 24.hash(state),
-            Type::Condition(a2, b2, c2, _) => 25.hash(state),
+            Type::Embedded(_, _) => 4.hash(state),
+            Type::Function(_, _, _, _) => 5.hash(state),
+            Type::Generic(_, _) => 6.hash(state),
+            Type::IndexGen(_, _) => 7.hash(state),
+            Type::LabelGen(_, _) => 8.hash(state),
+            Type::Array(_, _, _) => 9.hash(state),
+            Type::Record(_, _) => 10.hash(state),
+            Type::Alias(_, _, _, _) => 11.hash(state),
+            Type::Tag(_, _, _) => 12.hash(state),
+            Type::Union(_, _) => 13.hash(state),
+            Type::Interface(_, _) => 14.hash(state),
+            Type::Params(_, _) => 15.hash(state),
+            Type::Add(_, _, _) => 16.hash(state),
+            Type::Minus(_, _, _) => 17.hash(state),
+            Type::Mul(_, _, _) => 18.hash(state),
+            Type::Div(_, _, _) => 19.hash(state),
+            Type::Failed(_, _) => 20.hash(state),
+            Type::Opaque(_, _) => 21.hash(state),
+            Type::Multi(_, _) => 22.hash(state),
+            Type::Tuple(_, _) => 23.hash(state),
+            Type::If(_, _, _) => 24.hash(state),
+            Type::Condition(_, _, _, _) => 25.hash(state),
             Type::In(_) => 26.hash(state),
             Type::Empty(_) => 27.hash(state),
-            Type::Any(_) => 28.hash(state),
-            _ => todo!()
+            Type::Any(_) => 28.hash(state)
         }
     }
 }

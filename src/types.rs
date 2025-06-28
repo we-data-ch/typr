@@ -181,9 +181,10 @@ fn record_type(s: Span) -> IResult<Span, Type> {
 }
 
 fn number(s: Span) -> IResult<Span, Type> {
-    let res = terminated(tag("num"), multispace0).parse(s);
+    let res = (tag("num"), multispace0).parse(s);
     match res {
-        Ok((s, nu)) => Ok((s, Type::Number(nu.into()))),
+        Ok((s, (numtype, _))) 
+            => Ok((s, Type::Number(numtype.into()))),
         Err(r) => Err(r)
     }
 }
@@ -443,9 +444,10 @@ fn label_generic(s: Span) -> IResult<Span, Type> {
 }
 
 fn integer(s: Span) -> IResult<Span, Type> {
-    let res = terminated(tag("int"), multispace0).parse(s);
+    let res = (tag("int"), multispace0).parse(s);
     match res {
-        Ok((s, _)) => Ok((s.clone(), Type::Integer(Tint::Unknown, s.into()))),
+        Ok((s, (inttype, _))) 
+            => Ok((s.clone(), Type::Integer(Tint::Unknown, inttype.into()))),
         Err(r) => Err(r)
     }
 }

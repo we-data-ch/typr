@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use crate::r#type::Type;
 use crate::Context;
-use crate::builder;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TypeCategory {

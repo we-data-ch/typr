@@ -55,7 +55,7 @@ pub fn format(ty: &Type) -> String {
         Type::Boolean(_) => "bool".to_string(),
         Type::Char(tchar, _) => {
             match tchar {
-                Tchar::Val(c) => format!("{}", c),
+                Tchar::Val(c) => format!("Char('{}')", c),
                 _ => "char".to_string()
             }
         },
