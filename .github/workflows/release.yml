@@ -30,10 +30,6 @@ jobs:
           cp target/release/${BINARY_NAME}.exe dist/
           7z a ${BINARY_NAME}-windows.zip ./dist/${BINARY_NAME}.exe
           echo "ASSET=${BINARY_NAME}-windows.zip" >> $GITHUB_ENV
-        elif [[ "$RUNNER_OS" == "macOS" ]]; then
-          cp target/release/${BINARY_NAME} dist/
-          zip ${BINARY_NAME}-macos.zip ./dist/${BINARY_NAME}
-          echo "ASSET=${BINARY_NAME}-macos.zip" >> $GITHUB_ENV
         else
           cp target/release/${BINARY_NAME} dist/
           tar -czvf ${BINARY_NAME}-linux.tar.gz -C dist ${BINARY_NAME}
