@@ -35,11 +35,3 @@ jobs:
           tar -czvf ${BINARY_NAME}-linux.tar.gz -C dist ${BINARY_NAME}
           echo "ASSET=${BINARY_NAME}-linux.tar.gz" >> $GITHUB_ENV
         fi
-
-    - name: Upload Release Asset
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ github.ref_name }}
-        files: ${{ env.ASSET }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
