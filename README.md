@@ -15,6 +15,8 @@ It's not only R with types. It's a faster, safer, cooler R that can transpile to
 
 TypR is a safer counterpart of the legendary R with a transpiler written in Rust. It add cool types, a beautiful syntax and powerful modern features.
 
+The goal is to bring R package developers and developers from differents languages to work in a better way in package management.
+
 The project is still new and have bugs (that will be fixed soon). All the syntax basis and the features are arleady there so there won't be some big breaking change but a refinement of the core elements (and bug fix).
 
 ![](images/TypR_logo.png)
