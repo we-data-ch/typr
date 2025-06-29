@@ -292,7 +292,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 let reduced_type = reduce_type(&sub_context, &res.0);
                 let reduced_ret_ty = reduce_type(&context, &ret_ty);
                     if !reduced_type.is_subtype(&reduced_ret_ty) {
-                        panic!("Error:\nThe output type of the function don't match it's type annotation\nExpected: {:?}\nFound: {}", ret_ty, res.0)
+                        None.expect(
+                        &TypeError::UnmatchingReturnType(reduced_ret_ty, reduced_type).display()
+                                   )
                     }
                 let new_context = res.1.unifications.into_iter()
                     .fold(context.clone(), |cont, uni_vec| cont.push_unifications(uni_vec));

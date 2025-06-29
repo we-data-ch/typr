@@ -177,13 +177,14 @@ pub enum TypeError {
     Let(Type, Type),
     Param(Type, Type),
     UndefinedFunction(Lang),
-    UndefinedVariable(Lang)
+    UndefinedVariable(Lang),
+    UnmatchingReturnType(Type, Type)
 }
 
 // main
 impl ErrorMsg for TypeError {
     fn panic(self) {
-        println!("{:?}", self.display())
+        None.expect(&format!("{:?}", self.display()))
     }
 
     fn display(self) -> String {
@@ -209,6 +210,19 @@ impl ErrorMsg for TypeError {
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
                     .text(format!("type {} doesn't match type {}", t1.pretty(), t2.pretty()))
+                    .pos_text1(format!("Expected {}", t1.pretty()))
+                    .pos_text2(format!("Recieved {}", t2.pretty()))
+                    .build()
+            },
+            TypeError::UnmatchingReturnType(t1, t2) => {
+                let help_data1 = t1.get_help_data();
+                let help_data2 = t2.get_help_data();
+                let (file_name1, text1) = help_data1.get_file_data().unwrap();
+                let (file_name2, text2) = help_data2.get_file_data().unwrap();
+                DoubleBuilder::new(file_name1, text1, file_name2, text2)
+                    .pos1((help_data1.get_offset(), 0))
+                    .pos2((help_data2.get_offset(), 1))
+                    .text(format!("The output type of the function don't match it's type annotation\nExpected: {:?}\nFound: {}", t1.pretty(), t2.pretty()))
                     .pos_text1(format!("Expected {}", t1.pretty()))
                     .pos_text2(format!("Recieved {}", t2.pretty()))
                     .build()
