@@ -17,11 +17,16 @@ impl HelpData {
         self.file_name.clone()
     }
 
-    pub fn get_file_data(&self) -> (String, String) {
+    pub fn get_file_data(&self) -> Option<(String, String)> {
         let file_name = self.get_file_name();
-        let text = fs::read_to_string(&file_name)
-            .unwrap_or_else(|e| panic!("Error while reading file: '{}' {}", file_name, e));
-        (file_name, text)
+        if file_name == "" {
+            None
+        } else {
+            match fs::read_to_string(&file_name).ok() {
+                Some(text) => Some((file_name, text)),
+                None => None
+            }
+        }
     }
 
     pub fn example() -> Self {

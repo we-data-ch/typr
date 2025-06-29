@@ -36,7 +36,6 @@ mod tchar;
 mod error_message;
 mod type_graph;
 use crate::help_message::TypeError;
-use crate::help_message::ErrorMsg;
 
 use parser::parse;
 use my_io::read_file;
@@ -63,6 +62,7 @@ use crate::engine::write_adt_to_typescript_with_path;
 use crate::help_message::syntax_error;
 use crate::context::CompileMode;
 use crate::var::Var;
+use crate::engine::write_std_for_type_checking;
 
 pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool {
     v1.iter().all(|(v1, t1)| {
@@ -483,11 +483,11 @@ fn run_single_file(path: &PathBuf, target: TargetLanguage) {
     
     let file_name = path.file_name().unwrap().to_str().unwrap();
     let adt_manager = parse_code(&PathBuf::from(file_name), target);
-    //HEADER
-    let context = type_check(&adt_manager, target, Environment::StandAlone);
-
-    
     let dir = PathBuf::from(".");
+
+    //HEADER
+    write_std_for_type_checking(&dir);
+    let context = type_check(&adt_manager, target, Environment::StandAlone);
     
     match target {
         TargetLanguage::R => {

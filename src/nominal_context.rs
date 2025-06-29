@@ -214,7 +214,7 @@ impl TypeNominal {
            Type::Integer(_, _) => (self.to_owned(), "integer".to_string()),
            Type::Char(_, _) => (self.to_owned(), "character".to_string()),
            Type::Boolean(_) => (self.to_owned(), "logical".to_string()),
-           Type::Number(_) => (self.to_owned(), "double".to_string()),
+           Type::Number(_) => (self.to_owned(), "numeric".to_string()),
            _ => match self.body.get_nominal(&typ) {
                Some(nom) => (self.to_owned(), nom),
                None => self.generate_nominal(typ)

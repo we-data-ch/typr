@@ -54,6 +54,13 @@ pub fn write_adt_to_assemblyscript_with_path(adt: &Adt, cont: &Context, output_d
     app.write_all(content.as_bytes()).unwrap();
 }
 
+pub fn write_std_for_type_checking(output_dir: &PathBuf) {
+    let rstd = include_str!("../configs/r/std.ty");
+    let std_path = output_dir.join("std.ty");
+    let mut rstd_file = File::create(std_path).unwrap();
+    rstd_file.write_all(rstd.as_bytes()).unwrap();
+}
+
 pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf, file_name: &str) -> () {
     let rstd = include_str!("../configs/r/std.R");
     let std_path = output_dir.join("std.R");

@@ -29,6 +29,7 @@ impl fmt::Display for Permission {
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
 pub struct Var(pub Name, pub Path, pub Permission, pub IsMutableOpaque, pub Type, pub HelpData);
 
+// main
 impl Var {
     pub fn from_language(l: Lang) -> Option<Var> {
         match l {

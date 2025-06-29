@@ -77,6 +77,8 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             if ty.is_empty() {
                 context.to_owned()
                         .push_var_type(name.to_owned().into(), reduced_expr_ty.to_owned(), context)
+                        .add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), HelpData::default())])
+
             } else {
                 let reduced_ty = ty.reduce(context);
 
@@ -191,7 +193,7 @@ pub fn match_types(ctx: &Context, type1: &Type, type2: &Type)
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
     let res = get_gen_type(&type1, &type2)
-        .expect(&format!("The matching {} == {} don't work", type1, type2));
+        .expect(&TypeError::Param(type2, type1).display());
     let unif_map = res.iter()
         .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
         .collect::<Vec<_>>();

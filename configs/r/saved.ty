@@ -1,4 +1,4 @@
-let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K, int] {
+let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K+1, int] {
 	...
 };
 

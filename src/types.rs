@@ -463,23 +463,23 @@ fn compute_operators(v: &mut Vec<(Type, Op)>) -> Type {
     // (params, op)
     let first = v.pop().unwrap();
     match first {
-        (p, Op::Add) => {
+        (p, Op::Add(h)) => {
             let res = compute_operators(v); let pp = p;
             Type::Add(Box::new(res.clone()), Box::new(pp), res.into())
         },
-        (p, Op::Minus) => { 
+        (p, Op::Minus(h)) => { 
             let res = compute_operators(v); let pp = p;
             Type::Minus(Box::new(res.clone()), Box::new(pp), res.into())
         },
-        (p, Op::Mul) => {
+        (p, Op::Mul(h)) => {
             let res = compute_operators(v); let pp = p;
             Type::Mul(Box::new(res.clone()), Box::new(pp), res.into())
         },
-        (p, Op::Div) => {
+        (p, Op::Div(h)) => {
             let res = compute_operators(v); let pp = p;
             Type::Div(Box::new(res.clone()), Box::new(pp), res.into())
         },
-        (p, Op::Empty) => p,
+        (p, Op::Empty(h)) => p,
         _ => panic!()
     }
 }
@@ -492,7 +492,7 @@ fn index_operator(s: Span) -> IResult<Span, (Type, Op)> {
                 ).parse(s);
     match res {
         Ok((s, (Some(ope), ele))) => Ok((s, (ele, ope))),
-        Ok((s, (None, ele))) => Ok((s, (ele, Op::Empty))),
+        Ok((s, (None, ele))) => Ok((s.clone(), (ele, Op::Empty(s.into())))),
         Err(r) => Err(r)
     }
 }
