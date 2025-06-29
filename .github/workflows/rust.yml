@@ -1,0 +1,54 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Ex: v1.0.0
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: actions/setup-rust@v1
+      with:
+        rust-version: stable
+
+    - name: Build (release)
+      run: cargo build --release
+
+    - name: Package binary
+      run: |
+        mkdir dist
+        # Nom du binaire
+        BINARY_NAME=typr
+
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          cp target/release/${BINARY_NAME}.exe dist/
+          7z a ${BINARY_NAME}-windows.zip ./dist/${BINARY_NAME}.exe
+          echo "ASSET=${BINARY_NAME}-windows.zip" >> $GITHUB_ENV
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          cp target/release/${BINARY_NAME} dist/
+          zip ${BINARY_NAME}-macos.zip ./dist/${BINARY_NAME}
+          echo "ASSET=${BINARY_NAME}-macos.zip" >> $GITHUB_ENV
+        else
+          cp target/release/${BINARY_NAME} dist/
+          tar -czvf ${BINARY_NAME}-linux.tar.gz -C dist ${BINARY_NAME}
+          echo "ASSET=${BINARY_NAME}-linux.tar.gz" >> $GITHUB_ENV
+        fi
+
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref_name }}
+        files: ${{ env.ASSET }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
