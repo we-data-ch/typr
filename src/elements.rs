@@ -636,7 +636,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
 			=> Lang::In(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::And(_)) 
 			=> Lang::And(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::Or(h)) 
+        (p, Op::Or(_)) 
 			=> Lang::Or(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::Union(h)) 
 			=> Lang::Union(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
