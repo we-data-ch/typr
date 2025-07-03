@@ -32,7 +32,6 @@ use nom::multi::many1;
 use nom::sequence::preceded;
 use nom::Parser;
 use nom_locate::LocatedSpan;
-use crate::syntax_error;
 use crate::help_data::HelpData;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
@@ -261,8 +260,7 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
         },
         Ok((_s, (_, _, _args, cp, None, None, _exp))) 
             => {
-                syntax_error(cp, "You forgot to specify the function return type: 'fn(...): Type'");
-                exit(1)
+                panic!("You forgot to specify the function return type: 'fn(...): Type'");
             }, 
         Ok((_s, (_, _, _args, _, Some(_), None, _exp))) 
             => {
@@ -370,8 +368,7 @@ fn record(s: Span) -> IResult<Span, Lang> {
         Ok((s, (Some(start), _, args, _))) 
             => Ok((s, Lang::Record(args.clone(), start.into()))),
         Ok((_s, (None, ob, _args, _))) => {
-            syntax_error(ob, "You forgot to put a record identifier before the bracket: ':{...}'");
-            exit(1)
+            panic!("You forgot to put a record identifier before the bracket: ':{{...}}'");
         } 
         Err(r) => Err(r)
     }
@@ -565,9 +562,9 @@ fn element_operator2(s: Span) -> IResult<Span, (Lang, Op)> {
 
 fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
     let res =   (
-                    tag("@{ "),
+                    terminated(tag("@{"), multispace0),
                     many1(element_operator2),
-                    tag(" }@")
+                    terminated(tag("}@"), multispace0),
                     ).parse(s);
     match res {
         Ok((s, (start, v, _end))) => {
@@ -638,29 +635,29 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
 			=> Lang::And(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::Or(_)) 
 			=> Lang::Or(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::Union(h)) 
+        (p, Op::Union(_)) 
 			=> Lang::Union(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::Eq(h)) 
+        (p, Op::Eq(_)) 
 			=> Lang::Eq(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::LesserThan(h)) 
+        (p, Op::LesserThan(_)) 
 			=> Lang::LesserThan(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::GreaterThan(h)) 
+        (p, Op::GreaterThan(_)) 
 			=> Lang::GreaterThan(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::LesserOrEqual(h)) 
+        (p, Op::LesserOrEqual(_)) 
 			=> Lang::LesserOrEqual(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::GreaterOrEqual(h)) 
+        (p, Op::GreaterOrEqual(_)) 
 			=> Lang::GreaterOrEqual(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::Modu(h)) 
+        (p, Op::Modu(_)) 
             => Lang::Modu(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::Modu2(h)) 
+        (p, Op::Modu2(_)) 
             => Lang::Modu2(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (Lang::FunctionApp(name, params, h1), Op::Pipe(h2)) 
+        (Lang::FunctionApp(name, params, h1), Op::Pipe(_h2)) 
             => { // (UFC) add the "object" as te first parameter of the function call
                 let res = [op_reverse(v)].iter().chain(params.iter()).cloned().collect::<Vec<_>>();
                 Lang::FunctionApp(name, res, h1.clone())
             }
-        (p, Op::Pipe(h)) => Lang::Chain(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::Pipe2(h)) => {
+        (p, Op::Pipe(_)) => Lang::Chain(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::Pipe2(_)) => {
             let res = match p.clone() {
                 Lang::FunctionApp(name, _, _) => *name.clone(),
                 rest => rest.clone()
@@ -720,13 +717,13 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                 let var = Box::new(Lang::from(Var::from_name("at2")
                                               .set_help_data(h.clone().into())));
                 Lang::FunctionApp(var, vec![res.clone(), pp], res.into()) },
-        (Lang::FunctionApp(name, params, h1), Op::Dot(h2)) 
+        (Lang::FunctionApp(name, params, h1), Op::Dot(_h2)) 
             => { // (UFC) add the "object" as te first parameter of the function call
                 let res = [op_reverse(v)].iter().chain(params.iter()).cloned().collect::<Vec<_>>();
                 Lang::FunctionApp(name, res, h1.clone())
             }
-        (p, Op::Dot(h)) => Lang::Chain(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::Dot2(h)) => {
+        (p, Op::Dot(_)) => Lang::Chain(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::Dot2(_)) => {
             let res = match p.clone() {
                 Lang::FunctionApp(name, _, _) => *name.clone(),
                 rest => rest.clone()
@@ -817,19 +814,19 @@ mod tests {
     #[test]
     fn test_sop0() {
         let res = op("+".into()).unwrap().1;
-        assert_eq!(res, Op::Add);
+        assert_eq!(res, Op::Add(HelpData::default()));
     }
 
     #[test]
     fn test_el_op0() {
         let res = element_operator("+ 2".into()).unwrap().1;
-        assert_eq!(res, (builder::empty_lang(), Op::And));
+        assert_eq!(res, (builder::empty_lang(), Op::And(HelpData::default())));
     }
 
     #[test]
     fn test_el_op1() {
         let res = element_operator("2".into()).unwrap().1;
-        assert_eq!(res, (builder::empty_lang(), Op::And));
+        assert_eq!(res, (builder::empty_lang(), Op::And(HelpData::default())));
     }
 
     #[test]
@@ -1110,7 +1107,7 @@ mod tests {
     #[test]
     fn test_parse_greater_than2() {
         let res = element_operator("<= 3".into()).unwrap().1;
-        assert_eq!(res, (builder::empty_lang(), Op::Empty));
+        assert_eq!(res, (builder::empty_lang(), Op::Empty(HelpData::default())));
     }
 
     #[test]
@@ -1124,6 +1121,18 @@ mod tests {
         let res = element_chain("5.:{x: 0}".into()).unwrap().1;
         assert_eq!(res, builder::empty_lang());
     } 
+
+    #[test]
+    fn test_element_operator2() {
+        let res = element_operator2("3".into()).unwrap().1;
+        assert_eq!(res, (builder::empty_lang(), Op::Empty(HelpData::default())));
+    }
+
+    #[test]
+    fn test_element_operator2_2() {
+        let res = element_operator2("+ 4".into()).unwrap().1;
+        assert_eq!(res, (builder::empty_lang(), Op::Empty(HelpData::default())));
+    }
 
     #[test]
     fn test_vectorial_bloc1() {
@@ -1172,5 +1181,7 @@ mod tests {
         let res = lambda("$x + 1".into()).unwrap().1;
         assert_eq!(res, builder::empty_lang());
     }
+
+
 
 }

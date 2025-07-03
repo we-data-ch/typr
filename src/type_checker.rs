@@ -158,8 +158,9 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
             }
             (Type::Array(ind1, typ1, _), Type::Array(ind2, typ2, _)) => {
                let gen1 = get_gen_type(ind1, ind2)
-                    .expect(&format!("{} and {} don't match", type1, type2));
-               let gen2 = get_gen_type(typ1, typ2).unwrap_or(vec![]);
+                   .unwrap_or(vec![]);
+               let gen2 = get_gen_type(typ1, typ2)
+                   .unwrap_or(vec![]);
                Some(gen1.iter().chain(gen2.iter()).cloned().collect())
             },
             (Type::Record(v1, _), Type::Record(v2, _)) => {
@@ -276,6 +277,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let list_of_types = params.iter()
                 .map(ArgumentType::get_type)
                 .collect::<Vec<_>>();
+            list_of_types.iter().map(|x| dbg!(x.pretty()));
             if body.is_empty_scope() && context.is_in_header_mode() {
                 (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), context.to_owned())
             } else {
@@ -289,11 +291,11 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                     .zip(list_of_types.clone().into_iter().map(|typ| reduce_type(context, &typ)))
                     .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
                 let res = typing(&sub_context, body);
-                let reduced_type = reduce_type(&sub_context, &res.0);
-                let reduced_ret_ty = reduce_type(&context, &ret_ty);
-                    if !reduced_type.is_subtype(&reduced_ret_ty) {
+                let reduced_body_type = reduce_type(&sub_context, &res.0);
+                let reduced_expected_ty = reduce_type(&context, &ret_ty);
+                    if !reduced_body_type.is_subtype(&reduced_expected_ty) {
                         None.expect(
-                        &TypeError::UnmatchingReturnType(reduced_ret_ty, reduced_type).display()
+                        &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display()
                                    )
                     }
                 let new_context = res.1.unifications.into_iter()
@@ -351,19 +353,19 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 panic!("Type error: {:?} isn't a boolean expression", cond);
             }
         }
-        Lang::Array(exprs, _h) => {
+        Lang::Array(exprs, h) => {
             let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
             if exprs.len() == 0 {
                 let new_type = Type::Array(
                     Box::new(builder::integer_type(0)),
                     Box::new(builder::any_type()),
-                    HelpData::default());
+                    h.clone());
                 (new_type, context.clone())
             } else if types.windows(2).all(|w| w[0] == w[1]) {
                 let new_type = Type::Array(
                     Box::new(builder::integer_type(exprs.len() as i32)),
                     Box::new(types[0].clone()),
-                    HelpData::default());
+                    h.clone());
                 (new_type, context.clone())
             } else {
                 panic!("Type error");
@@ -415,14 +417,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             typing(context, &expr[0])
         },
         Lang::Scope(expr, h) => typing(context, &Lang::Sequence(expr.to_vec(), h.clone())),
-        Lang::VecBloc(_, _h) 
-            => (Type::Any(HelpData::default()), context.clone()),
         Lang::Tuple(elements, h) => {
             (Type::Tuple(elements.iter()
                 .map(|x| typing(context, x).0)
                 .collect(), h.clone()),
                 context.clone())
         },
+        Lang::VecBloc(_, h) => (Type::Empty(h.clone()), context.to_owned()),
         _ => (Type::Any(HelpData::default()), context.clone()),
     }
 }

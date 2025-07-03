@@ -6,6 +6,7 @@ use nom_locate::LocatedSpan;
 use crate::Type;
 use crate::Lang;
 use crate::Var;
+use crate::help_data::HelpData;
 
 pub trait ErrorMsg { 
     fn panic(self);
@@ -204,8 +205,12 @@ impl ErrorMsg for TypeError {
             TypeError::Param(t1, t2) => {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();
-                let (file_name1, text1) = help_data1.get_file_data().unwrap();
-                let (file_name2, text2) = help_data2.get_file_data().unwrap();
+                let (file_name1, text1) = help_data1.get_file_data()
+                    .expect(&format!("The file name of {:?} for {} doesn't exist", 
+                                     help_data1, t1.pretty()));
+                let (file_name2, text2) = help_data2.get_file_data()
+                    .expect(&format!("The file name of {:?} for {} doesn't exist", 
+                                     help_data2, t2.pretty()));
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
@@ -217,8 +222,12 @@ impl ErrorMsg for TypeError {
             TypeError::UnmatchingReturnType(t1, t2) => {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();
-                let (file_name1, text1) = help_data1.get_file_data().unwrap();
-                let (file_name2, text2) = help_data2.get_file_data().unwrap();
+                let (file_name1, text1) = help_data1.get_file_data()
+                    .expect(&format!("The file name of {:?} for {} doesn't exist", 
+                                     help_data1, t1.pretty()));
+                let (file_name2, text2) = help_data2.get_file_data()
+                    .expect(&format!("The file name of {:?} for {} doesn't exist", 
+                                     help_data2, t2.pretty()));
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
@@ -253,30 +262,26 @@ impl ErrorMsg for TypeError {
 
 }
 
-#[derive(Debug, Error, Diagnostic)]
-#[error("Syntax error: unexpected character")]
-struct SyntaxError<S: SourceCode + 'static + std::fmt::Debug> {
-    #[label("here")]
-    span: SourceSpan,
-
-    #[source_code]
-    src: NamedSource<S>,
-
-    // Message additionnel
-    #[help]
-    help: Option<String>,
+pub enum SyntaxError {
+    LetInTypeDefinition(HelpData)
 }
 
-pub fn syntax_error(ls: LocatedSpan<&str, String>, help: &str) {
-    let offset = ls.location_offset();
-    let file_name = ls.clone().extra;
-    let text = fs::read_to_string(&file_name)
-        .unwrap_or_else(|e| panic!("Error while reading file: {} {}", file_name, e));
-    let diagnose: Result<()> = Err(SyntaxError {
-        span: (offset, 1).into(),
-        src: NamedSource::new(file_name.to_string(), text.to_string()),
-        help: Some(help.into()),
-    }.into());
-    println!("{:?}", diagnose);
+impl ErrorMsg for SyntaxError {
+    fn panic(self) {
+        None.expect(&format!("{:?}", self.display()))
+    }
+
+    fn display(self) -> String {
+        let msg: Result<()> = match self {
+            SyntaxError::LetInTypeDefinition(h) => {
+                    let (file_name, text) = h.get_file_data().unwrap();
+                    let res = SingleBuilder::new(file_name, text)
+                        .pos((h.get_offset(), 0));
+                    res.build()
+            }
+        };
+        format!("{:?}", msg)
+    }
+
 }
 

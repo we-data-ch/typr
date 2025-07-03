@@ -24,6 +24,8 @@ use nom::multi::many0;
 use nom::Parser;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
+use crate::help_message::SyntaxError;
+use crate::help_message::ErrorMsg;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -198,7 +200,10 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
                                 params, ty, h)))
             },
         Ok((s, (_ty, _, _eq, _ty2, _)))
-            => Ok((s, Lang::Empty(_ty.into()))),
+            => {
+                dbg!(&_ty);
+                Ok((s, Lang::Empty(_ty.into())))
+            },
         Err(r) => Err(r),
     }
 }
@@ -418,6 +423,12 @@ pub fn parse(s: Span) -> IResult<Span, Adt> {
 mod tesus {
     use super::*;
     use crate::builder;
+
+    #[test]
+    fn test_type_exp0() {
+        let res = type_exp("type Mat = [2, [2, num]];".into()).unwrap().1;
+        assert_eq!(res, vec![])
+    }
 
     #[test]
     fn test_type_exp1() {

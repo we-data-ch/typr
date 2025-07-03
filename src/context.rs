@@ -7,7 +7,6 @@ use crate::nominal_context::TypeNominal;
 use crate::argument_type::ArgumentType;
 use crate::vartype::VarType;
 use crate::type_comparison;
-use crate::TargetLanguage;
 use crate::Environment;
 use crate::type_comparison::is_matching;
 use crate::help_data::HelpData;
@@ -32,7 +31,6 @@ pub enum CompileMode {
 pub struct Context {
    pub compile_mode: CompileMode,
    pub environment: Environment,
-   pub target: TargetLanguage,
    pub typing_context: VarType,
    kinds: Vec<(Type, Kind)>,
    nominals: TypeNominal,
@@ -46,7 +44,6 @@ impl Default for Context {
         Context { 
             compile_mode: CompileMode::Body,
             environment: Environment::StandAlone,
-            target: TargetLanguage::R,
             typing_context: VarType::new(),
             kinds: vec![],
             nominals: TypeNominal::new(),
@@ -305,13 +302,6 @@ impl Context {
                  (Var::from_name(&arg_typ.get_argument_str())
                     .set_type(par_typ), reduce_type(self, &arg_typ.get_type())))
             .fold(self.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont))
-    }
-
-    pub fn set_target(&self, t: TargetLanguage) -> Context {
-        Context {
-            target: t,
-            ..self.clone()
-        }
     }
 
     pub fn set_environment(&self, e: Environment) -> Context {

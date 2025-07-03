@@ -218,7 +218,7 @@ fn type_params(s: Span) -> IResult<Span, Vec<Type>> {
 pub fn pascal_case(s: Span) -> IResult<Span, (String, HelpData)> {
     let res = terminated((one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), alphanumeric1), multispace0).parse(s);
     match res {
-        Ok((s, (t1, t2))) => Ok((s.clone(), (format!("{}{}", t1, t2), s.into()))),
+        Ok((s, (t1, t2))) => Ok((s.clone(), (format!("{}{}", t1, t2.clone()), t2.into()))),
         Err(r) => Err(r)
     }
 }
@@ -463,23 +463,23 @@ fn compute_operators(v: &mut Vec<(Type, Op)>) -> Type {
     // (params, op)
     let first = v.pop().unwrap();
     match first {
-        (p, Op::Add(h)) => {
+        (p, Op::Add(_)) => {
             let res = compute_operators(v); let pp = p;
             Type::Add(Box::new(res.clone()), Box::new(pp), res.into())
         },
-        (p, Op::Minus(h)) => { 
+        (p, Op::Minus(_)) => { 
             let res = compute_operators(v); let pp = p;
             Type::Minus(Box::new(res.clone()), Box::new(pp), res.into())
         },
-        (p, Op::Mul(h)) => {
+        (p, Op::Mul(_)) => {
             let res = compute_operators(v); let pp = p;
             Type::Mul(Box::new(res.clone()), Box::new(pp), res.into())
         },
-        (p, Op::Div(h)) => {
+        (p, Op::Div(_)) => {
             let res = compute_operators(v); let pp = p;
             Type::Div(Box::new(res.clone()), Box::new(pp), res.into())
         },
-        (p, Op::Empty(h)) => p,
+        (p, Op::Empty(_)) => p,
         _ => panic!()
     }
 }

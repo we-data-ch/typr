@@ -416,6 +416,7 @@ impl Type {
 
     pub fn is_subtype(&self, other: &Type) -> bool {
         match (self, other) {
+            (Type::Empty(_), _) => true,
             (typ1, typ2) if typ1 == typ2 => true,
             // Array subtyping
             (_, Type::Any(_)) => true,
@@ -547,6 +548,40 @@ impl Type {
             Type::In(h) => h.clone(),
             Type::Empty(h) => h.clone(),
             Type::Any(h) => h.clone(),
+        }
+    }
+
+    pub fn set_help_data(self, h2: HelpData) -> Type {
+        match self {
+            Type::Integer(i, _) => Type::Integer(i, h2),
+            Type::Number(_) => Type::Number(h2),
+            Type::Char(a, _) => Type::Char(a, h2),
+            Type::Boolean(_) => Type::Boolean(h2),
+            Type::Embedded(a, _) => Type::Embedded(a, h2),
+            Type::Function(a1, a2, a3, _) => Type::Function(a1, a2, a3, h2),
+            Type::Generic(a, _) => Type::Generic(a, h2),
+            Type::IndexGen(a, _) => Type::IndexGen(a, h2),
+            Type::LabelGen(a, _) => Type::LabelGen(a, h2),
+            Type::Array(a1, a2, _) => Type::Array(a1, a2, h2),
+            Type::Record(a, _) => Type::Record(a, h2),
+            Type::Alias(a1, a2, a3, _) => Type::Alias(a1, a2, a3, h2),
+            Type::Tag(a1, a2, _) => Type::Tag(a1, a2, h2),
+            Type::Union(a, _) => Type::Union(a, h2),
+            Type::Interface(a, _) => Type::Interface(a, h2),
+            Type::Params(a, _) => Type::Params(a, h2),
+            Type::Add(a1, a2, _) => Type::Add(a1, a2, h2),
+            Type::Mul(a1, a2, _) => Type::Mul(a1, a2, h2),
+            Type::Minus(a1, a2, _) => Type::Minus(a1, a2, h2),
+            Type::Div(a1, a2, _) => Type::Div(a1, a2, h2),
+            Type::Failed(a, _) => Type::Failed(a, h2),
+            Type::Opaque(a, _) => Type::Opaque(a, h2),
+            Type::Multi(a, _) => Type::Multi(a, h2),
+            Type::Tuple(a, _) => Type::Tuple(a, h2),
+            Type::If(a1, a2, _) => Type::If(a1, a2, h2),
+            Type::Condition(a1, a2, a3, _) => Type::Condition(a1, a2, a3, h2),
+            Type::In(_) => Type::In(h2),
+            Type::Empty(_) => Type::Empty(h2),
+            Type::Any(_) => Type::Any(h2) 
         }
     }
 

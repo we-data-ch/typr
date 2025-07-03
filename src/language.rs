@@ -1046,6 +1046,7 @@ impl From<Lang> for HelpData {
            Lang::Lambda(_, h) => h,
            Lang::Function(_, _, _, _, h) => h,
            Lang::LesserThan(_, _, h) => h,
+           Lang::VecBloc(_, h) => h,
            e => panic!("Language element {:?} not yet implemented", e)
        }.clone()
    } 

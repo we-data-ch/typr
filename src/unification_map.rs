@@ -1,6 +1,8 @@
 use crate::Type;
 use crate::unification;
 use crate::Context;
+use crate::TypeError;
+use crate::help_message::ErrorMsg;
 
 #[derive(Debug)]
 struct SafeHashMap {
@@ -20,7 +22,9 @@ impl SafeHashMap {
                self.map.push((key, value.generalize())) 
             },
             Some((_ke, va)) => if !(va.exact_match(&value)) { 
-                panic!("{} doesn't match {}", va, value);
+                None.expect(
+                    &TypeError::Param(va.to_owned(), value).display()
+                           )
             },
             None => self.map.push((key, value))
         }
@@ -42,6 +46,7 @@ impl UnificationMap {
         }
         UnificationMap(safe_map.to_vec())
     }
+
     pub fn type_substitution(&self, ret_ty: &Type) -> Type {
         unification::type_substitution(ret_ty, &self.0)
     }

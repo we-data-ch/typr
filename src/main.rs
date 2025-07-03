@@ -55,11 +55,6 @@ use crate::engine::type_check;
 use crate::engine::write_adt_to_r_with_path;
 use crate::my_io::execute_r_with_path;
 use std::process::Command;
-use crate::engine::write_adt_to_typescript;
-use crate::my_io::execute_typescript;
-use crate::engine::write_adt_to_assemblyscript_with_path;
-use crate::engine::write_adt_to_typescript_with_path;
-use crate::help_message::syntax_error;
 use crate::context::CompileMode;
 use crate::var::Var;
 use crate::engine::write_std_for_type_checking;
@@ -72,26 +67,9 @@ pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool
 }
 
 #[derive(Debug, Parser, Clone, Copy, PartialEq)]
-pub enum TargetLanguage {
-    R,
-    TypeScript,
-    AssemblyScript,
-}
-
-#[derive(Debug, Parser, Clone, Copy, PartialEq)]
 pub enum Environment {
     StandAlone,
     Project
-}
-
-impl std::fmt::Display for TargetLanguage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TargetLanguage::R => write!(f, "R"),
-            TargetLanguage::TypeScript => write!(f, "TypeScript"),
-            TargetLanguage::AssemblyScript => write!(f, "AssemblyScript"),
-        }
-    }
 }
 
 #[derive(Parser)]
@@ -115,432 +93,179 @@ enum Commands {
     New {
         /// Project Name
         name: String,
-        
-        /// Target languages (r, typescript, assemblyscript)
-        #[arg(short, long, value_name = "TARGET", default_value = "r")]
-        target: String,
     },
     /// check parsing and typechecking
-    Check {
-        /// Target language (r, typescript, assemblyscript)
-        #[arg(short, long, value_name = "TARGET", default_value = "r")]
-        target: String,
-    },
+    Check,
     /// Check and build the targeted code
-    Build {
-        /// Target language (r, typescript, assemblyscript)
-        #[arg(short, long, value_name = "TARGET", default_value = "r")]
-        target: String,
-    },
+    Build,
     /// Build and execute the targeted code
-    Run {
-        /// Target language (r, typescript, assemblyscript)
-        #[arg(short, long, value_name = "TARGET", default_value = "r")]
-        target: String,
-    },
+    Run,
     /// Run tests
-    Test {
-        /// Target language (r, typescript, assemblyscript)
-        #[arg(short, long, value_name = "TARGET", default_value = "r")]
-        target: String,
-    },
+    Test
 }
 
-fn parse_target(target_str: &str) -> TargetLanguage {
-    match target_str.to_lowercase().as_str() {
-        "r" => TargetLanguage::R,
-        "typescript" | "ts" | "javascript" | "js" 
-            => TargetLanguage::TypeScript,
-        "assemblyscript" | "as" | "webassembly" | "wasm" 
-            => TargetLanguage::AssemblyScript,
-        _ => {
-            eprintln!("Langage cible non reconnu: {}. Utilisation de R par défaut.", target_str);
-            TargetLanguage::R
-        }
-    }
-}
-
-fn new(name: &str, target: TargetLanguage) {
-    // Créer le dossier principal
-    if let Err(e) = fs::create_dir(name) {
-        eprintln!("Erreur lors de la création du dossier du projet: {}", e);
-        //std::process::exit(1);
-    }
-
-    // Créer la structure de base du projet
-    let mut directories = vec![
-        "TypR",        // Pour les scripts TypR (commun à tous les projets)
-        "tests",       // Pour les tests (commun à tous les projets)
-        "data",       // Pour les tests (commun à tous les projets)
-    ];
-    
-    // Ajouter les dossiers spécifiques au langage cible
-    match target {
-        TargetLanguage::R => {
-            directories.extend(vec![
-                "R",           // Pour les scripts R
-                "man",         // Pour la documentation
-                "vignettes",   // Pour les tutoriels
-            ]);
-        },
-        TargetLanguage::TypeScript => {
-            directories.extend(vec![
-                "src",         // Pour les fichiers TypeScript
-                "dist",        // Pour les fichiers JavaScript compilés
-                "types",       // Pour les définitions de types
-            ]);
-        },
-        TargetLanguage::AssemblyScript => {
-            directories.extend(vec![
-                "assembly",    // Pour les fichiers AssemblyScript
-                "build",       // Pour les fichiers compilés
-            ]);
-        },
-    }
-
-    // Créer les sous-dossiers
-    for dir in directories {
-        let path = Path::new(name).join(dir);
-        if let Err(e) = fs::create_dir(&path) {
-            eprintln!("Erreur lors de la création du dossier {}: {}", path.display(), e);
-            std::process::exit(1);
-        }
-    }
-
-    // Créer les fichiers de base communs
-    let mut files = vec![
-        ("README.md".to_string(), format!("# {}\n\nDescription of your package goes here.\n", name)),
-        ("TypR/main.ty".to_string(), "# Main TypR code goes here\n".to_string()),
-        ("tests/test.ty".to_string(), "# Test files go here\n".to_string()),
-    ];
-    
-    // Ajouter les fichiers spécifiques au langage cible
-    match target {
-        TargetLanguage::R => {
-            files.extend(vec![
-                ("DESCRIPTION".to_string(), format!("Package: {}\nTitle: What the Package Does\nVersion: 0.1.0\nAuthors: [Your Name]\nDescription: Package description.\nLicense: MIT\n", name)),
-                ("NAMESPACE".to_string(), "# Exported functions will be listed here\n".to_string()),
-                ("R/main.R".to_string(), "# Main package code goes here\n".to_string()),
-            ]);
-        },
-        TargetLanguage::TypeScript => {
-            files.extend(vec![
-                ("package.json".to_string(), format!(
-                    "{{\n  \"name\": \"{}\",\n  \"version\": \"0.1.0\",\n  \"description\": \"\",\n  \"main\": \"dist/index.js\",\n  \"scripts\": {{\n    \"build\": \"tsc\",\n    \"start\": \"node dist/index.js\",\n    \"test\": \"echo \\\"Error: no test specified\\\" && exit 1\"\n  }},\n  \"keywords\": [],\n  \"author\": \"\",\n  \"license\": \"ISC\"\n}}", 
-                    name
-                )),
-                ("tsconfig.json".to_string(), 
-                    "{\n  \"compilerOptions\": {\n    \"target\": \"es2020\",\n    \"module\": \"commonjs\",\n    \"outDir\": \"./dist\",\n    \"strict\": true,\n    \"esModuleInterop\": true,\n    \"skipLibCheck\": true,\n    \"forceConsistentCasingInFileNames\": true\n  },\n  \"include\": [\"src/**/*\"],\n  \"exclude\": [\"node_modules\"]\n}".to_string()
-                ),
-                ("src/index.ts".to_string(), "// Main TypeScript code goes here\n".to_string()),
-            ]);
-        },
-        TargetLanguage::AssemblyScript => {
-            files.extend(vec![
-                ("assembly/index.ts".to_string(), "// Main AssemblyScript code goes here\nexport function add(a: i32, b: i32): i32 {\n  return a + b;\n}\n".to_string()),
-            ]);
-        },
-    }
-
-    for (file, content) in files {
-        let path = Path::new(name).join(file);
-        if let Err(e) = fs::write(&path, content) {
-            eprintln!("Erreur lors de la création du fichier {}: {}", path.display(), e);
-            std::process::exit(1);
-        }
-    }
-
-    // Initialisation spécifique pour AssemblyScript
-    if target == TargetLanguage::AssemblyScript {
-        // Sauvegarder le répertoire courant
-        let current_dir = std::env::current_dir().expect("Impossible d'obtenir le répertoire courant");
-        
-        // Changer vers le répertoire du projet
-        if let Err(e) = std::env::set_current_dir(name) {
-            eprintln!("Erreur lors du changement vers le répertoire du projet: {}", e);
-            std::process::exit(1);
-        }
-        
-        println!("Initialisation du projet AssemblyScript...");
-        
-        // Exécuter les commandes npm
-        let commands = vec![
-            "npm init -y",
-            "npm install --save-dev assemblyscript",
-            "npm install --save @assemblyscript/loader",
-            "npm install --save-dev @assemblyscript/wasi-shim",
-            "npx asinit . -y"
-        ];
-        
-        for cmd in commands {
-            let parts: Vec<&str> = cmd.split_whitespace().collect();
-            let command = parts[0];
-            let args = &parts[1..];
-            
-            println!("Exécution de: {}", cmd);
-            
-            let status = Command::new(command)
-                .args(args)
-                .status();
-                
-            match status {
-                Ok(exit_status) => {
-                    if !exit_status.success() {
-                        eprintln!("La commande '{}' a échoué avec le code de sortie: {:?}", cmd, exit_status.code());
-                    }
-                },
-                Err(e) => {
-                    eprintln!("Erreur lors de l'exécution de la commande '{}': {}", cmd, e);
-                }
+fn get_config_file_content(file_name: &str, name: &str) -> String {
+    let description_source = Path::new(file_name);
+    match fs::read_to_string(description_source) {
+            Ok(content) => {
+                content.replace("{{PACKAGE_NAME}}", name)
+            },
+            Err(e) => {
+                "".to_string()
             }
         }
-        
-        // Revenir au répertoire d'origine
-        if let Err(e) = std::env::set_current_dir(current_dir) {
-            eprintln!("Erreur lors du retour au répertoire d'origine: {}", e);
-            std::process::exit(1);
-        }
-    }
-
-    println!("✨ Projet '{}' pour {} créé avec succès!", name, target);
-    println!("Structure du projet:");
-    
-    // Afficher la structure du projet en fonction du langage cible
-    match target {
-        TargetLanguage::R => {
-            println!("{}
-├── R/
-│   └── main.R
-├── TypR/
-│   └── main.ty
-├── data/
-├── man/
-├── tests/
-│   └── test.ty
-├── vignettes/
-├── DESCRIPTION
-├── NAMESPACE
-└── README.md", name);
-        },
-        TargetLanguage::TypeScript => {
-            println!("{}
-├── src/
-│   └── index.ts
-├── dist/
-├── types/
-├── TypR/
-│   └── main.ty
-├── tests/
-│   └── test.ty
-├── package.json
-├── tsconfig.json
-└── README.md", name);
-        },
-        TargetLanguage::AssemblyScript => {
-            println!("{}
-├── assembly/
-│   └── index.ts
-├── build/
-├── TypR/
-│   └── main.ty
-├── tests/
-│   └── test.ty
-├── package.json
-├── asconfig.json
-├── node_modules/
-└── README.md", name);
-        },
-    }
 }
 
-fn check(target: TargetLanguage) {
-    let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"), target);
-    let _ = type_check(&adt_manager, target, Environment::Project);
+
+fn new(name: &str) {
+    println!("Création du package R '{}'...", name);
+
+    // Obtenir le répertoire courant
+    let current_dir = match std::env::current_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            eprintln!("Erreur lors de l'obtention du répertoire courant: {}", e);
+            std::process::exit(1);
+        }
+    };
+    
+    // Créer le chemin absolu du projet
+    let project_path = current_dir.join(name);
+    
+    // Créer le répertoire principal du package
+    if let Err(e) = fs::create_dir(&project_path) {
+        eprintln!("Erreur lors de la création du répertoire du projet: {}", e);
+        std::process::exit(1);
+    }
+    
+    // Architecture classique d'un package R
+    let package_folders = vec![
+        "R",           // Code R
+        "TypR",        // Code TypR source
+        "man",         // Documentation
+        "tests",       // Tests
+        "testthat",    // Tests unitaires
+        "data",        // Données
+        "inst",        // Fichiers installés
+        "src",         // Code source (C++, Fortran, etc.)
+        "vignettes",   // Vignettes/tutoriels
+    ];
+    
+    for folder in package_folders {
+        let folder_path = project_path.join(folder);
+        if let Err(e) = fs::create_dir(&folder_path) {
+            eprintln!("Avertissement: Impossible de créer le dossier {}: {}", folder_path.display(), e);
+        }
+    }
+    
+    // Créer les sous-dossiers spécifiques
+    let tests_testthat = project_path.join("tests/testthat");
+    if let Err(e) = fs::create_dir(&tests_testthat) {
+        eprintln!("Avertissement: Impossible de créer le dossier tests/testthat: {}", e);
+    }
+    
+    // Créer les fichiers du package R
+    let package_files = vec![
+        ("DESCRIPTION", get_config_file_content("configs/DESCRIPTION", name)),
+        ("NAMESPACE", get_config_file_content("configs/NAMESPACE", name)),
+        (".Rbuildignore", get_config_file_content("configs/.Rbuildignore", name)),
+        (".gitignore", get_config_file_content(".gitignore", name)),
+        ("TypR/main.ty", get_config_file_content("configs/main.ty", name)),
+        ("R/.gitkeep", get_config_file_content("configs/.gitkeep", name)),
+        ("tests/testthat.R", get_config_file_content("configs/testthat.R", name)),
+        ("tests/testthat/test-basic.R", get_config_file_content("configs/test-basic.R", name)),
+        ("man/.gitkeep", get_config_file_content("configs/.gitkeep2", name)),
+        ("README.md", get_config_file_content("configs/README.md", name))
+    ];
+    
+    for (file_path, content) in package_files {
+        let full_path = project_path.join(file_path);
+        if let Some(parent) = full_path.parent() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                eprintln!("Avertissement: Impossible de créer le répertoire parent {}: {}", parent.display(), e);
+                continue;
+            }
+        }
+        if let Err(e) = fs::write(&full_path, content) {
+            eprintln!("Avertissement: Impossible de créer le fichier {}: {}", full_path.display(), e);
+        }
+    }
+    
+    let rproj_content = get_config_file_content("configs/rproj.Rproj", name);
+    // Créer le fichier .Rproj
+    let rproj_path = project_path.join(format!("{}.Rproj", name));
+    if let Err(e) = fs::write(&rproj_path, rproj_content) {
+        eprintln!("Avertissement: Impossible de créer le fichier .Rproj: {}", e);
+    }
+    
+    println!("✓ Package R '{}' créé avec succès!", name);
+    let package_structure = get_config_file_content("package_structure.md", name);
+    println!("{}", package_structure);
+    
+    let instructions = get_config_file_content("instructions.md", name);
+    println!("{}", instructions);
+
+}
+
+fn check() {
+    let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
+    let _ = type_check(&adt_manager);
     println!("✓ Vérification du code réussie!");
 }
 
-fn build(target: TargetLanguage) {
-    let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"), target);
-    let context = type_check(&adt_manager, target, Environment::Project);
+fn build() {
+    let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
+    let context = type_check(&adt_manager);
     
-    match target {
-        TargetLanguage::R => {
-            write_adt_to_r_with_path(&adt_manager.get_body(), &context, &PathBuf::from("R"), "main.R");
-            println!("✓ Code R généré avec succès dans le dossier R/");
-        },
-        TargetLanguage::TypeScript => {
-            // Fonction à implémenter pour générer du TypeScript
-            write_adt_to_typescript_with_path(&adt_manager.get_body(), &context, &PathBuf::from("src"));
-            println!("✓ Code TypeScript généré avec succès dans le dossier src/");
-        },
-        TargetLanguage::AssemblyScript => {
-            // Fonction à implémenter pour générer de l'AssemblyScript
-            write_adt_to_assemblyscript_with_path(&adt_manager.get_body(), &context, &PathBuf::from("assembly"));
-            println!("✓ Code AssemblyScript généré avec succès dans le dossier assembly/");
-        },
-    }
+    write_adt_to_r_with_path(&adt_manager.get_body(), &context, &PathBuf::from("R"), "main.R");
+    println!("✓ Code R généré avec succès dans le dossier R/");
 }
 
-fn run(target: TargetLanguage) {
-    build(target);
-    
-    match target {
-        TargetLanguage::R => {
-            execute_r_with_path(&PathBuf::from("R"), "main.R");
-        },
-        TargetLanguage::TypeScript => {
-            // Compiler et exécuter le TypeScript
-            let original_dir = std::env::current_dir().expect("Impossible d'obtenir le répertoire de travail actuel");
-            std::env::set_current_dir("src").expect("Échec lors du changement de répertoire");
-            
-            println!("Compilation TypeScript...");
-            let tsc_output = Command::new("tsc")
-                .output()
-                .expect("Échec lors de la compilation TypeScript");
-                
-            if !tsc_output.status.success() {
-                let stderr = String::from_utf8_lossy(&tsc_output.stderr);
-                println!("Erreur de compilation TypeScript: {}", stderr);
-                return;
-            }
-            
-            println!("Exécution JavaScript...");
-            let node_output = Command::new("node")
-                .arg("../dist/index.js")
-                .output()
-                .expect("Échec lors de l'exécution de Node.js");
-                
-            let stdout = String::from_utf8_lossy(&node_output.stdout);
-            println!("{}", stdout);
-            
-            std::env::set_current_dir(original_dir).expect("Échec lors de la restauration du répertoire de travail");
-        },
-        TargetLanguage::AssemblyScript => {
-            // Compiler et exécuter l'AssemblyScript
-            let original_dir = std::env::current_dir().expect("Impossible d'obtenir le répertoire de travail actuel");
-            
-            println!("Compilation AssemblyScript...");
-            let asbuild_output = Command::new("npx")
-                .arg("asc")
-                .arg("assembly/main.ts")
-                .arg("-o")
-                .arg("build/main.wasm")
-                .arg("--optimize")
-                .arg("--config")
-                .arg("./node_modules/@assemblyscript/wasi-shim/asconfig.json")
-                .output()
-                .expect("Échec lors de la compilation AssemblyScript");
-                
-            if !asbuild_output.status.success() {
-                let stderr = String::from_utf8_lossy(&asbuild_output.stderr);
-                println!("Erreur de compilation AssemblyScript: {}", stderr);
-                return;
-            }
-            
-            println!("Exécution WebAssembly...");
-            // Ici, vous devriez implémenter une méthode pour exécuter le WebAssembly
-            // Cela pourrait nécessiter un environnement Node.js avec un script spécifique
-            let asbuild_output = Command::new("wasmtime")
-                .arg("build/main.wasm")
-                .output()
-                .expect("Échec lors de l'execution du wasm");
-            
-            // Afficher la sortie standard
-            let stdout = String::from_utf8_lossy(&asbuild_output.stdout);
-            println!("{}", stdout);
-            
-            // Si vous voulez également afficher les erreurs éventuelles
-            let stderr = String::from_utf8_lossy(&asbuild_output.stderr);
-            if !stderr.is_empty() {
-                eprintln!("Erreurs: {}", stderr);
-            }
-            
-            std::env::set_current_dir(original_dir).expect("Échec lors de la restauration du répertoire de travail");
-        },
-    }
+fn run() {
+    build();
+    execute_r_with_path(&PathBuf::from("R"), "main.R");
 }
 
-
-fn test(target: TargetLanguage) {
-    println!("Exécution des tests pour {}...", target);
-    // Implémenter la logique de test pour chaque langage cible
-    match target {
-        TargetLanguage::R => {
-            // Logique de test pour R
-        },
-        TargetLanguage::TypeScript => {
-            // Logique de test pour TypeScript
-        },
-        TargetLanguage::AssemblyScript => {
-            // Logique de test pour AssemblyScript
-        },
-    }
+fn test() {
     println!("Tests non implémentés pour l'instant.");
 }
 
 //main
-fn run_single_file(path: &PathBuf, target: TargetLanguage) {
-    
+fn run_single_file(path: &PathBuf) {
     let file_name = path.file_name().unwrap().to_str().unwrap();
-    let adt_manager = parse_code(&PathBuf::from(file_name), target);
+    let adt_manager = parse_code(&PathBuf::from(file_name));
     let dir = PathBuf::from(".");
 
     //HEADER
     write_std_for_type_checking(&dir);
-    let context = type_check(&adt_manager, target, Environment::StandAlone);
-    
-    match target {
-        TargetLanguage::R => {
-            let new_file_name = file_name.replace(".ty", ".R");
-            write_adt_to_r_with_path(&adt_manager.get_body(), &context, &dir, &new_file_name);
-            execute_r_with_path(&dir, &new_file_name);
-        },
-        TargetLanguage::TypeScript => {
-            // Générer et exécuter le TypeScript
-            write_adt_to_typescript(&adt_manager.get_body(), &context);
-            execute_typescript();
-        },
-        TargetLanguage::AssemblyScript => {
-            // Générer et exécuter l'AssemblyScript
-            // execute_assemblyscript_with_path(&temp_dir);
-            println!("Exécution AssemblyScript non implémentée pour l'instant.");
-        },
-    }
-    
+    let context = type_check(&adt_manager);
+    let new_file_name = file_name.replace(".ty", ".R");
+    write_adt_to_r_with_path(&adt_manager.get_body(), &context, &dir, &new_file_name);
+    execute_r_with_path(&dir, &new_file_name);
 }
 
 fn main() {
     let cli = Cli::parse();
-    
-    // Déterminer le langage cible
-    let target = match &cli.target {
-        Some(target_str) => parse_target(target_str),
-        None => TargetLanguage::R, // Par défaut
-    };
 
     match cli.file {
-        Some(path) => run_single_file(&path, target),
+        Some(path) => run_single_file(&path),
         None => {
             match cli.command {
-                Some(Commands::New { name, target: target_str }) => {
-                    let target_lang = parse_target(&target_str);
-                    new(&name, target_lang)
+                Some(Commands::New { name }) => {
+                    // Plus besoin de parser le target, on crée toujours un projet R
+                    new(&name)
                 },
-                Some(Commands::Check { target: target_str }) => {
-                    let target_lang = parse_target(&target_str);
-                    check(target_lang)
+                Some(Commands::Check) => {
+                    check()
                 },
-                Some(Commands::Build { target: target_str }) => {
-                    let target_lang = parse_target(&target_str);
-                    build(target_lang)
+                Some(Commands::Build) => {
+                    build()
                 },
-                Some(Commands::Run { target: target_str }) => {
-                    let target_lang = parse_target(&target_str);
-                    run(target_lang)
+                Some(Commands::Run) => {
+                    run()
                 },
-                Some(Commands::Test { target: target_str }) => {
-                    let target_lang = parse_target(&target_str);
-                    test(target_lang)
+                Some(Commands::Test) => {
+                    test()
                 },
                 None => {
                     println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");
