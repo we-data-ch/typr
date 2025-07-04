@@ -54,7 +54,6 @@ use crate::engine::parse_code;
 use crate::engine::type_check;
 use crate::engine::write_adt_to_r_with_path;
 use crate::my_io::execute_r_with_path;
-use std::process::Command;
 use crate::context::CompileMode;
 use crate::var::Var;
 use crate::engine::write_std_for_type_checking;
@@ -110,7 +109,7 @@ fn get_config_file_content(file_name: &str, name: &str) -> String {
             Ok(content) => {
                 content.replace("{{PACKAGE_NAME}}", name)
             },
-            Err(e) => {
+            Err(_e) => {
                 "".to_string()
             }
         }

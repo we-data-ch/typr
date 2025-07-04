@@ -24,8 +24,6 @@ use nom::multi::many0;
 use nom::Parser;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
-use crate::help_message::SyntaxError;
-use crate::help_message::ErrorMsg;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 

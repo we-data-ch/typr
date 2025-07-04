@@ -23,7 +23,6 @@ use crate::builder;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
 
-
 fn unify_types(types: &[Type]) -> Type {
     if types.is_empty() {
         Type::Any(HelpData::default())
@@ -77,7 +76,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             if ty.is_empty() {
                 context.to_owned()
                         .push_var_type(name.to_owned().into(), reduced_expr_ty.to_owned(), context)
-                        .add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), HelpData::default())])
+                        .add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), name.get_name(), HelpData::default())])
 
             } else {
                 let reduced_ty = ty.reduce(context);
@@ -92,7 +91,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                     }
                 }).expect(&TypeError::Let(ty.clone(), expr_ty).display());
                 if exp.is_function() && !exp.is_undefined() && new_context.compile_mode == CompileMode::Body {
-                    new_context.add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), HelpData::default())])
+                    new_context.add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), name.get_name(), HelpData::default())])
                 } else {
                     new_context
                 }

@@ -206,11 +206,25 @@ impl Context {
         }
     }
 
+    pub fn in_black_list(s: &str) -> bool {
+        let black_list: HashSet<&str> = ["seq", "append", "add", "mul", "map", "dot", "t"].iter().cloned().collect();
+        black_list.contains(s)
+    }
+
+    pub fn is_gen_func_allowed(l: &Lang) -> bool {
+        if let Lang::GenFunc(s, name, _) = l {
+           if Self::in_black_list(&name) { false } else { true }
+        } else { false }
+    }
+
     pub fn add_generic_function(self, data: &[Lang]) -> Context {
+        let data = data.iter()
+            .filter(|x| Self::is_gen_func_allowed(x))
+            .collect::<Vec<_>>();
         let adt_header = self.adt.set_generic_methods(
             data.iter()
                 .fold(self.adt.generic_methods.clone(),
-                |adt, lang| add_if_absent(adt, lang.clone())));
+                |adt, lang| add_if_absent(adt, lang.clone().clone())));
         Context {
             adt: adt_header,
             ..self

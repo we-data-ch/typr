@@ -258,7 +258,7 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
             let gen_vec = extract_generics(&args, &typ);
             Ok((s, Lang::Function(gen_vec, args, typ, Box::new(exp), HelpData::default())))
         },
-        Ok((_s, (_, _, _args, cp, None, None, _exp))) 
+        Ok((_s, (_, _, _args, _cp, None, None, _exp))) 
             => {
                 panic!("You forgot to specify the function return type: 'fn(...): Type'");
             }, 
@@ -367,7 +367,7 @@ fn record(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (Some(start), _, args, _))) 
             => Ok((s, Lang::Record(args.clone(), start.into()))),
-        Ok((_s, (None, ob, _args, _))) => {
+        Ok((_s, (None, _ob, _args, _))) => {
             panic!("You forgot to put a record identifier before the bracket: ':{{...}}'");
         } 
         Err(r) => Err(r)

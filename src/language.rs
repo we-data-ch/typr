@@ -14,6 +14,7 @@ use crate::help_data::HelpData;
 use crate::path::Path;
 use crate::function_type::FunctionType;
 use crate::type_comparison::reduce_type;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Lang {
@@ -56,7 +57,7 @@ pub enum Lang {
     ModImp(String, HelpData),
     Import(Type, HelpData), // type alias
     Header(Box<Lang>, HelpData),
-    GenFunc(String, HelpData),
+    GenFunc(String, String, HelpData), //body, name, helpdata
     Test(Vec<Lang>, HelpData),
     Return(Box<Lang>, HelpData),
     VecBloc(String, HelpData),
@@ -80,6 +81,7 @@ fn my_to_str<T: ToString>(v: &[T]) -> String {
         .unwrap_or("".to_string());
     format!("[{}]", res)
 }
+
 
 pub fn build_generic_function(s: &str) -> String {
     format!("{} <- function(x, ...) {{\n\tUseMethod('{}')\n}}", s, s)
@@ -307,7 +309,7 @@ impl Lang {
                 let (exp_str, new_cont) = exp.to_r(cont);
                 (format!("{}[{}]", exp_str, val), new_cont)
             },
-            Lang::GenFunc(func, _) => 
+            Lang::GenFunc(func, _, _) => 
                 (func.to_string(), cont.clone()),
             Lang::Let(var, ttype, body, _) => {
                 let (body_str, new_cont) = body.to_r(cont);
@@ -950,7 +952,7 @@ impl Lang {
             Lang::ModImp(_, h) => h,
             Lang::Import(_, h) => h,
             Lang::Header(_, h) => h,
-            Lang::GenFunc(_, h) => h,
+            Lang::GenFunc(_, _, h) => h,
             Lang::Test(_, h) => h,
             Lang::Return(_, h) => h,
             Lang::VecBloc(_, h) => h,

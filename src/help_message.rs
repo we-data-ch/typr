@@ -1,15 +1,12 @@
 use miette::{Diagnostic, NamedSource, SourceSpan, Result};
 use thiserror::Error;
 use miette::SourceCode;
-use std::fs;
-use nom_locate::LocatedSpan;
 use crate::Type;
 use crate::Lang;
 use crate::Var;
 use crate::help_data::HelpData;
 
 pub trait ErrorMsg { 
-    fn panic(self);
     fn display(self) -> String;
 }
 
@@ -184,10 +181,6 @@ pub enum TypeError {
 
 // main
 impl ErrorMsg for TypeError {
-    fn panic(self) {
-        None.expect(&format!("{:?}", self.display()))
-    }
-
     fn display(self) -> String {
         let msg: Result<()> = match self {
             TypeError::Let(t1, t2) => {
@@ -267,10 +260,6 @@ pub enum SyntaxError {
 }
 
 impl ErrorMsg for SyntaxError {
-    fn panic(self) {
-        None.expect(&format!("{:?}", self.display()))
-    }
-
     fn display(self) -> String {
         let msg: Result<()> = match self {
             SyntaxError::LetInTypeDefinition(h) => {
