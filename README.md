@@ -27,17 +27,15 @@ There is also a more mature project named vapour written in go who has great fea
 
 ## Installation
 
-## For R
+## For RStudio
+
+You can check the [typr.runner](https://github.com/fabriceHategekimana/typr_runner) package to install it directly on RStudio.
+
+## For Scratch
 To install TypR, you will need to install `Rust` (of course you should have R installed in your system):
 
 - R's installation page: https://www.r-project.org/
 - Rust's installation page: https://www.rust-lang.org/
-
-You should be sure those tools are installed and accessible through the terminal.
-
-## For Typescript/Javascript/Wasm
-It's not complet yet, but you can transpile TypR code to Typescript/Javascript/Wasm using node.
-
 - Node's installation page: https://nodejs.org/en 
 
 ### Installation

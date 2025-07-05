@@ -103,18 +103,6 @@ enum Commands {
     Test
 }
 
-fn get_config_file_content(file_name: &str, name: &str) -> String {
-    let description_source = Path::new(file_name);
-    match fs::read_to_string(description_source) {
-            Ok(content) => {
-                content.replace("{{PACKAGE_NAME}}", name)
-            },
-            Err(_e) => {
-                "".to_string()
-            }
-        }
-}
-
 
 fn new(name: &str) {
     println!("Création du package R '{}'...", name);
@@ -165,43 +153,46 @@ fn new(name: &str) {
     
     // Créer les fichiers du package R
     let package_files = vec![
-        ("DESCRIPTION", get_config_file_content("configs/DESCRIPTION", name)),
-        ("NAMESPACE", get_config_file_content("configs/NAMESPACE", name)),
-        (".Rbuildignore", get_config_file_content("configs/.Rbuildignore", name)),
-        (".gitignore", get_config_file_content(".gitignore", name)),
-        ("TypR/main.ty", get_config_file_content("configs/main.ty", name)),
-        ("R/.gitkeep", get_config_file_content("configs/.gitkeep", name)),
-        ("tests/testthat.R", get_config_file_content("configs/testthat.R", name)),
-        ("tests/testthat/test-basic.R", get_config_file_content("configs/test-basic.R", name)),
-        ("man/.gitkeep", get_config_file_content("configs/.gitkeep2", name)),
-        ("README.md", get_config_file_content("configs/README.md", name))
+        ("DESCRIPTION", include_str!("../configs/DESCRIPTION").replace("{{PACKAGE_NAME}}", name)),
+        ("NAMESPACE", include_str!("../configs/NAMESPACE").replace("{{PACKAGE_NAME}}", name)),
+        (".Rbuildignore", include_str!("../configs/.Rbuildignore").replace("{{PACKAGE_NAME}}", name)),
+        (".gitignore", include_str!("../configs/.gitignore").replace("{{PACKAGE_NAME}}", name)),
+        ("TypR/main.ty", include_str!("../configs/main.ty").replace("{{PACKAGE_NAME}}", name)),
+        ("TypR/std.ty", include_str!("../configs/r/std.ty").to_string()),
+        ("std.ty", include_str!("../configs/r/std.ty").to_string()),
+        ("R/.gitkeep", include_str!("../configs/.gitkeep").replace("{{PACKAGE_NAME}}", name)),
+        ("tests/testthat.R", include_str!("../configs/testthat.R").replace("{{PACKAGE_NAME}}", name)),
+        ("tests/testthat/test-basic.R", include_str!("../configs/test-basic.R").replace("{{PACKAGE_NAME}}", name)),
+        ("man/.gitkeep", include_str!("../configs/.gitkeep2").replace("{{PACKAGE_NAME}}", name)),
+        ("README.md", include_str!("../configs/README.md").replace("{{PACKAGE_NAME}}", name))
     ];
     
     for (file_path, content) in package_files {
         let full_path = project_path.join(file_path);
         if let Some(parent) = full_path.parent() {
             if let Err(e) = fs::create_dir_all(parent) {
-                eprintln!("Avertissement: Impossible de créer le répertoire parent {}: {}", parent.display(), e);
+                eprintln!("Warning: Impossible de créer le répertoire parent {}: {}", parent.display(), e);
                 continue;
             }
         }
+        println!("Writing {} in '{:?}'", content.len(), full_path);
         if let Err(e) = fs::write(&full_path, content) {
-            eprintln!("Avertissement: Impossible de créer le fichier {}: {}", full_path.display(), e);
+            eprintln!("Warning: Impossible de créer le fichier {}: {}", full_path.display(), e);
         }
     }
     
-    let rproj_content = get_config_file_content("configs/rproj.Rproj", name);
+    let rproj_content = include_str!("../configs/rproj.Rproj").replace("{{PACKAGE_NAME}}", name);
     // Créer le fichier .Rproj
     let rproj_path = project_path.join(format!("{}.Rproj", name));
     if let Err(e) = fs::write(&rproj_path, rproj_content) {
-        eprintln!("Avertissement: Impossible de créer le fichier .Rproj: {}", e);
+        eprintln!("Warning: Impossible de créer le fichier .Rproj: {}", e);
     }
     
-    println!("✓ Package R '{}' créé avec succès!", name);
-    let package_structure = get_config_file_content("package_structure.md", name);
+    println!("✓ Package R '{}' successfully created!", name);
+    let package_structure = include_str!("../configs/package_structure.md").replace("{{PACKAGE_NAME}}", name);
     println!("{}", package_structure);
     
-    let instructions = get_config_file_content("instructions.md", name);
+    let instructions = include_str!("../configs/instructions.md").replace("{{PACKAGE_NAME}}", name);
     println!("{}", instructions);
 
 }

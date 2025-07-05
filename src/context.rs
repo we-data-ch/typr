@@ -207,7 +207,9 @@ impl Context {
     }
 
     pub fn in_black_list(s: &str) -> bool {
-        let black_list: HashSet<&str> = ["seq", "append", "add", "mul", "map", "dot", "t"].iter().cloned().collect();
+        let black_list: HashSet<&str> = [
+            "seq", "append", "add", "mul", "map", "dot", "t", "print"
+        ].iter().cloned().collect();
         black_list.contains(s)
     }
 

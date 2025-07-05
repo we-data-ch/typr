@@ -1,3 +1,7 @@
+let print <- fn(c: char): Empty {
+	...
+};
+
 let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K+1, int] {
 	...
 };
