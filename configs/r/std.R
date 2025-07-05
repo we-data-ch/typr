@@ -1,7 +1,11 @@
-add <- function(a, b) {a + b}
-minus <- function(a, b) {a - b}
-mul <- function(a, b) {a * b}
-div <- function(a, b) {a / b}
+add <- function (x, ...) UseMethod("add")
+minus <- function (x, ...) UseMethod("minus")
+mul <- function (x, ...) UseMethod("mul")
+div <- function (x, ...) UseMethod("div")
+add.default <- function(a, b) {a + b}
+minus.default <- function(a, b) {a - b}
+mul.default <- function(a, b) {a * b}
+div.default <- function(a, b) {a / b}
 map <- function(x, ...) { UseMethod('map') }
 map.default <- sapply
 filter.default <- function(vec, condition) {

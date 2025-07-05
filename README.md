@@ -147,7 +147,7 @@ Each basic type gives a vector of size 1 in R. Boleans are now the two lower-cas
 |------------|-------|---------|
 | Integers   | int   | integer |
 | Numerics   | num   | numeric |
-| Characters | char | bool    |
+| Characters | char  | bool    |
 | Booleans   | bool  | logical |
 
 ```scala
