@@ -134,24 +134,24 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 fn base_mut_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
             terminated(tag("mut"), multispace0),
-            variable,
+            pattern_var,
             opt(preceded(terminated(tag(":"), multispace0), ltype)),
             equality_operator,
             single_parse,
           ).parse(s);
     match res {
-        Ok((s, (_met, var, typ, _eq, Lang::Function(ki, params, ty, body, h)))) 
+        Ok((s, (_met, (var, None), typ, _eq, Lang::Function(ki, params, ty, body, h)))) 
             if params.len() > 0 => {
-                let newvar = Var::from_language(var)
+                let newvar = Var::from_language(var[0].clone())
                     .unwrap()
                     .set_type(params[0].1.clone())
                     .set_mutability(true);
                 Ok((s, Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
                 Box::new(Lang::Function(ki, params, ty, body, h.clone())), h)))
             },
-        Ok((s, (_let, var, typ, _eq, body))) => {
+        Ok((s, (_let, (var, _), typ, _eq, body))) => {
             Ok((s, Lang::Let(
-                        Var::from_language(var)
+                        Var::from_language(var[0].clone())
                             .unwrap()
                             .set_mutability(true),
                             typ.unwrap_or(Type::Empty(HelpData::default())), Box::new(body),
@@ -549,8 +549,12 @@ mod tesus {
 
     #[test]
     fn test_base_parse3() {
-        let res = base_mut_exp("mut a = 5;".into()).unwrap().1;
-        assert_eq!(res, builder::empty_lang())
+        let res = base_mut_exp("mut a <- 5;".into()).unwrap().1;
+        if let Lang::Let(var, _, _, _) = res {
+            assert!(var.is_mutable())
+        } else {
+            assert!(false)
+        }
     }
 
     #[test]

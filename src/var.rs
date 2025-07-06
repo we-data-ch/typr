@@ -113,6 +113,10 @@ impl Var {
         self.4.clone()
     }
 
+    pub fn get_help_data(&self) -> HelpData {
+        self.5.clone()
+    }
+
     pub fn match_with(&self, var: &Var, context: &Context) -> bool {
         [(self.get_name() == var.get_name()),
         (self.get_path() == var.get_path()),
@@ -126,6 +130,10 @@ impl Var {
 
     pub fn to_r(self) -> String {
         format!("{}{}", self.1.to_r(), self.0)
+    }
+
+    pub fn is_mutable(&self) -> bool {
+        self.3.clone()
     }
 }
 

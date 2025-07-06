@@ -107,7 +107,6 @@ enum Commands {
 fn new(name: &str) {
     println!("Création du package R '{}'...", name);
 
-    // Obtenir le répertoire courant
     let current_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -116,10 +115,8 @@ fn new(name: &str) {
         }
     };
     
-    // Créer le chemin absolu du projet
     let project_path = current_dir.join(name);
     
-    // Créer le répertoire principal du package
     if let Err(e) = fs::create_dir(&project_path) {
         eprintln!("Erreur lors de la création du répertoire du projet: {}", e);
         std::process::exit(1);
@@ -164,7 +161,7 @@ fn new(name: &str) {
         ("tests/testthat.R", include_str!("../configs/testthat.R").replace("{{PACKAGE_NAME}}", name)),
         ("tests/testthat/test-basic.R", include_str!("../configs/test-basic.R").replace("{{PACKAGE_NAME}}", name)),
         ("man/.gitkeep", include_str!("../configs/.gitkeep2").replace("{{PACKAGE_NAME}}", name)),
-        ("README.md", include_str!("../configs/README.md").replace("{{PACKAGE_NAME}}", name))
+        ("README.md", include_str!("../configs/README.md").replace("{{PACKAGE_NAME}}", name)),
     ];
     
     for (file_path, content) in package_files {
@@ -182,8 +179,7 @@ fn new(name: &str) {
     }
     
     let rproj_content = include_str!("../configs/rproj.Rproj").replace("{{PACKAGE_NAME}}", name);
-    // Créer le fichier .Rproj
-    let rproj_path = project_path.join(format!("{}.Rproj", name));
+    let rproj_path = project_path.join(format!("{}/{}.Rproj", name, name));
     if let Err(e) = fs::write(&rproj_path, rproj_content) {
         eprintln!("Warning: Impossible de créer le fichier .Rproj: {}", e);
     }

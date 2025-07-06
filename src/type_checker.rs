@@ -75,7 +75,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let reduced_expr_ty = expr_ty.reduce(context);
             if ty.is_empty() {
                 context.to_owned()
-                        .push_var_type(name.to_owned().into(), reduced_expr_ty.to_owned(), context)
+                        .push_var_type(name.to_owned().set_type(expr_ty).into(), reduced_expr_ty.to_owned(), context)
                         .add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), name.get_name(), HelpData::default())])
 
             } else {
@@ -108,21 +108,18 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             new_context3.push_alias(name.get_name(), typ.to_owned())
         },
         Lang::Assign(var, expr, _h) => {
-            let type1 = context.get_type_from_variable(Var::from_language((**var).clone()).unwrap());
-            let type1_reduced = reduce_type(context, &type1);
-            let type2 = typing(&context, expr).0;
-            let type2_reduced = reduce_type(context, &type2);
-            if type1_reduced.is_subtype(&type2_reduced) {
-                let var_ty = typing(&context, var).0;
-                let var_ty_reduced = reduce_type(&context, &var_ty);
-                let expr_ty = typing(&context, expr).0;
-                let expr_ty_reduced = reduce_type(&context, &expr_ty);
-                if !var_ty_reduced.is_subtype(&expr_ty_reduced) {
-                    panic!("Type error");
-                }
-                context.clone()
+            let variable_assigned = Var::from_language((**var).clone()).unwrap();
+            let variable = context.get_true_variable(&variable_assigned);
+            let var_type = context.get_type_from_variable(variable.clone());
+            let var_type_reduced = reduce_type(context, &var_type);
+            let expr_type = typing(&context, expr).0;
+            let expr_type_reduced = reduce_type(context, &expr_type);
+            if !(expr_type_reduced == var_type_reduced || expr_type_reduced.is_subtype(&var_type_reduced)) {
+                panic!("{}", TypeError::Param(expr_type, var_type).display());
+            } else if !variable.is_mutable() {
+                panic!("{}", TypeError::ImmutableVariable(variable_assigned, variable).display());
             } else {
-                panic!("Variable not found");
+                context.clone()
             }
         }
         Lang::Library(name, _h) => {
@@ -452,5 +449,17 @@ fn unify_type(ty1: &Type, ty2: &Type) -> Type {
         (Type::Empty(_), ty) | (ty, Type::Empty(_)) => ty.clone(),
         (ty1, ty2) if ty1 == ty2 => ty1.clone(),
         _ => Type::Empty(HelpData::default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_type_equality(){
+        let a = builder::integer_type(2);
+        let b = builder::integer_type(17);
+        assert!(a == b)
     }
 }

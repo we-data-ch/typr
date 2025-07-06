@@ -176,7 +176,8 @@ pub enum TypeError {
     Param(Type, Type),
     UndefinedFunction(Lang),
     UndefinedVariable(Lang),
-    UnmatchingReturnType(Type, Type)
+    UnmatchingReturnType(Type, Type),
+    ImmutableVariable(Var, Var)
 }
 
 // main
@@ -248,6 +249,26 @@ impl ErrorMsg for TypeError {
                         .text(format!("Undefined variable '{}'", var2.get_name()))
                         .help(format!("- Check the orthograph \n- if it's a function check if it's defined for the given type {}", var2.get_type()))
                         .build()
+                }
+            TypeError::ImmutableVariable(var_assign, var)
+                => {
+                let var = var.clone().set_type(var.get_type().generalize());
+                let help_data1 = var_assign.get_help_data();
+                let help_data2 = var.get_help_data();
+                let (file_name1, text1) = help_data1.get_file_data()
+                    .expect(&format!("The file name of {:?} for {} doesn't exist", 
+                                     help_data1, var_assign));
+                let (file_name2, text2) = help_data2.get_file_data()
+                    .expect(&format!("The file name of {:?} for {} doesn't exist", 
+                                     help_data2, var));
+                DoubleBuilder::new(file_name1, text1, file_name2, text2)
+                    .pos1((help_data1.get_offset(), 0))
+                    .pos2((help_data2.get_offset(), 1))
+                    .text(format!("The variable {} is immutable", var))
+                    .pos_text1(format!("Forbidden assignation to {}", var))
+                    .pos_text2(format!("{} defined with 'let' (=immutable) here", var))
+                    .help("Try to replace the 'let' keyword by the 'mut' keyword")
+                    .build()
                 }
         };
         format!("{:?}", msg)

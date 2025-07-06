@@ -132,7 +132,14 @@ impl Context {
            .find(|(v, _)| var.match_with(v, self))
            .map(|(_, ty)| ty)
            .expect(&TypeError::UndefinedVariable(var.to_language()).display())
-           //.expect(&format!("The variable {}, wasn't found in the context\n{}", var, self.display_typing_context()))
+           .clone()
+    }
+
+    pub fn get_true_variable(&self, var: &Var) -> Var {
+        self.typing_context.iter()
+           .find(|(v, _)| var.match_with(v, self))
+           .map(|(v, _)| v)
+           .expect(&format!("The variable {} was not found", var))
            .clone()
     }
 
