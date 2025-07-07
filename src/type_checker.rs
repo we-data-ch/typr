@@ -74,10 +74,19 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let expr_ty = typing(&context, exp).0;
             let reduced_expr_ty = expr_ty.reduce(context);
             if ty.is_empty() {
-                context.to_owned()
-                        .push_var_type(name.to_owned().set_type(expr_ty).into(), reduced_expr_ty.to_owned(), context)
-                        .add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), name.get_name(), HelpData::default())])
-
+                if exp.is_function() {
+                    let first_param = expr_ty.get_function_elements()
+                        .unwrap()
+                        .get_param_types()[0].clone();
+                    let new_name = name.to_owned().set_type(first_param);
+                    context.to_owned()
+                            .push_var_type(new_name, reduced_expr_ty.to_owned(), context)
+                            .add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), name.get_name(), HelpData::default())])
+                } else {
+                    let new_name = name.to_owned().set_type(expr_ty);
+                    context.to_owned()
+                            .push_var_type(new_name, reduced_expr_ty.to_owned(), context)
+                }
             } else {
                 let reduced_ty = ty.reduce(context);
 
@@ -273,7 +282,6 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let list_of_types = params.iter()
                 .map(ArgumentType::get_type)
                 .collect::<Vec<_>>();
-            list_of_types.iter().map(|x| dbg!(x.pretty()));
             if body.is_empty_scope() && context.is_in_header_mode() {
                 (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), context.to_owned())
             } else {
@@ -281,7 +289,8 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                     .map(|arg_typ| {
                         let new_type = reduce_type(context, &arg_typ.get_type())
                             .for_var();
-                        Var::from_name(&arg_typ.get_argument_str())
+                        Var::from_type(arg_typ.get_argument())
+                            .expect("The arg_typ should have been label function")
                             .set_type(new_type)
                     })
                     .zip(list_of_types.clone().into_iter().map(|typ| reduce_type(context, &typ)))
@@ -407,7 +416,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::Variable(_, _, _, _, _, _) => {
-            (context.get_type_from_variable(Var::from_language(expr.clone()).unwrap()), context.clone())
+            let old_var = Var::from_language(expr.clone()).unwrap();
+            let var = context.get_true_variable(&old_var);
+            if var.is_private() && var.is_foreign() {
+               panic!("{}", TypeError::PrivateVariable(old_var, var).display())
+            } else {
+                (context.get_type_from_variable(var), context.clone())
+            }
         },
         Lang::Scope(expr, _) if expr.len() == 1 => {
             typing(context, &expr[0])

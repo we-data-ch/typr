@@ -14,6 +14,12 @@ impl Tchar {
             _ => false
         }
     }
+    pub fn get_val(&self) -> String {
+        match self {
+            Tchar::Val(s) => s.clone(),
+            _ => "Unkown".to_string()
+        }
+    }
 }
 
 use std::fmt;

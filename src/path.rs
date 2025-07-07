@@ -17,6 +17,14 @@ impl Path {
     pub fn add_path(self, p: Path) -> Path {
         Path(self.0 + "::" + &p.0)
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.0 == ""
+    }
+
+    pub fn get_value(&self) -> String {
+        self.0.clone()
+    }
 }
 
 

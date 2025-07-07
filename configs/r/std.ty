@@ -1,4 +1,4 @@
-let print <- fn(c: char): Empty {
+let print <- fn(c: char): T {
 	...
 };
 
@@ -7,14 +7,6 @@ let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K+1, int] {
 };
 
 let append <- fn(a: [#M, T], e: T): [#M+1, T] {
-	...
-};
-
-let add <- fn(a: int, b: int): int {
-	...
-};
-
-let add <- fn(a: num, b: num): num {
 	...
 };
 
@@ -35,5 +27,13 @@ let dot <- fn(m: [#M, [#P, int]], n: [#P, [#N, int]]): [#M, [#N, int]] {
 };
 
 let t <- fn(m: [#M, [#N, T]]): [#N, [#M, T]] {
+	...
+};
+
+let add <- fn(a: num, b: num): num {
+	...
+};
+
+let add <- fn(a: int, b: int): int {
 	...
 };

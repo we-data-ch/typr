@@ -71,7 +71,7 @@ pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf,
 
     let app_path = output_dir.join(file_name);
     let mut app = File::create(app_path).unwrap();
-    let content = format!("source('std.R', echo = FALSE)\n{}\n{}", cont.adt.get_adt().to_r(cont), adt.to_r(cont));
+    let content = format!("source('std.R', echo = FALSE)\n\n{}{}", cont.adt.get_adt().to_r(cont), adt.to_r(cont));
     app.write_all(content.as_bytes()).unwrap();
 }
 

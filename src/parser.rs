@@ -261,7 +261,7 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 
 pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (terminated(tag("module"), multispace0),
-        pascal_case,
+        terminated(variable_exp, multispace0),
         terminated(tag("{"), multispace0),
         parse_exp,
         terminated(tag("}"), multispace0),
@@ -571,7 +571,7 @@ mod tesus {
 
     #[test]
     fn test_module1() {
-        let res = module("module Add { let a = 5; }".into()).unwrap().1;
+        let res = module("module add { let a = 5; };".into()).unwrap().1;
         assert_eq!(res, vec![]);
     }
 

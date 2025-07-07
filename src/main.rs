@@ -162,6 +162,7 @@ fn new(name: &str) {
         ("tests/testthat/test-basic.R", include_str!("../configs/test-basic.R").replace("{{PACKAGE_NAME}}", name)),
         ("man/.gitkeep", include_str!("../configs/.gitkeep2").replace("{{PACKAGE_NAME}}", name)),
         ("README.md", include_str!("../configs/README.md").replace("{{PACKAGE_NAME}}", name)),
+        ("rproj.Rproj", include_str!("../configs/rproj.Rproj").to_string()),
     ];
     
     for (file_path, content) in package_files {
@@ -176,12 +177,6 @@ fn new(name: &str) {
         if let Err(e) = fs::write(&full_path, content) {
             eprintln!("Warning: Impossible de créer le fichier {}: {}", full_path.display(), e);
         }
-    }
-    
-    let rproj_content = include_str!("../configs/rproj.Rproj").replace("{{PACKAGE_NAME}}", name);
-    let rproj_path = project_path.join(format!("{}/{}.Rproj", name, name));
-    if let Err(e) = fs::write(&rproj_path, rproj_content) {
-        eprintln!("Warning: Impossible de créer le fichier .Rproj: {}", e);
     }
     
     println!("✓ Package R '{}' successfully created!", name);

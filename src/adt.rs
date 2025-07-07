@@ -29,17 +29,19 @@ impl Adt {
 
     pub fn to_r(&self, cont: &Context) -> String {
         //let mut current_cont = cont.update_classes();
-        let mut current_cont = cont.clone();
+        let current_cont = cont.clone();
         let mut results = Vec::new();
         
         for exp in self.iter() {
             let (exp_str, new_cont) = exp.to_r(&current_cont);
-            if exp_str != "".to_string() {
-                results.push(exp_str);
-            }
-            current_cont = new_cont;
+            results.push(exp_str);
         }
-        results.join("\n\n")
+        let res = results.join("\n");
+        if res == "" {
+            res
+        } else {
+            results.join("\n") + "\n"
+        }
     }
 
     pub fn to_typescript(&self, cont: &Context) -> String {

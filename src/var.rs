@@ -46,6 +46,11 @@ impl Var {
                         .set_type(Type::Params(concret_types.to_vec(), concret_types.clone().into()));
                     Some(var)
             },
+            Type::Char(val, h) => {
+                let var = Var::from_name(&val.get_val())
+                    .set_help_data(h);
+                Some(var)
+            }
             _ => None
         }
     }
@@ -135,6 +140,14 @@ impl Var {
     pub fn is_mutable(&self) -> bool {
         self.3.clone()
     }
+
+    pub fn is_private(&self) -> bool {
+        self.2 == Permission::Private
+    }
+
+    pub fn is_foreign(&self) -> bool {
+        !self.1.is_empty()
+    }
 }
 
 impl fmt::Display for Var {
@@ -148,4 +161,16 @@ impl Default for Var {
     fn default() -> Self {
         Var("".to_string(), "".into(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_default_var_not_foreign(){
+        let var = Var::default();
+        assert!(!var.is_foreign())
+    }
+
 }

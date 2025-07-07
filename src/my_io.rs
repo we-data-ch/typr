@@ -14,7 +14,8 @@ pub fn get_os_file(file: &str) -> String {
 
 pub fn read_file(path: &PathBuf) -> String {
     let file = get_os_file(path.to_str().unwrap());
-    fs::read_to_string(&file).unwrap()
+    fs::read_to_string(&file)
+        .expect(&format!("File not found {}", file))
 }
 
 pub fn read_file_from_name(name: &str) -> String {

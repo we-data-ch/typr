@@ -84,7 +84,7 @@ fn my_to_str<T: ToString>(v: &[T]) -> String {
 
 
 pub fn build_generic_function(s: &str) -> String {
-    format!("{} <- function(x, ...) {{\n\tUseMethod('{}')\n}}", s, s)
+    format!("{} <- function(x, ...) {{\n\tUseMethod('{}')\n}}\n", s, s)
 }
 
 fn condition_to_if(var: &Lang, condition: &Lang) -> (String, Lang) {
@@ -297,7 +297,7 @@ impl Lang {
                         let new_name = name.replace("__", ".");
                         if path != Path::default() {
                             (format!("eval(quote({}({})), envir = {})",
-                                new_name, args, path), current_cont)
+                                new_name, args, path.get_value()), current_cont)
                         } else {
                             (format!("{}({})", name.replace("__", "."), args), current_cont)
                         }
@@ -336,9 +336,9 @@ impl Lang {
 
                 match classes_res {
                     Some(classes) =>
-                        (format!("{} |> \n\tlet_type({})", r_code, classes),
+                        (format!("{} |> \n\tlet_type({})\n", r_code, classes),
                         new_cont),
-                    None => (r_code, new_cont)
+                    None => (r_code + "\n", new_cont)
                 }
             },
             Lang::Array(v, _h) => {
@@ -451,7 +451,7 @@ impl Lang {
                     current_cont = new_cont;
                 }
                 
-                (results.join("\n\n"), current_cont)
+                (results.join("\n"), current_cont)
             },
             Lang::Return(exp, _) => {
                 let (exp_str, new_cont) = exp.to_r(cont);

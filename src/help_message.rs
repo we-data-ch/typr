@@ -177,7 +177,8 @@ pub enum TypeError {
     UndefinedFunction(Lang),
     UndefinedVariable(Lang),
     UnmatchingReturnType(Type, Type),
-    ImmutableVariable(Var, Var)
+    ImmutableVariable(Var, Var),
+    PrivateVariable(Var, Var)
 }
 
 // main
@@ -268,6 +269,26 @@ impl ErrorMsg for TypeError {
                     .pos_text1(format!("Forbidden assignation to {}", var))
                     .pos_text2(format!("{} defined with 'let' (=immutable) here", var))
                     .help("Try to replace the 'let' keyword by the 'mut' keyword")
+                    .build()
+                }
+            TypeError::PrivateVariable(var_used, var)
+                => {
+                let var = var.clone().set_type(var.get_type().generalize());
+                let help_data1 = var_used.get_help_data();
+                let help_data2 = var.get_help_data();
+                let (file_name1, text1) = help_data1.get_file_data()
+                    .expect(&format!("The file name of {:?} for {} doesn't exist", 
+                                     help_data1, var_used));
+                let (file_name2, text2) = help_data2.get_file_data()
+                    .expect(&format!("The file name of {:?} for {} doesn't exist", 
+                                     help_data2, var));
+                DoubleBuilder::new(file_name1, text1, file_name2, text2)
+                    .pos1((help_data1.get_offset(), 0))
+                    .pos2((help_data2.get_offset(), 1))
+                    .text(format!("The variable {} is private", var))
+                    .pos_text1(format!("Forbidden access to {} which is private", var))
+                    .pos_text2(format!("{} defined as private (without 'pub') here", var))
+                    .help("Try to add the 'pub' keyword befor the 'let' keyword")
                     .build()
                 }
         };

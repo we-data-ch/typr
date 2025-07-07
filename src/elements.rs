@@ -127,7 +127,7 @@ fn type_annotation(s: Span) -> IResult<Span, Type> {
 }
 
 fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
-    let res = many1(terminated(pascal_case, tag("::"))).parse(s);
+    let res = many1(terminated(variable_exp, tag("::"))).parse(s);
     match res {
         Ok((s, v)) => {
             let res = v.iter()
