@@ -74,6 +74,11 @@ impl Var {
     }
 
     pub fn set_type(self, typ: Type) -> Var {
+        let typ = if let Type::Function(_, params, _, h) = typ {
+            if params.len() >= 1 {
+                params[0].clone()
+            } else { Type::Any(h) }
+        } else { typ };
         Var(self.0, self.1, self.2, self.3, typ, self.5)
     }
 
@@ -148,6 +153,18 @@ impl Var {
     pub fn is_foreign(&self) -> bool {
         !self.1.is_empty()
     }
+
+    pub fn is_alias(&self) -> bool {
+        match self.get_type() {
+            Type::Params(_, _) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_variable(&self) -> bool {
+        !self.is_alias()
+    }
+
 }
 
 impl fmt::Display for Var {

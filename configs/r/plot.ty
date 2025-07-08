@@ -1,18 +1,13 @@
 # PLOT FUNCTION ----------
-let plot <- fn(a: [#N, num], b: [#N, num], c: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool): .None {
-	...
-};
+@plot: (a: [#N, num], b: [#N, num], c: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool) -> .None;
 
 type Plot = { x: [#N, num], y: [#N, num], type: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool};
 
-
-let bplot <- fn(): Plot {
+let bplot: (): Plot;
 	:{ x: [0.5], y: [0.5], type: "p", xlim: [0.0, 5.0], ylim: [0.0, 5.0], log: "", main: "", sub: "", xlab: "", ylab: "", ann: true, axes: true}
 };
 
-let show <- fn(p: Plot): .None {
+let show <- fn(p: Plot): .None;
 	plot(p.x, p.y, p.type, p.xlim, p.ylim, p.log, p.main, p.sub, p.xlab, p.ylab, p.ann, p.axes)
 };
-
-type BPlot = { x: [1, num], y: [1, num], type: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool};
 #---------------------

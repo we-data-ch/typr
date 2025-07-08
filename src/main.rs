@@ -49,7 +49,6 @@ use crate::adt_manager::AdtManager;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::fs;
-use std::path::Path;
 use crate::engine::parse_code;
 use crate::engine::type_check;
 use crate::engine::write_adt_to_r_with_path;

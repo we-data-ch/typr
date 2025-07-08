@@ -1,48 +1,26 @@
 # File System management ----------
 
-let getwd <- fn(): char {
-	...
-};
+@getwd: () -> char;
 
-let setwd <- fn(path: char): char {
-	...
-};
+@setwd: (path: char) -> char;
 
-let dir <- fn(): [#N, char] {
-	...
-};
+@dir: () -> [#N, char];
 
-let list__files <- fn(): [#N, char] {
-	...	
-};
+@list__files: () -> [#N, char];
 
-let file__exists <- fn(file: char): bool {
-	...
-};
+@file__exists: (file: char) -> bool;
 
-let file__create <- fn(file: char): bool {
-	...
-};
+@file__create: (file: char) -> bool;
 
-let file__remove <- fn(file: char): bool {
-	...
-};
+@file__remove: (file: char) -> bool;
 
-let file__rename <- fn(old: char, new: char): bool {
-	...
-};
+@file__rename: (old: char, new: char) -> bool;
 
-let file__copy <- fn(source: char, dest: char): bool {
-	...
-};
+@file__copy: (source: char, dest: char) -> bool;
 
-let dir__create <- fn(source: char, dest: char): bool {
-	...
-};
+@dir__create: (source: char, dest: char) -> bool;
 
-let unlink <- fn(target: char): bool {
-	...
-};
+@unlink: (target: char) -> bool;
 
 
 # --------------------------------

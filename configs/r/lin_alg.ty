@@ -1,15 +1,11 @@
-let dot <- fn(m: [#M, [#P, int]], n: [#P, [#N, int]]): [#M, [#N, int]] {
-	...
-};
+@dot: (m: [#M, [#P, int]], n: [#P, [#N, int]]): [#M, [#N, int]];
 
-let t <- fn(m: [#M, [#N, T]]): [#N, [#M, T]] {
-	...
-};
+@t: (m: [#M, [#N, T]]): [#N, [#M, T]];
 
-let lvec <- fn(a: [#M, T]): [1, [#M, T]] {
+let lvec <- fn(a: [#M, T]): [1, [#M, T]];
 	[a]
 };
 
-let cvec <- fn(a: [#M, T]): [#M, [1, T]] {
+let cvec <- (a: [#M, T]): [#M, [1, T]];
 	a.lvec().t()
 };

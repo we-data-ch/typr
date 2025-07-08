@@ -137,6 +137,15 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         },
         Lang::ModuleDecl(_name, _h) 
             => context.clone().add_module_declarations(&[expr.clone()]),
+        Lang::Signature(var, typ, _h) => {
+            if var.is_variable(){
+                context.clone().push_var_type(var.to_owned(), typ.to_owned(), context)
+            } else {
+                context.clone()
+                    .push_alias(var.get_name(), var.get_type())
+                    .push_var_type(var.to_owned(), typ.to_owned(), context)
+            }
+        },
         _ => context.clone()
     }
 }

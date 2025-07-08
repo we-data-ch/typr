@@ -16,45 +16,45 @@ use crate::help_data::HelpData;
 use crate::context::CompileMode;
 
 
-pub fn write_adt_to_typescript(adt: &Adt, cont: &Context) -> () {
-    //stdlib
+//pub fn write_adt_to_typescript(adt: &Adt, cont: &Context) -> () {
+    ////stdlib
+    ////let rstd = include_str!("../configs/typescript/std.ts");
+    ////let mut rstd_file = File::create("std.ts").unwrap();
+    ////rstd_file.write_all(rstd.as_bytes()).unwrap();
+//
+    //let mut app = File::create("app.ts").unwrap();
+    //let ts_import = include_str!("../configs/typescript/ts_import.ts");
+    //let content = format!("{}\n{}\n{}", ts_import, cont.adt.get_adt().to_typescript(cont), adt.to_typescript(cont));
+    //app.write_all(content.as_bytes()).unwrap();
+//}
+
+
+//pub fn write_adt_to_typescript_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf) -> () {
     //let rstd = include_str!("../configs/typescript/std.ts");
-    //let mut rstd_file = File::create("std.ts").unwrap();
+    //let std_path = output_dir.join("std.ts");
+    //let mut rstd_file = File::create(std_path).unwrap();
     //rstd_file.write_all(rstd.as_bytes()).unwrap();
-
-    let mut app = File::create("app.ts").unwrap();
-    let ts_import = include_str!("../configs/typescript/ts_import.ts");
-    let content = format!("{}\n{}\n{}", ts_import, cont.adt.get_adt().to_typescript(cont), adt.to_typescript(cont));
-    app.write_all(content.as_bytes()).unwrap();
-}
-
-
-pub fn write_adt_to_typescript_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf) -> () {
-    let rstd = include_str!("../configs/typescript/std.ts");
-    let std_path = output_dir.join("std.ts");
-    let mut rstd_file = File::create(std_path).unwrap();
-    rstd_file.write_all(rstd.as_bytes()).unwrap();
-
-    let app_path = output_dir.join("main.ts");
-    let mut app = File::create(app_path).unwrap();
-    let ts_import = include_str!("../configs/typescript/ts_import.ts");
-    let content = format!("{}\n{}\n{}", ts_import, cont.adt.get_adt().to_typescript(cont), adt.to_typescript(cont));
-    app.write_all(content.as_bytes()).unwrap();
-}
+//
+    //let app_path = output_dir.join("main.ts");
+    //let mut app = File::create(app_path).unwrap();
+    //let ts_import = include_str!("../configs/typescript/ts_import.ts");
+    //let content = format!("{}\n{}\n{}", ts_import, cont.adt.get_adt().to_typescript(cont), adt.to_typescript(cont));
+    //app.write_all(content.as_bytes()).unwrap();
+//}
 
 
-pub fn write_adt_to_assemblyscript_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf) -> () {
-    let rstd = include_str!("../configs/typescript/std.ts");
-    let std_path = output_dir.join("std.ts");
-    let mut rstd_file = File::create(std_path).unwrap();
-    rstd_file.write_all(rstd.as_bytes()).unwrap();
-
-    let app_path = output_dir.join("main.ts");
-    let mut app = File::create(app_path).unwrap();
-    let ts_import = include_str!("../configs/typescript/ts_import.ts");
-    let content = format!("{}\n{}\n{}", ts_import, cont.adt.get_adt().to_assemblyscript(cont), adt.to_assemblyscript(cont));
-    app.write_all(content.as_bytes()).unwrap();
-}
+//pub fn write_adt_to_assemblyscript_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf) -> () {
+    //let rstd = include_str!("../configs/typescript/std.ts");
+    //let std_path = output_dir.join("std.ts");
+    //let mut rstd_file = File::create(std_path).unwrap();
+    //rstd_file.write_all(rstd.as_bytes()).unwrap();
+//
+    //let app_path = output_dir.join("main.ts");
+    //let mut app = File::create(app_path).unwrap();
+    //let ts_import = include_str!("../configs/typescript/ts_import.ts");
+    //let content = format!("{}\n{}\n{}", ts_import, cont.adt.get_adt().to_assemblyscript(cont), adt.to_assemblyscript(cont));
+    //app.write_all(content.as_bytes()).unwrap();
+//}
 
 pub fn write_std_for_type_checking(output_dir: &PathBuf) {
     let rstd = include_str!("../configs/r/std.ty");

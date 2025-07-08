@@ -1,8 +1,5 @@
 # ERROR HANDLING ----------
-let stop <- fn(msg: char): Empty {
-	...
-};
-
+@stop: (msg: char) -> Empty;
 
 # OPTION TYPE -------------
 type Option<T> = .Some(T) | .None;

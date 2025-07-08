@@ -14,7 +14,6 @@ use crate::help_data::HelpData;
 use crate::path::Path;
 use crate::function_type::FunctionType;
 use crate::type_comparison::reduce_type;
-use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Lang {
@@ -28,8 +27,8 @@ pub enum Lang {
     In(Box<Lang>, Box<Lang>, HelpData),
     Add(Box<Lang>, Box<Lang>, HelpData),
     Eq(Box<Lang>, Box<Lang>, HelpData),
-    Modu(Box<Lang>, Box<Lang>, HelpData),
-    Modu2(Box<Lang>, Box<Lang>, HelpData),
+    Modu(Box<Lang>, Box<Lang>, HelpData), // modulus
+    Modu2(Box<Lang>, Box<Lang>, HelpData), // modulus2
     LesserThan(Box<Lang>, Box<Lang>, HelpData),
     GreaterThan(Box<Lang>, Box<Lang>, HelpData),
     LesserOrEqual(Box<Lang>, Box<Lang>, HelpData),
@@ -37,8 +36,8 @@ pub enum Lang {
     Chain(Box<Lang>, Box<Lang>, HelpData),
     Scope(Vec<Lang>, HelpData),
     Function(Vec<ArgumentKind>, Vec<ArgumentType>, Type, Box<Lang>, HelpData),
-    Module(String, Vec<Lang>, HelpData),
-    ModuleDecl(String, HelpData),
+    Module(String, Vec<Lang>, HelpData), // module name { lines }
+    ModuleDecl(String, HelpData), // to create an env
     Variable(String, Path, Permission, bool, Type, HelpData),
     FunctionApp(Box<Lang>, Vec<Lang>, HelpData),
     ArrayIndexing(Box<Lang>, f32, HelpData),
@@ -54,7 +53,7 @@ pub enum Lang {
     Assign(Box<Lang>, Box<Lang>, HelpData),
     Comment(String, HelpData),
     Range(i32, i32, i32, HelpData),
-    ModImp(String, HelpData),
+    ModImp(String, HelpData), // mod name;
     Import(Type, HelpData), // type alias
     Header(Box<Lang>, HelpData),
     GenFunc(String, String, HelpData), //body, name, helpdata
@@ -65,6 +64,7 @@ pub enum Lang {
     Library(String, HelpData),
     Exp(String, HelpData),
     Any(HelpData),
+    Signature(Var, Type, HelpData),
     Empty(HelpData)
 }
 
@@ -82,7 +82,6 @@ fn my_to_str<T: ToString>(v: &[T]) -> String {
     format!("[{}]", res)
 }
 
-
 pub fn build_generic_function(s: &str) -> String {
     format!("{} <- function(x, ...) {{\n\tUseMethod('{}')\n}}\n", s, s)
 }
@@ -95,7 +94,6 @@ fn condition_to_if(var: &Lang, condition: &Lang) -> (String, Lang) {
         _ => panic!("The element you put next to 'match' isn't a variable or your left part of your branches aren't true tags")
     }
 }
-
 
 fn to_if_statement(var: Lang, branches: &[(Box<Lang>, Box<Lang>)], context: &Context) -> String {
     branches.iter()
@@ -961,6 +959,7 @@ impl Lang {
             Lang::Exp(_, h) => h,
             Lang::Any(h) => h,
             Lang::Empty(h) => h,
+            Lang::Signature(_, _, h) => h,
         }.clone()
     }
 

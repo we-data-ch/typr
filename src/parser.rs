@@ -10,7 +10,6 @@ use crate::types::ltype;
 use crate::r#type::Type;
 use crate::var::Var;
 use nom::combinator::opt;
-use crate::types::pascal_case;
 use nom::sequence::delimited;
 use crate::elements::tag_exp;
 use nom::character::complete::not_line_ending;
@@ -24,6 +23,7 @@ use nom::multi::many0;
 use nom::Parser;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
+use crate::builder;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -322,7 +322,7 @@ fn bangs_exp(s: Span) -> IResult<Span,Vec<Lang>> {
 
 fn mod_imp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (terminated(tag("mod"), multispace0),
-            pascal_case,
+            terminated(variable_exp, multispace0),
             terminated(tag(";"), multispace0)).parse(s);
     match res {
         Ok((s, (_mod, (name, _), _sc))) 
@@ -383,10 +383,47 @@ fn library(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (tag("@"),
+                variable_exp,
+                terminated(tag(":"), multispace0),
+                ltype, 
+                terminated(tag(";"), multispace0)).parse(s);
+    match res {
+        Ok((s, (at, (name, h), _col, typ, _))) 
+            => {
+                let var2 = Var::from_name(&name).set_help_data(h).set_type(typ.clone());
+                Ok((s, vec![Lang::Signature(var2, typ, at.into())]))
+            },
+        Err(r) => Err(r)
+    }
+}
+
+fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (tag("@"),
+                type_alias,
+                terminated(tag(";"), multispace0)).parse(s);
+    match res {
+        Ok((s, (at, Type::Alias(name, params, _, h), _))) 
+            => {
+                let var2 = Var::from_name(&name)
+                    .set_help_data(h.clone())
+                    .set_type(Type::Params(params, h.clone()));
+                Ok((s, vec![Lang::Signature(var2, Type::Empty(h), at.into())]))
+            },
+        Ok((_s, (_, _, _))) => todo!(),
+        Err(r) => Err(r)
+    }
+}
+
+fn signature(s: Span) -> IResult<Span, Vec<Lang>> {
+    alt((signature_opaque, signature_variable)).parse(s)
+}
+
 // main
 fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp))),
+        many0(alt((signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {
@@ -698,6 +735,30 @@ mod tesus {
     #[test]
     fn test_let_mat() {
         let res = parse("let a: Mat<3, 2> <- [[1, 2], [4, 5], [7, 8]];".into()).unwrap().1;
+        assert_eq!(res.0, vec![]);
+    }
+
+    #[test]
+    fn test_module_import0() {
+        let res = mod_imp("mod calcul;".into()).unwrap().1;
+        assert_eq!(res, vec![]);
+    }
+
+    #[test]
+    fn test_module_import1() {
+        let res = parse("mod calcul;".into()).unwrap().1;
+        assert_eq!(res.0, vec![]);
+    }
+
+    #[test]
+    fn test_signature0() {
+        let res = signature("@data: int;".into()).unwrap().1;
+        assert_eq!(res, vec![]);
+    }
+
+    #[test]
+    fn test_signature1() {
+        let res = parse("@data: int;".into()).unwrap().1;
         assert_eq!(res.0, vec![]);
     }
 

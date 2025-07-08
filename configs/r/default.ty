@@ -1,188 +1,101 @@
-let nchar <- fn(a: char): int {
-	...
-};
+@nchar: (a: char) -> int;
 
-let len <- fn(a: char): int {
+let len <- fn(a: char): int;
 	nchar(a)
 };
 
-let sys__info <- fn(): char {
-	...
-};
+@sys__info: () -> char;
 
-let sys__getenv <- fn(): [#N, char] {
-	...
-};
+@sys__getenv: () -> [#N, char];
 
-let sys__setenv <- fn(var: char, val: char): [#N, char] {
-	...
-};
+@sys__setenv: (var: char, val: char) -> [#N, char];
 
-let sys__time <- fn(): char {
-	...
-};
+@sys__time: () -> char;
 
-let sys__date <- fn(): char {
-	...
-};
+@sys__date: () -> char;
 
-let sys__sleep <- fn(n: int): .None {
-	...
-};
+@sys__sleep: (n: int) -> .None;
 
-let sys__which <- fn(n: char): char {
-	...
-};
+@sys__which: (n: char) -> char;
 
-let sys__timezone <- fn(): char {
-	...
-};
+@sys__timezone: () -> char;
 
-let sys__setlocale <- fn(): .None {
-	...
-};
+@sys__setlocale: () -> .None;
 
-let as__character <- fn(a: A): char {
-	...
-};
+@as__character: (a: A) -> char;
 
-let as__numeric <- fn(a: A): num {
-	...
-};
+@as__numeric: (a: A) -> num;
 
-let as__integer <- fn(a: A): int {
-	...
-};
+@as__integer: (a: A) -> int;
 
-let as__logical <- fn(a: A): int {
-	...
-};
+@as__logical: (a: A) -> int;
 
-let map <- fn(a: [#N, T], f: (T) -> U): [#N, U] {
-	...
-};
+@map: (a: [#N, T], f: (T) -> U) -> [#N, U];
 
+@rev: (a: [#N, T]) -> [#N, T];
 
-let rev <- fn(a: [#N, T]): [#N, T] {
-	...
-};
+@mean: (a: [#N, T]) -> T;
 
-let mean <- fn(a: [#N, T]): T  {
-	...
-};
+@sd: (a: [#N, T]) -> T;
 
-let sd <- fn(a: [#N, T]): T  {
-	...
-};
+@min: (a: [#N, T]) -> T;
 
-let min <- fn(a: [#N, T]): T  {
-	...
-};
+@max: (a: [#N, T]) -> T;
 
-let max <- fn(a: [#N, T]): T  {
-	...
-};
+@add: (a: int, b: int) -> int;
 
-let add <- fn(a: int, b: int): int {
-	...
-};
+@add: (a: num, b: num) -> num;
 
-let add <- fn(a: num, b: num): num {
-	...
-};
+@minus: (a: int, b: int) -> int;
 
-let minus <- fn(a: int, b: int): int {
-	...
-};
+@minus: (a: num, b: num) -> num;
 
-let minus <- fn(a: num, b: num): num {
-	...
-};
+@mul: (a: int, b: int) -> int;
 
-let mul <- fn(a: int, b: int): int {
-	...
-};
+@mul: (a: num, b: num) -> num;
 
-let mul <- fn(a: num, b: num): num {
-	...
-};
+@div: (a: int, b: int) -> int;
 
-let div <- fn(a: int, b: int): int {
-	...
-};
+@div: (a: num, b: num) -> num;
 
-let div <- fn(a: num, b: num): num {
-	...
-};
+@plot: (a: [#N, num], b: [#N, num], type: char) -> .None;
 
-let plot <- fn(a: [#N, num], b: [#N, num], type: char): .None {
-	...
-};
+@get: (a: {}, b: char) -> T;
 
-let get <- fn(a: {}, b: char): T {
-	...
-};
+@print: (a: char) -> .None;
 
-let print <- fn(a: char): .None {
-	...
-};
+@seq: (a: #I, b: #J, c: #K) -> [#J-#I/#K, int];
 
-let seq <- fn(a: #I, b: #J, c: #K): [#J-#I/#K, int] {
-	...
-};
+@substr: (a: char, b: int, e: int) -> char;
 
-let substr <- fn(a: char, b: int, e: int): char {
-	...
-};
+@sub: (a: char, b: char, c: char) -> char;
 
-let sub <- fn(a: char, b: char, c: char): char {
-	...
-};
-
-let replace <- fn(s: char, old: char, new: char): char {
+let replace <- (s: char, old: char, new: char) -> char;
 	sub(old, new, s)
 };
 
-let gsub <- fn(a: char, b: char, c: char): char {
-	...
-};
+@gsub: (a: char, b: char, c: char) -> char;
 
-let replace_all <- fn(s: char, old: char, new: char): char {
+let replace_all <- fn(s: char, old: char, new: char): char;
 	gsub(old, new, s)
 };
 
-let strsplit <- fn(s: char, d: char): [#N, char] {
-	...
-};
+@strsplit: (s: char, d: char) -> [#N, char];
 
-let split <- fn(s: char, d: char): [#N, char] {
+let split <- fn(s: char, d: char): [#N, char];
 	strsplit(s, d)
 };
 
-let join <- fn(a: [#N, char], s: char): char {
-	...
-};
+@join: (a: [#N, char], s: char) -> char;
 
-let tolower <- fn(a: char): char {
-	...
-};
+@tolower: (a: char) -> char;
 
-let toupper <- fn(a: char): char {
-	...
-};
+@toupper: (a: char) -> char;
 
-let startsWith <- fn(a: char, b: char): bool {
-	...
-};
+@startsWith: (a: char, b: char) -> bool;
 
-let endsWith <- fn(a: char, b: char): bool {
-	...
-};
+@endsWith: (a: char, b: char) -> bool;
 
-let grepl <- fn(a: char, b: char): bool {
-	...
-};
+@grepl: (a: char, b: char) -> bool;
 
-let contains <- fn(a: char, b: char): bool {
-	...
-};
+@contains: (a: char, b: char) -> bool;
