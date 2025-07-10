@@ -46,7 +46,7 @@ pub fn contains_all2(vec1: &[ArgumentType], vec2: &[ArgumentType]) -> bool {
 
 fn to_self(t1: Type, t2: Type) -> Type {
     if  t1 == t2 {
-        Type::Alias("Self".to_string(), vec![], "".into(), t1.into())
+        Type::Alias("Self".to_string(), vec![], "".into(), true, t1.into())
     } else {
        t1
     }
@@ -95,7 +95,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
             is_subtype(context, n1, n2) && is_subtype(context, t1, t2)
         },
-        (type1, Type::Alias(_, _, _, _)) => {
+        (type1, Type::Alias(_, _, _, _, _)) => {
             let reduced = reduce_type(context, type2);
             is_subtype(context, type1, &reduced)
         },
@@ -200,22 +200,36 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 .map(|arg| reduce_param(context, arg))
                 .collect(), h.clone())
         },
-        Type::Alias(_name, concret_types, path, _h) => {
-            let var = Var::from_type(type_.clone())
-                .expect(&format!("The alias {} is malformed", type_))
-                .set_path(path.clone());
-            if let Some((aliased_type, generics)) = context.get_matching_alias_signature(&var) {
-                let substituted = type_substitution(
-                    &aliased_type,
-                    &generics.iter()
-                        .zip(concret_types.iter())
-                        .map(|(gen, typ)| (gen.clone(), typ.clone()))
-                        .collect::<Vec<_>>()
-                );
-                reduce_type(context, &substituted)
+        Type::Alias(_name, concret_types, path, opacity, _h) => {
+            if *opacity == true {
+                type_.clone()
             } else {
-                panic!("The alias {} wasn't found in the context\n{}", 
-                       var, context.display_typing_context());
+                let var = Var::from_type(type_.clone())
+                    .expect(&format!("The alias {} is malformed", type_))
+                    .set_path(path.clone());
+                if let Some((aliased_type, generics)) = context.get_matching_alias_signature(&var) {
+                    let mvar = Var::from_type(aliased_type.clone()).unwrap();
+                    if mvar.is_opaque() {
+                        aliased_type.clone()
+                    } else {
+                        let substituted = type_substitution(
+                            &aliased_type,
+                            &generics.iter()
+                                .zip(concret_types.iter())
+                                .map(|(gen, typ)| (gen.clone(), typ.clone()))
+                                .collect::<Vec<_>>()
+                        );
+                        reduce_type(context, &substituted)
+                    }
+                } else {
+                    let mvar = Var::from_type(type_.clone()).unwrap();
+                    if mvar.is_opaque() {
+                        type_.clone() 
+                    } else {
+                        panic!("The alias {} wasn't found in the context\n{}", 
+                           var, context.display_typing_context());
+                    }
+                }
             }
         }
 

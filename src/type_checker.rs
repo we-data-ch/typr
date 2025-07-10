@@ -75,7 +75,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let reduced_expr_ty = expr_ty.reduce(context);
             if ty.is_empty() {
                 if exp.is_function() {
-                    let first_param = expr_ty.get_function_elements()
+                    let first_param = expr_ty.to_function_type()
                         .unwrap()
                         .get_param_types()[0].clone();
                     let new_name = name.to_owned().set_type(first_param);

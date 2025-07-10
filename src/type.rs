@@ -46,7 +46,7 @@ pub enum Type {
     LabelGen(String, HelpData),
     Array(Box<Type>, Box<Type>, HelpData),
     Record(Vec<ArgumentType>, HelpData),
-    Alias(String, Vec<Type>, Path, HelpData),
+    Alias(String, Vec<Type>, Path, bool, HelpData), //for opacity
     Tag(String, Box<Type>, HelpData),
     Union(Vec<Tag>, HelpData),
     Interface(Vec<ArgumentType>, HelpData),
@@ -335,7 +335,7 @@ impl Type {
         } else { None }
     }
 
-    pub fn get_function_elements(&self) -> Option<FunctionType> {
+    pub fn to_function_type(&self) -> Option<FunctionType> {
         if let Type::Function(kinds, args, ret_ty, h) = self {
             Some(FunctionType(kinds.clone(), args.clone(), (**ret_ty).clone(), h.clone()))
         } else { None }
@@ -385,9 +385,9 @@ impl Type {
 
     pub fn add_path(self, path: Path) -> Type {
         match self.clone() {
-            Type::Alias(name, params, path2, h) 
+            Type::Alias(name, params, path2, opacity, h) 
                 => {
-                    Type::Alias(name, params, path2.add_path(path), h)
+                    Type::Alias(name, params, path2.add_path(path), opacity, h)
                 },
             _ => self.to_owned()
         }
@@ -530,7 +530,7 @@ impl Type {
             Type::LabelGen(_, h) => h.clone(),
             Type::Array(_, _, h) => h.clone(),
             Type::Record(_, h) => h.clone(),
-            Type::Alias(_, _, _, h) => h.clone(),
+            Type::Alias(_, _, _, _, h) => h.clone(),
             Type::Tag(_, _, h) => h.clone(),
             Type::Union(_, h) => h.clone(),
             Type::Interface(_, h) => h.clone(),
@@ -564,7 +564,7 @@ impl Type {
             Type::LabelGen(a, _) => Type::LabelGen(a, h2),
             Type::Array(a1, a2, _) => Type::Array(a1, a2, h2),
             Type::Record(a, _) => Type::Record(a, h2),
-            Type::Alias(a1, a2, a3, _) => Type::Alias(a1, a2, a3, h2),
+            Type::Alias(a1, a2, a3, a4, _) => Type::Alias(a1, a2, a3, a4, h2),
             Type::Tag(a1, a2, _) => Type::Tag(a1, a2, h2),
             Type::Union(a, _) => Type::Union(a, h2),
             Type::Interface(a, _) => Type::Interface(a, h2),
@@ -642,8 +642,8 @@ impl PartialEq for Type {
             (Type::Array(a1, b1, _), Type::Array(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
-            (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) 
-                => a1 == a2 && b1 == b2 && c1 == c2,
+            (Type::Alias(a1, b1, c1, d1, _), Type::Alias(a2, b2, c2, d2, _)) 
+                => a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2,
             (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
             (Type::Union(e1, _), Type::Union(e2, _)) => e1 == e2,
@@ -725,7 +725,7 @@ impl Hash for Type {
             Type::LabelGen(_, _) => 8.hash(state),
             Type::Array(_, _, _) => 9.hash(state),
             Type::Record(_, _) => 10.hash(state),
-            Type::Alias(_, _, _, _) => 11.hash(state),
+            Type::Alias(_, _, _, _, _) => 11.hash(state),
             Type::Tag(_, _, _) => 12.hash(state),
             Type::Union(_, _) => 13.hash(state),
             Type::Interface(_, _) => 14.hash(state),

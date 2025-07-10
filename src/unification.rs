@@ -117,13 +117,14 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         }
 
         // Alias type substitution
-        Type::Alias(name, params, base_type, h) => {
+        Type::Alias(name, params, base_type, opacity, h) => {
             Type::Alias(
                 name.clone(),
                 params.iter()
                     .map(|param| type_substitution(param, substitutions))
                     .collect(),
                 base_type.clone(),
+                opacity.clone(),
                 h.clone()
             )
         }

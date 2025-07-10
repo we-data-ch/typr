@@ -89,16 +89,35 @@ impl Context {
     }
 
     fn is_matching(&self, var1: &Var, var2: &Var) -> bool {
-        let Var(name1, path1, perm1, bo1, params1, _h1) = var1;
-        let Var(name2, path2, perm2, bo2, params2, _h2) = var2;
+        let Var(name1, path1, perm1, _bo1, params1, _h1) = var1;
+        let Var(name2, path2, perm2, _bo2, params2, _h2) = var2;
         (name1 == name2) &&
             (path1 == path2) && (perm1 == perm2) &&
-            (bo1 == bo2) && (type_comparison::is_matching(self, params1, params2))
+            (type_comparison::is_matching(self, params1, params2))
     }
 
     pub fn get_matching_alias_signature(&self, var: &Var) -> Option<(Type, Vec<Type>)> {
+        self.iter().find(|(var2, _)| self.is_matching(var, var2))
+            .map(|(var2, target_type)| {
+                if var2.is_opaque() {
+                    (var2.clone().to_alias(), vec![])
+                } else {
+                    if let Type::Params(types, _) = var2.get_type() {
+                        (target_type.clone(), types.clone())
+                    } else { panic!("The related type is not Params([...])"); }
+                }
+            })
+    }
+
+    pub fn get_matching_alias_signature_old(&self, var: &Var) -> Option<(Type, Vec<Type>)> {
         self.iter().flat_map(|(var2, target_type)| {
             match (self.is_matching(var, var2), var2.get_type()) {
+                (true, Type::Params(types, _)) 
+                    if var2.is_opaque()
+                        => {
+                            println!("var2 is opaque!");
+                            Some((var2.clone().to_alias(), vec![]))
+                        },
                 (true, Type::Params(types, _)) 
                     => Some((target_type.clone(), types.clone())),
                 _ => None
@@ -139,7 +158,7 @@ impl Context {
         self.typing_context.iter()
            .find(|(v, _)| var.match_with(v, self))
            .map(|(v, _)| v)
-           .expect(&format!("The variable {} was not found", var))
+           .expect(&format!("The variable {} was not found:\n {}", var, self.display_typing_context()))
            .clone()
     }
 

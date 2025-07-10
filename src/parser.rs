@@ -188,7 +188,7 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
             terminated(tag(";"), multispace0) 
           ).parse(s);
     match res {
-        Ok((s, (_ty, Type::Alias(name, params, path, h), _eq, ty, _))) 
+        Ok((s, (_ty, Type::Alias(name, params, path, _, h), _eq, ty, _))) 
             => {
                 let h2 = if params.len() > 0 { params[0].clone().into()} else { HelpData::default() };
                 Ok((s, Lang::Alias(
@@ -199,7 +199,6 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
             },
         Ok((s, (_ty, _, _eq, _ty2, _)))
             => {
-                dbg!(&_ty);
                 Ok((s, Lang::Empty(_ty.into())))
             },
         Err(r) => Err(r),
@@ -230,7 +229,7 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
             terminated(tag(";"), multispace0) 
           ).parse(s);
     match res {
-        Ok((s, (_ty, Type::Alias(name, params, path, h), _eq, ty, _))) 
+        Ok((s, (_ty, Type::Alias(name, params, path, _, h), _eq, ty, _))) 
             => Ok((s, Lang::Alias(
                         Var::from_name(&name)
                             .set_type(Type::Params(params.clone(), params.clone().into()))
@@ -404,11 +403,12 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
                 type_alias,
                 terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (at, Type::Alias(name, params, _, h), _))) 
+        Ok((s, (at, Type::Alias(name, params, _, _, h), _))) 
             => {
                 let var2 = Var::from_name(&name)
                     .set_help_data(h.clone())
-                    .set_type(Type::Params(params, h.clone()));
+                    .set_type(Type::Params(params, h.clone()))
+                    .set_opacity(true);
                 Ok((s, vec![Lang::Signature(var2, Type::Empty(h), at.into())]))
             },
         Ok((_s, (_, _, _))) => todo!(),

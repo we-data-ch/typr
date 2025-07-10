@@ -245,13 +245,13 @@ pub fn type_alias(s: Span) -> IResult<Span, Type> {
           ).parse(s);
     match res {
         Ok((s, (Some(p), (name, h), Some(v)))) 
-            => Ok((s, Type::Alias(name, v.clone(), p.0.into(), h))),
+            => Ok((s, Type::Alias(name, v.clone(), p.0.into(), false, h))),
         Ok((s, (None, (name, h), Some(v)))) 
-            => Ok((s, Type::Alias(name, v.clone(), "".into(), h))),
+            => Ok((s, Type::Alias(name, v.clone(), "".into(), false, h))),
         Ok((s, (Some(p), (name, h), None))) 
-            => Ok((s, Type::Alias(name, vec![], p.0.into(), h))),
+            => Ok((s, Type::Alias(name, vec![], p.0.into(), false, h))),
         Ok((s, (None, (name, h), None))) 
-            => Ok((s, Type::Alias(name, vec![], "".into(), h))),
+            => Ok((s, Type::Alias(name, vec![], "".into(), false, h))),
         Err(r) => Err(r),
     }
 }

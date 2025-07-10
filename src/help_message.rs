@@ -5,6 +5,7 @@ use crate::Type;
 use crate::Lang;
 use crate::Var;
 use crate::help_data::HelpData;
+use std::fs;
 
 pub trait ErrorMsg { 
     fn display(self) -> String;
@@ -204,8 +205,9 @@ impl ErrorMsg for TypeError {
                     .expect(&format!("The file name of {:?} for {} doesn't exist", 
                                      help_data1, t1.pretty()));
                 let (file_name2, text2) = help_data2.get_file_data()
-                    .expect(&format!("The file name of {:?} for {} doesn't exist", 
-                                     help_data2, t2.pretty()));
+                    .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
+                    //.expect(&format!("The file name of {:?} for {} doesn't exist", 
+                                     //help_data2, t2.pretty()));
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
@@ -234,7 +236,8 @@ impl ErrorMsg for TypeError {
             TypeError::UndefinedFunction(fun)
                 => {
                     let help_data = fun.get_help_data();
-                    let (file_name, text) = help_data.get_file_data().unwrap();
+                    let (file_name, text) = help_data.get_file_data()
+                        .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
                     let res = SingleBuilder::new(file_name, text)
                         .pos((help_data.get_offset(), 0));
                     res.build()

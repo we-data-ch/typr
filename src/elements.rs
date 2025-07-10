@@ -590,9 +590,9 @@ fn lambda(s: Span) -> IResult<Span, Lang> {
 // main
 pub fn single_element(s: Span) -> IResult<Span,Lang> {
     alt((
+            range,
             lambda,
             boolean,
-            range,
             number,
             integer,
             chars,
@@ -625,9 +625,11 @@ pub fn scope(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+
+
 fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
     // (params, op)
-    let first = v.pop().unwrap();
+    let first = v.pop().expect(&format!("The vector v is empty {:?}", v));
     match first {
         (p, Op::In(_)) 
 			=> Lang::In(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
@@ -1083,6 +1085,12 @@ mod tests {
     #[test]
     fn test_range4() {
         let res = parse_elements("1:a".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
+    }
+
+    #[test]
+    fn test_range5() {
+        let res = element_chain("1:a".into()).unwrap().1;
         assert_eq!(res, builder::empty_lang());
     }
 

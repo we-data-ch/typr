@@ -13,7 +13,7 @@ fn format_kind(ki: &Kind) -> String {
 
 pub fn format(ty: &Type) -> String {
     match ty {
-        Type::Alias(name, params, _path, _) => {
+        Type::Alias(name, params, _path, _, _) => {
             if params.len() == 0 {
                 format!("{}", name)
             } else {

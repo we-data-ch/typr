@@ -895,7 +895,7 @@ impl Lang {
         -> Option<FunctionType> {
         let var_name = self.infer_var_name(args, context);
         let fn_ty = typing(context, &var_name.to_language()).0;
-        fn_ty.get_function_elements()
+        fn_ty.to_function_type()
     }
 
     pub fn lang_substitution(&self, sub_var: &Lang, var: &Lang, context: &Context) -> String {

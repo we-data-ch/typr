@@ -41,9 +41,11 @@ impl Var {
 
     pub fn from_type(t: Type) -> Option<Var> {
         match t {
-            Type::Alias(name, concret_types, _base_type, _h) => {
+            Type::Alias(name, concret_types, _base_type, opacity, h) => {
                     let var = Var::from_name(&name)
-                        .set_type(Type::Params(concret_types.to_vec(), concret_types.clone().into()));
+                        .set_type(Type::Params(concret_types.to_vec(), concret_types.clone().into()))
+                        .set_help_data(h)
+                        .set_opacity(opacity);
                     Some(var)
             },
             Type::Char(val, h) => {
@@ -128,10 +130,9 @@ impl Var {
     }
 
     pub fn match_with(&self, var: &Var, context: &Context) -> bool {
-        [(self.get_name() == var.get_name()),
-        (self.get_path() == var.get_path()),
-        //(self.get_permission() == var.get_permission()),
-        type_comparison::is_matching(context, &self.get_type(), &var.get_type())].iter().all(|&x| x)
+        (self.get_name() == var.get_name()) &&
+        (self.get_path() == var.get_path()) &&
+        type_comparison::is_matching(context, &self.get_type(), &var.get_type())
     }
 
     pub fn set_help_data(self, h: HelpData) -> Var {
@@ -143,7 +144,7 @@ impl Var {
     }
 
     pub fn is_mutable(&self) -> bool {
-        self.3.clone()
+        self.is_variable() && self.3.clone()
     }
 
     pub fn is_private(&self) -> bool {
@@ -163,6 +164,18 @@ impl Var {
 
     pub fn is_variable(&self) -> bool {
         !self.is_alias()
+    }
+
+    pub fn is_opaque(&self) -> bool {
+        self.is_alias() && self.3
+    }
+
+    pub fn get_opacity(&self) -> bool {
+        self.3
+    }
+
+    pub fn to_alias(self) -> Type  {
+        Type::Alias(self.get_name(), vec![], self.get_path().into(), self.get_opacity(), self.get_help_data()) 
     }
 
 }
