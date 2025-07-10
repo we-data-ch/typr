@@ -152,6 +152,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
 
 fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         match (type1, type2) {
+            (_, Type::Any(_)) => Some(vec![]),
             (Type::Integer(i, _), Type::Integer(j, _)) => {
                 (j.gen_of(i)).then(|| vec![])
             },

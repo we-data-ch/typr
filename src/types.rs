@@ -452,6 +452,13 @@ fn integer(s: Span) -> IResult<Span, Type> {
     }
 }
 
+fn any(s: Span) -> IResult<Span, Type> {
+    match tag("Any")(s) {
+        Ok((s, e)) => Ok((s, Type::Any(e.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 fn empty(s: Span) -> IResult<Span, Type> {
     match tag("Empty")(s) {
         Ok((s, e)) => Ok((s, Type::Empty(e.into()))),
@@ -570,6 +577,7 @@ pub fn if_type(s: Span) -> IResult<Span,Type> {
 pub fn ltype(s: Span) -> IResult<Span, Type> {
     terminated(alt((
             multitype,
+            any,
             empty,
             interface,
             label_generic,

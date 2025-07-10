@@ -208,19 +208,14 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                     .expect(&format!("The alias {} is malformed", type_))
                     .set_path(path.clone());
                 if let Some((aliased_type, generics)) = context.get_matching_alias_signature(&var) {
-                    let mvar = Var::from_type(aliased_type.clone()).unwrap();
-                    if mvar.is_opaque() {
-                        aliased_type.clone()
-                    } else {
-                        let substituted = type_substitution(
-                            &aliased_type,
-                            &generics.iter()
-                                .zip(concret_types.iter())
-                                .map(|(gen, typ)| (gen.clone(), typ.clone()))
-                                .collect::<Vec<_>>()
-                        );
-                        reduce_type(context, &substituted)
-                    }
+                    let substituted = type_substitution(
+                        &aliased_type,
+                        &generics.iter()
+                            .zip(concret_types.iter())
+                            .map(|(gen, typ)| (gen.clone(), typ.clone()))
+                            .collect::<Vec<_>>()
+                    );
+                    reduce_type(context, &substituted)
                 } else {
                     let mvar = Var::from_type(type_.clone()).unwrap();
                     if mvar.is_opaque() {

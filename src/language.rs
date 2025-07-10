@@ -27,6 +27,7 @@ pub enum Lang {
     In(Box<Lang>, Box<Lang>, HelpData),
     Add(Box<Lang>, Box<Lang>, HelpData),
     Eq(Box<Lang>, Box<Lang>, HelpData),
+    NotEq(Box<Lang>, Box<Lang>, HelpData),
     Modu(Box<Lang>, Box<Lang>, HelpData), // modulus
     Modu2(Box<Lang>, Box<Lang>, HelpData), // modulus2
     LesserThan(Box<Lang>, Box<Lang>, HelpData),
@@ -178,6 +179,11 @@ impl Lang {
                 let (e1_str, cont1) = e1.to_r(cont);
                 let (e2_str, cont2) = e2.to_r(&cont1);
                 (format!("{} == {}", e2_str, e1_str), cont2)
+            },
+            Lang::NotEq(e1, e2, _) => {
+                let (e1_str, cont1) = e1.to_r(cont);
+                let (e2_str, cont2) = e2.to_r(&cont1);
+                (format!("{} != {}", e2_str, e1_str), cont2)
             },
             Lang::LesserThan(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_r(cont);
@@ -921,6 +927,7 @@ impl Lang {
             Lang::In(_, _, h) => h,
             Lang::Add(_, _, h) => h,
             Lang::Eq(_, _, h) => h,
+            Lang::NotEq(_, _, h) => h,
             Lang::Modu(_, _, h) => h,
             Lang::Modu2(_, _, h) => h,
             Lang::LesserThan(_, _, h) => h,

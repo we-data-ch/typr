@@ -542,16 +542,37 @@ fn pure_string((lang, op): (Lang, Op)) -> String {
     match (lang, op) {
         (lang, Op::Empty(_)) => lang.to_r(&cont).0,
         (lang, Op::Add(_)) => format!(" + {}", lang.to_r(&cont).0),
+        (lang, Op::Add2(_)) => format!(" ++ {}", lang.to_r(&cont).0),
         (lang, Op::Minus(_)) => format!(" - {}", lang.to_r(&cont).0),
+        (lang, Op::Minus2(_)) => format!(" -- {}", lang.to_r(&cont).0),
         (lang, Op::Mul(_)) => format!(" * {}", lang.to_r(&cont).0),
-        (lang, Op::Div(_)) => format!(" * {}", lang.to_r(&cont).0),
-        _ => "".to_string()
+        (lang, Op::Mul2(_)) => format!(" ** {}", lang.to_r(&cont).0),
+        (lang, Op::Div(_)) => format!(" / {}", lang.to_r(&cont).0),
+        (lang, Op::Div2(_)) => format!(" // {}", lang.to_r(&cont).0),
+        (lang, Op::Modu(_)) => format!(" % {}", lang.to_r(&cont).0),
+        (lang, Op::Modu2(_)) => format!(" %% {}", lang.to_r(&cont).0),
+        (lang, Op::Eq(_)) => format!(" == {}", lang.to_r(&cont).0),
+        (lang, Op::NotEq(_)) => format!(" != {}", lang.to_r(&cont).0),
+        (lang, Op::And(_)) => format!(" && {}", lang.to_r(&cont).0),
+        (lang, Op::Or(_)) => format!(" || {}", lang.to_r(&cont).0),
+        (lang, Op::Pipe(_)) => format!(" |> {}", lang.to_r(&cont).0),
+        (lang, Op::Pipe2(_)) => format!(" |>> {}", lang.to_r(&cont).0),
+        (lang, Op::Dot(_)) => format!(" . {}", lang.to_r(&cont).0),
+        (lang, Op::Dot2(_)) => format!(" .. {}", lang.to_r(&cont).0),
+        (lang, Op::Union(_)) => format!(" | {}", lang.to_r(&cont).0),
+        (lang, Op::In(_)) => format!(" in {}", lang.to_r(&cont).0),
+        (lang, Op::At(_)) => format!(" @ {}", lang.to_r(&cont).0),
+        (lang, Op::At2(_)) => format!(" @@ {}", lang.to_r(&cont).0),
+        (lang, Op::LesserThan(_)) => format!(" < {}", lang.to_r(&cont).0),
+        (lang, Op::GreaterThan(_)) => format!(" > {}", lang.to_r(&cont).0),
+        (lang, Op::LesserOrEqual(_)) => format!(" <= {}", lang.to_r(&cont).0),
+        (lang, Op::GreaterOrEqual(_)) => format!(" >= {}", lang.to_r(&cont).0)
     }
 }
 
 fn element_operator2(s: Span) -> IResult<Span, (Lang, Op)> {
     let res = (opt(op),
-                alt((number, integer, variable))
+                alt((number, integer, chars, variable))
                 ).parse(s);
     match res {
         Ok((s, (Some(ope), ele))) => Ok((s, (ele, ope))),
@@ -641,6 +662,8 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
 			=> Lang::Union(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::Eq(_)) 
 			=> Lang::Eq(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::NotEq(_)) 
+			=> Lang::NotEq(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::LesserThan(_)) 
 			=> Lang::LesserThan(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::GreaterThan(_)) 

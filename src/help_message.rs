@@ -246,7 +246,8 @@ impl ErrorMsg for TypeError {
                 => {
                     let help_data = var.get_help_data();
                     let var2 = Var::from_language(var).unwrap();
-                    let (file_name, text) = help_data.get_file_data().unwrap();
+                    let (file_name, text) = help_data.get_file_data()
+                    .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
                     SingleBuilder::new(file_name, text)
                         .pos((help_data.get_offset(), 0))
                         .pos_text(format!("Undefined variable '{}'", var2.get_name()))
