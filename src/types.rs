@@ -345,6 +345,14 @@ fn chars(s: Span) -> IResult<Span, Type> {
     }
 }
 
+fn data_frame(s: Span) -> IResult<Span, Type> {
+    let res = tag("data.frame")(s);
+    match res {
+        Ok((s, st)) => Ok((s, Type::DataFrame(st.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 fn pseudo_function_signature(s: Span) -> IResult<Span, Type> {
     let res = (
         terminated(function_symbol, multispace0),
@@ -577,6 +585,7 @@ pub fn if_type(s: Span) -> IResult<Span,Type> {
 pub fn ltype(s: Span) -> IResult<Span, Type> {
     terminated(alt((
             multitype,
+            data_frame,
             any,
             empty,
             interface,

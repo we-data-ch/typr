@@ -62,6 +62,7 @@ pub enum Type {
     If(Box<Type>, Vec<Type>, HelpData),
     Condition(Box<Type>, Box<Type>, Box<Type>, HelpData),
     In(HelpData),
+    DataFrame(HelpData),
     Empty(HelpData),
     Any(HelpData)
 }
@@ -546,6 +547,7 @@ impl Type {
             Type::If(_, _, h) => h.clone(),
             Type::Condition(_, _, _, h) => h.clone(),
             Type::In(h) => h.clone(),
+            Type::DataFrame(h) => h.clone(),
             Type::Empty(h) => h.clone(),
             Type::Any(h) => h.clone(),
         }
@@ -580,6 +582,7 @@ impl Type {
             Type::If(a1, a2, _) => Type::If(a1, a2, h2),
             Type::Condition(a1, a2, a3, _) => Type::Condition(a1, a2, a3, h2),
             Type::In(_) => Type::In(h2),
+            Type::DataFrame(_) => Type::DataFrame(h2),
             Type::Empty(_) => Type::Empty(h2),
             Type::Any(_) => Type::Any(h2) 
         }
@@ -668,6 +671,7 @@ impl PartialEq for Type {
             (Type::In(_), Type::In(_)) => true,
             (Type::Empty(_), Type::Empty(_)) => true,
             (Type::Any(_), Type::Any(_)) => true,
+            (Type::DataFrame(_), Type::DataFrame(_)) => true,
             _ => false
         }
     }
@@ -742,7 +746,8 @@ impl Hash for Type {
             Type::Condition(_, _, _, _) => 25.hash(state),
             Type::In(_) => 26.hash(state),
             Type::Empty(_) => 27.hash(state),
-            Type::Any(_) => 28.hash(state)
+            Type::Any(_) => 28.hash(state),
+            Type::DataFrame(_) => 29.hash(state),
         }
     }
 }

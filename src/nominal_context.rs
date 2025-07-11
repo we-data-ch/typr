@@ -15,6 +15,7 @@ pub enum TypeCategory {
     Number,
     Char,
     Generic,
+    DataFrame,
     Rest
 }
 
@@ -34,6 +35,7 @@ impl TypeCategory {
             Type::Generic(_, _) => TypeCategory::Generic,
             Type::IndexGen(_, _) => TypeCategory::Generic,
             Type::LabelGen(_, _) => TypeCategory::Generic,
+            Type::DataFrame(_) => TypeCategory::DataFrame,
             _ => TypeCategory::Rest
         }
     }
@@ -52,6 +54,7 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Boolean => "logical",
             TypeCategory::Integer => "integer",
             TypeCategory::Number => "numeric",
+            TypeCategory::DataFrame => "data.frame",
             TypeCategory::Char => "character",
             TypeCategory::Generic => "Generic",
             TypeCategory::Rest => "Rest"
@@ -215,6 +218,7 @@ impl TypeNominal {
            Type::Char(_, _) => (self.to_owned(), "character".to_string()),
            Type::Boolean(_) => (self.to_owned(), "logical".to_string()),
            Type::Number(_) => (self.to_owned(), "numeric".to_string()),
+           Type::DataFrame(_) => (self.to_owned(), "data.frame".to_string()),
            _ => match self.body.get_nominal(&typ) {
                Some(nom) => (self.to_owned(), nom),
                None => self.generate_nominal(typ)

@@ -78,6 +78,7 @@ pub fn format(ty: &Type) -> String {
         Type::Minus(a, b, _) => format!("{}-{}", a, b),
         Type::Mul(a, b, _) => format!("{}*{}", a, b),
         Type::Div(a, b, _) => format!("{}/{}", a, b),
+        Type::DataFrame(_) => "data.frame".to_string(),
         t => format!("{:?}", t)
     }
 }
