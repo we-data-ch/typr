@@ -212,7 +212,7 @@ impl Lang {
                     Lang::Variable(_, _, _, _, _, _) => {
                         let (e1_str, cont1) = e1.to_r(cont);
                         let (e2_str, cont2) = e2.to_r(&cont1);
-                        (format!("{}${}", e2_str, e1_str), cont2)
+                        (format!("{}[[{}]]", e2_str, e1_str), cont2)
                     },
                     Lang::Record(fields, _) => {
                         let (e2_str, cont2) = e2.to_r(cont);
@@ -221,10 +221,15 @@ impl Lang {
                                 e2_str, at.get_argument(), at.get_value().to_r(&cont).0);
                         (res, cont2)
                     }
-                    _ => {
+                    Lang::FunctionApp(_, _, _) => {
                         let (e1_str, _cont1) = e1.to_r(cont);
                         let (e2_str, cont2) = e2.to_r(&cont);
                         (format!("{} |> {}", e2_str, e1_str), cont2)
+                    }
+                    _ => {
+                        let (e1_str, cont1) = e1.to_r(cont);
+                        let (e2_str, cont2) = e2.to_r(&cont1);
+                        (format!("{}[[{}]]", e2_str, e1_str), cont2)
                     }
                 }
             },
@@ -412,9 +417,15 @@ impl Lang {
                 let mut current_cont = cont.clone();
                 let mut val_entries = Vec::new();
                 
-                for (i, val) in vals.iter().enumerate() {
+                //for (i, val) in vals.iter().enumerate() {
+                    //let (val_str, new_cont) = val.to_r(&current_cont);
+                    //val_entries.push(format!("'{}' = {}", i.to_string(), val_str));
+                    //current_cont = new_cont;
+                //}
+                
+                for val in vals.iter() {
                     let (val_str, new_cont) = val.to_r(&current_cont);
-                    val_entries.push(format!("'{}' = {}", i.to_string(), val_str));
+                    val_entries.push(format!("{}", val_str));
                     current_cont = new_cont;
                 }
                 

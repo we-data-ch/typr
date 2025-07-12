@@ -265,6 +265,18 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect("Field not found")
                 },
+                (Type::Record(fields, _), Lang::Char(name, _)) => {
+                    fields.iter()
+                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
+                        .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
+                        .expect("Field not found")
+                },
+                (Type::Tuple(vals, _), Lang::Integer(i, _)) => {
+                    let typ = vals.iter()
+                        .nth((i-1) as usize)
+                        .expect(&format!("no value at the position {}", i));
+                    (typ.clone(), context.clone())
+                },
                 (_, Lang::FunctionApp(name, args, h)) 
                     if Var::from_language((*name).clone()).unwrap().get_name() == "map"
                         => {

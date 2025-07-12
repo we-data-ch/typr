@@ -362,9 +362,9 @@ fn record_identifier(s: Span) -> IResult<Span, Span> {
 fn record(s: Span) -> IResult<Span, Lang> {
     let res = (
         opt(record_identifier),
-        terminated(tag("{"), multispace0),
+        terminated(alt((tag("{"), tag("("))), multispace0),
         many0(argument_val),
-        terminated(tag("}"), multispace0)).parse(s);
+        terminated(alt((tag("}"), tag(")"))), multispace0)).parse(s);
     match res {
         Ok((s, (Some(start), _, args, _))) 
             => Ok((s, Lang::Record(args.clone(), start.into()))),
@@ -494,13 +494,14 @@ fn match_exp(s: Span) -> IResult<Span, Lang> {
 
 fn tuple_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
-            terminated(tag(":{"), multispace0),
+            terminated(alt((tag("list"), tag(":"))), multispace0),
+            terminated(alt((tag("{"), tag("("))), multispace0),
             values,
-            terminated(tag("}"), multispace0),
+            terminated(alt((tag("}"), tag(")"))), multispace0),
                     ).parse(s);
     match res {
-        Ok((s, (o, vals, _c))) => 
-            Ok((s, Lang::Tuple(vals, o.into()))),
+        Ok((s, (id, _op, vals, _cl))) => 
+            Ok((s, Lang::Tuple(vals, id.into()))),
         Err(r) => Err(r)
     }
 }
@@ -632,12 +633,12 @@ pub fn single_element(s: Span) -> IResult<Span,Lang> {
             if_exp,
             dotdotdot,
             function,
+            tuple_exp,
             record,
             function_application,
             array_indexing,
             variable,
             tag_exp,
-            tuple_exp,
             scope,
             array
         )).parse(s)
@@ -817,8 +818,20 @@ fn check_minus_sign(v: Vec<(Lang, Op)>) -> Vec<(Lang, Op)> {
     } else { v.clone() }
 }
 
+fn accessor(s: Span) -> IResult<Span, (Lang, Op)> {
+    let res = (
+                terminated(tag("[["), multispace0),
+                alt((integer, chars, variable)),
+                terminated(tag("]]"), multispace0)
+              ).parse(s);
+    match res {
+        Ok((s, (op, content, _cl))) => Ok((s, (content, Op::Dot(op.into())))),
+        Err(r) => Err(r)
+    }
+}
+
 fn element_chain(s: Span) -> IResult<Span, Lang> {
-    let res = many1(element_operator).parse(s);
+    let res = many1(alt((accessor, element_operator))).parse(s);
     match res {
         Ok((s, v)) => {
             let v2 = check_minus_sign(v);
