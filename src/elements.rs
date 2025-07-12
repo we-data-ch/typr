@@ -33,6 +33,7 @@ use nom::sequence::preceded;
 use nom::Parser;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
+use nom::combinator::recognize;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -461,6 +462,7 @@ fn if_exp(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+
 fn branch(s: Span) -> IResult<Span, (Box<Lang>, Box<Lang>)> {
     let res = (
             terminated(tag_exp, multispace0),
@@ -552,6 +554,7 @@ fn pure_string((lang, op): (Lang, Op)) -> String {
         (lang, Op::Modu(_)) => format!(" % {}", lang.to_r(&cont).0),
         (lang, Op::Modu2(_)) => format!(" %% {}", lang.to_r(&cont).0),
         (lang, Op::Eq(_)) => format!(" == {}", lang.to_r(&cont).0),
+        (lang, Op::Eq2(_)) => format!(" = {}", lang.to_r(&cont).0),
         (lang, Op::NotEq(_)) => format!(" != {}", lang.to_r(&cont).0),
         (lang, Op::And(_)) => format!(" && {}", lang.to_r(&cont).0),
         (lang, Op::Or(_)) => format!(" || {}", lang.to_r(&cont).0),
@@ -570,9 +573,17 @@ fn pure_string((lang, op): (Lang, Op)) -> String {
     }
 }
 
+fn function_application2(s: Span) -> IResult<Span, Lang> {
+    let res = recognize(function_application).parse(s);
+    match res {
+        Ok((s, fun_app)) => Ok((s, Lang::Exp(fun_app.to_string(), fun_app.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 fn element_operator2(s: Span) -> IResult<Span, (Lang, Op)> {
     let res = (opt(op),
-                alt((number, integer, chars, variable))
+                alt((function_application2, number, integer, chars, boolean, variable))
                 ).parse(s);
     match res {
         Ok((s, (Some(ope), ele))) => Ok((s, (ele, ope))),
@@ -662,6 +673,8 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
 			=> Lang::Union(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::Eq(_)) 
 			=> Lang::Eq(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::Eq2(_)) 
+			=> Lang::Eq2(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::NotEq(_)) 
 			=> Lang::NotEq(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::LesserThan(_)) 
@@ -829,6 +842,7 @@ pub fn parse_elements(s: Span) -> IResult<Span, Lang> {
 mod tests {
     use super::*;
     use crate::builder;
+    use std::backtrace::Backtrace;
 
     #[test]
     fn test_single_element() {
@@ -1192,6 +1206,18 @@ mod tests {
     #[test]
     fn test_vectorial_bloc5() {
         let res = element_chain("@{ 4*v + 12 }@".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
+    }
+
+    #[test]
+    fn test_vectorial_bloc6() {
+        let res = vectorial_bloc("@{sep = ' '}@".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
+    }
+
+    #[test]
+    fn test_vectorial_bloc7() {
+        let res = vectorial_bloc("@{dates = paste(dates, '3')}@".into()).unwrap().1;
         assert_eq!(res, builder::empty_lang());
     }
 

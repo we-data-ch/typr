@@ -595,6 +595,20 @@ impl Type {
         }
     }
 
+    pub fn to_array(&self) -> Option<Array> {
+        match self {
+            Type::Array(t1, t2, h) 
+                => Some(Array{index: (**t1).clone(), base_type: (**t2).clone(), help_data: h.clone()}),
+            _ => None
+        }
+    }
+
+}
+
+pub struct Array {
+    pub index: Type,
+    pub base_type: Type,
+    pub help_data: HelpData
 }
 
 

@@ -22,6 +22,7 @@ use crate::CompileMode;
 use crate::builder;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
+use crate::nominal_context::TypeCategory;
 
 fn unify_types(types: &[Type]) -> Type {
     if types.is_empty() {
@@ -361,6 +362,10 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 if true_ty.is_tag_or_union() && false_ty.is_tag_or_union() {
                     let res = unify_type(&true_ty, &false_ty);
                     (res, context.clone())
+                } else if true_ty == false_ty {
+                    (true_ty, context.clone())
+                } else if false_ty == builder::empty_type() {
+                    (true_ty, context.clone())
                 } else {
                     panic!("Error: {} is not matching {}", true_ty, false_ty);
                 }
@@ -445,6 +450,15 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 context.clone())
         },
         Lang::VecBloc(_, h) => (Type::Empty(h.clone()), context.to_owned()),
+        Lang::ForLoop(var, iter, body, _h) => {
+            let base_type = typing(context, iter).0.to_array()
+                .expect(&format!("The iterator is not an array {:?}", iter))
+                .base_type;
+            let var = var.clone().set_type(base_type.clone());
+            let sub_context = context.clone().push_var_type(var, base_type, &context);
+            let _ = typing(&sub_context, body).1;
+            (builder::empty_type(), context.clone())
+        },
         _ => (Type::Any(HelpData::default()), context.clone()),
     }
 }

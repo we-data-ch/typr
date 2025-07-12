@@ -24,6 +24,8 @@ use nom::Parser;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 use crate::builder;
+use crate::elements::single_element;
+use crate::elements::scope;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -420,10 +422,31 @@ fn signature(s: Span) -> IResult<Span, Vec<Lang>> {
     alt((signature_opaque, signature_variable)).parse(s)
 }
 
+fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+            terminated(tag("for"), multispace0),
+            terminated(tag("("), multispace0),
+            terminated(variable_exp, multispace0),
+            terminated(tag("in"), multispace0),
+            terminated(single_element, multispace0),
+            terminated(tag(")"), multispace0),
+            scope,
+            terminated(tag(";"), multispace0)).parse(s);
+    match res {
+        Ok((s, (_for, _op, (var_str, h), _in, iterator, _cl, scop, _semi))) 
+            => Ok((s, 
+                   vec![Lang::ForLoop(Var::from_name(&var_str),
+                       Box::new(iterator),
+                       Box::new(scop),
+                       _for.into())])),
+        Err(r) => Err(r)
+    }
+}
+
 // main
 fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp))),
+        many0(alt((for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {
@@ -759,6 +782,18 @@ mod tesus {
     #[test]
     fn test_signature1() {
         let res = parse("@data: int;".into()).unwrap().1;
+        assert_eq!(res.0, vec![]);
+    }
+
+    #[test]
+    fn test_for_loop0() {
+        let res = for_loop("for (a in [1, 2, 3]) { a };".into()).unwrap().1;
+        assert_eq!(res, vec![]);
+    }
+
+    #[test]
+    fn test_for_loop1() {
+        let res = parse("for (a in [1, 2, 3]) { a };".into()).unwrap().1;
         assert_eq!(res.0, vec![]);
     }
 

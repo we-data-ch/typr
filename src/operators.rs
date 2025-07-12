@@ -15,6 +15,7 @@ pub enum Op {
     And(HelpData),
     Or(HelpData),
     Eq(HelpData),
+    Eq2(HelpData),
     NotEq(HelpData),
     Add(HelpData),
     Add2(HelpData),
@@ -62,6 +63,7 @@ fn bool_op(s: Span) -> IResult<Span, Span> {
             tag(">"),
             tag("and"),
             tag("or"),
+            tag("="),
             )), multispace0).parse(s)
 }
 
@@ -84,6 +86,7 @@ fn get_op(ls: LocatedSpan<&str, String>) -> Op {
         "%" => Op::Modu(ls.into()),
         "|>" => Op::Pipe(ls.into()),
         "|>>" => Op::Pipe2(ls.into()),
+        "=" => Op::Eq2(ls.into()),
         "." => Op::Dot(ls.into()),
         ".." => Op::Dot2(ls.into()),
         "$" => Op::Dot(ls.into()),
@@ -123,7 +126,7 @@ pub fn op(s: Span) -> IResult<Span, Op> {
             tag("."),
             tag("$$"),
             tag("$"),
-            tag("|")
+            tag("|"),
             )),
         multispace0).parse(s);
     match res {
