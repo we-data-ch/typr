@@ -22,6 +22,7 @@ use crate::Context;
 use crate::type_comparison::reduce_type;
 use std::hash::Hash;
 use std::hash::Hasher;
+use crate::builder;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -63,6 +64,7 @@ pub enum Type {
     Condition(Box<Type>, Box<Type>, Box<Type>, HelpData),
     In(HelpData),
     DataFrame(HelpData),
+    RFunction(HelpData),
     Empty(HelpData),
     Any(HelpData)
 }
@@ -337,9 +339,13 @@ impl Type {
     }
 
     pub fn to_function_type(&self) -> Option<FunctionType> {
-        if let Type::Function(kinds, args, ret_ty, h) = self {
-            Some(FunctionType(kinds.clone(), args.clone(), (**ret_ty).clone(), h.clone()))
-        } else { None }
+        match self {
+            Type::Function(kinds, args, ret_ty, h) 
+                => Some(FunctionType(kinds.clone(), args.clone(), (**ret_ty).clone(), h.clone())),
+            Type::RFunction(h) 
+                => Some(FunctionType(vec![], vec![], builder::empty_type(), h.clone())),
+            _ => None
+        }
     }
 
     pub fn get_type_pattern(&self) -> Option<ArgumentType> {
@@ -548,6 +554,7 @@ impl Type {
             Type::Condition(_, _, _, h) => h.clone(),
             Type::In(h) => h.clone(),
             Type::DataFrame(h) => h.clone(),
+            Type::RFunction(h) => h.clone(),
             Type::Empty(h) => h.clone(),
             Type::Any(h) => h.clone(),
         }
@@ -583,6 +590,7 @@ impl Type {
             Type::Condition(a1, a2, a3, _) => Type::Condition(a1, a2, a3, h2),
             Type::In(_) => Type::In(h2),
             Type::DataFrame(_) => Type::DataFrame(h2),
+            Type::RFunction(_) => Type::RFunction(h2),
             Type::Empty(_) => Type::Empty(h2),
             Type::Any(_) => Type::Any(h2) 
         }
@@ -762,6 +770,7 @@ impl Hash for Type {
             Type::Empty(_) => 27.hash(state),
             Type::Any(_) => 28.hash(state),
             Type::DataFrame(_) => 29.hash(state),
+            Type::RFunction(_) => 29.hash(state),
         }
     }
 }

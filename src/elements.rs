@@ -244,9 +244,25 @@ fn extract_generics(args: &[ArgumentType], ret_typ: &Type) -> Vec<ArgumentKind> 
         .collect::<Vec<_>>()
 }
 
+pub fn r_function(s: Span) -> IResult<Span, Lang> {
+    let res = (
+        terminated(tag("function"), multispace0),
+        terminated(tag("("), multispace0),
+        many0(terminated(terminated(variable, opt(tag(","))), multispace0)),
+        terminated(tag(")"), multispace0),
+        recognize(scope)
+          ).parse(s);
+    match res {
+        Ok((s, (id, _op, args, _cl, exp))) =>{
+            Ok((s, Lang::RFunction(args, exp.to_string(), id.into())))
+        },
+        Err(r) => Err(r)
+    }
+}
+
 pub fn simple_function(s: Span) -> IResult<Span, Lang> {
     let res = (
-        terminated(function_symbol, multispace0),
+        terminated(tag("fn"), multispace0),
         terminated(tag("("), multispace0),
         many0(argument),
         terminated(tag(")"), multispace0),
@@ -632,6 +648,7 @@ pub fn single_element(s: Span) -> IResult<Span,Lang> {
             match_exp,
             if_exp,
             dotdotdot,
+            r_function,
             function,
             tuple_exp,
             record,
@@ -1249,6 +1266,12 @@ mod tests {
     #[test]
     fn test_lang_alias1() {
         let res = lambda("$x + 1".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
+    }
+
+    #[test]
+    fn test_r_function0() {
+        let res = r_function("fn(a, b) { a + b }".into()).unwrap().1;
         assert_eq!(res, builder::empty_lang());
     }
 

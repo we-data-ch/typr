@@ -68,6 +68,7 @@ pub enum Lang {
     Any(HelpData),
     Signature(Var, Type, HelpData),
     ForLoop(Var, Box<Lang>, Box<Lang>, HelpData), // variable, iterator, body
+    RFunction(Vec<Lang>, String, HelpData), // variable, iterator, body
     Empty(HelpData)
 }
 
@@ -483,6 +484,13 @@ impl Lang {
             Lang::ForLoop(var, iterator, body, _) => {
                 let res = format!("for ({} in {}) {{\n {} \n}}", var.clone().to_r(), iterator.to_r(cont).0, body.to_r(cont).0);
                 (res, cont.clone())
+            },
+            Lang::RFunction(vars, body, _) => {
+                let args = vars.iter()
+                    .map(|x| x.to_r(cont).0)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                (format!("function ({}) {{\n {} \n}}", args, body), cont.clone())
             }
             _ => ("".to_string(), cont.clone())
         };
@@ -986,6 +994,7 @@ impl Lang {
             Lang::Empty(h) => h,
             Lang::Signature(_, _, h) => h,
             Lang::ForLoop(_, _, _, h) => h,
+            Lang::RFunction(_, _, h) => h,
         }.clone()
     }
 
@@ -1021,6 +1030,13 @@ impl Lang {
             } else { false }
         } else { false }
     } 
+
+    pub fn is_r_function(&self) -> bool {
+        match self {
+            Lang::RFunction(_, _, _) => true,
+            _ => false
+        }
+    }
     
 }
 
@@ -1107,6 +1123,7 @@ impl From<Lang> for HelpData {
            Lang::Any(h) => h,
            Lang::Signature(_, _, h) => h,
            Lang::ForLoop(_, _, _, h) => h,
+           Lang::RFunction(_, _, h) => h,
        }.clone()
    } 
 }

@@ -83,6 +83,10 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                     context.to_owned()
                             .push_var_type(new_name, reduced_expr_ty.to_owned(), context)
                             .add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), name.get_name(), HelpData::default())])
+                } else if exp.is_r_function() {
+                    let typ = Type::RFunction(HelpData::default());
+                    let new_name = name.to_owned().set_type(builder::any_type());
+                    context.clone().push_var_type(new_name, typ, context)
                 } else {
                     let new_name = name.to_owned().set_type(expr_ty);
                     context.to_owned()
@@ -353,15 +357,19 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 typing(&new_context, &exp)
             }
         },
-        Lang::FunctionApp(fn_var_name, values, _h) => {
+        Lang::FunctionApp(fn_var_name, values, h) => {
             let func = fn_var_name.clone()
                 .get_related_function(values, context)
                 .expect(&TypeError::UndefinedFunction((**fn_var_name).clone()).display());
-            let param_types = func.get_param_types();
-            context
-                .get_unification_map(values, &param_types)
-                .unwrap_or(UnificationMap::new(vec![]))
-                .apply_unification_type(context, &func.get_ret_type())
+            if func.is_r_function() {
+                (Type::Empty(h.clone()), context.clone())
+            } else {
+                let param_types = func.get_param_types();
+                context
+                    .get_unification_map(values, &param_types)
+                    .unwrap_or(UnificationMap::new(vec![]))
+                    .apply_unification_type(context, &func.get_ret_type())
+            }
         }
         Lang::Tag(name, expr, h) => {
             let ty = typing(context, expr).0;
@@ -462,6 +470,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 context.clone())
         },
         Lang::VecBloc(_, h) => (Type::Empty(h.clone()), context.to_owned()),
+        Lang::RFunction(_, _, h) => (Type::Empty(h.clone()), context.to_owned()),
         Lang::ForLoop(var, iter, body, _h) => {
             let base_type = typing(context, iter).0.to_array()
                 .expect(&format!("The iterator is not an array {:?}", iter))
