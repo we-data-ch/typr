@@ -34,6 +34,8 @@ use nom::Parser;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 use nom::combinator::recognize;
+use crate::help_message::SyntaxError;
+use crate::help_message::ErrorMsg;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -246,13 +248,17 @@ fn extract_generics(args: &[ArgumentType], ret_typ: &Type) -> Vec<ArgumentKind> 
 
 pub fn r_function(s: Span) -> IResult<Span, Lang> {
     let res = (
-        terminated(tag("function"), multispace0),
+        terminated(function_symbol, multispace0),
         terminated(tag("("), multispace0),
         many0(terminated(terminated(variable, opt(tag(","))), multispace0)),
         terminated(tag(")"), multispace0),
         recognize(scope)
           ).parse(s);
     match res {
+        Ok((_s, (id, _op, _args, _cl, _exp))) 
+            if *id.fragment() == "fn" => {
+                 panic!("{}", SyntaxError::FunctionWithoutType(id.into()).display())
+        },
         Ok((s, (id, _op, args, _cl, exp))) =>{
             Ok((s, Lang::RFunction(args, exp.to_string(), id.into())))
         },

@@ -29,6 +29,7 @@ pub enum CompileMode {
 
 #[derive(Debug, Clone)]
 pub struct Context {
+   function_list: String,
    pub compile_mode: CompileMode,
    pub environment: Environment,
    pub typing_context: VarType,
@@ -42,6 +43,7 @@ pub struct Context {
 impl Default for Context {
     fn default() -> Self {
         Context { 
+            function_list: include_str!("../configs/src/functions.txt").to_string(), 
             compile_mode: CompileMode::Body,
             environment: Environment::StandAlone,
             typing_context: VarType::new(),
@@ -112,7 +114,7 @@ impl Context {
     pub fn get_matching_alias_signature_old(&self, var: &Var) -> Option<(Type, Vec<Type>)> {
         self.iter().flat_map(|(var2, target_type)| {
             match (self.is_matching(var, var2), var2.get_type()) {
-                (true, Type::Params(types, _)) 
+                (true, Type::Params(_types, _)) 
                     if var2.is_opaque()
                         => {
                             println!("var2 is opaque!");
@@ -125,7 +127,7 @@ impl Context {
         }).next()
     }
 
-    pub fn iter(&self) -> std::slice::Iter<(Var, Type)> {
+    pub fn iter(&self) -> std::slice::Iter<'_, (Var, Type)> {
         self.typing_context.0.iter()
     }
 
@@ -147,19 +149,32 @@ impl Context {
     }
 
     pub fn get_type_from_variable(&self, var: Var) -> Type {
-        self.typing_context.iter()
-           .find(|(v, _)| var.match_with(v, self))
-           .map(|(_, ty)| ty)
-           .expect(&TypeError::UndefinedVariable(var.to_language()).display())
-           .clone()
+        if let Type::RFunction(_) = var.get_type() {
+            var.get_type()
+        } else {
+            self.typing_context.iter()
+               .find(|(v, _)| var.match_with(v, self))
+               .map(|(_, ty)| ty)
+               .expect(&TypeError::UndefinedVariable(var.to_language()).display())
+               .clone()
+        }
     }
 
     pub fn get_true_variable(&self, var: &Var) -> Var {
-        self.typing_context.iter()
+        let res = self.typing_context.iter()
            .find(|(v, _)| var.match_with(v, self))
-           .map(|(v, _)| v)
-           .expect(&format!("The variable {} was not found:\n {}", var, self.display_typing_context()))
-           .clone()
+           .map(|(v, _)| v);
+        match res {
+            Some(vari) => vari.clone(),
+            _ => self.is_an_untyped_function(&var.get_name()) 
+                .then(|| var.clone().set_type(Type::RFunction(var.get_help_data())))
+                .expect(&format!("The variable {} was not found:\n {}", var, self.display_typing_context()))
+        }
+    }
+
+    pub fn is_an_untyped_function(&self, name: &str) -> bool {
+        let formated_name = name.replace("__", ".");
+        self.function_list.lines().any(|line| line.trim() == formated_name)
     }
 
     pub fn get_class(&self, t: &Type) -> String {
@@ -240,7 +255,7 @@ impl Context {
     }
 
     pub fn is_gen_func_allowed(l: &Lang) -> bool {
-        if let Lang::GenFunc(s, name, _) = l {
+        if let Lang::GenFunc(_s, name, _) = l {
            if Self::in_black_list(&name) { false } else { true }
         } else { false }
     }
@@ -252,7 +267,7 @@ impl Context {
         let adt_header = self.adt.set_generic_methods(
             data.iter()
                 .fold(self.adt.generic_methods.clone(),
-                |adt, lang| add_if_absent(adt, lang.clone().clone())));
+                |adt, lang| add_if_absent(adt, (*lang).clone().clone())));
         Context {
             adt: adt_header,
             ..self
@@ -406,6 +421,13 @@ impl Context {
 
     pub fn display_nominals(&self) -> String {
         self.nominals.display_nominals()
+    }
+
+    pub fn append_function_list(&self, t: &str) -> Context {
+        Context {
+            function_list: self.function_list.clone() + t,
+            ..self.clone()
+        } 
     }
 
 }

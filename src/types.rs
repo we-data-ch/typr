@@ -27,6 +27,7 @@ use crate::elements::variable;
 use crate::Lang;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
+use crate::elements::variable_exp;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -240,7 +241,7 @@ fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
 pub fn type_alias(s: Span) -> IResult<Span, Type> {
     let res = (
             opt(module_path),
-            pascal_case,
+            alt((pascal_case, variable_exp)),
             opt(type_params)
           ).parse(s);
     match res {

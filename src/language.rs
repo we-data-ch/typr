@@ -492,7 +492,21 @@ impl Lang {
                     .join(", ");
                 (format!("function ({}) {{\n {} \n}}", args, body), cont.clone())
             }
-            _ => ("".to_string(), cont.clone())
+            Lang::Eq2(right, left, _) => {
+                let res = match &**left {
+                    Lang::Tag(n, _, _) => n.to_string(),
+                    Lang::Variable(n, _, _, _, _, _) => n.to_string(),
+                    _ => format!("{}", left) 
+                };
+                (format!("{} = {}", res, right.to_r(cont).0), cont.clone())
+            }
+            Lang::Signature(_, _, _) => {
+                ("".to_string(), cont.clone())
+            }
+            _ =>  {
+                println!("This language structure won't transpile: {:?}", self);
+                ("".to_string(), cont.clone())
+            }
         };
         
         result

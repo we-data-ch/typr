@@ -11,7 +11,7 @@ impl VarType {
         VarType(vec![])
     }
 
-    pub fn iter(&self) -> Rev<std::slice::Iter<(Var, Type)>> {
+    pub fn iter(&self) -> Rev<std::slice::Iter<'_, (Var, Type)>> {
         self.0.iter().rev()
     }
 

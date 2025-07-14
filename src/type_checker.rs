@@ -22,7 +22,29 @@ use crate::CompileMode;
 use crate::builder;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
-use crate::nominal_context::TypeCategory;
+use std::error::Error;
+
+fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
+    // Créer un script R temporaire avec la fonction à exécuter
+    let r_script = format!("{}\n", function_code);
+
+    // Exécuter la commande Rscript avec le script
+    let output = Command::new("Rscript")
+        .arg("-e") // -e permet d'exécuter une expression R directement
+        .arg(&r_script)
+        .output()?; // Exécute la commande et capture la sortie
+
+    // Vérifier si l'exécution a réussi
+    if output.status.success() {
+        // Convertir la sortie standard (stdout) en chaîne de caractères
+        let stdout = String::from_utf8(output.stdout)?;
+        Ok(stdout.trim().to_string())
+    } else {
+        // En cas d'erreur, retourner stderr comme erreur
+        let stderr = String::from_utf8(output.stderr)?;
+        Err(format!("Erreur lors de l'exécution de R: {}", stderr).into())
+    }
+}
 
 fn unify_types(types: &[Type]) -> Type {
     if types.is_empty() {
@@ -138,7 +160,10 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         }
         Lang::Library(name, _h) => {
             install_package(name);
-            install_header(name, context)
+            let function_list = execute_r_function(&format!("ls('package:{}')", name))
+                .expect("The R command didn't work");
+            let new_context = context.append_function_list(&function_list);
+            install_header(name, &new_context)
         },
         Lang::ModuleDecl(_name, _h) 
             => context.clone().add_module_declarations(&[expr.clone()]),

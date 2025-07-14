@@ -239,7 +239,9 @@ impl ErrorMsg for TypeError {
                     let (file_name, text) = help_data.get_file_data()
                         .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
                     let res = SingleBuilder::new(file_name, text)
-                        .pos((help_data.get_offset(), 0));
+                        .pos((help_data.get_offset(), 0))
+                        .text("The function doesn't exist");
+
                     res.build()
                 },
             TypeError::UndefinedVariable(var)
@@ -302,18 +304,20 @@ impl ErrorMsg for TypeError {
 }
 
 pub enum SyntaxError {
-    LetInTypeDefinition(HelpData)
+    FunctionWithoutType(HelpData),
 }
 
 impl ErrorMsg for SyntaxError {
     fn display(self) -> String {
         let msg: Result<()> = match self {
-            SyntaxError::LetInTypeDefinition(h) => {
-                    let (file_name, text) = h.get_file_data().unwrap();
+            SyntaxError::FunctionWithoutType(help_data)
+                => {
+                    let (file_name, text) = help_data.get_file_data()
+                        .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
                     let res = SingleBuilder::new(file_name, text)
-                        .pos((h.get_offset(), 0));
+                        .pos((help_data.get_offset(), 0));
                     res.build()
-            }
+                },
         };
         format!("{:?}", msg)
     }

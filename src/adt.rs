@@ -23,7 +23,7 @@ impl From<Vec<Lang>> for Adt {
 }
 
 impl Adt {
-    pub fn iter(&self) -> std::slice::Iter<Lang> {
+    pub fn iter(&self) -> std::slice::Iter<'_, Lang> {
         self.0.iter()
     }
 
@@ -33,7 +33,7 @@ impl Adt {
         let mut results = Vec::new();
         
         for exp in self.iter() {
-            let (exp_str, new_cont) = exp.to_r(&current_cont);
+            let (exp_str, _new_cont) = exp.to_r(&current_cont);
             results.push(exp_str);
         }
         let res = results.join("\n");

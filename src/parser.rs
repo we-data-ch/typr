@@ -23,7 +23,6 @@ use nom::multi::many0;
 use nom::Parser;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
-use crate::builder;
 use crate::elements::single_element;
 use crate::elements::scope;
 
@@ -433,7 +432,7 @@ fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {
             scope,
             terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (_for, _op, (var_str, h), _in, iterator, _cl, scop, _semi))) 
+        Ok((s, (_for, _op, (var_str, _h), _in, iterator, _cl, scop, _semi))) 
             => Ok((s, 
                    vec![Lang::ForLoop(Var::from_name(&var_str),
                        Box::new(iterator),
