@@ -31,7 +31,7 @@ There is also a more mature project named vapour written in go who has great fea
 
 You can check the [typr.runner](https://github.com/fabriceHategekimana/typr_runner) package to install it directly on RStudio.
 
-## For Scratch
+## From Scratch
 To install TypR, you will need to install `Rust` (of course you should have R installed in your system):
 
 - R's installation page: https://www.r-project.org/
