@@ -97,7 +97,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let expr_ty = typing(&context, exp).0;
             let reduced_expr_ty = expr_ty.reduce(context);
             if ty.is_empty() {
-                if exp.is_function() {
+                if exp.is_function() && (exp.nb_params() > 0) {
                     let first_param = expr_ty.to_function_type()
                         .unwrap()
                         .get_param_types()[0].clone();
@@ -198,7 +198,6 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                     .flat_map(|(typ1, typ2)| get_gen_type(typ1, typ2))
                     .flat_map(|x| x)
                     .collect::<Vec<_>>();
-                //if res.len() > 0 { Some(res) } else { None }
                 Some(res)
             }
             (Type::Array(ind1, typ1, _), Type::Array(ind2, typ2, _)) => {

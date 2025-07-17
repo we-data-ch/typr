@@ -330,8 +330,10 @@ impl Lang {
                 let (r_code, _new_name2) = match (**body).clone() {
                     Lang::Function(_, _, _, _, _) => {
                         let related_type = var.get_type();
-                        let related_type_reduced = reduce_type(cont, &related_type).generalize();
-                        let class = cont.get_class(&related_type_reduced);
+                        let class = match related_type {
+                            Type::Empty(_) => "Empty".to_string(),
+                            _ => cont.get_class(&reduce_type(cont, &related_type))
+                        };
                         if class.len() > 7 && &class[0..7] == "Generic" {
                             (format!("{}.default <- {}", new_name, body_str), new_name)
                         } else if class == "Empty" {
@@ -503,6 +505,7 @@ impl Lang {
             Lang::Signature(_, _, _) => {
                 ("".to_string(), cont.clone())
             }
+            Lang::Alias(_, _, _, _) => ("".to_string(), cont.clone()),
             _ =>  {
                 println!("This language structure won't transpile: {:?}", self);
                 ("".to_string(), cont.clone())
@@ -1049,6 +1052,13 @@ impl Lang {
         match self {
             Lang::RFunction(_, _, _) => true,
             _ => false
+        }
+    }
+
+    pub fn nb_params(&self) -> usize {
+        match self {
+            Lang::Function(_, params, _, _, _) => params.len(),
+            _ => 0 as usize
         }
     }
     
