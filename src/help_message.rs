@@ -202,8 +202,7 @@ impl ErrorMsg for TypeError {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();
                 let (file_name1, text1) = help_data1.get_file_data()
-                    .expect(&format!("The file name of {:?} for {} doesn't exist", 
-                                     help_data1, t1.pretty()));
+                    .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
                 let (file_name2, text2) = help_data2.get_file_data()
                     .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
                     //.expect(&format!("The file name of {:?} for {} doesn't exist", 

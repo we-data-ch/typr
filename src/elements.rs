@@ -685,7 +685,8 @@ pub fn scope(s: Span) -> IResult<Span, Lang> {
 
 fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
     // (params, op)
-    let first = v.pop().expect(&format!("The vector v is empty {:?}", v));
+    let first = v.pop()
+        .unwrap_or((Lang::Empty(HelpData::default()), Op::Empty(HelpData::default())));
     match first {
         (p, Op::In(_)) 
 			=> Lang::In(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),

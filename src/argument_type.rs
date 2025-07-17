@@ -3,6 +3,9 @@ use serde::Serialize;
 use crate::r#type::Type;
 use crate::help_data::HelpData;
 use crate::tchar::Tchar;
+use crate::Context;
+use crate::Var;
+use crate::type_comparison::reduce_type;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)] // 3 argument is for the embedding
 pub struct ArgumentType(pub Type, pub Type, pub bool);
@@ -58,6 +61,15 @@ impl ArgumentType {
     pub fn set_type(self, typ: Type) -> ArgumentType {
         ArgumentType(self.0, typ, self.2)
     }
+
+    pub fn to_var(self, context: &Context) -> Var {
+        let new_type = reduce_type(context, &self.get_type())
+            .for_var();
+        Var::from_type(self.get_argument())
+            .expect("The arg_typ should have been label function")
+            .set_type(new_type)
+    }
+
 }
 
 impl fmt::Display for ArgumentType {

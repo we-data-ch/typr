@@ -110,7 +110,8 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                     let new_name = name.to_owned().set_type(builder::any_type());
                     context.clone().push_var_type(new_name, typ, context)
                 } else {
-                    let new_name = name.to_owned().set_type(expr_ty);
+                    let new_name = name.to_owned()
+                        .set_type(reduce_type(context, &expr_ty));
                     context.to_owned()
                             .push_var_type(new_name, reduced_expr_ty.to_owned(), context)
                 }
@@ -337,13 +338,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), context.to_owned())
             } else {
                 let sub_context = params.into_iter()
-                    .map(|arg_typ| {
-                        let new_type = reduce_type(context, &arg_typ.get_type())
-                            .for_var();
-                        Var::from_type(arg_typ.get_argument())
-                            .expect("The arg_typ should have been label function")
-                            .set_type(new_type)
-                    })
+                    .map(|arg_typ| arg_typ.clone().to_var(context))
                     .zip(list_of_types.clone().into_iter().map(|typ| reduce_type(context, &typ)))
                     .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
                 let res = typing(&sub_context, body);
