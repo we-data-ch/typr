@@ -320,6 +320,19 @@ fn bangs_exp(s: Span) -> IResult<Span,Vec<Lang>> {
     }
 }
 
+pub fn simple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+        parse_elements,
+        terminated(tag(";"), multispace0)
+                    ).parse(s);
+    match res {
+        Ok((s, (lang, _sc))) => {
+            Ok((s, vec![lang]))
+        },
+        Err(r) => Err(r)
+    }
+}
+
 fn mod_imp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (terminated(tag("mod"), multispace0),
             terminated(variable_exp, multispace0),
@@ -445,7 +458,7 @@ fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {
 // main
 fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp))),
+        many0(alt((for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {

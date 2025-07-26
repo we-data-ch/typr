@@ -391,6 +391,7 @@ fn record(s: Span) -> IResult<Span, Lang> {
         Ok((s, (Some(start), _, args, _))) 
             => Ok((s, Lang::Record(args.clone(), start.into()))),
         Ok((_s, (None, _ob, _args, _))) => {
+            println!("{}", _s);
             panic!("You forgot to put a record identifier before the bracket: ':{{...}}'");
         } 
         Err(r) => Err(r)
@@ -828,6 +829,7 @@ pub fn bang_exp(s: Span) -> IResult<Span, Lang> {
         Err(r) => Err(r)
     }
 }
+
 
 fn check_minus_sign(v: Vec<(Lang, Op)>) -> Vec<(Lang, Op)> {
     if v.len() > 0 {
