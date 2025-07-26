@@ -219,6 +219,7 @@ impl TypeNominal {
            Type::Boolean(_) => (self.to_owned(), "logical".to_string()),
            Type::Number(_) => (self.to_owned(), "numeric".to_string()),
            Type::DataFrame(_) => (self.to_owned(), "data.frame".to_string()),
+           Type::Alias(name, _, _, _, _) => (self.to_owned(), name),
            _ => match self.body.get_nominal(&typ) {
                Some(nom) => (self.to_owned(), nom),
                None => self.generate_nominal(typ)
