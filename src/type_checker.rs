@@ -147,7 +147,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Assign(var, expr, _h) => {
             let variable_assigned = Var::from_language((**var).clone()).unwrap();
             let variable = context.get_true_variable(&variable_assigned);
-            let var_type = context.get_type_from_variable(variable.clone());
+            let var_type = context.get_type_from_existing_variable(variable.clone());
             let var_type_reduced = reduce_type(context, &var_type);
             let expr_type = typing(&context, expr).0;
             let expr_type_reduced = reduce_type(context, &expr_type);
@@ -161,7 +161,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         }
         Lang::Library(name, _h) => {
             install_package(name);
-            let function_list = execute_r_function(&format!("ls('package:{}')", name))
+            let function_list = execute_r_function(&format!("library({})\n\nls('package:{}')", name, name))
                 .expect("The R command didn't work");
             let new_context = context.append_function_list(&function_list);
             install_header(name, &new_context)
@@ -475,7 +475,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             if var.is_private() && var.is_foreign() {
                panic!("{}", TypeError::PrivateVariable(old_var, var).display())
             } else {
-                (context.get_type_from_variable(var), context.clone())
+                (context.get_type_from_existing_variable(var), context.clone())
             }
         },
         Lang::Scope(expr, _) if expr.len() == 1 => {

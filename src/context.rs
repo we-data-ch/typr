@@ -19,6 +19,7 @@ use crate::type_graph::TypeGraph;
 use crate::type_comparison::reduce_type;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
+use std::iter::Rev;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompileMode {
@@ -63,7 +64,7 @@ impl From<Vec<(Lang, Type)>> for  Context {
                 (Var::from_language(lan.clone()).unwrap(), typ.clone())})
            .collect();
         Context { 
-            typing_context: VarType(val2),
+            typing_context: val2.into(),
             ..Context::default()
         }
    } 
@@ -73,14 +74,25 @@ impl From<Vec<(Lang, Type)>> for  Context {
 impl Context {
     pub fn new(types: Vec<(Var, Type)>, kinds: Vec<(Type, Kind)>) -> Context {
         Context {
-            typing_context: VarType(types),
+            typing_context: types.into(),
             kinds: kinds,
             ..Context::default()
         }
     }
 
-    pub fn get(&self, var: &Var) -> Option<Type> {
-        self.iter().flat_map(|(var2, type_)| {
+    pub fn get_type_from_variable(&self, var: &Var) -> Option<Type> {
+        self.variables().flat_map(|(var2, type_)| {
+            let Var(name1, path1, perm1, bo1, typ1, _h1) = var;
+            let Var(name2, path2, perm2, bo2, typ2, _h2) = var2;
+            let conditions = (name1 == name2) &&
+                (path1 == path2) && (perm1 == perm2) &&
+                (bo1 == bo2) && (type_comparison::is_matching(self, typ1, typ2));
+            if conditions { Some(type_.clone()) } else { None }
+        }).next()
+    }
+
+    pub fn get_type_from_aliases(&self, var: &Var) -> Option<Type> {
+        self.aliases().flat_map(|(var2, type_)| {
             let Var(name1, path1, perm1, bo1, typ1, _h1) = var;
             let Var(name2, path2, perm2, bo2, typ2, _h2) = var2;
             let conditions = (name1 == name2) &&
@@ -99,7 +111,7 @@ impl Context {
     }
 
     pub fn get_matching_alias_signature(&self, var: &Var) -> Option<(Type, Vec<Type>)> {
-        self.iter().find(|(var2, _)| self.is_matching(var, var2))
+        self.aliases().find(|(var2, _)| self.is_matching(var, var2))
             .map(|(var2, target_type)| {
                 if var2.is_opaque() {
                     (var2.clone().to_alias(), vec![])
@@ -111,29 +123,17 @@ impl Context {
             })
     }
 
-    pub fn get_matching_alias_signature_old(&self, var: &Var) -> Option<(Type, Vec<Type>)> {
-        self.iter().flat_map(|(var2, target_type)| {
-            match (self.is_matching(var, var2), var2.get_type()) {
-                (true, Type::Params(_types, _)) 
-                    if var2.is_opaque()
-                        => {
-                            println!("var2 is opaque!");
-                            Some((var2.clone().to_alias(), vec![]))
-                        },
-                (true, Type::Params(types, _)) 
-                    => Some((target_type.clone(), types.clone())),
-                _ => None
-            }
-        }).next()
+    pub fn variables(&self) -> Rev<std::slice::Iter<'_, (Var, Type)>> {
+        self.typing_context.variables()
     }
 
-    pub fn iter(&self) -> std::slice::Iter<'_, (Var, Type)> {
-        self.typing_context.0.iter()
+    pub fn aliases(&self) -> Rev<std::slice::Iter<'_, (Var, Type)>> {
+        self.typing_context.aliases()
     }
 
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let types = typ.type_extraction();
-        let var_type = VarType(self.typing_context.iter().chain([(lang, typ.clone())].iter()).cloned().collect());
+        let var_type = self.typing_context.clone().push_var_type(vec![(lang, typ.clone())]);
         let type_list: Vec<_> = var_type.get_types().iter().cloned().collect();
         let nominals = types.iter()
             .fold(self.nominals.clone(), |nom, typ_| nom.push_type(typ_.clone()));
@@ -148,11 +148,11 @@ impl Context {
         }
     }
 
-    pub fn get_type_from_variable(&self, var: Var) -> Type {
+    pub fn get_type_from_existing_variable(&self, var: Var) -> Type {
         if let Type::RFunction(_) = var.get_type() {
             var.get_type()
         } else {
-            self.typing_context.iter()
+            self.typing_context.variables()
                .find(|(v, _)| var.match_with(v, self))
                .map(|(_, ty)| ty)
                .expect(&TypeError::UndefinedVariable(var.to_language()).display())
@@ -161,7 +161,7 @@ impl Context {
     }
 
     pub fn get_true_variable(&self, var: &Var) -> Var {
-        let res = self.typing_context.iter()
+        let res = self.typing_context.variables()
            .find(|(v, _)| var.match_with(v, self))
            .map(|(v, _)| v);
         match res {
@@ -202,16 +202,8 @@ impl Context {
         }
     }
 
-    pub fn get_supertypes(&self, t: &Type) -> Vec<Type> {
-        self.typing_context.iter()
-            .filter(|ty| is_matching(self, t, &ty.1))
-            .map(|x| x.1.clone())
-            .collect::<HashSet<_>>()
-            .iter().cloned().collect()
-    }
-
     pub fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {
-        self.typing_context.iter()
+        self.typing_context.variables()
             .filter(|(var, _typ)| {
                 let related_typ = var.get_type();
                 related_typ != Type::Empty(HelpData::default())
@@ -386,7 +378,8 @@ impl Context {
     }
 
     pub fn display_typing_context(&self) -> String {
-       let res = self.iter()
+       let res = self.variables()
+            .chain(self.aliases())
             .map(|(var, typ)| format!("{} ==> {}", var.to_string(), typ.to_string()))
             .collect::<Vec<_>>()
             .join("\n");
