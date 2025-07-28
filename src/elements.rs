@@ -340,11 +340,12 @@ fn array_indexing(s: Span) -> IResult<Span, Lang> {
     let res = (
             alt((scope, variable)),
             terminated(tag("["), multispace0),
-            number,
-            terminated(tag("]"), multispace0)
+            integer,
+            terminated(tag("]"), multispace0),
+            multispace0
           ).parse(s);
     match res {
-        Ok((s, (exp, _, Lang::Number(n, _), _))) 
+        Ok((s, (exp, _, Lang::Integer(n, _), _, _))) 
             => Ok((s, Lang::ArrayIndexing(Box::new(exp.clone()), n, exp.into()))),
         Err(r) => Err(r),
         _ => todo!()
@@ -1284,6 +1285,11 @@ mod tests {
         assert_eq!(res, builder::empty_lang());
     }
 
+    #[test]
+    fn test_array_indexing1() {
+        let res = array_indexing("hey[1]".into()).unwrap().1;
+        assert_eq!(builder::empty_lang(), res)
+    }
 
 
 }

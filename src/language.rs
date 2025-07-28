@@ -42,7 +42,7 @@ pub enum Lang {
     ModuleDecl(String, HelpData), // to create an env
     Variable(String, Path, Permission, bool, Type, HelpData),
     FunctionApp(Box<Lang>, Vec<Lang>, HelpData),
-    ArrayIndexing(Box<Lang>, f32, HelpData),
+    ArrayIndexing(Box<Lang>, i32, HelpData),
     Let(Var, Type, Box<Lang>, HelpData),
     Array(Vec<Lang>, HelpData),
     Record(Vec<ArgumentValue>, HelpData),
@@ -332,6 +332,7 @@ impl Lang {
                         let related_type = var.get_type();
                         let class = match related_type {
                             Type::Empty(_) => "Empty".to_string(),
+                            Type::Any(_) => "Generic_".to_string(),
                             _ => cont.get_class(&reduce_type(cont, &related_type))
                         };
                         if class.len() > 7 && &class[0..7] == "Generic" {
@@ -403,7 +404,6 @@ impl Lang {
             Lang::Char(s, _) => 
                 ("'".to_string() + s + "'", cont.clone()),
             Lang::If(cond, exp, els, _) if els == &Box::new(Lang::Empty(HelpData::default())) => {
-                println!("if statement");
                 let (cond_str, cont1) = cond.to_r(cont);
                 let (exp_str, cont2) = exp.to_r(&cont1);
                 

@@ -105,6 +105,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                     context.to_owned()
                             .push_var_type(new_name, reduced_expr_ty.to_owned(), context)
                             .add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), name.get_name(), HelpData::default())])
+                            // TODO: check for already existing generic function upthere
                 } else if exp.is_r_function() {
                     let typ = Type::RFunction(HelpData::default());
                     let new_name = name.to_owned().set_type(builder::any_type());
@@ -334,25 +335,21 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let list_of_types = params.iter()
                 .map(ArgumentType::get_type)
                 .collect::<Vec<_>>();
-            if body.is_empty_scope() && context.is_in_header_mode() {
-                (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), context.to_owned())
-            } else {
-                let sub_context = params.into_iter()
-                    .map(|arg_typ| arg_typ.clone().to_var(context))
-                    .zip(list_of_types.clone().into_iter().map(|typ| reduce_type(context, &typ)))
-                    .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
-                let res = typing(&sub_context, body);
-                let reduced_body_type = reduce_type(&sub_context, &res.0);
-                let reduced_expected_ty = reduce_type(&context, &ret_ty);
-                    if !reduced_body_type.is_subtype(&reduced_expected_ty) {
-                        None.expect(
-                        &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display()
-                                   )
-                    }
-                let new_context = res.1.unifications.into_iter()
-                    .fold(context.clone(), |cont, uni_vec| cont.push_unifications(uni_vec));
-                (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), new_context)
-            }
+            let sub_context = params.into_iter()
+                .map(|arg_typ| arg_typ.clone().to_var(context))
+                .zip(list_of_types.clone().into_iter().map(|typ| reduce_type(context, &typ)))
+                .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
+            let res = typing(&sub_context, body);
+            let reduced_body_type = reduce_type(&sub_context, &res.0);
+            let reduced_expected_ty = reduce_type(&context, &ret_ty);
+                if !reduced_body_type.is_subtype(&reduced_expected_ty) {
+                    None.expect(
+                    &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display()
+                               )
+                }
+            let new_context = res.1.unifications.into_iter()
+                .fold(context.clone(), |cont, uni_vec| cont.push_unifications(uni_vec));
+            (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), new_context)
             }
         Lang::Sequence(exprs, _h) => {
             if exprs.len() == 1 {
@@ -459,14 +456,27 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let ty = typing(context, expr).0;
             match ty {
                 Type::Array(len, elem_ty, _) => {
-                    let index2 = Index::from_type(&(*len)).unwrap().get_value();
-                    if (*index as u32) <  index2 {
-                        (*elem_ty, context.clone())
-                    } else {
-                        panic!("Index out of bounds");
+                    match Index::from_type(&(*len)) {
+                        Some(n)  => {
+                            let index2 = n.get_value();
+                            if (*index as u32) <  index2 {
+                                (*elem_ty, context.clone())
+                            } else {
+                                panic!("Index out of bounds");
+                            }
+                        },
+                        // TODO: check condition in Index::from_type() if
+                        // we get generics (#M), Any or Empty as an index for 
+                        // array type: [id, type]
+                       None => (*elem_ty, context.clone())
                     }
-                }
-                _ => panic!("Type error"),
+                },
+                Type::Any(h) => {
+                    (builder::empty_type().set_help_data(h), context.clone())
+                },
+                _ => panic!("Indexing error: {:?} can't be indexable by {}",
+                        expr, 
+                        index),
             }
         },
         Lang::Variable(_, _, _, _, _, _) => {
