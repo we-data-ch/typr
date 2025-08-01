@@ -92,6 +92,7 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         // Array subtyping
         (_, Type::Any(_)) => true,
         (Type::Any(_), _) => true,
+        (Type::RFunction(_), _) => true, // TODO: should make RFunction subtype of functions maybe
         (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
             is_subtype(context, n1, n2) && is_subtype(context, t1, t2)
         },

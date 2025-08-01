@@ -36,6 +36,7 @@ use crate::help_data::HelpData;
 use nom::combinator::recognize;
 use crate::help_message::SyntaxError;
 use crate::help_message::ErrorMsg;
+use nom::bytes::complete::take_while1;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -246,14 +247,29 @@ fn extract_generics(args: &[ArgumentType], ret_typ: &Type) -> Vec<ArgumentKind> 
         .collect::<Vec<_>>()
 }
 
+fn parse_block(input: Span) -> IResult<Span, Span> {
+    recognize(parse_nested_braces).parse(input)
+}
+
+fn parse_nested_braces(input: Span) -> IResult<Span, Span> {
+    recognize(delimited(
+        tag("{"),
+        many0(alt((
+            parse_nested_braces,
+            recognize(take_while1(|c| c != '{' && c != '}')),
+        ))),
+        tag("}"),
+    )).parse(input)
+}
+
 pub fn r_function(s: Span) -> IResult<Span, Lang> {
     let res = (
-        terminated(function_symbol, multispace0),
+        terminated(tag("function"), multispace0),
         terminated(tag("("), multispace0),
         many0(terminated(terminated(variable, opt(tag(","))), multispace0)),
         terminated(tag(")"), multispace0),
-        recognize(scope)
-          ).parse(s);
+        terminated(parse_block, multispace0)
+        ).parse(s);
     match res {
         Ok((_s, (id, _op, _args, _cl, _exp))) 
             if *id.fragment() == "fn" => {
@@ -323,10 +339,7 @@ fn complex_function(s: Span) -> IResult<Span, Lang> {
 }
 
 fn function(s: Span) -> IResult<Span, Lang> {
-    alt((
-        simple_function,
-        complex_function
-    )).parse(s)
+        simple_function.parse(s)
 }
 
 fn values(s: Span) -> IResult<Span, Vec<Lang>> {
@@ -606,9 +619,19 @@ fn function_application2(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+fn dot_variable(s: Span) -> IResult<Span, Lang> {
+    let res = preceded(tag("."), variable).parse(s);
+    match res {
+        Ok((s, Lang::Variable(n, a, b, c, d, e))) 
+            => Ok((s, Lang::Variable(format!(".{}", n), a, b, c, d, e))),
+        Ok((_s, _)) => todo!(),
+        Err(r) => Err(r)
+    }
+}
+
 fn element_operator2(s: Span) -> IResult<Span, (Lang, Op)> {
     let res = (opt(op),
-                alt((function_application2, number, integer, chars, boolean, variable))
+                alt((function_application2, number, integer, chars, boolean, variable, dot_variable))
                 ).parse(s);
     match res {
         Ok((s, (Some(ope), ele))) => Ok((s, (ele, ope))),
@@ -620,15 +643,12 @@ fn element_operator2(s: Span) -> IResult<Span, (Lang, Op)> {
 fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
     let res =   (
                     terminated(tag("@{"), multispace0),
-                    many1(element_operator2),
+                    recognize(many1(element_operator2)),
                     terminated(tag("}@"), multispace0),
                     ).parse(s);
     match res {
-        Ok((s, (start, v, _end))) => {
-            let new_v = v.clone().into_iter()
-                .map(|e| pure_string(e))
-                .collect::<Vec<_>>().join("");
-            Ok((s, Lang::VecBloc(new_v.clone(), start.into())))
+        Ok((s, (start, bloc, end))) => {
+            Ok((s, Lang::VecBloc(bloc.fragment().to_string(), bloc.into())))
         },
         Err(r) => Err(r)
     }
@@ -1289,6 +1309,12 @@ mod tests {
     fn test_array_indexing1() {
         let res = array_indexing("hey[1]".into()).unwrap().1;
         assert_eq!(builder::empty_lang(), res)
+    }
+
+    #[test]
+    fn test_parse_block00() {
+        let res = parse_block("{ if (ncol(donnees) == 73) { donnees <- donnees[ , -37] } else if (ncol(donnees) == 110) { donnees <- donnees[ , -74] donnees <- donnees[ , -37] } else if (ncol(donnees) == 147) { donnees <- donnees[ , -111] donnees <- donnees[ , -74] donnees <- donnees[ , -37] } return(donnees) };".into()).unwrap().1;
+        assert_eq!(res, "".into());
     }
 
 

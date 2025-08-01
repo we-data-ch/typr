@@ -809,4 +809,10 @@ mod tesus {
         assert_eq!(res.0, vec![]);
     }
 
+    #[test]
+    fn test_for_loop2() {
+        let res = parse("for (sheet_id in [1, 2, 3, 4, 5]) { format_sheet(sheet_id) };".into()).unwrap().1;
+        assert_eq!(res.0, vec![]);
+    }
+
 }

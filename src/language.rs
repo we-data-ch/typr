@@ -925,10 +925,13 @@ impl Lang {
     }
 
     pub fn is_function(&self) -> bool {
-        if let Lang::Function(_, _, _, _, _) = self.clone() { 
-            true 
-        } else { false }
+        match self {
+            Lang::Function(_, _, _, _, _) => true,
+            Lang::RFunction(_, _, _) => true,
+            _ => false
+        }
     }
+
     pub fn infer_var_name(&self, args: &Vec<Lang>, context: &Context) -> Var {
         if args.len() > 0 {
                         let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
@@ -1059,6 +1062,65 @@ impl Lang {
         match self {
             Lang::Function(_, params, _, _, _) => params.len(),
             _ => 0 as usize
+        }
+    }
+
+    pub fn simple_print(&self) -> String {
+        match self {
+            Lang::Number(_, _) => "Number".to_string(),
+            Lang::Integer(_, _) => "Integer".to_string(),
+            Lang::Char(_, _) => "Char".to_string(),
+            Lang::Bool(_, _) => "Bool".to_string(),
+            Lang::And(_, _, _) => "And".to_string(),
+            Lang::Or(_, _, _) => "Or".to_string(),
+            Lang::Union(_, _, _) => "Union".to_string(),
+            Lang::In(_, _, _) => "In".to_string(),
+            Lang::Add(_, _, _) => "Add".to_string(),
+            Lang::Eq(_, _, _) => "Eq".to_string(),
+            Lang::Eq2(_, _, _) => "Eq2".to_string(),
+            Lang::NotEq(_, _, _) => "NotEq".to_string(),
+            Lang::Modu(_, _, _) => "Modu".to_string(),
+            Lang::Modu2(_, _, _) => "Modu2".to_string(),
+            Lang::LesserThan(_, _, h) => "LesserThan".to_string(),
+            Lang::GreaterThan(_, _, h) => "GreaterThan".to_string(),
+            Lang::LesserOrEqual(_, _, _) => "LesserOrEqual".to_string(),
+            Lang::GreaterOrEqual(_, _, _) => "GreatOrEqual".to_string(),
+            Lang::Chain(_, _, h) => "Chain".to_string(),
+            Lang::Scope(_, _) => "Scope".to_string(),
+            Lang::Function(_, _, _, _, _) => "Function".to_string(),
+            Lang::Module(_, _, _) => "Module".to_string(),
+            Lang::ModuleDecl(_, _) => "ModuleDecl".to_string(),
+            Lang::Variable(name, _, _, _, _, _) => format!("Variable({})", name),
+            Lang::FunctionApp(var, _, _) => 
+                format!("FunctionApp({})", Var::from_language(*(var.clone())).unwrap().get_name()),
+            Lang::ArrayIndexing(_, _, _) => "ArrayIndexing".to_string(),
+            Lang::Let(_, _, _, _) => "Let".to_string(),
+            Lang::Array(_, _) => "Array".to_string(),
+            Lang::Record(_, _) => "Record".to_string(),
+            Lang::Alias(_, _, _, _) => "Alias".to_string(),
+            Lang::Tag(_, _, _) => "Tag".to_string(),
+            Lang::If(_, _, _, _) => "If".to_string(),
+            Lang::Match(_, _, _) => "Match".to_string(),
+            Lang::Tuple(_, _) => "Tuple".to_string(),
+            Lang::Sequence(_, _) => "Sequence".to_string(),
+            Lang::Assign(_, _, _) => "Addign".to_string(),
+            Lang::Comment(_, _) => "Comment".to_string(),
+            Lang::Range(_, _, _, _) => "Range".to_string(),
+            Lang::ModImp(_, _) => "ModImp".to_string(),
+            Lang::Import(_, _) => "Import".to_string(),
+            Lang::Header(_, _) => "Header".to_string(),
+            Lang::GenFunc(_, _, _) => "GenFunc".to_string(),
+            Lang::Test(_, _) => "Test".to_string(),
+            Lang::Return(_, _) => "Return".to_string(),
+            Lang::VecBloc(_, _) => "VecBloc".to_string(),
+            Lang::Lambda(_, _) => "Lambda".to_string(),
+            Lang::Library(_, _) => "Library".to_string(),
+            Lang::Exp(_, _) => "Exp".to_string(),
+            Lang::Any(_) => "Any".to_string(),
+            Lang::Empty(_) => "Empty".to_string(),
+            Lang::Signature(_, _, _) => "Signature".to_string(),
+            Lang::ForLoop(_, _, _, _) => "ForLoop".to_string(),
+            Lang::RFunction(_, _, _) => "RFunction".to_string(),
         }
     }
     
