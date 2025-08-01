@@ -19,9 +19,7 @@ use nom::character::complete::multispace1;
 use crate::parser::parse_exp;
 use crate::var::Permission;
 use nom::character::complete::digit1;
-use crate::kind::Kind;
 use std::collections::HashSet;
-use crate::Context;
 use crate::types::label;
 use crate::types::if_type;
 use nom::sequence::terminated;
@@ -203,34 +201,7 @@ fn argument_val(s: Span) -> IResult<Span, ArgumentValue> {
     }
 }
 
-fn get_kind(ls: LocatedSpan<&str, String>) -> Kind {
-    match ls.into_fragment() {
-        "Type" => Kind::Type,
-        "Kind" => Kind::Dim,
-        _ => panic!("No other string for Kinds allowed")
-    }
-}
 
-fn lkind(s: Span) -> IResult<Span, Kind> {
-    let res = alt((tag("Type"), tag("Dim"))).parse(s);
-    match res {
-        Ok((s, ls)) => Ok((s, get_kind(ls))),
-        Err(r) => Err(r),
-    }
-}
-
-pub fn argument_kind(s: Span) -> IResult<Span, ArgumentKind> {
-    let res = (
-        ltype,
-        terminated(tag(":"), multispace0),
-        lkind,
-        opt(terminated(tag(","), multispace0))
-                ).parse(s);
-    match res {
-        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentKind(e1, e2))),
-        Err(r) => Err(r)
-    }
-}
 
 pub fn function_symbol(s: Span) -> IResult<Span, Span> {
     alt((tag("function"), tag("func"), tag("fn"))).parse(s)
@@ -314,26 +285,6 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
                     typ.clone());
                 exit(1)
             }
-        Err(r) => Err(r)
-    }
-}
-
-fn complex_function(s: Span) -> IResult<Span, Lang> {
-    let res = (
-        terminated(tag("fn"), multispace0),
-        terminated(tag("<"), multispace0),
-        many0(argument_kind),
-        terminated(tag(">"), multispace0),
-        terminated(tag("("), multispace0),
-        many0(argument),
-        terminated(tag(")"), multispace0),
-        terminated(tag(":"), multispace0),
-        terminated(ltype, multispace0),
-        scope
-          ).parse(s);
-    match res {
-        Ok((s, (start, _, arg_kinds, _, _, args, _, _, typ, exp))) => 
-            Ok((s, Lang::Function(arg_kinds, args, typ, Box::new(exp), start.into()))),
         Err(r) => Err(r)
     }
 }
@@ -577,40 +528,6 @@ fn range(s: Span) -> IResult<Span, Lang> {
     }
 }
 
-fn pure_string((lang, op): (Lang, Op)) -> String {
-    let cont = Context::new(vec![], vec![]);
-    match (lang, op) {
-        (lang, Op::Empty(_)) => lang.to_r(&cont).0,
-        (lang, Op::Add(_)) => format!(" + {}", lang.to_r(&cont).0),
-        (lang, Op::Add2(_)) => format!(" ++ {}", lang.to_r(&cont).0),
-        (lang, Op::Minus(_)) => format!(" - {}", lang.to_r(&cont).0),
-        (lang, Op::Minus2(_)) => format!(" -- {}", lang.to_r(&cont).0),
-        (lang, Op::Mul(_)) => format!(" * {}", lang.to_r(&cont).0),
-        (lang, Op::Mul2(_)) => format!(" ** {}", lang.to_r(&cont).0),
-        (lang, Op::Div(_)) => format!(" / {}", lang.to_r(&cont).0),
-        (lang, Op::Div2(_)) => format!(" // {}", lang.to_r(&cont).0),
-        (lang, Op::Modu(_)) => format!(" % {}", lang.to_r(&cont).0),
-        (lang, Op::Modu2(_)) => format!(" %% {}", lang.to_r(&cont).0),
-        (lang, Op::Eq(_)) => format!(" == {}", lang.to_r(&cont).0),
-        (lang, Op::Eq2(_)) => format!(" = {}", lang.to_r(&cont).0),
-        (lang, Op::NotEq(_)) => format!(" != {}", lang.to_r(&cont).0),
-        (lang, Op::And(_)) => format!(" && {}", lang.to_r(&cont).0),
-        (lang, Op::Or(_)) => format!(" || {}", lang.to_r(&cont).0),
-        (lang, Op::Pipe(_)) => format!(" |> {}", lang.to_r(&cont).0),
-        (lang, Op::Pipe2(_)) => format!(" |>> {}", lang.to_r(&cont).0),
-        (lang, Op::Dot(_)) => format!(" . {}", lang.to_r(&cont).0),
-        (lang, Op::Dot2(_)) => format!(" .. {}", lang.to_r(&cont).0),
-        (lang, Op::Union(_)) => format!(" | {}", lang.to_r(&cont).0),
-        (lang, Op::In(_)) => format!(" in {}", lang.to_r(&cont).0),
-        (lang, Op::At(_)) => format!(" @ {}", lang.to_r(&cont).0),
-        (lang, Op::At2(_)) => format!(" @@ {}", lang.to_r(&cont).0),
-        (lang, Op::LesserThan(_)) => format!(" < {}", lang.to_r(&cont).0),
-        (lang, Op::GreaterThan(_)) => format!(" > {}", lang.to_r(&cont).0),
-        (lang, Op::LesserOrEqual(_)) => format!(" <= {}", lang.to_r(&cont).0),
-        (lang, Op::GreaterOrEqual(_)) => format!(" >= {}", lang.to_r(&cont).0)
-    }
-}
-
 fn function_application2(s: Span) -> IResult<Span, Lang> {
     let res = recognize(function_application).parse(s);
     match res {
@@ -647,7 +564,7 @@ fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
                     terminated(tag("}@"), multispace0),
                     ).parse(s);
     match res {
-        Ok((s, (start, bloc, end))) => {
+        Ok((s, (_start, bloc, _end))) => {
             Ok((s, Lang::VecBloc(bloc.fragment().to_string(), bloc.into())))
         },
         Err(r) => Err(r)
