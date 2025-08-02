@@ -4,8 +4,14 @@ use crate::r#type::Type;
 use crate::var::Var;
 use crate::context::Context;
 use crate::tag::Tag;
-use crate::is_subset;
 use crate::help_data::HelpData;
+
+pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool {
+    v1.iter().all(|(v1, t1)| {
+        v2.iter()
+            .any(|(v2, t2)| v1.match_with(v2, cont) && t1 == t2)
+    })
+}
 
 // Implementation of the Prolog rules as Rust functions
 pub fn all_subtype(cont: &Context, set1: &[ArgumentType], set2: &[ArgumentType]) -> bool {

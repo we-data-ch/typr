@@ -57,13 +57,6 @@ use crate::context::CompileMode;
 use crate::var::Var;
 use crate::engine::write_std_for_type_checking;
 
-pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool {
-    v1.iter().all(|(v1, t1)| {
-        v2.iter()
-            .any(|(v2, t2)| v1.match_with(v2, cont) && t1 == t2)
-    })
-}
-
 #[derive(Debug, Parser, Clone, Copy, PartialEq)]
 pub enum Environment {
     StandAlone,
@@ -232,7 +225,6 @@ fn main() {
         None => {
             match cli.command {
                 Some(Commands::New { name }) => {
-                    // Plus besoin de parser le target, on crée toujours un projet R
                     new(&name)
                 },
                 Some(Commands::Check) => {

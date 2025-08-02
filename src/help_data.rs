@@ -29,12 +29,6 @@ impl HelpData {
         }
     }
 
-    pub fn example() -> Self {
-        HelpData {
-            offset: [1, 2, 3].len(),
-            file_name: "Hey.ty".to_string()
-        }
-    }
 }
 
 

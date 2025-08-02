@@ -1233,6 +1233,4 @@ mod tests {
         let res = parse_block("{ if (ncol(donnees) == 73) { donnees <- donnees[ , -37] } else if (ncol(donnees) == 110) { donnees <- donnees[ , -74] donnees <- donnees[ , -37] } else if (ncol(donnees) == 147) { donnees <- donnees[ , -111] donnees <- donnees[ , -74] donnees <- donnees[ , -37] } return(donnees) };".into()).unwrap().1;
         assert_eq!(res, "".into());
     }
-
-
 }
