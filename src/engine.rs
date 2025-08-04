@@ -13,36 +13,7 @@ use std::path::PathBuf;
 use nom_locate::LocatedSpan;
 use crate::my_io::get_os_file;
 use crate::help_data::HelpData;
-use crate::context::CompileMode;
 
-type Span<'a> = LocatedSpan<&'a str, String>;
-
-//pub fn write_adt_to_typescript_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf) -> () {
-    //let rstd = include_str!("../configs/typescript/std.ts");
-    //let std_path = output_dir.join("std.ts");
-    //let mut rstd_file = File::create(std_path).unwrap();
-    //rstd_file.write_all(rstd.as_bytes()).unwrap();
-//
-    //let app_path = output_dir.join("main.ts");
-    //let mut app = File::create(app_path).unwrap();
-    //let ts_import = include_str!("../configs/typescript/ts_import.ts");
-    //let content = format!("{}\n{}\n{}", ts_import, cont.adt.get_adt().to_typescript(cont), adt.to_typescript(cont));
-    //app.write_all(content.as_bytes()).unwrap();
-//}
-
-
-//pub fn write_adt_to_assemblyscript_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf) -> () {
-    //let rstd = include_str!("../configs/typescript/std.ts");
-    //let std_path = output_dir.join("std.ts");
-    //let mut rstd_file = File::create(std_path).unwrap();
-    //rstd_file.write_all(rstd.as_bytes()).unwrap();
-//
-    //let app_path = output_dir.join("main.ts");
-    //let mut app = File::create(app_path).unwrap();
-    //let ts_import = include_str!("../configs/typescript/ts_import.ts");
-    //let content = format!("{}\n{}\n{}", ts_import, cont.adt.get_adt().to_assemblyscript(cont), adt.to_assemblyscript(cont));
-    //app.write_all(content.as_bytes()).unwrap();
-//}
 
 pub fn write_std_for_type_checking(output_dir: &PathBuf) {
     let rstd = include_str!("../configs/r/std.ty");
@@ -52,10 +23,8 @@ pub fn write_std_for_type_checking(output_dir: &PathBuf) {
 }
 
 pub fn type_check(adtm: &AdtManager) -> Context {
-    let base_context = Context::default()
-        //.set_target(Target)
-        .set_compile_mode(CompileMode::Header);
-    let context = typing(&base_context, &Lang::Sequence(adtm.get_header().0.clone(), HelpData::default())).1.set_compile_mode(CompileMode::Body);
+    let base_context = Context::default();
+    let context = typing(&base_context, &Lang::Sequence(adtm.get_header().0.clone(), HelpData::default())).1;
     let (typ, new_context) = typing(&context, &Lang::Sequence(adtm.get_body().0.clone(), HelpData::default()));
     type_printer::pretty_print(&typ);
     new_context

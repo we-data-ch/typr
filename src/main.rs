@@ -204,7 +204,7 @@ fn test() {
 
 //main
 fn run_single_file(path: &PathBuf) {
-    let adt_manager = parse_code(&PathBuf::from(path));
+    let adt_manager = parse_code(path);
     let dir = PathBuf::from(".");
 
     //HEADER

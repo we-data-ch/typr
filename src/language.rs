@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::r#type::Type;
 use crate::var::Var;
 use crate::var::Permission;
@@ -25,7 +24,6 @@ pub enum Lang {
     Or(Box<Lang>, Box<Lang>, HelpData),
     Union(Box<Lang>, Box<Lang>, HelpData),
     In(Box<Lang>, Box<Lang>, HelpData),
-    Add(Box<Lang>, Box<Lang>, HelpData),
     Eq(Box<Lang>, Box<Lang>, HelpData),
     Eq2(Box<Lang>, Box<Lang>, HelpData),
     NotEq(Box<Lang>, Box<Lang>, HelpData),
@@ -54,10 +52,8 @@ pub enum Lang {
     Sequence(Vec<Lang>, HelpData),
     Assign(Box<Lang>, Box<Lang>, HelpData),
     Comment(String, HelpData),
-    Range(i32, i32, i32, HelpData),
     ModImp(String, HelpData), // mod name;
     Import(Type, HelpData), // type alias
-    Header(Box<Lang>, HelpData),
     GenFunc(String, String, HelpData), //body, name, helpdata
     Test(Vec<Lang>, HelpData),
     Return(Box<Lang>, HelpData),
@@ -65,7 +61,6 @@ pub enum Lang {
     Lambda(Box<Lang>, HelpData),
     Library(String, HelpData),
     Exp(String, HelpData),
-    Any(HelpData),
     Signature(Var, Type, HelpData),
     ForLoop(Var, Box<Lang>, Box<Lang>, HelpData), // variable, iterator, body
     RFunction(Vec<Lang>, String, HelpData), // variable, iterator, body
@@ -173,11 +168,6 @@ impl Lang {
             },
             Lang::Number(n, _) => 
                 (format!("{}", n), cont.clone()),
-            Lang::Add(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_r(cont);
-                let (e2_str, cont2) = e2.to_r(&cont1);
-                (format!("add({}, {})", e1_str, e2_str), cont2)
-            },
             Lang::Eq(e1, e2, _) => {
                 let (e1_str, cont1) = e1.to_r(cont);
                 let (e2_str, cont2) = e2.to_r(&cont1);
@@ -442,8 +432,6 @@ impl Lang {
             },
             Lang::Comment(txt, _) => 
                 ("# ".to_string() + txt, cont.clone()),
-            Lang::Range(i1, i2, i0, _) => 
-                (format!("array(seq({},{},{}), dim = c({}))", i1, i2, i0, i2-i1/i0), cont.clone()),
             Lang::Integer(i, _) => 
                 (format!("{}L", i), cont.clone()),
             Lang::Tag(s, t, _) => {
@@ -970,7 +958,6 @@ impl Lang {
             Lang::Or(_, _, h) => h,
             Lang::Union(_, _, h) => h,
             Lang::In(_, _, h) => h,
-            Lang::Add(_, _, h) => h,
             Lang::Eq(_, _, h) => h,
             Lang::Eq2(_, _, h) => h,
             Lang::NotEq(_, _, h) => h,
@@ -999,10 +986,8 @@ impl Lang {
             Lang::Sequence(_, h) => h,
             Lang::Assign(_, _, h) => h,
             Lang::Comment(_, h) => h,
-            Lang::Range(_, _, _, h) => h,
             Lang::ModImp(_, h) => h,
             Lang::Import(_, h) => h,
-            Lang::Header(_, h) => h,
             Lang::GenFunc(_, _, h) => h,
             Lang::Test(_, h) => h,
             Lang::Return(_, h) => h,
@@ -1010,7 +995,6 @@ impl Lang {
             Lang::Lambda(_, h) => h,
             Lang::Library(_, h) => h,
             Lang::Exp(_, h) => h,
-            Lang::Any(h) => h,
             Lang::Empty(h) => h,
             Lang::Signature(_, _, h) => h,
             Lang::ForLoop(_, _, _, h) => h,
@@ -1075,7 +1059,6 @@ impl Lang {
             Lang::Or(_, _, _) => "Or".to_string(),
             Lang::Union(_, _, _) => "Union".to_string(),
             Lang::In(_, _, _) => "In".to_string(),
-            Lang::Add(_, _, _) => "Add".to_string(),
             Lang::Eq(_, _, _) => "Eq".to_string(),
             Lang::Eq2(_, _, _) => "Eq2".to_string(),
             Lang::NotEq(_, _, _) => "NotEq".to_string(),
@@ -1105,10 +1088,8 @@ impl Lang {
             Lang::Sequence(_, _) => "Sequence".to_string(),
             Lang::Assign(_, _, _) => "Addign".to_string(),
             Lang::Comment(_, _) => "Comment".to_string(),
-            Lang::Range(_, _, _, _) => "Range".to_string(),
             Lang::ModImp(_, _) => "ModImp".to_string(),
             Lang::Import(_, _) => "Import".to_string(),
-            Lang::Header(_, _) => "Header".to_string(),
             Lang::GenFunc(_, _, _) => "GenFunc".to_string(),
             Lang::Test(_, _) => "Test".to_string(),
             Lang::Return(_, _) => "Return".to_string(),
@@ -1116,7 +1097,6 @@ impl Lang {
             Lang::Lambda(_, _) => "Lambda".to_string(),
             Lang::Library(_, _) => "Library".to_string(),
             Lang::Exp(_, _) => "Exp".to_string(),
-            Lang::Any(_) => "Any".to_string(),
             Lang::Empty(_) => "Empty".to_string(),
             Lang::Signature(_, _, _) => "Signature".to_string(),
             Lang::ForLoop(_, _, _, _) => "ForLoop".to_string(),
@@ -1183,14 +1163,12 @@ impl From<Lang> for HelpData {
            Lang::Or(_, _, h) => h,
            Lang::Union(_, _, h) => h,
            Lang::In(_, _, h) => h,
-           Lang::Add(_, _, h) => h,
            Lang::Modu(_, _, h) => h,
            Lang::Modu2(_, _, h) => h,
            Lang::Module(_, _, h) => h,
            Lang::ModuleDecl(_, h) => h,
            Lang::ModImp(_, h) => h,
            Lang::Import(_, h) => h,
-           Lang::Header(_, h) => h,
            Lang::GreaterThan(_, _, h) => h,
            Lang::GreaterOrEqual(_, _, h) => h,
            Lang::LesserThan(_, _, h) => h,
@@ -1200,13 +1178,11 @@ impl From<Lang> for HelpData {
            Lang::Tuple(_, h) => h,
            Lang::Sequence(_, h) => h,
            Lang::Comment(_, h) => h,
-           Lang::Range(_, _, _, h) => h,
            Lang::GenFunc(_, _, h) => h,
            Lang::Test(_, h) => h,
            Lang::Return(_, h) => h,
            Lang::Library(_, h) => h,
            Lang::Exp(_, h) => h,
-           Lang::Any(h) => h,
            Lang::Signature(_, _, h) => h,
            Lang::ForLoop(_, _, _, h) => h,
            Lang::RFunction(_, _, h) => h,
