@@ -36,7 +36,7 @@ struct TypRFile<'a> {
 }
 
 impl<'a> TypRFile<'a> {
-    fn new(content: &str, name: String) -> TypRFile {
+    fn new(content: &'a str, name: String) -> TypRFile<'a> {
         TypRFile {
             content: content,
             name: name
