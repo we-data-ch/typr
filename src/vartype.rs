@@ -25,10 +25,6 @@ impl VarType {
         self.aliases.iter().rev()
     }
 
-    pub fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {
-        self.variables.iter().rev().filter(|(var, _typ)| var.get_type() == *t).cloned().collect()
-    }
-
     pub fn get_types(&self) -> HashSet<Type> {
         self.variables.iter().rev()
             .chain(self.aliases.iter().rev())

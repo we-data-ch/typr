@@ -47,29 +47,6 @@ impl Adt {
         }
     }
 
-    pub fn to_typescript(&self, cont: &Context) -> String {
-        let mut current_cont = cont.clone();
-        let mut results = Vec::new();
-        
-        for exp in self.iter() {
-            let (exp_str, new_cont) = exp.to_typescript(&current_cont);
-            results.push(exp_str);
-            current_cont = new_cont;
-        }
-        results.join("\n")
-    }
-
-    pub fn to_assemblyscript(&self, cont: &Context) -> String {
-        let mut current_cont = cont.clone();
-        let mut results = Vec::new();
-        
-        for exp in self.iter() {
-            let (exp_str, new_cont) = exp.to_assemblyscript(&current_cont);
-            results.push(exp_str);
-            current_cont = new_cont;
-        }
-        results.join("\n")
-    }
 
     pub fn add(self, adt: Adt) -> Adt {
         Adt(self.0.iter().chain(adt.0.iter()).cloned().collect::<Vec<_>>())

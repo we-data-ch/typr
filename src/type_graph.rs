@@ -37,7 +37,7 @@ impl<K: Clone + Hash + Eq, V: Clone> LRUCache<K, V> {
         self.timestamp += 1;
 
         // Si on dépasse la capacité, supprimer l'élément le moins récemment utilisé
-        if self.cache.len() >= self.capacity && !self.cache.contains_key(&key) {
+        if self.cache.len() >= self.capacity && !self.contains_key(&key) {
             if let Some(oldest_key) = self.cache
                 .iter()
                 .min_by_key(|(_, (_, timestamp))| *timestamp)
@@ -214,25 +214,6 @@ impl TypeGraph {
         }
     }
 
-    /// Analyse et ajoute intelligemment une relation de sous-typage
-    pub fn add_type_relation(&mut self, subtype: Type, supertype: Type) {
-        if subtype.is_subtype(&supertype) {
-            self.add_subtype_relation(subtype, supertype);
-        } else if supertype.is_subtype(&subtype) {
-            self.add_subtype_relation(supertype, subtype);
-        } else {
-            self.add_individual_type(subtype);
-            self.add_individual_type(supertype);
-        }
-    }
-
-    /// Ajoute plusieurs relations
-    pub fn add_relations(&mut self, relations: Vec<(Type, Type)>) {
-        for (subtype, supertype) in relations {
-            self.add_subtype_relation(subtype, supertype);
-        }
-    }
-
     /// Obtient tous les super-types d'un type donné (version optimisée avec cache)
     pub fn get_all_supertypes(&mut self, typ: &Type) -> Vec<Type> {
         // Vérifier d'abord le cache
@@ -251,39 +232,6 @@ impl TypeGraph {
         supertypes
     }
 
-    /// Version non-mutable pour get_all_supertypes (sans cache)
-    pub fn get_all_supertypes_uncached(&self, typ: &Type) -> Vec<Type> {
-        let mut supertypes = Vec::new();
-        let mut visited = HashSet::new();
-        self.collect_supertypes(typ, &mut supertypes, &mut visited);
-        supertypes
-    }
-
-    /// Obtient tous les sous-types d'un type donné (version optimisée avec cache)
-    pub fn get_all_subtypes(&mut self, typ: &Type) -> Vec<Type> {
-        // Vérifier d'abord le cache
-        if let Some(cached_result) = self.subtypes_cache.get(typ) {
-            return cached_result;
-        }
-
-        // Si pas dans le cache, calculer et mettre en cache
-        let mut subtypes = Vec::new();
-        let mut visited = HashSet::new();
-        self.collect_subtypes(typ, &mut subtypes, &mut visited);
-        
-        // Mettre en cache le résultat
-        self.subtypes_cache.insert(typ.clone(), subtypes.clone());
-        
-        subtypes
-    }
-
-    /// Version non-mutable pour get_all_subtypes (sans cache)
-    pub fn get_all_subtypes_uncached(&self, typ: &Type) -> Vec<Type> {
-        let mut subtypes = Vec::new();
-        let mut visited = HashSet::new();
-        self.collect_subtypes(typ, &mut subtypes, &mut visited);
-        subtypes
-    }
 
     /// Obtient tous les types distincts présents dans le graphe
     pub fn get_all_distinct_types(&self) -> Vec<Type> {
@@ -322,20 +270,6 @@ impl TypeGraph {
     }
 
     /// Collecte les sous-types récursivement
-    fn collect_subtypes(&self, typ: &Type, subtypes: &mut Vec<Type>, visited: &mut HashSet<Type>) {
-        if visited.contains(typ) {
-            return;
-        }
-        visited.insert(typ.clone());
-
-        if let Some(subs) = self.subtypes.get(typ) {
-            for sub in subs {
-                subtypes.push(sub.clone());
-                self.collect_subtypes(sub, subtypes, visited);
-            }
-        }
-    }
-
     pub fn update(&mut self, types: &[Type]) {
         let all_types = self.get_all_distinct_types();
         let set1: HashSet<_> = types.iter().cloned().collect();
@@ -348,32 +282,6 @@ impl TypeGraph {
         })
     }
 
-    /// Méthodes utilitaires pour la gestion du cache
-    
-    /// Retourne les statistiques du cache des supertypes
-    pub fn supertypes_cache_stats(&self) -> (usize, usize) {
-        (self.supertypes_cache.cache.len(), self.supertypes_cache.capacity)
-    }
-
-    /// Retourne les statistiques du cache des subtypes
-    pub fn subtypes_cache_stats(&self) -> (usize, usize) {
-        (self.subtypes_cache.cache.len(), self.subtypes_cache.capacity)
-    }
-
-    /// Vide manuellement tous les caches
-    pub fn clear_caches(&mut self) {
-        self.invalidate_caches();
-    }
-
-    /// Vérifie si un type est dans le cache des supertypes
-    pub fn is_supertypes_cached(&self, typ: &Type) -> bool {
-        self.supertypes_cache.contains_key(typ)
-    }
-
-    /// Vérifie si un type est dans le cache des subtypes
-    pub fn is_subtypes_cached(&self, typ: &Type) -> bool {
-        self.subtypes_cache.contains_key(typ)
-    }
 }
 
 impl Default for TypeGraph {

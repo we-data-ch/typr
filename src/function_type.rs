@@ -12,7 +12,12 @@ impl FunctionType {
     }
 
     pub fn get_ret_type(&self) -> Type {
+        self.get_help_data();
         self.2.clone()
+    }
+
+    pub fn get_help_data(&self) -> HelpData {
+        self.3.clone()
     }
 
     pub fn is_r_function(&self) -> bool {
