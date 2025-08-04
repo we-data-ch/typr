@@ -15,19 +15,7 @@ use crate::my_io::get_os_file;
 use crate::help_data::HelpData;
 use crate::context::CompileMode;
 
-
-//pub fn write_adt_to_typescript(adt: &Adt, cont: &Context) -> () {
-    ////stdlib
-    ////let rstd = include_str!("../configs/typescript/std.ts");
-    ////let mut rstd_file = File::create("std.ts").unwrap();
-    ////rstd_file.write_all(rstd.as_bytes()).unwrap();
-//
-    //let mut app = File::create("app.ts").unwrap();
-    //let ts_import = include_str!("../configs/typescript/ts_import.ts");
-    //let content = format!("{}\n{}\n{}", ts_import, cont.adt.get_adt().to_typescript(cont), adt.to_typescript(cont));
-    //app.write_all(content.as_bytes()).unwrap();
-//}
-
+type Span<'a> = LocatedSpan<&'a str, String>;
 
 //pub fn write_adt_to_typescript_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf) -> () {
     //let rstd = include_str!("../configs/typescript/std.ts");
@@ -63,18 +51,6 @@ pub fn write_std_for_type_checking(output_dir: &PathBuf) {
     rstd_file.write_all(rstd.as_bytes()).unwrap();
 }
 
-pub fn write_adt_to_r_with_path(adt: &Adt, cont: &Context, output_dir: &PathBuf, file_name: &str) -> () {
-    let rstd = include_str!("../configs/r/std.R");
-    let std_path = output_dir.join("std.R");
-    let mut rstd_file = File::create(std_path).unwrap();
-    rstd_file.write_all(rstd.as_bytes()).unwrap();
-
-    let app_path = output_dir.join(file_name);
-    let mut app = File::create(app_path).unwrap();
-    let content = format!("source('std.R', echo = FALSE)\n\n{}{}", cont.adt.get_adt().to_r(cont), adt.to_r(cont));
-    app.write_all(content.as_bytes()).unwrap();
-}
-
 pub fn type_check(adtm: &AdtManager) -> Context {
     let base_context = Context::default()
         //.set_target(Target)
@@ -85,13 +61,37 @@ pub fn type_check(adtm: &AdtManager) -> Context {
     new_context
 }
 
+struct TypRFile<'a> {
+    content: &'a str,
+    name: String
+}
+
+impl<'a> TypRFile<'a> {
+    fn new(content: &str, name: String) -> TypRFile {
+        TypRFile {
+            content: content,
+            name: name
+        }
+    }
+
+    fn parse(self) -> Adt  {
+        parse(LocatedSpan::new_extra(self.content, self.name)).unwrap().1
+    }
+}
+
+
 //1. 
 pub fn parse_code(path: &PathBuf) -> AdtManager {
     let typr_std = include_str!("../configs/r/std.ty");
     let file = get_os_file(path.to_str().unwrap());
+    let file_content = read_file(path);
+    let std_file = TypRFile::new(typr_std, "std.ty".to_string());
+    let base_file = TypRFile::new(&file_content, file);
+
     let adt_manager = AdtManager::new()
-        .add_to_header(parse(LocatedSpan::new_extra(typr_std, "std.ty".to_string())).unwrap().1)
-        .add_to_body(parse(LocatedSpan::new_extra(&read_file(path), file)).unwrap().1);
+        .add_to_header(std_file.parse())
+        .add_to_body(base_file.parse());
+
     let adt = metaprogrammation(adt_manager.body.clone());
     adt_manager.set_body(adt)
 }

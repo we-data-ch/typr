@@ -2,6 +2,9 @@ use std::fmt;
 use serde::Serialize;
 use crate::language::Lang;
 use crate::Context;
+use std::path::PathBuf;
+use std::fs::File;
+use std::io::Write;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Adt(pub Vec<Lang>);
@@ -71,4 +74,19 @@ impl Adt {
     pub fn add(self, adt: Adt) -> Adt {
         Adt(self.0.iter().chain(adt.0.iter()).cloned().collect::<Vec<_>>())
     }
+
+    pub fn write_to_r(&self, cont: &Context, output_dir: &PathBuf, file_name: &str) -> () {
+        let rstd = include_str!("../configs/r/std.R");
+        let std_path = output_dir.join("std.R");
+        let mut rstd_file = File::create(std_path).unwrap();
+        rstd_file.write_all(rstd.as_bytes()).unwrap();
+
+        let app_path = output_dir.join(file_name);
+        let mut app = File::create(app_path).unwrap();
+        let content = format!("source('std.R', echo = FALSE)\n\n{}{}", cont.adt.get_adt().to_r(cont), self.to_r(cont));
+        app.write_all(content.as_bytes()).unwrap();
+    }
+
 }
+
+
