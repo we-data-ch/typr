@@ -1,9 +1,5 @@
 use crate::Adt;
-use crate::Context;
 use std::fs::File;
-use crate::typing;
-use crate::Lang;
-use crate::type_printer;
 use crate::AdtManager;
 use crate::parse;
 use crate::read_file;
@@ -12,7 +8,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use nom_locate::LocatedSpan;
 use crate::my_io::get_os_file;
-use crate::help_data::HelpData;
 
 
 pub fn write_std_for_type_checking(output_dir: &PathBuf) {
@@ -22,13 +17,6 @@ pub fn write_std_for_type_checking(output_dir: &PathBuf) {
     rstd_file.write_all(rstd.as_bytes()).unwrap();
 }
 
-pub fn type_check(adtm: &AdtManager) -> Context {
-    let base_context = Context::default();
-    let context = typing(&base_context, &Lang::Sequence(adtm.get_header().0.clone(), HelpData::default())).1;
-    let (typ, new_context) = typing(&context, &Lang::Sequence(adtm.get_body().0.clone(), HelpData::default()));
-    type_printer::pretty_print(&typ);
-    new_context
-}
 
 struct TypRFile<'a> {
     content: &'a str,
@@ -36,6 +24,7 @@ struct TypRFile<'a> {
 }
 
 impl<'a> TypRFile<'a> {
+
     fn new(content: &'a str, name: String) -> TypRFile<'a> {
         TypRFile {
             content: content,
@@ -46,6 +35,7 @@ impl<'a> TypRFile<'a> {
     fn parse(self) -> Adt  {
         parse(LocatedSpan::new_extra(self.content, self.name)).unwrap().1
     }
+
 }
 
 

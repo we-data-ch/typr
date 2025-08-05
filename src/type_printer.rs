@@ -83,8 +83,3 @@ pub fn format(ty: &Type) -> String {
         t => format!("{:?}", t)
     }
 }
-
-pub fn pretty_print(ty: &Type) {
-    let formatted = format(ty);
-    println!("Type checking:\n{:?}\n", formatted);
-}

@@ -35,8 +35,8 @@ mod tint;
 mod tchar;
 mod error_message;
 mod type_graph;
-use crate::help_message::TypeError;
 
+use crate::help_message::TypeError;
 use parser::parse;
 use my_io::read_file;
 use crate::r#type::Type;
@@ -50,7 +50,6 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::fs;
 use crate::engine::parse_code;
-use crate::engine::type_check;
 use crate::my_io::execute_r_with_path;
 use crate::context::CompileMode;
 use crate::var::Var;
@@ -181,13 +180,13 @@ fn new(name: &str) {
 
 fn check() {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
-    let _ = type_check(&adt_manager);
+    let _ = adt_manager.type_check();
     println!("✓ Vérification du code réussie!");
 }
 
 fn build() {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
-    let context = type_check(&adt_manager);
+    let context = adt_manager.type_check();
     
     adt_manager.get_body().write_to_r(&context, &PathBuf::from("R"), "main.R");
     println!("✓ Code R généré avec succès dans le dossier R/");
@@ -209,7 +208,7 @@ fn run_single_file(path: &PathBuf) {
 
     //HEADER
     write_std_for_type_checking(&dir);
-    let context = type_check(&adt_manager);
+    let context = adt_manager.type_check();
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
     adt_manager.get_body().write_to_r(&context, &dir, &r_file_name);
     execute_r_with_path(&dir, &r_file_name);

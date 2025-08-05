@@ -1,5 +1,8 @@
 use crate::Adt;
 use crate::Lang;
+use crate::Context;
+use crate::typing;
+use crate::help_data::HelpData;
 
 #[derive(Debug)]
 pub struct AdtManager {
@@ -7,6 +10,7 @@ pub struct AdtManager {
     pub header: Adt
 }
 
+//main
 impl AdtManager {
     pub fn new() -> AdtManager {
         AdtManager {
@@ -53,6 +57,14 @@ impl AdtManager {
             body: adt,
             ..self
         }
+    }
+
+    pub fn type_check(&self) -> Context {
+        let base_context = Context::default();
+        let context = typing(&base_context, &Lang::Sequence(self.get_header().0.clone(), HelpData::default())).1;
+        let (typ, new_context) = typing(&context, &Lang::Sequence(self.get_body().0.clone(), HelpData::default()));
+        typ.pretty();
+        new_context
     }
 
 }
