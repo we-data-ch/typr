@@ -673,7 +673,8 @@ impl RTranslatable<(String, Context)> for Lang {
                 => (format!("function(x) {{ {} }}", bloc.to_r(cont).0), cont.clone()),
             Lang::VecBloc(bloc, _) => (bloc.to_string(), cont.clone()),
             Lang::Library(name, _) => (format!("library({})", name), cont.clone()),
-            Lang::Match(var, branches, _) => (to_if_statement((**var).clone(), branches, cont), cont.clone()),
+            Lang::Match(var, branches, _) 
+                => (to_if_statement((**var).clone(), branches, cont), cont.clone()),
             Lang::Exp(exp, _) => (exp.clone(), cont.clone()),
             Lang::ForLoop(var, iterator, body, _) => {
                 Translatable::from(cont.clone())
@@ -682,11 +683,10 @@ impl RTranslatable<(String, Context)> for Lang {
                     .to_r_safe(body).add("\n}").into()
             },
             Lang::RFunction(vars, body, _) => {
-                let args = vars.iter()
-                    .map(|x| x.to_r(cont).0)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                (format!("function ({}) {{\n {} \n}}", args, body), cont.clone())
+                Translatable::from(cont.clone())
+                    .add("function (").join(vars, ", ")
+                    .add(") {\n ").add(&body).add(" \n}")
+                    .into()
             }
             Lang::Eq2(right, left, _) => {
                 let res = match &**left {

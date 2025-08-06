@@ -20,38 +20,32 @@ use crate::type_comparison::reduce_type;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use std::iter::Rev;
+use crate::config::CompileMode;
+use crate::header::Header;
+use crate::config::Config;
+use crate::Adt;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum CompileMode {
-    Header,
-    Body,
-    Module
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
-   function_list: String,
-   pub compile_mode: CompileMode,
-   pub environment: Environment,
    pub typing_context: VarType,
    kinds: Vec<(Type, Kind)>,
    nominals: TypeNominal,
    pub subtypes: TypeGraph,
-   pub adt: AdtHeader,
-   pub unifications: Vec<Vec<(Type, Type)>>
+   pub unifications: Vec<Vec<(Type, Type)>>,
+   header: Header,
+   config: Config
 }
 
 impl Default for Context {
     fn default() -> Self {
         Context { 
-            function_list: include_str!("../configs/src/functions.txt").to_string(), 
-            compile_mode: CompileMode::Body,
-            environment: Environment::StandAlone,
+            header: Header::default(),
+            config: Config::default(),
             typing_context: VarType::new(),
             kinds: vec![],
             nominals: TypeNominal::new(),
             subtypes: TypeGraph::new(),
-            adt: AdtHeader::default(),
             unifications: vec![]
         }
     }
@@ -143,7 +137,7 @@ impl Context {
             typing_context: var_type, 
             nominals: nominals.clone(),
             subtypes: typ_hie,
-            adt: self.clone().add_generic_function(&wasm_types(&types, &nominals, context)).adt,
+            header: self.header.clone().add_generic_function(&wasm_types(&types, &nominals, context)),
             ..self
         }
     }
@@ -173,8 +167,7 @@ impl Context {
     }
 
     pub fn is_an_untyped_function(&self, name: &str) -> bool {
-        let formated_name = name.replace("__", ".");
-        self.function_list.lines().any(|line| line.trim() == formated_name)
+        self.header.is_an_untyped_function(name)
     }
 
     pub fn get_class(&self, t: &Type) -> String {
@@ -231,7 +224,7 @@ impl Context {
                 let new_cont = 
                     type_functions.iter()
                     .fold(self.clone(), |ctx, tf| ctx.clone().push_var_type(tf.1.clone(), tf.2.clone(), &ctx));
-                let new_cont2 = new_cont.clone().add_generic_function(&self.build_concret_functions(&type_functions));
+                let new_cont2 = new_cont.add_generic_function(&self.build_concret_functions(&type_functions));
                 (type_functions.iter().map(|(_arg, var, fun)| (var.clone(), fun.clone())).collect(),
                 new_cont2)
             },
@@ -239,40 +232,10 @@ impl Context {
         }
     }
 
-    pub fn in_black_list(s: &str) -> bool {
-        let black_list: HashSet<&str> = [
-            "seq", "append", "add", "mul", "map", "dot", "t", "print"
-        ].iter().cloned().collect();
-        black_list.contains(s)
-    }
-
-    pub fn is_gen_func_allowed(l: &Lang) -> bool {
-        if let Lang::GenFunc(_s, name, _) = l {
-           if Self::in_black_list(&name) { false } else { true }
-        } else { false }
-    }
-
-    pub fn add_generic_function(self, data: &[Lang]) -> Context {
-        let data = data.iter()
-            .filter(|x| Self::is_gen_func_allowed(x))
-            .collect::<Vec<_>>();
-        let adt_header = self.adt.set_generic_methods(
-            data.iter()
-                .fold(self.adt.generic_methods.clone(),
-                |adt, lang| add_if_absent(adt, (*lang).clone().clone())));
-        Context {
-            adt: adt_header,
-            ..self
-        }
-    }
 
     pub fn add_module_declarations(self, data: &[Lang]) -> Context {
-        let adt_header = self.adt.set_module(
-            data.iter()
-                .fold(self.adt.modules.clone(),
-                |adt, lang| add_if_absent(adt, lang.clone())));
         Context {
-            adt: adt_header,
+            header: self.header.add_module_declarations(data),
             ..self
         }
     }
@@ -355,7 +318,7 @@ impl Context {
 
     pub fn set_environment(&self, e: Environment) -> Context {
         Context {
-            environment: e,
+            config: self.config.set_environment(e),
             ..self.clone()
         }
     }
@@ -372,7 +335,7 @@ impl Context {
 
     pub fn set_compile_mode(self, cm: CompileMode) -> Context {
         Context {
-            compile_mode: cm,
+            config: self.config.set_compile_mode(cm),
             ..self
         }
     }
@@ -409,7 +372,7 @@ impl Context {
     }
 
     pub fn is_in_header_mode(&self) -> bool {
-        self.compile_mode == CompileMode::Header 
+        self.config.compile_mode == CompileMode::Header 
     }
 
     pub fn display_nominals(&self) -> String {
@@ -418,9 +381,24 @@ impl Context {
 
     pub fn append_function_list(&self, t: &str) -> Context {
         Context {
-            function_list: self.function_list.clone() + t,
+            header: self.header.clone().add_function_list(t),
             ..self.clone()
         } 
+    }
+
+    pub fn add_generic_function(self, langs: &[Lang]) -> Context {
+        Context {
+            header: self.header.add_generic_function(langs),
+            ..self
+        }
+    }
+
+    pub fn get_adt(&self) -> Adt {
+        self.header.adt.get_adt()
+    }
+
+    pub fn in_a_project(&self) -> bool {
+        self.config.environment == Environment::Project
     }
 
 }

@@ -18,7 +18,7 @@ use std::fs;
 use crate::Environment;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
-use crate::CompileMode;
+use crate::config::CompileMode;
 use crate::builder;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
@@ -70,7 +70,7 @@ fn install_package(name: &str) -> () {
 }
 
 fn install_header(name: &str, context: &Context) -> Context {
-    let full_path = if context.environment == Environment::Project {
+    let full_path = if context.in_a_project() {
         String::from("headers/") + name + ".ty"
     } else {
         name.to_string() + ".ty"
@@ -128,7 +128,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                             .push_var_type(name.to_owned().into(), reduced_expr_ty.to_owned(), context)
                     }
                 }).expect(&TypeError::Let(ty.clone(), expr_ty).display());
-                if exp.is_function() && !exp.is_undefined() && new_context.compile_mode == CompileMode::Body {
+                if exp.is_function() && !exp.is_undefined() {
                     new_context.add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), name.get_name(), HelpData::default())])
                 } else {
                     new_context
@@ -354,14 +354,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::Sequence(exprs, _h) => {
             if exprs.len() == 1 {
                 let res = exprs.clone().pop().unwrap();
-                match context.compile_mode {
-                    CompileMode::Body => {
-                        typing(context, &res)
-                    },
-                    _ => {
-                        (Type::Empty(HelpData::default()), eval(context, &res))
-                    }
-                }
+                typing(context, &res)
             } else if exprs.len() == 0 {
                 (Type::Empty(HelpData::default()), context.clone()) 
             } else {

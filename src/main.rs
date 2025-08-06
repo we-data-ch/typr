@@ -38,6 +38,8 @@ mod type_graph;
 mod translatable;
 mod function_lang;
 mod array_type;
+mod header;
+mod config;
 
 use crate::help_message::TypeError;
 use parser::parse;
@@ -54,7 +56,7 @@ use std::path::PathBuf;
 use std::fs;
 use crate::engine::parse_code;
 use crate::my_io::execute_r_with_path;
-use crate::context::CompileMode;
+use config::CompileMode;
 use crate::var::Var;
 use crate::engine::write_std_for_type_checking;
 
