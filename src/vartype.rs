@@ -3,10 +3,8 @@ use std::iter::Rev;
 use crate::var::Var;
 use crate::Type;
 
-//#[derive(Debug, Clone)]
-//pub struct VarType(pub Vec<(Var, Type)>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VarType {
    pub variables: Vec<(Var, Type)>,
    pub aliases: Vec<(Var, Type)>

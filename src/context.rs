@@ -28,7 +28,7 @@ pub enum CompileMode {
     Module
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Context {
    function_list: String,
    pub compile_mode: CompileMode,

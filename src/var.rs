@@ -7,6 +7,7 @@ use crate::context::Context;
 use crate::type_comparison;
 use crate::help_data::HelpData;
 use crate::path::Path;
+use crate::translatable::RTranslatable;
 
 type Name = String;
 type IsMutableOpaque = bool;
@@ -139,10 +140,6 @@ impl Var {
         Var(self.0, self.1, self.2, self.3, self.4, h)
     }
 
-    pub fn to_r(self) -> String {
-        format!("{}{}", self.1.to_r(), self.0)
-    }
-
     pub fn is_mutable(&self) -> bool {
         self.is_variable() && self.3.clone()
     }
@@ -190,6 +187,12 @@ impl fmt::Display for Var {
 impl Default for Var {
     fn default() -> Self {
         Var("".to_string(), "".into(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())
+    }
+}
+
+impl RTranslatable<String> for Var {
+    fn to_r(&self, _: &Context) -> String {
+        format!("{}{}", self.1.clone().to_r(), self.0)
     }
 }
 

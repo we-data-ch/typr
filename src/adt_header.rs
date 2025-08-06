@@ -1,7 +1,7 @@
 use crate::Lang;
 use crate::Adt;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct AdtHeader {
    pub generic_methods: Vec<Lang>,
    pub modules: Vec<Lang>

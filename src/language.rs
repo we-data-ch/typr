@@ -13,6 +13,40 @@ use crate::help_data::HelpData;
 use crate::path::Path;
 use crate::function_type::FunctionType;
 use crate::type_comparison::reduce_type;
+use crate::translatable::Translatable;
+use crate::function_lang::Function;
+use crate::array_type::ArrayType;
+use crate::translatable::RTranslatable;
+
+trait AndIf {
+    fn and_if<F>(self, condition: F) -> Option<Self>
+    where
+        F: Fn(Self) -> bool,
+        Self: Sized;
+}
+
+impl<T: Clone> AndIf for T {
+    fn and_if<F>(self, condition: F) -> Option<Self>
+    where
+        F: Fn(Self) -> bool,
+    {
+        if condition(self.clone()) {
+            Some(self)
+        } else {
+            None
+        }
+    }
+}
+
+trait ToSome {
+    fn to_some(self) -> Option<Self> where Self: Sized;
+}
+
+impl<T: Sized> ToSome for T {
+    fn to_some(self) -> Option<Self> {
+        Some(self)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Lang {
@@ -98,9 +132,19 @@ fn to_if_statement(var: Lang, branches: &[(Box<Lang>, Box<Lang>)], context: &Con
         }).collect::<Vec<_>>().join(" ")
 }
 
+
+fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
+    let args = FunctionType::try_from(arg.clone())
+        .expect(&format!("Error: {} is not a function type", arg))
+    .get_param_types();
+    (args.len() > 0)
+        .then_some(val.set_type_if_variable(&args[0]))
+        .unwrap_or(val.clone())
+}
+
 //main
 impl Lang {
-    fn set_type(&self, typ: &Type) -> Lang {
+    fn set_type_if_variable(&self, typ: &Type) -> Lang {
         match self {
             Lang::Variable(name, path, perm, spec, _, h) 
                 => Lang::Variable(name.clone(), path.clone(), perm.clone(), spec.clone(), typ.clone(), h.clone()),
@@ -108,371 +152,6 @@ impl Lang {
         }
     }
 
-    pub fn to_r(&self, cont: &Context) -> (String, Context) {
-        let result = match self {
-            Lang::Bool(b, _) => 
-                (format!("{}", b.to_string().to_uppercase()), cont.clone()),
-            Lang::In(b1, b2, _) => {
-                let (b1_str, cont1) = b1.to_r(cont);
-                let (b2_str, cont2) = b2.to_r(&cont1);
-                (format!("{} %in% {}", b2_str, b1_str), cont2)
-            },
-            Lang::And(b1, b2, _) => {
-                let (b1_str, cont1) = b1.to_r(cont);
-                let (b2_str, cont2) = b2.to_r(&cont1);
-                (format!("{} & {}", b1_str, b2_str), cont2)
-            },
-            Lang::Or(b1, b2, _) => {
-                let (b1_str, cont1) = b1.to_r(cont);
-                let (b2_str, cont2) = b2.to_r(&cont1);
-                (format!("{} | {}", b1_str, b2_str), cont2)
-            },
-            Lang::Modu(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_r(cont);
-                let (e2_str, cont2) = e2.to_r(&cont1);
-                (format!("{} % {}", e2_str, e1_str), cont2)
-            },
-            Lang::Modu2(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_r(cont);
-                let (e2_str, cont2) = e2.to_r(&cont1);
-                (format!("{} %% {}", e2_str, e1_str), cont2)
-            },
-            Lang::Number(n, _) => 
-                (format!("{}", n), cont.clone()),
-            Lang::Eq(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_r(cont);
-                let (e2_str, cont2) = e2.to_r(&cont1);
-                (format!("{} == {}", e2_str, e1_str), cont2)
-            },
-            Lang::NotEq(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_r(cont);
-                let (e2_str, cont2) = e2.to_r(&cont1);
-                (format!("{} != {}", e2_str, e1_str), cont2)
-            },
-            Lang::LesserThan(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_r(cont);
-                let (e2_str, cont2) = e2.to_r(&cont1);
-                (format!("{} < {}", e2_str, e1_str), cont2)
-            },
-            Lang::GreaterThan(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_r(cont);
-                let (e2_str, cont2) = e2.to_r(&cont1);
-                (format!("{} > {}", e2_str, e1_str), cont2)
-            },
-            Lang::LesserOrEqual(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_r(cont);
-                let (e2_str, cont2) = e2.to_r(&cont1);
-                (format!("{} <= {}", e2_str, e1_str), cont2)
-            },
-            Lang::GreaterOrEqual(e1, e2, _) => {
-                let (e1_str, cont1) = e1.to_r(cont);
-                let (e2_str, cont2) = e2.to_r(&cont1);
-                (format!("{} >= {}", e2_str, e1_str), cont2)
-            },
-            Lang::Chain(e1, e2, _) => {
-                match *e1.clone() {
-                    Lang::Variable(_, _, _, _, _, _) => {
-                        let (e1_str, cont1) = e1.to_r(cont);
-                        let (e2_str, cont2) = e2.to_r(&cont1);
-                        (format!("{}[[{}]]", e2_str, e1_str), cont2)
-                    },
-                    Lang::Record(fields, _) => {
-                        let (e2_str, cont2) = e2.to_r(cont);
-                        let at = fields[0].clone();
-                        let res = format!("within({}, {{ {} <- {} }})", 
-                                e2_str, at.get_argument(), at.get_value().to_r(&cont).0);
-                        (res, cont2)
-                    }
-                    Lang::FunctionApp(_, _, _) => {
-                        let (e1_str, _cont1) = e1.to_r(cont);
-                        let (e2_str, cont2) = e2.to_r(&cont);
-                        (format!("{} |> {}", e2_str, e1_str), cont2)
-                    }
-                    _ => {
-                        let (e1_str, cont1) = e1.to_r(cont);
-                        let (e2_str, cont2) = e2.to_r(&cont1);
-                        (format!("{}[[{}]]", e2_str, e1_str), cont2)
-                    }
-                }
-            },
-            Lang::Scope(exps, _) => {
-                let mut current_cont = cont.clone();
-                let mut results = Vec::new();
-                
-                for exp in exps {
-                    let (exp_str, new_cont) = exp.to_r(&current_cont);
-                    results.push(exp_str);
-                    current_cont = new_cont;
-                }
-                
-                (results.join("\n"), current_cont)
-            },
-            Lang::Function(_args_kind, args, _typ, body, _h) => {
-                let sub_cont = cont.add_arg_types(args);
-                let (body_str, new_cont) = body.to_r(&sub_cont);
-                let fn_type = typing(&sub_cont, self).0;
-                let class = cont.get_class(&fn_type);
-                let classes = cont.get_classes(&fn_type)
-                    .unwrap_or("''".to_string());
-                (format!("(function({}) {{\n {} \n}}) |>\n\t struct(c('{}', {}))", 
-                        args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
-                        body_str, class, classes), 
-                new_cont)
-            },
-            Lang::Variable(v, path, _perm, _muta, _ty, _) => {
-                let name = if v.contains("__") {
-                    v.replace("__", ".")
-                } else {
-                    match _ty {
-                        Type::Empty(_) | Type::Any(_) => v.clone(),
-                        _ => v.clone() + "." + &cont.get_class(_ty)
-                    }
-                };
-                ((path.clone().to_r() + &name).to_string(), cont.clone())
-            }
-            Lang::FunctionApp(exp, vals, _) => {
-                let (exp_str, cont1) = exp.to_r(cont);
-                let (unification_map, _cont2) = cont1.pop_unifications();
-                let fn_type = typing(cont, exp).0;
-                let new_fn_typ = unification::type_substitution(&fn_type, &unification_map.unwrap_or(vec![]));
-
-                let new_vals = match new_fn_typ {
-                    Type::Function(_, args, _, _) => {
-                        let new_args = args.into_iter()
-                            .map(|arg| reduce_type(&cont1, &arg))
-                            .collect::<Vec<_>>();
-                        vals.into_iter().zip(new_args.iter())
-                            .map(|(val, arg)| {
-                                match arg {
-                                    Type::Function(_, args2, _, _) 
-                                        if args2.len() > 0
-                                        => val.set_type(&args2[0]),
-                                    _ => val.clone()
-                                }
-                            }).collect::<Vec<_>>()
-                        },
-                    _ => vals.clone()
-                };
-                
-                let mut current_cont = cont1;
-                let mut val_strs = Vec::new();
-
-                for val in new_vals {
-                    let (val_str, new_cont) = val.to_r(&current_cont);
-                    val_strs.push(val_str);
-                    current_cont = new_cont;
-                }
-                
-                let args = val_strs.join(", ");
-                
-                match *exp.clone() {
-                    Lang::Variable(name, path, _perm, _spec, _typ, _) => {
-                        let new_name = name.replace("__", ".");
-                        if path != Path::default() {
-                            (format!("eval(quote({}({})), envir = {})",
-                                new_name, args, path.get_value()), current_cont)
-                        } else {
-                            (format!("{}({})", name.replace("__", "."), args), current_cont)
-                        }
-                    },
-                    _ => (format!("{}({})", exp_str, args), current_cont)
-                }
-            },
-            Lang::ArrayIndexing(exp, val, _) => {
-                let (exp_str, new_cont) = exp.to_r(cont);
-                (format!("{}[{}]", exp_str, val), new_cont)
-            },
-            Lang::GenFunc(func, _, _) => 
-                (func.to_string(), cont.clone()),
-            Lang::Let(var, ttype, body, _) => {
-                let (body_str, new_cont) = body.to_r(cont);
-                let new_name = var.clone().to_r();
-                
-                let (r_code, _new_name2) = match (**body).clone() {
-                    Lang::Function(_, _, _, _, _) => {
-                        let related_type = var.get_type();
-                        let class = match related_type {
-                            Type::Empty(_) => "Empty".to_string(),
-                            Type::Any(_) => "Generic_".to_string(),
-                            _ => cont.get_class(&reduce_type(cont, &related_type))
-                        };
-                        if class.len() > 7 && &class[0..7] == "Generic" {
-                            (format!("{}.default <- {}", new_name, body_str), new_name)
-                        } else if class == "Empty" {
-                            (format!("{} <- {}", new_name, body_str), new_name)
-                        } else {
-                            let new_name2 = format!("{}.{}", new_name, class);
-                            (format!("{} <- {}", new_name2, body_str), new_name2)
-                        }
-                    }
-                    _ => (format!("{} <- {}", new_name, body_str), new_name)
-                };
-
-                let classes_res = new_cont.get_classes(ttype);
-
-                match classes_res {
-                    Some(classes) =>
-                        (format!("{} |> \n\tlet_type({})\n", r_code, classes),
-                        new_cont),
-                    None => (r_code + "\n", new_cont)
-                }
-            },
-            Lang::Array(v, _h) => {
-                let str_linearized_array = &self.linearize_array()
-                    .iter()
-                    .map(|lang| lang.to_r(&cont).0)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                
-                let dim = typing(&cont, &self).0;
-                let shape = dim.get_shape().unwrap();
-                let classes = cont.get_classes(&dim).unwrap_or("''".to_string());
-
-                let vector = if str_linearized_array == "" {
-                   "logical(0)".to_string()
-                } else {
-                    format!("c({})", str_linearized_array)
-                };
-
-                let array = if shape.contains("dim(===)") {
-                    format!("array({}, dim = c({}))", vector,
-                                shape.replace("===", &v[0].to_r(&cont).0))
-                } else {
-                    format!("array({}, dim = c({}))", vector, shape)
-                };
-
-                (format!("{} |> \n\tstruct({})", array, classes)
-                 ,cont.to_owned())
-            },
-            Lang::Record(args, _) => {
-                let mut current_cont = cont.clone();
-                let mut arg_strs = Vec::new();
-                
-                for arg in args {
-                    let (arg_str, new_cont) = (arg.to_r(&current_cont), cont.clone());
-                    arg_strs.push(arg_str);
-                    current_cont = new_cont;
-                }
-                
-                let body = arg_strs.join(", ");
-                let typ = type_checker::typing(cont, self).0;
-                let class = cont.get_class(&typ);
-                match cont.get_classes(&typ) {
-                    Some(res) => (format!("struct(list({}), c('list', 'Record', '{}', {}))", body, class, res), current_cont),
-                    _ => (format!("struct(list({}), c('list', 'Record', '{}'))", body, class), current_cont)
-                }
-            },
-            Lang::Char(s, _) => 
-                ("'".to_string() + s + "'", cont.clone()),
-            Lang::If(cond, exp, els, _) if els == &Box::new(Lang::Empty(HelpData::default())) => {
-                let (cond_str, cont1) = cond.to_r(cont);
-                let (exp_str, cont2) = exp.to_r(&cont1);
-                
-                (format!("if({}) {{\n {} \n}}", cond_str, exp_str), cont2)
-            },
-            Lang::If(cond, exp, els, _) => {
-                let (cond_str, cont1) = cond.to_r(cont);
-                let (exp_str, cont2) = exp.to_r(&cont1);
-                let (els_str, cont3) = els.to_r(&cont2);
-                
-                (format!("if ({}) {{\n {} \n}} else {}", cond_str, exp_str, els_str), cont3)
-            },
-            Lang::Tuple(vals, _) => {
-                let mut current_cont = cont.clone();
-                let mut val_entries = Vec::new();
-                
-                //for (i, val) in vals.iter().enumerate() {
-                    //let (val_str, new_cont) = val.to_r(&current_cont);
-                    //val_entries.push(format!("'{}' = {}", i.to_string(), val_str));
-                    //current_cont = new_cont;
-                //}
-                
-                for val in vals.iter() {
-                    let (val_str, new_cont) = val.to_r(&current_cont);
-                    val_entries.push(format!("{}", val_str));
-                    current_cont = new_cont;
-                }
-                
-                (format!("struct(list({}), 'Tuple')", val_entries.join(", ")), current_cont)
-            },
-            Lang::Assign(var, exp, _) => {
-                let (var_str, cont1) = var.to_r(cont);
-                let (exp_str, cont2) = exp.to_r(&cont1);
-                
-                (format!("{} <- {}", var_str, exp_str), cont2)
-            },
-            Lang::Comment(txt, _) => 
-                ("# ".to_string() + txt, cont.clone()),
-            Lang::Integer(i, _) => 
-                (format!("{}L", i), cont.clone()),
-            Lang::Tag(s, t, _) => {
-                let (t_str, new_cont) = t.to_r(cont);
-                let typ = type_checker::typing(cont, self).0;
-                let class = cont.get_class(&typ);
-                
-                match cont.get_classes(&typ) {
-                    Some(res) => 
-                        (format!("struct(list('{}', {}), c('Tag', '{}', {}))", s, t_str, class, res), new_cont),
-                    _ => (format!("struct(list('{}', {}), c('Tag', '{}'))", s, t_str, class), new_cont)
-                }
-            },
-            Lang::Empty(_) => 
-                ("NA".to_string(), cont.clone()),
-            Lang::ModuleDecl(name, _) => 
-                (format!("{} <- new.env()", name), cont.clone()),
-            Lang::Sequence(exps, _) => {
-                let mut current_cont = cont.clone();
-                let mut results = Vec::new();
-                
-                for exp in exps {
-                    let (exp_str, new_cont) = exp.to_r(&current_cont);
-                    results.push(exp_str);
-                    current_cont = new_cont;
-                }
-                
-                (results.join("\n"), current_cont)
-            },
-            Lang::Return(exp, _) => {
-                let (exp_str, new_cont) = exp.to_r(cont);
-                (format!("return ({})", exp_str), new_cont)
-            },
-            Lang::Lambda(bloc, _) 
-                => (format!("function(x) {{ {} }}", bloc.to_r(cont).0), cont.clone()),
-            Lang::VecBloc(bloc, _) => (bloc.to_string(), cont.clone()),
-            Lang::Library(name, _) => (format!("library({})", name), cont.clone()),
-            Lang::Match(var, branches, _) => (to_if_statement((**var).clone(), branches, cont), cont.clone()),
-            Lang::Exp(exp, _) => (exp.clone(), cont.clone()),
-            Lang::ForLoop(var, iterator, body, _) => {
-                let res = format!("for ({} in {}) {{\n {} \n}}", var.clone().to_r(), iterator.to_r(cont).0, body.to_r(cont).0);
-                (res, cont.clone())
-            },
-            Lang::RFunction(vars, body, _) => {
-                let args = vars.iter()
-                    .map(|x| x.to_r(cont).0)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                (format!("function ({}) {{\n {} \n}}", args, body), cont.clone())
-            }
-            Lang::Eq2(right, left, _) => {
-                let res = match &**left {
-                    Lang::Tag(n, _, _) => n.to_string(),
-                    Lang::Variable(n, _, _, _, _, _) => n.to_string(),
-                    _ => format!("{}", left) 
-                };
-                (format!("{} = {}", res, right.to_r(cont).0), cont.clone())
-            }
-            Lang::Signature(_, _, _) => {
-                ("".to_string(), cont.clone())
-            }
-            Lang::Alias(_, _, _, _) => ("".to_string(), cont.clone()),
-            _ =>  {
-                println!("This language structure won't transpile: {:?}", self);
-                ("".to_string(), cont.clone())
-            }
-        };
-        
-        result
-    }
 
     pub fn is_undefined(&self) -> bool {
         if let Lang::Function(_, _, _, body, _h) = self.clone() {
@@ -654,7 +333,6 @@ impl Lang {
             Lang::RFunction(_, _, _) => "RFunction".to_string(),
         }
     }
-    
 }
 
 impl From<Lang> for HelpData {
@@ -733,6 +411,305 @@ impl fmt::Display for Lang {
     }
 }
 
+impl RTranslatable<(String, Context)> for Lang {
+    fn to_r(&self, cont: &Context) -> (String, Context) {
+        let result = match self {
+            Lang::Bool(b, _) => 
+                (format!("{}", b.to_string().to_uppercase()), cont.clone()),
+            Lang::In(b1, b2, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(b1).add(" %in% ").to_r(b2).into()
+            },
+            Lang::And(b1, b2, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(b1).add(" & ").to_r(b2).into()
+            },
+            Lang::Or(b1, b2, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(b1).add(" | ").to_r(b2).into()
+            },
+            Lang::Modu(e1, e2, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(e1).add(" % ").to_r(e2).into()
+            },
+            Lang::Modu2(e1, e2, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(e1).add(" %% ").to_r(e2).into()
+            },
+            Lang::Number(n, _) => 
+                (format!("{}", n), cont.clone()),
+            Lang::Eq(e1, e2, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(e1).add(" == ").to_r(e2).into()
+            },
+            Lang::NotEq(e1, e2, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(e1).add(" != ").to_r(e2).into()
+            },
+            Lang::LesserThan(e1, e2, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(e1).add(" < ").to_r(e2).into()
+            },
+            Lang::GreaterThan(e1, e2, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(e1).add(" > ").to_r(e2).into()
+            },
+            Lang::LesserOrEqual(e1, e2, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(e1).add(" <= ").to_r(e2).into()
+            },
+            Lang::GreaterOrEqual(e1, e2, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(e1).add(" >= ").to_r(e2).into()
+            },
+            Lang::Chain(e1, e2, _) => {
+                match *e1.clone() {
+                    Lang::Variable(_, _, _, _, _, _) => {
+                        Translatable::from(cont.clone())
+                            .to_r(e1)
+                            .add("[[").to_r(e2).add("]]").into()
+                    },
+                    Lang::Record(fields, _) => {
+                        let at = fields[0].clone();
+                        Translatable::from(cont.clone())
+                            .add("within(").to_r(e2)
+                            .add(", { ").add(&at.get_argument())
+                            .add(" <- ")
+                            .to_r(&at.get_value()).add(" })")
+                            .into()
+                    }
+                    Lang::FunctionApp(_, _, _) => {
+                        Translatable::from(cont.clone())
+                            .to_r(e1).add(" |> ").to_r(e2)
+                            .into()
+                    }
+                    _ => {
+                        Translatable::from(cont.clone())
+                            .to_r(e1).add("[[")
+                            .add("]]").to_r(e2)
+                            .into()
+                    }
+                }
+            },
+            Lang::Scope(exps, _) => {
+                Translatable::from(cont.clone())
+                    .join(exps, "\n").into()
+            },
+            Lang::Function(_args_kind, args, _typ, body, _h) => {
+                //Wasn't able to use Translatable
+                let sub_cont = cont.add_arg_types(args);
+                let (body_str, new_cont) = body.to_r(&sub_cont);
+                let fn_type = typing(&sub_cont, self).0;
+
+                let class = cont.get_class(&fn_type);
+                let classes = cont.get_classes(&fn_type)
+                    .unwrap_or("''".to_string());
+                (format!("(function({}) {{\n {} \n}}) |>\n\t struct(c('{}', {}))", 
+                        args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
+                        body_str, class, classes), 
+                new_cont)
+            },
+            Lang::Variable(v, path, _, _, ty, _) => {
+                //Here we only keep the variable name, the path and the type
+                let name = if v.contains("__") {
+                    v.replace("__", ".")
+                } else {
+                    match ty {
+                        Type::Empty(_) | Type::Any(_) => v.clone(),
+                        _ => v.clone() + "." + &cont.get_class(ty)
+                    }
+                };
+                ((path.clone().to_r() + &name).to_string(), cont.clone())
+            }
+            Lang::FunctionApp(exp, vals, _) => {
+                let (exp_str, cont1) = exp.to_r(cont);
+                let (unification_map, _cont2) = cont1.pop_unifications();
+                let fn_type = typing(cont, exp).0;
+                let new_fn_typ = unification::type_substitution(&fn_type, &unification_map.unwrap_or(vec![]));
+
+                let fn_t = FunctionType::try_from(new_fn_typ.clone())
+                    .expect(&format!("Error: {} is not a function type", new_fn_typ));
+
+                let new_args = fn_t.get_param_types().into_iter()
+                        .map(|arg| reduce_type(&cont1, &arg))
+                        .collect::<Vec<_>>();
+                let langs = vals.into_iter().zip(new_args.iter())
+                    .map(set_related_type_if_variable)
+                    .collect::<Vec<_>>();
+                let (args, current_cont) = Translatable::from(cont1)
+                        .join(&langs, ", ").into();
+                
+                Var::from_language(*exp.clone())
+                    .map(|var| {
+                        let (name, path) = (var.get_name(), Path::new(&var.get_path()));
+                        (path != Path::default())
+                            .then_some((format!("eval(quote({}({})), envir = {})",
+                                name.replace("__", "."), args, path.get_value()), current_cont.clone()))
+                            .unwrap_or((format!("{}({})", name.replace("__", "."), args), current_cont.clone()))
+                    }).unwrap_or((format!("{}({})", exp_str, args), current_cont))
+
+            },
+            Lang::ArrayIndexing(exp, val, _) => {
+                let (exp_str, new_cont) = exp.to_r(cont);
+                (format!("{}[{}]", exp_str, val), new_cont)
+            },
+            Lang::GenFunc(func, _, _) => 
+                (func.to_string(), cont.clone()),
+            Lang::Let(var, ttype, body, _) => {
+                let (body_str, new_cont) = body.to_r(cont);
+                let new_name = var.clone().to_r(cont);
+
+                let (r_code, _new_name2) =
+                Function::try_from((**body).clone())
+                    .map(|_| {
+                        let related_type = var.get_type();
+                        match related_type {
+                            Type::Empty(_) 
+                                => (format!("{} <- {}", new_name, body_str), new_name.clone()),
+                            Type::Any(_) 
+                                => (format!("{}.default <- {}", new_name, body_str), new_name.clone()),
+                            _ => {
+                                let class = cont.get_class(&reduce_type(cont, &related_type));
+                                let new_name2 = format!("{}.{}", new_name.clone(), class);
+                                (format!("{} <- {}", new_name2, body_str), new_name2)
+                            }
+                        }
+                    }).unwrap_or((format!("{} <- {}", new_name, body_str), new_name));
+
+                
+                let classes_res = new_cont.get_classes(ttype);
+
+                match classes_res {
+                    Some(classes) =>
+                        (format!("{} |> \n\tlet_type({})\n", r_code, classes),
+                        new_cont),
+                    None => (r_code + "\n", new_cont)
+                }
+            },
+            Lang::Array(v, _h) => {
+                let vector = &self.linearize_array()
+                    .iter().map(|lang| lang.to_r(&cont).0)
+                    .collect::<Vec<_>>().join(", ")
+                    .and_if(|lin_array| lin_array != "")
+                    .map(|lin_array| format!("c({})", lin_array))
+                    .unwrap_or("logical(0)".to_string());
+
+                let dim = typing(&cont, &self).0;
+                let classes = cont.get_classes(&dim).unwrap_or("''".to_string());
+
+                let array = ArrayType::try_from(dim).unwrap().get_shape()
+                    .map(|sha| format!("array({}, dim = c({}))", vector, sha))
+                    .unwrap_or(format!("array({}, dim = c(dim({})))", 
+                                       vector, v[0].to_r(&cont).0));
+
+                (format!("{} |> \n\tstruct({})", array, classes)
+                 ,cont.to_owned())
+            },
+            Lang::Record(args, _) => {
+                let (body, current_cont) = 
+                Translatable::from(cont.clone())
+                    .join_arg_val(args, ", ").into();
+
+                let typ = type_checker::typing(cont, self).0;
+                let class = cont.get_class(&typ);
+                cont.get_classes(&typ)
+                    .map(|res| format!("struct(list({}), c('list', 'Record', '{}', {}))", 
+                                body, class, res))
+                    .unwrap_or(format!("struct(list({}), c('list', 'Record', '{}'))",
+                                body, class))
+                    .to_some().map(|s| (s, current_cont)).unwrap()
+            },
+            Lang::Char(s, _) => 
+                ("'".to_string() + s + "'", cont.clone()),
+            Lang::If(cond, exp, els, _) if els == &Box::new(Lang::Empty(HelpData::default())) => {
+                Translatable::from(cont.clone())
+                    .add("if(").to_r(cond).add(") {\n")
+                    .to_r(exp).add(" \n}").into()
+            },
+            Lang::If(cond, exp, els, _) => {
+                Translatable::from(cont.clone())
+                    .add("if(").to_r(cond).add(") {\n")
+                    .to_r(exp).add(" \n} else ")
+                    .to_r(els).into()
+            },
+            Lang::Tuple(vals, _) => {
+                Translatable::from(cont.clone())
+                    .add("struct(list(")
+                    .join(vals, ", ")
+                    .add("), 'Tuple')").into()
+            },
+            Lang::Assign(var, exp, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(var).add(" <- ").to_r(exp).into()
+            },
+            Lang::Comment(txt, _) => 
+                ("# ".to_string() + txt, cont.clone()),
+            Lang::Integer(i, _) => 
+                (format!("{}L", i), cont.clone()),
+            Lang::Tag(s, t, _) => {
+                let (t_str, new_cont) = t.to_r(cont);
+                let typ = type_checker::typing(cont, self).0;
+                let class = cont.get_class(&typ);
+                cont.get_classes(&typ)
+                    .map(|res| format!("struct(list('{}', {}), c('Tag', '{}', {}))",
+                                s, t_str, class, res))
+                    .unwrap_or(format!("struct(list('{}', {}), c('Tag', '{}'))",
+                                s, t_str, class))
+                    .to_some().map(|s| (s, new_cont)).unwrap()
+            },
+            Lang::Empty(_) => 
+                ("NA".to_string(), cont.clone()),
+            Lang::ModuleDecl(name, _) => 
+                (format!("{} <- new.env()", name), cont.clone()),
+            Lang::Sequence(exps, _) => {
+                Translatable::from(cont.clone())
+                    .join(exps, "\n").into()
+            },
+            Lang::Return(exp, _) => {
+                Translatable::from(cont.clone())
+                    .add("return ").to_r(exp).into()
+            },
+            Lang::Lambda(bloc, _) 
+                => (format!("function(x) {{ {} }}", bloc.to_r(cont).0), cont.clone()),
+            Lang::VecBloc(bloc, _) => (bloc.to_string(), cont.clone()),
+            Lang::Library(name, _) => (format!("library({})", name), cont.clone()),
+            Lang::Match(var, branches, _) => (to_if_statement((**var).clone(), branches, cont), cont.clone()),
+            Lang::Exp(exp, _) => (exp.clone(), cont.clone()),
+            Lang::ForLoop(var, iterator, body, _) => {
+                Translatable::from(cont.clone())
+                    .add("for (").to_r_safe(var)
+                    .add(" in ").to_r_safe(iterator).add(") {\n")
+                    .to_r_safe(body).add("\n}").into()
+            },
+            Lang::RFunction(vars, body, _) => {
+                let args = vars.iter()
+                    .map(|x| x.to_r(cont).0)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                (format!("function ({}) {{\n {} \n}}", args, body), cont.clone())
+            }
+            Lang::Eq2(right, left, _) => {
+                let res = match &**left {
+                    Lang::Tag(n, _, _) => n.to_string(),
+                    Lang::Variable(n, _, _, _, _, _) => n.to_string(),
+                    _ => format!("{}", left) 
+                };
+                (format!("{} = {}", res, right.to_r(cont).0), cont.clone())
+            }
+            Lang::Signature(_, _, _) => {
+                ("".to_string(), cont.clone())
+            }
+            Lang::Alias(_, _, _, _) => ("".to_string(), cont.clone()),
+            _ =>  {
+                println!("This language structure won't transpile: {:?}", self);
+                ("".to_string(), cont.clone())
+            }
+        };
+        
+        result
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -745,3 +722,5 @@ mod tests {
     }
 
 }
+
+

@@ -63,10 +63,10 @@ impl fmt::Display for TypeCategory {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Categories(HashMap<TypeCategory, usize>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AliasNominal(HashMap<Type, Nominal>);
 
 impl AliasNominal {
@@ -103,7 +103,7 @@ impl AliasNominal {
 
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypeNominal {
     pub body: AliasNominal, 
     categories: Categories

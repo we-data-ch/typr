@@ -5,7 +5,7 @@ use crate::builder;
 use crate::nominal_context::TypeCategory;
 
 // Structure pour implémenter un cache LRU simple
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct LRUCache<K: Clone + Hash + Eq, V: Clone> {
     capacity: usize,
     cache: HashMap<K, (V, usize)>, // (valeur, timestamp)
@@ -60,7 +60,7 @@ impl<K: Clone + Hash + Eq, V: Clone> LRUCache<K, V> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypeGraph {
     // Stockage des relations sous forme de HashSet pour O(1) lookup
     edges: HashSet<(Type, Type)>,

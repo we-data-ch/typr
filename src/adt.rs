@@ -5,6 +5,7 @@ use crate::Context;
 use std::path::PathBuf;
 use std::fs::File;
 use std::io::Write;
+use crate::translatable::RTranslatable;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Adt(pub Vec<Lang>);

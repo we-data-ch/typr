@@ -7,6 +7,10 @@ use std::ops::Add;
 pub struct Path(String);
 
 impl Path {
+    pub fn new(s: &str) -> Path {
+        Path(s.to_string())
+    }
+
     pub fn to_r(self) -> String {
         match &self.0[..] {
             "" => "".to_string(),

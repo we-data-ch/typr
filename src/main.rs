@@ -35,6 +35,9 @@ mod tint;
 mod tchar;
 mod error_message;
 mod type_graph;
+mod translatable;
+mod function_lang;
+mod array_type;
 
 use crate::help_message::TypeError;
 use parser::parse;
