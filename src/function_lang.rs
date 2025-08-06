@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::argument_kind::ArgumentKind;
 use crate::argument_type::ArgumentType;
 use crate::Type;

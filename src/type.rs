@@ -71,7 +71,7 @@ pub enum Type {
 
 //main
 impl Type {
-    pub fn type_extraction(&self) -> Vec<Type> {
+    pub fn extract_types(&self) -> Vec<Type> {
         match self {
             Type::Function(_, args, ret, _)
                 => {

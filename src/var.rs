@@ -175,6 +175,18 @@ impl Var {
         Type::Alias(self.get_name(), vec![], self.get_path().into(), self.get_opacity(), self.get_help_data()) 
     }
 
+    pub fn contains(&self, s: &str) -> bool {
+        &self.get_name()[0..s.len()] == s
+    }
+
+    pub fn get_digit(&self, s: &str) -> i8 {
+        self.get_name()[s.len()..].parse::<i8>().unwrap()
+    }
+
+    pub fn add_digit(self, d: i8) -> Self {
+        self.clone().set_name(&(self.get_name() + &d.to_string()))
+    }
+
 }
 
 impl fmt::Display for Var {

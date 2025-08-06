@@ -11,7 +11,6 @@ use crate::Environment;
 use crate::type_comparison::is_matching;
 use crate::help_data::HelpData;
 use std::collections::HashSet;
-use crate::adt_header::AdtHeader;
 use crate::typing;
 use crate::type_checker::match_types;
 use crate::unification_map::UnificationMap;
@@ -29,12 +28,12 @@ use crate::Adt;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
    pub typing_context: VarType,
-   kinds: Vec<(Type, Kind)>,
-   nominals: TypeNominal,
    pub subtypes: TypeGraph,
+   //nominals: TypeNominal,
    pub unifications: Vec<Vec<(Type, Type)>>,
    header: Header,
-   config: Config
+   config: Config,
+   kinds: Vec<(Type, Kind)>,
 }
 
 impl Default for Context {
@@ -44,7 +43,6 @@ impl Default for Context {
             config: Config::default(),
             typing_context: VarType::new(),
             kinds: vec![],
-            nominals: TypeNominal::new(),
             subtypes: TypeGraph::new(),
             unifications: vec![]
         }
@@ -126,18 +124,16 @@ impl Context {
     }
 
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
-        let types = typ.type_extraction();
-        let var_type = self.typing_context.clone().push_var_type(vec![(lang, typ.clone())]);
+        let var_type = self.typing_context.clone()
+            .push_var_type(&[(lang, typ.clone())])
+            .push_types(&typ.extract_types());
         let type_list: Vec<_> = var_type.get_types().iter().cloned().collect();
-        let nominals = types.iter()
-            .fold(self.nominals.clone(), |nom, typ_| nom.push_type(typ_.clone()));
         let mut typ_hie = self.subtypes.clone();
         typ_hie.update(&type_list);
         Context {
             typing_context: var_type, 
-            nominals: nominals.clone(),
             subtypes: typ_hie,
-            header: self.header.clone().add_generic_function(&wasm_types(&types, &nominals, context)),
+            //header: self.header.clone().add_generic_function(&wasm_types(&types, &nominals, context)),
             ..self
         }
     }
@@ -171,28 +167,29 @@ impl Context {
     }
 
     pub fn get_class(&self, t: &Type) -> String {
-        self.nominals.get_nominal(t.clone()).1
+        todo!();
     }
 
     pub fn get_classes(&self, t: &Type) -> Option<String> {
-        let super_types = self.subtypes.clone().get_all_supertypes(t);
-        let (_type_hierarchy, classes) = super_types.iter()
-            .fold((self.nominals.clone(), vec![]), 
-                  |acc, typ| {
-                      let (noms, nom_str) = acc.0.get_nominal(typ.to_owned());
-                      (noms, acc.1.iter().chain([format!("'{}'", nom_str)].iter()).cloned().collect())
-                  });
-        if classes.len() == 0 {
-            None
-        } else {
-            Some(
-                format!("c({})",
-                    classes.iter().cloned().collect::<HashSet<_>>()
-                        .iter().cloned().collect::<Vec<_>>()
-                        .join(", ")
-                        )
-                )
-        }
+        todo!();
+        //let super_types = self.subtypes.clone().get_all_supertypes(t);
+        //let (_type_hierarchy, classes) = super_types.iter()
+            //.fold((self.nominals.clone(), vec![]), 
+                  //|acc, typ| {
+                      //let (noms, nom_str) = acc.0.get_nominal(typ.to_owned());
+                      //(noms, acc.1.iter().chain([format!("'{}'", nom_str)].iter()).cloned().collect())
+                  //});
+        //if classes.len() == 0 {
+            //None
+        //} else {
+            //Some(
+                //format!("c({})",
+                    //classes.iter().cloned().collect::<HashSet<_>>()
+                        //.iter().cloned().collect::<Vec<_>>()
+                        //.join(", ")
+                        //)
+                //)
+        //}
     }
 
     pub fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {
@@ -271,7 +268,7 @@ impl Context {
     }
 
     pub fn get_type_from_class(&self, class: &str) -> Type {
-        self.nominals.get_type_from_class(class)
+        todo!();
     }
 
     pub fn push_unifications(&self, unifs: Vec<(Type, Type)>) -> Context {
@@ -365,10 +362,11 @@ impl Context {
     }
 
     pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
-        Context {
-            nominals: self.nominals.push_alias(alias_name.to_string(), typ),
-            ..self
-        }
+        todo!();
+        //Context {
+            //nominals: self.nominals.push_alias(alias_name.to_string(), typ),
+            //..self
+        //}
     }
 
     pub fn is_in_header_mode(&self) -> bool {
@@ -376,7 +374,8 @@ impl Context {
     }
 
     pub fn display_nominals(&self) -> String {
-        self.nominals.display_nominals()
+        todo!();
+        //self.nominals.display_nominals()
     }
 
     pub fn append_function_list(&self, t: &str) -> Context {

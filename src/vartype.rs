@@ -26,12 +26,41 @@ impl VarType {
     pub fn get_types(&self) -> HashSet<Type> {
         self.variables.iter().rev()
             .chain(self.aliases.iter().rev())
-            .flat_map(|(_var, typ)| typ.clone().type_extraction()).collect()
+            .flat_map(|(_var, typ)| typ.clone().extract_types()).collect()
     }
 
-    pub fn push_var_type(self, vt: Vec<(Var, Type)>) -> Self {
-        let (var, ali) = Self::separate_variables_aliases(vt);
-        self.push_variables(var).push_aliases(ali)
+    pub fn push_var_type(self, vt: &[(Var, Type)]) -> Self {
+        let (var, ali) = Self::separate_variables_aliases(vt.to_vec());
+        self.push_variables(var).push_aliases(&ali)
+    }
+
+    pub fn push_alias_increment(self, vt: (Var, Type)) -> Self {
+        let name = vt.0.get_name();
+        let var = self.aliases.iter()
+            .find(|(var, _)| var.contains(&name))
+            .map(|(var, _)| var.get_digit(&name) + 1)
+            .map(|x| vt.0.clone().add_digit(x))
+            .unwrap_or(vt.0.add_digit(0));
+        self.push_aliases(&[(var, vt.1)])
+    }
+
+    pub fn exists(&self, typ: &Type) -> bool {
+        self.aliases.iter()
+            .find(|(var, typ2)| typ == typ2)
+            .is_some()
+    }
+
+    fn push_type_if_not_exists(self, typ: Type) -> Self {
+        (!self.exists(&typ))
+            .then_some(self.clone()
+                       .push_alias_increment((typ.to_category().to_variable(), typ)))
+            .unwrap_or(self)
+    }
+
+    pub fn push_types(self, types: &[Type]) -> Self {
+        types.iter()
+            .fold(self,
+                  |vartyp, typ| vartyp.push_type_if_not_exists(typ.clone()))
     }
     
     pub fn separate_variables_aliases(val: Vec<(Var, Type)>) 
@@ -54,7 +83,7 @@ impl VarType {
         }
     }
 
-    fn push_aliases(self, vt: Vec<(Var, Type)>) -> Self {
+    fn push_aliases(self, vt: &[(Var, Type)]) -> Self {
         VarType {
             aliases: self.aliases.iter().chain(vt.iter()).cloned().collect(),
             ..self

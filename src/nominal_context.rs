@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use crate::r#type::Type;
 use crate::Context;
+use crate::Var;
+use crate::help_data::HelpData;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TypeCategory {
@@ -39,6 +41,12 @@ impl TypeCategory {
             _ => TypeCategory::Rest
         }
     }
+
+    pub fn to_variable(self) -> Var {
+        Var::from_name(&format!("{}", self))
+            .set_type(Type::Params(vec![], HelpData::default()))
+    }
+
 }
 
 use std::fmt;
