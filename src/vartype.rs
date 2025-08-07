@@ -48,7 +48,7 @@ impl VarType {
 
     pub fn exists(&self, typ: &Type) -> bool {
         self.aliases.iter()
-            .find(|(var, typ2)| typ == typ2)
+            .find(|(_, typ2)| typ == typ2)
             .is_some()
     }
 

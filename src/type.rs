@@ -17,12 +17,12 @@ use crate::type_comparison::has_generic_label;
 use crate::type_comparison::all_subtype2;
 use crate::type_comparison::contains_all2;
 use std::cmp::Ordering;
-use crate::nominal_context::TypeCategory;
 use crate::Context;
 use crate::type_comparison::reduce_type;
 use std::hash::Hash;
 use std::hash::Hasher;
 use crate::builder;
+use crate::type_category::TypeCategory;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()

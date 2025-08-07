@@ -3,7 +3,6 @@ use crate::r#type::Type;
 use crate::language::Lang;
 use crate::var::Var;
 use crate::kind::Kind;
-use crate::nominal_context::TypeNominal;
 use crate::argument_type::ArgumentType;
 use crate::vartype::VarType;
 use crate::type_comparison;
@@ -124,7 +123,7 @@ impl Context {
         self.typing_context.aliases()
     }
 
-    pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
+    pub fn push_var_type(self, lang: Var, typ: Type, _context: &Context) -> Context {
         let var_type = self.typing_context.clone()
             .push_var_type(&[(lang, typ.clone())])
             .push_types(&typ.extract_types());
@@ -433,7 +432,7 @@ impl Manip {
                         Lang::Char(field.to_string(), HelpData::default())
                     ], HelpData::default())
             },
-            lang => builder::empty_lang()
+            _ => builder::empty_lang()
         }
     }
 }
@@ -460,15 +459,4 @@ fn add_if_absent(mut vec: Vec<Lang>, val: Lang) -> Vec<Lang> {
         vec.push(val);
     }
     vec // Retourne le nouveau vecteur
-}
-
-fn wasm_types(types: &[Type], nominals: &TypeNominal, cont: &Context) -> Vec<Lang> {
-    types.iter().flat_map(|typ| {
-        let name = nominals.get_class(typ, cont);
-        match typ {
-            Type::Record(_, _) | Type::Tag(_, _, _) | Type::Function(_, _, _, _)
-                => Some(Lang::Alias(Var::from_name(&name), vec![], typ.clone(), typ.clone().into())),
-            _ => None
-        }
-    }).collect::<Vec<_>>()
 }
