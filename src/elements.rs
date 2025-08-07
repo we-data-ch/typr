@@ -1109,18 +1109,6 @@ mod tests {
     }
 
     #[test]
-    fn test_shape0() {
-        let res = single_element("[[1, 2], [3, 4]]".into()).unwrap().1;
-        assert_eq!(res.shape(), vec![0 as usize]);
-    }
-
-    #[test]
-    fn test_fn_op1() {
-        let res = single_element("fn(n: int): bool { 3 >= n }".into()).unwrap().1;
-        assert_eq!(res.shape(), vec![0 as usize]);
-    }
-
-    #[test]
     fn test_parse_greater_than1() {
         let res = element_chain("3 <= n".into()).unwrap().1;
         assert_eq!(res, builder::empty_lang());

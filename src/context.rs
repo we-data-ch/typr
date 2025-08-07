@@ -10,11 +10,10 @@ use crate::type_comparison;
 use crate::Environment;
 use crate::type_comparison::is_matching;
 use crate::help_data::HelpData;
-use std::collections::HashSet;
 use crate::typing;
 use crate::type_checker::match_types;
 use crate::unification_map::UnificationMap;
-use crate::type_graph::TypeGraph;
+use crate::graph::Graph;
 use crate::type_comparison::reduce_type;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
@@ -23,12 +22,14 @@ use crate::config::CompileMode;
 use crate::header::Header;
 use crate::config::Config;
 use crate::Adt;
+use crate::language::ToSome;
+use crate::builder;
 
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
    pub typing_context: VarType,
-   pub subtypes: TypeGraph,
+   pub subtypes: Graph,
    //nominals: TypeNominal,
    pub unifications: Vec<Vec<(Type, Type)>>,
    header: Header,
@@ -43,7 +44,7 @@ impl Default for Context {
             config: Config::default(),
             typing_context: VarType::new(),
             kinds: vec![],
-            subtypes: TypeGraph::new(),
+            subtypes: Graph::new(),
             unifications: vec![]
         }
     }
@@ -132,7 +133,7 @@ impl Context {
         typ_hie.update(&type_list);
         Context {
             typing_context: var_type, 
-            subtypes: typ_hie,
+            subtypes: typ_hie.clone(),
             //header: self.header.clone().add_generic_function(&wasm_types(&types, &nominals, context)),
             ..self
         }
@@ -167,29 +168,13 @@ impl Context {
     }
 
     pub fn get_class(&self, t: &Type) -> String {
-        todo!();
+        self.typing_context.get_class(t)
     }
 
     pub fn get_classes(&self, t: &Type) -> Option<String> {
-        todo!();
-        //let super_types = self.subtypes.clone().get_all_supertypes(t);
-        //let (_type_hierarchy, classes) = super_types.iter()
-            //.fold((self.nominals.clone(), vec![]), 
-                  //|acc, typ| {
-                      //let (noms, nom_str) = acc.0.get_nominal(typ.to_owned());
-                      //(noms, acc.1.iter().chain([format!("'{}'", nom_str)].iter()).cloned().collect())
-                  //});
-        //if classes.len() == 0 {
-            //None
-        //} else {
-            //Some(
-                //format!("c({})",
-                    //classes.iter().cloned().collect::<HashSet<_>>()
-                        //.iter().cloned().collect::<Vec<_>>()
-                        //.join(", ")
-                        //)
-                //)
-        //}
+        self.subtypes.get_supertypes(t)
+            .iter().map(|typ| self.get_class(typ))
+            .collect::<Vec<_>>().join(", ").to_some()
     }
 
     pub fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {
@@ -262,13 +247,13 @@ impl Context {
                                 ),
                             h.clone())
                 },
-                _ => todo!()
+                _ => builder::empty_lang()
             }
         }).collect()
     }
 
     pub fn get_type_from_class(&self, class: &str) -> Type {
-        todo!();
+        self.typing_context.get_type_from_class(class)
     }
 
     pub fn push_unifications(&self, unifs: Vec<(Type, Type)>) -> Context {
@@ -362,20 +347,14 @@ impl Context {
     }
 
     pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
-        todo!();
-        //Context {
-            //nominals: self.nominals.push_alias(alias_name.to_string(), typ),
-            //..self
-        //}
+        Context {
+            typing_context: self.typing_context.push_alias(alias_name, typ),
+            ..self
+        }
     }
 
     pub fn is_in_header_mode(&self) -> bool {
         self.config.compile_mode == CompileMode::Header 
-    }
-
-    pub fn display_nominals(&self) -> String {
-        todo!();
-        //self.nominals.display_nominals()
     }
 
     pub fn append_function_list(&self, t: &str) -> Context {
@@ -454,7 +433,7 @@ impl Manip {
                         Lang::Char(field.to_string(), HelpData::default())
                     ], HelpData::default())
             },
-            _ => todo!()
+            lang => builder::empty_lang()
         }
     }
 }

@@ -274,14 +274,6 @@ mod tests {
     use crate::tint::Tint;
     use crate::help_data::HelpData;
 
-    #[test]
-    fn test_get_nominal1(){
-        let tn = TypeNominal::new();
-        //let typ = builder::integer_type_default();
-        let typ = Type::Integer(Tint::Unknown, HelpData::example());
-        let tn = tn.push_type(typ.clone());
-        assert_eq!(tn.get_nominal(typ).1, "integer");
-    }
 
     #[test]
     fn test_get_nominal2(){

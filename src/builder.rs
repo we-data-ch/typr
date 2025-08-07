@@ -48,3 +48,7 @@ pub fn record_type(params: &[(String, Type)]) -> Type {
         .collect::<Vec<_>>();
     Type::Record(args, HelpData::default())
 }
+
+pub fn params_type() -> Type {
+    Type::Params(vec![], HelpData::default())
+}

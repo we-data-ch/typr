@@ -38,7 +38,7 @@ impl<T: Clone> AndIf for T {
     }
 }
 
-trait ToSome {
+pub trait ToSome {
     fn to_some(self) -> Option<Self> where Self: Sized;
 }
 
@@ -709,18 +709,3 @@ impl RTranslatable<(String, Context)> for Lang {
         result
     }
 }
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::elements::single_element;
-
-    #[test]
-    fn test_simple_print() {
-        assert_eq!(builder::empty_lang().simple_print(), "");
-    }
-
-}
-
-

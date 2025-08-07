@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::iter::Rev;
 use crate::var::Var;
 use crate::Type;
+use crate::builder;
 
 
 #[derive(Debug, Clone, PartialEq)]
@@ -10,6 +11,7 @@ pub struct VarType {
    pub aliases: Vec<(Var, Type)>
 }
 
+//main
 impl VarType {
     pub fn new() -> VarType {
         VarType {variables: vec![], aliases: vec![]}
@@ -86,6 +88,30 @@ impl VarType {
     fn push_aliases(self, vt: &[(Var, Type)]) -> Self {
         VarType {
             aliases: self.aliases.iter().chain(vt.iter()).cloned().collect(),
+            ..self
+        }
+    }
+
+    pub fn get_class(&self, t: &Type) -> String {
+        self.aliases.iter()
+            .find(|(_, typ)| typ == t)
+            .map(|(var, _)| var.get_name())
+            .expect(&format!("{} was not found with a corresponding alias.", t))
+    }
+
+    pub fn get_type_from_class(&self, class: &str) -> Type {
+        self.aliases.iter()
+            .find(|(var, _)| var.get_name() == class)
+            .map(|(_, typ)| typ)
+            .expect(&format!("{} isn't an existing Alias name (don't know where it come from)", class))
+            .clone()
+    }
+
+    pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
+        let var = Var::from_name(&alias_name)
+                    .set_type(builder::params_type());
+        Self {
+            aliases: self.aliases.iter().chain([(var, typ)].iter()).cloned().collect(),
             ..self
         }
     }
