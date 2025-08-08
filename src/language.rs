@@ -137,6 +137,8 @@ fn to_if_statement(var: Lang, branches: &[(Box<Lang>, Box<Lang>)], context: &Con
 
 
 fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
+    dbg!(&val);
+    dbg!(&arg);
     let args = FunctionType::try_from(arg.clone())
         .expect(&format!("Error: {} is not a function type", arg))
     .get_param_types();
@@ -530,32 +532,38 @@ impl RTranslatable<(String, Context)> for Lang {
                 ((path.clone().to_r() + &name).to_string(), cont.clone())
             }
             Lang::FunctionApp(exp, vals, _) => {
-                let (exp_str, cont1) = exp.to_r(cont);
-                let (unification_map, _cont2) = cont1.pop_unifications();
-                let fn_type = typing(cont, exp).0;
-                let new_fn_typ = unification::type_substitution(&fn_type, &unification_map.unwrap_or(vec![]));
+                let var = Var::try_from(exp.clone()).unwrap();
+                if cont.is_an_untyped_function(&var.get_name()) {
+                    let s = format!("{}({})",var.get_name(), 
+                            vals.iter().map(|x| x.to_r(cont).0).collect::<Vec<_>>().join(", "));
+                    (s, cont.clone())
+                } else {
+                    let (exp_str, cont1) = exp.to_r(cont);
+                    let (unification_map, _cont2) = cont1.pop_unifications();
+                    let fn_type = typing(cont, exp).0;
+                    let new_fn_typ = unification::type_substitution(&fn_type, &unification_map.unwrap_or(vec![]));
 
-                let fn_t = FunctionType::try_from(new_fn_typ.clone())
-                    .expect(&format!("Error: {} is not a function type", new_fn_typ));
+                    let fn_t = FunctionType::try_from(new_fn_typ.clone())
+                        .expect(&format!("Error: {} is not a function type", new_fn_typ));
 
-                let new_args = fn_t.get_param_types().into_iter()
-                        .map(|arg| reduce_type(&cont1, &arg))
+                    let new_args = fn_t.get_param_types().into_iter()
+                            .map(|arg| reduce_type(&cont1, &arg))
+                            .collect::<Vec<_>>();
+                    let langs = vals.into_iter().zip(new_args.iter())
+                        .map(set_related_type_if_variable)
                         .collect::<Vec<_>>();
-                let langs = vals.into_iter().zip(new_args.iter())
-                    .map(set_related_type_if_variable)
-                    .collect::<Vec<_>>();
-                let (args, current_cont) = Translatable::from(cont1)
-                        .join(&langs, ", ").into();
-                
-                Var::from_language(*exp.clone())
-                    .map(|var| {
-                        let (name, path) = (var.get_name(), Path::new(&var.get_path()));
-                        (path != Path::default())
-                            .then_some((format!("eval(quote({}({})), envir = {})",
-                                name.replace("__", "."), args, path.get_value()), current_cont.clone()))
-                            .unwrap_or((format!("{}({})", name.replace("__", "."), args), current_cont.clone()))
-                    }).unwrap_or((format!("{}({})", exp_str, args), current_cont))
-
+                    let (args, current_cont) = Translatable::from(cont1)
+                            .join(&langs, ", ").into();
+                    
+                    Var::from_language(*exp.clone())
+                        .map(|var| {
+                            let (name, path) = (var.get_name(), Path::new(&var.get_path()));
+                            (path != Path::default())
+                                .then_some((format!("eval(quote({}({})), envir = {})",
+                                    name.replace("__", "."), args, path.get_value()), current_cont.clone()))
+                                .unwrap_or((format!("{}({})", name.replace("__", "."), args), current_cont.clone()))
+                        }).unwrap_or((format!("{}({})", exp_str, args), current_cont))
+                }
             },
             Lang::ArrayIndexing(exp, val, _) => {
                 let (exp_str, new_cont) = exp.to_r(cont);

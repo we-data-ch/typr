@@ -28,6 +28,8 @@ use crate::Lang;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
 use crate::elements::variable_exp;
+use nom::combinator::recognize;
+use crate::elements;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -581,11 +583,26 @@ pub fn if_type(s: Span) -> IResult<Span,Type> {
     }
 }
 
+fn r_class(s: Span) -> IResult<Span, Type> {
+    let res = (terminated(tag("Class("), multispace0),
+    many1(terminated(terminated(recognize(elements::chars), opt(tag(","))), multispace0)),
+    terminated(tag(")"), multispace0)).parse(s);
+    match res {
+        Ok((s, (class, elems, _close))) 
+            => Ok((s, Type::RClass(
+                        elems.iter().map(|x| x.to_string()).collect()
+                        , class.into()))),
+        Err(r) => Err(r)
+    }
+}
+
+
 //ltype to not use the reserved symbol "type"
 // main
 pub fn ltype(s: Span) -> IResult<Span, Type> {
     terminated(alt((
             multitype,
+            r_class,
             data_frame,
             any,
             empty,
@@ -818,6 +835,12 @@ mod tests {
     #[test]
     fn test_type_condition() {
         let res = type_condition("$B in $L".into()).unwrap().1;
+        assert_eq!(res, builder::empty_type());
+    }
+
+    #[test]
+    fn test_r_class0() {
+        let res = r_class("Class('data.frame', 'tbl')".into()).unwrap().1;
         assert_eq!(res, builder::empty_type());
     }
 

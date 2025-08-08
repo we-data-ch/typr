@@ -80,6 +80,7 @@ pub fn format(ty: &Type) -> String {
         Type::Div(a, b, _) => format!("{}/{}", a, b),
         Type::DataFrame(_) => "data.frame".to_string(),
         Type::RFunction(_) => "RFunction".to_string(),
+        Type::RClass(elem, _) => format!("class({})", elem.iter().cloned().collect::<Vec<_>>().join(", ")),
         t => format!("{:?}", t)
     }
 }

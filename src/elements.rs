@@ -83,7 +83,7 @@ fn boolean(s: Span) -> IResult<Span,Lang> {
     }
 }
 
-fn chars(s: Span) -> IResult<Span, Lang> {
+pub fn chars(s: Span) -> IResult<Span, Lang> {
     let res = terminated(alt((
             (tag("\""), many0(none_of("\"")), tag("\"")),
             (tag("'"), many0(none_of("'")), tag("'")),

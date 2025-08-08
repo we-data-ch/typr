@@ -66,6 +66,7 @@ pub enum Type {
     In(HelpData),
     DataFrame(HelpData),
     RFunction(HelpData),
+    RClass(HashSet<String>, HelpData),
     Empty(HelpData),
     Any(HelpData)
 }
@@ -476,6 +477,10 @@ impl Type {
                 p1.iter().zip(p2.iter()).all(|(t1, t2)| t1.is_subtype(t2))
             }
 
+            (Type::RClass(set1, _), Type::RClass(set2, _)) => {
+                set1.is_subset(set2)
+            }
+
             _ => false
         }
     }
@@ -558,6 +563,7 @@ impl Type {
             Type::RFunction(h) => h.clone(),
             Type::Empty(h) => h.clone(),
             Type::Any(h) => h.clone(),
+            Type::RClass(_, h) => h.clone(),
         }
     }
 
@@ -593,7 +599,8 @@ impl Type {
             Type::DataFrame(_) => Type::DataFrame(h2),
             Type::RFunction(_) => Type::RFunction(h2),
             Type::Empty(_) => Type::Empty(h2),
-            Type::Any(_) => Type::Any(h2) 
+            Type::Any(_) => Type::Any(h2),
+            Type::RClass(v, _) => Type::RClass(v, h2) 
         }
     }
 
@@ -700,6 +707,10 @@ impl PartialEq for Type {
             (Type::Empty(_), Type::Empty(_)) => true,
             (Type::Any(_), Type::Any(_)) => true,
             (Type::DataFrame(_), Type::DataFrame(_)) => true,
+            (Type::RClass(el1, _), Type::RClass(el2, _)) 
+                => {
+                    el1.difference(&el2).collect::<Vec<_>>().len() == 0
+                },
             _ => false
         }
     }
@@ -776,7 +787,8 @@ impl Hash for Type {
             Type::Empty(_) => 27.hash(state),
             Type::Any(_) => 28.hash(state),
             Type::DataFrame(_) => 29.hash(state),
-            Type::RFunction(_) => 29.hash(state),
+            Type::RFunction(_) => 30.hash(state),
+            Type::RClass(_, _) => 31.hash(state),
         }
     }
 }

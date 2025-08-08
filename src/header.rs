@@ -66,7 +66,7 @@ impl Header {
 impl Default for Header {
     fn default() -> Header {
         Header {
-            function_list: "".to_string(),
+            function_list: include_str!("../configs/src/functions.txt").to_string(),
             adt: AdtHeader::default()
         }
     }

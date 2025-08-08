@@ -355,12 +355,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::FunctionApp(fn_var_name, values, h) => {
-            let func = fn_var_name.clone()
-                .get_related_function(values, context)
-                .expect(&TypeError::UndefinedFunction((**fn_var_name).clone()).display());
-            if func.is_r_function() {
+            let var = Var::try_from(fn_var_name.clone()).unwrap();
+            if context.is_an_untyped_function(&var.get_name()) {
                 (Type::Empty(h.clone()), context.clone())
             } else {
+                let func = fn_var_name.clone()
+                    .get_related_function(values, context)
+                    .expect(&TypeError::UndefinedFunction((**fn_var_name).clone()).display());
                 let param_types = func.get_param_types();
                 context
                     .get_unification_map(values, &param_types)

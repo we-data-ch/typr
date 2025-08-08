@@ -31,16 +31,27 @@ impl FunctionType {
         (params.len() > 0)
             .then_some(params[0].clone())
     }
+
+    pub fn set_help_data(self, h: HelpData) -> Self {
+        FunctionType(self.0, self.1, self.2, h)
+    }
 }
 
 impl TryFrom<Type> for FunctionType {
     type Error = String;
 
     fn try_from(value: Type) -> Result<Self, Self::Error> {
-        if let Type::Function(kinds, args, ret, h) = value {
-            Ok(FunctionType(kinds, args, *ret, h))
-        } else { 
-            Err(format!("{} is a type not convertible to FunctionType", value))
+        match value {
+        Type::Function(kinds, args, ret, h) => Ok(FunctionType(kinds, args, *ret, h)),
+        Type::RFunction(h)  => Ok(FunctionType::default().set_help_data(h.clone())),
+        _ => Err(format!("{} is a type not convertible to FunctionType", value)) 
         }
     }
 }
+
+impl Default for FunctionType {
+    fn default() -> FunctionType {
+        FunctionType(vec![], vec![], builder::empty_type(), HelpData::default())
+    }
+}
+

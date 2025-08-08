@@ -73,7 +73,12 @@ impl Translatable {
     }
 
     pub fn sub(self, len: usize) -> Translatable {
-        let new_code = &self.code[0..(self.code.len()-len)];
+        let new_code = 
+            if self.code.len() > len {
+                &self.code[0..(self.code.len()-len)]
+            } else {
+                &self.code
+            };
         Translatable {
             code: new_code.to_string(),
             ..self
