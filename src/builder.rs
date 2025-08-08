@@ -52,3 +52,11 @@ pub fn record_type(params: &[(String, Type)]) -> Type {
 pub fn params_type() -> Type {
     Type::Params(vec![], HelpData::default())
 }
+
+pub fn generic_function(s: &str) -> Lang {
+    Lang::GenFunc(s.to_string(), "".to_string(), HelpData::default())
+}
+
+pub fn r_function_type() -> Type {
+    Type::RFunction(HelpData::default())
+}

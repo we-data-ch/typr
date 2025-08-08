@@ -21,6 +21,7 @@ use crate::builder;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use std::error::Error;
+use crate::argument_value::ArgumentValue;
 
 fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
     // Créer un script R temporaire avec la fonction à exécuter
@@ -102,23 +103,21 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                     let new_name = name.to_owned().set_type(first_param);
                     context.to_owned()
                             .push_var_type(new_name, reduced_expr_ty.to_owned(), context)
-                            .add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), name.get_name(), HelpData::default())])
+                            .add_generic_function(&[build_generic_function(&name.get_name())])
                             // TODO: check for already existing generic function upthere
                 } else if exp.is_r_function() {
-                    let typ = Type::RFunction(HelpData::default());
                     let new_name = name.to_owned().set_type(builder::any_type());
-                    context.clone().push_var_type(new_name, typ, context)
+                    context.clone().push_var_type(new_name, builder::r_function_type(), context)
                 } else {
                     let new_name = name.to_owned()
-                        .set_type(reduce_type(context, &expr_ty));
+                        .set_type(reduced_expr_ty.clone());
                     context.to_owned()
                             .push_var_type(new_name, reduced_expr_ty.to_owned(), context)
                 }
             } else {
                 let reduced_ty = ty.reduce(context);
-
                 let new_context = reduced_expr_ty.is_subtype(&reduced_ty).then(|| {
-                    if *ty != builder::any_type() {
+                    if !ty.is_any() {
                         context.to_owned()
                             .push_var_type(name.to_owned().into(), reduced_ty.to_owned(), context)
                     } else {
@@ -127,7 +126,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                     }
                 }).expect(&TypeError::Let(ty.clone(), expr_ty).display());
                 if exp.is_function() && !exp.is_undefined() {
-                    new_context.add_generic_function(&[Lang::GenFunc(build_generic_function(&name.get_name()), name.get_name(), HelpData::default())])
+                    new_context.add_generic_function(&[build_generic_function(&name.get_name())])
                 } else {
                     new_context
                 }
@@ -269,24 +268,18 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::Char(s, h) => (Type::Char(s.to_owned().into(), h.clone()), context.clone()),
         Lang::Empty(h) => (Type::Empty(h.clone()), context.clone()),
         Lang::And(e1, e2, _) | Lang::Or(e1, e2, _) => {
-            if typing(context, e1).0.is_boolean() && typing(context, e2).0.is_boolean() {
-                (Type::Boolean(HelpData::default()), context.clone())
-            } else {
-                panic!("Type error");
-            }
+            (typing(context, e1).0.is_boolean() && typing(context, e2).0.is_boolean())
+                .then_some((builder::boolean_type(), context.clone()))
+                .expect("Type error")
         }
         Lang::Eq(e1, e2, _) | Lang::LesserOrEqual(e1, e2, _) | Lang::GreaterOrEqual(e1, e2, _) | Lang::GreaterThan(e1, e2, _) | Lang::LesserThan(e1, e2, _) => {
-            let ty1 = typing(context, e1).0;
-            let ty2 = typing(context, e2).0;
-            if ty1 == ty2 {
-                (Type::Boolean(HelpData::default()), context.clone())
-            } else {
-                panic!("Type error");
-            }
+            (typing(context, e1).0 == typing(context, e2).0)
+                .then_some((builder::boolean_type(), context.clone()))
+                .expect("Type error")
         }
         Lang::Chain(e1, e2, _) => {
             let ty2 = typing(context, e2).0;
-            match (reduce_type(context, &ty2), *e1.clone()) {
+            match (ty2.reduce(context), *e1.clone()) {
                 (Type::Record(fields, _), Lang::Variable(name, _, _, _, _, _)) => {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
@@ -300,30 +293,15 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                         .expect("Field not found")
                 },
                 (Type::Tuple(vals, _), Lang::Integer(i, _)) => {
-                    let typ = vals.iter()
+                    vals.iter()
                         .nth((i-1) as usize)
-                        .expect(&format!("no value at the position {}", i));
-                    (typ.clone(), context.clone())
+                        .map(|typ| (typ.clone(), context.clone()))
+                        .expect(&format!("no value at the position {}", i))
                 },
-                (_, Lang::FunctionApp(name, args, h)) 
-                    if Var::from_language((*name).clone()).unwrap().get_name() == "map"
-                        => {
-                            let new_args = [(**e2).clone()].into_iter()
-                                .chain(args.into_iter())
-                                .collect::<Vec<_>>();
-                            typing(context, &Lang::FunctionApp(name, new_args, h))
-                        },
                 (Type::Record(fields1, h), Lang::Record(fields2, _)) => {
                     let at = fields2[0].clone();
                     let fields3 = fields1.iter()
-                        .map(|arg_typ2| {
-                            match arg_typ2.get_argument_str() == at.get_argument() {
-                                true => ArgumentType::new(
-                                            &at.get_argument(),
-                                            &typing(context, &at.get_value()).0),
-                                false => arg_typ2.clone()
-                            }
-                        }).collect::<Vec<_>>();
+                        .map(replace_fields_type_if_needed(context, at)).collect::<Vec<_>>();
                     (Type::Record(fields3, h.clone()), context.clone())
                 },
                 (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
@@ -335,11 +313,11 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 .collect::<Vec<_>>();
             let sub_context = params.into_iter()
                 .map(|arg_typ| arg_typ.clone().to_var(context))
-                .zip(list_of_types.clone().into_iter().map(|typ| reduce_type(context, &typ)))
+                .zip(list_of_types.clone().into_iter().map(|typ| typ.reduce(context)))
                 .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
-            let res = typing(&sub_context, body);
-            let reduced_body_type = reduce_type(&sub_context, &res.0);
-            let reduced_expected_ty = reduce_type(&context, &ret_ty);
+            let res = body.typing(&sub_context);
+            let reduced_body_type = res.0.reduce(&sub_context);
+            let reduced_expected_ty = ret_ty.reduce(&context);
                 if !reduced_body_type.is_subtype(&reduced_expected_ty) {
                     None.expect(
                     &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display()
@@ -501,6 +479,15 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             (builder::empty_type(), context.clone())
         },
         _ => (Type::Any(HelpData::default()), context.clone()),
+    }
+}
+
+fn replace_fields_type_if_needed(context: &Context, at: ArgumentValue) -> impl FnMut(&ArgumentType) -> ArgumentType + use<'_> {
+    move |arg_typ2| {
+        (arg_typ2.get_argument_str() == at.get_argument())
+            .then_some(ArgumentType::new(&at.get_argument(),
+                        &typing(context, &at.get_value()).0))
+            .unwrap_or(arg_typ2.clone())
     }
 }
 

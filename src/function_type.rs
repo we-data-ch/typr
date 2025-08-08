@@ -25,6 +25,12 @@ impl FunctionType {
         (self.1 == vec![]) &&
         (self.2 == builder::empty_type())
     }
+
+    pub fn get_first_param(&self) -> Option<Type> {
+        let params = self.get_param_types();
+        (params.len() > 0)
+            .then_some(params[0].clone())
+    }
 }
 
 impl TryFrom<Type> for FunctionType {

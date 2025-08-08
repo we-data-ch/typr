@@ -17,6 +17,7 @@ use crate::translatable::Translatable;
 use crate::function_lang::Function;
 use crate::array_type::ArrayType;
 use crate::translatable::RTranslatable;
+use crate::builder;
 
 trait AndIf {
     fn and_if<F>(self, condition: F) -> Option<Self>
@@ -107,8 +108,10 @@ impl From<Var> for Lang {
    } 
 }
 
-pub fn build_generic_function(s: &str) -> String {
-    format!("{} <- function(x, ...) {{\n\tUseMethod('{}')\n}}\n", s, s)
+pub fn build_generic_function(s: &str) -> Lang {
+    builder::generic_function(
+        &format!("{} <- function(x, ...) {{\n\tUseMethod('{}')\n}}\n", s, s)
+                                                         )
 }
 
 fn condition_to_if(var: &Lang, condition: &Lang) -> (String, Lang) {
@@ -333,6 +336,11 @@ impl Lang {
             Lang::RFunction(_, _, _) => "RFunction".to_string(),
         }
     }
+
+    pub fn typing(&self, context: &Context) -> (Type, Context) {
+        typing(context, self)
+    }
+
 }
 
 impl From<Lang> for HelpData {

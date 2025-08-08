@@ -40,6 +40,7 @@ mod header;
 mod config;
 mod graph;
 mod type_category;
+mod typer;
 
 use crate::help_message::TypeError;
 use parser::parse;

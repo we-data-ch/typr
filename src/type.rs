@@ -23,6 +23,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use crate::builder;
 use crate::type_category::TypeCategory;
+use crate::typing;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -610,6 +611,11 @@ impl Type {
             _ => None
         }
     }
+
+    pub fn is_any(&self) -> bool {
+        *self == builder::any_type()
+    }
+
 
 }
 

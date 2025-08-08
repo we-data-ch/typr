@@ -208,6 +208,26 @@ impl RTranslatable<String> for Var {
     }
 }
 
+impl TryFrom<Lang> for Var {
+    type Error = ();
+
+    fn try_from(value: Lang) -> Result<Self, Self::Error> {
+        match value {
+            Lang::Variable(name, path, perm, muta, typ, h) 
+                => Ok(Var(name, path, perm, muta, typ, h)),
+            _ => Err(())
+        }
+    }
+}
+
+impl TryFrom<Box<Lang>> for Var {
+    type Error = ();
+
+    fn try_from(value: Box<Lang>) -> Result<Self, Self::Error> {
+        Var::try_from((*value).clone())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
