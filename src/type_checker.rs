@@ -22,6 +22,8 @@ use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use std::error::Error;
 use crate::argument_value::ArgumentValue;
+use crate::typer::Typer;
+use crate::type_comparison::is_matching;
 
 fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
     // Créer un script R temporaire avec la fonction à exécuter
@@ -143,18 +145,28 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             new_context3.push_alias(name.get_name(), typ.to_owned())
         },
         Lang::Assign(var, expr, _h) => {
-            let variable_assigned = Var::from_language((**var).clone()).unwrap();
-            let variable = context.get_true_variable(&variable_assigned);
-            let var_type = context.get_type_from_existing_variable(variable.clone());
-            let var_type_reduced = reduce_type(context, &var_type);
+            let variable_assigned = Var::try_from(var.clone()).unwrap();
             let expr_type = typing(&context, expr).0;
-            let expr_type_reduced = reduce_type(context, &expr_type);
-            if !(expr_type_reduced == var_type_reduced || expr_type_reduced.is_subtype(&var_type_reduced)) {
-                panic!("{}", TypeError::Param(expr_type, var_type).display());
-            } else if !variable.is_mutable() {
-                panic!("{}", TypeError::ImmutableVariable(variable_assigned, variable).display());
+                let expr_type_reduced = reduce_type(context, &expr_type);
+            if !context.we_check_mutability() {
+               variable_assigned.exist(context) 
+                   .map(|var| is_matching(context, &expr_type_reduced, &var.get_type())
+                        .then_some(context.clone().update_variable(var.set_type(expr_type_reduced.clone())))
+                        .expect("The types aren't matching"))
+                   .unwrap_or(context.clone().push_var_type(
+                                        variable_assigned.set_type(expr_type_reduced.clone()),
+                                        expr_type_reduced, &context))
             } else {
-                context.clone()
+                let variable = context.get_true_variable(&variable_assigned);
+                let var_type = context.get_type_from_existing_variable(variable.clone());
+                let var_type_reduced = reduce_type(context, &var_type);
+                if !(expr_type_reduced == var_type_reduced || expr_type_reduced.is_subtype(&var_type_reduced)) {
+                    panic!("{}", TypeError::Param(expr_type, var_type).display());
+                } else if !variable.is_mutable() && context.we_check_mutability() {
+                    panic!("{}", TypeError::ImmutableVariable(variable_assigned, variable).display());
+                } else {
+                    context.clone()
+                }
             }
         }
         Lang::Library(name, _h) => {
@@ -449,9 +461,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         },
         Lang::Variable(_, _, _, _, _, _) => {
-            let old_var = Var::from_language(expr.clone()).unwrap();
+            let old_var = Var::try_from(expr.clone()).unwrap();
             let var = context.get_true_variable(&old_var);
-            if var.is_private() && var.is_foreign() {
+            if var.is_private() && var.is_from_other_module() {
                panic!("{}", TypeError::PrivateVariable(old_var, var).display())
             } else {
                 (context.get_type_from_existing_variable(var), context.clone())
@@ -474,8 +486,11 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 .expect(&format!("The iterator is not an array {:?}", iter))
                 .base_type;
             let var = var.clone().set_type(base_type.clone());
-            let sub_context = context.clone().push_var_type(var, base_type, &context);
-            let _ = typing(&sub_context, body).1;
+            Typer::from(context.clone())
+                .set_type(base_type)
+                .set_var(var)
+                .push_var_type()
+                .typing((**body).clone());
             (builder::empty_type(), context.clone())
         },
         _ => (Type::Any(HelpData::default()), context.clone()),

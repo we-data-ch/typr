@@ -72,6 +72,10 @@ impl Context {
         }
     }
 
+    pub fn variable_exist(&self, var: Var) -> Option<Var> {
+        self.typing_context.variable_exist(var)
+    }
+
     pub fn get_type_from_variable(&self, var: &Var) -> Option<Type> {
         self.variables().flat_map(|(var2, type_)| {
             let Var(name1, path1, perm1, bo1, typ1, _h1) = var;
@@ -376,6 +380,17 @@ impl Context {
 
     pub fn in_a_project(&self) -> bool {
         self.config.environment == Environment::Project
+    }
+
+    pub fn we_check_mutability(&self) -> bool {
+        self.config.immutability 
+    }
+
+    pub fn update_variable(self, var: Var) -> Self {
+        Self {
+            typing_context: self.typing_context.update_variable(var),
+            ..self
+        }
     }
 
 }

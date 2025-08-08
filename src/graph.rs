@@ -240,8 +240,8 @@ impl Graph {
                          child.type_info.pretty());
             }
             
-            println!("Ajout de {} comme sous-type de {}", 
-                     child.type_info.pretty(), insertion_info.parent.pretty());
+            //println!("Ajout de {} comme sous-type de {}", 
+                     //child.type_info.pretty(), insertion_info.parent.pretty());
         }
     }
 

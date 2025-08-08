@@ -3,6 +3,7 @@ use std::iter::Rev;
 use crate::var::Var;
 use crate::Type;
 use crate::builder;
+use crate::Context;
 
 
 #[derive(Debug, Clone, PartialEq)]
@@ -14,7 +15,12 @@ pub struct VarType {
 //main
 impl VarType {
     pub fn new() -> VarType {
-        VarType {variables: vec![], aliases: vec![]}
+        let var = Var::from("Generic").set_type(builder::params_type());
+        let typ = builder::generic_type();
+        VarType {
+            variables: vec![],
+            aliases: vec![(var, typ)]
+        }
     }
 
     pub fn variables(&self) -> Rev<std::slice::Iter<'_, (Var, Type)>> {
@@ -93,10 +99,11 @@ impl VarType {
     }
 
     pub fn get_class(&self, t: &Type) -> String {
-        self.aliases.iter()
+        let res = self.aliases.iter()
             .find(|(_, typ)| typ == t)
             .map(|(var, _)| var.get_name())
-            .expect(&format!("{} was not found with a corresponding alias.", t))
+            .expect(&format!("{} was not found with a corresponding alias.", t));
+        "'".to_string() + &res + "'"
     }
 
     pub fn get_type_from_class(&self, class: &str) -> Type {
@@ -112,6 +119,28 @@ impl VarType {
                     .set_type(builder::params_type());
         Self {
             aliases: self.aliases.iter().chain([(var, typ)].iter()).cloned().collect(),
+            ..self
+        }
+    }
+
+    pub fn variable_exist(&self, var: Var) -> Option<Var> {
+        self.variables.iter()
+            .any(|(v, _)| { v.match_with(&var, &Context::default()) })
+            .then_some(var)
+    }
+
+    pub fn update_variable(self, var: Var) -> Self {
+        let id = self.variables.iter().enumerate()
+            .find(|(_, (v, _))| v.get_name() == var.get_name())
+            .map(|(i, (_, _))| i)
+            .expect("Variable not found");
+
+
+        let mut vec = self.variables.clone();
+        vec[id] = (var.clone(), var.get_type()); //TODO: latter check if vec[id].1 is a function
+
+        Self {
+            variables: vec,
             ..self
         }
     }

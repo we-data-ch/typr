@@ -12,6 +12,7 @@ pub enum CompileMode {
 pub struct Config {
    pub compile_mode: CompileMode,
    pub environment: Environment,
+   pub immutability: bool
 }
 
 impl Config {
@@ -37,7 +38,8 @@ impl Default for Config {
     fn default() -> Config {
         Config {
             compile_mode: CompileMode::Body,
-            environment: Environment::StandAlone
+            environment: Environment::StandAlone,
+            immutability: false
         }
     }
 }

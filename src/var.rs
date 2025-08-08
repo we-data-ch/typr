@@ -148,8 +148,16 @@ impl Var {
         self.2 == Permission::Private
     }
 
-    pub fn is_foreign(&self) -> bool {
+    pub fn is_public(&self) -> bool {
+        !self.is_private()
+    }
+
+    pub fn is_from_other_module(&self) -> bool {
         !self.1.is_empty()
+    }
+
+    pub fn is_natif_to_module(&self) -> bool {
+        !self.is_from_other_module()
     }
 
     pub fn is_alias(&self) -> bool {
@@ -185,6 +193,10 @@ impl Var {
 
     pub fn add_digit(self, d: i8) -> Self {
         self.clone().set_name(&(self.get_name() + &d.to_string()))
+    }
+
+    pub fn exist(&self, context: &Context) -> Option<Self> {
+        context.variable_exist(self.clone())
     }
 
 }
@@ -228,6 +240,18 @@ impl TryFrom<Box<Lang>> for Var {
     }
 }
 
+impl From<&str> for Var {
+   fn from(val: &str) -> Self {
+        Var(
+            val.to_string(),
+            "".into(),
+            Permission::Private,
+            false,
+            Type::Empty(HelpData::default()),
+            HelpData::default())
+   } 
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,7 +259,7 @@ mod tests {
     #[test]
     fn test_is_default_var_not_foreign(){
         let var = Var::default();
-        assert!(!var.is_foreign())
+        assert!(!var.is_from_other_module())
     }
 
 }

@@ -584,15 +584,13 @@ impl RTranslatable<(String, Context)> for Lang {
                         }
                     }).unwrap_or((format!("{} <- {}", new_name, body_str), new_name));
 
+                let code = (!ttype.is_empty())
+                    .then_some(
+                        format!("{} |> \n\tlet_type(c({}))\n", r_code, 
+                                new_cont.get_classes(ttype).unwrap()))
+                    .unwrap_or(r_code + "\n");
+                (code, new_cont)
                 
-                let classes_res = new_cont.get_classes(ttype);
-
-                match classes_res {
-                    Some(classes) =>
-                        (format!("{} |> \n\tlet_type({})\n", r_code, classes),
-                        new_cont),
-                    None => (r_code + "\n", new_cont)
-                }
             },
             Lang::Array(v, _h) => {
                 let vector = &self.linearize_array()

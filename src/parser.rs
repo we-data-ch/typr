@@ -108,6 +108,72 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+fn base_let_mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+            pattern_var,
+            opt(preceded(terminated(tag(":"), multispace0), ltype)),
+            equality_operator,
+            single_parse,
+          ).parse(s);
+    match res {
+        Ok((s, ((pat_var, None), typ, _eq, Lang::Function(ki, params, ty, body, h)))) 
+            if params.len() > 0 => {
+                let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false);
+                Ok((s, vec![Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
+                Box::new(Lang::Function(ki, params, ty, body, h)), pat_var.into())]))
+            },
+        Ok((s, ((pat_var, None), typ, _eq, body))) => {
+                Ok((s, 
+                    vec![
+                    Lang::Let(
+                        Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
+                        typ.clone().unwrap_or(Type::Empty(HelpData::default())),
+                        Box::new(body), pat_var.into())]))
+                }
+        Ok((s, ((pat_var, Some(_)), typ, eq, body))) => {
+            if pat_var.len() == 1 {
+                Ok((s, 
+                    vec![
+                    Lang::Let(
+                        Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
+                        typ.clone().unwrap_or(Type::Empty(HelpData::default())),
+                        Box::new(Lang::Chain(Box::new(Lang::Number(0.0, eq.into())),
+                        Box::new(body), pat_var.clone().into())), pat_var.into())]))
+            } else {
+                Ok((s,
+                pat_var.iter().map(|x| {
+                    Lang::Let(Var::from_language(x.clone()).unwrap().set_permission(false), typ.clone().unwrap_or(Type::Empty(HelpData::default())), Box::new(body.clone()), HelpData::default())
+                }).collect::<Vec<_>>()
+                   ))
+            }
+        },
+        Err(r) => Err(r),
+    }
+}
+
+fn let_mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+        opt(terminated(tag("pub"), multispace0)),
+        base_let_mut_exp
+                    ).parse(s);
+    match res {
+        Ok((s, (None, le))) => Ok((s, le)),
+        Ok((s, (Some(_pu), le))) => {
+            let new_le = le.iter().map(|x| {
+                match x {
+                    Lang::Let(var, typ, body, h) 
+                        => Lang::Let(var.clone().set_permission(true),
+                                    typ.clone(),
+                                    body.clone(), h.clone()),
+                    lan => lan.clone()
+                }
+            }).collect();
+            Ok((s, new_le))
+        },
+        Err(r) => Err(r),
+    }
+}
+
 
 fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
@@ -458,7 +524,7 @@ fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {
 // main
 fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, bangs_exp, simple_exp))),
+        many0(alt((for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {

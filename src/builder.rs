@@ -60,3 +60,7 @@ pub fn generic_function(s: &str) -> Lang {
 pub fn r_function_type() -> Type {
     Type::RFunction(HelpData::default())
 }
+
+pub fn tuple_type(types: &[Type]) -> Type {
+    Type::Tuple(types.to_vec(), HelpData::default())
+}
