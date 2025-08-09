@@ -398,7 +398,7 @@ impl Context {
         }
     }
 
-    pub fn get_true_fn_type(&self, params: Vec<Type>) -> FunctionType {
+    pub fn get_true_fn_type(&self, params: Vec<Type>) -> Option<FunctionType> {
         self.header.get_true_fn_type(params)
     }
 

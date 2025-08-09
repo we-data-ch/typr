@@ -72,12 +72,10 @@ impl Header {
         }
     }
 
-    pub fn get_true_fn_type(&self, params: Vec<Type>) -> FunctionType {
+    pub fn get_true_fn_type(&self, params: Vec<Type>) -> Option<FunctionType> {
         self.fn_types.iter()
             .find(|fn_typ| fn_typ.get_param_types() == params)
-            .expect(&format!("No function signature found for those params {}", 
-                             params.iter().map(|x| x.pretty()).collect::<Vec<_>>().join(", ")))
-            .clone()
+            .cloned()
     }
 
 }
