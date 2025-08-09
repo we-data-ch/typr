@@ -174,6 +174,10 @@ impl Context {
         self.typing_context.get_class(t)
     }
 
+    pub fn get_class_unquoted(&self, t: &Type) -> String {
+        self.typing_context.get_class_unquoted(t)
+    }
+
     pub fn get_classes(&self, t: &Type) -> Option<String> {
         self.subtypes.get_supertypes(t)
             .iter().map(|typ| self.get_class(typ))

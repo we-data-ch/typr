@@ -28,8 +28,9 @@ impl FunctionType {
 
     pub fn get_first_param(&self) -> Option<Type> {
         let params = self.get_param_types();
-        (params.len() > 0)
-            .then_some(params[0].clone())
+        if params.len() > 0 {
+            Some(params[0].clone())
+        } else { None }
     }
 
     pub fn set_help_data(self, h: HelpData) -> Self {

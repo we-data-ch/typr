@@ -337,11 +337,10 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let res = body.typing(&sub_context);
             let reduced_body_type = res.0.reduce(&sub_context);
             let reduced_expected_ty = ret_ty.reduce(&context);
-                if !reduced_body_type.is_subtype(&reduced_expected_ty) {
-                    None.expect(
-                    &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display()
-                               )
-                }
+            if !reduced_body_type.is_subtype(&reduced_expected_ty) {
+                None.expect(
+                    &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display())
+            }
             let new_context = res.1.unifications.into_iter()
                 .fold(context.clone(), |cont, uni_vec| cont.push_unifications(uni_vec));
             (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), new_context)
@@ -384,16 +383,24 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             if typing(context, cond).0.is_boolean() {
                 let true_ty = typing(context, true_branch).0;
                 let false_ty = typing(context, false_branch).0;
-                if let Type::Union(v, h) = false_ty {
+                let set = if let Type::Union(v, h) = false_ty {
                     let mut set = v; set.insert(true_ty);
-                    (Type::Union(set.clone(), h), context.clone())
+                    set
+                    //(Type::Union(set.clone(), h), context.clone())
                 } else if false_ty.is_empty() {
                     let mut set = HashSet::new(); set.insert(true_ty);
-                    (Type::Union(set.clone(), HelpData::default()), context.clone())
+                    set
+                    //(Type::Union(set.clone(), HelpData::default()), context.clone())
                 } else {
                     let mut set = HashSet::new(); 
                     set.insert(false_ty);
                     set.insert(true_ty);
+                    set
+                    //(Type::Union(set.clone(), HelpData::default()), context.clone())
+                };
+                if set.len() == 1 {
+                    (set.iter().cloned().next().unwrap(), context.clone())
+                } else {
                     (Type::Union(set.clone(), HelpData::default()), context.clone())
                 }
             } else {

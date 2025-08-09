@@ -23,7 +23,6 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use crate::builder;
 use crate::type_category::TypeCategory;
-use crate::typing;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -479,6 +478,9 @@ impl Type {
 
             (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(set2),
             (Type::Union(s1, _), Type::Union(s2, _)) => s1.is_subset(s2),
+
+            (Type::Char(_, _), Type::Char(_, _)) => true,
+            (Type::Integer(_, _), Type::Integer(_, _)) => true,
 
             _ => false
         }

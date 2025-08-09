@@ -108,9 +108,22 @@ impl VarType {
             _ => self.aliases.iter()
                 .find(|(_, typ)| typ == t)
                 .map(|(var, _)| var.get_name())
-                .expect(&format!("{} was not found with a corresponding alias.", t))
+                .unwrap_or(t.pretty())
         };
         "'".to_string() + &res + "'"
+    }
+
+    pub fn get_class_unquoted(&self, t: &Type) -> String {
+        match t {
+            Type::Integer(_, _) => "integer".to_string(),
+            Type::Char(_, _) => "character".to_string(),
+            Type::Boolean(_) => "logical".to_string(),
+            Type::Number(_) => "numeric".to_string(),
+            _ => self.aliases.iter()
+                .find(|(_, typ)| typ == t)
+                .map(|(var, _)| var.get_name())
+                .unwrap_or(t.pretty())
+        }
     }
 
     pub fn get_type_from_class(&self, class: &str) -> Type {

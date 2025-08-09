@@ -582,7 +582,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             Type::Any(_) 
                                 => (format!("{}.default <- {}", new_name, body_str), new_name.clone()),
                             _ => {
-                                let class = cont.get_class(&reduce_type(cont, &related_type));
+                                let class = cont.get_class_unquoted(&reduce_type(cont, &related_type));
                                 let new_name2 = format!("{}.{}", new_name.clone(), class);
                                 (format!("{} <- {}", new_name2, body_str), new_name2)
                             }
@@ -613,7 +613,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     .unwrap_or(format!("array({}, dim = c(dim({})))", 
                                        vector, v[0].to_r(&cont).0));
 
-                (format!("{} |> \n\tstruct({})", array, classes)
+                (format!("{} |> \n\tstruct(c({}))", array, classes)
                  ,cont.to_owned())
             },
             Lang::Record(args, _) => {
