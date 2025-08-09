@@ -74,7 +74,7 @@ pub enum Lang {
     Module(String, Vec<Lang>, HelpData), // module name { lines }
     ModuleDecl(String, HelpData), // to create an env
     Variable(String, Path, Permission, bool, Type, HelpData),
-    FunctionApp(Box<Lang>, Vec<Lang>, HelpData),
+    FunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
     ArrayIndexing(Box<Lang>, i32, HelpData),
     Let(Var, Type, Box<Lang>, HelpData),
     Array(Vec<Lang>, HelpData),
@@ -225,7 +225,7 @@ impl Lang {
             Lang::Module(_, _, h) => h,
             Lang::ModuleDecl(_, h) => h,
             Lang::Variable(_, _, _, _, _, h) => h,
-            Lang::FunctionApp(_, _, h) => h,
+            Lang::FunctionApp(_, _, _, h) => h,
             Lang::ArrayIndexing(_, _, h) => h,
             Lang::Let(_, _, _, h) => h,
             Lang::Array(_, h) => h,
@@ -306,7 +306,7 @@ impl Lang {
             Lang::Module(_, _, _) => "Module".to_string(),
             Lang::ModuleDecl(_, _) => "ModuleDecl".to_string(),
             Lang::Variable(name, _, _, _, _, _) => format!("Variable({})", name),
-            Lang::FunctionApp(var, _, _) => 
+            Lang::FunctionApp(var, _, _, _) => 
                 format!("FunctionApp({})", Var::from_language(*(var.clone())).unwrap().get_name()),
             Lang::ArrayIndexing(_, _, _) => "ArrayIndexing".to_string(),
             Lang::Let(_, _, _, _) => "Let".to_string(),
@@ -351,7 +351,7 @@ impl From<Lang> for HelpData {
            Lang::Char(_, h) => h,
            Lang::Variable(_, _, _, _, _, h) => h,
            Lang::Match(_, _, _, h) => h,
-           Lang::FunctionApp(_, _, h) => h,
+           Lang::FunctionApp(_, _, _, h) => h,
            Lang::Empty(h) => h,
            Lang::Array(_, h) => h,
            Lang::Eq(_, _, h) => h,
@@ -418,6 +418,7 @@ impl fmt::Display for Lang {
     }
 }
 
+//main
 impl RTranslatable<(String, Context)> for Lang {
     fn to_r(&self, cont: &Context) -> (String, Context) {
         let result = match self {
@@ -485,7 +486,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             .to_r(&at.get_value()).add(" })")
                             .into()
                     }
-                    Lang::FunctionApp(_, _, _) => {
+                    Lang::FunctionApp(_, _, _, _) => {
                         Translatable::from(cont.clone())
                             .to_r(e1).add(" |> ").to_r(e2)
                             .into()
@@ -508,12 +509,12 @@ impl RTranslatable<(String, Context)> for Lang {
                 let (body_str, new_cont) = body.to_r(&sub_cont);
                 let fn_type = typing(&sub_cont, self).0;
 
-                let class = cont.get_class(&fn_type);
-                let classes = cont.get_classes(&fn_type)
-                    .unwrap_or("''".to_string());
-                (format!("(function({}) {{\n {} \n}}) |> struct(c({}, {}))", 
+                //let class = cont.get_class(&fn_type);
+                //let classes = cont.get_classes(&fn_type)
+                    //.unwrap_or("''".to_string());
+                (format!("(function({}) {{\n {} \n}}) |> {}", 
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
-                        body_str, class, classes), 
+                        body_str, cont.get_type_anotation(&fn_type)), 
                 new_cont)
             },
             Lang::Variable(v, path, _, _, ty, _) => {
@@ -528,7 +529,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 };
                 ((path.clone().to_r() + &name).to_string(), cont.clone())
             }
-            Lang::FunctionApp(exp, vals, _) => {
+            Lang::FunctionApp(exp, vals, _, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
                 if cont.is_an_untyped_function(&var.get_name()) {
                     let s = format!("{}({})",var.get_name(), 
@@ -536,12 +537,8 @@ impl RTranslatable<(String, Context)> for Lang {
                     (s, cont.clone())
                 } else {
                     let (exp_str, cont1) = exp.to_r(cont);
-                    let (unification_map, _cont2) = cont1.pop_unifications();
-                    let fn_type = typing(cont, exp).0;
-                    let new_fn_typ = unification::type_substitution(&fn_type, &unification_map.unwrap_or(vec![]));
-
-                    let fn_t = FunctionType::try_from(new_fn_typ.clone())
-                        .expect(&format!("Error: {} is not a function type", new_fn_typ));
+                    let params = vals.iter().map(|x| typing(cont, x).0).collect::<Vec<_>>();
+                    let fn_t = cont1.get_true_fn_type(params);
 
                     let new_args = fn_t.get_param_types().into_iter()
                             .map(|arg| reduce_type(&cont1, &arg))
@@ -579,7 +576,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         match related_type {
                             Type::Empty(_) 
                                 => (format!("{} <- {}", new_name, body_str), new_name.clone()),
-                            Type::Any(_) 
+                            Type::Any(_) | Type::Generic(_, _) 
                                 => (format!("{}.default <- {}", new_name, body_str), new_name.clone()),
                             _ => {
                                 let class = cont.get_class_unquoted(&reduce_type(cont, &related_type));
@@ -606,28 +603,27 @@ impl RTranslatable<(String, Context)> for Lang {
                     .unwrap_or("logical(0)".to_string());
 
                 let dim = typing(&cont, &self).0;
-                let classes = cont.get_classes(&dim).unwrap_or("''".to_string());
+                //let classes = cont.get_classes(&dim).unwrap_or("''".to_string());
 
-                let array = ArrayType::try_from(dim).unwrap().get_shape()
+                let array = ArrayType::try_from(dim.clone()).unwrap().get_shape()
                     .map(|sha| format!("array({}, dim = c({}))", vector, sha))
                     .unwrap_or(format!("array({}, dim = c(dim({})))", 
                                        vector, v[0].to_r(&cont).0));
 
-                (format!("{} |> \n\tstruct(c({}))", array, classes)
-                 ,cont.to_owned())
+                (format!("{} |> {}", array, cont.get_type_anotation(&dim)) ,cont.to_owned())
             },
             Lang::Record(args, _) => {
                 let (body, current_cont) = 
                 Translatable::from(cont.clone())
                     .join_arg_val(args, ", ").into();
-
                 let typ = type_checker::typing(cont, self).0;
-                let class = cont.get_class(&typ);
+                //let class = cont.get_class(&typ);
+               let anotation = cont.get_type_anotation(&typ);
                 cont.get_classes(&typ)
-                    .map(|res| format!("struct(list({}), c('list', 'Record', '{}', {}))", 
-                                body, class, res))
-                    .unwrap_or(format!("struct(list({}), c('list', 'Record', '{}'))",
-                                body, class))
+                    .map(|classes| format!("list({}) |> {}", 
+                                body, anotation))
+                    .unwrap_or(format!("list({}) |> {}",
+                                body, anotation))
                     .to_some().map(|s| (s, current_cont)).unwrap()
             },
             Lang::Char(s, _) => 

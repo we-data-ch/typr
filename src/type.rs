@@ -681,8 +681,8 @@ impl PartialEq for Type {
             (Type::Array(a1, b1, _), Type::Array(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
-            (Type::Alias(a1, b1, c1, d1, _), Type::Alias(a2, b2, c2, d2, _)) 
-                => a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2,
+            (Type::Alias(a1, b1, c1, _, _), Type::Alias(a2, b2, c2, _, _)) 
+                => a1 == a2 && b1 == b2 && c1 == c2,
             (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
             (Type::StrictUnion(e1, _), Type::StrictUnion(e2, _)) => e1 == e2,

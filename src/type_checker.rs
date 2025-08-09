@@ -188,7 +188,6 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                 context.clone().push_var_type(new_var, typ.to_owned(), context)
             } else { // is alias
                 context.clone()
-                    .push_alias(var.get_name(), var.get_type())
                     .push_var_type(var.to_owned(), typ.to_owned(), context)
             }
         },
@@ -341,14 +340,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 None.expect(
                     &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display())
             }
-            let new_context = res.1.unifications.into_iter()
-                .fold(context.clone(), |cont, uni_vec| cont.push_unifications(uni_vec));
-            (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), new_context)
+            (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), res.1)
             }
         Lang::Sequence(exprs, _h) => {
             if exprs.len() == 1 {
                 let res = exprs.clone().pop().unwrap();
-                typing(context, &res)
+                let (typ, cont) = typing(context, &res);
+                (typ.clone(), context.clone().push_var_type(Var::from("_out"), typ, &context))
             } else if exprs.len() == 0 {
                 (Type::Empty(HelpData::default()), context.clone()) 
             } else {
@@ -360,7 +358,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 typing(&new_context, &exp)
             }
         },
-        Lang::FunctionApp(fn_var_name, values, h) => {
+        Lang::FunctionApp(fn_var_name, values, _, h) => {
             let var = Var::try_from(fn_var_name.clone()).unwrap();
             if context.is_an_untyped_function(&var.get_name()) {
                 (Type::Empty(h.clone()), context.clone())
@@ -369,10 +367,15 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                     .get_related_function(values, context)
                     .expect(&TypeError::UndefinedFunction((**fn_var_name).clone()).display());
                 let param_types = func.get_param_types();
-                context
-                    .get_unification_map(values, &param_types)
-                    .unwrap_or(UnificationMap::new(vec![]))
-                    .apply_unification_type(context, &func.get_ret_type())
+                let unification_map = context
+                        .get_unification_map(values, &param_types)
+                        .unwrap_or(UnificationMap::new(vec![]));
+                let (new_typ, new_context) = unification_map
+                        .apply_unification_type(context, &func.get_ret_type());
+                let params = func.get_param_types().iter()
+                            .map(|p| unification_map.apply_unification_type(context, p).0)
+                            .collect::<Vec<_>>();
+                (new_typ.clone(), new_context.push(func.set_params(params).set_ret_type(new_typ)))
             }
         }
         Lang::Tag(name, expr, h) => {

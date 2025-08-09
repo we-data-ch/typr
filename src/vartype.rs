@@ -113,6 +113,14 @@ impl VarType {
         "'".to_string() + &res + "'"
     }
 
+    pub fn get_type_anotation(&self, t: &Type) -> String {
+        let res = self.aliases.iter()
+            .find(|(_, typ)| typ == t)
+            .map(|(var, _)| var.get_name())
+            .unwrap_or(t.pretty());
+        format!("{}()", res)
+    }
+
     pub fn get_class_unquoted(&self, t: &Type) -> String {
         match t {
             Type::Integer(_, _) => "integer".to_string(),

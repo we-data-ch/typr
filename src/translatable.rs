@@ -34,9 +34,9 @@ impl Translatable {
         }
     }
 
-    pub fn to_r_arg_val(self, arg_val: &ArgumentValue) -> Translatable {
+    pub fn to_r_arg_val(self, arg_val: &ArgumentValue, joint: &str) -> Translatable {
         let res = arg_val.to_r(&self.context);
-        self.add(&res).add(", ")
+        self.add(&res).add(joint)
     }
 
     pub fn add(self, s: &str) -> Translatable {
@@ -68,7 +68,7 @@ impl Translatable {
     pub fn join_arg_val(self, vals: &[ArgumentValue], joint: &str) -> Translatable {
         vals.into_iter()
             .fold(self, 
-                  |trans, val| trans.to_r_arg_val(val).add(joint))
+                  |trans, val| trans.to_r_arg_val(val, joint))
             .sub(joint.len())
     }
 

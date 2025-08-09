@@ -483,13 +483,14 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
                 type_alias,
                 terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (at, Type::Alias(name, params, _, _, h), _))) 
+        Ok((s, (at, Type::Alias(name, params, path, _, h), _))) 
             => {
                 let var2 = Var::from_name(&name)
                     .set_help_data(h.clone())
-                    .set_type(Type::Params(params, h.clone()))
+                    .set_type(Type::Params(params.clone(), h.clone()))
                     .set_opacity(true);
-                Ok((s, vec![Lang::Signature(var2, Type::Empty(h), at.into())]))
+                let t_alias = Type::Alias(name, params, path, true, h);
+                Ok((s, vec![Lang::Signature(var2, t_alias, at.into())]))
             },
         Ok((_s, (_, _, _))) => todo!(),
         Err(r) => Err(r)

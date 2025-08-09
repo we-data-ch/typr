@@ -657,6 +657,7 @@ pub fn ltype(s: Span) -> IResult<Span, Type> {
 mod tests {
     use super::*;
     use crate::builder;
+    use crate::Adt;
 
     #[test]
     fn test_function_type() {
@@ -812,6 +813,12 @@ mod tests {
     fn test_alias_type2() {
         let res = ltype("Option".into()).unwrap().1;
         assert_eq!(res.to_string(), "");
+    }
+
+    #[test]
+    fn test_alias_type3() {
+        let res = ltype("tbl".into()).unwrap().1;
+        assert_eq!(res, builder::empty_type());
     }
 
     #[test]

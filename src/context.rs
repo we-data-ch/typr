@@ -11,7 +11,6 @@ use crate::type_comparison::is_matching;
 use crate::help_data::HelpData;
 use crate::typing;
 use crate::type_checker::match_types;
-use crate::unification_map::UnificationMap;
 use crate::graph::Graph;
 use crate::type_comparison::reduce_type;
 use crate::TypeError;
@@ -23,14 +22,15 @@ use crate::config::Config;
 use crate::Adt;
 use crate::language::ToSome;
 use crate::builder;
+use std::collections::HashSet;
+use crate::unification_map::UnificationMap;
+use crate::function_type::FunctionType;
 
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
    pub typing_context: VarType,
    pub subtypes: Graph,
-   //nominals: TypeNominal,
-   pub unifications: Vec<Vec<(Type, Type)>>,
    header: Header,
    config: Config,
    kinds: Vec<(Type, Kind)>,
@@ -44,7 +44,6 @@ impl Default for Context {
             typing_context: VarType::new(),
             kinds: vec![],
             subtypes: Graph::new(),
-            unifications: vec![]
         }
     }
 }
@@ -178,10 +177,16 @@ impl Context {
         self.typing_context.get_class_unquoted(t)
     }
 
+    pub fn get_type_anotation(&self, t: &Type) -> String {
+        self.typing_context.get_type_anotation(t)
+    }
+
     pub fn get_classes(&self, t: &Type) -> Option<String> {
         self.subtypes.get_supertypes(t)
             .iter().map(|typ| self.get_class(typ))
-            .collect::<Vec<_>>().join(", ").to_some()
+            .collect::<HashSet<_>>()
+            .iter().cloned().collect::<Vec<_>>()
+            .join(", ").to_some()
     }
 
     pub fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {
@@ -263,28 +268,7 @@ impl Context {
         self.typing_context.get_type_from_class(class)
     }
 
-    pub fn push_unifications(&self, unifs: Vec<(Type, Type)>) -> Context {
-        let mut new_unifications = self.unifications.clone();
-        new_unifications.push(unifs);
-        Context {
-            unifications: new_unifications,
-            ..self.clone()
-        }
-    }
 
-    pub fn pop_unifications(&self) -> (Option<Vec<(Type, Type)>>, Context) {
-        let mut new_unifications = self.unifications.clone();
-        let popped = if !new_unifications.is_empty() {
-            Some(new_unifications.remove(0))
-        } else {
-            None
-        };
-        
-        (popped, Context {
-            unifications: new_unifications,
-            ..self.clone()
-        })
-    }
     pub fn add_arg_types(&self, params: &[ArgumentType]) -> Context {
         let param_types = params.iter()
             .map(|arg_typ| reduce_type(self, &arg_typ.get_type()).for_var())
@@ -342,17 +326,6 @@ impl Context {
         format!("{}{}", msg, self.display_typing_context())
     }
 
-    pub fn get_unification_map(&self, values: &[Lang], param_types: &[Type]) 
-        -> Option<UnificationMap> {
-        let res = values.iter()
-            .map(|val| typing(self, val).0)
-            .zip(param_types.iter())
-            .flat_map(|(val_typ, par_typ)| match_types(self, &val_typ, par_typ))
-            .flatten()
-            .collect::<Vec<_>>();
-        (res.len() > 0).then(|| UnificationMap::new(res))
-    }
-
     pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
         Context {
             typing_context: self.typing_context.push_alias(alias_name, typ),
@@ -379,7 +352,7 @@ impl Context {
     }
 
     pub fn get_adt(&self) -> Adt {
-        self.header.adt.get_adt()
+        self.header.metadata.get_adt()
     }
 
     pub fn in_a_project(&self) -> bool {
@@ -397,6 +370,38 @@ impl Context {
         }
     }
 
+    pub fn get_unification_map(&self, values: &[Lang], param_types: &[Type]) 
+        -> Option<UnificationMap> {
+        let res = values.iter()
+            .map(|val| typing(self, val).0)
+            .zip(param_types.iter())
+            .flat_map(|(val_typ, par_typ)| match_types(self, &val_typ, par_typ))
+            .flatten()
+            .collect::<Vec<_>>();
+        (res.len() > 0).then(|| UnificationMap::new(res))
+    }
+
+    pub fn get_type_converters(&self) -> String {
+        self.typing_context.aliases.iter()
+            .map(|(var, typ)| {
+               format!("{} <- function(x) x |> struct(c({}, {}))",
+                   var.get_name(),
+                   self.get_class(typ),
+                   self.get_classes(typ).unwrap()) 
+            }).collect::<Vec<_>>().join("\n")
+    }
+
+    pub fn push(self, fn_type: FunctionType) -> Self {
+        Self {
+            header: self.header.push(fn_type),
+            ..self
+        }
+    }
+
+    pub fn get_true_fn_type(&self, params: Vec<Type>) -> FunctionType {
+        self.header.get_true_fn_type(params)
+    }
+
 }
 
 fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
@@ -410,13 +415,14 @@ fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
                 vec![
                     Var::from_name("a").to_language(),
                     Lang::Char(param.to_string(), HelpData::default()),
-                    Lang::FunctionApp(Box::new(name.to_language()), args.clone(), args.clone().into()),
+                    Lang::FunctionApp(Box::new(name.to_language()), args.clone(), builder::empty_type(), args.clone().into()),
                 ],
+                builder::empty_type(),
                 args.into()
             )
         },
         _ => {
-            Lang::FunctionApp(Box::new(name.to_language()), args.clone(), args.into())
+            Lang::FunctionApp(Box::new(name.to_language()), args.clone(), builder::empty_type(), args.into())
         }
     }
 }
@@ -449,7 +455,9 @@ impl Manip {
                     vec![
                         Var::from_name(&argname).to_language(),
                         Lang::Char(field.to_string(), HelpData::default())
-                    ], HelpData::default())
+                    ],
+                    builder::empty_type(),
+                    HelpData::default())
             },
             _ => builder::empty_lang()
         }

@@ -277,9 +277,17 @@ impl Graph {
 
     /// Trouve tous les super-types d'un type donné
     pub fn get_supertypes(&self, target_type: &Type) -> Vec<Type> {
-        let mut supertypes = Vec::new();
-        self.find_supertypes_recursive(&self.root, target_type, &mut supertypes);
-        supertypes
+        if target_type.is_empty() {
+            vec![builder::generic_type()]
+        } else {
+            let mut supertypes = Vec::new();
+            self.find_supertypes_recursive(&self.root, target_type, &mut supertypes);
+            supertypes.iter()
+                        .filter(|x| !x.is_any())
+                        .cloned()
+                        .collect()
+        }
+
     }
 
     fn find_supertypes_recursive(

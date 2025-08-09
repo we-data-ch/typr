@@ -51,10 +51,10 @@ impl UnificationMap {
         unification::type_substitution(ret_ty, &self.0)
     }
 
-    pub fn apply_unification_type(self, context: &Context, ret_ty: &Type) -> (Type, Context) {
+    pub fn apply_unification_type(&self, context: &Context, ret_ty: &Type) -> (Type, Context) {
         let new_type = self.type_substitution(ret_ty)
             .index_calculation();
-        (new_type, context.clone().push_unifications(self.0))
+        (new_type, context.clone())
     }
 }
 

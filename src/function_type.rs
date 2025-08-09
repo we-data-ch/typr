@@ -3,7 +3,7 @@ use crate::Type;
 use crate::help_data::HelpData;
 use crate::builder;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionType(pub Vec<ArgumentKind>, pub Vec<Type>, pub Type, pub HelpData);
 
 impl FunctionType {
@@ -36,6 +36,15 @@ impl FunctionType {
     pub fn set_help_data(self, h: HelpData) -> Self {
         FunctionType(self.0, self.1, self.2, h)
     }
+
+    pub fn set_params(self, params: Vec<Type>) -> Self {
+        FunctionType(self.0, params, self.2, self.3)
+    }
+
+    pub fn set_ret_type(self, ret_typ: Type) -> Self {
+        FunctionType(self.0, self.1, ret_typ, self.3)
+    }
+
 }
 
 impl TryFrom<Type> for FunctionType {

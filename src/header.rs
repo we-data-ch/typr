@@ -1,11 +1,15 @@
 use crate::adt_header::AdtHeader;
 use crate::Lang;
 use std::collections::HashSet;
+use crate::Adt;
+use crate::Type;
+use crate::function_type::FunctionType;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Header {
    function_list: String,
-   pub adt: AdtHeader,
+   pub metadata: AdtHeader,
+   fn_types: Vec<FunctionType>,
 }
 
 impl Header {
@@ -13,12 +17,12 @@ impl Header {
         let data = data.iter()
             .filter(|x| Self::is_gen_func_allowed(x))
             .collect::<Vec<_>>();
-        let adt_header = self.adt.set_generic_methods(
+        let adt_header = self.metadata.set_generic_methods(
             data.iter()
-                .fold(self.adt.generic_methods.clone(),
+                .fold(self.metadata.generic_methods.clone(),
                 |adt, lang| add_if_absent(adt, (*lang).clone().clone())));
         Header {
-            adt: adt_header,
+            metadata: adt_header,
             ..self
         }
     }
@@ -51,14 +55,29 @@ impl Header {
 
 
     pub fn add_module_declarations(self, data: &[Lang]) -> Header {
-        let adt_header = self.adt.set_module(
+        let adt_header = self.metadata.set_module(
             data.iter()
-                .fold(self.adt.modules.clone(),
+                .fold(self.metadata.modules.clone(),
                 |adt, lang| add_if_absent(adt, lang.clone())));
         Header {
-            adt: adt_header,
+            metadata: adt_header,
             ..self
         }
+    }
+
+    pub fn push(self, fn_typ: FunctionType) -> Self {
+        Self {
+            fn_types: self.fn_types.iter().chain([fn_typ].iter()).cloned().collect(),
+            ..self
+        }
+    }
+
+    pub fn get_true_fn_type(&self, params: Vec<Type>) -> FunctionType {
+        self.fn_types.iter()
+            .find(|fn_typ| fn_typ.get_param_types() == params)
+            .expect(&format!("No function signature found for those params {}", 
+                             params.iter().map(|x| x.pretty()).collect::<Vec<_>>().join(", ")))
+            .clone()
     }
 
 }
@@ -67,7 +86,8 @@ impl Default for Header {
     fn default() -> Header {
         Header {
             function_list: include_str!("../configs/src/functions.txt").to_string(),
-            adt: AdtHeader::default()
+            metadata: AdtHeader::default(),
+            fn_types: vec![],
         }
     }
 }
