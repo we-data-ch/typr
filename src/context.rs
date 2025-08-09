@@ -167,7 +167,7 @@ impl Context {
     }
 
     pub fn is_an_untyped_function(&self, name: &str) -> bool {
-        self.header.is_an_untyped_function(name)
+        (!self.typing_context.name_exists(name)) && self.header.is_an_untyped_function(name)
     }
 
     pub fn get_class(&self, t: &Type) -> String {

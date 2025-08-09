@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::Write;
 use crate::translatable::RTranslatable;
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct Adt(pub Vec<Lang>);
 
 impl fmt::Display for Adt {
@@ -67,4 +67,8 @@ impl Adt {
 
 }
 
-
+impl Default for Adt {
+    fn default() -> Adt {
+        Adt(vec![])
+    }
+}

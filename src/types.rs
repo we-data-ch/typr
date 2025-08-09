@@ -315,7 +315,7 @@ fn tag_exp(s: Span) -> IResult<Span, Type> {
 fn tags(s: Span) -> IResult<Span, Type> {
     let res = (
         tag_exp,
-        terminated(tag("|"), multispace0)
+        terminated(tag("||"), multispace0)
           ).parse(s);
     match res {
         Ok((s, (t, _))) => Ok((s, t)),
@@ -324,7 +324,7 @@ fn tags(s: Span) -> IResult<Span, Type> {
 }
 
 
-fn union(s: Span) -> IResult<Span, Type> {
+fn strict_union(s: Span) -> IResult<Span, Type> {
     let res = (
            alt((tags, tag_exp)),
            many0(alt((tags, tag_exp)))).parse(s);
@@ -334,24 +334,33 @@ fn union(s: Span) -> IResult<Span, Type> {
            let res = [t].iter()
                .chain(v.iter()).cloned()
                .flat_map(Tag::from_type).collect();
-           Ok((s.clone(), Type::Union(res, s.into())))
+           Ok((s.clone(), Type::StrictUnion(res, s.into())))
        },
        Err(r) => Err(r)
    }
 }
 
-fn chars(s: Span) -> IResult<Span, Type> {
-    let res = tag("char")(s);
+fn union_helper(s: Span) -> IResult<Span, Type> {
+    terminated(terminated(utype, opt(tag("|"))), multispace0).parse(s)
+}
+
+fn union(s: Span) -> IResult<Span, Type> {
+    let res = (union_helper, many1(union_helper)).parse(s);
+
     match res {
-        Ok((s, st)) => Ok((s, Type::Char(Tchar::Unknown, st.into()))),
+        Ok((s, (first, v))) => Ok((s, Type::Union(v.iter().chain([first].iter())
+                                                  .cloned().collect(),
+                                            v[0].clone().into()))),
         Err(r) => Err(r)
     }
 }
 
-fn data_frame(s: Span) -> IResult<Span, Type> {
-    let res = tag("data.frame")(s);
+
+
+fn chars(s: Span) -> IResult<Span, Type> {
+    let res = tag("char")(s);
     match res {
-        Ok((s, st)) => Ok((s, Type::DataFrame(st.into()))),
+        Ok((s, st)) => Ok((s, Type::Char(Tchar::Unknown, st.into()))),
         Err(r) => Err(r)
     }
 }
@@ -596,14 +605,9 @@ fn r_class(s: Span) -> IResult<Span, Type> {
     }
 }
 
-
-//ltype to not use the reserved symbol "type"
-// main
-pub fn ltype(s: Span) -> IResult<Span, Type> {
+pub fn utype(s: Span) -> IResult<Span, Type> {
     terminated(alt((
-            multitype,
             r_class,
-            data_frame,
             any,
             empty,
             interface,
@@ -613,7 +617,33 @@ pub fn ltype(s: Span) -> IResult<Span, Type> {
             integer,
             boolean,
             chars,
+            type_alias,
+            generic,
+            array_type,
+            function_type,
+            tuple_type,
+            record_type,
+            )), multispace0).parse(s)
+}
+
+
+//ltype to not use the reserved symbol "type"
+// main
+pub fn ltype(s: Span) -> IResult<Span, Type> {
+    terminated(alt((
             union,
+            multitype,
+            r_class,
+            any,
+            empty,
+            interface,
+            label_generic,
+            index_algebra,
+            number,
+            integer,
+            boolean,
+            chars,
+            strict_union,
             type_alias,
             generic,
             array_type,
@@ -720,13 +750,13 @@ mod tests {
 
     #[test]
     fn test_union1() {
-        let res = union("Rouge | Vert | Orange".into()).unwrap().1;
+        let res = strict_union("Rouge | Vert | Orange".into()).unwrap().1;
         assert_eq!(res.to_string(), "union([ttag('Rouge', empty), ttag('Vert', empty), ttag('Orange', empty)])");
     }
 
     #[test]
     fn test_union2() {
-        let res = union("Rouge | Vert".into()).unwrap().1;
+        let res = strict_union("Rouge | Vert".into()).unwrap().1;
         assert_eq!(res.to_string(), "union([ttag('Rouge', empty), ttag('Vert', empty)])");
     }
 
@@ -740,6 +770,12 @@ mod tests {
     fn test_union4() {
         let res = ltype("Rouge(num)".into()).unwrap().1;
         assert_eq!(res.to_string(), "ttag('Rouge', num)");
+    }
+
+    #[test]
+    fn test_u0() {
+        let res = union("int | bool".into()).unwrap().1;
+        assert_eq!(res.to_string(), "int, bool");
     }
 
     #[test]

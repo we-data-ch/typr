@@ -35,6 +35,8 @@ use nom::combinator::recognize;
 use crate::help_message::SyntaxError;
 use crate::help_message::ErrorMsg;
 use nom::bytes::complete::take_while1;
+use crate::types::utype;
+use crate::Adt;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -451,16 +453,16 @@ fn if_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 
-fn branch(s: Span) -> IResult<Span, (Box<Lang>, Box<Lang>)> {
+fn branch(s: Span) -> IResult<Span, (Type, Box<Lang>)> {
     let res = (
-            terminated(tag_exp, multispace0),
+            terminated(utype, multispace0),
             terminated(tag("=>"), multispace0),
-            terminated(single_element, multispace0),
+            terminated(parse_elements, multispace0),
             opt(terminated(tag(","), multispace0)),
                     ).parse(s);
     match res {
-        Ok((s, (part1, _arr, part2, _vir)))
-            => Ok((s, (Box::new(part1), Box::new(part2)))),
+        Ok((s, (typ, _arr, lang, _vir)))
+            => Ok((s, (typ, Box::new(lang)))),
         Err(r) => Err(r)
     }
 }
@@ -468,14 +470,16 @@ fn branch(s: Span) -> IResult<Span, (Box<Lang>, Box<Lang>)> {
 fn match_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
             terminated(tag("match"), multispace0),
+            alt((variable, element_chain)),
+            terminated(tag("as"), multispace0),
             variable,
             terminated(tag("{"), multispace0),
-            many0(branch),
+            many1(branch),
             terminated(tag("}"), multispace0),
                     ).parse(s);
     match res {
-        Ok((s, (_m, val, _o, bs, _c))) 
-            => Ok((s, Lang::Match(Box::new(val), bs, _m.into()))),
+        Ok((s, (_m, exp, _as, var, _o, bs, _c))) 
+            => Ok((s, Lang::Match(Box::new(exp), Var::try_from(var).unwrap(), bs, _m.into()))),
         Err(r) => Err(r)
     }
 }
@@ -820,6 +824,7 @@ mod tests {
     use super::*;
     use crate::builder;
     use std::backtrace::Backtrace;
+    use crate::parse;
 
     #[test]
     fn test_single_element() {
@@ -1003,25 +1008,37 @@ mod tests {
     #[test]
     fn test_branch1() {
         let res = branch("True => 3".into()).unwrap().1;
-        assert_eq!(res, (Box::new(builder::empty_lang()), Box::new(builder::empty_lang())));
+        assert_eq!(res, (builder::empty_type(), Box::new(builder::empty_lang())));
     }
 
     #[test]
     fn test_branch2() {
         let res = branch("Int(i) => 3".into()).unwrap().1;
-        assert_eq!(res, (Box::new(builder::empty_lang()), Box::new(builder::empty_lang())));
+        assert_eq!(res, (builder::empty_type(), Box::new(builder::empty_lang())));
     }
 
     #[test]
     fn test_match1() {
-        let res = match_exp("match a { True => 3, False => 4, }".into()).unwrap().1;
+        let res = match_exp("match x as xm { int => str(xm), char => xm }".into()).unwrap().1;
         assert_eq!(res, builder::empty_lang());
     }
 
     #[test]
     fn test_match2() {
-        let res = match_exp("match res { None => true, Some(t) => false }".into()).unwrap().1;
+        let res = single_element("match x as xm { int => str(xm), char => xm }".into()).unwrap().1;
         assert_eq!(res, builder::empty_lang());
+    }
+    
+    #[test]
+    fn test_match3() {
+        let res = parse_elements("match x as xm { int => str(xm), char => xm }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
+    }
+    
+    #[test]
+    fn test_match4() {
+        let res = parse("match x as xm { int => str(xm), char => xm }".into()).unwrap().1;
+        assert_eq!(res, Adt::default());
     }
 
     #[test]

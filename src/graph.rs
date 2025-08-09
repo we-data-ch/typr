@@ -68,10 +68,17 @@ impl Graph {
         let mut node_cache = HashMap::new();
         node_cache.insert(builder::generic_type(), root_node.clone());
 
-        Graph {
+        let mut res = Graph {
             root: root_node,
             node_cache,
-        }
+        };
+
+        res.add_type(builder::integer_type_default());
+        res.add_type(builder::character_type_default());
+        res.add_type(builder::boolean_type());
+        res.add_type(builder::number_type());
+        res
+
     }
 
     /// Ajoute un type au graphe selon la logique de sous-typage
@@ -235,9 +242,6 @@ impl Graph {
                     child.add_subtype(node_to_reconnect);
                 }
                 
-                println!("Reconnecté {} enfants sous {}", 
-                         insertion_info.children_to_reconnect.len(), 
-                         child.type_info.pretty());
             }
             
             //println!("Ajout de {} comme sous-type de {}", 

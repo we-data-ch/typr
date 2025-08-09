@@ -85,6 +85,7 @@ impl VarType {
     }
 
     fn push_variables(self, vt: Vec<(Var, Type)>) -> Self {
+        //vt.iter().map(|var| )
         VarType {
             variables: self.variables.iter().chain(vt.iter()).cloned().collect(),
             ..self
@@ -99,10 +100,16 @@ impl VarType {
     }
 
     pub fn get_class(&self, t: &Type) -> String {
-        let res = self.aliases.iter()
-            .find(|(_, typ)| typ == t)
-            .map(|(var, _)| var.get_name())
-            .expect(&format!("{} was not found with a corresponding alias.", t));
+        let res = match t {
+            Type::Integer(_, _) => "integer".to_string(),
+            Type::Char(_, _) => "character".to_string(),
+            Type::Boolean(_) => "logical".to_string(),
+            Type::Number(_) => "numeric".to_string(),
+            _ => self.aliases.iter()
+                .find(|(_, typ)| typ == t)
+                .map(|(var, _)| var.get_name())
+                .expect(&format!("{} was not found with a corresponding alias.", t))
+        };
         "'".to_string() + &res + "'"
     }
 
@@ -143,6 +150,12 @@ impl VarType {
             variables: vec,
             ..self
         }
+    }
+
+    pub fn name_exists(&self, name: &str) -> bool {
+        self.variables.iter()
+            .find(|(var, _)| var.get_name() == name)
+            .is_some()
     }
 
 }

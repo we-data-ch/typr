@@ -139,12 +139,12 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
             }
         },
 
-        (Type::Union(types1, _), Type::Union(_types2, _)) => {
+        (Type::StrictUnion(types1, _), Type::StrictUnion(_types2, _)) => {
             types1.iter().all(|t1| is_subtype(context, &t1.to_type(), type2))
         },
 
         // Union subtyping
-        (Type::Tag(_name, _body, _h), Type::Union(types, _)) => {
+        (Type::Tag(_name, _body, _h), Type::StrictUnion(types, _)) => {
             types.iter().any(|t| is_matching(context, type1, &t.to_type()))
         },
         (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
@@ -235,8 +235,8 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
             }
         }
 
-        Type::Union(types, h) => {
-            Type::Union(types.iter()
+        Type::StrictUnion(types, h) => {
+            Type::StrictUnion(types.iter()
                 .map(|t| reduce_type(context, &t.to_type()))
                 .flat_map(Tag::from_type)
                 .collect(), h.clone())

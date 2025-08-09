@@ -50,7 +50,8 @@ pub enum Type {
     Record(Vec<ArgumentType>, HelpData),
     Alias(String, Vec<Type>, Path, bool, HelpData), //for opacity
     Tag(String, Box<Type>, HelpData),
-    Union(Vec<Tag>, HelpData),
+    Union(HashSet<Type>, HelpData),
+    StrictUnion(Vec<Tag>, HelpData),
     Interface(Vec<ArgumentType>, HelpData),
     Params(Vec<Type>, HelpData),
     Add(Box<Type>, Box<Type>, HelpData),
@@ -64,7 +65,6 @@ pub enum Type {
     If(Box<Type>, Vec<Type>, HelpData),
     Condition(Box<Type>, Box<Type>, Box<Type>, HelpData),
     In(HelpData),
-    DataFrame(HelpData),
     RFunction(HelpData),
     RClass(HashSet<String>, HelpData),
     Empty(HelpData),
@@ -81,7 +81,7 @@ impl Type {
                     sol.push((**ret).clone());
                     sol.push(self.clone()); sol
                 }
-            Type::Union(tags, _) => {
+            Type::StrictUnion(tags, _) => {
                let mut sol = tags.iter().map(|tag| tag.to_type()).collect::<Vec<_>>();
                sol.push(self.clone()); sol
             },
@@ -378,7 +378,7 @@ impl Type {
     pub fn is_tag_or_union(&self) -> bool {
         match self {
             Type::Tag(_, _, _) => true,
-            Type::Union(_, _) => true,
+            Type::StrictUnion(_, _) => true,
             _ => false
         }
     }
@@ -453,12 +453,12 @@ impl Type {
                 }
             },
 
-            (Type::Union(types1, _), Type::Union(_types2, _)) => {
+            (Type::StrictUnion(types1, _), Type::StrictUnion(_types2, _)) => {
                 types1.iter().all(|t1| t1.to_type().is_subtype(other))
             },
 
             // Union subtyping
-            (Type::Tag(_name, _body, _h), Type::Union(types, _)) => {
+            (Type::Tag(_name, _body, _h), Type::StrictUnion(types, _)) => {
                 types.iter().any(|t| self.is_subtype(&t.to_type()))
             },
             (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
@@ -477,9 +477,8 @@ impl Type {
                 p1.iter().zip(p2.iter()).all(|(t1, t2)| t1.is_subtype(t2))
             }
 
-            (Type::RClass(set1, _), Type::RClass(set2, _)) => {
-                set1.is_subset(set2)
-            }
+            (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(set2),
+            (Type::Union(s1, _), Type::Union(s2, _)) => s1.is_subset(s2),
 
             _ => false
         }
@@ -491,7 +490,7 @@ impl Type {
             Type::Function(_, _, _, _) => TypeCategory::Function,
             Type::Record(_, _) => TypeCategory::Record,
             Type::Tag(_, _, _) => TypeCategory::Tag,
-            Type::Union(_, _) => TypeCategory::Union,
+            Type::StrictUnion(_, _) => TypeCategory::Union,
             Type::Interface(_, _) => TypeCategory::Interface,
             Type::Boolean(_) => TypeCategory::Boolean,
             Type::Number(_) => TypeCategory::Number,
@@ -545,7 +544,7 @@ impl Type {
             Type::Record(_, h) => h.clone(),
             Type::Alias(_, _, _, _, h) => h.clone(),
             Type::Tag(_, _, h) => h.clone(),
-            Type::Union(_, h) => h.clone(),
+            Type::StrictUnion(_, h) => h.clone(),
             Type::Interface(_, h) => h.clone(),
             Type::Params(_, h) => h.clone(),
             Type::Add(_, _, h) => h.clone(),
@@ -559,11 +558,11 @@ impl Type {
             Type::If(_, _, h) => h.clone(),
             Type::Condition(_, _, _, h) => h.clone(),
             Type::In(h) => h.clone(),
-            Type::DataFrame(h) => h.clone(),
             Type::RFunction(h) => h.clone(),
             Type::Empty(h) => h.clone(),
             Type::Any(h) => h.clone(),
             Type::RClass(_, h) => h.clone(),
+            Type::Union(_, h) => h.clone(),
         }
     }
 
@@ -582,7 +581,7 @@ impl Type {
             Type::Record(a, _) => Type::Record(a, h2),
             Type::Alias(a1, a2, a3, a4, _) => Type::Alias(a1, a2, a3, a4, h2),
             Type::Tag(a1, a2, _) => Type::Tag(a1, a2, h2),
-            Type::Union(a, _) => Type::Union(a, h2),
+            Type::StrictUnion(a, _) => Type::StrictUnion(a, h2),
             Type::Interface(a, _) => Type::Interface(a, h2),
             Type::Params(a, _) => Type::Params(a, h2),
             Type::Add(a1, a2, _) => Type::Add(a1, a2, h2),
@@ -596,11 +595,11 @@ impl Type {
             Type::If(a1, a2, _) => Type::If(a1, a2, h2),
             Type::Condition(a1, a2, a3, _) => Type::Condition(a1, a2, a3, h2),
             Type::In(_) => Type::In(h2),
-            Type::DataFrame(_) => Type::DataFrame(h2),
             Type::RFunction(_) => Type::RFunction(h2),
             Type::Empty(_) => Type::Empty(h2),
             Type::Any(_) => Type::Any(h2),
-            Type::RClass(v, _) => Type::RClass(v, h2) 
+            Type::RClass(v, _) => Type::RClass(v, h2),
+            Type::Union(v, _) => Type::Union(v, h2) 
         }
     }
 
@@ -684,7 +683,7 @@ impl PartialEq for Type {
                 => a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2,
             (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
-            (Type::Union(e1, _), Type::Union(e2, _)) => e1 == e2,
+            (Type::StrictUnion(e1, _), Type::StrictUnion(e2, _)) => e1 == e2,
             (Type::Interface(e1, _), Type::Interface(e2, _)) => e1 == e2,
             (Type::Params(e1, _), Type::Params(e2, _)) => e1 == e2,
             (Type::Add(a1, b1, _), Type::Add(a2, b2, _)) 
@@ -706,11 +705,11 @@ impl PartialEq for Type {
             (Type::In(_), Type::In(_)) => true,
             (Type::Empty(_), Type::Empty(_)) => true,
             (Type::Any(_), Type::Any(_)) => true,
-            (Type::DataFrame(_), Type::DataFrame(_)) => true,
             (Type::RClass(el1, _), Type::RClass(el2, _)) 
                 => {
                     el1.difference(&el2).collect::<Vec<_>>().len() == 0
                 },
+            (Type::Union(s1, _), Type::Union(s2, _)) => s1 == s2,
             _ => false
         }
     }
@@ -770,7 +769,7 @@ impl Hash for Type {
             Type::Record(_, _) => 10.hash(state),
             Type::Alias(_, _, _, _, _) => 11.hash(state),
             Type::Tag(_, _, _) => 12.hash(state),
-            Type::Union(_, _) => 13.hash(state),
+            Type::StrictUnion(_, _) => 13.hash(state),
             Type::Interface(_, _) => 14.hash(state),
             Type::Params(_, _) => 15.hash(state),
             Type::Add(_, _, _) => 16.hash(state),
@@ -786,9 +785,9 @@ impl Hash for Type {
             Type::In(_) => 26.hash(state),
             Type::Empty(_) => 27.hash(state),
             Type::Any(_) => 28.hash(state),
-            Type::DataFrame(_) => 29.hash(state),
             Type::RFunction(_) => 30.hash(state),
             Type::RClass(_, _) => 31.hash(state),
+            Type::Union(_, _) => 33.hash(state),
         }
     }
 }

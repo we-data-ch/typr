@@ -184,7 +184,9 @@ impl Var {
     }
 
     pub fn contains(&self, s: &str) -> bool {
-        &self.get_name()[0..s.len()] == s
+        if self.get_name().len() > s.len() {
+            &self.get_name()[0..s.len()] == s
+        } else { false }
     }
 
     pub fn get_digit(&self, s: &str) -> i8 {

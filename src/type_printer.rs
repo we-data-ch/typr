@@ -60,7 +60,7 @@ pub fn format(ty: &Type) -> String {
             }
         },
         Type::Empty(_) => "Empty".to_string(),
-        Type::Union(types, _) => {
+        Type::StrictUnion(types, _) => {
             let formatted_types = types.iter().map(|ty| format(&ty.to_type())).collect::<Vec<_>>();
             format!("{}", formatted_types.join(" | "))
         }
@@ -78,9 +78,9 @@ pub fn format(ty: &Type) -> String {
         Type::Minus(a, b, _) => format!("{}-{}", a, b),
         Type::Mul(a, b, _) => format!("{}*{}", a, b),
         Type::Div(a, b, _) => format!("{}/{}", a, b),
-        Type::DataFrame(_) => "data.frame".to_string(),
         Type::RFunction(_) => "RFunction".to_string(),
         Type::RClass(elem, _) => format!("class({})", elem.iter().cloned().collect::<Vec<_>>().join(", ")),
+        Type::Union(s, _) => format!("{}", s.iter().cloned().map(|x| x.pretty()).collect::<Vec<_>>().join(" | ")),
         t => format!("{:?}", t)
     }
 }

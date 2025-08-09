@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::language::build_generic_function;
 use std::collections::HashSet;
 use crate::Type;
@@ -24,6 +25,7 @@ use std::error::Error;
 use crate::argument_value::ArgumentValue;
 use crate::typer::Typer;
 use crate::type_comparison::is_matching;
+use crate::function_type::FunctionType;
 
 fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
     // Créer un script R temporaire avec la fonction à exécuter
@@ -180,8 +182,11 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             => context.clone().add_module_declarations(&[expr.clone()]),
         Lang::Signature(var, typ, _h) => {
             if var.is_variable(){
-                context.clone().push_var_type(var.to_owned(), typ.to_owned(), context)
-            } else {
+                let new_var = FunctionType::try_from(typ.clone())
+                            .map(|ft| var.clone().set_type(ft.get_first_param().unwrap_or(builder::empty_type())))
+                            .unwrap_or(var.clone());
+                context.clone().push_var_type(new_var, typ.to_owned(), context)
+            } else { // is alias
                 context.clone()
                     .push_alias(var.get_name(), var.get_type())
                     .push_var_type(var.to_owned(), typ.to_owned(), context)
@@ -230,7 +235,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                        .into_iter().collect::<Vec<_>>();
                     Some(res)
                 },
-                (Type::Union(types1, _), Type::Union(types2, _)) => {
+                (Type::StrictUnion(types1, _), Type::StrictUnion(types2, _)) => {
                    Some(types1.iter() 
                        .zip(types2.iter())
                        .flat_map(|(typ1, typ2)| get_gen_type(&typ1.to_type(), &typ2.to_type()))
@@ -271,6 +276,8 @@ fn get_variable_type(lang: &Lang, tags: &[Tag]) -> Option<(Var, Type)> {
         
     } else { panic!("The element in the left hand side of the match statement is not a tag") }
 }
+
+
 
 pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
     match expr {
@@ -377,15 +384,17 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             if typing(context, cond).0.is_boolean() {
                 let true_ty = typing(context, true_branch).0;
                 let false_ty = typing(context, false_branch).0;
-                if true_ty.is_tag_or_union() && false_ty.is_tag_or_union() {
-                    let res = unify_type(&true_ty, &false_ty);
-                    (res, context.clone())
-                } else if true_ty == false_ty {
-                    (true_ty, context.clone())
-                } else if false_ty == builder::empty_type() {
-                    (true_ty, context.clone())
+                if let Type::Union(v, h) = false_ty {
+                    let mut set = v; set.insert(true_ty);
+                    (Type::Union(set.clone(), h), context.clone())
+                } else if false_ty.is_empty() {
+                    let mut set = HashSet::new(); set.insert(true_ty);
+                    (Type::Union(set.clone(), HelpData::default()), context.clone())
                 } else {
-                    panic!("Error: {} is not matching {}", true_ty, false_ty);
+                    let mut set = HashSet::new(); 
+                    set.insert(false_ty);
+                    set.insert(true_ty);
+                    (Type::Union(set.clone(), HelpData::default()), context.clone())
                 }
             } else {
                 panic!("Type error: {:?} isn't a boolean expression", cond);
@@ -417,20 +426,24 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 }).collect();
             (Type::Record(field_types, h.clone()), context.clone())
         }
-        Lang::Match(val, branches, _h) => {
-            let val_ty = reduce_type(context, &typing(context, val).0);
-            match val_ty {
-                Type::Union(union_types, _) => {
-                    let branch_types = branches.iter()
-                        .map(|(tag, exp)| (get_variable_type(tag, &union_types)
-                             .expect("The tag branch is not part of the union type"),
-                             exp))
-                        .map(|((var, typ), exp)| {
-                             typing(&context.clone().push_var_type(var, typ, context), exp).0
-                        })
-                        .collect::<Vec<_>>();
-                        (unify_types(&branch_types), context.clone())
-                    },
+        Lang::Match(exp, var, branches, _h) => {
+            let var_ty = reduce_type(context, &typing(context, &**exp).0);
+            match var_ty {
+                Type::Union(union_types, h) => {
+                    let set = branches.iter().map(|(t, _)| t).cloned().collect::<HashSet<Type>>();
+                    if union_types != set {
+                        panic!("Some types are missing");
+                    }
+                    let types = branches.iter()
+                        .map(|(typ, bexp)| {
+                            let new_context = context.clone().push_var_type(var.clone(), typ.clone(), context);
+                            typing(&new_context, bexp).0
+                        }).collect::<HashSet<_>>();
+                    let output_type = if types.len() == 1 {
+                        types.iter().next().unwrap().clone()
+                    } else {Type::Union(types, h)};
+                    (output_type, context.clone())
+                },
                 _ => panic!("Type error"),
             }
         }
@@ -513,20 +526,20 @@ fn unify_type(ty1: &Type, ty2: &Type) -> Type {
             if name1 == name2 && params1 == params2 {
                 ty1.clone()
             } else {
-                Type::Union(vec![
+                Type::StrictUnion(vec![
                             Tag::from_type(ty1.clone()).unwrap(),
                             Tag::from_type(ty2.clone()).unwrap()], h1.clone())
             }
         }
-        (Type::Union(union1, h1), Type::Tag(name, params, h2)) => {
+        (Type::StrictUnion(union1, h1), Type::Tag(name, params, h2)) => {
             let mut union2 = union1.clone();
             union2.push(Tag::new(name.clone(), *params.clone(), h2.clone()));
-            Type::Union(union2, h1.clone())
+            Type::StrictUnion(union2, h1.clone())
         }
-        (Type::Tag(name, params, h), Type::Union(union1, _)) => {
+        (Type::Tag(name, params, h), Type::StrictUnion(union1, _)) => {
             let mut union2 = union1.clone();
             union2.push(Tag::new(name.clone(), *params.clone(), h.clone()));
-            Type::Union(union2, h.clone())
+            Type::StrictUnion(union2, h.clone())
         }
         (Type::Any(_), _) | (_, Type::Any(_)) => Type::Any(HelpData::default()),
         (Type::Empty(_), ty) | (ty, Type::Empty(_)) => ty.clone(),
@@ -534,6 +547,27 @@ fn unify_type(ty1: &Type, ty2: &Type) -> Type {
         _ => Type::Empty(HelpData::default())
     }
 }
+
+fn if_strict_mode(){
+    todo!();
+        //if typing(context, cond).0.is_boolean() {
+            //let true_ty = typing(context, true_branch).0;
+            //let false_ty = typing(context, false_branch).0;
+            //if true_ty.is_tag_or_union() && false_ty.is_tag_or_union() {
+                //let res = unify_type(&true_ty, &false_ty);
+                //(res, context.clone())
+            //} else if true_ty == false_ty {
+                //(true_ty, context.clone())
+            //} else if false_ty == builder::empty_type() {
+                //(true_ty, context.clone())
+            //} else {
+                //panic!("Error: {} is not matching {}", true_ty, false_ty);
+            //}
+        //} else {
+            //panic!("Type error: {:?} isn't a boolean expression", cond);
+        //}
+}
+
 
 #[cfg(test)]
 mod tests {

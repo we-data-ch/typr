@@ -138,12 +138,12 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             )
         }
 
-        Type::Union(types, h) => {
+        Type::StrictUnion(types, h) => {
             let new_types = types.iter()
                 .map(|typ| {
                     Tag::from_type(type_substitution(&typ.to_type(), substitutions)).unwrap()
                 }).collect::<Vec<_>>();
-            Type::Union(new_types, h.clone())
+            Type::StrictUnion(new_types, h.clone())
         }
 
         // Default case: return the type unchanged

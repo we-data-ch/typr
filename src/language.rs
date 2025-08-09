@@ -82,7 +82,7 @@ pub enum Lang {
     Alias(Var, Vec<Type>, Type, HelpData),
     Tag(String, Box<Lang>, HelpData),
     If(Box::<Lang>, Box<Lang>, Box<Lang>, HelpData),
-    Match(Box<Lang>, Vec<(Box<Lang>, Box<Lang>)>, HelpData),
+    Match(Box<Lang>, Var, Vec<(Type, Box<Lang>)>, HelpData),
     Tuple(Vec<Lang>, HelpData),
     Sequence(Vec<Lang>, HelpData),
     Assign(Box<Lang>, Box<Lang>, HelpData),
@@ -114,37 +114,34 @@ pub fn build_generic_function(s: &str) -> Lang {
                                                          )
 }
 
-fn condition_to_if(var: &Lang, condition: &Lang) -> (String, Lang) {
-    match (var, condition) {
-        (Lang::Variable(name, _, _ , _, _, _), Lang::Tag(tag_name, body, _)) => {
-            (format!("{}[[1]] == '{}'", name, tag_name), (**body).clone())
-        },
-        _ => panic!("The element you put next to 'match' isn't a variable or your left part of your branches aren't true tags")
-    }
+fn condition_to_if(var: &Var, typ: &Type, context: &Context) -> String {
+    format!("all(class({}) == c({}))", var.get_name(), context.get_class(typ))
 }
 
-fn to_if_statement(var: Lang, branches: &[(Box<Lang>, Box<Lang>)], context: &Context) -> String {
-    branches.iter()
-        .map(|(condition, body)| (condition_to_if(&var, condition), body))
-        .map(|((cond, sub_var), body)| (cond, body.lang_substitution(&sub_var, &var, context)))
+fn to_if_statement(var: Var, exp: Lang, branches: &[(Type, Box<Lang>)], context: &Context) -> String {
+    let res = branches.iter()
+        .map(|(typ, body)| { (condition_to_if(&var, typ, context), body)})
         .enumerate()
         .map(|(id, (cond, body))| if id == 0 {
-            format!("if ({}) {{ \n {} \n }}", cond, body)
+            format!("if ({}) {{ \n {} \n }}", cond, body.to_r(context).0)
         } else {
-            format!("else if ({}) {{ \n {} \n }}", cond, body)
-        }).collect::<Vec<_>>().join(" ")
+            format!("else if ({}) {{ \n {} \n }}", cond, body.to_r(context).0)
+        }).collect::<Vec<_>>().join(" ");
+    format!("{} <- {} \n {}", var.get_name(), exp.to_r(context).0, res)
 }
 
 
 fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
-    dbg!(&val);
-    dbg!(&arg);
-    let args = FunctionType::try_from(arg.clone())
-        .expect(&format!("Error: {} is not a function type", arg))
-    .get_param_types();
-    (args.len() > 0)
-        .then_some(val.set_type_if_variable(&args[0]))
-        .unwrap_or(val.clone())
+    let oargs = FunctionType::try_from(arg.clone())
+        .map(|fn_t| fn_t.get_param_types());
+
+    match oargs {
+        Ok(args) => (args.len() > 0)
+                    .then_some(val.set_type_if_variable(&args[0]))
+                    .unwrap_or(val.clone()),
+        Err(_) => val.clone()
+    }
+    
 }
 
 //main
@@ -236,7 +233,7 @@ impl Lang {
             Lang::Alias(_, _, _, h) => h,
             Lang::Tag(_, _, h) => h,
             Lang::If(_, _, _, h) => h,
-            Lang::Match(_, _, h) => h,
+            Lang::Match(_, _, _, h) => h,
             Lang::Tuple(_, h) => h,
             Lang::Sequence(_, h) => h,
             Lang::Assign(_, _, h) => h,
@@ -318,7 +315,7 @@ impl Lang {
             Lang::Alias(_, _, _, _) => "Alias".to_string(),
             Lang::Tag(_, _, _) => "Tag".to_string(),
             Lang::If(_, _, _, _) => "If".to_string(),
-            Lang::Match(_, _, _) => "Match".to_string(),
+            Lang::Match(_, _, _, _) => "Match".to_string(),
             Lang::Tuple(_, _) => "Tuple".to_string(),
             Lang::Sequence(_, _) => "Sequence".to_string(),
             Lang::Assign(_, _, _) => "Addign".to_string(),
@@ -353,7 +350,7 @@ impl From<Lang> for HelpData {
            Lang::Bool(_, h) => h,
            Lang::Char(_, h) => h,
            Lang::Variable(_, _, _, _, _, h) => h,
-           Lang::Match(_, _, h) => h,
+           Lang::Match(_, _, _, h) => h,
            Lang::FunctionApp(_, _, h) => h,
            Lang::Empty(h) => h,
            Lang::Array(_, h) => h,
@@ -514,7 +511,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let class = cont.get_class(&fn_type);
                 let classes = cont.get_classes(&fn_type)
                     .unwrap_or("''".to_string());
-                (format!("(function({}) {{\n {} \n}}) |>\n\t struct(c('{}', {}))", 
+                (format!("(function({}) {{\n {} \n}}) |> struct(c({}, {}))", 
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
                         body_str, class, classes), 
                 new_cont)
@@ -687,8 +684,8 @@ impl RTranslatable<(String, Context)> for Lang {
                 => (format!("function(x) {{ {} }}", bloc.to_r(cont).0), cont.clone()),
             Lang::VecBloc(bloc, _) => (bloc.to_string(), cont.clone()),
             Lang::Library(name, _) => (format!("library({})", name), cont.clone()),
-            Lang::Match(var, branches, _) 
-                => (to_if_statement((**var).clone(), branches, cont), cont.clone()),
+            Lang::Match(exp, var, branches, _) 
+                => (to_if_statement(var.clone(), (**exp).clone(), branches, cont), cont.clone()),
             Lang::Exp(exp, _) => (exp.clone(), cont.clone()),
             Lang::ForLoop(var, iterator, body, _) => {
                 Translatable::from(cont.clone())
