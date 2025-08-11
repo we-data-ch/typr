@@ -240,11 +240,12 @@ fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
     }
 }
 
+
 pub fn type_alias(s: Span) -> IResult<Span, Type> {
     let res = (
             opt(module_path),
             alt((pascal_case, variable_exp)),
-            opt(type_params)
+            terminated(opt(type_params), multispace0)
           ).parse(s);
     match res {
         Ok((s, (Some(p), (name, h), Some(v)))) 
@@ -886,5 +887,12 @@ mod tests {
         let res = r_class("Class('data.frame', 'tbl')".into()).unwrap().1;
         assert_eq!(res, builder::empty_type());
     }
+
+    #[test]
+    fn test_type_alias0() {
+        let res = type_alias("data__frame".into()).unwrap().1;
+        assert_eq!(res, builder::empty_type());
+    }
+
 
 }

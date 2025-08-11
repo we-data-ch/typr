@@ -375,7 +375,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 let params = func.get_param_types().iter()
                             .map(|p| unification_map.apply_unification_type(context, p).0)
                             .collect::<Vec<_>>();
-                (new_typ.clone(), new_context.push(func.set_params(params).set_ret_type(new_typ)))
+                (new_typ.clone(), new_context.push(expr.clone(), func.set_params(params).set_ret_type(new_typ)))
             }
         }
         Lang::Tag(name, expr, h) => {
@@ -417,13 +417,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                     Box::new(builder::integer_type(0)),
                     Box::new(builder::any_type()),
                     h.clone());
-                (new_type, context.clone())
+                (new_type.clone(), context.clone().push_types(&[new_type]))
             } else if types.windows(2).all(|w| w[0] == w[1]) {
                 let new_type = Type::Array(
                     Box::new(builder::integer_type(exprs.len() as i32)),
                     Box::new(types[0].clone()),
                     h.clone());
-                (new_type, context.clone())
+                (new_type.clone(), context.clone().push_types(&[new_type]))
             } else {
                 panic!("Type error");
             }

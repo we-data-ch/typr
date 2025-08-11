@@ -9,7 +9,7 @@ use crate::function_type::FunctionType;
 pub struct Header {
    function_list: String,
    pub metadata: AdtHeader,
-   fn_types: Vec<FunctionType>,
+   fns: Vec<(Lang, FunctionType)>,
 }
 
 impl Header {
@@ -65,16 +65,17 @@ impl Header {
         }
     }
 
-    pub fn push(self, fn_typ: FunctionType) -> Self {
+    pub fn push(self, fn_lang: Lang, fn_typ: FunctionType) -> Self {
         Self {
-            fn_types: self.fn_types.iter().chain([fn_typ].iter()).cloned().collect(),
+            fns: self.fns.iter().chain([(fn_lang, fn_typ)].iter()).cloned().collect(),
             ..self
         }
     }
 
-    pub fn get_true_fn_type(&self, params: Vec<Type>) -> Option<FunctionType> {
-        self.fn_types.iter()
-            .find(|fn_typ| fn_typ.get_param_types() == params)
+    pub fn get_true_fn_type(&self, f_lang: &Lang) -> Option<FunctionType> {
+        self.fns.iter()
+            .find(|(fn_lang, _)| fn_lang == f_lang)
+            .map(|(_, fn_typ)| fn_typ)
             .cloned()
     }
 
@@ -85,7 +86,7 @@ impl Default for Header {
         Header {
             function_list: include_str!("../configs/src/functions.txt").to_string(),
             metadata: AdtHeader::default(),
-            fn_types: vec![],
+            fns: vec![],
         }
     }
 }

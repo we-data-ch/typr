@@ -44,12 +44,18 @@ impl VarType {
 
     pub fn push_alias_increment(self, vt: (Var, Type)) -> Self {
         let name = vt.0.get_name();
-        let var = self.aliases.iter()
-            .find(|(var, _)| var.contains(&name))
-            .map(|(var, _)| var.get_digit(&name) + 1)
-            .map(|x| vt.0.clone().add_digit(x))
-            .unwrap_or(vt.0.add_digit(0));
-        self.push_aliases(&[(var, vt.1)])
+        match &name[..] {
+            "Generic" | "character" | "integer" | "Alias" | "Any" | "Rfunction" => self.clone(),
+            _ => {
+                let var = self.aliases.iter().rev()
+                    .find(|(var, _)| var.contains(&name))
+                    .map(|(var, _)| var.get_digit(&name) + 1)
+                    .map(|x| vt.0.clone().add_digit(x))
+                    .unwrap_or(vt.0.add_digit(0));
+                self.push_aliases(&[(var, vt.1)])
+            }
+            
+        }
     }
 
     pub fn exists(&self, typ: &Type) -> bool {
@@ -114,10 +120,13 @@ impl VarType {
     }
 
     pub fn get_type_anotation(&self, t: &Type) -> String {
-        let res = self.aliases.iter()
-            .find(|(_, typ)| typ == t)
-            .map(|(var, _)| var.get_name())
-            .unwrap_or(t.pretty());
+        let res = match t {
+            Type::Alias(name, _, _, _, _) => name.to_string(),
+            _ => self.aliases.iter()
+                    .find(|(_, typ)| typ == t)
+                    .map(|(var, _)| var.get_name())
+                    .unwrap_or("Generic".to_string())
+        };
         format!("{}()", res)
     }
 
@@ -142,13 +151,30 @@ impl VarType {
             .clone()
     }
 
+    fn in_aliases(&self, alias_name: &str) -> bool {
+        self.aliases.iter()
+            .find(|(var, typ)| var.get_name() == alias_name)
+            .is_some()
+    }
+
     pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
         let var = Var::from_name(&alias_name)
                     .set_type(builder::params_type());
-        Self {
-            aliases: self.aliases.iter().chain([(var, typ)].iter()).cloned().collect(),
+        let new_aliases = if !self.in_aliases(&alias_name) {
+            self.aliases.iter().chain([(var, typ)].iter()).cloned().collect::<Vec<_>>()
+        } else { self.aliases.clone() };
+        let res = Self {
+            aliases: new_aliases,
             ..self
-        }
+        };
+        res
+    }
+
+    pub fn print_aliases(&self) -> String {
+        self.aliases.iter()
+            .map(|(var, typ)| format!("{} = {}", var.get_name(), typ.pretty()))
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     pub fn variable_exist(&self, var: Var) -> Option<Var> {
@@ -175,7 +201,13 @@ impl VarType {
 
     pub fn name_exists(&self, name: &str) -> bool {
         self.variables.iter()
-            .find(|(var, _)| var.get_name() == name)
+            .find(|(var, typ)| var.get_name() == name)
+            .is_some()
+    }
+
+    pub fn is_untyped_name(&self, name: &str) -> bool {
+        self.variables.iter()
+            .find(|(var, typ)| (var.get_name() == name) && typ.is_r_function())
             .is_some()
     }
 

@@ -55,7 +55,8 @@ struct <- function(x, new_class) {
 }
 
 let_type <- function(x, new_class) {
-  class(x) <- new_class
+  class(x) <- ""
+  class(x) <- x |> new_class()
   return(x)
 }
 

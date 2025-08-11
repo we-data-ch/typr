@@ -2,6 +2,7 @@ use crate::Lang;
 use crate::Context;
 use crate::argument_value::ArgumentValue;
 use std::ops::Add;
+use crate::help_data::HelpData;
 
 pub trait TranslateAppendable {
     fn to_translatable(self) -> Translatable;
@@ -137,5 +138,19 @@ impl TranslateAppendable for String {
 impl RTranslatable<(String, Context)> for Box<Lang> {
     fn to_r(&self, context: &Context) -> (String, Context) {
         (**self).to_r(context)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_simple_trans0(){
+      let t = Translatable::from(Context::default());
+      let bo = Lang::Bool(true, HelpData::default());
+      let v = vec![bo.clone(), bo.clone(), bo];
+      let (a, b) = t.join(&v, ", ").into();
+      assert_eq!(a, "true");
     }
 }

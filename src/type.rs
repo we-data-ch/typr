@@ -500,7 +500,16 @@ impl Type {
             Type::Generic(_, _) => TypeCategory::Generic,
             Type::IndexGen(_, _) => TypeCategory::Generic,
             Type::LabelGen(_, _) => TypeCategory::Generic,
-            _ => TypeCategory::Rest
+            Type::Integer(_, _) => TypeCategory::Integer,
+            Type::Alias(_, _, _, false, _) => TypeCategory::Alias,
+            Type::Any(_) => TypeCategory::Any,
+            Type::Empty(_) => TypeCategory::Empty,
+            Type::RClass(_, _) => TypeCategory::RClass,
+            Type::RFunction(_) => TypeCategory::RFunction,
+            _ => {
+                println!("{:?} return Rest", self);
+                TypeCategory::Rest
+            }
         }
     }
 
@@ -624,6 +633,12 @@ impl Type {
         *self == builder::any_type()
     }
 
+    pub fn is_r_function(&self) -> bool {
+        match self {
+            Type::RFunction(_) => true,
+            _ => false
+        }
+    }
 
 }
 

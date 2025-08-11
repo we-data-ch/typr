@@ -141,6 +141,13 @@ impl Context {
         }
     }
 
+    pub fn push_types(self, types: &[Type]) -> Self {
+        Self {
+            typing_context: self.typing_context.push_types(types),
+            ..self
+        }
+    }
+
     pub fn get_type_from_existing_variable(&self, var: Var) -> Type {
         if let Type::RFunction(_) = var.get_type() {
             var.get_type()
@@ -166,7 +173,8 @@ impl Context {
     }
 
     pub fn is_an_untyped_function(&self, name: &str) -> bool {
-        (!self.typing_context.name_exists(name)) && self.header.is_an_untyped_function(name)
+        (self.typing_context.is_untyped_name(name)) || 
+            (!self.typing_context.name_exists(name) && self.header.is_an_untyped_function(name))
     }
 
     pub fn get_class(&self, t: &Type) -> String {
@@ -182,11 +190,16 @@ impl Context {
     }
 
     pub fn get_classes(&self, t: &Type) -> Option<String> {
-        self.subtypes.get_supertypes(t)
+        let res = self.subtypes.get_supertypes(t)
             .iter().map(|typ| self.get_class(typ))
             .collect::<HashSet<_>>()
             .iter().cloned().collect::<Vec<_>>()
-            .join(", ").to_some()
+            .join(", ");
+        if res == "" {
+            Some("'None'".to_string())
+        } else {
+            Some(res)
+        }
     }
 
     pub fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {
@@ -296,16 +309,6 @@ impl Context {
         }
     }
 
-    pub fn update_classes(&self) -> Context {
-        let types = self.typing_context.get_types().iter().cloned().collect::<Vec<_>>();
-        let mut new_subtypes = self.subtypes.to_owned();
-        new_subtypes.update(&types);
-        Context {
-            subtypes: new_subtypes,
-            ..self.clone()
-        }
-    }
-
     pub fn set_compile_mode(self, cm: CompileMode) -> Context {
         Context {
             config: self.config.set_compile_mode(cm),
@@ -363,13 +366,6 @@ impl Context {
         self.config.immutability 
     }
 
-    pub fn update_variable(self, var: Var) -> Self {
-        Self {
-            typing_context: self.typing_context.update_variable(var),
-            ..self
-        }
-    }
-
     pub fn get_unification_map(&self, values: &[Lang], param_types: &[Type]) 
         -> Option<UnificationMap> {
         let res = values.iter()
@@ -384,22 +380,36 @@ impl Context {
     pub fn get_type_converters(&self) -> String {
         self.typing_context.aliases.iter()
             .map(|(var, typ)| {
-               format!("{} <- function(x) x |> struct(c({}, {}))",
-                   var.get_name(),
-                   self.get_class(typ),
-                   self.get_classes(typ).unwrap()) 
+                match typ {
+                    Type::RClass(v, _) 
+                        => format!("{} <- function(x) x |> struct(c({}))", 
+                                   var.get_name(),
+                                   v.iter().cloned()
+                                   .collect::<Vec<_>>().join(", ")),
+                    _ => format!("{} <- function(x) x |> struct(c({}, {}))",
+                           var.get_name(),
+                           self.get_class(typ),
+                           self.get_classes(typ).unwrap()) 
+                }
             }).collect::<Vec<_>>().join("\n")
     }
 
-    pub fn push(self, fn_type: FunctionType) -> Self {
+    pub fn push(self, fn_lang: Lang, fn_type: FunctionType) -> Self {
         Self {
-            header: self.header.push(fn_type),
+            header: self.header.push(fn_lang, fn_type),
             ..self
         }
     }
 
-    pub fn get_true_fn_type(&self, params: Vec<Type>) -> Option<FunctionType> {
-        self.header.get_true_fn_type(params)
+    pub fn get_true_fn_type(&self, fn_lang: &Lang) -> Option<FunctionType> {
+        self.header.get_true_fn_type(fn_lang)
+    }
+
+    pub fn update_variable(self, var: Var) -> Self {
+        Self {
+            typing_context: self.typing_context.update_variable(var),
+            ..self
+        }
     }
 
 }

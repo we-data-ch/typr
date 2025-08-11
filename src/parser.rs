@@ -25,6 +25,7 @@ use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 use crate::elements::single_element;
 use crate::elements::scope;
+use std::collections::HashSet;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -490,6 +491,7 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
                     .set_type(Type::Params(params.clone(), h.clone()))
                     .set_opacity(true);
                 let t_alias = Type::Alias(name, params, path, true, h);
+                //let t_alias = Type::RClass([name].iter().cloned().collect::<HashSet<_>>(), h);
                 Ok((s, vec![Lang::Signature(var2, t_alias, at.into())]))
             },
         Ok((_s, (_, _, _))) => todo!(),
@@ -881,5 +883,12 @@ mod tesus {
         let res = parse("for (sheet_id in [1, 2, 3, 4, 5]) { format_sheet(sheet_id) };".into()).unwrap().1;
         assert_eq!(res.0, vec![]);
     }
+
+    #[test]
+    fn test_parse_al0() {
+        let res = type_exp("type dataframe = { x: int };".into()).unwrap().1;
+        assert_eq!(res, vec![]);
+    }
+
 
 }

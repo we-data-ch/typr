@@ -16,6 +16,11 @@ pub enum TypeCategory {
     Char,
     Generic,
     DataFrame,
+    Alias,
+    Any,
+    Empty,
+    RClass,
+    RFunction,
     Rest
 }
 
@@ -43,6 +48,11 @@ impl fmt::Display for TypeCategory {
             TypeCategory::DataFrame => "data.frame",
             TypeCategory::Char => "character",
             TypeCategory::Generic => "Generic",
+            TypeCategory::Alias => "Alias",
+            TypeCategory::Any => "Any",
+            TypeCategory::Empty => "Empty",
+            TypeCategory::RClass => "RClass",
+            TypeCategory::RFunction => "RFunction",
             TypeCategory::Rest => "Rest"
         };
         write!(f, "{}", res)       
