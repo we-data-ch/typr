@@ -475,8 +475,8 @@ impl RTranslatable<(String, Context)> for Lang {
                 match *e1.clone() {
                     Lang::Variable(_, _, _, _, _, _) => {
                         Translatable::from(cont.clone())
-                            .to_r(e1)
-                            .add("[[").to_r(e2).add("]]").into()
+                            .to_r(e2)
+                            .add("[['").to_r(e1).add("']]").into()
                     },
                     Lang::Record(fields, _) => {
                         let at = fields[0].clone();
@@ -494,8 +494,8 @@ impl RTranslatable<(String, Context)> for Lang {
                     }
                     _ => {
                         Translatable::from(cont.clone())
-                            .to_r(e1).add("[[")
-                            .add("]]").to_r(e2)
+                            .to_r(e2).add("[[")
+                            .add("]]").to_r(e1)
                             .into()
                     }
                 }
