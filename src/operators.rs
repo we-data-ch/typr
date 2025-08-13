@@ -107,7 +107,7 @@ fn get_op(ls: LocatedSpan<&str, String>) -> Op {
 
 }
 
-fn custom_op(s: Span) -> IResult<Span,Span> {
+pub fn custom_op(s: Span) -> IResult<Span,Span> {
     recognize((char('%'), take_until("%"), char('%'))).parse(s)
 }
 

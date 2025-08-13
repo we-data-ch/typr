@@ -14,10 +14,10 @@ impl ArrayType {
     pub fn get_shape(&self) -> Option<String> {
         ArrayType::try_from(self.type_.clone())
             .map(|arr_t| arr_t.get_shape()
-                 .map(|arr| self.index.to_string() + ", " + &arr))
+                 .map(|arr| self.index.pretty2() + ", " + &arr))
             .unwrap_or(
                 (!self.index.is_generic()) //only return None if is a generic
-                    .then_some(self.index.to_string()))
+                    .then_some(self.index.pretty2()))
     }
 }
 

@@ -51,6 +51,7 @@ sys.setlocale <- function() { Sys.setlocale() }
 
 struct <- function(x, new_class) {
 	class(x) <- union(class(x), new_class)
+	#class(x) <- new_class
 	return(x)
 }
 

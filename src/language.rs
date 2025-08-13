@@ -557,10 +557,13 @@ impl RTranslatable<(String, Context)> for Lang {
                     Var::from_language(*exp.clone())
                         .map(|var| {
                             let (name, path) = (var.get_name(), Path::new(&var.get_path()));
+                            let new_name = if &name[0..1] == "%" {
+                                format!("`{}`", name.replace("__", "."))
+                            } else { name.replace("__", ".") };
                             (path != Path::default())
                                 .then_some((format!("eval(quote({}({})), envir = {})",
-                                    name.replace("__", "."), args, path.get_value()), current_cont.clone()))
-                                .unwrap_or((format!("{}({})", name.replace("__", "."), args), current_cont.clone()))
+                                    new_name, args, path.get_value()), current_cont.clone()))
+                                .unwrap_or((format!("{}({})", new_name, args), current_cont.clone()))
                         }).unwrap_or((format!("{}({})", exp_str, args), current_cont))
                 }
             },

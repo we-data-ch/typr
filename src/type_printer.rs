@@ -22,7 +22,7 @@ pub fn format(ty: &Type) -> String {
             }
         },
         Type::Array(dim, ty, _) => {
-            format!("[{}, {}]", format2((**dim).clone()), format(ty))
+            format!("[{}, {}]", format2(dim), format(ty))
         },
         Type::Function(kinds, params, ret_ty, _h) => {
             let formatted_kinds = kinds.iter().map(|arg_kind| format_kind(&arg_kind.get_kind())).collect::<Vec<_>>();
@@ -37,7 +37,7 @@ pub fn format(ty: &Type) -> String {
             }
         },
         Type::Record(fields, _) => {
-            let formatted_fields = fields.iter().map(|arg_typ| format!("{}: {}", format2(arg_typ.get_argument()), format(&arg_typ.get_type()))).collect::<Vec<_>>();
+            let formatted_fields = fields.iter().map(|arg_typ| format!("{}: {}", format2(&arg_typ.get_argument()), format(&arg_typ.get_type()))).collect::<Vec<_>>();
             format!("{{{}}}", formatted_fields.join(", "))
         }
         Type::Generic(name, _) => name.to_uppercase(),
@@ -71,7 +71,7 @@ pub fn format(ty: &Type) -> String {
     }
 }
 
-fn format2(t: Type) -> String {
+pub fn format2(t: &Type) -> String {
     match t {
         Type::Integer(tint, _) => {
             match tint {

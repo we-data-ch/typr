@@ -26,6 +26,7 @@ use crate::help_data::HelpData;
 use crate::elements::single_element;
 use crate::elements::scope;
 use std::collections::HashSet;
+use crate::operators::custom_op;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -463,9 +464,17 @@ fn library(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+fn custom_operators(s: Span) -> IResult<Span, (String, HelpData)> {
+    let res = custom_op.parse(s);
+    match res {
+        Ok((s, co)) => Ok((s, (co.clone().to_string(), co.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("@"),
-                variable_exp,
+                alt((variable_exp, custom_operators)),
                 terminated(tag(":"), multispace0),
                 ltype, 
                 terminated(tag(";"), multispace0)).parse(s);

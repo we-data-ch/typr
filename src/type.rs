@@ -8,6 +8,7 @@ use crate::kind::Kind;
 use std::collections::HashSet;
 use crate::help_data::HelpData;
 use crate::type_printer::format;
+use crate::type_printer::format2;
 use std::fmt;
 use crate::path::Path;
 use crate::tint::Tint;
@@ -372,6 +373,10 @@ impl Type {
 
     pub fn pretty(&self) -> String {
         format(self)
+    }
+
+    pub fn pretty2(&self) -> String {
+        format2(self)
     }
 
     pub fn is_tag_or_union(&self) -> bool {
