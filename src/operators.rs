@@ -7,6 +7,9 @@ use crate::Type;
 use nom::Parser;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
+use nom::character::complete::char;
+use nom::bytes::complete::take_until;
+use nom::combinator::recognize;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -39,7 +42,8 @@ pub enum Op {
     GreaterOrEqual(HelpData),
     Modu(HelpData),
     Modu2(HelpData),
-    Empty(HelpData)
+    Empty(HelpData),
+    Custom(String, HelpData)
 }
 
 impl Op {
@@ -98,15 +102,31 @@ fn get_op(ls: LocatedSpan<&str, String>) -> Op {
         ">=" => Op::GreaterOrEqual(ls.into()),
         "<" => Op::LesserThan(ls.into()),
         ">" => Op::GreaterThan(ls.into()),
-        _ => todo!()
+        n => Op::Custom(n.to_string(), ls.into())
     }
 
+}
+
+fn custom_op(s: Span) -> IResult<Span,Span> {
+    recognize((char('%'), take_until("%"), char('%'))).parse(s)
+}
+
+fn pipe_op(s: Span) -> IResult<Span, Span> {
+        alt(( 
+            tag("|>>"),
+            tag("|>"),
+            tag(".."),
+            tag("."),
+            tag("$$"),
+            tag("$"))).parse(s)
 }
 
 pub fn op(s: Span) -> IResult<Span, Op> {
     let res = terminated(
         alt((
+            custom_op,
             bool_op,
+            pipe_op,
             tag("in "),
             tag("++"),
             tag("+"),
@@ -120,12 +140,6 @@ pub fn op(s: Span) -> IResult<Span, Op> {
             tag("/"),
             tag("%%"),
             tag("%"),
-            tag("|>>"),
-            tag("|>"),
-            tag(".."),
-            tag("."),
-            tag("$$"),
-            tag("$"),
             tag("|"),
             )),
         multispace0).parse(s);

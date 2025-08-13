@@ -491,6 +491,7 @@ impl Type {
             Type::Array(_, _, _) => TypeCategory::Array,
             Type::Function(_, _, _, _) => TypeCategory::Function,
             Type::Record(_, _) => TypeCategory::Record,
+            Type::Tuple(_, _) => TypeCategory::Tuple,
             Type::Tag(_, _, _) => TypeCategory::Tag,
             Type::StrictUnion(_, _) => TypeCategory::Union,
             Type::Interface(_, _) => TypeCategory::Interface,
@@ -506,6 +507,8 @@ impl Type {
             Type::Empty(_) => TypeCategory::Empty,
             Type::RClass(_, _) => TypeCategory::RClass,
             Type::RFunction(_) => TypeCategory::RFunction,
+            Type::Alias(name, _, _, _, _) => TypeCategory::Opaque(name.clone()),
+            Type::Union(_, _) => TypeCategory::Union,
             _ => {
                 println!("{:?} return Rest", self);
                 TypeCategory::Rest

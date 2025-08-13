@@ -22,11 +22,7 @@ pub fn format(ty: &Type) -> String {
             }
         },
         Type::Array(dim, ty, _) => {
-            let res = match **ty {
-                Type::Integer(_, _) => "int".to_string(),
-                _ => format(ty)
-            };
-            format!("[{}, {}]", dim, res)
+            format!("[{}, {}]", format2((**dim).clone()), format(ty))
         },
         Type::Function(kinds, params, ret_ty, _h) => {
             let formatted_kinds = kinds.iter().map(|arg_kind| format_kind(&arg_kind.get_kind())).collect::<Vec<_>>();
@@ -41,24 +37,14 @@ pub fn format(ty: &Type) -> String {
             }
         },
         Type::Record(fields, _) => {
-            let formatted_fields = fields.iter().map(|arg_typ| format!("{}: {}", arg_typ.get_argument(), format(&arg_typ.get_type()))).collect::<Vec<_>>();
+            let formatted_fields = fields.iter().map(|arg_typ| format!("{}: {}", format2(arg_typ.get_argument()), format(&arg_typ.get_type()))).collect::<Vec<_>>();
             format!("{{{}}}", formatted_fields.join(", "))
         }
         Type::Generic(name, _) => name.to_uppercase(),
-        Type::Integer(tint, _) => {
-            match tint {
-                Tint::Val(i) => format!("{}", i),
-                _ => "int".to_string()
-            }
-        },
+        Type::Integer(_, _) => "int".to_string(),
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
-        Type::Char(tchar, _) => {
-            match tchar {
-                Tchar::Val(c) => format!("Char('{}')", c),
-                _ => "char".to_string()
-            }
-        },
+        Type::Char(_, _) => "char".to_string(),
         Type::Empty(_) => "Empty".to_string(),
         Type::StrictUnion(types, _) => {
             let formatted_types = types.iter().map(|ty| format(&ty.to_type())).collect::<Vec<_>>();
@@ -82,5 +68,26 @@ pub fn format(ty: &Type) -> String {
         Type::RClass(elem, _) => format!("class({})", elem.iter().cloned().collect::<Vec<_>>().join(", ")),
         Type::Union(s, _) => format!("{}", s.iter().cloned().map(|x| x.pretty()).collect::<Vec<_>>().join(" | ")),
         t => format!("{:?}", t)
+    }
+}
+
+fn format2(t: Type) -> String {
+    match t {
+        Type::Integer(tint, _) => {
+            match tint {
+                Tint::Val(i) => format!("{}", i),
+                _ => "int".to_string()
+            }
+        },
+        Type::Number(_) => "num".to_string(),
+        Type::Boolean(_) => "bool".to_string(),
+        Type::Char(tchar, _) => {
+            match tchar {
+                Tchar::Val(c) => format!("{}", c),
+                _ => "char".to_string()
+            }
+        },
+        Type::IndexGen(idgen, _) => format!("#{}", idgen),
+        val => panic!("{:?} doesn't have a second format", val)
     }
 }

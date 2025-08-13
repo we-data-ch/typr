@@ -188,7 +188,7 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
 }
 
 fn equality_params(s: Span) -> IResult<Span, Span> {
-    terminated(alt((tag(":"), tag("="))), multispace0).parse(s)
+    terminated(alt((tag("="), tag(":"))), multispace0).parse(s)
 }
 
 fn argument_val(s: Span) -> IResult<Span, ArgumentValue> {
@@ -600,10 +600,10 @@ pub fn single_element(s: Span) -> IResult<Span,Lang> {
             match_exp,
             if_exp,
             dotdotdot,
+            record,
             r_function,
             function,
             tuple_exp,
-            record,
             function_application,
             array_indexing,
             variable,
@@ -742,6 +742,12 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                 vec![res.clone()], builder::empty_type(), res.into());
             Lang::Chain(Box::new(func), Box::new(op_reverse(v)), p.into())
         },
+        (p, Op::Custom(s, h)) 
+            => {
+                let res = op_reverse(v); let pp = p;
+                let var = Box::new(Lang::from(Var::from_name(&s)
+                                              .set_help_data(h.clone().into())));
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
         (p, Op::Empty(_)) => p
     }
 }

@@ -2,11 +2,12 @@ use crate::Type;
 use crate::Var;
 use crate::help_data::HelpData;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum TypeCategory {
     Array,
     Function,
     Record,
+    Tuple,
     Tag,
     Union,
     Interface,
@@ -21,6 +22,7 @@ pub enum TypeCategory {
     Empty,
     RClass,
     RFunction,
+    Opaque(String),
     Rest
 }
 
@@ -53,6 +55,8 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Empty => "Empty",
             TypeCategory::RClass => "RClass",
             TypeCategory::RFunction => "RFunction",
+            TypeCategory::Tuple => "Tuple",
+            TypeCategory::Opaque(name) => &name.to_string(),
             TypeCategory::Rest => "Rest"
         };
         write!(f, "{}", res)       

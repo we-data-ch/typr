@@ -43,7 +43,9 @@ impl Header {
 
     pub fn is_an_untyped_function(&self, name: &str) -> bool {
         let formated_name = name.replace("__", ".");
-        self.function_list.lines().any(|line| line.trim() == formated_name)
+        let formated_name2 = format!("\"{}\"", formated_name);
+        self.function_list.lines()
+            .any(|line| (line.trim() == formated_name) || line.trim().contains(&formated_name2))
     }
 
     pub fn add_function_list(self, list: &str) -> Header {

@@ -532,7 +532,11 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::FunctionApp(exp, vals, _, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
                 if cont.is_an_untyped_function(&var.get_name()) {
-                    let s = format!("{}({})",var.get_name().replace("__", "."), 
+                    let name = var.get_name().replace("__", ".");
+                    let new_name = if &name[0..1] == "%" {
+                        format!("`{}`", name)
+                    } else { name.to_string() };
+                    let s = format!("{}({})", new_name, 
                             vals.iter().map(|x| x.to_r(cont).0).collect::<Vec<_>>().join(", "));
                     (s, cont.clone())
                 } else {

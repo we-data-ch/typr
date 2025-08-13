@@ -179,8 +179,8 @@ impl VarType {
 
     pub fn variable_exist(&self, var: Var) -> Option<Var> {
         self.variables.iter()
-            .any(|(v, _)| { v.match_with(&var, &Context::default()) })
-            .then_some(var)
+            .find(|(v, _)| { v.match_with(&var, &Context::default()) })
+            .map(|(v, _)| v.clone())
     }
 
     pub fn update_variable(self, var: Var) -> Self {

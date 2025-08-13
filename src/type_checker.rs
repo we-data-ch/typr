@@ -149,20 +149,28 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Assign(var, expr, _h) => {
             let variable_assigned = Var::try_from(var.clone()).unwrap();
             let expr_type = typing(&context, expr).0;
-                let expr_type_reduced = reduce_type(context, &expr_type);
+            let expr_type_reduced = reduce_type(context, &expr_type);
             if !context.we_check_mutability() {
                variable_assigned.exist(context) 
-                   .map(|var| is_matching(context, &expr_type_reduced, &var.get_type())
-                        .then_some(context.clone().update_variable(var.set_type(expr_type_reduced.clone())))
-                        .expect("The types aren't matching"))
+                   .map(|var| {
+                        let res = is_matching(context, &expr_type_reduced, &var.get_type())
+                            .then_some(context.clone()
+                                       .update_variable(var.clone()
+                                        .set_type(expr_type_reduced.clone())));
+                        match res {
+                            Some(val) => val,
+                            None => panic!("{}", TypeError::Param(var.get_type(), expr_type_reduced.clone()).display())
+                        }
+                   })
                    .unwrap_or(context.clone().push_var_type(
                                         variable_assigned.set_type(expr_type_reduced.clone()),
                                         expr_type_reduced, &context))
             } else {
+            println!("We don't check");
                 let variable = context.get_true_variable(&variable_assigned);
                 let var_type = context.get_type_from_existing_variable(variable.clone());
                 let var_type_reduced = reduce_type(context, &var_type);
-                if !(expr_type_reduced == var_type_reduced || expr_type_reduced.is_subtype(&var_type_reduced)) {
+                if (expr_type_reduced != var_type_reduced) && !expr_type_reduced.is_subtype(&var_type_reduced) {
                     panic!("{}", TypeError::Param(expr_type, var_type).display());
                 } else if !variable.is_mutable() && context.we_check_mutability() {
                     panic!("{}", TypeError::ImmutableVariable(variable_assigned, variable).display());
@@ -504,7 +512,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 context.clone())
         },
         Lang::VecBloc(_, h) => (Type::Empty(h.clone()), context.to_owned()),
-        Lang::RFunction(_, _, h) => (Type::Empty(h.clone()), context.to_owned()),
+        Lang::RFunction(_, _, h) => (Type::RFunction(h.clone()), context.to_owned()),
         Lang::ForLoop(var, iter, body, _h) => {
             let base_type = typing(context, iter).0.to_array()
                 .expect(&format!("The iterator is not an array {:?}", iter))
