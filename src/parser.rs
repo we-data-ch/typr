@@ -25,7 +25,6 @@ use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
 use crate::elements::single_element;
 use crate::elements::scope;
-use std::collections::HashSet;
 use crate::operators::custom_op;
 
 type Span<'a> = LocatedSpan<&'a str, String>;

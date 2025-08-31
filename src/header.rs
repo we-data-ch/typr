@@ -1,8 +1,6 @@
 use crate::adt_header::AdtHeader;
 use crate::Lang;
 use std::collections::HashSet;
-use crate::Adt;
-use crate::Type;
 use crate::function_type::FunctionType;
 
 #[derive(Debug, Clone, PartialEq)]

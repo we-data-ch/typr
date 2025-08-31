@@ -36,7 +36,6 @@ use crate::help_message::SyntaxError;
 use crate::help_message::ErrorMsg;
 use nom::bytes::complete::take_while1;
 use crate::types::utype;
-use crate::Adt;
 use crate::builder;
 
 type Span<'a> = LocatedSpan<&'a str, String>;

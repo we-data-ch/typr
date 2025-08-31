@@ -483,6 +483,7 @@ impl Type {
 
             (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(set2),
             (Type::Union(s1, _), Type::Union(s2, _)) => s1.is_subset(s2),
+            (typ, Type::Union(s2, _)) => s2.contains(typ),
 
             (Type::Char(_, _), Type::Char(_, _)) => true,
             (Type::Integer(_, _), Type::Integer(_, _)) => true,

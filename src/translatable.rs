@@ -2,7 +2,6 @@ use crate::Lang;
 use crate::Context;
 use crate::argument_value::ArgumentValue;
 use std::ops::Add;
-use crate::help_data::HelpData;
 
 pub trait TranslateAppendable {
     fn to_translatable(self) -> Translatable;

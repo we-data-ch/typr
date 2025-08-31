@@ -153,7 +153,7 @@ impl VarType {
 
     fn in_aliases(&self, alias_name: &str) -> bool {
         self.aliases.iter()
-            .find(|(var, typ)| var.get_name() == alias_name)
+            .find(|(var, _)| var.get_name() == alias_name)
             .is_some()
     }
 
@@ -201,7 +201,7 @@ impl VarType {
 
     pub fn name_exists(&self, name: &str) -> bool {
         self.variables.iter()
-            .find(|(var, typ)| var.get_name() == name)
+            .find(|(var, _)| var.get_name() == name)
             .is_some()
     }
 

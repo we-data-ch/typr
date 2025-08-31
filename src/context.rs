@@ -20,7 +20,6 @@ use crate::config::CompileMode;
 use crate::header::Header;
 use crate::config::Config;
 use crate::Adt;
-use crate::language::ToSome;
 use crate::builder;
 use std::collections::HashSet;
 use crate::unification_map::UnificationMap;

@@ -8,7 +8,6 @@ use crate::argument_kind::ArgumentKind;
 use crate::type_checker;
 use crate::Context;
 use crate::typing;
-use crate::unification;
 use crate::help_data::HelpData;
 use crate::path::Path;
 use crate::function_type::FunctionType;
@@ -115,7 +114,7 @@ pub fn build_generic_function(s: &str) -> Lang {
 }
 
 fn condition_to_if(var: &Var, typ: &Type, context: &Context) -> String {
-    format!("all(class({}) == c({}))", var.get_name(), context.get_class(typ))
+    format!("any(class({}) == c({}))", var.get_name(), context.get_class(typ))
 }
 
 fn to_if_statement(var: Var, exp: Lang, branches: &[(Type, Box<Lang>)], context: &Context) -> String {
@@ -127,7 +126,7 @@ fn to_if_statement(var: Var, exp: Lang, branches: &[(Type, Box<Lang>)], context:
         } else {
             format!("else if ({}) {{ \n {} \n }}", cond, body.to_r(context).0)
         }).collect::<Vec<_>>().join(" ");
-    format!("{} <- {} \n {}", var.get_name(), exp.to_r(context).0, res)
+    format!("{{\n {} <- {} \n {}\n}}", var.get_name(), exp.to_r(context).0, res)
 }
 
 
@@ -632,7 +631,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 //let class = cont.get_class(&typ);
                let anotation = cont.get_type_anotation(&typ);
                 cont.get_classes(&typ)
-                    .map(|classes| format!("list({}) |> {}", 
+                    .map(|_| format!("list({}) |> {}", 
                                 body, anotation))
                     .unwrap_or(format!("list({}) |> {}",
                                 body, anotation))
