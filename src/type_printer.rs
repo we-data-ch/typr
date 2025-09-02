@@ -3,6 +3,7 @@ use crate::kind::Kind;
 use crate::help_data::HelpData;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
+use crate::type_category::TypeCategory;
 
 fn format_kind(ki: &Kind) -> String {
    match ki {
@@ -41,7 +42,12 @@ pub fn format(ty: &Type) -> String {
             format!("{{{}}}", formatted_fields.join(", "))
         }
         Type::Generic(name, _) => name.to_uppercase(),
-        Type::Integer(_, _) => "int".to_string(),
+        Type::Integer(tint, _) => {
+            match tint {
+                Tint::Val(i) => format!("int({})", i),
+                _ => "int".to_string()
+            }
+        },
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
         Type::Char(_, _) => "char".to_string(),
@@ -88,6 +94,8 @@ pub fn format2(t: &Type) -> String {
             }
         },
         Type::IndexGen(idgen, _) => format!("#{}", idgen),
+        val if val.to_category() == TypeCategory::Template
+            => val.pretty(),
         val => panic!("{:?} doesn't have a second format", val)
     }
 }

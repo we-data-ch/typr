@@ -29,6 +29,11 @@ impl HelpData {
         }
     }
 
+    pub fn random() -> Self {
+        HelpData { offset: 7_usize, file_name: "asfdlwone".to_string() }
+            
+    }
+
 }
 
 

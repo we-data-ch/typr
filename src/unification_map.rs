@@ -3,6 +3,7 @@ use crate::unification;
 use crate::Context;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
+use std::fmt;
 
 #[derive(Debug)]
 struct SafeHashMap {
@@ -70,3 +71,11 @@ impl From<Vec<Vec<(Type, Type)>>> for  UnificationMap {
    } 
 }
 
+impl fmt::Display for UnificationMap {
+    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let res = self.0.iter()
+            .map(|(ty1, ty2)| format!("{} = {}", ty1.pretty(), ty2.pretty2()))
+            .fold("".to_string(), |acc, mapp| acc + " | " + &mapp);
+        write!(f, "{}", res)       
+    }
+}

@@ -97,18 +97,19 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Sequence(exprs, _h) 
             => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, exp, _h) => {
-            let expr_ty = typing(&context, exp).0;
+            let expr_ty = typing(&context.deep_clone(), exp).0;
             let reduced_expr_ty = expr_ty.reduce(context);
             if ty.is_empty() {
-                if exp.is_function() && (exp.nb_params() > 0) {
+                let res = if exp.is_function() && (exp.nb_params() > 0) {
                     let first_param = expr_ty.to_function_type()
                         .unwrap()
                         .get_param_types()[0].clone();
                     let new_name = name.to_owned().set_type(first_param);
-                    context.to_owned()
+                    let res = context.to_owned()
                             .push_var_type(new_name, reduced_expr_ty.to_owned(), context)
-                            .add_generic_function(&[build_generic_function(&name.get_name())])
+                            .add_generic_function(&[build_generic_function(&name.get_name())]);
                             // TODO: check for already existing generic function upthere
+                    res
                 } else if exp.is_r_function() {
                     let new_name = name.to_owned().set_type(builder::any_type());
                     context.clone().push_var_type(new_name, builder::r_function_type(), context)
@@ -117,7 +118,8 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                         .set_type(reduced_expr_ty.clone());
                     context.to_owned()
                             .push_var_type(new_name, reduced_expr_ty.to_owned(), context)
-                }
+                };
+                res
             } else {
                 let reduced_ty = ty.reduce(context);
                 let new_context = reduced_expr_ty.is_subtype(&reduced_ty).then(|| {
@@ -207,7 +209,11 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         match (type1, type2) {
             (_, Type::Any(_)) => Some(vec![]),
             (Type::Integer(i, _), Type::Integer(j, _)) => {
-                (j.gen_of(i)).then(|| vec![])
+                if j.gen_of(i) || i == j {
+                    Some(vec![])
+                } else {
+                    None
+                }
             },
             (Type::Char(c, _), Type::Char(d, _)) => {
                 (d.gen_of(c)).then(|| vec![])
@@ -224,11 +230,13 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                 Some(res)
             }
             (Type::Array(ind1, typ1, _), Type::Array(ind2, typ2, _)) => {
-               let gen1 = get_gen_type(ind1, ind2)
-                   .unwrap_or(vec![]);
-               let gen2 = get_gen_type(typ1, typ2)
-                   .unwrap_or(vec![]);
-               Some(gen1.iter().chain(gen2.iter()).cloned().collect())
+               let gen1 = get_gen_type(ind1, ind2);
+               let gen2 = get_gen_type(typ1, typ2);
+                match (gen1, gen2) {
+                    (None, _) | (_, None) => None,
+                    (Some(g1), Some(g2)) 
+                        => Some(g1.iter().chain(g2.iter()).cloned().collect())
+                }
             },
             (Type::Record(v1, _), Type::Record(v2, _)) => {
                    let res = v1.iter() 
@@ -378,12 +386,12 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 let unification_map = context
                         .get_unification_map(values, &param_types)
                         .unwrap_or(UnificationMap::new(vec![]));
-                let (new_typ, new_context) = unification_map
+                let (new_ret_typ, new_context) = unification_map
                         .apply_unification_type(context, &func.get_ret_type());
                 let params = func.get_param_types().iter()
                             .map(|p| unification_map.apply_unification_type(context, p).0)
                             .collect::<Vec<_>>();
-                (new_typ.clone(), new_context.push(expr.clone(), func.set_params(params).set_ret_type(new_typ)))
+                (new_ret_typ.clone(), new_context.push(expr.clone(), func.set_params(params).set_ret_type(new_ret_typ)))
             }
         }
         Lang::Tag(name, expr, h) => {

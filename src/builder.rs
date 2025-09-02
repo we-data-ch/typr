@@ -64,3 +64,8 @@ pub fn r_function_type() -> Type {
 pub fn tuple_type(types: &[Type]) -> Type {
     Type::Tuple(types.to_vec(), HelpData::default())
 }
+
+pub fn array_type(i: Type, t: Type) -> Type {
+    Type::Array(Box::new(i), Box::new(t), HelpData::default())
+}
+

@@ -898,5 +898,12 @@ mod tesus {
         assert_eq!(res, vec![]);
     }
 
+    #[test]
+    fn test_parse_fabrice0() {
+        let res = parse("let action <- fn(a: [1, [#M, T]], m: [#M, [#N, T]], b: [1, [#N, T]]) -> [1, [#N, T]] { a.dot(m).add(b) };".into()).unwrap().1;
+        assert_eq!(res.0, vec![]);
+    }
+
+
 
 }

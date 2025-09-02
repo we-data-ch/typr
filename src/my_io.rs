@@ -24,7 +24,6 @@ pub fn read_file_from_name(name: &str) -> String {
 }
 
 pub fn execute_r() -> () {
-    println!("Execution: ");
     match Command::new("Rscript")
         .arg(get_os_file("app.R"))
         .output() 

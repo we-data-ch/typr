@@ -894,5 +894,13 @@ mod tests {
         assert_eq!(res, builder::empty_type());
     }
 
+    #[test]
+    fn test_fabrice0(){
+        let arr1 = ltype("[1, T]".into()).unwrap().1;
+        let arr2 = ltype("[1, 1]".into()).unwrap().1;
+        assert_eq!(
+            arr2.is_subtype(&arr1),
+            true);
+    }
 
 }

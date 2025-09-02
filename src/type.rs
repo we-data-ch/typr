@@ -515,6 +515,10 @@ impl Type {
             Type::RFunction(_) => TypeCategory::RFunction,
             Type::Alias(name, _, _, _, _) => TypeCategory::Opaque(name.clone()),
             Type::Union(_, _) => TypeCategory::Union,
+            Type::Add(_, _, _) => TypeCategory::Template,
+            Type::Minus(_, _, _) => TypeCategory::Template,
+            Type::Mul(_, _, _) => TypeCategory::Template,
+            Type::Div(_, _, _) => TypeCategory::Template,
             _ => {
                 println!("{:?} return Rest", self);
                 TypeCategory::Rest
@@ -817,3 +821,5 @@ impl Hash for Type {
         }
     }
 }
+
+

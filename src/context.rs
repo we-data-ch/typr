@@ -126,16 +126,15 @@ impl Context {
     }
 
     pub fn push_var_type(self, lang: Var, typ: Type, _context: &Context) -> Context {
+        let types = typ.extract_types();
         let var_type = self.typing_context.clone()
             .push_var_type(&[(lang, typ.clone())])
-            .push_types(&typ.extract_types());
-        let type_list: Vec<_> = var_type.get_types().iter().cloned().collect();
+            .push_types(&types);
         let mut typ_hie = self.subtypes.clone();
-        typ_hie.update(&type_list);
+        typ_hie.update(&types);
         Context {
             typing_context: var_type, 
-            subtypes: typ_hie.clone(),
-            //header: self.header.clone().add_generic_function(&wasm_types(&types, &nominals, context)),
+            subtypes: typ_hie,
             ..self
         }
     }
@@ -144,6 +143,16 @@ impl Context {
         Self {
             typing_context: self.typing_context.push_types(types),
             ..self
+        }
+    }
+
+    pub fn deep_clone(&self) -> Self {
+        Self {
+           subtypes: self.subtypes.deep_clone(),
+           header: self.header.clone(),
+           config: self.config.clone(),
+           kinds: self.kinds.clone(),
+           typing_context: self.typing_context.clone()
         }
     }
 

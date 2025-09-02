@@ -831,8 +831,8 @@ pub fn parse_elements(s: Span) -> IResult<Span, Lang> {
 mod tests {
     use super::*;
     use crate::builder;
-    use std::backtrace::Backtrace;
     use crate::parse;
+    use crate::Adt;
 
     #[test]
     fn test_single_element() {

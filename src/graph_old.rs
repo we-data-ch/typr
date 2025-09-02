@@ -61,6 +61,8 @@ pub struct Graph {
     node_cache: HashMap<Type, Rc<TypeNode>>,
 }
 
+
+
 impl Graph {
 
     /// Crée un nouveau graphe avec Generic comme nœud racine
@@ -314,85 +316,4 @@ impl Graph {
         }
     }
 
-
-    /// Crée une copie profonde complète du graphe
-    /// Tous les Rc<TypeNode> et RefCell sont recréés avec de nouvelles adresses mémoire
-    pub fn deep_clone(&self) -> Self {
-        // Map pour garder la correspondance entre anciens et nouveaux nœuds
-        let mut old_to_new: HashMap<*const TypeNode, Rc<TypeNode>> = HashMap::new();
-        let mut new_node_cache: HashMap<Type, Rc<TypeNode>> = HashMap::new();
-        
-        // Première passe : créer tous les nouveaux nœuds (sans les connexions)
-        self.clone_all_nodes_first_pass(&self.root, &mut old_to_new, &mut new_node_cache);
-        
-        // Deuxième passe : recréer toutes les connexions entre les nouveaux nœuds
-        self.clone_all_connections_second_pass(&self.root, &old_to_new);
-        
-        // Trouver le nouveau nœud racine
-        let new_root = old_to_new.get(&(self.root.as_ref() as *const TypeNode))
-            .expect("Root node should be cloned")
-            .clone();
-        
-        Graph {
-            root: new_root,
-            node_cache: new_node_cache,
-        }
-    }
-    
-    /// Première passe : clone tous les nœuds sans leurs connexions
-    fn clone_all_nodes_first_pass(
-        &self,
-        current: &Rc<TypeNode>,
-        old_to_new: &mut HashMap<*const TypeNode, Rc<TypeNode>>,
-        new_cache: &mut HashMap<Type, Rc<TypeNode>>
-    ) {
-        let current_ptr = current.as_ref() as *const TypeNode;
-        
-        // Si ce nœud a déjà été cloné, on passe
-        if old_to_new.contains_key(&current_ptr) {
-            return;
-        }
-        
-        // Créer un nouveau nœud avec une nouvelle RefCell vide
-        let new_node = Rc::new(TypeNode {
-            type_info: current.type_info.clone(),
-            subtypes: RefCell::new(Vec::new()), // RefCell vide pour l'instant
-        });
-        
-        // Enregistrer la correspondance
-        old_to_new.insert(current_ptr, new_node.clone());
-        new_cache.insert(current.type_info.clone(), new_node.clone());
-        
-        // Continuer récursivement avec les sous-types
-        for subtype in current.subtypes.borrow().iter() {
-            self.clone_all_nodes_first_pass(subtype, old_to_new, new_cache);
-        }
-    }
-    
-    /// Deuxième passe : recrée toutes les connexions avec les nouveaux nœuds
-    fn clone_all_connections_second_pass(
-        &self,
-        current: &Rc<TypeNode>,
-        old_to_new: &HashMap<*const TypeNode, Rc<TypeNode>>
-    ) {
-        let current_ptr = current.as_ref() as *const TypeNode;
-        let new_current = old_to_new.get(&current_ptr)
-            .expect("Node should exist in old_to_new map");
-        
-        // Pour chaque sous-type de l'ancien nœud
-        for old_subtype in current.subtypes.borrow().iter() {
-            let old_subtype_ptr = old_subtype.as_ref() as *const TypeNode;
-            let new_subtype = old_to_new.get(&old_subtype_ptr)
-                .expect("Subtype should exist in old_to_new map");
-            
-            // Ajouter la connexion dans le nouveau nœud
-            new_current.subtypes.borrow_mut().push(new_subtype.clone());
-        }
-        
-        // Continuer récursivement
-        for subtype in current.subtypes.borrow().iter() {
-            self.clone_all_connections_second_pass(subtype, old_to_new);
-        }
-    }
 }
-

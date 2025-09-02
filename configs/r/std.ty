@@ -1,5 +1,5 @@
-@seq: (int, int, int) -> [#N, int];
 @add: (T, T) -> T;
 @minus: (T, T) -> T;
 @mul: (T, T) -> T;
 @div: (T, T) -> T;
+@seq: (#M, #N, #O) -> [#N+1-#M/#O, int];
