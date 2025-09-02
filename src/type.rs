@@ -822,4 +822,9 @@ impl Hash for Type {
     }
 }
 
-
+pub fn display_types(v: &[Type]) -> String {
+    v.iter()
+        .map(|x| x.pretty())
+        .collect::<Vec<_>>()
+        .join(" | ")
+}

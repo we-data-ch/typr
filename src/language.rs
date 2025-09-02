@@ -17,6 +17,7 @@ use crate::function_lang::Function;
 use crate::array_type::ArrayType;
 use crate::translatable::RTranslatable;
 use crate::builder;
+use crate::r#type::display_types;
 
 trait AndIf {
     fn and_if<F>(self, condition: F) -> Option<Self>
@@ -547,6 +548,9 @@ impl RTranslatable<(String, Context)> for Lang {
                     let new_args = fn_t.get_param_types().into_iter()
                             .map(|arg| reduce_type(&cont1, &arg))
                             .collect::<Vec<_>>();
+                    if var.get_name() == "compose" {
+                        dbg!(&display_types(&new_args));
+                    }
                     let langs = vals.into_iter().zip(new_args.iter())
                         .map(set_related_type_if_variable)
                         .collect::<Vec<_>>();
