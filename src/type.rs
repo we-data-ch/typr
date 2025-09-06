@@ -24,6 +24,11 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use crate::builder;
 use crate::type_category::TypeCategory;
+use crate::type_checker::match_types;
+use crate::type_comparison::is_matching;
+use crate::TypeError;
+use crate::help_message::ErrorMsg;
+use crate::Var;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -73,6 +78,18 @@ pub enum Type {
 
 //main
 impl Type {
+    pub fn add_to_context(self, var: Var, context: &Context) -> Context {
+        context.clone().push_var_type(var, self, context)
+    }
+
+    pub fn get_covariant_type(&self, other: &Type, context: &Context) -> Type {
+        (!other.is_empty())
+            .then_some(is_matching(context, self, other)
+                            .then_some(other.clone())
+                            .expect(&TypeError::Let(other.clone(), self.clone()).display()))
+            .unwrap_or(self.clone())
+    }
+
     pub fn extract_types(&self) -> Vec<Type> {
         match self {
             Type::Function(_, args, ret, _)

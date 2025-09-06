@@ -98,7 +98,6 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, exp, _h) => {
             let expr_ty = exp.typing(&context.deep_clone()).0;
-            let reduced_expr_ty = expr_ty.reduce(context);
             if ty.is_empty() {
                 let res = if exp.is_function() && (exp.nb_params() > 0) {
                     let first_param = expr_ty.to_function_type()
@@ -121,14 +120,13 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                 };
                 res
             } else {
-                let reduced_ty = ty.reduce(context);
-                let new_context = reduced_expr_ty.is_subtype(&reduced_ty, context).then(|| {
+                let new_context = expr_ty.is_subtype(&ty, context).then(|| {
                     if !ty.is_any() {
                         context.to_owned()
-                            .push_var_type(name.to_owned().into(), reduced_ty.to_owned(), context)
+                            .push_var_type(name.to_owned().into(), ty.to_owned(), context)
                     } else {
                         context.to_owned()
-                            .push_var_type(name.to_owned().into(), reduced_expr_ty.to_owned(), context)
+                            .push_var_type(name.to_owned().into(), expr_ty.to_owned(), context)
                     }
                 }).expect(&TypeError::Let(ty.clone(), expr_ty).display());
                 if exp.is_function() && !exp.is_undefined() {
