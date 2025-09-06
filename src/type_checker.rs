@@ -97,32 +97,32 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Sequence(exprs, _h) 
             => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, exp, _h) => {
-            let expr_ty = typing(&context.deep_clone(), exp).0;
+            let expr_ty = exp.typing(&context.deep_clone()).0;
             let reduced_expr_ty = expr_ty.reduce(context);
             if ty.is_empty() {
                 let res = if exp.is_function() && (exp.nb_params() > 0) {
                     let first_param = expr_ty.to_function_type()
                         .unwrap()
                         .get_param_types()[0].clone();
-                    let new_name = name.to_owned().set_type(first_param);
+                    let new_name = name.to_owned().set_type(first_param, context);
                     let res = context.to_owned()
-                            .push_var_type(new_name, reduced_expr_ty.to_owned(), context)
+                            .push_var_type(new_name, expr_ty.to_owned(), context)
                             .add_generic_function(&[build_generic_function(&name.get_name())]);
                             // TODO: check for already existing generic function upthere
                     res
                 } else if exp.is_r_function() {
-                    let new_name = name.to_owned().set_type(builder::any_type());
+                    let new_name = name.to_owned().set_type(builder::any_type(), context);
                     context.clone().push_var_type(new_name, builder::r_function_type(), context)
                 } else {
                     let new_name = name.to_owned()
-                        .set_type(reduced_expr_ty.clone());
+                        .set_type(expr_ty.clone(), context);
                     context.to_owned()
-                            .push_var_type(new_name, reduced_expr_ty.to_owned(), context)
+                            .push_var_type(new_name, expr_ty.to_owned(), context)
                 };
                 res
             } else {
                 let reduced_ty = ty.reduce(context);
-                let new_context = reduced_expr_ty.is_subtype(&reduced_ty).then(|| {
+                let new_context = reduced_expr_ty.is_subtype(&reduced_ty, context).then(|| {
                     if !ty.is_any() {
                         context.to_owned()
                             .push_var_type(name.to_owned().into(), reduced_ty.to_owned(), context)
@@ -140,7 +140,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         },
         Lang::Alias(name, params, typ, h) => {
             let var = name.clone()
-                .set_type(Type::Params(params.to_vec(), h.clone()));
+                .set_type(Type::Params(params.to_vec(), h.clone()), context);
             let new_context = context.clone()
                 .push_var_type(var, typ.clone(), context);
             let (fn_typ, new_context2) = new_context.get_embeddings(typ);
@@ -158,21 +158,21 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                         let res = is_matching(context, &expr_type_reduced, &var.get_type())
                             .then_some(context.clone()
                                        .update_variable(var.clone()
-                                        .set_type(expr_type_reduced.clone())));
+                                        .set_type(expr_type_reduced.clone(), context)));
                         match res {
                             Some(val) => val,
                             None => panic!("{}", TypeError::Param(var.get_type(), expr_type_reduced.clone()).display())
                         }
                    })
                    .unwrap_or(context.clone().push_var_type(
-                                        variable_assigned.set_type(expr_type_reduced.clone()),
+                                        variable_assigned.set_type(expr_type_reduced.clone(), context),
                                         expr_type_reduced, &context))
             } else {
             println!("We don't check");
                 let variable = context.get_true_variable(&variable_assigned);
                 let var_type = context.get_type_from_existing_variable(variable.clone());
                 let var_type_reduced = reduce_type(context, &var_type);
-                if (expr_type_reduced != var_type_reduced) && !expr_type_reduced.is_subtype(&var_type_reduced) {
+                if (expr_type_reduced != var_type_reduced) && !expr_type_reduced.is_subtype(&var_type_reduced, context) {
                     panic!("{}", TypeError::Param(expr_type, var_type).display());
                 } else if !variable.is_mutable() && context.we_check_mutability() {
                     panic!("{}", TypeError::ImmutableVariable(variable_assigned, variable).display());
@@ -193,7 +193,7 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Signature(var, typ, _h) => {
             if var.is_variable(){
                 let new_var = FunctionType::try_from(typ.clone())
-                            .map(|ft| var.clone().set_type(ft.get_first_param().unwrap_or(builder::empty_type())))
+                            .map(|ft| var.clone().set_type(ft.get_first_param().unwrap_or(builder::empty_type()), context))
                             .unwrap_or(var.clone());
                 context.clone().push_var_type(new_var, typ.to_owned(), context)
             } else { // is alias
@@ -352,7 +352,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let res = body.typing(&sub_context);
             let reduced_body_type = res.0.reduce(&sub_context);
             let reduced_expected_ty = ret_ty.reduce(&context);
-            if !reduced_body_type.is_subtype(&reduced_expected_ty) {
+            if !reduced_body_type.is_subtype(&reduced_expected_ty, context) {
                 None.expect(
                     &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display())
             }
@@ -525,7 +525,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             let base_type = typing(context, iter).0.to_array()
                 .expect(&format!("The iterator is not an array {:?}", iter))
                 .base_type;
-            let var = var.clone().set_type(base_type.clone());
+            let var = var.clone().set_type(base_type.clone(), context);
             Typer::from(context.clone())
                 .set_type(base_type)
                 .set_var(var)

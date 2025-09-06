@@ -44,7 +44,7 @@ impl Var {
         match t {
             Type::Alias(name, concret_types, _base_type, opacity, h) => {
                     let var = Var::from_name(&name)
-                        .set_type(Type::Params(concret_types.to_vec(), concret_types.clone().into()))
+                        .set_type(Type::Params(concret_types.to_vec(), concret_types.clone().into()), &Context::default())
                         .set_help_data(h)
                         .set_opacity(opacity);
                     Some(var)
@@ -76,8 +76,8 @@ impl Var {
        Var(s.to_string(), self.1, self.2, self.3, self.4, self.5)
     }
 
-    pub fn set_type(self, typ: Type) -> Var {
-        let typ = if let Type::Function(_, params, _, h) = typ {
+    pub fn set_type(self, typ: Type, context: &Context) -> Var {
+        let typ = if let Type::Function(_, params, _, h) = typ.reduce(context) {
             if params.len() >= 1 {
                 params[0].clone()
             } else { Type::Any(h) }

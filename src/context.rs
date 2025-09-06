@@ -125,8 +125,8 @@ impl Context {
         self.typing_context.aliases()
     }
 
-    pub fn push_var_type(self, lang: Var, typ: Type, _context: &Context) -> Context {
-        let types = typ.extract_types();
+    pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
+        let types = typ.reduce(context).extract_types();
         let var_type = self.typing_context.clone()
             .push_var_type(&[(lang, typ.clone())])
             .push_types(&types);
@@ -175,7 +175,7 @@ impl Context {
         match res {
             Some(vari) => vari.clone(),
             _ => self.is_an_untyped_function(&var.get_name()) 
-                .then(|| var.clone().set_type(Type::RFunction(var.get_help_data())))
+                .then(|| var.clone().set_type(Type::RFunction(var.get_help_data()), &Context::default()))
                 .expect(&format!("The variable {} was not found:\n {}", var, self.display_typing_context()))
         }
     }
@@ -233,7 +233,7 @@ impl Context {
                         funcs.iter().map(|(var, fun)| (arg.get_label(), var.clone(), fun.clone())).collect::<Vec<_>>()
                     })
                     .map(|(arg, var, fun): (String, Var, Type)| 
-                         (arg, var.clone().set_type(new_t.clone()),
+                         (arg, var.clone().set_type(new_t.clone(), self),
                          fun.clone().replace_function_types(var.get_type(), new_t.clone())))
                     .collect::<Vec<_>>();
                 let new_cont = 
@@ -306,7 +306,7 @@ impl Context {
             .zip(param_types.clone().into_iter())
             .map(|(arg_typ, par_typ)| 
                  (Var::from_name(&arg_typ.get_argument_str())
-                    .set_type(par_typ), reduce_type(self, &arg_typ.get_type())))
+                    .set_type(par_typ, self), reduce_type(self, &arg_typ.get_type())))
             .fold(self.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont))
     }
 

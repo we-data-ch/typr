@@ -25,8 +25,8 @@ pub fn all_subtype(cont: &Context, set1: &[ArgumentType], set2: &[ArgumentType])
 pub fn all_subtype2(set1: &[ArgumentType], set2: &[ArgumentType]) -> bool {
     set1.iter().zip(set2.iter())
         .all(|(argt1, argt2)| {
-           argt1.get_argument().is_subtype(&argt2.get_argument())
-           && argt1.get_argument().is_subtype(&argt2.get_type())
+           argt1.get_argument().is_subtype(&argt2.get_argument(), &Context::default())
+           && argt1.get_argument().is_subtype(&argt2.get_type(), &Context::default())
         })
 }
 
@@ -46,7 +46,7 @@ pub fn contains_all2(vec1: &[ArgumentType], vec2: &[ArgumentType]) -> bool {
             vec2.iter()
                 .any(|sup| 
                      (sub.get_argument() == sup.get_argument())
-                     && sub.get_type().is_subtype(&sup.get_type()))
+                     && sub.get_type().is_subtype(&sup.get_type(), &Context::default()))
         })
 }
 
@@ -68,8 +68,8 @@ fn set_self(fs: &[(Var, Type)]) -> Vec<(Var, Type)> {
                         .map(|typ_ele| to_self(typ_ele.clone(), first.clone()))
                         .collect();
                     let ret2 = to_self((**ret_type).clone(), first);
-                    (var.clone().set_type(Type::Empty(HelpData::default())), Type::Function(kinds.clone(), args, Box::new(ret2), h.clone()))
-                } else { (var.clone().set_type(Type::Empty(HelpData::default())), typ.clone()) }
+                    (var.clone().set_type(Type::Empty(HelpData::default()), &Context::default()), Type::Function(kinds.clone(), args, Box::new(ret2), h.clone()))
+                } else { (var.clone().set_type(Type::Empty(HelpData::default()), &Context::default()), typ.clone()) }
             },
             _ => (var.clone(), typ.clone())
         }

@@ -1,6 +1,7 @@
 use crate::Type;
 use crate::Var;
 use crate::help_data::HelpData;
+use crate::Context;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum TypeCategory {
@@ -30,7 +31,7 @@ pub enum TypeCategory {
 impl TypeCategory {
     pub fn to_variable(self) -> Var {
         Var::from_name(&format!("{}", self))
-            .set_type(Type::Params(vec![], HelpData::default()))
+            .set_type(Type::Params(vec![], HelpData::default()), &Context::default())
     }
 
 }

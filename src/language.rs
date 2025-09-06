@@ -176,7 +176,7 @@ impl Lang {
         if args.len() > 0 {
                         let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
                         Var::from_language(self.clone())
-                            .unwrap().set_type(first)
+                            .unwrap().set_type(first, context)
                     } else {
                         Var::from_language(self.clone()).unwrap()
             }
@@ -730,4 +730,5 @@ impl RTranslatable<(String, Context)> for Lang {
         
         result
     }
+
 }

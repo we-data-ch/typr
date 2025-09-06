@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use crate::Type;
 use crate::builder;
+use crate::Context;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeNode {
@@ -131,12 +132,12 @@ impl Graph {
         visited.insert(current.type_info.clone());
 
         // Vérifier si le nœud actuel est un super-type du nouveau type
-        if new_type.is_subtype(&current.type_info) {
+        if new_type.is_subtype(&current.type_info, &Context::default()) {
             // Vérifier les sous-types pour voir si certains sont des sous-types du nouveau type
             let mut subtypes_of_new_type = Vec::new();
             
             for subtype in current.subtypes.borrow().iter() {
-                if subtype.type_info.is_subtype(new_type) {
+                if subtype.type_info.is_subtype(new_type, &Context::default()) {
                     // Ce sous-type est un sous-type du nouveau type
                     subtypes_of_new_type.push(subtype.type_info.clone());
                 }
@@ -195,7 +196,7 @@ impl Graph {
         visited.insert(current.type_info.clone());
 
         // Vérifier si le nœud actuel est un super-type du nouveau type
-        if new_type.is_subtype(&current.type_info) {
+        if new_type.is_subtype(&current.type_info, &Context::default()) {
             // Si c'est un nœud feuille, c'est un point d'insertion
             if current.subtypes.borrow().is_empty() {
                 insertion_points.push(current.type_info.clone());
@@ -298,7 +299,7 @@ impl Graph {
         supertypes: &mut Vec<Type>
     ) {
         // Si le nœud actuel est un super-type du target
-        if target.is_subtype(&current.type_info) && current.type_info != *target {
+        if target.is_subtype(&current.type_info, &Context::default()) && current.type_info != *target {
             supertypes.push(current.type_info.clone());
         }
 
