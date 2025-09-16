@@ -59,6 +59,7 @@ use crate::engine::parse_code;
 use crate::my_io::execute_r_with_path;
 use crate::var::Var;
 use crate::engine::write_std_for_type_checking;
+use crate::graph::Graph;
 
 #[derive(Debug, Parser, Clone, Copy, PartialEq)]
 pub enum Environment {
@@ -213,10 +214,11 @@ fn run_single_file(path: &PathBuf) {
 
     //HEADER
     write_std_for_type_checking(&dir);
-    let context = adt_manager.type_check();
-    let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    adt_manager.get_body().write_to_r(&context, &dir, &r_file_name);
-    execute_r_with_path(&dir, &r_file_name);
+    Graph::new();
+    //let context = adt_manager.type_check();
+    //let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
+    //adt_manager.get_body().write_to_r(&context, &dir, &r_file_name);
+    //execute_r_with_path(&dir, &r_file_name);
 }
 
 fn main() {

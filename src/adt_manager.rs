@@ -60,11 +60,12 @@ impl AdtManager {
     }
 
     pub fn type_check(&self) -> Context {
-        let base_context = Context::default();
-        let context = typing(&base_context, &Lang::Sequence(self.get_header().0.clone(), HelpData::default())).1;
-        let (typ, new_context) = typing(&context, &Lang::Sequence(self.get_body().0.clone(), HelpData::default()));
-        println!("Type checking:\n{}\n", typ.pretty());
-        new_context
+        //let base_context = Context::default();
+        //let context = typing(&base_context, &Lang::Sequence(self.get_header().0.clone(), HelpData::default())).1;
+        //let (typ, new_context) = typing(&context, &Lang::Sequence(self.get_body().0.clone(), HelpData::default()));
+        //println!("Type checking:\n{}\n", typ.pretty());
+        //new_context
+        todo!();
     }
 
 }

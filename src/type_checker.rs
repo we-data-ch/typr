@@ -97,44 +97,9 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Sequence(exprs, _h) 
             => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, exp, _h) => {
-            let expr_ty = exp.typing(&context.deep_clone()).0;
-            if ty.is_empty() {
-                let res = if exp.is_function() && (exp.nb_params() > 0) {
-                    let first_param = expr_ty.to_function_type()
-                        .unwrap()
-                        .get_param_types()[0].clone();
-                    let new_name = name.to_owned().set_type(first_param, context);
-                    let res = context.to_owned()
-                            .push_var_type(new_name, expr_ty.to_owned(), context)
-                            .add_generic_function(&[build_generic_function(&name.get_name())]);
-                            // TODO: check for already existing generic function upthere
-                    res
-                } else if exp.is_r_function() {
-                    let new_name = name.to_owned().set_type(builder::any_type(), context);
-                    context.clone().push_var_type(new_name, builder::r_function_type(), context)
-                } else {
-                    let new_name = name.to_owned()
-                        .set_type(expr_ty.clone(), context);
-                    context.to_owned()
-                            .push_var_type(new_name, expr_ty.to_owned(), context)
-                };
-                res
-            } else {
-                let new_context = expr_ty.is_subtype(&ty, context).then(|| {
-                    if !ty.is_any() {
-                        context.to_owned()
-                            .push_var_type(name.to_owned().into(), ty.to_owned(), context)
-                    } else {
-                        context.to_owned()
-                            .push_var_type(name.to_owned().into(), expr_ty.to_owned(), context)
-                    }
-                }).expect(&TypeError::Let(ty.clone(), expr_ty).display());
-                if exp.is_function() && !exp.is_undefined() {
-                    new_context.add_generic_function(&[build_generic_function(&name.get_name())])
-                } else {
-                    new_context
-                }
-            }
+            exp.typing(context).0
+                .get_covariant_type(ty, context)
+                .add_to_context(name.clone(), context)
         },
         Lang::Alias(name, params, typ, h) => {
             let var = name.clone()
