@@ -899,7 +899,7 @@ mod tests {
         let arr1 = ltype("[1, T]".into()).unwrap().1;
         let arr2 = ltype("[1, 1]".into()).unwrap().1;
         assert_eq!(
-            arr2.is_subtype(&arr1),
+            arr2.is_subtype(&arr1, &Context::default()),
             true);
     }
 

@@ -131,7 +131,8 @@ impl Context {
             .push_var_type(&[(lang, typ.clone())])
             .push_types(&types);
         let mut typ_hie = self.subtypes.clone();
-        typ_hie.update(&types);
+        //typ_hie.update(&types);
+        //todo: uncomment the line upside
         Context {
             typing_context: var_type, 
             subtypes: typ_hie,
@@ -198,16 +199,17 @@ impl Context {
     }
 
     pub fn get_classes(&self, t: &Type) -> Option<String> {
-        let res = self.subtypes.get_supertypes(t)
-            .iter().map(|typ| self.get_class(typ))
-            .collect::<HashSet<_>>()
-            .iter().cloned().collect::<Vec<_>>()
-            .join(", ");
-        if res == "" {
-            Some("'None'".to_string())
-        } else {
-            Some(res)
-        }
+        //let res = self.subtypes.get_supertypes(t)
+            //.iter().map(|typ| self.get_class(typ))
+            //.collect::<HashSet<_>>()
+            //.iter().cloned().collect::<Vec<_>>()
+            //.join(", ");
+        //if res == "" {
+            //Some("'None'".to_string())
+        //} else {
+            //Some(res)
+        //}
+        todo!();
     }
 
     pub fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {

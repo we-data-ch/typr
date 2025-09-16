@@ -46,8 +46,8 @@ impl Type {
     }
 }
 
-#[derive(Debug, Clone)]
-struct Graph {
+#[derive(Debug, Clone, PartialEq)]
+pub struct Graph {
    value: Type,
    subtypes: Vec<Graph>
 }
@@ -69,6 +69,15 @@ impl Graph {
             subtypes: vec![]
         }
     }
+
+    pub fn update(self, types: &[Type]) -> Self {
+        todo!();
+    }
+
+    pub fn deep_clone(&self) -> Self {
+        todo!();
+    }
+
 
     pub fn no_child_as_supertype_of(&self, typ: Type) -> bool {
         self.subtypes.iter().cloned()
