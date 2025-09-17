@@ -1,4 +1,3 @@
-# TypR
 <div align="center">
   <a href="./LICENSE">
     <img src="https://img.shields.io/github/license/we-data-ch/typr" alt="License">
@@ -14,6 +13,7 @@
   </a>
 </div>
 
+# TypR
 ![](images/TypR_logo.png)
 
 ## Website
