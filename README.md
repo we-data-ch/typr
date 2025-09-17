@@ -1,9 +1,19 @@
 # TypR
-[![License](https://img.shields.io/github/license/we-data-ch/typr)](./LICENSE)
-[![Issues](https://img.shields.io/github/issues/we-data-ch/typr)](https://github.com/we-data-ch/typr/issues)
-[![Stars](https://img.shields.io/github/stars/we-data-ch/typr)](https://github.com/we-data-ch/typr/stargazers)
-[![Last Commit](https://img.shields.io/github/last-commit/we-data-ch/typr)](https://github.com/we-data-ch/typr/commits/main)
- 
+<div align="center">
+  <a href="./LICENSE">
+    <img src="https://img.shields.io/github/license/we-data-ch/typr" alt="License">
+  </a>
+  <a href="https://github.com/we-data-ch/typr/issues">
+    <img src="https://img.shields.io/github/issues/we-data-ch/typr" alt="Issues">
+  </a>
+  <a href="https://github.com/we-data-ch/typr/stargazers">
+    <img src="https://img.shields.io/github/stars/we-data-ch/typr" alt="Stars">
+  </a>
+  <a href="https://github.com/we-data-ch/typr/commits/main">
+    <img src="https://img.shields.io/github/last-commit/we-data-ch/typr" alt="Last Commit">
+  </a>
+</div>
+
 ![](images/TypR_logo.png)
 
 ## Website
