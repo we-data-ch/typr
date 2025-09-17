@@ -1,4 +1,9 @@
 # TypR
+[![Build](https://github.com/we-data-ch/typr/actions/workflows/ci.yml/badge.svg)](https://github.com/we-data-ch/typr/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/we-data-ch/typr)](./LICENSE)
+[![Issues](https://img.shields.io/github/issues/we-data-ch/typr)](https://github.com/we-data-ch/typr/issues)
+[![Stars](https://img.shields.io/github/stars/we-data-ch/typr)](https://github.com/we-data-ch/typr/stargazers)
+[![Last Commit](https://img.shields.io/github/last-commit/we-data-ch/typr)](https://github.com/we-data-ch/typr/commits/main)
  
 ![](images/TypR_logo.png)
 
