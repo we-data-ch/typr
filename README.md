@@ -1,4 +1,6 @@
 
+![](images/TypR_logo.png)
+
 ## Website
 
 The link for the official website is [here](https://fabricehategekimana.github.io/typr.github.io/build/).
