@@ -214,11 +214,10 @@ fn run_single_file(path: &PathBuf) {
 
     //HEADER
     write_std_for_type_checking(&dir);
-    Graph::new();
-    //let context = adt_manager.type_check();
-    //let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    //adt_manager.get_body().write_to_r(&context, &dir, &r_file_name);
-    //execute_r_with_path(&dir, &r_file_name);
+    let context = adt_manager.type_check();
+    let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
+    adt_manager.get_body().write_to_r(&context, &dir, &r_file_name);
+    execute_r_with_path(&dir, &r_file_name);
 }
 
 fn main() {

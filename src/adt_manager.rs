@@ -3,6 +3,7 @@ use crate::Lang;
 use crate::Context;
 use crate::typing;
 use crate::help_data::HelpData;
+use crate::graph::TypeSystem;
 
 #[derive(Debug)]
 pub struct AdtManager {
@@ -60,12 +61,11 @@ impl AdtManager {
     }
 
     pub fn type_check(&self) -> Context {
-        //let base_context = Context::default();
-        //let context = typing(&base_context, &Lang::Sequence(self.get_header().0.clone(), HelpData::default())).1;
-        //let (typ, new_context) = typing(&context, &Lang::Sequence(self.get_body().0.clone(), HelpData::default()));
-        //println!("Type checking:\n{}\n", typ.pretty());
-        //new_context
-        todo!();
+        let base_context = Context::default();
+        let context = typing(&base_context, &Lang::Sequence(self.get_header().0.clone(), HelpData::default())).1;
+        let (typ, new_context) = typing(&context, &Lang::Sequence(self.get_body().0.clone(), HelpData::default()));
+        println!("Type checking:\n{}\n", typ.pretty());
+        new_context
     }
 
 }

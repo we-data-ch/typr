@@ -151,11 +151,11 @@ fn variable_helper(s: Span) -> IResult<Span, Lang> {
         Ok((s, (Some(mp), (v, h), Some(ty)))) 
             => Ok((s, Var::from_name(&v)
                    .set_path(mp.0.into())
-                   .set_type(ty, &Context::default())
+                   .set_type(ty)
                    .set_help_data(h.clone()).into())),
         Ok((s, (None, (v, h), Some(ty)))) 
             => Ok((s, Var::from_name(&v)
-                        .set_type(ty, &Context::default())
+                        .set_type(ty)
                         .set_help_data(h).into())),
         Ok((s, (Some(mp), (v, h), None))) 
             => Ok((s.clone(), Var::from_name(&v)

@@ -30,6 +30,7 @@ use crate::tchar::Tchar;
 use crate::elements::variable_exp;
 use nom::combinator::recognize;
 use crate::elements;
+use crate::graph::TypeSystem;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -659,6 +660,7 @@ mod tests {
     use super::*;
     use crate::builder;
     use crate::Adt;
+    use crate::Context;
 
     #[test]
     fn test_function_type() {
@@ -899,7 +901,7 @@ mod tests {
         let arr1 = ltype("[1, T]".into()).unwrap().1;
         let arr2 = ltype("[1, 1]".into()).unwrap().1;
         assert_eq!(
-            arr2.is_subtype(&arr1, &Context::default()),
+            arr2.is_subtype(&arr1),
             true);
     }
 

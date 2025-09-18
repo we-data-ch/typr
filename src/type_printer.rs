@@ -4,6 +4,7 @@ use crate::help_data::HelpData;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
 use crate::type_category::TypeCategory;
+use crate::graph::TypeSystem;
 
 fn format_kind(ki: &Kind) -> String {
    match ki {

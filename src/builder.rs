@@ -54,7 +54,8 @@ pub fn params_type() -> Type {
 }
 
 pub fn generic_function(s: &str) -> Lang {
-    Lang::GenFunc(s.to_string(), "".to_string(), HelpData::default())
+    let body = format!("{} <- function(x, ...) {{ UseMethod('{}') }}", s, s);
+    Lang::GenFunc(body, "".to_string(), HelpData::default())
 }
 
 pub fn r_function_type() -> Type {

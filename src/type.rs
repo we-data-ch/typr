@@ -29,6 +29,8 @@ use crate::type_comparison::is_matching;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use crate::Var;
+use crate::graph::TypeSystem;
+use crate::Lang;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -76,10 +78,23 @@ pub enum Type {
     Any(HelpData)
 }
 
+impl TypeSystem for Type {
+    fn pretty(&self) -> String {
+        format(self)
+    }
+}
+
+impl Default for Type {
+    fn default() -> Self {
+        builder::generic_type()
+    }
+}
+
 //main
 impl Type {
     pub fn add_to_context(self, var: Var, context: &Context) -> Context {
-        context.clone().push_var_type(var, self, context)
+        context.clone().push_var_type(var.clone(), self, context)
+            .add_lang_to_header(&[builder::generic_function(&var.get_name())])
     }
 
     pub fn get_covariant_type(&self, other: &Type, context: &Context) -> Type {
@@ -388,9 +403,6 @@ impl Type {
         }
     }
 
-    pub fn pretty(&self) -> String {
-        format(self)
-    }
 
     pub fn pretty2(&self) -> String {
         format2(self)
@@ -441,71 +453,6 @@ impl Type {
                 }
             },
             t => t
-        }
-    }
-
-    pub fn is_subtype(&self, other: &Type, context: &Context) -> bool {
-        match (self.reduce(context), other.reduce(context)) {
-            (Type::Empty(_), _) => true,
-            (typ1, typ2) if typ1 == typ2 => true,
-            // Array subtyping
-            (_, Type::Any(_)) => true,
-            (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
-                n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
-            },
-            (Type::Function(_, args1, ret_typ1, _), Type::Function(_, args2, ret_typ2, _)) => {
-                args1.iter().chain([&(*ret_typ1)])
-                    .zip(args2.iter().chain([&(*ret_typ2)]))
-                    .all(|(typ1, typ2)| typ1.is_subtype(typ2, context))
-            }
-            // Interface subtyping
-            (_type1, Type::Interface(_args, _)) => {
-                todo!();
-            }
-
-            // Record subtyping
-            (Type::Record(r1, _), Type::Record(r2, _)) => {
-                if has_generic_label(&r2) && (r1.len() == r2.len()) {
-                    all_subtype2(&r1, &r2)
-                } else if let Some(_arg_typ) = other.get_type_pattern() {
-                    true
-                } else {
-                    contains_all2(&r1, &r2)
-                }
-            },
-
-            (Type::StrictUnion(types1, _), Type::StrictUnion(_types2, _)) => {
-                types1.iter().all(|t1| t1.to_type().is_subtype(other, context))
-            },
-
-            // Union subtyping
-            (Type::Tag(_name, _body, _h), Type::StrictUnion(types, _)) => {
-                types.iter().any(|t| self.is_subtype(&t.to_type(), context))
-            },
-            (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
-                (name1 == name2) && body1.is_subtype(&*body2, context)
-            },
-
-            // Generic subtyping
-            (_, Type::Generic(_, _)) => true,
-            (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
-            (Type::Char(_, _), Type::LabelGen(_, _)) => true,
-            (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
-
-            // Params subtyping
-            (Type::Params(p1, _), Type::Params(p2, _)) => {
-                p1.len() == p2.len() && 
-                p1.iter().zip(p2.iter()).all(|(t1, t2)| t1.is_subtype(t2, context))
-            }
-
-            (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(&set2),
-            (Type::Union(s1, _), Type::Union(s2, _)) => s1.is_subset(&s2),
-            (typ, Type::Union(s2, _)) => s2.contains(&typ),
-
-            (Type::Char(_, _), Type::Char(_, _)) => true,
-            (Type::Integer(_, _), Type::Integer(_, _)) => true,
-
-            _ => false
         }
     }
     
@@ -781,20 +728,76 @@ impl fmt::Display for Type {
 
 impl PartialOrd for Type {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.is_subtype(other, &Context::default()) {
-            Some(Ordering::Less)
-        } else {
-            Some(Ordering::Greater)
-        }
-    }
-}
+        match (self, other) {
+            (Type::Empty(_), _) => Some(Ordering::Less),
+            (typ1, typ2) if typ1 == typ2 => Some(Ordering::Equal),
+            // Array subtyping
+            (_, Type::Any(_)) => Some(Ordering::Less),
+            (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
+                (n1.partial_cmp(&*n2).is_some() && t1.partial_cmp(&*t2).is_some())
+                    .then_some(Ordering::Less)
+            },
+            (Type::Function(_, args1, ret_typ1, _), Type::Function(_, args2, ret_typ2, _)) => {
+                args1.iter().chain([&(**ret_typ1)])
+                    .zip(args2.iter().chain([&(**ret_typ2)]))
+                    .all(|(typ1, typ2)| typ1.partial_cmp(typ2).is_some())
+                    .then_some(Ordering::Less)
+            }
+            // Interface subtyping
+            (_type1, Type::Interface(_args, _)) => {
+                todo!();
+            }
 
-impl Ord for Type {
-    fn cmp(&self, other: &Self) -> Ordering {
-        if self.is_subtype(other, &Context::default()) {
-            Ordering::Less
-        } else {
-            Ordering::Greater
+            // Record subtyping
+            (Type::Record(r1, _), Type::Record(r2, _)) => {
+                if has_generic_label(&r2) && (r1.len() == r2.len()) {
+                    all_subtype2(&r1, &r2)
+                        .then_some(Ordering::Less)
+                } else if let Some(_arg_typ) = other.get_type_pattern() {
+                    Some(Ordering::Less)
+                } else {
+                    contains_all2(&r1, &r2)
+                        .then_some(Ordering::Less)
+                }
+            },
+
+            (Type::StrictUnion(types1, _), Type::StrictUnion(_types2, _)) => {
+                types1.iter().all(|t1| t1.to_type().partial_cmp(other).is_some())
+                        .then_some(Ordering::Less)
+            },
+
+            // Union subtyping
+            (Type::Tag(_name, _body, _h), Type::StrictUnion(types, _)) => {
+                types.iter().any(|t| self.partial_cmp(&t.to_type()).is_some())
+                        .then_some(Ordering::Less)
+            },
+            (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
+                ((name1 == name2) && body1.partial_cmp(&*body2).is_some())
+                        .then_some(Ordering::Less)
+            },
+
+            // Generic subtyping
+            (_, Type::Generic(_, _)) => Some(Ordering::Less),
+            (Type::Integer(_, _), Type::IndexGen(_, _)) => Some(Ordering::Less),
+            (Type::Char(_, _), Type::LabelGen(_, _)) => Some(Ordering::Less),
+            (Type::IndexGen(_, _), Type::IndexGen(_, _)) => Some(Ordering::Less),
+
+            // Params subtyping
+            (Type::Params(p1, _), Type::Params(p2, _)) => {
+                (p1.len() == p2.len() && 
+                p1.iter().zip(p2.iter()).all(|(t1, t2)| t1.partial_cmp(t2).is_some()))
+                        .then_some(Ordering::Less)
+            }
+
+            (Type::RClass(set1, _), Type::RClass(set2, _)) 
+                => set1.is_subset(&set2).then_some(Ordering::Less),
+            (Type::Union(s1, _), Type::Union(s2, _)) 
+                => s1.is_subset(&s2).then_some(Ordering::Less),
+            (typ, Type::Union(s2, _)) 
+                => s2.contains(&typ).then_some(Ordering::Less),
+            (Type::Char(_, _), Type::Char(_, _)) => Some(Ordering::Less),
+            (Type::Integer(_, _), Type::Integer(_, _)) => Some(Ordering::Less),
+            _ => None
         }
     }
 }
@@ -844,4 +847,66 @@ pub fn display_types(v: &[Type]) -> String {
         .map(|x| x.pretty())
         .collect::<Vec<_>>()
         .join(" | ")
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Graph;
+
+    #[test]
+    fn test_record_hierarchy1(){
+        let name = builder::record_type(&[
+                ("name".to_string(), builder::character_type_default()),
+        ]);
+        let person = builder::record_type(&[
+                ("name".to_string(), builder::character_type_default()),
+                ("age".to_string(), builder::integer_type_default()),
+        ]);
+        let g = Graph::new()
+                    .add_type(name.clone())
+                    .add_type(person);
+        let supertypes = g.get_supertypes_trace(&name);
+        g.print_hierarchy();
+        dbg!(&TypeSystem::prettys(&supertypes));
+        assert_eq!(3, 5);
+    }
+
+    #[test]
+    fn test_record_hierarchy2(){
+        let name = builder::record_type(&[
+                ("name".to_string(), builder::character_type_default()),
+        ]);
+        let person = builder::record_type(&[
+                ("name".to_string(), builder::character_type_default()),
+                ("age".to_string(), builder::integer_type_default()),
+        ]);
+        let g = Graph::new()
+                    .add_type(name.clone())
+                    .add_type(person.clone());
+        let supertypes = g.get_supertypes_trace(&person);
+        g.print_hierarchy();
+        dbg!(&TypeSystem::prettys(&supertypes));
+        assert_eq!(3, 5);
+    }
+
+    #[test]
+    fn test_record_subtyping1() {
+        let name = builder::record_type(&[
+                ("name".to_string(), builder::character_type_default()),
+        ]);
+        let person = builder::record_type(&[
+                ("name".to_string(), builder::character_type_default()),
+                ("age".to_string(), builder::integer_type_default()),
+        ]);
+        assert_eq!(person.is_subtype(&name), true);
+    }
+
+    #[test]
+    fn test_type_subtyping1() {
+        let t1 = builder::number_type();
+        assert_eq!(t1.is_subtype(&t1), true);
+    }
+
 }

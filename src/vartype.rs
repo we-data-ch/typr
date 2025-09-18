@@ -4,7 +4,7 @@ use crate::var::Var;
 use crate::Type;
 use crate::builder;
 use crate::Context;
-
+use crate::graph::TypeSystem;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VarType {
@@ -15,7 +15,7 @@ pub struct VarType {
 //main
 impl VarType {
     pub fn new() -> VarType {
-        let var = Var::from("Generic").set_type(builder::params_type(), &Context::default());
+        let var = Var::from("Generic").set_type(builder::params_type());
         let typ = builder::generic_type();
         VarType {
             variables: vec![],
@@ -159,7 +159,7 @@ impl VarType {
 
     pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
         let var = Var::from_name(&alias_name)
-                    .set_type(builder::params_type(), &Context::default());
+                    .set_type(builder::params_type());
         let new_aliases = if !self.in_aliases(&alias_name) {
             self.aliases.iter().chain([(var, typ)].iter()).cloned().collect::<Vec<_>>()
         } else { self.aliases.clone() };

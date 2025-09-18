@@ -4,6 +4,7 @@ use crate::Context;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use std::fmt;
+use crate::graph::TypeSystem;
 
 #[derive(Debug)]
 struct SafeHashMap {

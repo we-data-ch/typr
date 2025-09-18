@@ -6,7 +6,7 @@ use crate::Lang;
 use crate::Var;
 use crate::help_data::HelpData;
 use std::fs;
-use crate::Context;
+use crate::graph::TypeSystem;
 
 pub trait ErrorMsg { 
     fn display(self) -> String;
@@ -190,7 +190,8 @@ impl ErrorMsg for TypeError {
             TypeError::Let(t1, t2) => {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();
-                let (file_name, text) = help_data1.get_file_data().unwrap();
+                let (file_name, text) = help_data1.get_file_data()
+                    .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
                 DoubleBuilder::new(file_name.clone(), text.clone(), file_name, text)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
@@ -261,7 +262,7 @@ impl ErrorMsg for TypeError {
                 }
             TypeError::ImmutableVariable(var_assign, var)
                 => {
-                let var = var.clone().set_type(var.get_type().generalize(), &Context::default());
+                let var = var.clone().set_type(var.get_type().generalize());
                 let help_data1 = var_assign.get_help_data();
                 let help_data2 = var.get_help_data();
                 let (file_name1, text1) = help_data1.get_file_data()
@@ -281,7 +282,7 @@ impl ErrorMsg for TypeError {
                 }
             TypeError::PrivateVariable(var_used, var)
                 => {
-                let var = var.clone().set_type(var.get_type().generalize(), &Context::default());
+                let var = var.clone().set_type(var.get_type().generalize());
                 let help_data1 = var_used.get_help_data();
                 let help_data2 = var.get_help_data();
                 let (file_name1, text1) = help_data1.get_file_data()

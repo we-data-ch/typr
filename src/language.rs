@@ -176,7 +176,7 @@ impl Lang {
         if args.len() > 0 {
                         let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
                         Var::from_language(self.clone())
-                            .unwrap().set_type(first, context)
+                            .unwrap().set_type(first)
                     } else {
                         Var::from_language(self.clone()).unwrap()
             }
@@ -548,14 +548,11 @@ impl RTranslatable<(String, Context)> for Lang {
                     let new_args = fn_t.get_param_types().into_iter()
                             .map(|arg| reduce_type(&cont1, &arg))
                             .collect::<Vec<_>>();
-                    if var.get_name() == "compose" {
-                        dbg!(&display_types(&new_args));
-                    }
-                    let langs = vals.into_iter().zip(new_args.iter())
+                    let new_vals = vals.into_iter().zip(new_args.iter())
                         .map(set_related_type_if_variable)
                         .collect::<Vec<_>>();
                     let (args, current_cont) = Translatable::from(cont1)
-                            .join(&langs, ", ").into();
+                            .join(&new_vals, ", ").into();
                     
                     Var::from_language(*exp.clone())
                         .map(|var| {
