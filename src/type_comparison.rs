@@ -247,6 +247,14 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
             Type::Tag(name.clone(), Box::new(reduce_type(context, inner)), h.clone())
         }
         Type::If(typ, _conditions, _) => *typ.clone(),
+
+        Type::Function(kinds, typs, ret_typ, h) => {
+            let typs2 = typs.iter()
+                .map(|x| reduce_type(context, x))
+                .collect::<Vec<_>>();
+            let ret_typ2 = reduce_type(context, ret_typ);
+            Type::Function(kinds.to_owned(), typs2, Box::new(ret_typ2), h.to_owned())
+        },
         _ => type_.clone()
     }
 }

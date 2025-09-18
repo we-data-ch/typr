@@ -61,7 +61,7 @@ impl VarType {
     pub fn exists(&self, typ: &Type) -> bool {
         self.aliases.iter()
             .find(|(_, typ2)| typ == typ2)
-            .is_some()
+            .is_some() || typ.is_primitive()
     }
 
     fn push_type_if_not_exists(self, typ: Type) -> Self {
@@ -127,6 +127,7 @@ impl VarType {
                     .map(|(var, _)| var.get_name())
                     .unwrap_or("Generic".to_string())
         };
+        self.print_aliases();
         format!("{}()", res)
     }
 
@@ -170,11 +171,15 @@ impl VarType {
         res
     }
 
-    pub fn print_aliases(&self) -> String {
+    pub fn get_aliases(&self) -> String {
         self.aliases.iter()
             .map(|(var, typ)| format!("{} = {}", var.get_name(), typ.pretty()))
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    pub fn print_aliases(&self) {
+        println!("{}", self.get_aliases());
     }
 
     pub fn variable_exist(&self, var: Var) -> Option<Var> {

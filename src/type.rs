@@ -93,8 +93,27 @@ impl Default for Type {
 //main
 impl Type {
     pub fn add_to_context(self, var: Var, context: &Context) -> Context {
-        context.clone().push_var_type(var.clone(), self, context)
-            .add_lang_to_header(&[builder::generic_function(&var.get_name())])
+        let cont = context.clone().push_var_type(var.clone(), self.clone(), context);
+        if self.is_function() {
+            cont.add_lang_to_header(&[builder::generic_function(&var.get_name())])
+        } else {
+            cont
+        }
+    }
+
+    pub fn is_function(&self) -> bool {
+        match self {
+            Type::Function(_, _, _, _) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_primitive(&self) -> bool {
+        match self {
+            Type::Boolean(_) | Type::Number(_) | Type::Integer(_, _) | Type::Char(_, _)
+                => true,
+            _ => false
+        }
     }
 
     pub fn get_covariant_type(&self, other: &Type, context: &Context) -> Type {
