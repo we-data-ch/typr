@@ -127,7 +127,6 @@ impl VarType {
                     .map(|(var, _)| var.get_name())
                     .unwrap_or("Generic".to_string())
         };
-        self.print_aliases();
         format!("{}()", res)
     }
 

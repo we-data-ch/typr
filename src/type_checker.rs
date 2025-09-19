@@ -28,6 +28,7 @@ use crate::type_comparison::is_matching;
 use crate::function_type::FunctionType;
 use crate::graph::TypeSystem;
 
+
 fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
     // Créer un script R temporaire avec la fonction à exécuter
     let r_script = format!("{}\n", function_code);
@@ -100,7 +101,8 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
         Lang::Let(name, ty, exp, _h) => {
             exp.typing(context).0
                 .get_covariant_type(ty, context)
-                .add_to_context(name.clone(), context)
+                .add_to_context(name.clone(), context.clone())
+                .push_types(&exp.extract_types_from_expression(context))
         },
         Lang::Alias(name, params, typ, h) => {
             let var = name.clone()
@@ -569,4 +571,24 @@ mod tests {
         let b = builder::integer_type(17);
         assert!(a == b)
     }
+
+    #[test]
+    fn test_array_lang1() {
+        let res = "[1, 2, 3]".parse::<Lang>().unwrap();
+        assert_eq!(res, builder::empty_lang());
+    }
+
+    #[test]
+    fn test_array_type1() {
+        let res = "[1, [3, int]]".parse::<Type>().unwrap();
+        assert_eq!(res, builder::empty_type());
+    }
+
+    #[test]
+    fn test_get_gen_type1() {
+        let a1 = "[1, [3, int]]".parse::<Type>().unwrap();
+        let a2 = "[1, [3, T]]".parse::<Type>().unwrap();
+        assert_eq!(get_gen_type(&a1, &a2), None);
+    }
+
 }

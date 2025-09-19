@@ -31,6 +31,8 @@ use crate::help_message::ErrorMsg;
 use crate::Var;
 use crate::graph::TypeSystem;
 use crate::Lang;
+use std::str::FromStr;
+use crate::types::ltype;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -92,8 +94,8 @@ impl Default for Type {
 
 //main
 impl Type {
-    pub fn add_to_context(self, var: Var, context: &Context) -> Context {
-        let cont = context.clone().push_var_type(var.clone(), self.clone(), context);
+    pub fn add_to_context(self, var: Var, context: Context) -> Context {
+        let cont = context.clone().push_var_type(var.clone(), self.clone(), &context);
         if self.is_function() {
             cont.add_lang_to_header(&[builder::generic_function(&var.get_name())])
         } else {
@@ -926,6 +928,21 @@ mod tests {
     fn test_type_subtyping1() {
         let t1 = builder::number_type();
         assert_eq!(t1.is_subtype(&t1), true);
+    }
+
+}
+
+
+#[derive(Debug)]
+pub struct ErrorStruct;
+
+impl FromStr for Type {
+    type Err = ErrorStruct;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let val = ltype(s.into())
+            .map(|x| x.1).unwrap_or(builder::empty_type());
+        Ok(val)
     }
 
 }

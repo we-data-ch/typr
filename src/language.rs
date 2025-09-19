@@ -18,6 +18,11 @@ use crate::array_type::ArrayType;
 use crate::translatable::RTranslatable;
 use crate::builder;
 use crate::r#type::display_types;
+use std::str::FromStr;
+use nom::Err;
+use std::error::Error;
+use nom_locate::LocatedSpan;
+use crate::elements::parse_elements;
 
 trait AndIf {
     fn and_if<F>(self, condition: F) -> Option<Self>
@@ -154,6 +159,30 @@ impl Lang {
         }
     }
 
+    pub fn extract_types_from_expression(&self, context: &Context) -> Vec<Type> {
+        if self.is_value() {
+            vec![typing(context, self).0]
+        } else {
+            match self {
+                Lang::FunctionApp(exp, arg_typs, _, _) => {
+                    let typs = exp.extract_types_from_expression(context);
+                    let typs2 = arg_typs.iter()
+                        .flat_map(|x| x.extract_types_from_expression(context))
+                        .collect::<Vec<_>>();
+                    typs.iter().chain(typs2.iter()).cloned().collect()
+                },
+                _ => vec![]
+            }
+        }
+    }
+
+    pub fn is_value(&self) -> bool {
+        match self {
+            Lang::Number(_, _) | Lang::Integer(_, _) | Lang::Bool(_, _) | Lang::Char(_, _) => true,
+            Lang::Array(_, _) => true,
+            _ => false
+        }
+    }
 
     pub fn is_undefined(&self) -> bool {
         if let Lang::Function(_, _, _, body, _h) = self.clone() {
@@ -726,6 +755,19 @@ impl RTranslatable<(String, Context)> for Lang {
         };
         
         result
+    }
+}
+
+#[derive(Debug)]
+pub struct ErrorStruct;
+
+impl FromStr for Lang {
+    type Err = ErrorStruct;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let val = parse_elements(s.into())
+            .map(|x| x.1).unwrap_or(builder::empty_lang());
+        Ok(val)
     }
 
 }
