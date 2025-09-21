@@ -37,7 +37,6 @@ use crate::help_message::ErrorMsg;
 use nom::bytes::complete::take_while1;
 use crate::types::utype;
 use crate::builder;
-use crate::Context;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -296,10 +295,21 @@ fn function(s: Span) -> IResult<Span, Lang> {
         simple_function.parse(s)
 }
 
+fn key_value(s: Span) -> IResult<Span, Lang> {
+    let res = (recognize(variable),
+                terminated(tag("="), multispace0),
+                single_element).parse(s);
+    match res {
+        Ok((s, (v, eq, el))) 
+            => Ok((s, Lang::KeyValue((*v).into(), Box::new(el), v.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 fn values(s: Span) -> IResult<Span, Vec<Lang>> {
     many0(
         terminated(
-            parse_elements,
+            alt((key_value, parse_elements)),
             terminated(opt(tag(",")), multispace0))).parse(s)
 }
 
@@ -1243,10 +1253,33 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_block00() {
-        let res = parse_block("{ if (ncol(donnees) == 73) { donnees <- donnees[ , -37] } else if (ncol(donnees) == 110) { donnees <- donnees[ , -74] donnees <- donnees[ , -37] } else if (ncol(donnees) == 147) { donnees <- donnees[ , -111] donnees <- donnees[ , -74] donnees <- donnees[ , -37] } return(donnees) };".into()).unwrap().1;
-        assert_eq!(res, "".into());
+    fn test_function_key_value0() {
+        let fun = key_value("ele = 5".into()).unwrap().1;
+        assert_eq!(builder::empty_lang(), fun);
     }
 
+    #[test]
+    fn test_function_key_value1() {
+        let fun = "hey(ele = 5)".parse::<Lang>().unwrap();
+        assert_eq!(builder::empty_lang(), fun);
+    }
+
+    #[test]
+    fn test_function_key_value2() {
+        let fun = "hey(ele = 'Wow wow')".parse::<Lang>().unwrap();
+        assert_eq!(builder::empty_lang(), fun);
+    }
+
+    #[test]
+    fn test_function_key_value3() {
+        let fun = "hey(ele = ele('ele'))".parse::<Lang>().unwrap();
+        assert_eq!(builder::empty_lang(), fun);
+    }
+
+    #[test]
+    fn test_function_key_value4() {
+        let fun = "page_sidebar(title = 'title panel', sidebar = sidebar('sidebar'), 'main contents')".parse::<Lang>().unwrap();
+        assert_eq!(builder::empty_lang(), fun);
+    }
 
 }

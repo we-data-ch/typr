@@ -59,7 +59,6 @@ use crate::engine::parse_code;
 use crate::my_io::execute_r_with_path;
 use crate::var::Var;
 use crate::engine::write_std_for_type_checking;
-use crate::graph::Graph;
 
 #[derive(Debug, Parser, Clone, Copy, PartialEq)]
 pub enum Environment {

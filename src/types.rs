@@ -179,7 +179,8 @@ fn record_type(s: Span) -> IResult<Span, Type> {
             terminated(tag("}"), multispace0)
                     ).parse(s);
     match res {
-        Ok((s, (start, v, _))) => Ok((s, Type::Record(v.clone(), start.into()))),
+        Ok((s, (start, v, _))) 
+            => Ok((s, Type::Record(v.iter().cloned().collect(), start.into()))),
         Err(r) => Err(r)
     }
 }
@@ -542,11 +543,11 @@ fn propagate_multiplicity(t: &Type) -> Option<Type> {
     match t {
         Type::Record(body, h) => {
             if body.len() == 1 {
-                let argt = body[0].clone();
-                Some(Type::Record(vec![ArgumentType(
+                let argt = body.iter().next().unwrap().clone();
+                Some(Type::Record([ArgumentType(
                     Type::Multi(Box::new(argt.get_argument()), HelpData::default()),
                     Type::Multi(Box::new(argt.get_type()), HelpData::default()),
-                    false)], h.clone()))
+                    false)].iter().cloned().collect(), h.clone()))
             } else { panic!("The Record {} should have only one couple 'label: type'", t) }
         },
         _ => None 

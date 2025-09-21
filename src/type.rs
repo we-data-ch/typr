@@ -24,13 +24,11 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use crate::builder;
 use crate::type_category::TypeCategory;
-use crate::type_checker::match_types;
 use crate::type_comparison::is_matching;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use crate::Var;
 use crate::graph::TypeSystem;
-use crate::Lang;
 use std::str::FromStr;
 use crate::types::ltype;
 
@@ -56,7 +54,7 @@ pub enum Type {
     IndexGen(String, HelpData),
     LabelGen(String, HelpData),
     Array(Box<Type>, Box<Type>, HelpData),
-    Record(Vec<ArgumentType>, HelpData),
+    Record(HashSet<ArgumentType>, HelpData),
     Alias(String, Vec<Type>, Path, bool, HelpData), //for opacity
     Tag(String, Box<Type>, HelpData),
     Union(HashSet<Type>, HelpData),
@@ -356,7 +354,7 @@ impl Type {
                     a.iter()
                     .chain(b.iter())
                     .cloned()
-                    .collect::<Vec<_>>(), h.clone()),
+                    .collect::<HashSet<_>>(), h.clone()),
             _ => panic!("Type {} and {} can't be added", self, i)
         }
     }
@@ -406,7 +404,7 @@ impl Type {
     pub fn get_type_pattern(&self) -> Option<ArgumentType> {
         if let Type::Record(fields, _) = self {
             (fields.len() == 1)
-                .then(|| fields[0].clone())
+                .then(|| fields.iter().next().unwrap().clone())
         } else {None}
     }
 
@@ -771,15 +769,17 @@ impl PartialOrd for Type {
 
             // Record subtyping
             (Type::Record(r1, _), Type::Record(r2, _)) => {
-                if has_generic_label(&r2) && (r1.len() == r2.len()) {
-                    all_subtype2(&r1, &r2)
-                        .then_some(Ordering::Less)
-                } else if let Some(_arg_typ) = other.get_type_pattern() {
-                    Some(Ordering::Less)
-                } else {
-                    contains_all2(&r1, &r2)
-                        .then_some(Ordering::Less)
-                }
+                //if has_generic_label(&r2) && (r1.len() == r2.len()) {
+                    //all_subtype2(r1, r2)
+                        //.then_some(Ordering::Less)
+                //} else if let Some(_arg_typ) = other.get_type_pattern() {
+                    //Some(Ordering::Less)
+                //} else {
+                    //contains_all2(r1, r2)
+                        //.then_some(Ordering::Less)
+                //}
+                (r1 == r2 || r1.is_superset(r2))
+                    .then_some(Ordering::Less)
             },
 
             (Type::StrictUnion(types1, _), Type::StrictUnion(_types2, _)) => {
@@ -874,21 +874,36 @@ pub fn display_types(v: &[Type]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Graph;
+    use crate::graph::Graph;
+
+    #[test]
+    fn test_record_hierarchy0(){
+        let name = builder::record_type(&[
+                ("name".to_string(), builder::character_type_default()),
+        ]);
+        let age = builder::record_type(&[
+                ("age".to_string(), builder::integer_type_default()),
+        ]);
+        assert!(name.is_subtype(&age));
+    }
 
     #[test]
     fn test_record_hierarchy1(){
         let name = builder::record_type(&[
                 ("name".to_string(), builder::character_type_default()),
         ]);
+        let age = builder::record_type(&[
+                ("age".to_string(), builder::integer_type_default()),
+        ]);
         let person = builder::record_type(&[
                 ("name".to_string(), builder::character_type_default()),
                 ("age".to_string(), builder::integer_type_default()),
         ]);
         let g = Graph::new()
-                    .add_type(name.clone())
-                    .add_type(person);
-        let supertypes = g.get_supertypes_trace(&name);
+                    .add_type(age.clone())
+                    .add_type(name.clone());
+                    //.add_type(person);
+        let supertypes = g.get_supertypes_trace(&age);
         g.print_hierarchy();
         dbg!(&TypeSystem::prettys(&supertypes));
         assert_eq!(3, 5);
@@ -910,6 +925,19 @@ mod tests {
         g.print_hierarchy();
         dbg!(&TypeSystem::prettys(&supertypes));
         assert_eq!(3, 5);
+    }
+
+    #[test]
+    fn test_record_hierarchy3(){
+        let p1 = builder::record_type(&[
+                ("age".to_string(), builder::integer_type_default()),
+                ("name".to_string(), builder::character_type_default()),
+        ]);
+        let p2 = builder::record_type(&[
+                ("name".to_string(), builder::character_type_default()),
+                ("age".to_string(), builder::integer_type_default()),
+        ]);
+        assert_eq!(p1, p2);
     }
 
     #[test]

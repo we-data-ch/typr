@@ -301,7 +301,8 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 (Type::Record(fields1, h), Lang::Record(fields2, _)) => {
                     let at = fields2[0].clone();
                     let fields3 = fields1.iter()
-                        .map(replace_fields_type_if_needed(context, at)).collect::<Vec<_>>();
+                        .map(replace_fields_type_if_needed(context, at))
+                        .collect::<HashSet<_>>();
                     (Type::Record(fields3, h.clone()), context.clone())
                 },
                 (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)

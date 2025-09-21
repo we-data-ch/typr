@@ -1,7 +1,6 @@
 use crate::Type;
 use crate::Var;
 use crate::help_data::HelpData;
-use crate::Context;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum TypeCategory {

@@ -23,7 +23,6 @@ use crate::Adt;
 use crate::builder;
 use crate::unification_map::UnificationMap;
 use crate::function_type::FunctionType;
-use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {

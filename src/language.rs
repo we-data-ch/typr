@@ -17,11 +17,7 @@ use crate::function_lang::Function;
 use crate::array_type::ArrayType;
 use crate::translatable::RTranslatable;
 use crate::builder;
-use crate::r#type::display_types;
 use std::str::FromStr;
-use nom::Err;
-use std::error::Error;
-use nom_locate::LocatedSpan;
 use crate::elements::parse_elements;
 
 trait AndIf {
@@ -104,6 +100,7 @@ pub enum Lang {
     Signature(Var, Type, HelpData),
     ForLoop(Var, Box<Lang>, Box<Lang>, HelpData), // variable, iterator, body
     RFunction(Vec<Lang>, String, HelpData), // variable, iterator, body
+    KeyValue(String, Box<Lang>, HelpData),
     Empty(HelpData)
 }
 
@@ -280,6 +277,7 @@ impl Lang {
             Lang::Signature(_, _, h) => h,
             Lang::ForLoop(_, _, _, h) => h,
             Lang::RFunction(_, _, h) => h,
+            Lang::KeyValue(_, _, h) => h,
         }.clone()
     }
 
@@ -362,6 +360,7 @@ impl Lang {
             Lang::Signature(_, _, _) => "Signature".to_string(),
             Lang::ForLoop(_, _, _, _) => "ForLoop".to_string(),
             Lang::RFunction(_, _, _) => "RFunction".to_string(),
+            Lang::KeyValue(_, _, _) => "KeyValue".to_string(),
         }
     }
 
@@ -423,6 +422,7 @@ impl From<Lang> for HelpData {
            Lang::Signature(_, _, h) => h,
            Lang::ForLoop(_, _, _, h) => h,
            Lang::RFunction(_, _, h) => h,
+           Lang::KeyValue(_, _, h) => h,
        }.clone()
    } 
 }
@@ -500,7 +500,6 @@ impl RTranslatable<(String, Context)> for Lang {
                     .to_r(e1).add(" >= ").to_r(e2).into()
             },
             Lang::Chain(e1, e2, _) => {
-                println!("Chain");
                 match *e1.clone() {
                     Lang::Variable(_, _, _, _, _, _) => {
                         Translatable::from(cont.clone())
@@ -699,7 +698,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let typ = type_checker::typing(cont, self).0;
                 let class = cont.get_class(&typ);
                 cont.get_classes(&typ)
-                    .map(|res| format!("struct(list('{}', {}), c('Tag', '{}', {}))",
+                    .map(|res| format!("struct(list({}, {}), c('Tag', '{}', {}))",
                                 s, t_str, class, res))
                     .unwrap_or(format!("struct(list('{}', {}), c('Tag', '{}'))",
                                 s, t_str, class))
@@ -748,10 +747,13 @@ impl RTranslatable<(String, Context)> for Lang {
                 ("".to_string(), cont.clone())
             }
             Lang::Alias(_, _, _, _) => ("".to_string(), cont.clone()),
+            Lang::KeyValue(k, v, _) => {
+                (format!("{} = {}", k, v.to_r(cont).0), cont.clone())
+            }
             _ =>  {
                 println!("This language structure won't transpile: {:?}", self);
                 ("".to_string(), cont.clone())
-            }
+            },
         };
         
         result

@@ -6,6 +6,7 @@ use crate::context::Context;
 use crate::tag::Tag;
 use crate::help_data::HelpData;
 use crate::graph::TypeSystem;
+use std::collections::HashSet;
 
 pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool {
     v1.iter().all(|(v1, t1)| {
@@ -16,6 +17,7 @@ pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool
 
 // Implementation of the Prolog rules as Rust functions
 pub fn all_subtype(cont: &Context, set1: &[ArgumentType], set2: &[ArgumentType]) -> bool {
+
     set1.iter().zip(set2.iter())
         .all(|(argt1, argt2)| {
            is_subtype(cont, &argt1.get_argument(), &argt2.get_argument())
@@ -23,7 +25,7 @@ pub fn all_subtype(cont: &Context, set1: &[ArgumentType], set2: &[ArgumentType])
         })
 }
 
-pub fn all_subtype2(set1: &[ArgumentType], set2: &[ArgumentType]) -> bool {
+pub fn all_subtype2(set1: &HashSet<ArgumentType>, set2: &HashSet<ArgumentType>) -> bool {
     set1.iter().zip(set2.iter())
         .all(|(argt1, argt2)| {
            argt1.get_argument().is_subtype(&argt2.get_argument())
@@ -41,7 +43,7 @@ fn contains_all(cont: &Context, vec1: &[ArgumentType], vec2: &[ArgumentType]) ->
         })
 }
 
-pub fn contains_all2(vec1: &[ArgumentType], vec2: &[ArgumentType]) -> bool {
+pub fn contains_all2(vec1: &HashSet<ArgumentType>, vec2: &HashSet<ArgumentType>) -> bool {
     vec1.iter()
         .any(|sub| {
             vec2.iter()
@@ -86,7 +88,7 @@ pub fn check_interface_functions(
     is_subset(functions, &functions2, context)
 }
 
-pub fn has_generic_label(v: &[ArgumentType]) -> bool {
+pub fn has_generic_label(v: &HashSet<ArgumentType>) -> bool {
     v.iter().any(|arg| match arg.get_argument() {
         Type::LabelGen(_, _) => true,
         _ => false
@@ -132,11 +134,13 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         // Record subtyping
         (Type::Record(r1, _), Type::Record(r2, _)) => {
             if has_generic_label(r2) && (r1.len() == r2.len()) {
-                all_subtype(context, r1, r2)
+                //all_subtype(context, r1, r2)
+                r1.is_superset(r2)
             } else if let Some(_arg_typ) = type2.get_type_pattern() {
                 true
             } else {
-                contains_all(context, r1, r2)
+                //contains_all(context, r1, r2)
+                r1.is_superset(r2)
             }
         },
 
