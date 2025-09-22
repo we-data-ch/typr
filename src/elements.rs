@@ -355,6 +355,18 @@ fn array(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+fn vector(s: Span) -> IResult<Span, Lang> {
+    let res = (
+            terminated(tag("c("), multispace0),
+            values,
+            terminated(tag(")"), multispace0)
+          ).parse(s);
+    match res {
+        Ok((s, (_, v, _))) => Ok((s, Lang::Vector(v.clone(), v.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 fn record_identifier(s: Span) -> IResult<Span, Span> {
     alt((tag("record"), tag("object"), tag("list"), tag(":"))).parse(s)
 }
@@ -610,6 +622,7 @@ pub fn single_element(s: Span) -> IResult<Span,Lang> {
             match_exp,
             if_exp,
             dotdotdot,
+            vector,
             record,
             r_function,
             function,

@@ -120,6 +120,21 @@ fn array_type(s: Span) -> IResult<Span, Type> {
     }
 }
 
+fn vector_type(s: Span) -> IResult<Span, Type> {
+    let res = (
+            terminated(tag("Vec["), multispace0),
+            index_algebra,
+            terminated(tag(","), multispace0),
+            ltype,
+            terminated(tag("]"), multispace0),
+                  ).parse(s);
+
+    match res {
+        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::Vector(Box::new(num), Box::new(typ), start.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 fn embedded_ltype(s: Span) -> IResult<Span, Type> {
     let res = (tag("@"), ltype).parse(s);
     match res {
@@ -611,6 +626,7 @@ fn r_class(s: Span) -> IResult<Span, Type> {
 pub fn utype(s: Span) -> IResult<Span, Type> {
     terminated(alt((
             r_class,
+            vector_type,
             any,
             empty,
             interface,
@@ -637,6 +653,7 @@ pub fn ltype(s: Span) -> IResult<Span, Type> {
             union,
             multitype,
             r_class,
+            vector_type,
             any,
             empty,
             interface,
@@ -904,6 +921,12 @@ mod tests {
         assert_eq!(
             arr2.is_subtype(&arr1),
             true);
+    }
+
+    #[test]
+    fn test_vector_type1() {
+        let res = "Vec[4, int]".parse::<Type>().unwrap();
+        assert_eq!(res, builder::empty_type());
     }
 
 }

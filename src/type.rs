@@ -14,9 +14,6 @@ use crate::path::Path;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
 use crate::function_type::FunctionType;
-use crate::type_comparison::has_generic_label;
-use crate::type_comparison::all_subtype2;
-use crate::type_comparison::contains_all2;
 use std::cmp::Ordering;
 use crate::Context;
 use crate::type_comparison::reduce_type;
@@ -75,6 +72,7 @@ pub enum Type {
     RFunction(HelpData),
     RClass(HashSet<String>, HelpData),
     Empty(HelpData),
+    Vector(Box<Type>, Box<Type>, HelpData),
     Any(HelpData)
 }
 
@@ -502,6 +500,7 @@ impl Type {
             Type::Minus(_, _, _) => TypeCategory::Template,
             Type::Mul(_, _, _) => TypeCategory::Template,
             Type::Div(_, _, _) => TypeCategory::Template,
+            Type::Vector(_, _, _) => TypeCategory::Vector,
             _ => {
                 println!("{:?} return Rest", self);
                 TypeCategory::Rest
@@ -570,6 +569,7 @@ impl Type {
             Type::Any(h) => h.clone(),
             Type::RClass(_, h) => h.clone(),
             Type::Union(_, h) => h.clone(),
+            Type::Vector(_, _, h) => h.clone(),
         }
     }
 
@@ -606,7 +606,8 @@ impl Type {
             Type::Empty(_) => Type::Empty(h2),
             Type::Any(_) => Type::Any(h2),
             Type::RClass(v, _) => Type::RClass(v, h2),
-            Type::Union(v, _) => Type::Union(v, h2) 
+            Type::Union(v, _) => Type::Union(v, h2),
+            Type::Vector(i, t, _) => Type::Vector(i, t, h2) 
         }
     }
 
@@ -859,6 +860,7 @@ impl Hash for Type {
             Type::RFunction(_) => 30.hash(state),
             Type::RClass(_, _) => 31.hash(state),
             Type::Union(_, _) => 33.hash(state),
+            Type::Vector(_, _, _) => 34.hash(state),
         }
     }
 }

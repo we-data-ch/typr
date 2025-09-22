@@ -258,7 +258,9 @@ fn get_variable_type(lang: &Lang, tags: &[Tag]) -> Option<(Var, Type)> {
     } else { panic!("The element in the left hand side of the match statement is not a tag") }
 }
 
-
+fn are_homogenous_types(types: &[Type]) -> bool {
+    types.windows(2).all(|w| w[0] == w[1])
+}
 
 pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
     match expr {
@@ -395,20 +397,30 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         }
         Lang::Array(exprs, h) => {
             let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
-            if exprs.len() == 0 {
-                let new_type = Type::Array(
-                    Box::new(builder::integer_type(0)),
-                    Box::new(builder::any_type()),
-                    h.clone());
+            if exprs.is_empty() {
+                let new_type = "[0, Any]".parse::<Type>()
+                    .unwrap().set_help_data(h.clone());
                 (new_type.clone(), context.clone().push_types(&[new_type]))
-            } else if types.windows(2).all(|w| w[0] == w[1]) {
-                let new_type = Type::Array(
-                    Box::new(builder::integer_type(exprs.len() as i32)),
-                    Box::new(types[0].clone()),
-                    h.clone());
+            } else if are_homogenous_types(&types) {
+                let new_type = format!("[{}, {}]", exprs.len(), types[0].pretty())
+                    .parse::<Type>().unwrap().set_help_data(h.clone());
                 (new_type.clone(), context.clone().push_types(&[new_type]))
             } else {
-                panic!("Type error");
+                panic!("Type error: The array don't have homogenous types.");
+            }
+        }
+        Lang::Vector(exprs, h) => {
+            let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
+            if exprs.is_empty() {
+                let new_type = "Vec[0, Any]".parse::<Type>()
+                    .unwrap().set_help_data(h.clone());
+                (new_type.clone(), context.clone().push_types(&[new_type]))
+            } else if are_homogenous_types(&types) {
+                let new_type = format!("Vec[{}, {}]", exprs.len(), types[0].pretty())
+                    .parse::<Type>().unwrap().set_help_data(h.clone());
+                (new_type.clone(), context.clone().push_types(&[new_type]))
+            } else {
+                panic!("Type error: The vector don't have homogenous types.");
             }
         }
         Lang::Record(fields, h) => {

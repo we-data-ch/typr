@@ -24,6 +24,7 @@ pub enum TypeCategory {
     RFunction,
     Opaque(String),
     Template,
+    Vector,
     Rest
 }
 
@@ -59,6 +60,7 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Tuple => "Tuple",
             TypeCategory::Opaque(name) => &name.to_string(),
             TypeCategory::Template => "Template",
+            TypeCategory::Vector => "Vector",
             TypeCategory::Rest => "Rest"
         };
         write!(f, "{}", res)       

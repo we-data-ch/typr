@@ -101,6 +101,7 @@ pub enum Lang {
     ForLoop(Var, Box<Lang>, Box<Lang>, HelpData), // variable, iterator, body
     RFunction(Vec<Lang>, String, HelpData), // variable, iterator, body
     KeyValue(String, Box<Lang>, HelpData),
+    Vector(Vec<Lang>, HelpData),
     Empty(HelpData)
 }
 
@@ -278,6 +279,7 @@ impl Lang {
             Lang::ForLoop(_, _, _, h) => h,
             Lang::RFunction(_, _, h) => h,
             Lang::KeyValue(_, _, h) => h,
+            Lang::Vector(_, h) => h,
         }.clone()
     }
 
@@ -361,6 +363,7 @@ impl Lang {
             Lang::ForLoop(_, _, _, _) => "ForLoop".to_string(),
             Lang::RFunction(_, _, _) => "RFunction".to_string(),
             Lang::KeyValue(_, _, _) => "KeyValue".to_string(),
+            Lang::Vector(_, _) => "Vector".to_string(),
         }
     }
 
@@ -423,6 +426,7 @@ impl From<Lang> for HelpData {
            Lang::ForLoop(_, _, _, h) => h,
            Lang::RFunction(_, _, h) => h,
            Lang::KeyValue(_, _, h) => h,
+           Lang::Vector(_, h) => h,
        }.clone()
    } 
 }
@@ -749,7 +753,14 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Alias(_, _, _, _) => ("".to_string(), cont.clone()),
             Lang::KeyValue(k, v, _) => {
                 (format!("{} = {}", k, v.to_r(cont).0), cont.clone())
-            }
+            },
+            Lang::Vector(vals, _) => {
+               let res = "c(".to_string() + 
+                   &vals.iter().map(|x| x.to_r(cont).0)
+                   .collect::<Vec<_>>().join(", ")
+                + ")";
+               (res, cont.to_owned())
+            },
             _ =>  {
                 println!("This language structure won't transpile: {:?}", self);
                 ("".to_string(), cont.clone())
@@ -771,5 +782,15 @@ impl FromStr for Lang {
             .map(|x| x.1).unwrap_or(builder::empty_lang());
         Ok(val)
     }
+}
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vector1(){
+        let res = "c(1, 2)".parse::<Lang>().unwrap();
+        assert_eq!(res, Lang::Vector(vec![], HelpData::default()));
+    }
 }
