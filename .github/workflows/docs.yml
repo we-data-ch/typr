@@ -1,4 +1,4 @@
-name: Deploy Rust Docs
+name: Deploy Rust API Docs
 
 on:
   push:
@@ -11,36 +11,32 @@ permissions:
   id-token: write
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
-      # Checkout code
+      # 1️⃣ Checkout repo
       - uses: actions/checkout@v4
-      # Install Rust
+
+      # 2️⃣ Install Rust
       - uses: dtolnay/rust-toolchain@stable
 
-      # Build Rust API docs
+      # 3️⃣ Build Rust API docs
       - name: Build Rust API docs
         run: cargo doc --no-deps
 
-      # Copy the full crate docs to site
-      - name: Copy API docs
+      # 4️⃣ Copy entire crate folder to 'site/'
+      - name: Prepare site folder
         run: |
           mkdir -p site
-          cp -r target/doc/typr/* site/   # 'typr' = crate name
+          cp -r target/doc/typr site/  # 'typr' = crate name
 
-      # Upload the site artifact
+      # 5️⃣ Upload site artifact for Pages
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-    steps:
-      # Deploy to GitHub Pages
-      - id: deployment
+      # 6️⃣ Deploy to GitHub Pages
+      - id: deploy
         uses: actions/deploy-pages@v4
