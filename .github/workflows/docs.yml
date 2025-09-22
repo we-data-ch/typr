@@ -14,30 +14,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Checkout repo
+      # Checkout code
       - uses: actions/checkout@v4
-
-      # 2️⃣ Install Rust
+      # Install Rust
       - uses: dtolnay/rust-toolchain@stable
 
-      # 3️⃣ Build Rust API docs
+      # Build Rust API docs
       - name: Build Rust API docs
         run: cargo doc --no-deps
 
-      # 4️⃣ Copy full crate docs to site folder
-      - name: Move docs to site folder
+      # Copy the full crate docs to site
+      - name: Copy API docs
         run: |
           mkdir -p site
-          cp -r target/doc/typr/* site/
-          # Minimal landing page
-          echo '<!doctype html>
-          <meta charset="utf-8">
-          <title>Typr Docs</title>
-          <h1>Typr API Documentation</h1>
-          <p><a href="index.html">Go to API docs</a></p>' > site/index.html
+          cp -r target/doc/typr/* site/   # 'typr' = crate name
 
-      # 5️⃣ Upload site artifact for deployment
-      - name: Upload artifact
+      # Upload the site artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
@@ -48,6 +41,6 @@ jobs:
     environment:
       name: github-pages
     steps:
-      # 6️⃣ Deploy to GitHub Pages
+      # Deploy to GitHub Pages
       - id: deployment
         uses: actions/deploy-pages@v4
