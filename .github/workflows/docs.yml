@@ -1,4 +1,4 @@
-name: Deploy Cargo Docs
+name: Deploy Rust Docs
 
 on:
   push:
@@ -14,17 +14,29 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # 1️⃣ Checkout repo
       - uses: actions/checkout@v4
+
+      # 2️⃣ Install Rust
       - uses: dtolnay/rust-toolchain@stable
 
+      # 3️⃣ Build Rust API docs
       - name: Build Rust API docs
         run: cargo doc --no-deps
 
+      # 4️⃣ Copy full crate docs to site folder
       - name: Move docs to site folder
         run: |
           mkdir -p site
-          cp -r target/doc/* site/
+          cp -r target/doc/typr/* site/
+          # Minimal landing page
+          echo '<!doctype html>
+          <meta charset="utf-8">
+          <title>Typr Docs</title>
+          <h1>Typr API Documentation</h1>
+          <p><a href="index.html">Go to API docs</a></p>' > site/index.html
 
+      # 5️⃣ Upload site artifact for deployment
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -35,8 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # 6️⃣ Deploy to GitHub Pages
       - id: deployment
         uses: actions/deploy-pages@v4
-        
