@@ -11,7 +11,7 @@ pub struct Header {
 }
 
 impl Header {
-    pub fn add_generic_function(self, data: &[Lang]) -> Header {
+    pub fn add_lang(self, data: &[Lang]) -> Header {
         let data = data.iter()
             .filter(|x| Self::is_gen_func_allowed(x))
             .collect::<Vec<_>>();

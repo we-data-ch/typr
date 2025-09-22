@@ -17,7 +17,8 @@ use crate::function_lang::Function;
 use crate::array_type::ArrayType;
 use crate::translatable::RTranslatable;
 use crate::builder;
-use crate::r#type::display_types;
+use std::str::FromStr;
+use crate::elements::parse_elements;
 
 trait AndIf {
     fn and_if<F>(self, condition: F) -> Option<Self>
@@ -99,6 +100,8 @@ pub enum Lang {
     Signature(Var, Type, HelpData),
     ForLoop(Var, Box<Lang>, Box<Lang>, HelpData), // variable, iterator, body
     RFunction(Vec<Lang>, String, HelpData), // variable, iterator, body
+    KeyValue(String, Box<Lang>, HelpData),
+    Vector(Vec<Lang>, HelpData),
     Empty(HelpData)
 }
 
@@ -154,6 +157,30 @@ impl Lang {
         }
     }
 
+    pub fn extract_types_from_expression(&self, context: &Context) -> Vec<Type> {
+        if self.is_value() {
+            vec![typing(context, self).0]
+        } else {
+            match self {
+                Lang::FunctionApp(exp, arg_typs, _, _) => {
+                    let typs = exp.extract_types_from_expression(context);
+                    let typs2 = arg_typs.iter()
+                        .flat_map(|x| x.extract_types_from_expression(context))
+                        .collect::<Vec<_>>();
+                    typs.iter().chain(typs2.iter()).cloned().collect()
+                },
+                _ => vec![]
+            }
+        }
+    }
+
+    pub fn is_value(&self) -> bool {
+        match self {
+            Lang::Number(_, _) | Lang::Integer(_, _) | Lang::Bool(_, _) | Lang::Char(_, _) => true,
+            Lang::Array(_, _) => true,
+            _ => false
+        }
+    }
 
     pub fn is_undefined(&self) -> bool {
         if let Lang::Function(_, _, _, body, _h) = self.clone() {
@@ -176,7 +203,7 @@ impl Lang {
         if args.len() > 0 {
                         let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
                         Var::from_language(self.clone())
-                            .unwrap().set_type(first, context)
+                            .unwrap().set_type(first)
                     } else {
                         Var::from_language(self.clone()).unwrap()
             }
@@ -251,6 +278,8 @@ impl Lang {
             Lang::Signature(_, _, h) => h,
             Lang::ForLoop(_, _, _, h) => h,
             Lang::RFunction(_, _, h) => h,
+            Lang::KeyValue(_, _, h) => h,
+            Lang::Vector(_, h) => h,
         }.clone()
     }
 
@@ -333,6 +362,8 @@ impl Lang {
             Lang::Signature(_, _, _) => "Signature".to_string(),
             Lang::ForLoop(_, _, _, _) => "ForLoop".to_string(),
             Lang::RFunction(_, _, _) => "RFunction".to_string(),
+            Lang::KeyValue(_, _, _) => "KeyValue".to_string(),
+            Lang::Vector(_, _) => "Vector".to_string(),
         }
     }
 
@@ -394,6 +425,8 @@ impl From<Lang> for HelpData {
            Lang::Signature(_, _, h) => h,
            Lang::ForLoop(_, _, _, h) => h,
            Lang::RFunction(_, _, h) => h,
+           Lang::KeyValue(_, _, h) => h,
+           Lang::Vector(_, h) => h,
        }.clone()
    } 
 }
@@ -448,30 +481,29 @@ impl RTranslatable<(String, Context)> for Lang {
                 (format!("{}", n), cont.clone()),
             Lang::Eq(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" == ").to_r(e2).into()
+                    .to_r(e2).add(" == ").to_r(e1).into()
             },
             Lang::NotEq(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" != ").to_r(e2).into()
+                    .to_r(e2).add(" != ").to_r(e1).into()
             },
             Lang::LesserThan(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" < ").to_r(e2).into()
+                    .to_r(e2).add(" < ").to_r(e1).into()
             },
             Lang::GreaterThan(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" > ").to_r(e2).into()
+                    .to_r(e2).add(" > ").to_r(e1).into()
             },
             Lang::LesserOrEqual(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" <= ").to_r(e2).into()
+                    .to_r(e2).add(" <= ").to_r(e1).into()
             },
             Lang::GreaterOrEqual(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" >= ").to_r(e2).into()
+                    .to_r(e2).add(" >= ").to_r(e1).into()
             },
             Lang::Chain(e1, e2, _) => {
-                println!("Chain");
                 match *e1.clone() {
                     Lang::Variable(_, _, _, _, _, _) => {
                         Translatable::from(cont.clone())
@@ -548,14 +580,11 @@ impl RTranslatable<(String, Context)> for Lang {
                     let new_args = fn_t.get_param_types().into_iter()
                             .map(|arg| reduce_type(&cont1, &arg))
                             .collect::<Vec<_>>();
-                    if var.get_name() == "compose" {
-                        dbg!(&display_types(&new_args));
-                    }
-                    let langs = vals.into_iter().zip(new_args.iter())
+                    let new_vals = vals.into_iter().zip(new_args.iter())
                         .map(set_related_type_if_variable)
                         .collect::<Vec<_>>();
                     let (args, current_cont) = Translatable::from(cont1)
-                            .join(&langs, ", ").into();
+                            .join(&new_vals, ", ").into();
                     
                     Var::from_language(*exp.clone())
                         .map(|var| {
@@ -673,9 +702,9 @@ impl RTranslatable<(String, Context)> for Lang {
                 let typ = type_checker::typing(cont, self).0;
                 let class = cont.get_class(&typ);
                 cont.get_classes(&typ)
-                    .map(|res| format!("struct(list('{}', {}), c('Tag', '{}', {}))",
+                    .map(|res| format!("struct(list('{}', {}), c('Tag', {}, {}))",
                                 s, t_str, class, res))
-                    .unwrap_or(format!("struct(list('{}', {}), c('Tag', '{}'))",
+                    .unwrap_or(format!("struct(list('{}', {}), c('Tag', {}))",
                                 s, t_str, class))
                     .to_some().map(|s| (s, new_cont)).unwrap()
             },
@@ -722,13 +751,46 @@ impl RTranslatable<(String, Context)> for Lang {
                 ("".to_string(), cont.clone())
             }
             Lang::Alias(_, _, _, _) => ("".to_string(), cont.clone()),
+            Lang::KeyValue(k, v, _) => {
+                (format!("{} = {}", k, v.to_r(cont).0), cont.clone())
+            },
+            Lang::Vector(vals, _) => {
+               let res = "c(".to_string() + 
+                   &vals.iter().map(|x| x.to_r(cont).0)
+                   .collect::<Vec<_>>().join(", ")
+                + ")";
+               (res, cont.to_owned())
+            },
             _ =>  {
                 println!("This language structure won't transpile: {:?}", self);
                 ("".to_string(), cont.clone())
-            }
+            },
         };
         
         result
     }
+}
 
+#[derive(Debug)]
+pub struct ErrorStruct;
+
+impl FromStr for Lang {
+    type Err = ErrorStruct;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let val = parse_elements(s.into())
+            .map(|x| x.1).unwrap_or(builder::empty_lang());
+        Ok(val)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vector1(){
+        let res = "c(1, 2)".parse::<Lang>().unwrap();
+        assert_eq!(res, Lang::Vector(vec![], HelpData::default()));
+    }
 }

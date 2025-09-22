@@ -5,6 +5,8 @@ use crate::var::Var;
 use crate::context::Context;
 use crate::tag::Tag;
 use crate::help_data::HelpData;
+use crate::graph::TypeSystem;
+use std::collections::HashSet;
 
 pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool {
     v1.iter().all(|(v1, t1)| {
@@ -15,6 +17,7 @@ pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool
 
 // Implementation of the Prolog rules as Rust functions
 pub fn all_subtype(cont: &Context, set1: &[ArgumentType], set2: &[ArgumentType]) -> bool {
+
     set1.iter().zip(set2.iter())
         .all(|(argt1, argt2)| {
            is_subtype(cont, &argt1.get_argument(), &argt2.get_argument())
@@ -22,11 +25,11 @@ pub fn all_subtype(cont: &Context, set1: &[ArgumentType], set2: &[ArgumentType])
         })
 }
 
-pub fn all_subtype2(set1: &[ArgumentType], set2: &[ArgumentType]) -> bool {
+pub fn all_subtype2(set1: &HashSet<ArgumentType>, set2: &HashSet<ArgumentType>) -> bool {
     set1.iter().zip(set2.iter())
         .all(|(argt1, argt2)| {
-           argt1.get_argument().is_subtype(&argt2.get_argument(), &Context::default())
-           && argt1.get_argument().is_subtype(&argt2.get_type(), &Context::default())
+           argt1.get_argument().is_subtype(&argt2.get_argument())
+           && argt1.get_argument().is_subtype(&argt2.get_type())
         })
 }
 
@@ -40,13 +43,13 @@ fn contains_all(cont: &Context, vec1: &[ArgumentType], vec2: &[ArgumentType]) ->
         })
 }
 
-pub fn contains_all2(vec1: &[ArgumentType], vec2: &[ArgumentType]) -> bool {
+pub fn contains_all2(vec1: &HashSet<ArgumentType>, vec2: &HashSet<ArgumentType>) -> bool {
     vec1.iter()
         .any(|sub| {
             vec2.iter()
                 .any(|sup| 
                      (sub.get_argument() == sup.get_argument())
-                     && sub.get_type().is_subtype(&sup.get_type(), &Context::default()))
+                     && sub.get_type().is_subtype(&sup.get_type()))
         })
 }
 
@@ -68,8 +71,8 @@ fn set_self(fs: &[(Var, Type)]) -> Vec<(Var, Type)> {
                         .map(|typ_ele| to_self(typ_ele.clone(), first.clone()))
                         .collect();
                     let ret2 = to_self((**ret_type).clone(), first);
-                    (var.clone().set_type(Type::Empty(HelpData::default()), &Context::default()), Type::Function(kinds.clone(), args, Box::new(ret2), h.clone()))
-                } else { (var.clone().set_type(Type::Empty(HelpData::default()), &Context::default()), typ.clone()) }
+                    (var.clone().set_type(Type::Empty(HelpData::default())), Type::Function(kinds.clone(), args, Box::new(ret2), h.clone()))
+                } else { (var.clone().set_type(Type::Empty(HelpData::default())), typ.clone()) }
             },
             _ => (var.clone(), typ.clone())
         }
@@ -85,7 +88,7 @@ pub fn check_interface_functions(
     is_subset(functions, &functions2, context)
 }
 
-pub fn has_generic_label(v: &[ArgumentType]) -> bool {
+pub fn has_generic_label(v: &HashSet<ArgumentType>) -> bool {
     v.iter().any(|arg| match arg.get_argument() {
         Type::LabelGen(_, _) => true,
         _ => false
@@ -131,11 +134,13 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         // Record subtyping
         (Type::Record(r1, _), Type::Record(r2, _)) => {
             if has_generic_label(r2) && (r1.len() == r2.len()) {
-                all_subtype(context, r1, r2)
+                //all_subtype(context, r1, r2)
+                r1.is_superset(r2)
             } else if let Some(_arg_typ) = type2.get_type_pattern() {
                 true
             } else {
-                contains_all(context, r1, r2)
+                //contains_all(context, r1, r2)
+                r1.is_superset(r2)
             }
         },
 
@@ -246,6 +251,14 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
             Type::Tag(name.clone(), Box::new(reduce_type(context, inner)), h.clone())
         }
         Type::If(typ, _conditions, _) => *typ.clone(),
+
+        Type::Function(kinds, typs, ret_typ, h) => {
+            let typs2 = typs.iter()
+                .map(|x| reduce_type(context, x))
+                .collect::<Vec<_>>();
+            let ret_typ2 = reduce_type(context, ret_typ);
+            Type::Function(kinds.to_owned(), typs2, Box::new(ret_typ2), h.to_owned())
+        },
         _ => type_.clone()
     }
 }

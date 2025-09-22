@@ -67,7 +67,7 @@ impl ArgumentType {
             .for_var();
         Var::from_type(self.get_argument())
             .expect("The arg_typ should have been label function")
-            .set_type(new_type, context)
+            .set_type(new_type)
     }
 
 }

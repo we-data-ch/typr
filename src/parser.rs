@@ -26,7 +26,6 @@ use crate::help_data::HelpData;
 use crate::elements::single_element;
 use crate::elements::scope;
 use crate::operators::custom_op;
-use crate::Context;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -76,7 +75,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (_let, (pat_var, None), typ, _eq, Lang::Function(ki, params, ty, body, h)))) 
             if params.len() > 0 => {
-                let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone(), &Context::default()).set_permission(false);
+                let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false);
                 Ok((s, vec![Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
                 Box::new(Lang::Function(ki, params, ty, body, h)), _let.into())]))
             },
@@ -120,7 +119,7 @@ fn base_let_mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, ((pat_var, None), typ, _eq, Lang::Function(ki, params, ty, body, h)))) 
             if params.len() > 0 => {
-                let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone(), &Context::default()).set_permission(false);
+                let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false);
                 Ok((s, vec![Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
                 Box::new(Lang::Function(ki, params, ty, body, h)), pat_var.into())]))
             },
@@ -213,7 +212,7 @@ fn base_mut_exp(s: Span) -> IResult<Span, Lang> {
             if params.len() > 0 => {
                 let newvar = Var::from_language(var[0].clone())
                     .unwrap()
-                    .set_type(params[0].1.clone(), &Context::default())
+                    .set_type(params[0].1.clone())
                     .set_mutability(true);
                 Ok((s, Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
                 Box::new(Lang::Function(ki, params, ty, body, h.clone())), h)))
@@ -262,7 +261,7 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
                 let h2 = if params.len() > 0 { params[0].clone().into()} else { HelpData::default() };
                 Ok((s, Lang::Alias(
                                 Var::from_name(&name)
-                                    .set_type(Type::Params(params.clone(), h2), &Context::default())
+                                    .set_type(Type::Params(params.clone(), h2))
                                     .add_path(path),
                                 params, ty, h)))
             },
@@ -301,7 +300,7 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
         Ok((s, (_ty, Type::Alias(name, params, path, _, h), _eq, ty, _))) 
             => Ok((s, Lang::Alias(
                         Var::from_name(&name)
-                            .set_type(Type::Params(params.clone(), params.clone().into()), &Context::default())
+                            .set_type(Type::Params(params.clone(), params.clone().into()))
                             .add_path(path)
                             .set_opacity(true),
                         params, ty, h))),
@@ -481,7 +480,7 @@ fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (at, (name, h), _col, typ, _))) 
             => {
-                let var2 = Var::from_name(&name).set_help_data(h).set_type(typ.clone(), &Context::default());
+                let var2 = Var::from_name(&name).set_help_data(h).set_type(typ.clone());
                 Ok((s, vec![Lang::Signature(var2, typ, at.into())]))
             },
         Err(r) => Err(r)
@@ -497,7 +496,7 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
             => {
                 let var2 = Var::from_name(&name)
                     .set_help_data(h.clone())
-                    .set_type(Type::Params(params.clone(), h.clone()), &Context::default())
+                    .set_type(Type::Params(params.clone(), h.clone()))
                     .set_opacity(true);
                 let t_alias = Type::Alias(name, params, path, true, h);
                 //let t_alias = Type::RClass([name].iter().cloned().collect::<HashSet<_>>(), h);

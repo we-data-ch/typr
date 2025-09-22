@@ -3,6 +3,7 @@ use crate::argument_type::ArgumentType;
 use crate::Context;
 use crate::type_comparison;
 use crate::tag::Tag;
+use std::collections::HashSet;
 
 pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     if substitutions.is_empty() {
@@ -151,7 +152,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     }
 }
 
-fn match_wildcard(fields: &[ArgumentType], arg_type: ArgumentType) -> Vec<(Type, Type)> {
+fn match_wildcard(fields: &HashSet<ArgumentType>, arg_type: ArgumentType) -> Vec<(Type, Type)> {
     let (labels, types) = fields.iter()
         .fold((vec![], vec![]),
         |(mut lbl, mut typ), el| {
@@ -267,8 +268,8 @@ fn merge_substitutions(existing: &mut Vec<(Type, Type)>, new: Vec<(Type, Type)>)
 }
 
 pub fn record_intersection(
-    record1: &[ArgumentType],
-    record2: &[ArgumentType]
+    record1: &HashSet<ArgumentType>,
+    record2: &HashSet<ArgumentType>
 ) -> Option<(Vec<ArgumentType>, Vec<ArgumentType>)> {
     // Get labels (left elements) from both records
     let labels1: Vec<String> = record1.iter()

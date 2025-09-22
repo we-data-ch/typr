@@ -21,15 +21,13 @@ use crate::header::Header;
 use crate::config::Config;
 use crate::Adt;
 use crate::builder;
-use std::collections::HashSet;
 use crate::unification_map::UnificationMap;
 use crate::function_type::FunctionType;
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
    pub typing_context: VarType,
-   pub subtypes: Graph,
+   pub subtypes: Graph<Type>,
    header: Header,
    config: Config,
    kinds: Vec<(Type, Kind)>,
@@ -68,6 +66,10 @@ impl Context {
             kinds: kinds,
             ..Context::default()
         }
+    }
+
+    pub fn print_hierarchy(&self) {
+        self.subtypes.print_hierarchy();
     }
 
     pub fn variable_exist(&self, var: Var) -> Option<Var> {
@@ -130,11 +132,9 @@ impl Context {
         let var_type = self.typing_context.clone()
             .push_var_type(&[(lang, typ.clone())])
             .push_types(&types);
-        let mut typ_hie = self.subtypes.clone();
-        typ_hie.update(&types);
         Context {
             typing_context: var_type, 
-            subtypes: typ_hie,
+            subtypes: self.subtypes.add_types(&types),
             ..self
         }
     }
@@ -143,16 +143,6 @@ impl Context {
         Self {
             typing_context: self.typing_context.push_types(types),
             ..self
-        }
-    }
-
-    pub fn deep_clone(&self) -> Self {
-        Self {
-           subtypes: self.subtypes.deep_clone(),
-           header: self.header.clone(),
-           config: self.config.clone(),
-           kinds: self.kinds.clone(),
-           typing_context: self.typing_context.clone()
         }
     }
 
@@ -175,7 +165,7 @@ impl Context {
         match res {
             Some(vari) => vari.clone(),
             _ => self.is_an_untyped_function(&var.get_name()) 
-                .then(|| var.clone().set_type(Type::RFunction(var.get_help_data()), &Context::default()))
+                .then(|| var.clone().set_type(Type::RFunction(var.get_help_data())))
                 .expect(&format!("The variable {} was not found:\n {}", var, self.display_typing_context()))
         }
     }
@@ -200,9 +190,7 @@ impl Context {
     pub fn get_classes(&self, t: &Type) -> Option<String> {
         let res = self.subtypes.get_supertypes(t)
             .iter().map(|typ| self.get_class(typ))
-            .collect::<HashSet<_>>()
-            .iter().cloned().collect::<Vec<_>>()
-            .join(", ");
+            .collect::<Vec<_>>().join(", ");
         if res == "" {
             Some("'None'".to_string())
         } else {
@@ -233,13 +221,13 @@ impl Context {
                         funcs.iter().map(|(var, fun)| (arg.get_label(), var.clone(), fun.clone())).collect::<Vec<_>>()
                     })
                     .map(|(arg, var, fun): (String, Var, Type)| 
-                         (arg, var.clone().set_type(new_t.clone(), self),
+                         (arg, var.clone().set_type(new_t.clone()),
                          fun.clone().replace_function_types(var.get_type(), new_t.clone())))
                     .collect::<Vec<_>>();
                 let new_cont = 
                     type_functions.iter()
                     .fold(self.clone(), |ctx, tf| ctx.clone().push_var_type(tf.1.clone(), tf.2.clone(), &ctx));
-                let new_cont2 = new_cont.add_generic_function(&self.build_concret_functions(&type_functions));
+                let new_cont2 = new_cont.add_lang_to_header(&self.build_concret_functions(&type_functions));
                 (type_functions.iter().map(|(_arg, var, fun)| (var.clone(), fun.clone())).collect(),
                 new_cont2)
             },
@@ -306,7 +294,7 @@ impl Context {
             .zip(param_types.clone().into_iter())
             .map(|(arg_typ, par_typ)| 
                  (Var::from_name(&arg_typ.get_argument_str())
-                    .set_type(par_typ, self), reduce_type(self, &arg_typ.get_type())))
+                    .set_type(reduce_type(self, &par_typ)), reduce_type(self, &arg_typ.get_type())))
             .fold(self.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont))
     }
 
@@ -355,9 +343,9 @@ impl Context {
         } 
     }
 
-    pub fn add_generic_function(self, langs: &[Lang]) -> Context {
+    pub fn add_lang_to_header(self, langs: &[Lang]) -> Context {
         Context {
-            header: self.header.add_generic_function(langs),
+            header: self.header.add_lang(langs),
             ..self
         }
     }

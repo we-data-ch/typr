@@ -1,7 +1,6 @@
 use crate::Type;
 use crate::Var;
 use crate::help_data::HelpData;
-use crate::Context;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum TypeCategory {
@@ -25,13 +24,14 @@ pub enum TypeCategory {
     RFunction,
     Opaque(String),
     Template,
+    Vector,
     Rest
 }
 
 impl TypeCategory {
     pub fn to_variable(self) -> Var {
         Var::from_name(&format!("{}", self))
-            .set_type(Type::Params(vec![], HelpData::default()), &Context::default())
+            .set_type(Type::Params(vec![], HelpData::default()))
     }
 
 }
@@ -60,6 +60,7 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Tuple => "Tuple",
             TypeCategory::Opaque(name) => &name.to_string(),
             TypeCategory::Template => "Template",
+            TypeCategory::Vector => "Vector",
             TypeCategory::Rest => "Rest"
         };
         write!(f, "{}", res)       

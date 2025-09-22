@@ -4,7 +4,7 @@ use crate::var::Var;
 use crate::Type;
 use crate::builder;
 use crate::Context;
-
+use crate::graph::TypeSystem;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VarType {
@@ -15,7 +15,7 @@ pub struct VarType {
 //main
 impl VarType {
     pub fn new() -> VarType {
-        let var = Var::from("Generic").set_type(builder::params_type(), &Context::default());
+        let var = Var::from("Generic").set_type(builder::params_type());
         let typ = builder::generic_type();
         VarType {
             variables: vec![],
@@ -61,7 +61,7 @@ impl VarType {
     pub fn exists(&self, typ: &Type) -> bool {
         self.aliases.iter()
             .find(|(_, typ2)| typ == typ2)
-            .is_some()
+            .is_some() || typ.is_primitive()
     }
 
     fn push_type_if_not_exists(self, typ: Type) -> Self {
@@ -159,7 +159,7 @@ impl VarType {
 
     pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
         let var = Var::from_name(&alias_name)
-                    .set_type(builder::params_type(), &Context::default());
+                    .set_type(builder::params_type());
         let new_aliases = if !self.in_aliases(&alias_name) {
             self.aliases.iter().chain([(var, typ)].iter()).cloned().collect::<Vec<_>>()
         } else { self.aliases.clone() };
@@ -170,11 +170,15 @@ impl VarType {
         res
     }
 
-    pub fn print_aliases(&self) -> String {
+    pub fn get_aliases(&self) -> String {
         self.aliases.iter()
             .map(|(var, typ)| format!("{} = {}", var.get_name(), typ.pretty()))
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    pub fn print_aliases(&self) {
+        println!("{}", self.get_aliases());
     }
 
     pub fn variable_exist(&self, var: Var) -> Option<Var> {

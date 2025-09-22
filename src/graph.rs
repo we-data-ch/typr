@@ -1,399 +1,413 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use crate::Type;
-use crate::builder;
-use crate::Context;
+use std::collections::HashSet;
+use std::cmp::Eq;
+use std::hash::Hash;
+use std::cmp::Ordering;
+use std::fmt::Debug;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct TypeNode {
-    pub type_info: Type,
-    pub subtypes: RefCell<Vec<Rc<TypeNode>>>,
+pub trait TypeSystem: PartialOrd + Debug + Eq + Hash + Clone + Default {
+    fn pretty(&self) -> String;
+
+    fn is_subtype(&self, other: &Self) -> bool {
+        self.le(other)
+    }
+
+
+    fn prettys(v: &[Self]) -> String {
+        "[".to_string() + &v.iter().map(|x| x.pretty())
+            .collect::<Vec<_>>().join(", ") + "]"
+    }
 }
 
-impl TypeNode {
-    pub fn new(type_info: Type) -> Self {
-        TypeNode {
-            type_info,
-            subtypes: RefCell::new(Vec::new()),
+impl TypeSystem for Type {
+    fn pretty(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+struct Context;
+
+impl Default for Context {
+    fn default() -> Context {
+        Context
+    }
+}
+
+#[derive(Debug, Clone, Eq, Hash, Default)]
+enum Type {
+    #[default]
+    Generic,
+    Number,
+    Integer,
+    Sub
+}
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Type::Generic, Type::Generic) => true,
+            (Type::Integer, Type::Integer) => true,
+            (Type::Sub, Type::Sub) => true,
+            (Type::Number, Type::Number) => true,
+            _ => false
         }
     }
-
-    pub fn add_subtype(&self, subtype: Rc<TypeNode>) {
-        self.subtypes.borrow_mut().push(subtype);
-    }
-
-    pub fn is_leaf(&self) -> bool {
-        self.subtypes.borrow().is_empty()
-    }
-
-    /// Trouve tous les nœuds feuilles (sans sous-types) accessibles depuis ce nœud
-    pub fn find_leaf_nodes(&self) -> Vec<Rc<TypeNode>> {
-        let mut leaves = Vec::new();
-        self.find_leaf_nodes_recursive(&mut leaves);
-        leaves
-    }
-
-    fn find_leaf_nodes_recursive(&self, leaves: &mut Vec<Rc<TypeNode>>) {
-        let subtypes = self.subtypes.borrow();
-        if subtypes.is_empty() {
-            // On ne peut pas créer un Rc vers self ici, donc cette méthode
-            // devrait être refactorisée pour prendre un Rc<TypeNode> en paramètre
-            // Pour l'instant, on la laisse pour compatibilité
-        } else {
-            for subtype in subtypes.iter() {
-                subtype.find_leaf_nodes_recursive(leaves);
-            }
-        }
-    }
 }
 
-#[derive(Debug)]
-pub struct InsertionInfo {
-    pub parent: Type,
-    pub children_to_reconnect: Vec<Type>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Graph {
-    root: Rc<TypeNode>,
-    // Cache pour éviter de recréer des nœuds identiques
-    node_cache: HashMap<Type, Rc<TypeNode>>,
-}
-
-impl Graph {
-
-    /// Crée un nouveau graphe avec Generic comme nœud racine
-    pub fn new() -> Self {
-        let root_node = Rc::new(TypeNode::new(builder::generic_type()));
-        let mut node_cache = HashMap::new();
-        node_cache.insert(builder::generic_type(), root_node.clone());
-
-        let mut res = Graph {
-            root: root_node,
-            node_cache,
+impl PartialOrd for Type {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let convert = |typ: &Type| match typ {
+            Type::Generic => 4,
+            Type::Number => 3,
+            Type::Integer => 2,
+            Type::Sub => 1
         };
-
-        res.add_type(builder::integer_type_default());
-        res.add_type(builder::character_type_default());
-        res.add_type(builder::boolean_type());
-        res.add_type(builder::number_type());
-        res
-
-    }
-
-    /// Ajoute un type au graphe selon la logique de sous-typage
-    pub fn add_type(&mut self, new_type: Type) {
-        // If the type already exist, we do nothing
-        if self.node_cache.contains_key(&new_type) {
-            return;
-        }
-
-        // Create the new node
-        let new_node = Rc::new(TypeNode::new(new_type.clone()));
-        self.node_cache.insert(new_type.clone(), new_node.clone());
-
-        // Find the appropriate insertion positions with the reconnexion informations
-        let insertion_infos = self.find_insertion_points_with_reconnection(&new_type);
-
-        // Treate each insertion
-        for insertion_info in insertion_infos {
-            self.add_subtype_to_parent_with_reconnection(insertion_info, new_node.clone());
-        }
-    }
-
-    /// Trouve tous les nœuds où le nouveau type devrait être inséré avec informations de reconnexion
-    fn find_insertion_points_with_reconnection(&self, new_type: &Type) -> Vec<InsertionInfo> {
-        let mut insertion_infos = Vec::new();
-        let mut visited = HashSet::new();
-        
-        self.find_insertion_points_with_reconnection_recursive(
-            &self.root,
-            new_type,
-            &mut insertion_infos,
-            &mut visited
-        );
-
-        insertion_infos
-    }
-
-    fn find_insertion_points_with_reconnection_recursive(
-        &self,
-        current: &Rc<TypeNode>,
-        new_type: &Type,
-        insertion_infos: &mut Vec<InsertionInfo>,
-        visited: &mut HashSet<Type>
-    ) {
-        // Éviter les cycles
-        if visited.contains(&current.type_info) {
-            return;
-        }
-        visited.insert(current.type_info.clone());
-
-        // Vérifier si le nœud actuel est un super-type du nouveau type
-        if new_type.is_subtype(&current.type_info, &Context::default()) {
-            // Vérifier les sous-types pour voir si certains sont des sous-types du nouveau type
-            let mut subtypes_of_new_type = Vec::new();
-            
-            for subtype in current.subtypes.borrow().iter() {
-                if subtype.type_info.is_subtype(new_type, &Context::default()) {
-                    // Ce sous-type est un sous-type du nouveau type
-                    subtypes_of_new_type.push(subtype.type_info.clone());
-                }
-            }
-
-            // Si on a trouvé des sous-types qui sont des sous-types du nouveau type,
-            // on doit insérer le nouveau type comme intermédiaire
-            if !subtypes_of_new_type.is_empty() {
-                insertion_infos.push(InsertionInfo {
-                    parent: current.type_info.clone(),
-                    children_to_reconnect: subtypes_of_new_type,
-                });
-                return;
-            }
-
-            // Si c'est un nœud feuille, c'est un point d'insertion simple
-            if current.subtypes.borrow().is_empty() {
-                insertion_infos.push(InsertionInfo {
-                    parent: current.type_info.clone(),
-                    children_to_reconnect: Vec::new(),
-                });
-            } else {
-                // Sinon, continuer la recherche dans les sous-types
-                let initial_size = insertion_infos.len();
-                for subtype in current.subtypes.borrow().iter() {
-                    self.find_insertion_points_with_reconnection_recursive(
-                        subtype,
-                        new_type,
-                        insertion_infos,
-                        visited
-                    );
-                }
-                // Si aucun point d'insertion n'a été trouvé dans les sous-types,
-                // alors le nœud actuel devient un point d'insertion
-                if insertion_infos.len() == initial_size {
-                    insertion_infos.push(InsertionInfo {
-                        parent: current.type_info.clone(),
-                        children_to_reconnect: Vec::new(),
-                    });
-                }
-            }
-        }
-    }
-
-    fn find_insertion_points_recursive(
-        &self,
-        current: &Rc<TypeNode>,
-        new_type: &Type,
-        insertion_points: &mut Vec<Type>,
-        visited: &mut HashSet<Type>
-    ) {
-        // Éviter les cycles (bien que peu probable avec notre structure)
-        if visited.contains(&current.type_info) {
-            return;
-        }
-        visited.insert(current.type_info.clone());
-
-        // Vérifier si le nœud actuel est un super-type du nouveau type
-        if new_type.is_subtype(&current.type_info, &Context::default()) {
-            // Si c'est un nœud feuille, c'est un point d'insertion
-            if current.subtypes.borrow().is_empty() {
-                insertion_points.push(current.type_info.clone());
-            } else {
-                // Sinon, continuer la recherche dans les sous-types
-                for subtype in current.subtypes.borrow().iter() {
-                    self.find_insertion_points_recursive(
-                        subtype,
-                        new_type,
-                        insertion_points,
-                        visited
-                    );
-                }
-            }
-        }
-        // Si ce n'est pas un super-type, on ne continue pas dans cette branche
-    }
-
-    /// Ajoute un sous-type à un parent avec reconnexion des enfants
-    fn add_subtype_to_parent_with_reconnection(&mut self, insertion_info: InsertionInfo, child: Rc<TypeNode>) {
-        if let Some(parent_node) = self.node_cache.get(&insertion_info.parent).cloned() {
-            // Ajouter le nouveau nœud comme enfant du parent
-            parent_node.add_subtype(child.clone());
-
-            // Si il y a des enfants à reconnecter
-            if !insertion_info.children_to_reconnect.is_empty() {
-                // Supprimer ces enfants du parent et les ajouter au nouveau nœud
-                let mut parent_subtypes = parent_node.subtypes.borrow_mut();
-                
-                // Collecter les nœuds à reconnecter
-                let nodes_to_reconnect: Vec<Rc<TypeNode>> = parent_subtypes
-                    .iter()
-                    .filter(|node| insertion_info.children_to_reconnect.contains(&node.type_info))
-                    .cloned()
-                    .collect();
-                
-                // Supprimer ces nœuds de la liste des enfants du parent
-                parent_subtypes.retain(|node| !insertion_info.children_to_reconnect.contains(&node.type_info));
-                
-                // Libérer le borrow du parent pour pouvoir emprunter le nouveau nœud
-                drop(parent_subtypes);
-                
-                // Les ajouter comme enfants du nouveau nœud
-                for node_to_reconnect in nodes_to_reconnect {
-                    child.add_subtype(node_to_reconnect);
-                }
-                
-            }
-            
-            //println!("Ajout de {} comme sous-type de {}", 
-                     //child.type_info.pretty(), insertion_info.parent.pretty());
-        }
-    }
-
-    /// Reconstruit partiellement le graphe pour ajouter une nouvelle connexion
-    /// Cette approche est simplifiée - une implémentation plus efficace utiliserait
-    /// Rc<RefCell<TypeNode>> ou une autre stratégie
-    fn rebuild_with_new_connection(&mut self, parent_type: Type, child: Rc<TypeNode>) {
-        // Implémentation simplifiée qui assume que nous pouvons modifier la structure
-        println!("Ajout de {:?} comme sous-type de {:?}", child.type_info, parent_type);
-        
-        // Dans une vraie implémentation, vous modifieriez le nœud parent ici
-        // Cette approche nécessite soit RefCell, soit une restructuration du design
-    }
-
-    /// Affiche la structure du graphe
-    pub fn print_structure(&self) {
-        println!("Structure du graphe de types :");
-        self.print_node(&self.root, 0);
-    }
-
-    fn print_node(&self, node: &Rc<TypeNode>, depth: usize) {
-        let indent = "  ".repeat(depth);
-        println!("{}{:?}", indent, node.type_info.pretty());
-        
-        for subtype in node.subtypes.borrow().iter() {
-            self.print_node(subtype, depth + 1);
-        }
-    }
-
-    /// Trouve tous les super-types d'un type donné
-    pub fn get_supertypes(&self, target_type: &Type) -> Vec<Type> {
-        if target_type.is_empty() {
-            vec![builder::generic_type()]
-        } else {
-            let mut supertypes = Vec::new();
-            self.find_supertypes_recursive(&self.root, target_type, &mut supertypes);
-            supertypes.iter()
-                        .filter(|x| !x.is_any())
-                        .cloned()
-                        .collect()
-        }
-
-    }
-
-    fn find_supertypes_recursive(
-        &self,
-        current: &Rc<TypeNode>,
-        target: &Type,
-        supertypes: &mut Vec<Type>
-    ) {
-        // Si le nœud actuel est un super-type du target
-        if target.is_subtype(&current.type_info, &Context::default()) && current.type_info != *target {
-            supertypes.push(current.type_info.clone());
-        }
-
-        // Continuer la recherche dans les sous-types
-        for subtype in current.subtypes.borrow().iter() {
-            self.find_supertypes_recursive(subtype, target, supertypes);
-        }
-    }
-
-    pub fn update(&mut self, types: &[Type]) {
-        for typ in types.iter() {
-            self.add_type(typ.clone());
-        }
-    }
-
-
-    /// Crée une copie profonde complète du graphe
-    /// Tous les Rc<TypeNode> et RefCell sont recréés avec de nouvelles adresses mémoire
-    pub fn deep_clone(&self) -> Self {
-        // Map pour garder la correspondance entre anciens et nouveaux nœuds
-        let mut old_to_new: HashMap<*const TypeNode, Rc<TypeNode>> = HashMap::new();
-        let mut new_node_cache: HashMap<Type, Rc<TypeNode>> = HashMap::new();
-        
-        // Première passe : créer tous les nouveaux nœuds (sans les connexions)
-        self.clone_all_nodes_first_pass(&self.root, &mut old_to_new, &mut new_node_cache);
-        
-        // Deuxième passe : recréer toutes les connexions entre les nouveaux nœuds
-        self.clone_all_connections_second_pass(&self.root, &old_to_new);
-        
-        // Trouver le nouveau nœud racine
-        let new_root = old_to_new.get(&(self.root.as_ref() as *const TypeNode))
-            .expect("Root node should be cloned")
-            .clone();
-        
-        Graph {
-            root: new_root,
-            node_cache: new_node_cache,
-        }
-    }
-    
-    /// Première passe : clone tous les nœuds sans leurs connexions
-    fn clone_all_nodes_first_pass(
-        &self,
-        current: &Rc<TypeNode>,
-        old_to_new: &mut HashMap<*const TypeNode, Rc<TypeNode>>,
-        new_cache: &mut HashMap<Type, Rc<TypeNode>>
-    ) {
-        let current_ptr = current.as_ref() as *const TypeNode;
-        
-        // Si ce nœud a déjà été cloné, on passe
-        if old_to_new.contains_key(&current_ptr) {
-            return;
-        }
-        
-        // Créer un nouveau nœud avec une nouvelle RefCell vide
-        let new_node = Rc::new(TypeNode {
-            type_info: current.type_info.clone(),
-            subtypes: RefCell::new(Vec::new()), // RefCell vide pour l'instant
-        });
-        
-        // Enregistrer la correspondance
-        old_to_new.insert(current_ptr, new_node.clone());
-        new_cache.insert(current.type_info.clone(), new_node.clone());
-        
-        // Continuer récursivement avec les sous-types
-        for subtype in current.subtypes.borrow().iter() {
-            self.clone_all_nodes_first_pass(subtype, old_to_new, new_cache);
-        }
-    }
-    
-    /// Deuxième passe : recrée toutes les connexions avec les nouveaux nœuds
-    fn clone_all_connections_second_pass(
-        &self,
-        current: &Rc<TypeNode>,
-        old_to_new: &HashMap<*const TypeNode, Rc<TypeNode>>
-    ) {
-        let current_ptr = current.as_ref() as *const TypeNode;
-        let new_current = old_to_new.get(&current_ptr)
-            .expect("Node should exist in old_to_new map");
-        
-        // Pour chaque sous-type de l'ancien nœud
-        for old_subtype in current.subtypes.borrow().iter() {
-            let old_subtype_ptr = old_subtype.as_ref() as *const TypeNode;
-            let new_subtype = old_to_new.get(&old_subtype_ptr)
-                .expect("Subtype should exist in old_to_new map");
-            
-            // Ajouter la connexion dans le nouveau nœud
-            new_current.subtypes.borrow_mut().push(new_subtype.clone());
-        }
-        
-        // Continuer récursivement
-        for subtype in current.subtypes.borrow().iter() {
-            self.clone_all_connections_second_pass(subtype, old_to_new);
-        }
+        convert(self).partial_cmp(&convert(other))
     }
 }
 
+
+
+//main
+#[derive(Debug, Clone, PartialEq)]
+pub struct Graph<T: TypeSystem> {
+    memory: HashSet<T>,
+    root: Node<T>
+}
+
+impl<T: TypeSystem> Graph<T> {
+    pub fn new() -> Self {
+        Graph {
+            memory: HashSet::new(),
+            root: Node::new()
+        }
+    }
+
+    pub fn add_type(self, typ: T) -> Self {
+        if self.memory.contains(&typ) {
+            self
+        } else {
+            Graph {
+                memory: self.memory.iter().chain([typ.clone()].iter()).cloned().collect(),
+                root: self.root.add_type(typ)
+            }
+        }
+    }
+
+    pub fn add_type_trace(self, typ: T) -> Self {
+        if self.memory.contains(&typ) {
+            self
+        } else {
+            Graph {
+                memory: self.memory.iter().chain([typ.clone()].iter()).cloned().collect(),
+                root: self.root.add_type_trace(typ)
+            }
+        }
+    }
+
+    pub fn get_hierarchy(&self) -> String {
+        self.root.get_hierarchy()
+    }
+
+    pub fn get_type_list(&self) -> String {
+        format!("{}", T::prettys(&self.memory.iter().cloned().collect::<Vec<_>>()))
+    }
+
+    pub fn print_hierarchy(&self) {
+        println!("{}", self.get_hierarchy());
+    }
+
+    pub fn get_supertypes(&self, typ: &T) -> Vec<T> {
+        self.root.get_supertypes(typ)
+            .iter().cloned().collect::<HashSet<_>>()
+            .iter().cloned().collect::<Vec<_>>()
+    }
+
+    pub fn get_supertypes_trace(&self, typ: &T) -> Vec<T> {
+        self.root.get_supertypes_trace(typ)
+            .iter().cloned().collect::<HashSet<_>>()
+            .iter().cloned().collect::<Vec<_>>()
+    }
+
+    pub fn add_types(self, typs: &[T]) -> Self {
+        typs.iter()
+            .cloned()
+            .fold(self, |acc, x| acc.add_type(x))
+    }
+
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Node<T: TypeSystem> {
+   value: T,
+   subtypes: Vec<Node<T>>
+}
+
+impl<T: TypeSystem> From<T> for Node<T> {
+   fn from(val: T) -> Self {
+       Node {
+            value: val,
+            subtypes: vec![]
+       } 
+   } 
+}
+
+//main
+impl<T: TypeSystem> Node<T> {
+    pub fn new() -> Self {
+        Node {
+            value: T::default(),
+            subtypes: vec![]
+        }
+    }
+
+    pub fn update(self, types: &[T]) -> Self {
+        todo!();
+    }
+
+    pub fn deep_clone(&self) -> Self {
+        todo!();
+    }
+
+    pub fn propagate(self, typ: T) -> Self {
+        let graph = Node {
+            value: self.value.clone(),
+            subtypes: self.subtypes.iter().cloned()
+                            .map(|x| x.add_type(typ.clone()))
+                            .collect()
+        };
+        if graph == self {
+            self.add_subtype(typ)
+        } else {
+            graph
+        }
+    }
+
+    pub fn propagate_trace(self, typ: T) -> Self {
+        let graph = Node {
+            value: self.value.clone(),
+            subtypes: self.subtypes.iter().cloned()
+                            .map(|x| x.add_type(typ.clone()))
+                            .collect()
+        };
+        if graph == self {
+            println!("add {} to one of the children of {}", 
+                     typ.pretty(), self.value.pretty());
+            self.add_subtype(typ)
+        } else {
+            println!("{} is not a subtype of {}'s subtypes: {}", 
+                     typ.pretty(), self.value.pretty(), self.show_subtypes());
+            graph
+        }
+    }
+
+    pub fn show_subtypes(&self) -> String {
+        "[".to_string() + &self.subtypes.iter()
+            .map(|typ| format!("{}", typ.value.pretty()))
+            .collect::<Vec<_>>().join(",") + "]"
+    }
+
+    pub fn add_subtype(self, typ: T) -> Self {
+        Node {
+            value: self.value,
+            subtypes: self.subtypes.iter()
+                        .chain([Node::from(typ)].iter())
+                        .cloned().collect()
+        }
+    }
+
+    pub fn set_subtypes(self, subtypes: Vec<Node<T>>) -> Self {
+        Node {
+            value: self.value,
+            subtypes
+        }
+    }
+
+    fn switch_if_reverse_subtype(self, typ: T) -> Self {
+        if self.value.is_subtype(&typ) {
+            Node {
+                value: typ,
+                subtypes: vec![Node::from(self.value).set_subtypes(self.subtypes)]
+            }
+        } else { self }
+    }
+
+    fn switch_if_reverse_subtype_trace(self, typ: T) -> Self {
+        if self.value.is_subtype(&typ) {
+            println!("{} is a subtype of the entry {}",
+                     self.value.pretty(), typ.pretty());
+            Node {
+                value: typ,
+                subtypes: vec![Node::from(self.value).set_subtypes(self.subtypes)]
+            }
+        } else { 
+            println!("{} is not a subtype of {} abort this branch", 
+                     typ.pretty(), self.value.pretty());
+            self }
+    }
+
+    pub fn add_type(self, typ: T) -> Self {
+        match (typ.is_subtype(&self.value), self.subtypes.len()) {
+            (true, 0) => self.add_subtype(typ),
+            (true, n) => self.propagate(typ),
+            _ => self.switch_if_reverse_subtype(typ) 
+        }
+    }
+
+    pub fn add_type_trace(self, typ: T) -> Self {
+        match (typ.is_subtype(&self.value), self.subtypes.len()) {
+            (true, 0) => {
+                println!("{} is a subtype of the leaf {}",
+                         typ.pretty(), self.value.pretty());
+                self.add_subtype(typ)},
+            (true, n) => {
+                println!("{} is a subtype of the node {}",
+                         typ.pretty(), self.value.pretty());
+                self.propagate_trace(typ)},
+            _ => {
+                self.switch_if_reverse_subtype_trace(typ)}
+        }
+    }
+
+    pub fn print_structure(&self) {
+        todo!();
+    }
+
+    pub fn get_supertypes(&self, target_type: &T) -> Vec<T> {
+        if target_type == &self.value {
+            vec![]
+        } else if target_type.is_subtype(&self.value) {
+           self.subtypes.iter() 
+               .flat_map(|x| x.get_supertypes(target_type))
+               .chain([self.value.clone()].iter().cloned())
+               .collect::<Vec<T>>()
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn get_supertypes_trace(&self, target_type: &T) -> Vec<T> {
+        if target_type == &self.value {
+           println!("found the root of {} we backtrack", target_type.pretty());
+            vec![]
+        } else if target_type.is_subtype(&self.value) {
+           println!("{} is subtype of {} we check the subtypes", 
+                    target_type.pretty(), self.value.pretty());
+           self.subtypes.iter() 
+               .flat_map(|x| x.get_supertypes_trace(target_type))
+               .chain([self.value.clone()].iter().cloned())
+               .collect::<Vec<T>>()
+        } else {
+           println!("{} is not subtype of {} ABORT this branch", 
+                    target_type.pretty(), self.value.pretty());
+            vec![]
+        }
+    }
+
+    pub fn get_hierarchy(&self) -> String {
+        self.get_hierarchy_helper(0)
+    }
+
+    fn tabulation_from_level(level: i32) -> String {
+        (0..level).into_iter().map(|_| "  ")
+            .collect::<Vec<_>>().join("")
+    }
+
+    pub fn get_hierarchy_helper(&self, level: i32) -> String {
+        let tab = Node::<T>::tabulation_from_level(level);
+        let children = self.subtypes.iter()
+            .map(|x| x.get_hierarchy_helper(level + 1))
+            .collect::<Vec<_>>().join("\n");
+        tab + &self.value.pretty() + "\n" + &children
+    }
+
+}
+
+use std::fmt;
+impl<T: TypeSystem> fmt::Display for Node<T> {
+    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.get_hierarchy())       
+    }
+}
+
+fn main() {
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_init(){
+        let g = Node::new();
+        let res = g.get_supertypes(&Type::Integer);
+        assert_eq!(vec![Type::Generic], res);
+    }
+
+    #[test]
+    fn test_add_type0(){
+        let g = Node::new()
+            .add_type(Type::Integer);
+        let res = g.get_supertypes(&Type::Sub);
+        assert_eq!(vec![Type::Integer, Type::Generic], res);
+    }
+
+    #[test]
+    fn test_add_type1(){
+        let g = Node::new()
+            .add_type(Type::Number)
+            .add_type(Type::Integer);
+        println!("g.get_hierarchy():\n {}", g.get_hierarchy());
+        let res = g.get_supertypes(&Type::Sub);
+        assert_eq!(vec![Type::Integer, Type::Generic], res);
+    }
+
+    #[test]
+    fn test_add_type2(){
+        let g = Node::new()
+            .add_type(Type::Integer)
+            .add_type_trace(Type::Sub);
+        println!("g.get_hierarchy():\n {}", g.get_hierarchy());
+        let res = g.get_supertypes(&Type::Sub);
+        assert_eq!(vec![Type::Integer, Type::Generic], res);
+    }
+
+    #[test]
+    fn test_add_type3(){
+        let g = Node::new()
+            .add_type(Type::Integer)
+            .add_type_trace(Type::Number)
+            .add_type(Type::Sub);
+        println!("g.get_hierarchy():\n {}", g.get_hierarchy());
+        let res = g.get_supertypes(&Type::Sub);
+        assert_eq!(vec![Type::Integer, Type::Generic], res);
+    }
+
+    #[test]
+    fn test_add_type4(){
+        let g = Node::new()
+            .add_type(Type::Integer)
+            .add_type_trace(Type::Number)
+            .add_type(Type::Sub);
+        println!("g.get_hierarchy():\n {}", g.get_hierarchy());
+        let res = g.get_supertypes(&Type::Generic);
+        assert_eq!(vec![Type::Generic], res);
+    }
+
+    #[test]
+    fn test_graph_eq(){
+        let g1 = Node::new()
+            .add_type(Type::Integer);
+        let g2 = Node::new();
+        assert_eq!(g1, g2);
+    }
+
+    #[test]
+    fn test_add_same_type() {
+        let g = Graph::new()
+            .add_type(Type::Sub)
+            .add_type(Type::Sub);
+        assert_eq!("Generic\n  Sub\n", g.get_hierarchy());
+    }
+
+}

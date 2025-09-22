@@ -48,7 +48,7 @@ pub fn parse_code(path: &PathBuf) -> AdtManager {
     let base_file = TypRFile::new(&file_content, file);
 
     let adt_manager = AdtManager::new()
-        .add_to_header(std_file.parse())
+        //.add_to_header(std_file.parse());
         .add_to_body(base_file.parse());
 
     let adt = metaprogrammation(adt_manager.body.clone());

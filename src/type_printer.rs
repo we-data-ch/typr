@@ -4,6 +4,7 @@ use crate::help_data::HelpData;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
 use crate::type_category::TypeCategory;
+use crate::graph::TypeSystem;
 
 fn format_kind(ki: &Kind) -> String {
    match ki {
@@ -25,6 +26,9 @@ pub fn format(ty: &Type) -> String {
         Type::Array(dim, ty, _) => {
             format!("[{}, {}]", format2(dim), format(ty))
         },
+        Type::Vector(dim, ty, _) => {
+            format!("Vec[{}, {}]", format2(dim), format(ty))
+        },
         Type::Function(kinds, params, ret_ty, _h) => {
             let formatted_kinds = kinds.iter().map(|arg_kind| format_kind(&arg_kind.get_kind())).collect::<Vec<_>>();
             let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();
@@ -43,10 +47,11 @@ pub fn format(ty: &Type) -> String {
         }
         Type::Generic(name, _) => name.to_uppercase(),
         Type::Integer(tint, _) => {
-            match tint {
-                Tint::Val(i) => format!("int({})", i),
-                _ => "int".to_string()
-            }
+            "int".to_string()
+            //match tint {
+                //Tint::Val(i) => format!("int({})", i),
+                //_ => "int".to_string()
+            //}
         },
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),

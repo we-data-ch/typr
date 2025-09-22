@@ -5,6 +5,7 @@ use crate::help_data::HelpData;
 use crate::tint::Tint;
 use crate::argument_type::ArgumentType;
 use crate::tchar::Tchar;
+use std::collections::HashSet;
 
 pub fn generic_type() -> Type {
         Type::Generic("T".to_string(), HelpData::default())
@@ -45,7 +46,7 @@ pub fn boolean_type() -> Type {
 pub fn record_type(params: &[(String, Type)]) -> Type {
     let args = params.iter()
         .map(|param| ArgumentType::from(param.to_owned()))
-        .collect::<Vec<_>>();
+        .collect::<HashSet<_>>();
     Type::Record(args, HelpData::default())
 }
 
@@ -54,7 +55,8 @@ pub fn params_type() -> Type {
 }
 
 pub fn generic_function(s: &str) -> Lang {
-    Lang::GenFunc(s.to_string(), "".to_string(), HelpData::default())
+    let body = format!("{} <- function(x, ...) {{ UseMethod('{}') }}", s, s);
+    Lang::GenFunc(body, "".to_string(), HelpData::default())
 }
 
 pub fn r_function_type() -> Type {
