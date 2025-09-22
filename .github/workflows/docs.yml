@@ -1,42 +1,62 @@
-name: Deploy Rust API Docs
+name: Docs
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - main
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
 jobs:
-  build-and-deploy:
+  build:
+    name: Build Documentation
     runs-on: ubuntu-latest
-
     steps:
-      # 1️⃣ Checkout repo
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # 2️⃣ Install Rust
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      # 3️⃣ Build Rust API docs
-      - name: Build Rust API docs
+      - name: Configure cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Clean docs folder
+        run: cargo clean --doc
+
+      - name: Build docs
         run: cargo doc --no-deps
 
-      # 4️⃣ Copy entire crate folder to 'site/'
-      - name: Prepare site folder
-        run: |
-          mkdir -p site
-          cp -r target/doc/typr site/  # 'typr' = crate name
+      - name: Add redirect
+        run: echo '<meta http-equiv="refresh" content="0;url=typr/index.html">' > target/doc/index.html
 
-      # 5️⃣ Upload site artifact for Pages
-      - name: Upload Pages artifact
+      - name: Remove lock file
+        run: rm target/doc/.lock
+
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: target/doc
 
-      # 6️⃣ Deploy to GitHub Pages
-      - id: deploy
+  deploy:
+    name: Deploy to GitHub Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
