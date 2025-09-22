@@ -477,27 +477,27 @@ impl RTranslatable<(String, Context)> for Lang {
                 (format!("{}", n), cont.clone()),
             Lang::Eq(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" == ").to_r(e2).into()
+                    .to_r(e2).add(" == ").to_r(e1).into()
             },
             Lang::NotEq(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" != ").to_r(e2).into()
+                    .to_r(e2).add(" != ").to_r(e1).into()
             },
             Lang::LesserThan(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" < ").to_r(e2).into()
+                    .to_r(e2).add(" < ").to_r(e1).into()
             },
             Lang::GreaterThan(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" > ").to_r(e2).into()
+                    .to_r(e2).add(" > ").to_r(e1).into()
             },
             Lang::LesserOrEqual(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" <= ").to_r(e2).into()
+                    .to_r(e2).add(" <= ").to_r(e1).into()
             },
             Lang::GreaterOrEqual(e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(e1).add(" >= ").to_r(e2).into()
+                    .to_r(e2).add(" >= ").to_r(e1).into()
             },
             Lang::Chain(e1, e2, _) => {
                 match *e1.clone() {
@@ -698,9 +698,9 @@ impl RTranslatable<(String, Context)> for Lang {
                 let typ = type_checker::typing(cont, self).0;
                 let class = cont.get_class(&typ);
                 cont.get_classes(&typ)
-                    .map(|res| format!("struct(list({}, {}), c('Tag', '{}', {}))",
+                    .map(|res| format!("struct(list('{}', {}), c('Tag', {}, {}))",
                                 s, t_str, class, res))
-                    .unwrap_or(format!("struct(list('{}', {}), c('Tag', '{}'))",
+                    .unwrap_or(format!("struct(list('{}', {}), c('Tag', {}))",
                                 s, t_str, class))
                     .to_some().map(|s| (s, new_cont)).unwrap()
             },
