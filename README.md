@@ -20,6 +20,27 @@
 
 The link for the official website is [here](https://fabricehategekimana.github.io/typr.github.io/build/).
 
+## Code example
+
+```scala
+type Person = {
+	name: char,
+	age: int
+};
+
+new_person <- fn(name: char, age: int): Person {
+	list(name = name, age = age)
+};
+
+is_minor <- fn(p: Person): bool {
+	(p$age) < 18
+};
+
+alice <- new_person("Alice", 35);
+
+alice.is_minor()
+```
+
 
 ## Support this project 🚀
 
