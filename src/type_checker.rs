@@ -286,7 +286,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
-                        .expect("Field not found")
+                        .expect(&format!("Field {} not found", name))
                 },
                 (Type::Record(fields, _), Lang::Char(name, _)) => {
                     fields.iter()

@@ -6,8 +6,9 @@ use crate::tchar::Tchar;
 use crate::Context;
 use crate::Var;
 use crate::type_comparison::reduce_type;
+use crate::graph::TypeSystem;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)] // 3 argument is for the embedding
+#[derive(Debug, Clone, Serialize, Eq, Hash)] // 3 argument is for the embedding
 pub struct ArgumentType(pub Type, pub Type, pub bool);
 
 impl ArgumentType {
@@ -70,6 +71,18 @@ impl ArgumentType {
             .set_type(new_type)
     }
 
+    pub fn pretty(&self) -> String {
+        format!("{} = {}", self.0.pretty(), self.1.pretty())
+    }
+
+    pub fn pretties<T>(args: &T) -> String where
+    T: IntoIterator<Item = Self> + Clone {
+        args.clone().into_iter()
+            .map(|x| x.pretty())
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+
 }
 
 impl fmt::Display for ArgumentType {
@@ -85,3 +98,13 @@ impl From<(String, Type)> for ArgumentType {
             val.1, false)
    } 
 }
+
+
+impl PartialEq for ArgumentType {
+    fn eq(&self, other: &Self) -> bool {
+        (match (self.0.clone(), other.0.clone()) {
+            (Type::Char(a, b), Type::Char(c, d)) => a == c,
+            _ => false
+        }) && (self.1 == other.1)
+    }
+} 

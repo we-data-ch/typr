@@ -813,6 +813,18 @@ mod tests {
     }
 
     #[test]
+    fn test_record2() {
+        let res = record_type("{ health: char, position: char }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_type());
+    }
+
+    #[test]
+    fn test_argument1() {
+        let res = argument("position: int".into()).unwrap().1;
+        assert_eq!(res, ArgumentType::new("hey", &builder::empty_type()));
+    }
+
+    #[test]
     fn test_interface1() {
         let res = interface("interface { hey: fn(a: num, b: num): num }".into()).unwrap().1;
         assert_eq!(res.to_string(), "interface([[var('hey'),tfn([], [num, num], num)]])");
@@ -928,5 +940,6 @@ mod tests {
         let res = "Vec[4, int]".parse::<Type>().unwrap();
         assert_eq!(res, builder::empty_type());
     }
+
 
 }
