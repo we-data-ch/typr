@@ -766,6 +766,17 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                 vec![res.clone()], builder::empty_type(), res.into());
             Lang::Chain(Box::new(func), Box::new(op_reverse(v)), p.into())
         },
+        (p, Op::Dollar(_)) => Lang::Dollar(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+        (p, Op::Dollar2(_)) => {
+            let res = match p.clone() {
+                Lang::FunctionApp(name, _, _, _) => *name.clone(),
+                rest => rest.clone()
+            };
+            let func = Lang::FunctionApp(
+                Box::new(Var::from_name("map").to_language()),
+                vec![res.clone()], builder::empty_type(), res.into());
+            Lang::Chain(Box::new(func), Box::new(op_reverse(v)), p.into())
+        },
         (p, Op::Custom(s, h)) 
             => {
                 let res = op_reverse(v); let pp = p;

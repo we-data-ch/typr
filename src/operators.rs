@@ -43,6 +43,8 @@ pub enum Op {
     Modu(HelpData),
     Modu2(HelpData),
     Empty(HelpData),
+    Dollar(HelpData),
+    Dollar2(HelpData),
     Custom(String, HelpData)
 }
 
@@ -93,8 +95,8 @@ fn get_op(ls: LocatedSpan<&str, String>) -> Op {
         "=" => Op::Eq2(ls.into()),
         "." => Op::Dot(ls.into()),
         ".." => Op::Dot2(ls.into()),
-        "$" => Op::Dot(ls.into()),
-        "$$" => Op::Dot2(ls.into()),
+        "$" => Op::Dollar(ls.into()),
+        "$$" => Op::Dollar2(ls.into()),
         "|" => Op::Union(ls.into()),
         "==" => Op::Eq(ls.into()),
         "!=" => Op::NotEq(ls.into()),
@@ -176,6 +178,8 @@ fn get_string(op: &Op) -> String {
         Op::GreaterOrEqual(_) => ">=".to_string(),
         Op::Modu2(_) => "%%".to_string(),
         Op::Modu(_) => "%".to_string(),
+        Op::Dollar(_) => "$".to_string(),
+        Op::Dollar2(_) => "$$".to_string(),
         _ => todo!()
     }
 }

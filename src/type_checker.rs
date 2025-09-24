@@ -310,6 +310,46 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
             }
         },
+        Lang::Dollar(e1, e2, _) => {
+            let ty2 = typing(context, e2).0;
+            match (ty2.reduce(context), *e1.clone()) {
+                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _, _)) => {
+                    fields.iter()
+                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
+                        .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
+                        .expect(&format!("Field {} not found", name))
+                },
+                (Type::Record(fields, _), Lang::Char(name, _)) => {
+                    fields.iter()
+                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
+                        .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
+                        .expect(&format!("Field {} not found", name))
+                },
+                (Type::Tuple(vals, _), Lang::Integer(i, _)) => {
+                    vals.iter()
+                        .nth((i-1) as usize)
+                        .map(|typ| (typ.clone(), context.clone()))
+                        .expect(&format!("no value at the position {}", i))
+                },
+                (Type::Record(fields1, h), Lang::Record(fields2, _)) => {
+                    let at = fields2[0].clone();
+                    let fields3 = fields1.iter()
+                        .map(replace_fields_type_if_needed(context, at))
+                        .collect::<HashSet<_>>();
+                    (Type::Record(fields3, h.clone()), context.clone())
+                },
+                (Type::Record(fields, h1), Lang::FunctionApp(exp, args, _, h2)) => {
+                    let var = Var::from_language(*exp).unwrap();
+                    let typ = fields.iter()
+                        .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
+                        .expect(&format!("Field {} not found", var.get_name()))
+                        .get_type();
+                    (typing(&context.clone().push_var_type(var, typ, context), e1).0,
+                    context.clone())
+                },
+                (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
+            }
+        },
         Lang::Function(kinds, params, ret_ty, body, h) => {
             let list_of_types = params.iter()
                 .map(ArgumentType::get_type)

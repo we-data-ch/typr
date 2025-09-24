@@ -70,6 +70,7 @@ pub enum Lang {
     LesserOrEqual(Box<Lang>, Box<Lang>, HelpData),
     GreaterOrEqual(Box<Lang>, Box<Lang>, HelpData),
     Chain(Box<Lang>, Box<Lang>, HelpData),
+    Dollar(Box<Lang>, Box<Lang>, HelpData),
     Scope(Vec<Lang>, HelpData),
     Function(Vec<ArgumentKind>, Vec<ArgumentType>, Type, Box<Lang>, HelpData),
     Module(String, Vec<Lang>, HelpData), // module name { lines }
@@ -280,6 +281,7 @@ impl Lang {
             Lang::RFunction(_, _, h) => h,
             Lang::KeyValue(_, _, h) => h,
             Lang::Vector(_, h) => h,
+            Lang::Dollar(_, _, h) => h,
         }.clone()
     }
 
@@ -364,6 +366,7 @@ impl Lang {
             Lang::RFunction(_, _, _) => "RFunction".to_string(),
             Lang::KeyValue(_, _, _) => "KeyValue".to_string(),
             Lang::Vector(_, _) => "Vector".to_string(),
+            Lang::Dollar(_, _, _) => "Dollar".to_string(),
         }
     }
 
@@ -427,6 +430,7 @@ impl From<Lang> for HelpData {
            Lang::RFunction(_, _, h) => h,
            Lang::KeyValue(_, _, h) => h,
            Lang::Vector(_, h) => h,
+           Lang::Dollar(_, _, h) => h,
        }.clone()
    } 
 }
@@ -760,6 +764,21 @@ impl RTranslatable<(String, Context)> for Lang {
                    .collect::<Vec<_>>().join(", ")
                 + ")";
                (res, cont.to_owned())
+            },
+            Lang::Dollar(e1, e2, _) => {
+                let name = e2.to_r(cont).0;
+                match (**e1).clone() {
+                    Lang::FunctionApp(exp, params, _, _) => {
+                        let var = Var::from_language(*exp).unwrap();
+                        (format!("{}${}({})", name, var.get_name(),
+                            params.iter()
+                                .map(|x| x.to_r(cont).0)
+                                .collect::<Vec<_>>()
+                                .join(", ")), cont.to_owned())
+                    },
+                    _ => (format!("{}${}", name, e1.to_r(cont).0),
+                            cont.to_owned())
+                }
             },
             _ =>  {
                 println!("This language structure won't transpile: {:?}", self);
