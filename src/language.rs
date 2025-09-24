@@ -767,18 +767,20 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::Dollar(e1, e2, _) => {
                 let name = e2.to_r(cont).0;
-                match (**e1).clone() {
+                let res = match (**e1).clone() {
                     Lang::FunctionApp(exp, params, _, _) => {
                         let var = Var::from_language(*exp).unwrap();
-                        (format!("{}${}({})", name, var.get_name(),
-                            params.iter()
-                                .map(|x| x.to_r(cont).0)
-                                .collect::<Vec<_>>()
-                                .join(", ")), cont.to_owned())
+                        let new_params = params.iter().map(|x| x.to_r(cont).0)
+                                .collect::<Vec<_>>().join(", ");
+                        dbg!(&new_params);
+                        (format!("{}${}({})", name, var.get_name(), new_params),
+                            cont.to_owned())
                     },
                     _ => (format!("{}${}", name, e1.to_r(cont).0),
                             cont.to_owned())
-                }
+                };
+                dbg!(&res.0);
+                res
             },
             _ =>  {
                 println!("This language structure won't transpile: {:?}", self);

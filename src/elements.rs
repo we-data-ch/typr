@@ -237,7 +237,7 @@ fn parse_nested_braces(input: Span) -> IResult<Span, Span> {
 
 pub fn r_function(s: Span) -> IResult<Span, Lang> {
     let res = (
-        terminated(tag("function"), multispace0),
+        terminated(alt((tag("function"), tag("\\"))), multispace0),
         terminated(tag("("), multispace0),
         many0(terminated(terminated(variable, opt(tag(","))), multispace0)),
         terminated(tag(")"), multispace0),
@@ -399,7 +399,8 @@ fn pascal_case_helper(s: Span) -> IResult<Span, (String, HelpData)> {
 }
 
 fn pascal_case(s: Span) -> IResult<Span, (String, HelpData)> {
-    terminated(pascal_case_helper, multispace0).parse(s)
+    //terminated(pascal_case_helper, multispace0).parse(s)
+    pascal_case_helper.parse(s)
 }
 
 fn parenthese_value(s: Span) -> IResult<Span, Lang> {
@@ -1104,6 +1105,12 @@ mod tests {
     }
 
     #[test]
+    fn test_variable4() {
+        let res = variable("PORT".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
+    }
+
+    #[test]
     fn test_var_tag1() {
         let res = single_element("Some(s.substr(a.len() + 1, s.len()))".into()).unwrap().1;
         assert_eq!(res, builder::empty_lang());
@@ -1267,7 +1274,13 @@ mod tests {
 
     #[test]
     fn test_r_function0() {
-        let res = r_function("fn(a, b) { a + b }".into()).unwrap().1;
+        let res = r_function("function(a, b) { a + b }".into()).unwrap().1;
+        assert_eq!(res, builder::empty_lang());
+    }
+
+    #[test]
+    fn test_r_function1() {
+        let res = r_function("\\(a, b) { a + b }".into()).unwrap().1;
         assert_eq!(res, builder::empty_lang());
     }
 
