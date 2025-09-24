@@ -904,5 +904,11 @@ mod tesus {
         assert_eq!(res.0, vec![]);
     }
 
+    #[test]
+    fn test_comment1() {
+        let res = parse("#' @field limit Max body size, defaults to `5 * 1024 * 1024`.".into()).unwrap().1;
+        assert_eq!(res.0, vec![builder::empty_lang()]);
+    }
+
 
 }

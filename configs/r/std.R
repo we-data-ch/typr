@@ -13,7 +13,7 @@ filter.default <- function(vec, condition) {
 }
 
 append <- function(x, ...) { UseMethod('append') }
-append.default <- function(a, e) { c(a, e) }
+append.default <- function(a, e) { array(c(a, e), dim = length(a) + length(e)) }
 
 into.default <- function(element, vecteur) {
   return(element %in% vecteur)

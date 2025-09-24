@@ -611,10 +611,41 @@ fn lambda(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+fn not_exp(s: Span) -> IResult<Span, Lang> {
+    let res = (tag("!"),
+    alt((
+            tag_exp,
+            range,
+            lambda,
+            boolean,
+            number,
+            integer,
+            chars,
+            match_exp,
+            if_exp,
+            dotdotdot,
+            vector,
+            record,
+            r_function,
+            function,
+            tuple_exp,
+            function_application,
+            array_indexing,
+            variable,
+            scope,
+            array
+        ))).parse(s);
+    match res {
+        Ok((s, (not_op, lang))) => Ok((s, Lang::Not(Box::new(lang), not_op.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 
 // main
 pub fn single_element(s: Span) -> IResult<Span,Lang> {
     alt((
+            not_exp,
             tag_exp,
             range,
             lambda,

@@ -19,6 +19,7 @@ use crate::translatable::RTranslatable;
 use crate::builder;
 use std::str::FromStr;
 use crate::elements::parse_elements;
+use crate::graph::TypeSystem;
 
 trait AndIf {
     fn and_if<F>(self, condition: F) -> Option<Self>
@@ -103,6 +104,7 @@ pub enum Lang {
     RFunction(Vec<Lang>, String, HelpData), // variable, iterator, body
     KeyValue(String, Box<Lang>, HelpData),
     Vector(Vec<Lang>, HelpData),
+    Not(Box<Lang>, HelpData),
     Empty(HelpData)
 }
 
@@ -282,6 +284,7 @@ impl Lang {
             Lang::KeyValue(_, _, h) => h,
             Lang::Vector(_, h) => h,
             Lang::Dollar(_, _, h) => h,
+            Lang::Not(_, h) => h,
         }.clone()
     }
 
@@ -367,6 +370,7 @@ impl Lang {
             Lang::KeyValue(_, _, _) => "KeyValue".to_string(),
             Lang::Vector(_, _) => "Vector".to_string(),
             Lang::Dollar(_, _, _) => "Dollar".to_string(),
+            Lang::Not(_, _) => "Not".to_string(),
         }
     }
 
@@ -431,6 +435,7 @@ impl From<Lang> for HelpData {
            Lang::KeyValue(_, _, h) => h,
            Lang::Vector(_, h) => h,
            Lang::Dollar(_, _, h) => h,
+           Lang::Not(_, h) => h,
        }.clone()
    } 
 }
@@ -642,7 +647,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 (code, new_cont)
                 
             },
-            Lang::Array(v, _h) => {
+            Lang::Array(_v, _h) => {
                 let vector = &self.linearize_array()
                     .iter().map(|lang| lang.to_r(&cont).0)
                     .collect::<Vec<_>>().join(", ")
@@ -651,12 +656,10 @@ impl RTranslatable<(String, Context)> for Lang {
                     .unwrap_or("logical(0)".to_string());
 
                 let dim = typing(&cont, &self).0;
-                //let classes = cont.get_classes(&dim).unwrap_or("''".to_string());
 
                 let array = ArrayType::try_from(dim.clone()).unwrap().get_shape()
                     .map(|sha| format!("array({}, dim = c({}))", vector, sha))
-                    .unwrap_or(format!("array({}, dim = c(dim({})))", 
-                                       vector, v[0].to_r(&cont).0));
+                    .unwrap_or(format!("array({}, dim = c(0))", vector));
 
                 (format!("{} |> {}", array, cont.get_type_anotation(&dim)) ,cont.to_owned())
             },
@@ -698,7 +701,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     .to_r(var).add(" <- ").to_r(exp).into()
             },
             Lang::Comment(txt, _) => 
-                ("# ".to_string() + txt, cont.clone()),
+                ("#".to_string() + txt, cont.clone()),
             Lang::Integer(i, _) => 
                 (format!("{}L", i), cont.clone()),
             Lang::Tag(s, t, _) => {
@@ -778,6 +781,10 @@ impl RTranslatable<(String, Context)> for Lang {
                     _ => (format!("{}${}", name, e1.to_r(cont).0),
                             cont.to_owned())
                 }
+            },
+            Lang::Not(exp, _) => {
+                (format!("!{}", exp.to_r(cont).0),
+                    cont.clone())
             },
             _ =>  {
                 println!("This language structure won't transpile: {:?}", self);

@@ -438,7 +438,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::Array(exprs, h) => {
             let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
             if exprs.is_empty() {
-                let new_type = "[0, Any]".parse::<Type>()
+                let new_type = "[0, Empty]".parse::<Type>()
                     .unwrap().set_help_data(h.clone());
                 (new_type.clone(), context.clone().push_types(&[new_type]))
             } else if are_homogenous_types(&types) {
@@ -551,6 +551,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 .push_var_type()
                 .typing((**body).clone());
             (builder::empty_type(), context.clone())
+        },
+        Lang::Not(exp, h) => {
+            let typ = typing(context, exp).0;
+            match typ {
+                Type::Boolean(_) => (Type::Boolean(h.clone()), context.clone()),
+                _ => panic!("Use of the '!' to a none boolean expression")
+            }
         },
         _ => (Type::Any(HelpData::default()), context.clone()),
     }
