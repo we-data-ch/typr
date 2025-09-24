@@ -145,7 +145,7 @@ fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
 }
 
 fn variable_helper(s: Span) -> IResult<Span, Lang> {
-    let res = (opt(module_path), variable_exp, opt(type_annotation)).parse(s);
+    let res = (opt(module_path), alt((pascal_case, variable_exp)), opt(type_annotation)).parse(s);
     match res {
         Ok((s, (Some(mp), (v, h), Some(ty)))) 
             => Ok((s, Var::from_name(&v)
@@ -412,13 +412,14 @@ fn parenthese_value(s: Span) -> IResult<Span, Lang> {
 
 pub fn tag_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
+            tag("."),
             pascal_case,
             opt(parenthese_value)).parse(s);
     match res {
-        Ok((s, ((n, h), None))) 
-            => Ok((s, Lang::Tag(n, Box::new(Lang::Empty(h.clone())), h))),
-        Ok((s, ((n, h), Some(val)))) 
-            => Ok((s, Lang::Tag(n, Box::new(val), h))),
+        Ok((s, (dot, (n, _h), None))) 
+            => Ok((s, Lang::Tag(n, Box::new(Lang::Empty(dot.clone().into())), dot.into()))),
+        Ok((s, (dot, (n, _h), Some(val)))) 
+            => Ok((s, Lang::Tag(n, Box::new(val), dot.into()))),
         Err(r) => Err(r)
     }
 }
@@ -613,6 +614,7 @@ fn lambda(s: Span) -> IResult<Span, Lang> {
 // main
 pub fn single_element(s: Span) -> IResult<Span,Lang> {
     alt((
+            tag_exp,
             range,
             lambda,
             boolean,
@@ -630,7 +632,6 @@ pub fn single_element(s: Span) -> IResult<Span,Lang> {
             function_application,
             array_indexing,
             variable,
-            tag_exp,
             scope,
             array
         )).parse(s)

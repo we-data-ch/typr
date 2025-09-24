@@ -490,19 +490,19 @@ fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
 fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("@"),
                 type_alias,
+                terminated(tag(":"), multispace0),
+                ltype, 
                 terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (at, Type::Alias(name, params, path, _, h), _))) 
+        Ok((s, (at, Type::Alias(name, params, path, _, h), _, typ, _))) 
             => {
                 let var2 = Var::from_name(&name)
                     .set_help_data(h.clone())
-                    .set_type(Type::Params(params.clone(), h.clone()))
-                    .set_opacity(true);
+                    .set_type(typ.clone());
                 let t_alias = Type::Alias(name, params, path, true, h);
-                //let t_alias = Type::RClass([name].iter().cloned().collect::<HashSet<_>>(), h);
-                Ok((s, vec![Lang::Signature(var2, t_alias, at.into())]))
+                Ok((s, vec![Lang::Signature(var2, typ, at.into())]))
             },
-        Ok((_s, (_, _, _))) => todo!(),
+        Ok((_s, (_, _, _, _, _))) => todo!(),
         Err(r) => Err(r)
     }
 }
