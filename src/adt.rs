@@ -66,7 +66,6 @@ impl Adt {
     }
 
     pub fn push(self, lang: Lang) -> Self {
-        //todo mayb optimize it
         Adt(self.iter().chain([lang].iter()).cloned().collect::<Vec<_>>())
     }
 
