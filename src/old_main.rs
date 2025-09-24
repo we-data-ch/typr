@@ -89,23 +89,11 @@ enum Commands {
         name: String,
     },
     /// check parsing and typechecking
-    Check {
-        /// Optional file to check (if not provided, checks project)
-        #[arg(value_name = "FILE")]
-        file: Option<PathBuf>,
-    },
+    Check,
     /// Check and build the targeted code
-    Build {
-        /// Optional file to build (if not provided, builds project)
-        #[arg(value_name = "FILE")]
-        file: Option<PathBuf>,
-    },
+    Build,
     /// Build and execute the targeted code
-    Run {
-        /// Optional file to run (if not provided, runs project)
-        #[arg(value_name = "FILE")]
-        file: Option<PathBuf>,
-    },
+    Run,
     /// Run tests
     Test
 }
@@ -192,23 +180,16 @@ fn new(name: &str) {
     
     let instructions = include_str!("../configs/instructions.md").replace("{{PACKAGE_NAME}}", name);
     println!("{}", instructions);
+
 }
 
-fn check_project() {
+fn check() {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
     let _ = adt_manager.type_check();
     println!("✓ Vérification du code réussie!");
 }
 
-fn check_file(path: &PathBuf) {
-    let adt_manager = parse_code(path);
-    let dir = PathBuf::from(".");
-    write_std_for_type_checking(&dir);
-    let _ = adt_manager.type_check();
-    println!("✓ Vérification du fichier {:?} réussie!", path);
-}
-
-fn build_project() {
+fn build() {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
     let context = adt_manager.type_check();
     
@@ -216,24 +197,17 @@ fn build_project() {
     println!("✓ Code R généré avec succès dans le dossier R/");
 }
 
-fn build_file(path: &PathBuf) {
-    let adt_manager = parse_code(path);
-    let dir = PathBuf::from(".");
-    
-    // HEADER
-    write_std_for_type_checking(&dir);
-    let context = adt_manager.type_check();
-    let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    adt_manager.get_body().write_to_r(&context, &dir, &r_file_name);
-    println!("✓ Code R généré: {:?}", dir.join(&r_file_name));
-}
-
-fn run_project() {
-    build_project();
+fn run() {
+    build();
     execute_r_with_path(&PathBuf::from("R"), "main.R");
 }
 
-fn run_file(path: &PathBuf) {
+fn test() {
+    println!("Tests non implémentés pour l'instant.");
+}
+
+//main
+fn run_single_file(path: &PathBuf) {
     let adt_manager = parse_code(path);
     let dir = PathBuf::from(".");
 
@@ -245,51 +219,33 @@ fn run_file(path: &PathBuf) {
     execute_r_with_path(&dir, &r_file_name);
 }
 
-fn test() {
-    println!("Tests non implémentés pour l'instant.");
-}
-
 fn main() {
     let cli = Cli::parse();
 
-    // Si un fichier est fourni en argument principal (sans sous-commande)
-    if let Some(path) = cli.file {
-        if cli.command.is_none() {
-            // Comportement original : exécuter le fichier directement
-            run_file(&path);
-            return;
-        }
-    }
-
-    // Traitement des sous-commandes
-    match cli.command {
-        Some(Commands::New { name }) => {
-            new(&name)
-        },
-        Some(Commands::Check { file }) => {
-            match file {
-                Some(path) => check_file(&path),
-                None => check_project(),
-            }
-        },
-        Some(Commands::Build { file }) => {
-            match file {
-                Some(path) => build_file(&path),
-                None => build_project(),
-            }
-        },
-        Some(Commands::Run { file }) => {
-            match file {
-                Some(path) => run_file(&path),
-                None => run_project(),
-            }
-        },
-        Some(Commands::Test) => {
-            test()
-        },
+    match cli.file {
+        Some(path) => run_single_file(&path),
         None => {
-            println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");
-            std::process::exit(1);
+            match cli.command {
+                Some(Commands::New { name }) => {
+                    new(&name)
+                },
+                Some(Commands::Check) => {
+                    check()
+                },
+                Some(Commands::Build) => {
+                    build()
+                },
+                Some(Commands::Run) => {
+                    run()
+                },
+                Some(Commands::Test) => {
+                    test()
+                },
+                None => {
+                    println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");
+                    std::process::exit(1);
+                }
+            }
         }
     }
 }

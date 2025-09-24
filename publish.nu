@@ -5,14 +5,15 @@ let updated_line = $"version = \"0.4.($new_version)\"";
 sed -i $"3c\\($updated_line)" Cargo.toml
 
 # for R runner
-nu release.nu
+#nu release.nu
 
 # for Docker
-cd ../docker
-nu deploy.nu
+#cd ../docker
+#nu deploy.nu
 
 # for Crate.io
 # publish in cargo
+cd ../app
 git add .
 git commit -m "update"
 cargo publish
