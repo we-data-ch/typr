@@ -239,25 +239,27 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                 }
             }
         }
-
         Type::StrictUnion(types, h) => {
             Type::StrictUnion(types.iter()
                 .map(|t| reduce_type(context, &t.to_type()))
                 .flat_map(Tag::from_type)
                 .collect(), h.clone())
         }
-
         Type::Tag(name, inner, h) => {
             Type::Tag(name.clone(), Box::new(reduce_type(context, inner)), h.clone())
         }
         Type::If(typ, _conditions, _) => *typ.clone(),
-
         Type::Function(kinds, typs, ret_typ, h) => {
             let typs2 = typs.iter()
                 .map(|x| reduce_type(context, x))
                 .collect::<Vec<_>>();
             let ret_typ2 = reduce_type(context, ret_typ);
             Type::Function(kinds.to_owned(), typs2, Box::new(ret_typ2), h.to_owned())
+        },
+        Type::Array(ind, typ, h) => {
+            Type::Array(ind.clone(),
+                    Box::new(reduce_type(context, typ)),
+                    h.clone())
         },
         _ => type_.clone()
     }

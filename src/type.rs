@@ -353,7 +353,8 @@ impl Type {
                     .chain(b.iter())
                     .cloned()
                     .collect::<HashSet<_>>(), h.clone()),
-            _ => panic!("Type {} and {} can't be added", self, i)
+            _ => Type::Add(Box::new(self.clone()), Box::new(i.clone()), HelpData::default())
+            //_ => panic!("Type {} and {} can't be added", self, i)
         }
     }
 
@@ -635,6 +636,10 @@ impl Type {
             Type::RFunction(_) => true,
             _ => false
         }
+    }
+
+    pub fn tuple(self, context: &Context) -> (Type, Context) {
+        (self, context.clone())
     }
 
 }

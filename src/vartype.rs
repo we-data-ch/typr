@@ -215,6 +215,20 @@ impl VarType {
             .is_some()
     }
 
+    pub fn remove_vars(self, vars: &[Var]) -> Self {
+        vars.iter()
+            .fold(self, |acc, x| acc.remove_var(x))
+    }
+
+    pub fn remove_var(self, var: &Var) -> Self {
+        Self {
+            variables: self.variables.iter()
+                .filter(|(var2, _)|  var != var2)
+                .cloned().collect(),
+            ..self
+        }
+    }
+
 }
 
 

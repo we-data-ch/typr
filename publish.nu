@@ -11,6 +11,9 @@ nu release.nu
 cd ../docker
 nu deploy.nu
 
+# Save new Cargo's version
+open $data_file | update release_version { $in + 1 } | to toml | save -f $data_file
+
 # for Crate.io
 cd ../app
 git add .
@@ -20,5 +23,3 @@ git add .
 git commit -m $updated_line 
 cargo publish
 
-# Save new Cargo's version
-open $data_file | update release_version { $in + 1 } | to toml | save -f $data_file
