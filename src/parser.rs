@@ -507,7 +507,7 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
-fn signature(s: Span) -> IResult<Span, Vec<Lang>> {
+pub fn signature(s: Span) -> IResult<Span, Vec<Lang>> {
     alt((signature_opaque, signature_variable)).parse(s)
 }
 

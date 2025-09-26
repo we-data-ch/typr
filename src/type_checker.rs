@@ -385,23 +385,11 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         },
         Lang::FunctionApp(fn_var_name, values, _, h) => {
             let var = Var::try_from(fn_var_name.clone()).unwrap();
-            if context.is_an_untyped_function(&var.get_name()) {
-                (Type::Empty(h.clone()), context.clone())
-            } else {
-                let func = fn_var_name.clone()
-                    .get_related_function(values, context)
-                    .expect(&TypeError::UndefinedFunction((**fn_var_name).clone()).display());
-                let param_types = func.get_param_types();
-                let unification_map = context
-                        .get_unification_map(values, &param_types)
-                        .unwrap_or(UnificationMap::new(vec![]));
-                let (new_ret_typ, new_context) = unification_map
-                        .apply_unification_type(context, &func.get_ret_type());
-                let params = func.get_param_types().iter()
-                            .map(|p| unification_map.apply_unification_type(context, p).0)
-                            .collect::<Vec<_>>();
-                (new_ret_typ.clone(), new_context.push(expr.clone(), func.set_params(params).set_ret_type(new_ret_typ)))
-            }
+            let func = var.get_function_signature(values, context)
+                          .infer_return_type(values, context);
+
+            func.get_return_type().clone()
+                .tuple(&context.clone().push(expr.clone(), func))
         }
         Lang::Tag(name, expr, h) => {
             let ty = typing(context, expr).0;
@@ -624,31 +612,31 @@ fn if_strict_mode(){
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser::signature;
 
     #[test]
-    fn test_type_equality(){
-        let a = builder::integer_type(2);
-        let b = builder::integer_type(17);
-        assert!(a == b)
+    fn test_function_application_r_function() {
+        let res = "floor(4.5)".parse::<Lang>().unwrap();
+        let context = Context::default();
+        assert_eq!(typing(&context, &res).0, builder::empty_type());
     }
 
     #[test]
-    fn test_array_lang1() {
-        let res = "[1, 2, 3]".parse::<Lang>().unwrap();
-        assert_eq!(res, builder::empty_lang());
+    #[should_panic]
+    fn test_function_application_unknown_function() {
+        let res = "typr(true)".parse::<Lang>().unwrap();
+        let context = Context::default();
+        typing(&context, &res);
     }
 
     #[test]
-    fn test_array_type1() {
-        let res = "[1, [3, int]]".parse::<Type>().unwrap();
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_get_gen_type1() {
-        let a1 = "[1, [3, int]]".parse::<Type>().unwrap();
-        let a2 = "[1, [3, T]]".parse::<Type>().unwrap();
-        assert_eq!(get_gen_type(&a1, &a2), None);
+    #[should_panic]
+    fn test_function_application_defined_signature() {
+        let code = parse("@floor: (num) -> int; floor(3.4)".into()).unwrap().1;
+        let manager = AdtManager::new().add_to_body(code);
+        let (typ, new_context) = manager.type_check_with_return_type();
+        println!("{}", new_context.display_typing_context());
+        assert_eq!(typ, builder::integer_type_default());
     }
 
 }

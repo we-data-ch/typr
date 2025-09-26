@@ -4,6 +4,7 @@ use crate::Context;
 use crate::typing;
 use crate::help_data::HelpData;
 use crate::graph::TypeSystem;
+use crate::Type;
 
 #[derive(Debug)]
 pub struct AdtManager {
@@ -66,6 +67,12 @@ impl AdtManager {
         let (typ, new_context) = typing(&context, &Lang::Sequence(self.get_body().0.clone(), HelpData::default()));
         println!("Type checking:\n{}\n", typ.pretty());
         new_context
+    }
+
+    pub fn type_check_with_return_type(&self) -> (Type, Context) {
+        let base_context = Context::default();
+        let context = typing(&base_context, &Lang::Sequence(self.get_header().0.clone(), HelpData::default())).1;
+        typing(&context, &Lang::Sequence(self.get_body().0.clone(), HelpData::default()))
     }
 
 }

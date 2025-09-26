@@ -176,7 +176,7 @@ impl<S: SourceCode + 'static + std::fmt::Debug + Clone> DoubleBuilder<S> {
 pub enum TypeError {
     Let(Type, Type),
     Param(Type, Type),
-    UndefinedFunction(Lang),
+    UndefinedFunction(Var),
     UndefinedVariable(Lang),
     UnmatchingReturnType(Type, Type),
     ImmutableVariable(Var, Var),

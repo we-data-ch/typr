@@ -8,6 +8,10 @@ use crate::type_comparison;
 use crate::help_data::HelpData;
 use crate::path::Path;
 use crate::translatable::RTranslatable;
+use crate::function_type::FunctionType;
+use crate::typing;
+use crate::TypeError;
+use crate::help_message::ErrorMsg;
 
 type Name = String;
 type IsMutableOpaque = bool;
@@ -32,6 +36,33 @@ pub struct Var(pub Name, pub Path, pub Permission, pub IsMutableOpaque, pub Type
 
 // main
 impl Var {
+
+    pub fn infer_var_name(&self, args: &Vec<Lang>, context: &Context) -> Var {
+        if args.len() > 0 {
+            let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
+            self.clone().set_type(first)
+        } else {
+            self.clone()
+        }
+    }
+
+    pub fn get_related_function(self, args: &Vec<Lang>, context: &Context) 
+        -> Option<FunctionType> {
+        let var_name = self.infer_var_name(args, context);
+        let fn_ty = typing(context, &var_name.to_language()).0;
+        fn_ty.to_function_type()
+    }
+
+    pub fn get_function_signature(&self, values: &Vec<Lang>, context: &Context) -> FunctionType {
+        if context.is_an_untyped_function(&self.get_name()) {
+            FunctionType::try_from(Type::RFunction(HelpData::default())).unwrap()
+        } else {
+            self.clone()
+                .get_related_function(values, context)
+                .expect(&TypeError::UndefinedFunction((self).clone()).display())
+        }
+    }
+
     pub fn from_language(l: Lang) -> Option<Var> {
         match l {
             Lang::Variable(name, path, perm, muta, typ, h) 
