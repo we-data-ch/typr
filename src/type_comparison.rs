@@ -5,7 +5,6 @@ use crate::var::Var;
 use crate::context::Context;
 use crate::tag::Tag;
 use crate::help_data::HelpData;
-use crate::graph::TypeSystem;
 use std::collections::HashSet;
 
 pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool {

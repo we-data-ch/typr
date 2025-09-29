@@ -4,7 +4,6 @@ use crate::Context;
 use crate::typing;
 use crate::help_data::HelpData;
 use crate::graph::TypeSystem;
-use crate::Type;
 
 #[derive(Debug)]
 pub struct AdtManager {
