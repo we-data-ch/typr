@@ -300,7 +300,7 @@ fn key_value(s: Span) -> IResult<Span, Lang> {
                 terminated(tag("="), multispace0),
                 single_element).parse(s);
     match res {
-        Ok((s, (v, eq, el))) 
+        Ok((s, (v, _eq, el))) 
             => Ok((s, Lang::KeyValue((*v).into(), Box::new(el), v.into()))),
         Err(r) => Err(r)
     }

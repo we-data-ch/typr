@@ -30,7 +30,6 @@ use crate::tchar::Tchar;
 use crate::elements::variable_exp;
 use nom::combinator::recognize;
 use crate::elements;
-use crate::graph::TypeSystem;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 

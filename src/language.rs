@@ -19,7 +19,6 @@ use crate::translatable::RTranslatable;
 use crate::builder;
 use std::str::FromStr;
 use crate::elements::parse_elements;
-use crate::graph::TypeSystem;
 
 trait AndIf {
     fn and_if<F>(self, condition: F) -> Option<Self>
