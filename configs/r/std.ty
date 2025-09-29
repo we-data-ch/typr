@@ -4,3 +4,4 @@
 @div: (T, T) -> T;
 @seq: (#M, #N, #O) -> [#N+1-#M/#O, int];
 @append: ([#N, T], T) -> [#N+1, T];
+@modify: ([#N, T], int, T) -> [#N+1, T];

@@ -203,6 +203,10 @@ impl Context {
         self.typing_context.get_type_anotation(t)
     }
 
+    pub fn get_type_anotation_no_parentheses(&self, t: &Type) -> String {
+        self.typing_context.get_type_anotation_no_parentheses(t)
+    }
+
     pub fn get_classes(&self, t: &Type) -> Option<String> {
         let res = self.subtypes.get_supertypes(t)
             .iter().map(|typ| self.get_class(typ))

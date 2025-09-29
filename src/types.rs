@@ -676,8 +676,7 @@ pub fn ltype(s: Span) -> IResult<Span, Type> {
 mod tests {
     use super::*;
     use crate::builder;
-    use crate::Adt;
-    use crate::Context;
+    use crate::graph::TypeSystem;
 
     #[test]
     fn test_function_type() {

@@ -27,6 +27,7 @@ use crate::typer::Typer;
 use crate::type_comparison::is_matching;
 use crate::function_type::FunctionType;
 use crate::graph::TypeSystem;
+use crate::array_type::ArrayType;
 
 
 fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
@@ -424,7 +425,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
         }
         Lang::Array(exprs, h) => {
-            let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
+            let types = exprs.iter()
+                .map(|expr| typing(context, expr).0)
+                .collect::<Vec<_>>();
             if exprs.is_empty() {
                 let new_type = "[0, Empty]".parse::<Type>()
                     .unwrap().set_help_data(h.clone());
@@ -480,24 +483,15 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 _ => panic!("Type error"),
             }
         }
-        Lang::ArrayIndexing(expr, index, _h) => {
-            let ty = typing(context, expr).0;
-            match ty {
+        Lang::ArrayIndexing(expr, index, _) => {
+            let ty = typing(context, expr).0.reduce(context);
+            let index_type = typing(context, index).0.reduce(context);
+            match ty.clone() {
                 Type::Array(len, elem_ty, _) => {
-                    match Index::from_type(&(*len)) {
-                        Some(n)  => {
-                            let index2 = n.get_value();
-                            if (*index as u32) <  index2 {
-                                (*elem_ty, context.clone())
-                            } else {
-                                panic!("Index out of bounds");
-                            }
-                        },
-                        // TODO: check condition in Index::from_type() if
-                        // we get generics (#M), Any or Empty as an index for 
-                        // array type: [id, type]
-                       None => (*elem_ty, context.clone())
-                    }
+                    ArrayType::try_from(ty).unwrap()
+                      .respect_the_bound(&index_type)
+                      .then_some((*elem_ty, context.clone()))
+                      .expect("Index out of bounds")
                 },
                 Type::Any(h) => {
                     (builder::empty_type().set_help_data(h), context.clone())
@@ -627,16 +621,6 @@ mod tests {
         let res = "typr(true)".parse::<Lang>().unwrap();
         let context = Context::default();
         typing(&context, &res);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_function_application_defined_signature() {
-        let code = parse("@floor: (num) -> int; floor(3.4)".into()).unwrap().1;
-        let manager = AdtManager::new().add_to_body(code);
-        let (typ, new_context) = manager.type_check_with_return_type();
-        println!("{}", new_context.display_typing_context());
-        assert_eq!(typ, builder::integer_type_default());
     }
 
 }

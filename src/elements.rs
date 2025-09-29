@@ -317,15 +317,14 @@ fn array_indexing(s: Span) -> IResult<Span, Lang> {
     let res = (
             alt((scope, variable)),
             terminated(tag("["), multispace0),
-            integer,
+            alt((integer, variable)),
             terminated(tag("]"), multispace0),
             multispace0
           ).parse(s);
     match res {
-        Ok((s, (exp, _, Lang::Integer(n, _), _, _))) 
-            => Ok((s, Lang::ArrayIndexing(Box::new(exp.clone()), n, exp.into()))),
+        Ok((s, (exp, _, int_var, _, _))) 
+            => Ok((s, Lang::ArrayIndexing(Box::new(exp.clone()), Box::new(int_var), exp.into()))),
         Err(r) => Err(r),
-        _ => todo!()
     }
 }
 
@@ -1322,6 +1321,18 @@ mod tests {
     }
 
     #[test]
+    fn test_array_indexing2() {
+        let res = "table[variable]".parse::<Lang>().unwrap();
+        assert_eq!(builder::empty_lang(), res);
+    }
+
+    #[test]
+    fn test_array_indexing3() {
+        let res = array_indexing("table[variable]".into()).unwrap().1;
+        assert_eq!(builder::empty_lang(), res);
+    }
+
+    #[test]
     fn test_function_key_value0() {
         let fun = key_value("ele = 5".into()).unwrap().1;
         assert_eq!(builder::empty_lang(), fun);
@@ -1350,5 +1361,6 @@ mod tests {
         let fun = "page_sidebar(title = 'title panel', sidebar = sidebar('sidebar'), 'main contents')".parse::<Lang>().unwrap();
         assert_eq!(builder::empty_lang(), fun);
     }
+
 
 }

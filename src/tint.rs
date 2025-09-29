@@ -18,6 +18,13 @@ impl Tint {
             _ => false
         }
     }
+
+    pub fn get_value(&self) -> Option<i32> {
+        match self {
+            Tint::Val(i) => Some(*i),
+            _ => None
+        }
+    }
 }
 
 impl fmt::Display for Tint {

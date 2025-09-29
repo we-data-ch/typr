@@ -84,7 +84,7 @@ impl TypeSystem for Type {
 
 impl Default for Type {
     fn default() -> Self {
-        builder::generic_type()
+        builder::any_type()
     }
 }
 
@@ -642,6 +642,13 @@ impl Type {
         (self, context.clone())
     }
 
+    pub fn get_index(&self) -> Option<u32> {
+        match self {
+            Type::Integer(i, _) => i.get_value().map(|x| x as u32),
+            _ => None
+        }
+    }
+
 }
 
 pub struct Array {
@@ -912,7 +919,6 @@ mod tests {
                     //.add_type(person);
         let supertypes = g.get_supertypes_trace(&age);
         g.print_hierarchy();
-        dbg!(&TypeSystem::prettys(&supertypes));
         assert_eq!(3, 5);
     }
 

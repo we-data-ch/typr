@@ -1,6 +1,8 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::help_data::HelpData;
 use crate::Type;
+use crate::Lang;
+use crate::graph::TypeSystem;
 
 pub struct ArrayType {
     index: Type,
@@ -18,6 +20,13 @@ impl ArrayType {
             .unwrap_or(
                 (!self.index.is_generic()) //only return None if is a generic
                     .then_some(self.index.pretty2()))
+    }
+
+    pub fn respect_the_bound(&self, index: &Type) -> bool {
+        match (self.index.get_index(), index.get_index()) {
+            (Some(i1), Some(i2)) if i2 <= i1 => true,
+            _ => false
+        }
     }
 }
 
