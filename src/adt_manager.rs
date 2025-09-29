@@ -69,10 +69,4 @@ impl AdtManager {
         new_context
     }
 
-    pub fn type_check_with_return_type(&self) -> (Type, Context) {
-        let base_context = Context::default();
-        let context = typing(&base_context, &Lang::Sequence(self.get_header().0.clone(), HelpData::default())).1;
-        typing(&context, &Lang::Sequence(self.get_body().0.clone(), HelpData::default()))
-    }
-
 }

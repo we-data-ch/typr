@@ -461,8 +461,8 @@ fn index_generic(s: Span) -> IResult<Span, Type> {
             tag("#"),
             generic).parse(s);
     match res {
-        Ok((s, (tag, Type::Generic(gen, _)))) 
-            => Ok((s, Type::IndexGen(gen, tag.into()))),
+        Ok((s, (tag, Type::Generic(r#gen, _)))) 
+            => Ok((s, Type::IndexGen(r#gen, tag.into()))),
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -473,8 +473,8 @@ fn label_generic(s: Span) -> IResult<Span, Type> {
             tag("$"),
             generic).parse(s);
     match res {
-        Ok((s, (tag, Type::Generic(gen, _)))) 
-            => Ok((s, Type::LabelGen(gen, tag.into()))),
+        Ok((s, (tag, Type::Generic(r#gen, _)))) 
+            => Ok((s, Type::LabelGen(r#gen, tag.into()))),
         Err(r) => Err(r),
         _ => todo!()
     }

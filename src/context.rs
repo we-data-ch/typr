@@ -107,8 +107,8 @@ impl Context {
     }
 
     fn is_matching_alias(&self, var1: &Var, var2: &Var) -> bool {
-        let Var(name1, path1, perm1, _bo1, params1, _h1) = var1;
-        let Var(name2, path2, perm2, _bo2, params2, _h2) = var2;
+        let Var(name1, path1, perm1, _bo1, _, _h1) = var1;
+        let Var(name2, path2, perm2, _bo2, _, _h2) = var2;
         (name1 == name2) &&
             (path1 == path2) && (perm1 == perm2)
     }

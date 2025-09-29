@@ -494,7 +494,7 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
                 ltype, 
                 terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (at, Type::Alias(name, _params, path, _, h), _, typ, _))) 
+        Ok((s, (at, Type::Alias(name, _params, _path, _, h), _, typ, _))) 
             => {
                 let var2 = Var::from_name(&name)
                     .set_help_data(h.clone())

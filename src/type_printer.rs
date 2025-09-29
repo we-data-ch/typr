@@ -46,7 +46,7 @@ pub fn format(ty: &Type) -> String {
             format!("{{{}}}", formatted_fields.join(", "))
         }
         Type::Generic(name, _) => name.to_uppercase(),
-        Type::Integer(tint, _) => {
+        Type::Integer(_tint, _) => {
             "int".to_string()
             //match tint {
                 //Tint::Val(i) => format!("int({})", i),

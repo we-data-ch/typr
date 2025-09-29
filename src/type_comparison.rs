@@ -15,44 +15,6 @@ pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool
     })
 }
 
-// Implementation of the Prolog rules as Rust functions
-pub fn all_subtype(cont: &Context, set1: &[ArgumentType], set2: &[ArgumentType]) -> bool {
-
-    set1.iter().zip(set2.iter())
-        .all(|(argt1, argt2)| {
-           is_subtype(cont, &argt1.get_argument(), &argt2.get_argument())
-           && is_subtype(cont, &argt1.get_type(), &argt2.get_type())
-        })
-}
-
-pub fn all_subtype2(set1: &HashSet<ArgumentType>, set2: &HashSet<ArgumentType>) -> bool {
-    set1.iter().zip(set2.iter())
-        .all(|(argt1, argt2)| {
-           argt1.get_argument().is_subtype(&argt2.get_argument())
-           && argt1.get_argument().is_subtype(&argt2.get_type())
-        })
-}
-
-fn contains_all(cont: &Context, vec1: &[ArgumentType], vec2: &[ArgumentType]) -> bool {
-    vec1.iter()
-        .any(|sub| {
-            vec2.iter()
-                .any(|sup| 
-                     (sub.get_argument() == sup.get_argument())
-                     && is_subtype(cont, &sub.get_type(), &sup.get_type()))
-        })
-}
-
-pub fn contains_all2(vec1: &HashSet<ArgumentType>, vec2: &HashSet<ArgumentType>) -> bool {
-    vec1.iter()
-        .any(|sub| {
-            vec2.iter()
-                .any(|sup| 
-                     (sub.get_argument() == sup.get_argument())
-                     && sub.get_type().is_subtype(&sup.get_type()))
-        })
-}
-
 fn to_self(t1: Type, t2: Type) -> Type {
     if  t1 == t2 {
         Type::Alias("Self".to_string(), vec![], "".into(), true, t1.into())
@@ -224,7 +186,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                         &aliased_type,
                         &generics.iter()
                             .zip(concret_types.iter())
-                            .map(|(gen, typ)| (gen.clone(), typ.clone()))
+                            .map(|(r#gen, typ)| (r#gen.clone(), typ.clone()))
                             .collect::<Vec<_>>()
                     );
                     reduce_type(context, &substituted)

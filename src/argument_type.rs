@@ -103,7 +103,7 @@ impl From<(String, Type)> for ArgumentType {
 impl PartialEq for ArgumentType {
     fn eq(&self, other: &Self) -> bool {
         (match (self.0.clone(), other.0.clone()) {
-            (Type::Char(a, b), Type::Char(c, d)) => a == c,
+            (Type::Char(a, _b), Type::Char(c, _d)) => a == c,
             _ => false
         }) && (self.1 == other.1)
     }
