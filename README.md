@@ -20,6 +20,10 @@
 
 The link for the official website is [here](https://fabricehategekimana.github.io/typr.github.io/build/).
 
+## Installation
+
+You can see it through the getting started of the documentation [here](https://fabricehategekimana.github.io/typr.github.io/build/docs/typr-start/getting-started).
+
 ## Code example
 
 ```scala

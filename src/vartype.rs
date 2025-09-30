@@ -125,6 +125,7 @@ impl VarType {
             Type::Integer(_, _) => "".to_string(),
             Type::Number(_) => "".to_string(),
             Type::Char(_, _) => "".to_string(),
+            Type::Vector(_, _, _) => "".to_string(),
             Type::Alias(name, _, _, _, _) => name.to_string() + "()",
             _ => {
                 let res = self.aliases.iter()
