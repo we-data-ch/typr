@@ -6,6 +6,7 @@ use crate::function_type::FunctionType;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Header {
    function_list: String,
+   generic_function_list: String,
    pub metadata: AdtHeader,
    fns: Vec<(Lang, FunctionType)>,
 }
@@ -49,10 +50,28 @@ impl Header {
     pub fn add_function_list(self, list: &str) -> Header {
         Header {
             function_list: self.function_list + list,
+            generic_function_list: self.generic_function_list + &Self::get_generics(list),
             ..self
         }
     }
 
+    fn get_generics(list: &str) -> String {
+        list.lines()
+            .filter(|line| line.contains(".default"))
+            .map(|line| line.replace(".default", ""))
+            .collect::<Vec<_>>().join("\n")
+    }
+
+    pub fn not_generic_yet(&self, name: String) -> bool {
+        let formated_name = name.replace("__", ".");
+        let formated_name2 = format!("\"{}\"", formated_name);
+        !self.generic_function_list.lines()
+            .any(|line| (line.trim() == formated_name) || line.trim().contains(&formated_name2))
+    }
+
+    pub fn is_generic(&self, name: String) -> bool {
+        !self.not_generic_yet(name)
+    }
 
     pub fn add_module_declarations(self, data: &[Lang]) -> Header {
         let adt_header = self.metadata.set_module(
@@ -83,8 +102,10 @@ impl Header {
 
 impl Default for Header {
     fn default() -> Header {
+        let std_function_list = include_str!("../configs/src/functions.txt").to_string();
         Header {
-            function_list: include_str!("../configs/src/functions.txt").to_string(),
+            function_list: std_function_list.clone(),
+            generic_function_list: Self::get_generics(&std_function_list),
             metadata: AdtHeader::default(),
             fns: vec![],
         }
@@ -97,4 +118,22 @@ fn add_if_absent(mut vec: Vec<Lang>, val: Lang) -> Vec<Lang> {
         vec.push(val);
     }
     vec // Retourne le nouveau vecteur
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_print_is_generic(){
+       let header = Header::default();
+       assert!(!header.not_generic_yet("print".to_string()));
+    }
+
+    #[test]
+    fn test_typr_is_not_generic(){
+       let header = Header::default();
+       assert!(header.not_generic_yet("typr".to_string()));
+    }
+
 }

@@ -232,6 +232,10 @@ impl Var {
         context.variable_exist(self.clone())
     }
 
+    pub fn not_generic_yet(&self, context: &Context) -> bool {
+        context.not_generic_yet(self.get_name())
+    }
+
 }
 
 impl fmt::Display for Var {

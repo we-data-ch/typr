@@ -5,6 +5,7 @@ use crate::help_data::HelpData;
 use crate::builder;
 use crate::Lang;
 use crate::Context;
+use crate::graph::TypeSystem;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionType(pub Vec<ArgumentKind>, pub Vec<Type>, pub Type, pub HelpData);

@@ -188,7 +188,7 @@ impl Context {
 
     pub fn is_an_untyped_function(&self, name: &str) -> bool {
         (self.typing_context.is_untyped_name(name)) || 
-            (!self.typing_context.name_exists(name) && self.header.is_an_untyped_function(name))
+            (!self.typing_context.name_exists(name) && self.header.is_an_untyped_function(name)) || self.header.is_generic(name.to_string())
     }
 
     pub fn get_class(&self, t: &Type) -> String {
@@ -426,6 +426,10 @@ impl Context {
             typing_context: self.typing_context.update_variable(var),
             ..self
         }
+    }
+
+    pub fn not_generic_yet(&self, name: String) -> bool {
+        self.header.not_generic_yet(name)
     }
 
 }

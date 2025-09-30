@@ -86,7 +86,7 @@ pub enum Lang {
     If(Box::<Lang>, Box<Lang>, Box<Lang>, HelpData),
     Match(Box<Lang>, Var, Vec<(Type, Box<Lang>)>, HelpData),
     Tuple(Vec<Lang>, HelpData),
-    Sequence(Vec<Lang>, HelpData),
+    Lines(Vec<Lang>, HelpData),
     Assign(Box<Lang>, Box<Lang>, HelpData),
     Comment(String, HelpData),
     ModImp(String, HelpData), // mod name;
@@ -103,6 +103,7 @@ pub enum Lang {
     RFunction(Vec<Lang>, String, HelpData), // variable, iterator, body
     KeyValue(String, Box<Lang>, HelpData),
     Vector(Vec<Lang>, HelpData),
+    Sequence(Vec<Lang>, HelpData),
     Not(Box<Lang>, HelpData),
     Empty(HelpData)
 }
@@ -264,7 +265,7 @@ impl Lang {
             Lang::If(_, _, _, h) => h,
             Lang::Match(_, _, _, h) => h,
             Lang::Tuple(_, h) => h,
-            Lang::Sequence(_, h) => h,
+            Lang::Lines(_, h) => h,
             Lang::Assign(_, _, h) => h,
             Lang::Comment(_, h) => h,
             Lang::ModImp(_, h) => h,
@@ -284,6 +285,7 @@ impl Lang {
             Lang::Vector(_, h) => h,
             Lang::Dollar(_, _, h) => h,
             Lang::Not(_, h) => h,
+            Lang::Sequence(_, h) => h,
         }.clone()
     }
 
@@ -350,7 +352,7 @@ impl Lang {
             Lang::If(_, _, _, _) => "If".to_string(),
             Lang::Match(_, _, _, _) => "Match".to_string(),
             Lang::Tuple(_, _) => "Tuple".to_string(),
-            Lang::Sequence(_, _) => "Sequence".to_string(),
+            Lang::Lines(_, _) => "Sequence".to_string(),
             Lang::Assign(_, _, _) => "Addign".to_string(),
             Lang::Comment(_, _) => "Comment".to_string(),
             Lang::ModImp(_, _) => "ModImp".to_string(),
@@ -370,6 +372,7 @@ impl Lang {
             Lang::Vector(_, _) => "Vector".to_string(),
             Lang::Dollar(_, _, _) => "Dollar".to_string(),
             Lang::Not(_, _) => "Not".to_string(),
+            Lang::Sequence(_, _) => "Sequence".to_string(),
         }
     }
 
@@ -420,7 +423,7 @@ impl From<Lang> for HelpData {
            Lang::ArrayIndexing(_, _, h) => h,
            Lang::Tag(_, _, h) => h,
            Lang::Tuple(_, h) => h,
-           Lang::Sequence(_, h) => h,
+           Lang::Lines(_, h) => h,
            Lang::Comment(_, h) => h,
            Lang::GenFunc(_, _, h) => h,
            Lang::Test(_, h) => h,
@@ -434,6 +437,7 @@ impl From<Lang> for HelpData {
            Lang::Vector(_, h) => h,
            Lang::Dollar(_, _, h) => h,
            Lang::Not(_, h) => h,
+           Lang::Sequence(_, h) => h,
        }.clone()
    } 
 }
@@ -548,10 +552,14 @@ impl RTranslatable<(String, Context)> for Lang {
                 let sub_cont = cont.add_arg_types(args);
                 let (body_str, new_cont) = body.to_r(&sub_cont);
                 let fn_type = typing(&sub_cont, self).0;
-                (format!("(function({}) {{\n {} |> {}\n}}) |> {}", 
+                let output_conversion = cont.get_type_anotation(return_type);
+                let res = (output_conversion == "")
+                    .then_some("".to_string())
+                    .unwrap_or(" |> ".to_owned() + &output_conversion);
+                (format!("(function({}) {{\n {}{}\n}}) |> {}", 
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
                         body_str, 
-                        cont.get_type_anotation(return_type), 
+                        res,
                         cont.get_type_anotation(&fn_type)),
                 new_cont)
             },
@@ -608,7 +616,14 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::ArrayIndexing(exp, val, _) => {
                 let (exp_str, _) = exp.to_r(cont);
                 let (val_str, _) = val.to_r(cont);
-                (format!("{}[{}]", exp_str, val_str), cont.clone())
+                let res = match typing(cont, exp).0 {
+                    Type::Array(_, _, _) | Type::Vector(_, _, _)
+                        => format!("{}[{}]", exp_str, val_str), 
+                    Type::Sequence(_, _, _) 
+                        => format!("{}[[{}]]", exp_str, val_str), 
+                    _ => "".to_string()
+                };
+                (res, cont.clone())
             },
             Lang::GenFunc(func, _, _) => 
                 (func.to_string(), cont.clone()),
@@ -718,7 +733,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 ("NA".to_string(), cont.clone()),
             Lang::ModuleDecl(name, _) => 
                 (format!("{} <- new.env()", name), cont.clone()),
-            Lang::Sequence(exps, _) => {
+            Lang::Lines(exps, _) => {
                 Translatable::from(cont.clone())
                     .join(exps, "\n").into()
             },
@@ -784,6 +799,17 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Not(exp, _) => {
                 (format!("!{}", exp.to_r(cont).0),
                     cont.clone())
+            },
+            Lang::Sequence(vals, _) => {
+                let res = if vals.len() > 0 {
+                    "c(".to_string() + 
+                       &vals.iter().map(|x| "list(".to_string() + &x.to_r(cont).0 + ")")
+                       .collect::<Vec<_>>().join(", ")
+                    + ")"
+                } else {
+                    "c(list())".to_string()
+                };
+               (res, cont.to_owned())
             },
             _ =>  {
                 println!("This language structure won't transpile: {:?}", self);

@@ -3,5 +3,5 @@
 @mul: (T, T) -> T;
 @div: (T, T) -> T;
 @seq: (#M, #N, #O) -> [#N+1-#M/#O, int];
-@append: ([#N, T], T) -> [#N+1, T];
-@modify: ([#N, T], int, T) -> [#N, T];
+@append: (Seq[#N, T], T) -> Seq[#N+1, T];
+@modify: (Seq[#N, T], int, T) -> Seq[#N, T];

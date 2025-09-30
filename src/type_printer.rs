@@ -19,7 +19,7 @@ pub fn format(ty: &Type) -> String {
             if params.len() == 0 {
                 format!("{}", name)
             } else {
-            let paras = params.iter().map(|typ| format(typ)).collect::<Vec<_>>();
+            let paras = params.iter().map(|typ| format2(typ)).collect::<Vec<_>>();
                 format!("{}<{}>", name, paras.join(", "))
             }
         },
@@ -28,6 +28,9 @@ pub fn format(ty: &Type) -> String {
         },
         Type::Vector(dim, ty, _) => {
             format!("Vec[{}, {}]", format2(dim), format(ty))
+        },
+        Type::Sequence(dim, ty, _) => {
+            format!("Seq[{}, {}]", format2(dim), format(ty))
         },
         Type::Function(kinds, params, ret_ty, _h) => {
             let formatted_kinds = kinds.iter().map(|arg_kind| format_kind(&arg_kind.get_kind())).collect::<Vec<_>>();

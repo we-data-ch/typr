@@ -73,6 +73,7 @@ pub enum Type {
     RClass(HashSet<String>, HelpData),
     Empty(HelpData),
     Vector(Box<Type>, Box<Type>, HelpData),
+    Sequence(Box<Type>, Box<Type>, HelpData),
     Any(HelpData)
 }
 
@@ -92,7 +93,7 @@ impl Default for Type {
 impl Type {
     pub fn add_to_context(self, var: Var, context: Context) -> Context {
         let cont = context.clone().push_var_type(var.clone(), self.clone(), &context);
-        if self.is_function() {
+        if self.is_function() && var.not_generic_yet(&context) {
             cont.add_lang_to_header(&[builder::generic_function(&var.get_name())])
         } else {
             cont
@@ -502,6 +503,7 @@ impl Type {
             Type::Mul(_, _, _) => TypeCategory::Template,
             Type::Div(_, _, _) => TypeCategory::Template,
             Type::Vector(_, _, _) => TypeCategory::Vector,
+            Type::Sequence(_, _, _) => TypeCategory::Sequence,
             _ => {
                 println!("{:?} return Rest", self);
                 TypeCategory::Rest
@@ -571,6 +573,7 @@ impl Type {
             Type::RClass(_, h) => h.clone(),
             Type::Union(_, h) => h.clone(),
             Type::Vector(_, _, h) => h.clone(),
+            Type::Sequence(_, _, h) => h.clone(),
         }
     }
 
@@ -608,7 +611,8 @@ impl Type {
             Type::Any(_) => Type::Any(h2),
             Type::RClass(v, _) => Type::RClass(v, h2),
             Type::Union(v, _) => Type::Union(v, h2),
-            Type::Vector(i, t, _) => Type::Vector(i, t, h2) 
+            Type::Vector(i, t, _) => Type::Vector(i, t, h2),
+            Type::Sequence(i, t, _) => Type::Sequence(i, t, h2) 
         }
     }
 
@@ -706,6 +710,10 @@ impl PartialEq for Type {
             (Type::LabelGen(e1, _), Type::LabelGen(e2, _)) => e1 == e2,
             (Type::Array(a1, b1, _), Type::Array(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
+            (Type::Vector(a1, b1, _), Type::Sequence(a2, b2, _)) 
+                => a1 == a2 && b1 == b2,
+            (Type::Sequence(a1, b1, _), Type::Sequence(a2, b2, _)) 
+                => a1 == a2 && b1 == b2,
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
             (Type::Alias(a1, b1, c1, _, _), Type::Alias(a2, b2, c2, _, _)) 
                 => a1 == a2 && b1 == b2 && c1 == c2,
@@ -768,6 +776,14 @@ impl PartialOrd for Type {
             // Array subtyping
             (_, Type::Any(_)) => Some(Ordering::Less),
             (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
+                (n1.partial_cmp(&*n2).is_some() && t1.partial_cmp(&*t2).is_some())
+                    .then_some(Ordering::Less)
+            },
+            (Type::Vector(n1, t1, _), Type::Vector(n2, t2, _)) => {
+                (n1.partial_cmp(&*n2).is_some() && t1.partial_cmp(&*t2).is_some())
+                    .then_some(Ordering::Less)
+            },
+            (Type::Sequence(n1, t1, _), Type::Sequence(n2, t2, _)) => {
                 (n1.partial_cmp(&*n2).is_some() && t1.partial_cmp(&*t2).is_some())
                     .then_some(Ordering::Less)
             },
@@ -875,6 +891,7 @@ impl Hash for Type {
             Type::RClass(_, _) => 31.hash(state),
             Type::Union(_, _) => 33.hash(state),
             Type::Vector(_, _, _) => 34.hash(state),
+            Type::Sequence(_, _, _) => 35.hash(state),
         }
     }
 }
@@ -886,6 +903,14 @@ pub fn display_types(v: &[Type]) -> String {
         .join(" | ")
 }
 
+impl From<FunctionType> for Type {
+   fn from(val: FunctionType) -> Self {
+        Type::Function(vec![], 
+                       val.get_param_types(), 
+                       Box::new(val.get_return_type()), 
+                       val.get_help_data())
+   } 
+}
 
 #[cfg(test)]
 mod tests {

@@ -97,7 +97,7 @@ fn install_header(name: &str, context: &Context) -> Context {
 
 pub fn eval(context: &Context, expr: &Lang) -> Context {
     match expr {
-        Lang::Sequence(exprs, _h) 
+        Lang::Lines(exprs, _h) 
             => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, exp, _h) => {
             exp.typing(context).0
@@ -197,6 +197,24 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                 Some(res)
             }
             (Type::Array(ind1, typ1, _), Type::Array(ind2, typ2, _)) => {
+               let gen1 = get_gen_type(ind1, ind2);
+               let gen2 = get_gen_type(typ1, typ2);
+                match (gen1, gen2) {
+                    (None, _) | (_, None) => None,
+                    (Some(g1), Some(g2)) 
+                        => Some(g1.iter().chain(g2.iter()).cloned().collect())
+                }
+            },
+            (Type::Vector(ind1, typ1, _), Type::Vector(ind2, typ2, _)) => {
+               let gen1 = get_gen_type(ind1, ind2);
+               let gen2 = get_gen_type(typ1, typ2);
+                match (gen1, gen2) {
+                    (None, _) | (_, None) => None,
+                    (Some(g1), Some(g2)) 
+                        => Some(g1.iter().chain(g2.iter()).cloned().collect())
+                }
+            },
+            (Type::Sequence(ind1, typ1, _), Type::Sequence(ind2, typ2, _)) => {
                let gen1 = get_gen_type(ind1, ind2);
                let gen2 = get_gen_type(typ1, typ2);
                 match (gen1, gen2) {
@@ -368,7 +386,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             }
             (Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone()), res.1)
             }
-        Lang::Sequence(exprs, _h) => {
+        Lang::Lines(exprs, _h) => {
             if exprs.len() == 1 {
                 let res = exprs.clone().pop().unwrap();
                 let (typ, cont) = typing(context, &res);
@@ -403,17 +421,14 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 let set = if let Type::Union(v, h) = false_ty {
                     let mut set = v; set.insert(true_ty);
                     set
-                    //(Type::Union(set.clone(), h), context.clone())
                 } else if false_ty.is_empty() {
                     let mut set = HashSet::new(); set.insert(true_ty);
                     set
-                    //(Type::Union(set.clone(), HelpData::default()), context.clone())
                 } else {
                     let mut set = HashSet::new(); 
                     set.insert(false_ty);
                     set.insert(true_ty);
                     set
-                    //(Type::Union(set.clone(), HelpData::default()), context.clone())
                 };
                 if set.len() == 1 {
                     (set.iter().cloned().next().unwrap(), context.clone())
@@ -453,7 +468,21 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
             } else {
                 panic!("Type error: The vector don't have homogenous types.");
             }
-        }
+        },
+        Lang::Sequence(exprs, h) => {
+            let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
+            if exprs.is_empty() {
+                let new_type = "Seq[0, Empty]".parse::<Type>()
+                    .unwrap().set_help_data(h.clone());
+                (new_type.clone(), context.clone().push_types(&[new_type]))
+            } else if are_homogenous_types(&types) {
+                let new_type = format!("Seq[{}, {}]", exprs.len(), types[0].pretty())
+                    .parse::<Type>().unwrap().set_help_data(h.clone());
+                (new_type.clone(), context.clone().push_types(&[new_type]))
+            } else {
+                panic!("Type error: The sequence don't have homogenous types.");
+            }
+        },
         Lang::Record(fields, h) => {
             let field_types = fields.iter()
                 .map(|arg_val| {
@@ -493,6 +522,18 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                       .then_some((*elem_ty, context.clone()))
                       .expect("Index out of bounds")
                 },
+                Type::Sequence(len, elem_ty, _) => {
+                    ArrayType::try_from(ty).unwrap()
+                      .respect_the_bound(&index_type)
+                      .then_some((*elem_ty, context.clone()))
+                      .expect("Index out of bounds")
+                },
+                Type::Vector(len, elem_ty, _) => {
+                    ArrayType::try_from(ty).unwrap()
+                      .respect_the_bound(&index_type)
+                      .then_some((*elem_ty, context.clone()))
+                      .expect("Index out of bounds")
+                },
                 Type::Any(h) => {
                     (builder::empty_type().set_help_data(h), context.clone())
                 },
@@ -513,7 +554,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
         Lang::Scope(expr, _) if expr.len() == 1 => {
             typing(context, &expr[0])
         },
-        Lang::Scope(expr, h) => typing(context, &Lang::Sequence(expr.to_vec(), h.clone())),
+        Lang::Scope(expr, h) => typing(context, &Lang::Lines(expr.to_vec(), h.clone())),
         Lang::Tuple(elements, h) => {
             (Type::Tuple(elements.iter()
                 .map(|x| typing(context, x).0)

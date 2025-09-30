@@ -66,6 +66,12 @@ pub fn is_subtype(context: &Context, type1: &Type, type2: &Type) -> bool {
         (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
             is_subtype(context, n1, n2) && is_subtype(context, t1, t2)
         },
+        (Type::Vector(n1, t1, _), Type::Vector(n2, t2, _)) => {
+            is_subtype(context, n1, n2) && is_subtype(context, t1, t2)
+        },
+        (Type::Sequence(n1, t1, _), Type::Sequence(n2, t2, _)) => {
+            is_subtype(context, n1, n2) && is_subtype(context, t1, t2)
+        },
         (type1, Type::Alias(_, _, _, _, _)) => {
             let reduced = reduce_type(context, type2);
             is_subtype(context, type1, &reduced)
@@ -219,6 +225,16 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
         },
         Type::Array(ind, typ, h) => {
             Type::Array(ind.clone(),
+                    Box::new(reduce_type(context, typ)),
+                    h.clone())
+        },
+        Type::Vector(ind, typ, h) => {
+            Type::Vector(ind.clone(),
+                    Box::new(reduce_type(context, typ)),
+                    h.clone())
+        },
+        Type::Sequence(ind, typ, h) => {
+            Type::Sequence(ind.clone(),
                     Box::new(reduce_type(context, typ)),
                     h.clone())
         },

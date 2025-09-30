@@ -14,10 +14,10 @@ filter.default <- function(vec, condition) {
 
 # For array
 append <- function(x, ...) { UseMethod('append') }
-append.default <- function(a, e) { array(c(a, e), dim = length(a) + length(e)) }
+append.default <- function(a, e) { c(a, list(e)) }
 
 modify <- function(x, ...) { UseMethod('modify') }
-modify.default <- function(a, i, v) { a[i] <- v; v }
+modify.default <- function(a, i, v) { a[[i]] <- v; v }
 
 into.default <- function(element, vecteur) {
   return(element %in% vecteur)

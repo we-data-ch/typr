@@ -91,6 +91,24 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             )
         }
 
+        // Vector type substitution
+        Type::Vector(size, element_type, h) => {
+            Type::Vector(
+                Box::new(type_substitution(size, substitutions)),
+                Box::new(type_substitution(element_type, substitutions)),
+                h.clone()
+            )
+        }
+
+        // Sequence type substitution
+        Type::Sequence(size, element_type, h) => {
+            Type::Sequence(
+                Box::new(type_substitution(size, substitutions)),
+                Box::new(type_substitution(element_type, substitutions)),
+                h.clone()
+            )
+        }
+
         // Record type substitution
         Type::Record(fields, h) => {
             Type::Record(

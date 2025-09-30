@@ -366,6 +366,18 @@ fn vector(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+fn sequence(s: Span) -> IResult<Span, Lang> {
+    let res = (
+            terminated(tag("seq["), multispace0),
+            values,
+            terminated(tag("]"), multispace0)
+          ).parse(s);
+    match res {
+        Ok((s, (_, v, _))) => Ok((s, Lang::Sequence(v.clone(), v.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 fn record_identifier(s: Span) -> IResult<Span, Span> {
     alt((tag("record"), tag("object"), tag("list"), tag(":"))).parse(s)
 }
@@ -640,6 +652,10 @@ fn not_exp(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+fn array_variant(s: Span) -> IResult<Span, Lang> {
+    alt((vector, sequence)).parse(s)
+}
+
 
 // main
 pub fn single_element(s: Span) -> IResult<Span,Lang> {
@@ -655,7 +671,7 @@ pub fn single_element(s: Span) -> IResult<Span,Lang> {
             match_exp,
             if_exp,
             dotdotdot,
-            vector,
+            array_variant,
             record,
             r_function,
             function,
@@ -675,7 +691,7 @@ pub fn scope(s: Span) -> IResult<Span, Lang> {
         terminated(alt((tag(")"), tag("}"))), multispace0)).parse(s);
     match res {
         Ok((s, Lang::Empty(h))) => Ok((s, Lang::Scope(vec![], h.clone()))),
-        Ok((s, Lang::Sequence(v, _h))) 
+        Ok((s, Lang::Lines(v, _h))) 
             => Ok((s, Lang::Scope(v.clone(), v.into()))),
         Ok((s, rest)) => Ok((s, Lang::Scope(vec![rest.clone()], rest.into()))),
         Err(r) => Err(r),

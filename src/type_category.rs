@@ -25,6 +25,7 @@ pub enum TypeCategory {
     Opaque(String),
     Template,
     Vector,
+    Sequence,
     Rest
 }
 
@@ -61,7 +62,8 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Opaque(name) => &name.to_string(),
             TypeCategory::Template => "Template",
             TypeCategory::Vector => "Vector",
-            TypeCategory::Rest => "Rest"
+            TypeCategory::Sequence => "Sequence",
+            TypeCategory::Rest => "Rest",
         };
         write!(f, "{}", res)       
     }

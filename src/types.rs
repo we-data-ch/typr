@@ -626,6 +626,7 @@ pub fn utype(s: Span) -> IResult<Span, Type> {
     terminated(alt((
             r_class,
             vector_type,
+            sequence_type,
             any,
             empty,
             interface,
@@ -644,6 +645,22 @@ pub fn utype(s: Span) -> IResult<Span, Type> {
             )), multispace0).parse(s)
 }
 
+fn sequence_type(s: Span) -> IResult<Span, Type> {
+    let res = (
+            terminated(tag("Seq["), multispace0),
+            index_algebra,
+            terminated(tag(","), multispace0),
+            ltype,
+            terminated(tag("]"), multispace0),
+                  ).parse(s);
+
+    match res {
+        Ok((s, (start, num, _, typ, _))) 
+            => Ok((s, Type::Sequence(Box::new(num), Box::new(typ), start.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 
 //ltype to not use the reserved symbol "type"
 // main
@@ -653,6 +670,7 @@ pub fn ltype(s: Span) -> IResult<Span, Type> {
             multitype,
             r_class,
             vector_type,
+            sequence_type,
             any,
             empty,
             interface,
@@ -919,6 +937,12 @@ mod tests {
     }
 
     #[test]
+    fn test_r_class1() {
+        let res = "Class('data.frame', 'tbl')".parse::<Type>().unwrap();
+        assert_eq!(res, builder::empty_type());
+    }
+
+    #[test]
     fn test_type_alias0() {
         let res = type_alias("data__frame".into()).unwrap().1;
         assert_eq!(res, builder::empty_type());
@@ -939,5 +963,16 @@ mod tests {
         assert_eq!(res, builder::empty_type());
     }
 
+    #[test]
+    fn test_sequence_type1() {
+        let res = "Seq[4, int]".parse::<Type>().unwrap();
+        assert_eq!(res, builder::empty_type());
+    }
+
+    #[test]
+    fn test_sequence_type2() {
+        let res = "Seq[3, int]".parse::<Type>().unwrap();
+        assert_eq!(res, builder::empty_type());
+    }
 
 }

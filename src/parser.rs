@@ -335,7 +335,7 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
         terminated(tag(";"), multispace0)
           ).parse(s);
     match res {
-        Ok((s, (modu, (name, _), _op, Lang::Sequence(v, _h), _cl, _dv))) => 
+        Ok((s, (modu, (name, _), _op, Lang::Lines(v, _h), _cl, _dv))) => 
             Ok((s, vec![Lang::Module(name, v, modu.into())])),
         Err(r) => Err(r),
         _ => todo!()
@@ -550,7 +550,7 @@ fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
 pub fn parse_exp(s: Span) -> IResult<Span, Lang> {
     let res = base_parse(s);
     match res {
-        Ok((s, v)) => Ok((s, Lang::Sequence(v.clone(), v.into()))),
+        Ok((s, v)) => Ok((s, Lang::Lines(v.clone(), v.into()))),
         Err(r) => Err(r)
     }
 }
