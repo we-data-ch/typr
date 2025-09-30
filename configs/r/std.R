@@ -12,12 +12,15 @@ filter.default <- function(vec, condition) {
   vec[condition(vec)]
 }
 
-# For array
+# For sequence
 append <- function(x, ...) { UseMethod('append') }
 append.default <- function(a, e) { c(a, list(e)) }
 
 modify <- function(x, ...) { UseMethod('modify') }
 modify.default <- function(a, i, v) { a[[i]] <- v; v }
+
+remove <- function(x, ...) { UseMethod('remove') }
+remove.default <- function(a, i) { a <- a[-i]; a }
 
 into.default <- function(element, vecteur) {
   return(element %in% vecteur)
