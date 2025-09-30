@@ -644,7 +644,9 @@ impl Type {
 
     pub fn get_index(&self) -> Option<u32> {
         match self {
-            Type::Integer(i, _) => i.get_value().map(|x| x as u32),
+            Type::Integer(i, _) 
+                => Some(i.get_value().map(|x| x as u32).unwrap_or(0 as u32)),
+            Type::IndexGen(_, _) => Some(0 as u32),
             _ => None
         }
     }

@@ -24,6 +24,7 @@ impl ArrayType {
 
     pub fn respect_the_bound(&self, index: &Type) -> bool {
         match (self.index.get_index(), index.get_index()) {
+            (Some(0), _) => true,
             (Some(i1), Some(i2)) if i2 <= i1 => true,
             _ => false
         }
