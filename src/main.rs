@@ -59,6 +59,7 @@ use crate::engine::parse_code;
 use crate::my_io::execute_r_with_path;
 use crate::var::Var;
 use crate::engine::write_std_for_type_checking;
+use std::process::Command;
 
 #[derive(Debug, Parser, Clone, Copy, PartialEq)]
 pub enum Environment {
@@ -107,7 +108,28 @@ enum Commands {
         file: Option<PathBuf>,
     },
     /// Run tests
-    Test
+    Test,
+    /// Package management commands
+    Pkg {
+        #[command(subcommand)]
+        pkg_command: PkgCommands,
+    },
+    /// Generate package documentation
+    Document,
+    /// Add a package dependency
+    Use {
+        /// Package name to add as dependency
+        package_name: String,
+    },
+    Load,
+}
+
+#[derive(Subcommand)]
+enum PkgCommands {
+    /// Install the package locally
+    Install,
+    /// Uninstall the package from local machine
+    Uninstall,
 }
 
 
@@ -249,6 +271,260 @@ fn test() {
     println!("Tests non implémentés pour l'instant.");
 }
 
+fn get_package_name() -> Result<String, String> {
+    let description_path = PathBuf::from("DESCRIPTION");
+    
+    if !description_path.exists() {
+        return Err("Fichier DESCRIPTION introuvable. Êtes-vous à la racine du projet?".to_string());
+    }
+    
+    let content = fs::read_to_string(&description_path)
+        .map_err(|e| format!("Erreur lors de la lecture du fichier DESCRIPTION: {}", e))?;
+    
+    for line in content.lines() {
+        if line.starts_with("Package:") {
+            let package_name = line.replace("Package:", "").trim().to_string();
+            return Ok(package_name);
+        }
+    }
+    
+    Err("Nom du package introuvable dans le fichier DESCRIPTION".to_string())
+}
+
+fn pkg_install() {
+    println!("Installation du package...");
+    
+    // Récupérer le répertoire courant (racine du projet)
+    let current_dir = match std::env::current_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            eprintln!("Erreur lors de l'obtention du répertoire courant: {}", e);
+            std::process::exit(1);
+        }
+    };
+    
+    let project_path = current_dir.to_str().unwrap();
+    
+    // Construire la commande R
+    let r_command = format!("devtools::install_local('{}')", project_path);
+    
+    println!("Exécution de: R -e \"{}\"", r_command);
+    
+    let output = Command::new("R")
+        .arg("-e")
+        .arg(&r_command)
+        .output();
+    
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                println!("✓ Package installé avec succès!");
+                
+                // Afficher la sortie standard si elle existe
+                if !output.stdout.is_empty() {
+                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                }
+            } else {
+                eprintln!("✗ Erreur lors de l'installation du package");
+                
+                // Afficher les erreurs
+                if !output.stderr.is_empty() {
+                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
+                }
+                
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("Erreur lors de l'exécution de la commande R: {}", e);
+            eprintln!("Assurez-vous que R et devtools sont installés.");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn pkg_uninstall() {
+    println!("Désinstallation du package...");
+    
+    // Récupérer le nom du package depuis le fichier DESCRIPTION
+    let package_name = match get_package_name() {
+        Ok(name) => name,
+        Err(e) => {
+            eprintln!("Erreur: {}", e);
+            std::process::exit(1);
+        }
+    };
+    
+    println!("Désinstallation du package '{}'...", package_name);
+    
+    // Construire la commande R pour désinstaller
+    let r_command = format!("remove.packages('{}')", package_name);
+    
+    println!("Exécution de: R -e \"{}\"", r_command);
+    
+    let output = Command::new("R")
+        .arg("-e")
+        .arg(&r_command)
+        .output();
+    
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                println!("✓ Package '{}' désinstallé avec succès!", package_name);
+                
+                // Afficher la sortie standard si elle existe
+                if !output.stdout.is_empty() {
+                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                }
+            } else {
+                // Note: remove.packages peut retourner un statut d'erreur même si le package n'était pas installé
+                eprintln!("Note: Le package '{}' n'était peut-être pas installé ou une erreur s'est produite", package_name);
+                
+                if !output.stderr.is_empty() {
+                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Erreur lors de l'exécution de la commande R: {}", e);
+            eprintln!("Assurez-vous que R est installé.");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn document() {
+    println!("Génération de la documentation du package...");
+    
+    // Récupérer le répertoire courant (racine du projet)
+    let current_dir = match std::env::current_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            eprintln!("Erreur lors de l'obtention du répertoire courant: {}", e);
+            std::process::exit(1);
+        }
+    };
+    
+    let project_path = current_dir.to_str().unwrap();
+    
+    // Construire la commande R
+    let r_command = format!("devtools::document('{}')", project_path);
+    
+    println!("Exécution de: R -e \"{}\"", r_command);
+    
+    let output = Command::new("R")
+        .arg("-e")
+        .arg(&r_command)
+        .output();
+    
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                println!("✓ Documentation générée avec succès!");
+                
+                // Afficher la sortie standard si elle existe
+                if !output.stdout.is_empty() {
+                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                }
+            } else {
+                eprintln!("✗ Erreur lors de la génération de la documentation");
+                
+                // Afficher les erreurs
+                if !output.stderr.is_empty() {
+                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
+                }
+                
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("Erreur lors de l'exécution de la commande R: {}", e);
+            eprintln!("Assurez-vous que R et devtools sont installés.");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn use_package(package_name: &str) {
+    println!("Ajout du package '{}' comme dépendance...", package_name);
+    
+    // Construire la commande R
+    let r_command = format!("devtools::use_package('{}')", package_name);
+    
+    println!("Exécution de: R -e \"{}\"", r_command);
+    
+    let output = Command::new("R")
+        .arg("-e")
+        .arg(&r_command)
+        .output();
+    
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                println!("✓ Package '{}' ajouté avec succès aux dépendances!", package_name);
+                
+                // Afficher la sortie standard si elle existe
+                if !output.stdout.is_empty() {
+                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                }
+            } else {
+                eprintln!("✗ Erreur lors de l'ajout du package '{}'", package_name);
+                
+                // Afficher les erreurs
+                if !output.stderr.is_empty() {
+                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
+                }
+                
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("Erreur lors de l'exécution de la commande R: {}", e);
+            eprintln!("Assurez-vous que R et devtools sont installés.");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn load() {
+    // Construire la commande R
+    let r_command = "devtools::load_all('.')".to_string();
+    
+    println!("Execution of: R -e \"{}\"", r_command);
+    
+    let output = Command::new("R")
+        .arg("-e")
+        .arg(&r_command)
+        .output();
+    
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                println!("✓ Elements loaded with success!");
+                
+                // Afficher la sortie standard si elle existe
+                if !output.stdout.is_empty() {
+                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                }
+            } else {
+                eprintln!("✗ Error while loading elements");
+                
+                // Afficher les erreurs
+                if !output.stderr.is_empty() {
+                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
+                }
+                
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("Error while executing R command: {}", e);
+            eprintln!("Make sure devtools is installed");
+            std::process::exit(1);
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -256,6 +532,7 @@ fn main() {
     if let Some(path) = cli.file {
         if cli.command.is_none() {
             // Comportement original : exécuter le fichier directement
+            // run single file
             run_file(&path);
             return;
         }
@@ -286,6 +563,21 @@ fn main() {
         },
         Some(Commands::Test) => {
             test()
+        },
+        Some(Commands::Pkg { pkg_command }) => {
+            match pkg_command {
+                PkgCommands::Install => pkg_install(),
+                PkgCommands::Uninstall => pkg_uninstall(),
+            }
+        },
+        Some(Commands::Document) => {
+            document()
+        },
+        Some(Commands::Use { package_name }) => {
+            use_package(&package_name)
+        },
+        Some(Commands::Load) => {
+            load()
         },
         None => {
             println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");

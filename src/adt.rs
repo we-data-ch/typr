@@ -61,7 +61,7 @@ impl Adt {
 
         let app_path = output_dir.join(file_name);
         let mut app = File::create(app_path).unwrap();
-        let content = format!("source('std.R', echo = FALSE)\n\n# Existing types\n{}\n\n{}{}", cont.get_type_converters(), cont.get_adt().to_r(cont), self.to_r(cont));
+        let content = format!("source('R/std.R', echo = FALSE)\n\n# Existing types\n{}\n\n{}{}", cont.get_type_converters(), cont.get_adt().to_r(cont), self.to_r(cont));
         app.write_all(content.as_bytes()).unwrap();
     }
 

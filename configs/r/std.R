@@ -6,11 +6,6 @@ add.default <- function(a, b) {a + b}
 minus.default <- function(a, b) {a - b}
 mul.default <- function(a, b) {a * b}
 div.default <- function(a, b) {a / b}
-map <- function(x, ...) { UseMethod('map') }
-map.default <- sapply
-filter.default <- function(vec, condition) {
-  vec[condition(vec)]
-}
 
 # For sequence
 append <- function(x, ...) { UseMethod('append') }
