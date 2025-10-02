@@ -268,7 +268,39 @@ fn run_file(path: &PathBuf) {
 }
 
 fn test() {
-    println!("Tests non implémentés pour l'instant.");
+    let r_command = "devtools::test()".to_string();
+    
+    println!("Execution of: R -e \"{}\"", r_command);
+    
+    let output = Command::new("R")
+        .arg("-e")
+        .arg(&r_command)
+        .output();
+    
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                // Afficher la sortie standard si elle existe
+                if !output.stdout.is_empty() {
+                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                }
+            } else {
+                eprintln!("✗ Error while running tests");
+                
+                // Afficher les erreurs
+                if !output.stderr.is_empty() {
+                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
+                }
+                
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("Error while executing R command: {}", e);
+            eprintln!("Make sure devtools is installed");
+            std::process::exit(1);
+        }
+    }
 }
 
 fn get_package_name() -> Result<String, String> {
