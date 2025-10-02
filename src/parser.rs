@@ -26,6 +26,7 @@ use crate::help_data::HelpData;
 use crate::elements::single_element;
 use crate::elements::scope;
 use crate::operators::custom_op;
+use crate::elements::parse_block;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -531,10 +532,21 @@ fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+fn test_bloc(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (terminated(tag("Test"), multispace0),
+     parse_block).parse(s);
+
+    match res {
+        Ok((s, (tst, body))) 
+            => Ok((s, vec![Lang::TestBlock(body.to_string(), tst.into())])),
+        Err(r) => Err(r)
+    }
+}
+
 // main
 fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
+        many0(alt((test_bloc, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {

@@ -268,6 +268,7 @@ fn run_file(path: &PathBuf) {
 }
 
 fn test() {
+    build_project();
     let r_command = "devtools::test()".to_string();
     
     println!("Execution of: R -e \"{}\"", r_command);

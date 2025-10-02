@@ -220,7 +220,7 @@ fn extract_generics(args: &[ArgumentType], ret_typ: &Type) -> Vec<ArgumentKind> 
         .collect::<Vec<_>>()
 }
 
-fn parse_block(input: Span) -> IResult<Span, Span> {
+pub fn parse_block(input: Span) -> IResult<Span, Span> {
     recognize(parse_nested_braces).parse(input)
 }
 
