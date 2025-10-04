@@ -122,6 +122,7 @@ enum Commands {
         package_name: String,
     },
     Load,
+    Cran,
 }
 
 #[derive(Subcommand)]
@@ -234,7 +235,7 @@ fn build_project() {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
     let context = adt_manager.type_check();
     
-    adt_manager.get_body().write_to_r(&context, &PathBuf::from("R"), "main.R");
+    adt_manager.get_body().write_to_r(&context, &PathBuf::from("R"), "main.R", true);
     println!("✓ Code R généré avec succès dans le dossier R/");
 }
 
@@ -246,7 +247,7 @@ fn build_file(path: &PathBuf) {
     write_std_for_type_checking(&dir);
     let context = adt_manager.type_check();
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    adt_manager.get_body().write_to_r(&context, &dir, &r_file_name);
+    adt_manager.get_body().write_to_r(&context, &dir, &r_file_name, false);
     println!("✓ Code R généré: {:?}", dir.join(&r_file_name));
 }
 
@@ -263,7 +264,7 @@ fn run_file(path: &PathBuf) {
     write_std_for_type_checking(&dir);
     let context = adt_manager.type_check();
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    adt_manager.get_body().write_to_r(&context, &dir, &r_file_name);
+    adt_manager.get_body().write_to_r(&context, &dir, &r_file_name, false);
     execute_r_with_path(&dir, &r_file_name);
 }
 
@@ -558,6 +559,46 @@ fn load() {
     }
 }
 
+fn cran() {
+    // Construire la commande R
+    let r_command = "devtools::check()".to_string();
+    
+    println!("Execution of: R -e \"{}\"", r_command);
+    
+    let output = Command::new("R")
+        .arg("-e")
+        .arg(&r_command)
+        .output();
+    
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                println!("✓ Checks passed with success!");
+                
+                // Afficher la sortie standard si elle existe
+                if !output.stdout.is_empty() {
+                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                }
+            } else {
+                eprintln!("✗ Error while checking the project");
+                
+                // Afficher les erreurs
+                if !output.stderr.is_empty() {
+                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
+                }
+                
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("Error while executing R command: {}", e);
+            eprintln!("Make sure devtools is installed");
+            std::process::exit(1);
+        }
+    }
+}
+
+
 fn main() {
     let cli = Cli::parse();
 
@@ -611,6 +652,9 @@ fn main() {
         },
         Some(Commands::Load) => {
             load()
+        },
+        Some(Commands::Cran) => {
+            cran()
         },
         None => {
             println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");

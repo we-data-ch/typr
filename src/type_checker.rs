@@ -168,6 +168,10 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                     .push_var_type(var.to_owned(), typ.to_owned(), context)
             }
         },
+        Lang::TestBlock(body, _) => {
+            let res = typing(context, body);
+            context.clone()
+        },
         _ => context.clone()
     }
 }
@@ -281,6 +285,7 @@ fn are_homogenous_types(types: &[Type]) -> bool {
     types.windows(2).all(|w| w[0] == w[1])
 }
 
+//main
 pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
     match expr {
         Lang::Number(_, h) => (Type::Number(h.clone()), context.clone()),
@@ -561,7 +566,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 .collect(), h.clone()),
                 context.clone())
         },
-        Lang::VecBloc(_, h) => (Type::Empty(h.clone()), context.to_owned()),
+        Lang::VecBlock(_, h) => (Type::Empty(h.clone()), context.to_owned()),
         Lang::RFunction(_, _, h) => (Type::RFunction(h.clone()), context.to_owned()),
         Lang::ForLoop(var, iter, body, _h) => {
             let base_type = typing(context, iter).0.to_array()
@@ -581,6 +586,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 Type::Boolean(_) => (Type::Boolean(h.clone()), context.clone()),
                 _ => panic!("Use of the '!' to a none boolean expression")
             }
+        },
+        Lang::JSBlock(exp, _h) => {
+            (builder::character_type_default(), context.clone())
         },
         _ => (Type::Any(HelpData::default()), context.clone()),
     }

@@ -96,7 +96,7 @@ pub enum Lang {
     GenFunc(String, String, HelpData), //body, name, helpdata
     Test(Vec<Lang>, HelpData),
     Return(Box<Lang>, HelpData),
-    VecBloc(String, HelpData),
+    VecBlock(String, HelpData),
     Lambda(Box<Lang>, HelpData),
     Library(String, HelpData),
     Exp(String, HelpData),
@@ -107,7 +107,8 @@ pub enum Lang {
     Vector(Vec<Lang>, HelpData),
     Sequence(Vec<Lang>, HelpData),
     Not(Box<Lang>, HelpData),
-    TestBlock(String, HelpData),
+    TestBlock(Box<Lang>, HelpData),
+    JSBlock(Box<Lang>, HelpData),
     Empty(HelpData)
 }
 
@@ -276,7 +277,7 @@ impl Lang {
             Lang::GenFunc(_, _, h) => h,
             Lang::Test(_, h) => h,
             Lang::Return(_, h) => h,
-            Lang::VecBloc(_, h) => h,
+            Lang::VecBlock(_, h) => h,
             Lang::Lambda(_, h) => h,
             Lang::Library(_, h) => h,
             Lang::Exp(_, h) => h,
@@ -290,6 +291,7 @@ impl Lang {
             Lang::Not(_, h) => h,
             Lang::Sequence(_, h) => h,
             Lang::TestBlock(_, h) => h,
+            Lang::JSBlock(_, h) => h,
         }.clone()
     }
 
@@ -364,7 +366,7 @@ impl Lang {
             Lang::GenFunc(_, _, _) => "GenFunc".to_string(),
             Lang::Test(_, _) => "Test".to_string(),
             Lang::Return(_, _) => "Return".to_string(),
-            Lang::VecBloc(_, _) => "VecBloc".to_string(),
+            Lang::VecBlock(_, _) => "VecBloc".to_string(),
             Lang::Lambda(_, _) => "Lambda".to_string(),
             Lang::Library(_, _) => "Library".to_string(),
             Lang::Exp(_, _) => "Exp".to_string(),
@@ -378,11 +380,35 @@ impl Lang {
             Lang::Not(_, _) => "Not".to_string(),
             Lang::Sequence(_, _) => "Sequence".to_string(),
             Lang::TestBlock(_, _) => "TestBlock".to_string(),
+            Lang::JSBlock(_, _) => "JSBlock".to_string(),
         }
     }
 
     pub fn typing(&self, context: &Context) -> (Type, Context) {
         typing(context, self)
+    }
+
+    pub fn to_js(&self, context: &Context) -> (String, Context) {
+        match self {
+            Lang::Let(var, _, body, _) => {
+                (format!("let {} = {};", var.get_name(), body.to_js(context).0),
+                 context.clone())
+            },
+            Lang::Assign(var, body, _) => {
+                (format!("let {} = {};", var.to_js(context).0, body.to_js(context).0),
+                 context.clone())
+            },
+            Lang::Scope(langs, _) => {
+                let res = langs.iter()
+                    .map(|x| x.to_js(context).0)
+                    .collect::<Vec<_>>().join("\n");
+                (res, context.clone())
+            },
+            _ => {
+                //dbg!(self.simple_print());
+                self.to_r(context)
+            }
+        }
     }
 }
 
@@ -408,7 +434,7 @@ impl From<Lang> for HelpData {
            Lang::Alias(_, _, _, h) => h,
            Lang::Lambda(_, h) => h,
            Lang::Function(_, _, _, _, h) => h,
-           Lang::VecBloc(_, h) => h,
+           Lang::VecBlock(_, h) => h,
            Lang::If(_, _, _, h) => h,
            Lang::Assign(_, _, h) => h,
            Lang::And(_, _, h) => h,
@@ -444,6 +470,7 @@ impl From<Lang> for HelpData {
            Lang::Not(_, h) => h,
            Lang::Sequence(_, h) => h,
            Lang::TestBlock(_, h) => h,
+           Lang::JSBlock(_, h) => h,
        }.clone()
    } 
 }
@@ -551,7 +578,9 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::Scope(exps, _) => {
                 Translatable::from(cont.clone())
-                    .join(exps, "\n").into()
+                    .add("{\n")
+                    .join(exps, "\n")
+                    .add("\n}\n").into()
             },
             Lang::Function(_, args, return_type, body, _) => {
                 //Wasn't able to use Translatable
@@ -749,7 +778,7 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::Lambda(bloc, _) 
                 => (format!("function(x) {{ {} }}", bloc.to_r(cont).0), cont.clone()),
-            Lang::VecBloc(bloc, _) => (bloc.to_string(), cont.clone()),
+            Lang::VecBlock(bloc, _) => (bloc.to_string(), cont.clone()),
             Lang::Library(name, _) => (format!("library({})", name), cont.clone()),
             Lang::Match(exp, var, branches, _) 
                 => (to_if_statement(var.clone(), (**exp).clone(), branches, cont), cont.clone()),
@@ -836,8 +865,12 @@ impl RTranslatable<(String, Context)> for Lang {
 
                 // Écrire le contenu
                 let mut file = fs::File::create(&file_path).unwrap();
-                file.write_all(body.as_bytes()).unwrap();
+                file.write_all(body.to_r(cont).0.as_bytes()).unwrap();
                 ("".to_string(), cont.clone())
+            },
+            Lang::JSBlock(exp, _h) => {
+                let res = exp.to_js(cont).0;
+                (format!("'{}'", res), cont.clone())
             },
             _ =>  {
                 println!("This language structure won't transpile: {:?}", self);

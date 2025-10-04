@@ -607,7 +607,7 @@ fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
                     ).parse(s);
     match res {
         Ok((s, (_start, bloc, _end))) => {
-            Ok((s, Lang::VecBloc(bloc.fragment().to_string(), bloc.into())))
+            Ok((s, Lang::VecBlock(bloc.fragment().to_string(), bloc.into())))
         },
         Err(r) => Err(r)
     }

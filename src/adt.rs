@@ -53,7 +53,7 @@ impl Adt {
         Adt(self.0.iter().chain(adt.0.iter()).cloned().collect::<Vec<_>>())
     }
 
-    pub fn write_to_r(&self, cont: &Context, output_dir: &PathBuf, file_name: &str) -> () {
+    pub fn write_to_r(&self, cont: &Context, output_dir: &PathBuf, file_name: &str, project: bool) -> () {
         let rstd = include_str!("../configs/r/std.R");
         let std_path = output_dir.join("std.R");
         let mut rstd_file = File::create(std_path).unwrap();
@@ -61,7 +61,11 @@ impl Adt {
 
         let app_path = output_dir.join(file_name);
         let mut app = File::create(app_path).unwrap();
-        let content = format!("source('R/std.R', echo = FALSE)\n\n# Existing types\n{}\n\n{}{}", cont.get_type_converters(), cont.get_adt().to_r(cont), self.to_r(cont));
+        let content = if project {
+            format!("source('R/std.R', echo = FALSE)\n\n# Existing types\n{}\n\n{}{}", cont.get_type_converters(), cont.get_adt().to_r(cont), self.to_r(cont))
+        } else {
+            format!("source('std.R', echo = FALSE)\n\n# Existing types\n{}\n\n{}{}", cont.get_type_converters(), cont.get_adt().to_r(cont), self.to_r(cont))
+        };
         app.write_all(content.as_bytes()).unwrap();
     }
 

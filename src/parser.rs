@@ -532,13 +532,25 @@ fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
-fn test_bloc(s: Span) -> IResult<Span, Vec<Lang>> {
+fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (terminated(tag("Test"), multispace0),
-     parse_block).parse(s);
+     scope).parse(s);
+     //parse_block).parse(s);
 
     match res {
         Ok((s, (tst, body))) 
-            => Ok((s, vec![Lang::TestBlock(body.to_string(), tst.into())])),
+            => Ok((s, vec![Lang::TestBlock(Box::new(body), tst.into())])),
+        Err(r) => Err(r)
+    }
+}
+
+fn js_block(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (terminated(tag("JS"), multispace0),
+     scope).parse(s);
+
+    match res {
+        Ok((s, (js, body))) 
+            => Ok((s, vec![Lang::JSBlock(Box::new(body), js.into())])),
         Err(r) => Err(r)
     }
 }
@@ -546,7 +558,7 @@ fn test_bloc(s: Span) -> IResult<Span, Vec<Lang>> {
 // main
 fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((test_bloc, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
+        many0(alt((js_block, test_block, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {
