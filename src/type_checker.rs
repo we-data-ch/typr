@@ -29,7 +29,46 @@ use crate::function_type::FunctionType;
 use crate::graph::TypeSystem;
 use crate::array_type::ArrayType;
 use crate::config::TargetLanguage;
+use rpds::Vector;
 
+struct TypeChecker {
+    context: Context,
+    code: Vector<Lang>,
+    types: Vector<Type>,
+}
+
+impl TypeChecker {
+
+    pub fn new(context: Context) -> Self {
+        Self {
+            context: context,
+            code: Vector::new(),
+            types: Vector::new() 
+        }
+    }
+
+    pub fn typing(self, exp: &Lang) -> Self {
+        let (typ, context) = typing(&self.context, exp);
+        Self {
+            context: context,
+            code: self.code.push_back(exp.clone()),
+            types: self.types.push_back(typ),
+        }
+    }
+
+    pub fn get_context(&self) -> Context {
+        self.context.clone()
+    }
+
+    pub fn get_code(&self) -> Vector<Lang> {
+        self.code.clone()
+    }
+
+    pub fn get_types(&self) -> Vector<Type> {
+        self.types.clone()
+    }
+
+}
 
 fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
     // Créer un script R temporaire avec la fonction à exécuter

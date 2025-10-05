@@ -407,11 +407,15 @@ impl Lang {
             Lang::Integer(i, _) => {
                 (i.to_string(), context.clone())
             },
-            Lang::FunctionApp(var, params, return_type, _) => {
-                todo!();
+            Lang::FunctionApp(exp, params, _, _) => {
+                let var = Var::try_from(exp.clone()).unwrap();
+                let res = format!("{}({})", var.get_name(),
+                        params.iter()
+                        .map(|x| x.to_js(context).0)
+                        .collect::<Vec<_>>().join(", "));
+                (res, context.clone())
             },
             _ => {
-                //dbg!(self.simple_print());
                 self.to_r(context)
             }
         }
