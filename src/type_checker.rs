@@ -28,6 +28,7 @@ use crate::type_comparison::is_matching;
 use crate::function_type::FunctionType;
 use crate::graph::TypeSystem;
 use crate::array_type::ArrayType;
+use crate::config::TargetLanguage;
 
 
 fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
@@ -587,7 +588,8 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Context) {
                 _ => panic!("Use of the '!' to a none boolean expression")
             }
         },
-        Lang::JSBlock(exp, _h) => {
+        Lang::JSBlock(body, _) => {
+            let _ = typing(&Context::default().set_target_language(TargetLanguage::JS), body);
             (builder::character_type_default(), context.clone())
         },
         _ => (Type::Any(HelpData::default()), context.clone()),

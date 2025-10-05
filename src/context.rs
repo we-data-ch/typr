@@ -23,6 +23,7 @@ use crate::Adt;
 use crate::builder;
 use crate::unification_map::UnificationMap;
 use crate::function_type::FunctionType;
+use crate::config::TargetLanguage;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
@@ -430,6 +431,14 @@ impl Context {
 
     pub fn not_generic_yet(&self, name: String) -> bool {
         self.header.not_generic_yet(name)
+    }
+
+    pub fn set_target_language(self, language: TargetLanguage) -> Self {
+        Self {
+            config: self.config.set_target_language(language),
+            header: self.header.set_function_list(language),
+            ..self
+        }
     }
 
 }

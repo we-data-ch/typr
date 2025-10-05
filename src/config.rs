@@ -1,5 +1,17 @@
 use crate::Environment;
 
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum TargetLanguage {
+    R,
+    JS
+}
+
+impl Default for TargetLanguage {
+    fn default() -> Self {
+        TargetLanguage::R
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompileMode {
     Header,
@@ -12,7 +24,8 @@ pub enum CompileMode {
 pub struct Config {
    pub compile_mode: CompileMode,
    pub environment: Environment,
-   pub immutability: bool
+   pub immutability: bool,
+   target_language: TargetLanguage,
 }
 
 impl Config {
@@ -31,12 +44,20 @@ impl Config {
         }
     }
 
+    pub fn set_target_language(self, language: TargetLanguage) -> Self {
+        Self {
+            target_language: language,
+            ..self
+        }
+    }
+
 }
 
 
 impl Default for Config {
     fn default() -> Config {
         Config {
+            target_language: TargetLanguage::default(),
             compile_mode: CompileMode::Body,
             environment: Environment::StandAlone,
             immutability: false

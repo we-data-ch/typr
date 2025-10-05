@@ -2,6 +2,8 @@ use crate::adt_header::AdtHeader;
 use crate::Lang;
 use std::collections::HashSet;
 use crate::function_type::FunctionType;
+use crate::config::TargetLanguage;
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Header {
@@ -11,6 +13,7 @@ pub struct Header {
    fns: Vec<(Lang, FunctionType)>,
 }
 
+//main
 impl Header {
     pub fn add_lang(self, data: &[Lang]) -> Header {
         let data = data.iter()
@@ -98,11 +101,22 @@ impl Header {
             .cloned()
     }
 
+    pub fn set_function_list(self, lang: TargetLanguage) -> Self {
+        let res = match lang {
+            TargetLanguage::R => include_str!("../configs/src/functions_R.txt").to_string(),
+            TargetLanguage::JS => include_str!("../configs/src/functions_JS.txt").to_string()
+        };
+        Self {
+            function_list: res,
+            ..self
+        }
+    }
+
 }
 
 impl Default for Header {
     fn default() -> Header {
-        let std_function_list = include_str!("../configs/src/functions.txt").to_string();
+        let std_function_list = include_str!("../configs/src/functions_R.txt").to_string();
         Header {
             function_list: std_function_list.clone(),
             generic_function_list: Self::get_generics(&std_function_list),

@@ -404,6 +404,12 @@ impl Lang {
                     .collect::<Vec<_>>().join("\n");
                 (res, context.clone())
             },
+            Lang::Integer(i, _) => {
+                (i.to_string(), context.clone())
+            },
+            Lang::FunctionApp(var, params, return_type, _) => {
+                todo!();
+            },
             _ => {
                 //dbg!(self.simple_print());
                 self.to_r(context)
