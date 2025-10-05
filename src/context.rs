@@ -388,7 +388,7 @@ impl Context {
         let res = values.iter()
             .map(|val| typing(self, val).0)
             .zip(param_types.iter())
-            .flat_map(|(val_typ, par_typ)| match_types(self, &val_typ, par_typ))
+            .flat_map(|(val_typ, par_typ)| match_types(self, &val_typ[0].clone(), par_typ))
             .flatten()
             .collect::<Vec<_>>();
         (res.len() > 0).then(|| UnificationMap::new(res))

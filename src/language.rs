@@ -166,7 +166,7 @@ impl Lang {
 
     pub fn extract_types_from_expression(&self, context: &Context) -> Vec<Type> {
         if self.is_value() {
-            vec![typing(context, self).0]
+            vec![typing(context, self).0[0].clone()]
         } else {
             match self {
                 Lang::FunctionApp(exp, arg_typs, _, _) => {
@@ -210,7 +210,7 @@ impl Lang {
         if args.len() > 0 {
                         let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
                         Var::from_language(self.clone())
-                            .unwrap().set_type(first)
+                            .unwrap().set_type(first[0].clone())
                     } else {
                         Var::from_language(self.clone()).unwrap()
             }
@@ -220,7 +220,7 @@ impl Lang {
         -> Option<FunctionType> {
         let var_name = self.infer_var_name(args, context);
         let fn_ty = typing(context, &var_name.to_language()).0;
-        fn_ty.to_function_type()
+        fn_ty[0].clone().to_function_type()
     }
 
     pub fn lang_substitution(&self, sub_var: &Lang, var: &Lang, context: &Context) -> String {
@@ -385,7 +385,8 @@ impl Lang {
     }
 
     pub fn typing(&self, context: &Context) -> (Type, Context) {
-        typing(context, self)
+        let res = typing(context, self);
+        (res.0[0].clone(), res.2)
     }
 
     pub fn to_js(&self, context: &Context) -> (String, Context) {
@@ -605,7 +606,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
                         body_str, 
                         res,
-                        cont.get_type_anotation(&fn_type)),
+                        cont.get_type_anotation(&fn_type[0])),
                 new_cont)
             },
             Lang::Variable(v, path, _, _, ty, _) => {
@@ -661,7 +662,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::ArrayIndexing(exp, val, _) => {
                 let (exp_str, _) = exp.to_r(cont);
                 let (val_str, _) = val.to_r(cont);
-                let res = match typing(cont, exp).0 {
+                let res = match typing(cont, exp).0[0] {
                     Type::Array(_, _, _) | Type::Vector(_, _, _)
                         => format!("{}[{}]", exp_str, val_str), 
                     Type::Sequence(_, _, _) 
@@ -716,11 +717,11 @@ impl RTranslatable<(String, Context)> for Lang {
 
                 let dim = typing(&cont, &self).0;
 
-                let array = ArrayType::try_from(dim.clone()).unwrap().get_shape()
+                let array = ArrayType::try_from(dim[0].clone()).unwrap().get_shape()
                     .map(|sha| format!("array({}, dim = c({}))", vector, sha))
                     .unwrap_or(format!("array({}, dim = c(0))", vector));
 
-                (format!("{} |> {}", array, cont.get_type_anotation(&dim)) ,cont.to_owned())
+                (format!("{} |> {}", array, cont.get_type_anotation(&dim[0])) ,cont.to_owned())
             },
             Lang::Record(args, _) => {
                 let (body, current_cont) = 
@@ -728,8 +729,8 @@ impl RTranslatable<(String, Context)> for Lang {
                     .join_arg_val(args, ", ").into();
                 let typ = type_checker::typing(cont, self).0;
                 //let class = cont.get_class(&typ);
-               let anotation = cont.get_type_anotation(&typ);
-                cont.get_classes(&typ)
+               let anotation = cont.get_type_anotation(&typ[0]);
+                cont.get_classes(&typ[0])
                     .map(|_| format!("list({}) |> {}", 
                                 body, anotation))
                     .unwrap_or(format!("list({}) |> {}",
@@ -766,8 +767,8 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Tag(s, t, _) => {
                 let (t_str, new_cont) = t.to_r(cont);
                 let typ = type_checker::typing(cont, self).0;
-                let class = cont.get_class(&typ);
-                cont.get_classes(&typ)
+                let class = cont.get_class(&typ[0]);
+                cont.get_classes(&typ[0])
                     .map(|res| format!("struct(list('{}', {}), c('Tag', {}, {}))",
                                 s, t_str, class, res))
                     .unwrap_or(format!("struct(list('{}', {}), c('Tag', {}))",

@@ -233,9 +233,11 @@ fn check_file(path: &PathBuf) {
 
 fn build_project() {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
-    let context = adt_manager.type_check();
+    let type_checker = adt_manager.type_check();
     
-    adt_manager.get_body().write_to_r(&context, &PathBuf::from("R"), "main.R", true);
+    //adt_manager.get_body().write_to_r(&context, &PathBuf::from("R"), "main.R", true);
+    let content = type_checker.transpile();
+    Adt::write_to_r_lang(content, &PathBuf::from("R"), "main.R", true);
     println!("✓ Code R généré avec succès dans le dossier R/");
 }
 
@@ -245,9 +247,11 @@ fn build_file(path: &PathBuf) {
     
     // HEADER
     write_std_for_type_checking(&dir);
-    let context = adt_manager.type_check();
+    let type_checker = adt_manager.type_check();
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    adt_manager.get_body().write_to_r(&context, &dir, &r_file_name, false);
+    let content = type_checker.transpile();
+    Adt::write_to_r_lang(content, &dir, &r_file_name, false);
+    //adt_manager.get_body().write_to_r(&context, &dir, &r_file_name, false);
     println!("✓ Code R généré: {:?}", dir.join(&r_file_name));
 }
 
@@ -256,15 +260,18 @@ fn run_project() {
     execute_r_with_path(&PathBuf::from("R"), "main.R");
 }
 
+
 fn run_file(path: &PathBuf) {
     let adt_manager = parse_code(path);
     let dir = PathBuf::from(".");
 
     //HEADER
     write_std_for_type_checking(&dir);
-    let context = adt_manager.type_check();
+    let type_checker = adt_manager.type_check();
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    adt_manager.get_body().write_to_r(&context, &dir, &r_file_name, false);
+    let content = type_checker.transpile();
+    Adt::write_to_r_lang(content, &dir, &r_file_name, false);
+    //adt_manager.get_body().write_to_r(&context, &dir, &r_file_name, false);
     execute_r_with_path(&dir, &r_file_name);
 }
 

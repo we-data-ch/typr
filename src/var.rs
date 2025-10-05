@@ -40,7 +40,7 @@ impl Var {
     pub fn infer_var_name(&self, args: &Vec<Lang>, context: &Context) -> Var {
         if args.len() > 0 {
             let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
-            self.clone().set_type(first)
+            self.clone().set_type(first[0].clone())
         } else {
             self.clone()
         }
@@ -50,7 +50,7 @@ impl Var {
         -> Option<FunctionType> {
         let var_name = self.infer_var_name(args, context);
         let fn_ty = typing(context, &var_name.to_language()).0;
-        fn_ty.to_function_type()
+        fn_ty[0].clone().to_function_type()
     }
 
     pub fn get_function_signature(&self, values: &Vec<Lang>, context: &Context) -> FunctionType {

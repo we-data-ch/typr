@@ -69,6 +69,17 @@ impl Adt {
         app.write_all(content.as_bytes()).unwrap();
     }
 
+    pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, _project: bool) -> () {
+        let rstd = include_str!("../configs/r/std.R");
+        let std_path = output_dir.join("std.R");
+        let mut rstd_file = File::create(std_path).unwrap();
+        rstd_file.write_all(rstd.as_bytes()).unwrap();
+
+        let app_path = output_dir.join(file_name);
+        let mut app = File::create(app_path).unwrap();
+        app.write_all(content.as_bytes()).unwrap();
+    }
+
     pub fn push(self, lang: Lang) -> Self {
         Adt(self.iter().chain([lang].iter()).cloned().collect::<Vec<_>>())
     }
