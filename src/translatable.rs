@@ -2,13 +2,15 @@ use crate::Lang;
 use crate::Context;
 use crate::argument_value::ArgumentValue;
 use std::ops::Add;
+use crate::Type;
+use crate::builder;
 
 pub trait TranslateAppendable {
     fn to_translatable(self) -> Translatable;
 }
 
 pub trait RTranslatable<T: TranslateAppendable> {
-    fn to_r(&self, context: &Context) -> T;
+    fn to_r(&self, typ: Type, context: &Context) -> T;
 }
 
 pub struct Translatable {
@@ -18,12 +20,14 @@ pub struct Translatable {
 
 impl Translatable {
     pub fn to_r<T: TranslateAppendable>(self, lang: &impl RTranslatable<T>) -> Translatable {
-        let res = lang.to_r(&self.context);
+        let empty = builder::empty_type();
+        let res = lang.to_r(empty, &self.context);
         self.append(res)
     }
 
     pub fn to_r_safe<T: TranslateAppendable>(self, lang: &impl RTranslatable<T>) -> Translatable {
-        let res = lang.to_r(&self.context);
+        let empty = builder::empty_type();
+        let res = lang.to_r(empty, &self.context);
         self.append_safe(res)
     }
 
@@ -35,7 +39,8 @@ impl Translatable {
     }
 
     pub fn to_r_arg_val(self, arg_val: &ArgumentValue, joint: &str) -> Translatable {
-        let res = arg_val.to_r(&self.context);
+        let empty = builder::empty_type();
+        let res = arg_val.to_r(empty, &self.context);
         self.add(&res).add(joint)
     }
 
@@ -135,8 +140,8 @@ impl TranslateAppendable for String {
 }
 
 impl RTranslatable<(String, Context)> for Box<Lang> {
-    fn to_r(&self, context: &Context) -> (String, Context) {
-        (**self).to_r(context)
+    fn to_r(&self, typ: Type, context: &Context) -> (String, Context) {
+        (**self).to_r(typ, context)
     }
 }
 

@@ -1,7 +1,6 @@
 use crate::Adt;
 use crate::Lang;
 use crate::Context;
-use crate::typing;
 use crate::help_data::HelpData;
 use crate::graph::TypeSystem;
 use crate::type_checker::TypeChecker;
@@ -67,9 +66,6 @@ impl AdtManager {
         let type_checker = TypeChecker::new(base_context).typing(&lang);
         println!("Type checking:\n{}\n", type_checker.get_type().pretty());
         type_checker
-        //let context = typing(&base_context, &Lang::Lines(self.get_header().0.clone(), HelpData::default())).2;
-        //let (typ, _langs, new_context) = typing(&base_context, &Lang::Lines(self.get_body().0.clone(), HelpData::default()));
-        //new_context
     }
 
 }

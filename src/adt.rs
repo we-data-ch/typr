@@ -6,14 +6,16 @@ use std::path::PathBuf;
 use std::fs::File;
 use std::io::Write;
 use crate::translatable::RTranslatable;
+use crate::builder;
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct Adt(pub Vec<Lang>);
 
 impl fmt::Display for Adt {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let empty = builder::empty_type();
         let cont = Context::new(vec![], vec![]);
-        let res = self.0.iter().map(|x| x.to_r(&cont).0)
+        let res = self.0.iter().map(|x| x.to_r(empty.clone(), &cont).0)
             .reduce(|acc, x| format!("{}, {}", acc, x))
             .unwrap_or("".to_string());
         write!(f, "sequence([{}])", res)       
@@ -37,7 +39,8 @@ impl Adt {
         let mut results = Vec::new();
         
         for exp in self.iter() {
-            let (exp_str, _new_cont) = exp.to_r(&current_cont);
+            let empty = builder::empty_type();
+            let (exp_str, _new_cont) = exp.to_r(empty, &current_cont);
             results.push(exp_str);
         }
         let res = results.join("\n");
