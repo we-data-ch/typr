@@ -41,6 +41,7 @@ mod config;
 mod graph;
 mod type_category;
 mod typer;
+mod var_function;
 
 use crate::help_message::TypeError;
 use parser::parse;
@@ -235,7 +236,7 @@ fn build_project() {
     let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
     let type_checker = adt_manager.type_check();
     
-    let content = type_checker.transpile(true);
+    let content = type_checker.transpile(true, &adt_manager.get_body().generate_var_functions());
     Adt::write_to_r_lang(content, &PathBuf::from("R"), "main.R", true);
     println!("✓ Code R généré avec succès dans le dossier R/");
 }
@@ -248,7 +249,7 @@ fn build_file(path: &PathBuf) {
     write_std_for_type_checking(&dir);
     let type_checker = adt_manager.type_check();
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    let content = type_checker.transpile(false);
+    let content = type_checker.transpile(false, &adt_manager.get_body().generate_var_functions());
     Adt::write_to_r_lang(content, &dir, &r_file_name, false);
     //adt_manager.get_body().write_to_r(&context, &dir, &r_file_name, false);
     println!("✓ Code R généré: {:?}", dir.join(&r_file_name));
@@ -268,7 +269,7 @@ fn run_file(path: &PathBuf) {
     write_std_for_type_checking(&dir);
     let type_checker = adt_manager.type_check();
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    let content = type_checker.transpile(false);
+    let content = type_checker.transpile(false, &adt_manager.get_body().generate_var_functions());
     Adt::write_to_r_lang(content, &dir, &r_file_name, false);
     //adt_manager.get_body().write_to_r(&context, &dir, &r_file_name, false);
     execute_r_with_path(&dir, &r_file_name);

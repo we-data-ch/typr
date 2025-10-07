@@ -43,7 +43,7 @@ impl Header {
     }
 
 
-    pub fn is_an_untyped_function(&self, name: &str) -> bool {
+    pub fn exist_in_standard_lib(&self, name: &str) -> bool {
         let formated_name = name.replace("__", ".");
         let formated_name2 = format!("\"{}\"", formated_name);
         self.function_list.lines()

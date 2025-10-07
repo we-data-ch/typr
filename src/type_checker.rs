@@ -31,6 +31,7 @@ use crate::array_type::ArrayType;
 use crate::config::TargetLanguage;
 use rpds::Vector;
 use crate::translatable::RTranslatable;
+use crate::var_function::VarFunction;
 
 #[derive(Debug)]
 pub struct TypeChecker {
@@ -51,9 +52,19 @@ impl TypeChecker {
     }
 
     pub fn typing(self, exp: &Lang) -> Self {
+        match exp {
+            Lang::Lines(exps, _) => {
+                exps.iter()
+                    .fold(self, |acc, lang| acc.typing_helper(lang))
+            },
+            _ => self.typing_helper(exp)
+        }
+    }
+
+    fn typing_helper(self, exp: &Lang) -> Self {
         let (typs, langs, context) = typing(&self.context, exp);
         Self {
-            context,
+            context: context,
             code: langs.iter().cloned().fold(self.code, |acc, x| acc.push_back(x)),
             types: typs.iter().cloned().fold(self.types, |acc, x| acc.push_back(x)),
             last_type: typs[0].clone()
@@ -76,13 +87,13 @@ impl TypeChecker {
         self.last_type.clone()
     }
 
-    pub fn transpile(self, project: bool) -> String {
+    pub fn transpile(self, project: bool, functions: &VarFunction) -> String {
         let code = self.code.iter()
             .zip(self.types.iter())
             .map(|(lang, typ)| lang.to_r(typ.clone(), &self.context).0)
             .collect::<Vec<_>>().join("\n");
 
-        let type_converters = self.context.get_type_converters();
+        let type_converters = self.context.get_type_definition(functions);
         let headers = self.context.get_adt().to_r(&self.context);
         let import = if project {
             "source('R/std.R', echo = FALSE)"
@@ -157,18 +168,17 @@ fn install_header(name: &str, context: &Context) -> Context {
         .add_to_header(parse(LocatedSpan::new_extra(&content, full_path)).unwrap().1);
     let context2 = context.clone();
     adt_manager.get_header().iter()
-            .fold(context2, |ctx, expr| eval(&ctx, expr))
+            .fold(context2, |ctx, expr| eval(&ctx, expr).1)
 }
 
-pub fn eval(context: &Context, expr: &Lang) -> Context {
+pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
     match expr {
-        Lang::Lines(exprs, _h) 
-            => exprs.iter().fold(context.clone(), |ctx, expr| eval(&ctx, expr)),
         Lang::Let(name, ty, exp, _h) => {
-            exp.typing(context).0
-                .get_covariant_type(ty, context)
-                .add_to_context(name.clone(), context.clone())
-                .push_types(&exp.extract_types_from_expression(context))
+            let new_context = context.clone()
+                .push_types(&exp.extract_types_from_expression(context));
+            exp.typing(&new_context)
+                .get_covariant_type(ty)
+                .add_to_context(name.clone())
         },
         Lang::Alias(name, params, typ, h) => {
             let var = name.clone()
@@ -178,14 +188,15 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let (fn_typ, new_context2) = new_context.get_embeddings(typ);
             let new_context3 = fn_typ.iter()
                 .fold(new_context2, |ctx, var_typfun| ctx.push_var_type(var_typfun.0.clone(), var_typfun.1.clone(), context));
-            new_context3.push_alias(name.get_name(), typ.to_owned())
+            (builder::empty_type(),
+                new_context3.push_alias(name.get_name(), typ.to_owned()))
         },
         Lang::Assign(var, expr, _h) => {
             let variable_assigned = Var::try_from(var.clone()).unwrap();
-            let expr_type = typing(&context, expr).0;
-            let expr_type_reduced = reduce_type(context, &expr_type[0].clone());
+            let expr_type = typing(&context, expr).0[0].clone();
+            let expr_type_reduced = reduce_type(context, &expr_type);
             if !context.we_check_mutability() {
-               variable_assigned.exist(context) 
+               let new_context = variable_assigned.exist(context) 
                    .map(|var| {
                         let res = is_matching(context, &expr_type_reduced, &var.get_type())
                             .then_some(context.clone()
@@ -198,18 +209,18 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
                    })
                    .unwrap_or(context.clone().push_var_type(
                                         variable_assigned.set_type(expr_type_reduced.clone()),
-                                        expr_type_reduced, &context))
+                                        expr_type_reduced, &context));
+                expr_type.tuple(&new_context)
             } else {
-            println!("We don't check");
                 let variable = context.get_true_variable(&variable_assigned);
                 let var_type = context.get_type_from_existing_variable(variable.clone());
                 let var_type_reduced = reduce_type(context, &var_type);
                 if (expr_type_reduced != var_type_reduced) && !expr_type_reduced.is_subtype(&var_type_reduced) {
-                    panic!("{}", TypeError::Param(expr_type[0].clone(), var_type).display());
+                    panic!("{}", TypeError::Param(expr_type, var_type).display());
                 } else if !variable.is_mutable() && context.we_check_mutability() {
                     panic!("{}", TypeError::ImmutableVariable(variable_assigned, variable).display());
                 } else {
-                    context.clone()
+                    expr_type.tuple(context)
                 }
             }
         }
@@ -218,26 +229,28 @@ pub fn eval(context: &Context, expr: &Lang) -> Context {
             let function_list = execute_r_function(&format!("library({})\n\nls('package:{}')", name, name))
                 .expect("The R command didn't work");
             let new_context = context.append_function_list(&function_list);
-            install_header(name, &new_context)
+            (builder::empty_type(), install_header(name, &new_context))
         },
         Lang::ModuleDecl(_name, _h) 
-            => context.clone().add_module_declarations(&[expr.clone()]),
+            => (builder::empty_type(), context.clone().add_module_declarations(&[expr.clone()])),
         Lang::Signature(var, typ, _h) => {
             if var.is_variable(){
                 let new_var = FunctionType::try_from(typ.clone())
                             .map(|ft| var.clone().set_type(ft.get_first_param().unwrap_or(builder::empty_type())))
                             .unwrap_or(var.clone());
-                context.clone().push_var_type(new_var, typ.to_owned(), context)
+                (builder::empty_type(),
+                context.clone().push_var_type(new_var, typ.to_owned(), context))
             } else { // is alias
-                context.clone()
-                    .push_var_type(var.to_owned(), typ.to_owned(), context)
+                (builder::empty_type(),
+                        context.clone()
+                            .push_var_type(var.to_owned(), typ.to_owned(), context))
             }
         },
         Lang::TestBlock(body, _) => {
             let res = typing(context, body);
-            context.clone()
+            builder::empty_type().tuple(context)
         },
-        _ => context.clone()
+        _ => builder::empty_type().tuple(context)
     }
 }
 
@@ -350,14 +363,26 @@ fn are_homogenous_types(types: &[Type]) -> bool {
     types.windows(2).all(|w| w[0] == w[1])
 }
 
-trait WithLang {
+trait TypeContext {
     fn with_lang(self, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Context);
+    fn get_covariant_type(self, typ: &Type) -> Self;
+    fn add_to_context(self, var: Var) -> Self;
 }
 
-impl WithLang for (Type, Context) {
+impl TypeContext for (Type, Context) {
     fn with_lang(self, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Context) {
         (Vector::new().push_back(self.0), Vector::new().push_back(expr.clone()), self.1)
     }
+
+    fn get_covariant_type(self, typ: &Type) -> Self {
+        self.0.get_covariant_type(typ, &self.1)
+            .tuple(&self.1)
+    }
+
+    fn add_to_context(self, var: Var) -> Self {
+        self.0.add_to_context(var, self.1)
+    }
+
 }
 
 trait WithLang2 {
@@ -482,7 +507,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Co
             }
             Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone())
                 .with_lang(expr, &res.1)
-            }
+        }
         Lang::Lines(exprs, _h) => {
             if exprs.len() == 1 {
                 let res = exprs.clone().pop().unwrap();
@@ -496,7 +521,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Co
                 let mut exprs2 = exprs.clone();
                 let exp = exprs2.pop().unwrap();
                 let new_context = exprs.iter()
-                    .fold(context2, |ctx, expr| eval(&ctx, expr));
+                    .fold(context2, |ctx, expr| typing(&ctx, expr).2);
                 typing(&new_context, &exp)
             }
         },
@@ -695,9 +720,38 @@ pub fn typing(context: &Context, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Co
                 _ => panic!("Use of the '!' to a none boolean expression")
             }
         },
-        Lang::JSBlock(body, _) => {
-            let _ = typing(&Context::default().set_target_language(TargetLanguage::JS), body);
-            builder::character_type_default().with_lang(expr, context)
+        Lang::JSBlock(body, _, h) => {
+            let js_context = Context::default()
+                .set_target_language(TargetLanguage::JS)
+                .set_default_var_types();
+            let js_context = typing(&js_context, body).2;
+            let (new_context, id) = context.clone().add_js_subcontext(js_context);
+            let new_expr = Lang::JSBlock(body.clone(), id, h.clone());
+            builder::character_type_default().with_lang(&new_expr, &new_context)
+        },
+        Lang::Let(..) => {
+            eval(context, expr).with_lang(expr)
+        },
+        Lang::Assign(..) => {
+            eval(context, expr).with_lang(expr)
+        },
+        Lang::Alias(..) => {
+            eval(context, expr).with_lang(expr)
+        },
+        Lang::Library(..) => {
+            eval(context, expr).with_lang(expr)
+        },
+        Lang::ModuleDecl(..) => {
+            eval(context, expr).with_lang(expr)
+        },
+        Lang::TestBlock(..) => {
+            eval(context, expr).with_lang(expr)
+        },
+        Lang::Signature(..) => {
+            eval(context, expr).with_lang(expr)
+        },
+        Lang::Return(exp, _) => {
+            typing(context, exp)
         },
         _ => builder::any_type().with_lang(expr, context)
     }

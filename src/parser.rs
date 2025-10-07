@@ -26,6 +26,7 @@ use crate::help_data::HelpData;
 use crate::elements::single_element;
 use crate::elements::scope;
 use crate::operators::custom_op;
+use crate::elements::return_exp;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -342,14 +343,6 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
-pub fn return_exp(s: Span) -> IResult<Span, Lang> {
-    let res = terminated(delimited(tag("return "), parse_elements, tag(";")), multispace0).parse(s);
-    match res {
-        Ok((s, el)) 
-            => Ok((s, Lang::Return(Box::new(el.clone()), el.into()))),
-        Err(r) => Err(r)
-    }
-}
 
 fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
@@ -543,21 +536,11 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
-fn js_block(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (terminated(tag("JS"), multispace0),
-     scope).parse(s);
-
-    match res {
-        Ok((s, (js, body))) 
-            => Ok((s, vec![Lang::JSBlock(Box::new(body), js.into())])),
-        Err(r) => Err(r)
-    }
-}
 
 // main
 fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((js_block, test_block, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
+        many0(alt((test_block, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {

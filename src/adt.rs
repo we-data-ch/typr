@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::Write;
 use crate::translatable::RTranslatable;
 use crate::builder;
+use crate::var_function::VarFunction;
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct Adt(pub Vec<Lang>);
@@ -56,6 +57,10 @@ impl Adt {
         Adt(self.0.iter().chain(adt.0.iter()).cloned().collect::<Vec<_>>())
     }
 
+    pub fn generate_var_functions(&self) -> VarFunction {
+        todo!();
+    }
+
     pub fn write_to_r(&self, cont: &Context, output_dir: &PathBuf, file_name: &str, project: bool) -> () {
         let rstd = include_str!("../configs/r/std.R");
         let std_path = output_dir.join("std.R");
@@ -64,10 +69,11 @@ impl Adt {
 
         let app_path = output_dir.join(file_name);
         let mut app = File::create(app_path).unwrap();
+        let type_definitions = cont.get_type_definition(&self.generate_var_functions());
         let content = if project {
-            format!("source('R/std.R', echo = FALSE)\n\n# Existing types\n{}\n\n{}{}", cont.get_type_converters(), cont.get_adt().to_r(cont), self.to_r(cont))
+            format!("source('R/std.R', echo = FALSE)\n\n# Existing types\n{}\n\n{}{}", type_definitions, cont.get_adt().to_r(cont), self.to_r(cont))
         } else {
-            format!("source('std.R', echo = FALSE)\n\n# Existing types\n{}\n\n{}{}", cont.get_type_converters(), cont.get_adt().to_r(cont), self.to_r(cont))
+            format!("source('std.R', echo = FALSE)\n\n# Existing types\n{}\n\n{}{}", type_definitions, cont.get_adt().to_r(cont), self.to_r(cont))
         };
         app.write_all(content.as_bytes()).unwrap();
     }

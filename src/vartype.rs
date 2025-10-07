@@ -230,7 +230,7 @@ impl VarType {
             .is_some()
     }
 
-    pub fn is_untyped_name(&self, name: &str) -> bool {
+    pub fn is_untyped_custom_function(&self, name: &str) -> bool {
         self.variables.iter()
             .find(|(var, typ)| (var.get_name() == name) && typ.is_r_function())
             .is_some()
@@ -250,6 +250,18 @@ impl VarType {
         }
     }
 
+    pub fn set_default_var_types(self) -> Self {
+        self.push_variables(vec![
+             (Var::from("add"), "(T, T) -> T".parse::<Type>().unwrap()),
+             (Var::from("minus"), "(T, T) -> T".parse::<Type>().unwrap()),
+             (Var::from("mul"), "(T, T) -> T".parse::<Type>().unwrap()),
+             (Var::from("div"), "(T, T) -> T".parse::<Type>().unwrap()),
+        ])
+    }
+
+    pub fn get_related_functions(&self, typ: &Type) -> Vec<Var> {
+        todo!();
+    }
 }
 
 

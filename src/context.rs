@@ -24,6 +24,8 @@ use crate::builder;
 use crate::unification_map::UnificationMap;
 use crate::function_type::FunctionType;
 use crate::config::TargetLanguage;
+use rpds::Vector;
+use crate::var_function::VarFunction;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
@@ -32,6 +34,7 @@ pub struct Context {
    header: Header,
    config: Config,
    kinds: Vec<(Type, Kind)>,
+   js_subcontexts: Vector<Context>,
 }
 
 impl Default for Context {
@@ -42,6 +45,7 @@ impl Default for Context {
             typing_context: VarType::new(),
             kinds: vec![],
             subtypes: Graph::new(),
+            js_subcontexts: Vector::new(),
         }
     }
 }
@@ -187,9 +191,14 @@ impl Context {
         }
     }
 
+    fn is_a_standard_function(&self, name: &str) -> bool {
+        !self.typing_context.name_exists(name) && self.header.exist_in_standard_lib(name)
+    }
+
     pub fn is_an_untyped_function(&self, name: &str) -> bool {
-        (self.typing_context.is_untyped_name(name)) || 
-            (!self.typing_context.name_exists(name) && self.header.is_an_untyped_function(name)) || self.header.is_generic(name.to_string())
+        self.typing_context.is_untyped_custom_function(name) || 
+        self.is_a_standard_function(name) || 
+        self.header.is_generic(name.to_string())
     }
 
     pub fn get_class(&self, t: &Type) -> String {
@@ -394,21 +403,55 @@ impl Context {
         (res.len() > 0).then(|| UnificationMap::new(res))
     }
 
-    pub fn get_type_converters(&self) -> String {
-        self.typing_context.aliases.iter()
-            .map(|(var, typ)| {
-                match typ {
-                    Type::RClass(v, _) 
-                        => format!("{} <- function(x) x |> struct(c({}))", 
-                                   var.get_name(),
-                                   v.iter().cloned()
-                                   .collect::<Vec<_>>().join(", ")),
-                    _ => format!("{} <- function(x) x |> struct(c({}, {}))",
-                           var.get_name(),
-                           self.get_class(typ),
-                           self.get_classes(typ).unwrap()) 
-                }
-            }).collect::<Vec<_>>().join("\n")
+    fn s3_type_definition(&self, var: &Var, typ: &Type) -> String {
+        let first_part = format!("{} <- function(x) x |> ", var.get_name());
+        match typ {
+            Type::RClass(v, _) 
+                => format!("struct(c({}))", v.iter().cloned()
+                           .collect::<Vec<_>>().join(", ")),
+            _ => format!("struct(c({}, {}))", self.get_class(typ),
+                       self.get_classes(typ).unwrap()) 
+        }
+    }
+
+    fn js_constructor(typ: &Type) -> String {
+        todo!();
+    }
+
+    fn js_function(typ: &Lang) -> String {
+        todo!();
+    }
+
+    pub fn get_related_functions(&self, typ: &Type, functions: &VarFunction) -> Vec<Lang> {
+        let names = self.typing_context.get_related_functions(typ);
+        functions.get_bodies(&names)
+    }
+
+    fn js_class_definition(&self, var: &Var, typ: &Type, functions: &VarFunction) -> Option<String> {
+        let super_typs = self.subtypes.get_supertypes(typ);
+        let functions = super_typs.iter().chain([typ.clone()].iter())
+            .flat_map(|super_typ| self.get_related_functions(super_typ, functions))
+            .map(|function| Self::js_function(&function))
+            .collect::<Vec<_>>().join("\n");
+        if functions != "" {
+            let constructor = Self::js_constructor(typ);
+            Some(format!("class {} {{ {}\n\n{} }} ", var.get_name(), constructor, functions))
+        } else { None }
+    }
+
+    pub fn get_type_definition(&self, functions: &VarFunction) -> String {
+        match self.get_target_language() {
+            TargetLanguage::R => {
+                self.typing_context.aliases.iter()
+                    .map(|(var, typ)| self.s3_type_definition(var, typ))
+                    .collect::<Vec<_>>().join("\n")
+            },
+            TargetLanguage::JS => {
+                self.typing_context.aliases.iter()
+                    .flat_map(|(var, typ)| self.js_class_definition(var, typ, functions))
+                    .collect::<Vec<_>>().join("\n")
+            }
+        }
     }
 
     pub fn push(self, fn_lang: Lang, fn_type: FunctionType) -> Self {
@@ -439,6 +482,29 @@ impl Context {
             header: self.header.set_function_list(language),
             ..self
         }
+    }
+
+    pub fn add_js_subcontext(self, js_context: Context) -> (Self, u32) {
+        (Self {
+            js_subcontexts: self.js_subcontexts.push_back(js_context),
+            ..self
+        },
+        self.js_subcontexts.len() as u32)
+    }
+
+    pub fn get_js_subcontext(&self, id: u32) -> Self {
+        self.js_subcontexts[id as usize].clone()
+    }
+
+    pub fn set_default_var_types(self) -> Self {
+        Self {
+           typing_context: self.typing_context.set_default_var_types(),
+           ..self
+        }
+    }
+
+    pub fn get_target_language(&self) -> TargetLanguage {
+        self.config.get_target_language()
     }
 
 }

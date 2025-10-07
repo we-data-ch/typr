@@ -1,5 +1,3 @@
-getNamespaceExports("ggplot2")
--
 -.Date
 -.POSIXt
 :

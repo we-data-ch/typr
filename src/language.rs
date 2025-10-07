@@ -5,7 +5,6 @@ use serde::Serialize;
 use crate::argument_type::ArgumentType;
 use crate::argument_value::ArgumentValue;
 use crate::argument_kind::ArgumentKind;
-use crate::type_checker;
 use crate::Context;
 use crate::typing;
 use crate::help_data::HelpData;
@@ -21,6 +20,8 @@ use std::str::FromStr;
 use crate::elements::parse_elements;
 use crate::fs;
 use std::io::Write;
+
+const JS_HEADER: &str = "let add = (a, b) => a+b;\nlet mul = (a, b) => a*b;\nlet minus = (a, b) => a - b;\nlet div = (a, b) => a/b;";
 
 trait AndIf {
     fn and_if<F>(self, condition: F) -> Option<Self>
@@ -108,7 +109,7 @@ pub enum Lang {
     Sequence(Vec<Lang>, HelpData),
     Not(Box<Lang>, HelpData),
     TestBlock(Box<Lang>, HelpData),
-    JSBlock(Box<Lang>, HelpData),
+    JSBlock(Box<Lang>, u32, HelpData), // = (js_code, context_id, help_data)
     Empty(HelpData)
 }
 
@@ -293,7 +294,7 @@ impl Lang {
             Lang::Not(_, h) => h,
             Lang::Sequence(_, h) => h,
             Lang::TestBlock(_, h) => h,
-            Lang::JSBlock(_, h) => h,
+            Lang::JSBlock(_, _, h) => h,
         }.clone()
     }
 
@@ -382,7 +383,7 @@ impl Lang {
             Lang::Not(_, _) => "Not".to_string(),
             Lang::Sequence(_, _) => "Sequence".to_string(),
             Lang::TestBlock(_, _) => "TestBlock".to_string(),
-            Lang::JSBlock(_, _) => "JSBlock".to_string(),
+            Lang::JSBlock(_, _, _) => "JSBlock".to_string(),
         }
     }
 
@@ -393,6 +394,10 @@ impl Lang {
 
     pub fn to_js(&self, context: &Context) -> (String, Context) {
         match self {
+            Lang::Char(val, _) => {
+                (format!("\\'{}\\'", val),
+                 context.clone())
+            },
             Lang::Let(var, _, body, _) => {
                 (format!("let {} = {};", var.get_name(), body.to_js(context).0),
                  context.clone())
@@ -407,19 +412,29 @@ impl Lang {
                     .collect::<Vec<_>>().join("\n");
                 (res, context.clone())
             },
+            Lang::Return(exp, _) => {
+                (format!("return {};", exp.to_js(context).0), context.clone())
+            },
             Lang::Integer(i, _) => {
                 (i.to_string(), context.clone())
             },
             Lang::FunctionApp(exp, params, _, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
-                let res = format!("{}({})", var.get_name(),
+                let res = format!("{}({})", var.get_name().replace("__", "."),
                         params.iter()
                         .map(|x| x.to_js(context).0)
                         .collect::<Vec<_>>().join(", "));
                 (res, context.clone())
             },
+            Lang::Function(_, params, _, body, _) => {
+                let parameters = &params.iter()
+                    .map(|x| x.get_argument_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                (format!("({}) => {{\n{}\n}}", parameters, body.to_js(context).0),
+                 context.clone())
+            },
             _ => {
-
                 let empty = builder::empty_type();
                 self.to_r(empty, context)
             }
@@ -485,7 +500,7 @@ impl From<Lang> for HelpData {
            Lang::Not(_, h) => h,
            Lang::Sequence(_, h) => h,
            Lang::TestBlock(_, h) => h,
-           Lang::JSBlock(_, h) => h,
+           Lang::JSBlock(_, _, h) => h,
        }.clone()
    } 
 }
@@ -512,7 +527,7 @@ impl fmt::Display for Lang {
 
 //main
 impl RTranslatable<(String, Context)> for Lang {
-    fn to_r(&self, _typ: Type, cont: &Context) -> (String, Context) {
+    fn to_r(&self, typ: Type, cont: &Context) -> (String, Context) {
         let result = match self {
             Lang::Bool(b, _) => 
                 (format!("{}", b.to_string().to_uppercase()), cont.clone()),
@@ -594,24 +609,21 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Scope(exps, _) => {
                 Translatable::from(cont.clone())
                     .add("{\n")
-                    .join(exps, "\n")
-                    .add("\n}\n").into()
+                    .join(exps, "")
+                    .add("\n}").into()
             },
-            Lang::Function(_, args, return_type, body, _) => {
-                //Wasn't able to use Translatable
-                let sub_cont = cont.add_arg_types(args);
-                let (body_str, new_cont) = body.to_r(return_type.clone(), &sub_cont);
-                let fn_type = typing(&sub_cont, self).0;
-                let output_conversion = cont.get_type_anotation(return_type);
+            Lang::Function(_, args, _, body, _) => {
+                let fn_type = FunctionType::try_from(typing(cont, self).0[0].clone()).unwrap();
+                let output_conversion = cont.get_type_anotation(&fn_type.get_return_type());
                 let res = (output_conversion == "")
                     .then_some("".to_string())
                     .unwrap_or(" |> ".to_owned() + &output_conversion);
-                (format!("(function({}) {{\n {}{}\n}}) |> {}", 
+                (format!("(function({}) {}{}) |> {}", 
                         args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
-                        body_str, 
+                        body.to_r(typ, cont).0, 
                         res,
-                        cont.get_type_anotation(&fn_type[0])),
-                new_cont)
+                        cont.get_type_anotation(&fn_type.into())),
+                cont.clone())
             },
             Lang::Variable(v, path, _, _, ty, _) => {
                 //Here we only keep the variable name, the path and the type
@@ -670,7 +682,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let empty = builder::empty_type();
                 let (exp_str, _) = exp.to_r(empty.clone(), cont);
                 let (val_str, _) = val.to_r(empty.clone(), cont);
-                let res = match typing(cont, exp).0[0] {
+                let res = match typ {
                     Type::Array(_, _, _) | Type::Vector(_, _, _)
                         => format!("{}[{}]", exp_str, val_str), 
                     Type::Sequence(_, _, _) 
@@ -726,22 +738,19 @@ impl RTranslatable<(String, Context)> for Lang {
                     .map(|lin_array| format!("c({})", lin_array))
                     .unwrap_or("logical(0)".to_string());
 
-                let dim = typing(&cont, &self).0;
-
-                let array = ArrayType::try_from(dim[0].clone()).unwrap().get_shape()
+                let array = ArrayType::try_from(typ.clone()).unwrap().get_shape()
                     .map(|sha| format!("array({}, dim = c({}))", vector, sha))
                     .unwrap_or(format!("array({}, dim = c(0))", vector));
 
-                (format!("{} |> {}", array, cont.get_type_anotation(&dim[0])) ,cont.to_owned())
+                (format!("{} |> {}", array, cont.get_type_anotation(&typ)) ,cont.to_owned())
             },
             Lang::Record(args, _) => {
                 let (body, current_cont) = 
                 Translatable::from(cont.clone())
                     .join_arg_val(args, ", ").into();
-                let typ = type_checker::typing(cont, self).0;
                 //let class = cont.get_class(&typ);
-               let anotation = cont.get_type_anotation(&typ[0]);
-                cont.get_classes(&typ[0])
+               let anotation = cont.get_type_anotation(&typ);
+                cont.get_classes(&typ)
                     .map(|_| format!("list({}) |> {}", 
                                 body, anotation))
                     .unwrap_or(format!("list({}) |> {}",
@@ -778,9 +787,8 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Tag(s, t, _) => {
                 let empty = builder::empty_type();
                 let (t_str, new_cont) = t.to_r(empty, cont);
-                let typ = type_checker::typing(cont, self).0;
-                let class = cont.get_class(&typ[0]);
-                cont.get_classes(&typ[0])
+                let class = cont.get_class(&typ);
+                cont.get_classes(&typ)
                     .map(|res| format!("struct(list('{}', {}), c('Tag', {}, {}))",
                                 s, t_str, class, res))
                     .unwrap_or(format!("struct(list('{}', {}), c('Tag', {}))",
@@ -901,11 +909,12 @@ impl RTranslatable<(String, Context)> for Lang {
                 file.write_all(body.to_r(empty, cont).0.as_bytes()).unwrap();
                 ("".to_string(), cont.clone())
             },
-            Lang::JSBlock(exp, _h) => {
-                let res = exp.to_js(cont).0;
-                (format!("'{}'", res), cont.clone())
+            Lang::JSBlock(exp, id, _h) => {
+                let js_cont = cont.get_js_subcontext(*id);
+                let res = exp.to_js(&js_cont).0;
+                (format!("'{}\n\n{}'", JS_HEADER, res), cont.clone())
             },
-            _ =>  {
+            _ => {
                 println!("This language structure won't transpile: {:?}", self);
                 ("".to_string(), cont.clone())
             },

@@ -28,6 +28,7 @@ pub struct Config {
    target_language: TargetLanguage,
 }
 
+//main
 impl Config {
     pub fn set_environment(&self, e: Environment) -> Config {
         Config {
@@ -49,6 +50,10 @@ impl Config {
             target_language: language,
             ..self
         }
+    }
+
+    pub fn get_target_language(&self) -> TargetLanguage {
+        self.target_language
     }
 
 }

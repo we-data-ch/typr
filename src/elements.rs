@@ -656,6 +656,34 @@ fn array_variant(s: Span) -> IResult<Span, Lang> {
     alt((vector, sequence)).parse(s)
 }
 
+fn js_block(s: Span) -> IResult<Span, Lang> {
+    let res = (terminated(tag("JS"), multispace0),
+     scope).parse(s);
+
+    match res {
+        Ok((s, (js, body))) 
+            => Ok((s, Lang::JSBlock(Box::new(body), 0, js.into()))),
+        Err(r) => Err(r)
+    }
+}
+
+fn primitive(s: Span) -> IResult<Span, Lang> {
+    alt((
+        boolean,
+        number,
+        integer,
+        chars,
+        )).parse(s)
+}
+
+pub fn return_exp(s: Span) -> IResult<Span, Lang> {
+    let res = terminated(delimited(tag("return "), parse_elements, tag(";")), multispace0).parse(s);
+    match res {
+        Ok((s, el)) 
+            => Ok((s, Lang::Return(Box::new(el.clone()), el.into()))),
+        Err(r) => Err(r)
+    }
+}
 
 // main
 pub fn single_element(s: Span) -> IResult<Span,Lang> {
@@ -664,10 +692,9 @@ pub fn single_element(s: Span) -> IResult<Span,Lang> {
             tag_exp,
             range,
             lambda,
-            boolean,
-            number,
-            integer,
-            chars,
+            primitive,
+            js_block,
+            return_exp,
             match_exp,
             if_exp,
             dotdotdot,

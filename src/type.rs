@@ -91,12 +91,12 @@ impl Default for Type {
 
 //main
 impl Type {
-    pub fn add_to_context(self, var: Var, context: Context) -> Context {
+    pub fn add_to_context(self, var: Var, context: Context) -> (Type, Context) {
         let cont = context.clone().push_var_type(var.clone(), self.clone(), &context);
         if self.is_function() && var.not_generic_yet(&context) {
-            cont.add_lang_to_header(&[builder::generic_function(&var.get_name())])
+            self.tuple(&cont.add_lang_to_header(&[builder::generic_function(&var.get_name())]))
         } else {
-            cont
+            self.tuple(&cont)
         }
     }
 
