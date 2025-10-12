@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::r#type::Type;
 use crate::language::Lang;
 use crate::var::Var;
@@ -407,9 +407,9 @@ impl Context {
         let first_part = format!("{} <- function(x) x |> ", var.get_name());
         match typ {
             Type::RClass(v, _) 
-                => format!("struct(c({}))", v.iter().cloned()
+                => format!("{} struct(c({}))", first_part, v.iter().cloned()
                            .collect::<Vec<_>>().join(", ")),
-            _ => format!("struct(c({}, {}))", self.get_class(typ),
+            _ => format!("{} struct(c({}, {}))", first_part, self.get_class(typ),
                        self.get_classes(typ).unwrap()) 
         }
     }
@@ -480,6 +480,7 @@ impl Context {
         Self {
             config: self.config.set_target_language(language),
             header: self.header.set_function_list(language),
+            typing_context: self.typing_context.source(language),
             ..self
         }
     }

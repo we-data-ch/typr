@@ -27,6 +27,8 @@ use crate::elements::single_element;
 use crate::elements::scope;
 use crate::operators::custom_op;
 use crate::elements::return_exp;
+use crate::elements::chars;
+use crate::elements::vector;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -252,7 +254,7 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
             terminated(tag("type"), multispace0),
             type_alias,
-            terminated(tag("="), multispace0),
+            equality_operator,
             ltype,
             terminated(tag(";"), multispace0) 
           ).parse(s);
@@ -456,6 +458,19 @@ fn library(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+fn use_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (tag("use("),
+                chars,
+                tag(", "),
+                alt((vector, chars)),
+                terminated(tag(");"), multispace0)).parse(s);
+    match res {
+        Ok((s, (us, lib, _, members, _))) 
+            => Ok((s, vec![Lang::Use(Box::new(lib), Box::new(members), us.into())])),
+        Err(r) => Err(r)
+    }
+}
+
 fn custom_operators(s: Span) -> IResult<Span, (String, HelpData)> {
     let res = custom_op.parse(s);
     match res {
@@ -540,7 +555,7 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
 // main
 fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((test_block, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
+        many0(alt((use_exp, test_block, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {
@@ -915,5 +930,10 @@ mod tesus {
         assert_eq!(res.0, vec![builder::empty_lang()]);
     }
 
+    #[test]
+    fn test_use_exp() {
+        let res = parse("use('hey', 'you');".into()).unwrap().1;
+        assert_eq!(res, vec![].into());
+    }
 
 }

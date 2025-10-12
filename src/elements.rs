@@ -263,7 +263,7 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
         terminated(tag(")"), multispace0),
         opt(terminated(tag(":"), multispace0)),
         opt(terminated(alt((if_type, ltype)), multispace0)),
-        scope
+        alt((scope, parse_elements))
           ).parse(s);
     match res {
         Ok((s, (_, _, args, _, Some(_), Some(typ), exp))) =>{
@@ -354,7 +354,7 @@ fn array(s: Span) -> IResult<Span, Lang> {
     }
 }
 
-fn vector(s: Span) -> IResult<Span, Lang> {
+pub fn vector(s: Span) -> IResult<Span, Lang> {
     let res = (
             terminated(tag("c("), multispace0),
             values,

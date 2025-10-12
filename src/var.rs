@@ -37,6 +37,11 @@ pub struct Var(pub Name, pub Path, pub Permission, pub IsMutableOpaque, pub Type
 // main
 impl Var {
 
+    pub fn alias(name: &str, params: &[Type]) -> Self {
+        Var::from(name)
+            .set_type(Type::Params(params.to_vec(), HelpData::default()))
+    }
+
     pub fn infer_var_name(&self, args: &Vec<Lang>, context: &Context) -> Var {
         if args.len() > 0 {
             let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;

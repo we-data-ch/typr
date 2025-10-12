@@ -80,6 +80,7 @@ pub enum Lang {
     ModuleDecl(String, HelpData), // to create an env
     Variable(String, Path, Permission, bool, Type, HelpData),
     FunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
+    MethodCall(Box<Lang>, Vec<Lang>, Type, HelpData),
     ArrayIndexing(Box<Lang>, Box<Lang>, HelpData),
     Let(Var, Type, Box<Lang>, HelpData),
     Array(Vec<Lang>, HelpData),
@@ -110,6 +111,7 @@ pub enum Lang {
     Not(Box<Lang>, HelpData),
     TestBlock(Box<Lang>, HelpData),
     JSBlock(Box<Lang>, u32, HelpData), // = (js_code, context_id, help_data)
+    Use(Box<Lang>, Box<Lang>, HelpData),
     Empty(HelpData)
 }
 
@@ -263,6 +265,7 @@ impl Lang {
             Lang::ModuleDecl(_, h) => h,
             Lang::Variable(_, _, _, _, _, h) => h,
             Lang::FunctionApp(_, _, _, h) => h,
+            Lang::MethodCall(_, _, _, h) => h,
             Lang::ArrayIndexing(_, _, h) => h,
             Lang::Let(_, _, _, h) => h,
             Lang::Array(_, h) => h,
@@ -295,6 +298,7 @@ impl Lang {
             Lang::Sequence(_, h) => h,
             Lang::TestBlock(_, h) => h,
             Lang::JSBlock(_, _, h) => h,
+            Lang::Use(_, _, h) => h,
         }.clone()
     }
 
@@ -352,6 +356,8 @@ impl Lang {
             Lang::Variable(name, _, _, _, _, _) => format!("Variable({})", name),
             Lang::FunctionApp(var, _, _, _) => 
                 format!("FunctionApp({})", Var::from_language(*(var.clone())).unwrap().get_name()),
+            Lang::MethodCall(var, _, _, _) => 
+                format!("MethodCall({})", Var::from_language(*(var.clone())).unwrap().get_name()),
             Lang::ArrayIndexing(_, _, _) => "ArrayIndexing".to_string(),
             Lang::Let(var, _, _, _) => format!("let {}", var.get_name()),
             Lang::Array(_, _) => "Array".to_string(),
@@ -384,6 +390,7 @@ impl Lang {
             Lang::Sequence(_, _) => "Sequence".to_string(),
             Lang::TestBlock(_, _) => "TestBlock".to_string(),
             Lang::JSBlock(_, _, _) => "JSBlock".to_string(),
+            Lang::Use(_, _, _) => "Use".to_string(),
         }
     }
 
@@ -392,6 +399,7 @@ impl Lang {
         (res.0[0].clone(), res.2)
     }
 
+    //main
     pub fn to_js(&self, context: &Context) -> (String, Context) {
         match self {
             Lang::Char(val, _) => {
@@ -434,6 +442,51 @@ impl Lang {
                 (format!("({}) => {{\n{}\n}}", parameters, body.to_js(context).0),
                  context.clone())
             },
+            Lang::Dollar(e1, e2, _) => {
+                (format!("{}.{}", e2.to_js(context).0, e1.to_js(context).0),
+                context.clone())
+            },
+            Lang::Use(lib, members, _) => {
+                let body = match (**members).clone() {
+                    Lang::Vector(v, _) 
+                        => v.iter()
+                            .map(|val| val.to_js(context).0.replace("\\'", ""))
+                            .collect::<Vec<_>>().join(", "),
+                    Lang::Char(val, _) => val.clone(),
+                    lang => lang.simple_print()
+                };
+                (format!("import {{ {} }} from {};", 
+                         body, lib.to_js(context).0), context.clone())
+            },
+            Lang::Sequence(v, _) => {
+                let res = "[".to_string() + &v.iter()
+                    .map(|lang| lang.to_js(context).0)
+                    .collect::<Vec<_>>().join(", ") + "]";
+                (res, context.clone())
+            },
+            Lang::Array(v, _) => {
+                let res = "[".to_string() + &v.iter()
+                    .map(|lang| lang.to_js(context).0)
+                    .collect::<Vec<_>>().join(", ") + "]";
+                (res, context.clone())
+            },
+            Lang::Vector(v, _) => {
+                let res = "[".to_string() + &v.iter()
+                    .map(|lang| lang.to_js(context).0)
+                    .collect::<Vec<_>>().join(", ") + "]";
+                (res, context.clone())
+            },
+            Lang::Record(arg_vals, _) => {
+                let res = "{".to_string() + &arg_vals.iter()
+                    .map(|arg_val| 
+                         arg_val.get_argument().replace("'", "") + ": " 
+                         + &arg_val.get_value().to_js(context).0)
+                    .collect::<Vec<_>>().join(", ") + "}";
+                (res, context.clone())
+            },
+            Lang::Lambda(body, _) => {
+                (format!("x => {}", body.to_js(context).0), context.clone())
+            },
             _ => {
                 let empty = builder::empty_type();
                 self.to_r(empty, context)
@@ -452,6 +505,7 @@ impl From<Lang> for HelpData {
            Lang::Variable(_, _, _, _, _, h) => h,
            Lang::Match(_, _, _, h) => h,
            Lang::FunctionApp(_, _, _, h) => h,
+           Lang::MethodCall(_, _, _, h) => h,
            Lang::Empty(h) => h,
            Lang::Array(_, h) => h,
            Lang::Eq(_, _, h) => h,
@@ -501,6 +555,7 @@ impl From<Lang> for HelpData {
            Lang::Sequence(_, h) => h,
            Lang::TestBlock(_, h) => h,
            Lang::JSBlock(_, _, h) => h,
+           Lang::Use(_, _, h) => h,
        }.clone()
    } 
 }
@@ -826,7 +881,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::RFunction(vars, body, _) => {
                 Translatable::from(cont.clone())
                     .add("function (").join(vars, ", ")
-                    .add(") {\n ").add(&body).add(" \n}")
+                    .add(") \n").add(&body).add("\n")
                     .into()
             }
             Lang::Eq2(right, left, _) => {

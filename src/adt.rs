@@ -58,7 +58,9 @@ impl Adt {
     }
 
     pub fn generate_var_functions(&self) -> VarFunction {
-        todo!();
+        self.0.iter()
+            .flat_map(|line| VarFunction::try_from(line.clone()))
+            .sum()
     }
 
     pub fn write_to_r(&self, cont: &Context, output_dir: &PathBuf, file_name: &str, project: bool) -> () {

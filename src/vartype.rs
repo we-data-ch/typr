@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use std::collections::HashSet;
 use std::iter::Rev;
 use crate::var::Var;
@@ -5,6 +6,7 @@ use crate::Type;
 use crate::builder;
 use crate::Context;
 use crate::graph::TypeSystem;
+use crate::config::TargetLanguage;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VarType {
@@ -261,6 +263,24 @@ impl VarType {
 
     pub fn get_related_functions(&self, typ: &Type) -> Vec<Var> {
         todo!();
+    }
+
+    pub fn set_js_var_types(self) -> Self {
+        self.set_default_var_types()
+            .push_variables(vec![
+                (Var::alias("Document", &[]), builder::opaque_type("Doc"))
+            ])
+    }
+
+    pub fn set_r_var_types(self) -> Self {
+        self.set_default_var_types()
+    }
+
+    pub fn source(self, target_language: TargetLanguage) -> Self {
+       match target_language {
+           TargetLanguage::JS => self.set_js_var_types(),
+           TargetLanguage::R => self.set_r_var_types()
+       } 
     }
 }
 

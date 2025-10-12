@@ -71,3 +71,7 @@ pub fn array_type(i: Type, t: Type) -> Type {
     Type::Array(Box::new(i), Box::new(t), HelpData::default())
 }
 
+pub fn opaque_type(name: &str) -> Type {
+    Type::Opaque(name.to_string(), HelpData::default())
+}
+

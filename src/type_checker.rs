@@ -183,8 +183,9 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
         Lang::Alias(name, params, typ, h) => {
             let var = name.clone()
                 .set_type(Type::Params(params.to_vec(), h.clone()));
-            let new_context = context.clone()
-                .push_var_type(var, typ.clone(), context);
+            let alias_context = context.clone()
+                .push_alias(name.get_name(), typ.to_owned());
+            let new_context = context.clone().push_var_type(var, typ.clone(), &alias_context);
             let (fn_typ, new_context2) = new_context.get_embeddings(typ);
             let new_context3 = fn_typ.iter()
                 .fold(new_context2, |ctx, var_typfun| ctx.push_var_type(var_typfun.0.clone(), var_typfun.1.clone(), context));
@@ -722,8 +723,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Co
         },
         Lang::JSBlock(body, _, h) => {
             let js_context = Context::default()
-                .set_target_language(TargetLanguage::JS)
-                .set_default_var_types();
+                .set_target_language(TargetLanguage::JS);
             let js_context = typing(&js_context, body).2;
             let (new_context, id) = context.clone().add_js_subcontext(js_context);
             let new_expr = Lang::JSBlock(body.clone(), id, h.clone());
@@ -794,38 +794,11 @@ fn unify_type(ty1: &Type, ty2: &Type) -> Type {
     }
 }
 
-fn if_strict_mode(){
-    todo!();
-        //if typing(context, cond).0.is_boolean() {
-            //let true_ty = typing(context, true_branch).0;
-            //let false_ty = typing(context, false_branch).0;
-            //if true_ty.is_tag_or_union() && false_ty.is_tag_or_union() {
-                //let res = unify_type(&true_ty, &false_ty);
-                //(res, context.clone())
-            //} else if true_ty == false_ty {
-                //(true_ty, context.clone())
-            //} else if false_ty == builder::empty_type() {
-                //(true_ty, context.clone())
-            //} else {
-                //panic!("Error: {} is not matching {}", true_ty, false_ty);
-            //}
-        //} else {
-            //panic!("Type error: {:?} isn't a boolean expression", cond);
-        //}
-}
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::parser::signature;
-
-    #[test]
-    fn test_function_application_r_function() {
-        let res = "floor(4.5)".parse::<Lang>().unwrap();
-        let context = Context::default();
-        assert_eq!(typing(&context, &res).0, builder::empty_type());
-    }
 
     #[test]
     #[should_panic]

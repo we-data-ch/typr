@@ -6,6 +6,7 @@ use crate::context::Context;
 use crate::tag::Tag;
 use crate::help_data::HelpData;
 use std::collections::HashSet;
+use rpds::Vector;
 
 pub fn is_subset(v1: &[(Var, Type)], v2: &[(Var, Type)], cont: &Context) -> bool {
     v1.iter().all(|(v1, t1)| {
@@ -164,23 +165,32 @@ pub fn is_matching(context: &Context, type1: &Type, type2: &Type) -> bool {
 
 pub fn reduce_param(
     context: &Context,
-    param: &ArgumentType  // List of pairs [X, Y1]
+    param: &ArgumentType,
+    memory: Vector<String>// List of pairs [X, Y1]
 ) -> ArgumentType {     // Returns list of pairs [X, Y2]
     
     // Reduce the type part of each parameter
-    let reduced_type = reduce_type(context, &param.get_type());
+    let reduced_type = reduce_type_helper(context, &param.get_type(), memory);
     ArgumentType(param.get_argument(), reduced_type, param.2.to_owned())
 }
 
+fn is_in_memory(name: &str, memory: &Vector<String>) -> bool {
+    memory.iter().find(|&val| val == name).is_some()
+}
+
 pub fn reduce_type(context: &Context, type_: &Type) -> Type {
+    reduce_type_helper(context, type_, Vector::new())
+}
+
+pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String>) -> Type {
     match type_ {
         Type::Record(args, h) => {
             Type::Record(args.iter()
-                .map(|arg| reduce_param(context, arg))
+                .map(|arg| reduce_param(context, arg, memory.clone()))
                 .collect(), h.clone())
         },
-        Type::Alias(_name, concret_types, path, opacity, _h) => {
-            if *opacity == true {
+        Type::Alias(name, concret_types, path, opacity, _h) => {
+            if *opacity == true || is_in_memory(name, &memory) {
                 type_.clone()
             } else {
                 let var = Var::from_type(type_.clone())
@@ -194,7 +204,7 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
                             .map(|(r#gen, typ)| (r#gen.clone(), typ.clone()))
                             .collect::<Vec<_>>()
                     );
-                    reduce_type(context, &substituted)
+                    reduce_type_helper(context, &substituted, memory.push_back(name.clone()))
                 } else {
                     let mvar = Var::from_type(type_.clone()).unwrap();
                     if mvar.is_opaque() {
@@ -208,34 +218,34 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
         }
         Type::StrictUnion(types, h) => {
             Type::StrictUnion(types.iter()
-                .map(|t| reduce_type(context, &t.to_type()))
+                .map(|t| reduce_type_helper(context, &t.to_type(), memory.clone()))
                 .flat_map(Tag::from_type)
                 .collect(), h.clone())
         }
         Type::Tag(name, inner, h) => {
-            Type::Tag(name.clone(), Box::new(reduce_type(context, inner)), h.clone())
+            Type::Tag(name.clone(), Box::new(reduce_type_helper(context, inner, memory.clone())), h.clone())
         }
         Type::If(typ, _conditions, _) => *typ.clone(),
         Type::Function(kinds, typs, ret_typ, h) => {
             let typs2 = typs.iter()
-                .map(|x| reduce_type(context, x))
+                .map(|x| reduce_type_helper(context, x, memory.clone()))
                 .collect::<Vec<_>>();
-            let ret_typ2 = reduce_type(context, ret_typ);
+            let ret_typ2 = reduce_type_helper(context, ret_typ, memory.clone());
             Type::Function(kinds.to_owned(), typs2, Box::new(ret_typ2), h.to_owned())
         },
         Type::Array(ind, typ, h) => {
             Type::Array(ind.clone(),
-                    Box::new(reduce_type(context, typ)),
+                    Box::new(reduce_type_helper(context, typ, memory.clone())),
                     h.clone())
         },
         Type::Vector(ind, typ, h) => {
             Type::Vector(ind.clone(),
-                    Box::new(reduce_type(context, typ)),
+                    Box::new(reduce_type_helper(context, typ, memory.clone())),
                     h.clone())
         },
         Type::Sequence(ind, typ, h) => {
             Type::Sequence(ind.clone(),
-                    Box::new(reduce_type(context, typ)),
+                    Box::new(reduce_type_helper(context, typ, memory.clone())),
                     h.clone())
         },
         _ => type_.clone()
