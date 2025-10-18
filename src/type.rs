@@ -115,11 +115,13 @@ impl Type {
         }
     }
 
-    pub fn get_covariant_type(&self, other: &Type, context: &Context) -> Type {
-        (!other.is_empty())
-            .then_some(is_matching(context, self, other)
-                            .then_some(other.clone())
-                            .expect(&TypeError::Let(other.clone(), self.clone()).display()))
+    pub fn get_covariant_type(&self, annotation: &Type, context: &Context) -> Type {
+        let reduced_annotation = annotation.reduce(context);
+        let reduced_type = self.reduce(context);
+        (!annotation.is_empty())
+            .then_some(reduced_type.is_subtype(&reduced_annotation)
+                            .then_some(annotation.clone())
+                            .expect(&TypeError::Let(annotation.clone(), self.clone()).display()))
             .unwrap_or(self.clone())
     }
 
@@ -849,6 +851,12 @@ impl PartialOrd for Type {
                 => s2.contains(&typ).then_some(Ordering::Less),
             (Type::Char(_, _), Type::Char(_, _)) => Some(Ordering::Less),
             (Type::Integer(_, _), Type::Integer(_, _)) => Some(Ordering::Less),
+            (Type::Tuple(types1, _), Type::Tuple(types2, _)) => {
+                types1.iter()
+                    .zip(types2.iter())
+                    .all(|(typ1, typ2)| typ1.partial_cmp(typ2).is_some())
+                    .then_some(Ordering::Less)
+            }
             _ => None
         }
     }
@@ -1013,4 +1021,16 @@ impl FromStr for Type {
         Ok(val)
     }
 
+}
+
+#[cfg(test)]
+mod tests_type {
+    use super::*;
+
+    #[test]
+    fn test_tuple_subtyping(){
+        let typ1 = "{int, int}".parse::<Type>().unwrap();
+        let typ2 = "{T, T}".parse::<Type>().unwrap();
+        assert!(typ1 < typ2)
+    }
 }

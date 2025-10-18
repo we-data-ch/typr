@@ -20,6 +20,7 @@ use std::str::FromStr;
 use crate::elements::parse_elements;
 use crate::fs;
 use std::io::Write;
+use crate::graph::TypeSystem;
 
 const JS_HEADER: &str = "let add = (a, b) => a+b;\nlet mul = (a, b) => a*b;\nlet minus = (a, b) => a - b;\nlet div = (a, b) => a/b;";
 
@@ -691,7 +692,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     }
                 };
                 ((path.clone().to_r() + &name).to_string(), cont.clone())
-            }
+            },
             Lang::FunctionApp(exp, vals, _, _) => {
                 let empty = builder::empty_type();
                 let var = Var::try_from(exp.clone()).unwrap();
@@ -793,6 +794,8 @@ impl RTranslatable<(String, Context)> for Lang {
                     .map(|lin_array| format!("c({})", lin_array))
                     .unwrap_or("logical(0)".to_string());
 
+                let typ = self.typing(cont).0;
+                
                 let array = ArrayType::try_from(typ.clone()).unwrap().get_shape()
                     .map(|sha| format!("array({}, dim = c({}))", vector, sha))
                     .unwrap_or(format!("array({}, dim = c(0))", vector));
