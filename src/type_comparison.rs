@@ -251,9 +251,3 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
         _ => type_.clone()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-}

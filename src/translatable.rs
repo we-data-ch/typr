@@ -155,7 +155,7 @@ mod tests {
       let t = Translatable::from(Context::default());
       let bo = Lang::Bool(true, HelpData::default());
       let v = vec![bo.clone(), bo.clone(), bo];
-      let (a, b) = t.join(&v, ", ").into();
+      let (a, _) = t.join(&v, ", ").into();
       assert_eq!(a, "true");
     }
 }

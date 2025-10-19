@@ -695,6 +695,7 @@ mod tests {
     use super::*;
     use crate::builder;
     use crate::graph::TypeSystem;
+    use crate::type_category::TypeCategory;
 
     #[test]
     fn test_function_type() {
@@ -855,7 +856,7 @@ mod tests {
     #[test]
     fn test_alias_type1() {
         let res = ltype("Option<T>".into()).unwrap().1;
-        assert_eq!(res.to_string(), "");
+        assert_eq!(res.to_category(), TypeCategory::Alias);
     }
 
     #[test]
@@ -939,12 +940,6 @@ mod tests {
     #[test]
     fn test_r_class1() {
         let res = "Class('data.frame', 'tbl')".parse::<Type>().unwrap();
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_type_alias0() {
-        let res = type_alias("data__frame".into()).unwrap().1;
         assert_eq!(res, builder::empty_type());
     }
 

@@ -20,7 +20,6 @@ use std::str::FromStr;
 use crate::elements::parse_elements;
 use crate::fs;
 use std::io::Write;
-use crate::graph::TypeSystem;
 
 const JS_HEADER: &str = "let add = (a, b) => a+b;\nlet mul = (a, b) => a*b;\nlet minus = (a, b) => a - b;\nlet div = (a, b) => a/b;";
 

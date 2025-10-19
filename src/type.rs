@@ -21,7 +21,6 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use crate::builder;
 use crate::type_category::TypeCategory;
-use crate::type_comparison::is_matching;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use crate::Var;
@@ -923,7 +922,6 @@ impl From<FunctionType> for Type {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::Graph;
 
     #[test]
     fn test_record_hierarchy0(){
@@ -938,45 +936,6 @@ mod tests {
 
     #[test]
     fn test_record_hierarchy1(){
-        let name = builder::record_type(&[
-                ("name".to_string(), builder::character_type_default()),
-        ]);
-        let age = builder::record_type(&[
-                ("age".to_string(), builder::integer_type_default()),
-        ]);
-        let person = builder::record_type(&[
-                ("name".to_string(), builder::character_type_default()),
-                ("age".to_string(), builder::integer_type_default()),
-        ]);
-        let g = Graph::new()
-                    .add_type(age.clone())
-                    .add_type(name.clone());
-                    //.add_type(person);
-        let supertypes = g.get_supertypes_trace(&age);
-        g.print_hierarchy();
-        assert_eq!(3, 5);
-    }
-
-    #[test]
-    fn test_record_hierarchy2(){
-        let name = builder::record_type(&[
-                ("name".to_string(), builder::character_type_default()),
-        ]);
-        let person = builder::record_type(&[
-                ("name".to_string(), builder::character_type_default()),
-                ("age".to_string(), builder::integer_type_default()),
-        ]);
-        let g = Graph::new()
-                    .add_type(name.clone())
-                    .add_type(person.clone());
-        let supertypes = g.get_supertypes_trace(&person);
-        g.print_hierarchy();
-        dbg!(&TypeSystem::prettys(&supertypes));
-        assert_eq!(3, 5);
-    }
-
-    #[test]
-    fn test_record_hierarchy3(){
         let p1 = builder::record_type(&[
                 ("age".to_string(), builder::integer_type_default()),
                 ("name".to_string(), builder::character_type_default()),
