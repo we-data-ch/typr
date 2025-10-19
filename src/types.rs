@@ -696,6 +696,7 @@ mod tests {
     use crate::builder;
     use crate::graph::TypeSystem;
     use crate::type_category::TypeCategory;
+    use crate::Context;
 
     #[test]
     fn test_function_type() {
@@ -855,20 +856,20 @@ mod tests {
 
     #[test]
     fn test_alias_type1() {
+        //Test if alias can be parsed
         let res = ltype("Option<T>".into()).unwrap().1;
         assert_eq!(res.to_category(), TypeCategory::Alias);
     }
 
     #[test]
     fn test_alias_type2() {
-        let res = ltype("Option".into()).unwrap().1;
-        assert_eq!(res.to_string(), "");
-    }
-
-    #[test]
-    fn test_alias_type3() {
-        let res = ltype("tbl".into()).unwrap().1;
-        assert_eq!(res, builder::empty_type());
+        //Test if alias can be reduced
+        let record_type = builder::record_type(&[("content".to_string(), builder::generic_type())]);
+        let context = Context::default()
+                        .set_new_aliase_signature("Triplet<T>", record_type);
+        let type_ = ltype("Triplet<int>".into()).unwrap().1;
+        let reduced_type = type_.reduce(&context);
+        assert_eq!(reduced_type.pretty(), "{content: int}");
     }
 
     #[test]

@@ -193,6 +193,17 @@ impl VarType {
         res
     }
 
+    pub fn push_alias2(self, var: Var, typ: Type) -> Self {
+        let new_aliases = if !self.in_aliases(&var.get_name()) {
+            self.aliases.iter().chain([(var, typ)].iter()).cloned().collect::<Vec<_>>()
+        } else { self.aliases.clone() };
+        let res = Self {
+            aliases: new_aliases,
+            ..self
+        };
+        res
+    }
+
     pub fn get_aliases(&self) -> String {
         self.aliases.iter()
             .map(|(var, typ)| format!("{} = {}", var.get_name(), typ.pretty()))

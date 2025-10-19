@@ -182,6 +182,17 @@ pub fn reduce_type(context: &Context, type_: &Type) -> Type {
     reduce_type_helper(context, type_, Vector::new())
 }
 
+pub fn reduce_alias(aliased_type: Type, generics: &[Type], concret_types: &[Type], name: &str, memory: Vector<String>, context: &Context) -> Type {
+    let substituted = type_substitution(
+        &aliased_type,
+        &generics.iter()
+            .zip(concret_types.iter())
+            .map(|(r#gen, typ)| (r#gen.clone(), typ.clone()))
+            .collect::<Vec<_>>()
+    );
+    reduce_type_helper(context, &substituted, memory.push_back(name.to_string()))
+}
+
 pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String>) -> Type {
     match type_ {
         Type::Record(args, h) => {
@@ -189,33 +200,19 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
                 .map(|arg| reduce_param(context, arg, memory.clone()))
                 .collect(), h.clone())
         },
-        Type::Alias(name, concret_types, path, opacity, _h) => {
-            if *opacity == true || is_in_memory(name, &memory) {
-                type_.clone()
-            } else {
-                let var = Var::from_type(type_.clone())
-                    .expect(&format!("The alias {} is malformed", type_))
-                    .set_path(path.clone());
-                if let Some((aliased_type, generics)) = context.get_matching_alias_signature(&var) {
-                    let substituted = type_substitution(
-                        &aliased_type,
-                        &generics.iter()
-                            .zip(concret_types.iter())
-                            .map(|(r#gen, typ)| (r#gen.clone(), typ.clone()))
-                            .collect::<Vec<_>>()
-                    );
-                    reduce_type_helper(context, &substituted, memory.push_back(name.clone()))
-                } else {
-                    let mvar = Var::from_type(type_.clone()).unwrap();
-                    if mvar.is_opaque() {
-                        type_.clone() 
-                    } else {
-                        panic!("The alias {} wasn't found in the context\n{}", 
-                           var, context.display_typing_context());
-                    }
+        Type::Alias(name, concret_types, path, is_opaque, _h) => {
+            match (is_opaque, is_in_memory(name, &memory)) {
+                (true, _) | (_, true) => type_.clone(),
+                (false, _) => {
+                    let var = Var::from_type(type_.clone()).unwrap().set_path(path.clone());
+                    context.get_matching_alias_signature(&var)
+                        .map(|(aliased_type, generics)| 
+                             reduce_alias(aliased_type, &generics, concret_types, name, memory, context))
+                        .expect(&format!("The alias {} wasn't found in the context\n{}",
+                                type_, context.display_typing_context()))
                 }
             }
-        }
+        },
         Type::StrictUnion(types, h) => {
             Type::StrictUnion(types.iter()
                 .map(|t| reduce_type_helper(context, &t.to_type(), memory.clone()))

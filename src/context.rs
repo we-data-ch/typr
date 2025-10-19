@@ -362,6 +362,13 @@ impl Context {
         }
     }
 
+    pub fn push_alias2(self, alias_var: Var, typ: Type) -> Self {
+        Context {
+            typing_context: self.typing_context.push_alias2(alias_var, typ),
+            ..self
+        }
+    }
+
     pub fn is_in_header_mode(&self) -> bool {
         self.config.compile_mode == CompileMode::Header 
     }
@@ -506,6 +513,11 @@ impl Context {
 
     pub fn get_target_language(&self) -> TargetLanguage {
         self.config.get_target_language()
+    }
+
+    pub fn set_new_aliase_signature(self, alias: &str, related_type: Type) -> Self {
+        let alias = Var::from_type(alias.parse::<Type>().unwrap()).unwrap();
+        self.clone().push_alias2(alias, related_type)
     }
 
 }
