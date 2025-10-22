@@ -591,7 +591,6 @@ impl fmt::Display for Lang {
 //main
 impl RTranslatable<(String, Context)> for Lang {
     fn to_r(&self, typ: Type, cont: &Context) -> (String, Context) {
-        dbg!(&self.simple_print());
         let result = match self {
             Lang::Bool(b, _) => 
                 (format!("{}", b.to_string().to_uppercase()), cont.clone()),
