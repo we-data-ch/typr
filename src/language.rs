@@ -975,6 +975,11 @@ impl RTranslatable<(String, Context)> for Lang {
                 let res = exp.to_js(&js_cont).0;
                 (format!("'{}\n\n{}'", JS_HEADER, res), cont.clone())
             },
+            Lang::WhileLoop(condition, body, _) => {
+                (format!("while ({}) {{\n{}\n}}", 
+                        condition.to_r(typ.clone(), cont).0,
+                        body.to_r(typ, cont).0), cont.clone())
+            },
             _ => {
                 println!("This language structure won't transpile: {:?}", self);
                 ("".to_string(), cont.clone())
