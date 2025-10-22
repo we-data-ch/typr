@@ -539,6 +539,24 @@ fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+fn while_loop(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+            terminated(tag("while"), multispace0),
+            terminated(tag("("), multispace0),
+            terminated(single_element, multispace0),
+            terminated(tag(")"), multispace0),
+            scope,
+            terminated(tag(";"), multispace0)).parse(s);
+    match res {
+        Ok((s, (_while, _op, condition, _cl, scop, _semi))) 
+            => Ok((s, 
+                   vec![Lang::WhileLoop(Box::new(condition),
+                       Box::new(scop),
+                       _while.into())])),
+        Err(r) => Err(r)
+    }
+}
+
 fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (terminated(tag("Test"), multispace0),
      scope).parse(s);
@@ -555,7 +573,7 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
 // main
 fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((use_exp, test_block, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
+        many0(alt((use_exp, test_block, while_loop, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {
