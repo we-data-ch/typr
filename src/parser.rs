@@ -29,6 +29,7 @@ use crate::operators::custom_op;
 use crate::elements::return_exp;
 use crate::elements::chars;
 use crate::elements::vector;
+use crate::elements::break_exp;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -573,7 +574,7 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
 // main
 fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((use_exp, test_block, while_loop, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
+        many0(alt((break_exp, use_exp, test_block, while_loop, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {

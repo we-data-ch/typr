@@ -685,6 +685,15 @@ pub fn return_exp(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+pub fn break_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = tag("break;").parse(s);
+    match res {
+        Ok((s, el)) 
+            => Ok((s, vec![Lang::Break(el.into())])),
+        Err(r) => Err(r)
+    }
+}
+
 // main
 pub fn single_element(s: Span) -> IResult<Span,Lang> {
     alt((

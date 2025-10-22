@@ -114,6 +114,7 @@ pub enum Lang {
     Use(Box<Lang>, Box<Lang>, HelpData),
     Empty(HelpData),
     WhileLoop(Box<Lang>, Box<Lang>, HelpData),
+    Break(HelpData),
 }
 
 impl From<Var> for Lang {
@@ -301,6 +302,7 @@ impl Lang {
             Lang::JSBlock(_, _, h) => h,
             Lang::Use(_, _, h) => h,
             Lang::WhileLoop(_, _, h) => h,
+            Lang::Break(h) => h,
         }.clone()
     }
 
@@ -394,6 +396,7 @@ impl Lang {
             Lang::JSBlock(_, _, _) => "JSBlock".to_string(),
             Lang::Use(_, _, _) => "Use".to_string(),
             Lang::WhileLoop(_, _, _) => "WhileLoop".to_string(),
+            Lang::Break(_) => "Break".to_string(),
         }
     }
 
@@ -560,6 +563,7 @@ impl From<Lang> for HelpData {
            Lang::JSBlock(_, _, h) => h,
            Lang::Use(_, _, h) => h,
            Lang::WhileLoop(_, _, h) => h,
+           Lang::Break(h) => h,
        }.clone()
    } 
 }
@@ -587,6 +591,7 @@ impl fmt::Display for Lang {
 //main
 impl RTranslatable<(String, Context)> for Lang {
     fn to_r(&self, typ: Type, cont: &Context) -> (String, Context) {
+        dbg!(&self.simple_print());
         let result = match self {
             Lang::Bool(b, _) => 
                 (format!("{}", b.to_string().to_uppercase()), cont.clone()),
@@ -980,6 +985,9 @@ impl RTranslatable<(String, Context)> for Lang {
                         condition.to_r(typ.clone(), cont).0,
                         body.to_r(typ, cont).0), cont.clone())
             },
+            Lang::Break(_) => {
+                ("break".to_string(), cont.clone())
+            }
             _ => {
                 println!("This language structure won't transpile: {:?}", self);
                 ("".to_string(), cont.clone())
