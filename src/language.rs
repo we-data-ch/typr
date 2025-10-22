@@ -773,7 +773,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     }).unwrap_or((format!("{} <- {}", new_name, body_str), new_name));
                 let code = if !ttype.is_empty() {
                     let anotation = new_cont.get_type_anotation(ttype);
-                    if anotation == "Generic()" {
+                    if anotation == "Generic()" || anotation == "" {
                         format!("{}\n", r_code)
                     } else {
                         format!("{} |> \n\t{} #let type\n", r_code, anotation)

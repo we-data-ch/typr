@@ -117,11 +117,11 @@ impl Type {
     pub fn get_covariant_type(&self, annotation: &Type, context: &Context) -> Type {
         let reduced_annotation = annotation.reduce(context);
         let reduced_type = self.reduce(context);
-        (!annotation.is_empty())
-            .then_some(reduced_type.is_subtype(&reduced_annotation)
+        if !annotation.is_empty() {
+            reduced_type.is_subtype(&reduced_annotation)
                             .then_some(annotation.clone())
-                            .expect(&TypeError::Let(annotation.clone(), self.clone()).display()))
-            .unwrap_or(self.clone())
+                            .expect(&TypeError::Let(annotation.clone(), self.clone()).display())
+        } else { self.clone() }
     }
 
     pub fn extract_types(&self) -> Vec<Type> {
@@ -613,7 +613,7 @@ impl Type {
             Type::RClass(v, _) => Type::RClass(v, h2),
             Type::Union(v, _) => Type::Union(v, h2),
             Type::Vector(i, t, _) => Type::Vector(i, t, h2),
-            Type::Sequence(i, t, _) => Type::Sequence(i, t, h2) 
+            Type::Sequence(i, t, _) => Type::Sequence(i, t, h2),
         }
     }
 
