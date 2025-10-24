@@ -863,7 +863,12 @@ impl PartialOrd for Type {
                     .zip(types2.iter())
                     .all(|(typ1, typ2)| typ1.partial_cmp(typ2).is_some())
                     .then_some(Ordering::Less)
-            }
+            },
+            (typ, Type::Intersection(types, _)) => {
+               types.iter() 
+                   .all(|typ2| typ.partial_cmp(typ2) == Some(Ordering::Less))
+                   .then_some(Ordering::Less)
+            },
             _ => None
         }
     }
