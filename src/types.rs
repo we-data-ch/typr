@@ -780,7 +780,7 @@ mod tests {
         let arr1 = ltype("[1, T]".into()).unwrap().1;
         let arr2 = ltype("[1, 1]".into()).unwrap().1;
         assert_eq!(
-            arr2.is_subtype(&arr1),
+            arr2.is_subtype(&arr1, &Context::default()),
             true);
     }
 
@@ -794,7 +794,7 @@ mod tests {
     }
 
     #[test]
-    fn test_interface1() {
+    fn test_interface_parsing() {
         let res = interface("interface { hey: (num, num) -> num }".into()).unwrap().1;
         let num = builder::number_type();
         let inter = builder::interface_type(&[

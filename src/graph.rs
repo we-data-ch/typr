@@ -4,69 +4,18 @@ use std::cmp::Eq;
 use std::hash::Hash;
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use crate::Context;
 
 pub trait TypeSystem: PartialOrd + Debug + Eq + Hash + Clone + Default {
     fn pretty(&self) -> String;
 
-    fn is_subtype(&self, other: &Self) -> bool {
-        self.le(other)
-    }
-
+    fn is_subtype(&self, other: &Self, context: &Context) -> bool;
 
     fn prettys(v: &[Self]) -> String {
         "[".to_string() + &v.iter().map(|x| x.pretty())
             .collect::<Vec<_>>().join(", ") + "]"
     }
 }
-
-impl TypeSystem for Type {
-    fn pretty(&self) -> String {
-        format!("{:?}", self)
-    }
-}
-
-struct Context;
-
-impl Default for Context {
-    fn default() -> Context {
-        Context
-    }
-}
-
-#[derive(Debug, Clone, Eq, Hash, Default)]
-enum Type {
-    #[default]
-    Generic,
-    Number,
-    Integer,
-    Sub
-}
-
-impl PartialEq for Type {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Type::Generic, Type::Generic) => true,
-            (Type::Integer, Type::Integer) => true,
-            (Type::Sub, Type::Sub) => true,
-            (Type::Number, Type::Number) => true,
-            _ => false
-        }
-    }
-}
-
-impl PartialOrd for Type {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let convert = |typ: &Type| match typ {
-            Type::Generic => 4,
-            Type::Number => 3,
-            Type::Integer => 2,
-            Type::Sub => 1
-        };
-        convert(self).partial_cmp(&convert(other))
-    }
-}
-
-
 
 //main
 #[derive(Debug, Clone, PartialEq)]
@@ -83,24 +32,24 @@ impl<T: TypeSystem> Graph<T> {
         }
     }
 
-    pub fn add_type(self, typ: T) -> Self {
+    pub fn add_type(self, typ: T, context: &Context) -> Self {
         if self.memory.contains(&typ) {
             self
         } else {
             Graph {
                 memory: self.memory.iter().chain([typ.clone()].iter()).cloned().collect(),
-                root: self.root.add_type(typ)
+                root: self.root.add_type(typ, context)
             }
         }
     }
 
-    pub fn add_type_trace(self, typ: T) -> Self {
+    pub fn add_type_trace(self, typ: T, context: &Context) -> Self {
         if self.memory.contains(&typ) {
             self
         } else {
             Graph {
                 memory: self.memory.iter().chain([typ.clone()].iter()).cloned().collect(),
-                root: self.root.add_type_trace(typ)
+                root: self.root.add_type_trace(typ, context)
             }
         }
     }
@@ -117,22 +66,22 @@ impl<T: TypeSystem> Graph<T> {
         println!("{}", self.get_hierarchy());
     }
 
-    pub fn get_supertypes(&self, typ: &T) -> Vec<T> {
-        self.root.get_supertypes(typ)
+    pub fn get_supertypes(&self, typ: &T, context: &Context) -> Vec<T> {
+        self.root.get_supertypes(typ, context)
             .iter().cloned().collect::<HashSet<_>>()
             .iter().cloned().collect::<Vec<_>>()
     }
 
-    pub fn get_supertypes_trace(&self, typ: &T) -> Vec<T> {
-        self.root.get_supertypes_trace(typ)
+    pub fn get_supertypes_trace(&self, typ: &T, context: &Context) -> Vec<T> {
+        self.root.get_supertypes_trace(typ, context)
             .iter().cloned().collect::<HashSet<_>>()
             .iter().cloned().collect::<Vec<_>>()
     }
 
-    pub fn add_types(self, typs: &[T]) -> Self {
+    pub fn add_types(self, typs: &[T], context: &Context) -> Self {
         typs.iter()
             .cloned()
-            .fold(self, |acc, x| acc.add_type(x))
+            .fold(self, |acc, x| acc.add_type(x, context))
     }
 
 }
@@ -169,11 +118,11 @@ impl<T: TypeSystem> Node<T> {
         todo!();
     }
 
-    pub fn propagate(self, typ: T) -> Self {
+    pub fn propagate(self, typ: T, context: &Context) -> Self {
         let graph = Node {
             value: self.value.clone(),
             subtypes: self.subtypes.iter().cloned()
-                            .map(|x| x.add_type(typ.clone()))
+                            .map(|x| x.add_type(typ.clone(), context))
                             .collect()
         };
         if graph == self {
@@ -183,11 +132,11 @@ impl<T: TypeSystem> Node<T> {
         }
     }
 
-    pub fn propagate_trace(self, typ: T) -> Self {
+    pub fn propagate_trace(self, typ: T, context: &Context) -> Self {
         let graph = Node {
             value: self.value.clone(),
             subtypes: self.subtypes.iter().cloned()
-                            .map(|x| x.add_type(typ.clone()))
+                            .map(|x| x.add_type(typ.clone(), context))
                             .collect()
         };
         if graph == self {
@@ -223,8 +172,8 @@ impl<T: TypeSystem> Node<T> {
         }
     }
 
-    fn switch_if_reverse_subtype(self, typ: T) -> Self {
-        if self.value.is_subtype(&typ) {
+    fn switch_if_reverse_subtype(self, typ: T, context: &Context) -> Self {
+        if self.value.is_subtype(&typ, context) {
             Node {
                 value: typ,
                 subtypes: vec![Node::from(self.value).set_subtypes(self.subtypes)]
@@ -232,8 +181,8 @@ impl<T: TypeSystem> Node<T> {
         } else { self }
     }
 
-    fn switch_if_reverse_subtype_trace(self, typ: T) -> Self {
-        if self.value.is_subtype(&typ) {
+    fn switch_if_reverse_subtype_trace(self, typ: T, context: &Context) -> Self {
+        if self.value.is_subtype(&typ, context) {
             println!("{} is a subtype of the entry {}",
                      self.value.pretty(), typ.pretty());
             Node {
@@ -246,16 +195,16 @@ impl<T: TypeSystem> Node<T> {
             self }
     }
 
-    pub fn add_type(self, typ: T) -> Self {
-        match (typ.is_subtype(&self.value), self.subtypes.len()) {
+    pub fn add_type(self, typ: T, context: &Context) -> Self {
+        match (typ.is_subtype(&self.value, context), self.subtypes.len()) {
             (true, 0) => self.add_subtype(typ),
-            (true, n) => self.propagate(typ),
-            _ => self.switch_if_reverse_subtype(typ) 
+            (true, n) => self.propagate(typ, context),
+            _ => self.switch_if_reverse_subtype(typ, context) 
         }
     }
 
-    pub fn add_type_trace(self, typ: T) -> Self {
-        match (typ.is_subtype(&self.value), self.subtypes.len()) {
+    pub fn add_type_trace(self, typ: T, context: &Context) -> Self {
+        match (typ.is_subtype(&self.value, context), self.subtypes.len()) {
             (true, 0) => {
                 println!("{} is a subtype of the leaf {}",
                          typ.pretty(), self.value.pretty());
@@ -263,9 +212,9 @@ impl<T: TypeSystem> Node<T> {
             (true, n) => {
                 println!("{} is a subtype of the node {}",
                          typ.pretty(), self.value.pretty());
-                self.propagate_trace(typ)},
+                self.propagate_trace(typ, context)},
             _ => {
-                self.switch_if_reverse_subtype_trace(typ)}
+                self.switch_if_reverse_subtype_trace(typ, context)}
         }
     }
 
@@ -273,12 +222,12 @@ impl<T: TypeSystem> Node<T> {
         todo!();
     }
 
-    pub fn get_supertypes(&self, target_type: &T) -> Vec<T> {
+    pub fn get_supertypes(&self, target_type: &T, context: &Context) -> Vec<T> {
         if target_type == &self.value {
             vec![]
-        } else if target_type.is_subtype(&self.value) {
+        } else if target_type.is_subtype(&self.value, context) {
            self.subtypes.iter() 
-               .flat_map(|x| x.get_supertypes(target_type))
+               .flat_map(|x| x.get_supertypes(target_type, context))
                .chain([self.value.clone()].iter().cloned())
                .collect::<Vec<T>>()
         } else {
@@ -286,15 +235,15 @@ impl<T: TypeSystem> Node<T> {
         }
     }
 
-    pub fn get_supertypes_trace(&self, target_type: &T) -> Vec<T> {
+    pub fn get_supertypes_trace(&self, target_type: &T, context: &Context) -> Vec<T> {
         if target_type == &self.value {
            println!("found the root of {} we backtrack", target_type.pretty());
             vec![]
-        } else if target_type.is_subtype(&self.value) {
+        } else if target_type.is_subtype(&self.value, context) {
            println!("{} is subtype of {} we check the subtypes", 
                     target_type.pretty(), self.value.pretty());
            self.subtypes.iter() 
-               .flat_map(|x| x.get_supertypes_trace(target_type))
+               .flat_map(|x| x.get_supertypes_trace(target_type, context))
                .chain([self.value.clone()].iter().cloned())
                .collect::<Vec<T>>()
         } else {
@@ -330,84 +279,3 @@ impl<T: TypeSystem> fmt::Display for Node<T> {
     }
 }
 
-fn main() {
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_init(){
-        let g = Node::new();
-        let res = g.get_supertypes(&Type::Integer);
-        assert_eq!(vec![Type::Generic], res);
-    }
-
-    #[test]
-    fn test_add_type0(){
-        let g = Node::new()
-            .add_type(Type::Integer);
-        let res = g.get_supertypes(&Type::Sub);
-        assert_eq!(vec![Type::Integer, Type::Generic], res);
-    }
-
-    #[test]
-    fn test_add_type1(){
-        let g = Node::new()
-            .add_type(Type::Number)
-            .add_type(Type::Integer);
-        println!("g.get_hierarchy():\n {}", g.get_hierarchy());
-        let res = g.get_supertypes(&Type::Sub);
-        assert_eq!(vec![Type::Integer, Type::Generic], res);
-    }
-
-    #[test]
-    fn test_add_type2(){
-        let g = Node::new()
-            .add_type(Type::Integer)
-            .add_type_trace(Type::Sub);
-        println!("g.get_hierarchy():\n {}", g.get_hierarchy());
-        let res = g.get_supertypes(&Type::Sub);
-        assert_eq!(vec![Type::Integer, Type::Generic], res);
-    }
-
-    #[test]
-    fn test_add_type3(){
-        let g = Node::new()
-            .add_type(Type::Integer)
-            .add_type_trace(Type::Number)
-            .add_type(Type::Sub);
-        println!("g.get_hierarchy():\n {}", g.get_hierarchy());
-        let res = g.get_supertypes(&Type::Sub);
-        assert_eq!(vec![Type::Integer, Type::Generic], res);
-    }
-
-    #[test]
-    fn test_add_type4(){
-        let g = Node::new()
-            .add_type(Type::Integer)
-            .add_type_trace(Type::Number)
-            .add_type(Type::Sub);
-        println!("g.get_hierarchy():\n {}", g.get_hierarchy());
-        let res = g.get_supertypes(&Type::Generic);
-        assert_eq!(vec![Type::Generic], res);
-    }
-
-    #[test]
-    fn test_graph_eq(){
-        let g1 = Node::new()
-            .add_type(Type::Integer);
-        let g2 = Node::new();
-        assert_eq!(g1, g2);
-    }
-
-    #[test]
-    fn test_add_same_type() {
-        let g = Graph::new()
-            .add_type(Type::Sub)
-            .add_type(Type::Sub);
-        assert_eq!("Generic\n  Sub\n", g.get_hierarchy());
-    }
-
-}

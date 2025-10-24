@@ -216,7 +216,7 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
                 let variable = context.get_true_variable(&variable_assigned);
                 let var_type = context.get_type_from_existing_variable(variable.clone());
                 let var_type_reduced = reduce_type(context, &var_type);
-                if (expr_type_reduced != var_type_reduced) && !expr_type_reduced.is_subtype(&var_type_reduced) {
+                if (expr_type_reduced != var_type_reduced) && !expr_type_reduced.is_subtype(&var_type_reduced, context) {
                     panic!("{}", TypeError::Param(expr_type, var_type).display());
                 } else if !variable.is_mutable() && context.we_check_mutability() {
                     panic!("{}", TypeError::ImmutableVariable(variable_assigned, variable).display());
@@ -502,7 +502,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Co
             let res = body.typing(&sub_context);
             let reduced_body_type = res.0.reduce(&sub_context);
             let reduced_expected_ty = ret_ty.reduce(&context);
-            if !reduced_body_type.is_subtype(&reduced_expected_ty) {
+            if !reduced_body_type.is_subtype(&reduced_expected_ty, context) {
                 None.expect(
                     &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display())
             }

@@ -146,7 +146,7 @@ impl Context {
             .push_types(&types);
         Context {
             typing_context: var_type, 
-            subtypes: self.subtypes.add_types(&types),
+            subtypes: self.subtypes.add_types(&types, context),
             ..self
         }
     }
@@ -218,7 +218,7 @@ impl Context {
     }
 
     pub fn get_classes(&self, t: &Type) -> Option<String> {
-        let res = self.subtypes.get_supertypes(t)
+        let res = self.subtypes.get_supertypes(t, self)
             .iter().map(|typ| self.get_class(typ))
             .collect::<Vec<_>>().join(", ");
         if res == "" {
@@ -435,7 +435,7 @@ impl Context {
     }
 
     fn js_class_definition(&self, var: &Var, typ: &Type, functions: &VarFunction) -> Option<String> {
-        let super_typs = self.subtypes.get_supertypes(typ);
+        let super_typs = self.subtypes.get_supertypes(typ, self);
         let functions = super_typs.iter().chain([typ.clone()].iter())
             .flat_map(|super_typ| self.get_related_functions(super_typ, functions))
             .map(|function| Self::js_function(&function))

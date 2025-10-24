@@ -81,6 +81,82 @@ impl TypeSystem for Type {
     fn pretty(&self) -> String {
         format(self)
     }
+
+    fn is_subtype(&self, other: &Type, context: &Context) -> bool {
+        match (self, other) {
+            (Type::Empty(_), _) => true,
+            (typ1, typ2) if typ1 == typ2 => true,
+            // Array subtyping
+            (_, Type::Any(_)) => true,
+            (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
+                n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
+            },
+            (Type::Vector(n1, t1, _), Type::Vector(n2, t2, _)) => {
+                n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
+            },
+            (Type::Sequence(n1, t1, _), Type::Sequence(n2, t2, _)) => {
+                n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
+            },
+            (Type::Function(_, args1, ret_typ1, _), Type::Function(_, args2, ret_typ2, _)) => {
+                args1.iter().chain([&(**ret_typ1)])
+                    .zip(args2.iter().chain([&(**ret_typ2)]))
+                    .all(|(typ1, typ2)| typ1.is_subtype(typ2, context))
+            }
+            // Interface subtyping
+            (Type::Interface(args1, _), Type::Interface(args2, _)) => {
+                args1 == args2 || args1.is_superset(args2)
+            }
+            (typ, Type::Interface(args2, _)) => {
+                match typ.to_interface(context) {
+                    Type::Interface(args1, _) 
+                        => &args1 == args2 || args1.is_superset(args2),
+                    _ => todo!()
+                }
+            }
+            // Record subtyping
+            (Type::Record(r1, _), Type::Record(r2, _)) => {
+                r1 == r2 || r1.is_superset(r2)
+            },
+            (Type::StrictUnion(types1, _), Type::StrictUnion(_types2, _)) => {
+                types1.iter().all(|t1| t1.to_type().is_subtype(other, context))
+            },
+            // Union subtyping
+            (Type::Tag(_name, _body, _h), Type::StrictUnion(types, _)) => {
+                types.iter().any(|t| self.is_subtype(&t.to_type(), context))
+            },
+            (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
+                (name1 == name2) && body1.is_subtype(&*body2, context)
+            },
+            // Generic subtyping
+            (_, Type::Generic(_, _)) => true,
+            (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
+            (Type::Char(_, _), Type::LabelGen(_, _)) => true,
+            (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
+            // Params subtyping
+            (Type::Params(p1, _), Type::Params(p2, _)) => {
+                p1.len() == p2.len() && 
+                p1.iter().zip(p2.iter()).all(|(t1, t2)| t1.is_subtype(t2, context))
+            }
+            (Type::RClass(set1, _), Type::RClass(set2, _)) 
+                => set1.is_subset(&set2),
+            (Type::Union(s1, _), Type::Union(s2, _)) 
+                => s1.is_subset(&s2),
+            (typ, Type::Union(s2, _)) 
+                => s2.contains(&typ),
+            (Type::Char(_, _), Type::Char(_, _)) => true,
+            (Type::Integer(_, _), Type::Integer(_, _)) => true,
+            (Type::Tuple(types1, _), Type::Tuple(types2, _)) => {
+                types1.iter()
+                    .zip(types2.iter())
+                    .all(|(typ1, typ2)| typ1.is_subtype(typ2, context))
+            },
+            (typ, Type::Intersection(types, _)) => {
+               types.iter() 
+                   .all(|typ2| typ.is_subtype(typ2, context))
+            },
+            _ => false
+        }
+    }
 }
 
 impl Default for Type {
@@ -119,7 +195,7 @@ impl Type {
         let reduced_annotation = annotation.reduce(context);
         let reduced_type = self.reduce(context);
         if !annotation.is_empty() {
-            reduced_type.is_subtype(&reduced_annotation)
+            reduced_type.is_subtype(&reduced_annotation, context)
                             .then_some(annotation.clone())
                             .expect(&TypeError::Let(annotation.clone(), self.clone()).display())
         } else { self.clone() }
