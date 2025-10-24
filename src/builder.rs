@@ -75,3 +75,25 @@ pub fn opaque_type(name: &str) -> Type {
     Type::Opaque(name.to_string(), HelpData::default())
 }
 
+pub fn function_type(args: &[Type], return_type: Type) -> Type {
+    Type::Function(vec![], 
+                   args.to_vec(), 
+                   Box::new(return_type),
+                   HelpData::default())
+}
+
+pub fn interface_type(signatures: &[(&str, Type)]) -> Type {
+    let args = signatures.iter()
+        .cloned()
+        .map(|(name, typ)| ArgumentType::from((name, typ)))
+        .collect::<HashSet<_>>();
+    Type::Interface(args, HelpData::default())
+}
+
+pub fn interface_type2(signatures: &[(String, Type)]) -> Type {
+    let args = signatures.iter()
+        .cloned()
+        .map(|(name, typ)| ArgumentType::from((name, typ)))
+        .collect::<HashSet<_>>();
+    Type::Interface(args, HelpData::default())
+}

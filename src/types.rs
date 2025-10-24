@@ -361,11 +361,26 @@ fn union_helper(s: Span) -> IResult<Span, Type> {
     terminated(terminated(utype, opt(tag("|"))), multispace0).parse(s)
 }
 
+fn intersection_helper(s: Span) -> IResult<Span, Type> {
+    terminated(terminated(itype, opt(tag("&"))), multispace0).parse(s)
+}
+
 fn union(s: Span) -> IResult<Span, Type> {
     let res = (union_helper, many1(union_helper)).parse(s);
 
     match res {
         Ok((s, (first, v))) => Ok((s, Type::Union(v.iter().chain([first].iter())
+                                                  .cloned().collect(),
+                                            v[0].clone().into()))),
+        Err(r) => Err(r)
+    }
+}
+
+fn intersection(s: Span) -> IResult<Span, Type> {
+    let res = (intersection_helper, many1(intersection_helper)).parse(s);
+
+    match res {
+        Ok((s, (first, v))) => Ok((s, Type::Intersection(v.iter().chain([first].iter())
                                                   .cloned().collect(),
                                             v[0].clone().into()))),
         Err(r) => Err(r)
@@ -437,8 +452,10 @@ fn interface(s: Span) -> IResult<Span, Type> {
             terminated(tag("}"), multispace0)
                     ).parse(s);
     match res {
-        Ok((s, (i, _, v, _))) 
-            => Ok((s, Type::Interface(v, i.into()))),
+        Ok((s, (i, _, v, _))) => {
+            let set = v.iter().cloned().collect::<HashSet<_>>();
+            Ok((s, Type::Interface(set, i.into())))
+        },
         Err(r) => Err(r)
     }
 }
@@ -624,6 +641,8 @@ fn r_class(s: Span) -> IResult<Span, Type> {
 
 pub fn utype(s: Span) -> IResult<Span, Type> {
     terminated(alt((
+            intersection,
+            multitype,
             r_class,
             vector_type,
             sequence_type,
@@ -632,10 +651,31 @@ pub fn utype(s: Span) -> IResult<Span, Type> {
             interface,
             label_generic,
             index_algebra,
-            number,
-            integer,
-            boolean,
-            chars,
+            primitive_types,
+            strict_union,
+            type_alias,
+            generic,
+            array_type,
+            function_type,
+            tuple_type,
+            record_type,
+            )), multispace0).parse(s)
+}
+
+pub fn itype(s: Span) -> IResult<Span, Type> {
+    terminated(alt((
+            union,
+            multitype,
+            r_class,
+            vector_type,
+            sequence_type,
+            any,
+            empty,
+            interface,
+            label_generic,
+            index_algebra,
+            primitive_types,
+            strict_union,
             type_alias,
             generic,
             array_type,
@@ -661,12 +701,21 @@ fn sequence_type(s: Span) -> IResult<Span, Type> {
     }
 }
 
+pub fn primitive_types(s: Span) -> IResult<Span, Type> {
+    alt((
+            number,
+            integer,
+            boolean,
+            chars)).parse(s)
+}
+
 
 //ltype to not use the reserved symbol "type"
 // main
 pub fn ltype(s: Span) -> IResult<Span, Type> {
     terminated(alt((
             union,
+            intersection,
             multitype,
             r_class,
             vector_type,
@@ -676,10 +725,7 @@ pub fn ltype(s: Span) -> IResult<Span, Type> {
             interface,
             label_generic,
             index_algebra,
-            number,
-            integer,
-            boolean,
-            chars,
+            primitive_types,
             strict_union,
             type_alias,
             generic,
@@ -844,8 +890,12 @@ mod tests {
 
     #[test]
     fn test_interface1() {
-        let res = interface("interface { hey: fn(a: num, b: num): num }".into()).unwrap().1;
-        assert_eq!(res.to_string(), "interface([[var('hey'),tfn([], [num, num], num)]])");
+        let res = interface("interface { hey: (num, num) -> num }".into()).unwrap().1;
+        let num = builder::number_type();
+        let inter = builder::interface_type(&[
+                        ("hey", builder::function_type(&[num.clone(), num.clone()], num))
+        ]);
+        assert_eq!(res, inter);
     }
 
     #[test]

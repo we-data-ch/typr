@@ -99,6 +99,13 @@ impl From<(String, Type)> for ArgumentType {
    } 
 }
 
+impl From<(&str, Type)> for ArgumentType {
+   fn from(val: (&str, Type)) -> Self {
+        ArgumentType(
+            Type::Char(val.0.to_string().into(), val.1.clone().into()),
+            val.1, false)
+   } 
+}
 
 impl PartialEq for ArgumentType {
     fn eq(&self, other: &Self) -> bool {

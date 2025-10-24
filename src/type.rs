@@ -54,8 +54,9 @@ pub enum Type {
     Alias(String, Vec<Type>, Path, bool, HelpData), //for opacity
     Tag(String, Box<Type>, HelpData),
     Union(HashSet<Type>, HelpData),
+    Intersection(HashSet<Type>, HelpData),
     StrictUnion(Vec<Tag>, HelpData),
-    Interface(Vec<ArgumentType>, HelpData),
+    Interface(HashSet<ArgumentType>, HelpData),
     Params(Vec<Type>, HelpData),
     Add(Box<Type>, Box<Type>, HelpData),
     Mul(Box<Type>, Box<Type>, HelpData),
@@ -575,6 +576,7 @@ impl Type {
             Type::Union(_, h) => h.clone(),
             Type::Vector(_, _, h) => h.clone(),
             Type::Sequence(_, _, h) => h.clone(),
+            Type::Intersection(_, h) => h.clone(),
         }
     }
 
@@ -614,6 +616,7 @@ impl Type {
             Type::Union(v, _) => Type::Union(v, h2),
             Type::Vector(i, t, _) => Type::Vector(i, t, h2),
             Type::Sequence(i, t, _) => Type::Sequence(i, t, h2),
+            Type::Intersection(i, _) => Type::Intersection(i, h2),
         }
     }
 
@@ -653,6 +656,19 @@ impl Type {
                 => Some(i.get_value().map(|x| x as u32).unwrap_or(0 as u32)),
             Type::IndexGen(_, _) => Some(0 as u32),
             _ => None
+        }
+    }
+
+    pub fn to_interface(&self, context: &Context) -> Type {
+        match self {
+            Type::Interface(_, _) => self.clone(),
+            typ => {
+                let function_signatures = context.get_functions(typ)
+                    .iter().cloned()
+                    .map(|(var, typ)| (var.to_string(), typ))
+                    .collect::<Vec<_>>();
+                builder::interface_type2(&function_signatures)
+            }
         }
     }
 
@@ -769,6 +785,7 @@ impl fmt::Display for Type {
     }
 }
 
+// main subtype
 impl PartialOrd for Type {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
@@ -795,21 +812,12 @@ impl PartialOrd for Type {
                     .then_some(Ordering::Less)
             }
             // Interface subtyping
-            (_type1, Type::Interface(_args, _)) => {
-                todo!();
+            (Type::Interface(args1, _), Type::Interface(args2, _)) => {
+                (args1 == args2 || args1.is_superset(args2))
+                    .then_some(Ordering::Less)
             }
-
             // Record subtyping
             (Type::Record(r1, _), Type::Record(r2, _)) => {
-                //if has_generic_label(&r2) && (r1.len() == r2.len()) {
-                    //all_subtype2(r1, r2)
-                        //.then_some(Ordering::Less)
-                //} else if let Some(_arg_typ) = other.get_type_pattern() {
-                    //Some(Ordering::Less)
-                //} else {
-                    //contains_all2(r1, r2)
-                        //.then_some(Ordering::Less)
-                //}
                 (r1 == r2 || r1.is_superset(r2))
                     .then_some(Ordering::Less)
             },
@@ -899,6 +907,7 @@ impl Hash for Type {
             Type::Union(_, _) => 33.hash(state),
             Type::Vector(_, _, _) => 34.hash(state),
             Type::Sequence(_, _, _) => 35.hash(state),
+            Type::Intersection(_, _) => 36.hash(state),
         }
     }
 }
