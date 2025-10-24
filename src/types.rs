@@ -1023,7 +1023,7 @@ mod tests {
 
     #[test]
     fn test_intersection_parsing() {
-        let res = "int & char".parse::<Type>().unwrap();
+        let res = "int | char".parse::<Type>().unwrap();
         let (int, chara) = (builder::integer_type_default(), 
                             builder::character_type_default());
         let inters = builder::intersection_type(&[int, chara]);
