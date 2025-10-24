@@ -97,3 +97,8 @@ pub fn interface_type2(signatures: &[(String, Type)]) -> Type {
         .collect::<HashSet<_>>();
     Type::Interface(args, HelpData::default())
 }
+
+pub fn intersection_type(types: &[Type]) -> Type {
+    let type_set = types.iter().cloned().collect::<HashSet<_>>();
+    Type::Intersection(type_set, HelpData::default())
+}
