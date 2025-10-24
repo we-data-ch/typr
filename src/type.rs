@@ -1037,7 +1037,7 @@ mod tests {
         let age = builder::record_type(&[
                 ("age".to_string(), builder::integer_type_default()),
         ]);
-        assert!(name.is_subtype(&age));
+        assert!(name.is_subtype(&age, &Context::default()));
     }
 
     #[test]
@@ -1062,13 +1062,13 @@ mod tests {
                 ("name".to_string(), builder::character_type_default()),
                 ("age".to_string(), builder::integer_type_default()),
         ]);
-        assert_eq!(person.is_subtype(&name), true);
+        assert_eq!(person.is_subtype(&name, &Context::default()), true);
     }
 
     #[test]
     fn test_type_subtyping1() {
         let t1 = builder::number_type();
-        assert_eq!(t1.is_subtype(&t1), true);
+        assert_eq!(t1.is_subtype(&t1, &Context::default()), true);
     }
 
     #[test]
