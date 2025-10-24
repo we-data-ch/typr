@@ -26,7 +26,7 @@ use crate::help_message::ErrorMsg;
 use crate::Var;
 use crate::graph::TypeSystem;
 use std::str::FromStr;
-use crate::types::single_type;
+use crate::types::ltype;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -942,7 +942,7 @@ impl FromStr for Type {
     type Err = ErrorStruct;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let val = single_type(s.into())
+        let val = ltype(s.into())
             .map(|x| x.1).unwrap_or(builder::empty_type());
         Ok(val)
     }

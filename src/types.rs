@@ -616,7 +616,7 @@ impl TypeOperator {
         let types = [type1.clone(), type2.clone()].iter().cloned().collect::<HashSet<_>>();
         match self {
             TypeOperator::Union => Type::Union(types, type1.into()),
-            TypeOperator::Intersection => Type::Union(types, type1.into()),
+            TypeOperator::Intersection => Type::Intersection(types, type1.into()),
             _ => panic!("We can't combine {} and {} with the empty type operator",
                                 type1.pretty(), type2.pretty())
         }
@@ -632,10 +632,10 @@ impl TypeOperator {
 }
 
 fn type_operator(s: Span) -> IResult<Span, TypeOperator> {
-    let res = alt((
+    let res = terminated(alt((
             tag("|"),
             tag("&")
-        )).parse(s);
+        )), multispace0).parse(s);
 
     match res {
         Ok((s, op)) => {
@@ -688,13 +688,18 @@ impl TypeStack {
     }
 
     fn compute(self) -> Self {
-        let new_type = self.operators.peek()
-            .expect("The type operator stack is empty!")
-            .join(self.types.peek(), self.types.peek())
-            .expect("The type operator Stack wasn't able to build the type");
-        Self {
-            types: self.types.push(new_type),
-            ..self
+        match self.operators.peek() {
+            None => self,
+            Some(res) => {
+                let type1 = self.types.peek(); let types = self.types.pop().unwrap();
+                let type2 = types.peek(); let types = types.pop().unwrap();
+                let new_type = res.join(type1, type2)
+                   .expect("The type operator Stack wasn't able to build the type");
+                Self {
+                    types: types.push(new_type),
+                    ..self
+                }
+            }
         }
     }
 
@@ -779,10 +784,9 @@ mod tests {
             true);
     }
 
-
     #[test]
     fn test_intersection_parsing() {
-        let res = "int | char".parse::<Type>().unwrap();
+        let res = "int & char".parse::<Type>().unwrap();
         let (int, chara) = (builder::integer_type_default(), 
                             builder::character_type_default());
         let inters = builder::intersection_type(&[int, chara]);
