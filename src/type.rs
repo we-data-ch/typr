@@ -26,7 +26,7 @@ use crate::help_message::ErrorMsg;
 use crate::Var;
 use crate::graph::TypeSystem;
 use std::str::FromStr;
-use crate::types::ltype;
+use crate::types::single_type;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -942,7 +942,7 @@ impl FromStr for Type {
     type Err = ErrorStruct;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let val = ltype(s.into())
+        let val = single_type(s.into())
             .map(|x| x.1).unwrap_or(builder::empty_type());
         Ok(val)
     }
@@ -996,7 +996,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tuple_subtyping(){
+    fn test_tuple_subtyping2(){
         let typ1 = "{int, int}".parse::<Type>().unwrap();
         let typ2 = "{T, T}".parse::<Type>().unwrap();
         assert!(typ1 < typ2)

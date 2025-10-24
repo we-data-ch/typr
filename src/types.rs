@@ -17,7 +17,6 @@ use crate::operators::{Op, op};
 use nom::sequence::terminated;
 use nom::multi::many0;
 use nom::branch::alt;
-use nom::sequence::preceded;
 use nom::multi::many1;
 use nom::sequence::delimited;
 use nom::Parser;
@@ -30,6 +29,8 @@ use crate::tchar::Tchar;
 use crate::elements::variable_exp;
 use nom::combinator::recognize;
 use crate::elements;
+use crate::graph::TypeSystem;
+use rpds::Stack;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -357,37 +358,6 @@ fn strict_union(s: Span) -> IResult<Span, Type> {
    }
 }
 
-fn union_helper(s: Span) -> IResult<Span, Type> {
-    terminated(terminated(utype, opt(tag("|"))), multispace0).parse(s)
-}
-
-fn intersection_helper(s: Span) -> IResult<Span, Type> {
-    terminated(terminated(itype, opt(tag("&"))), multispace0).parse(s)
-}
-
-fn union(s: Span) -> IResult<Span, Type> {
-    let res = (union_helper, many1(union_helper)).parse(s);
-
-    match res {
-        Ok((s, (first, v))) => Ok((s, Type::Union(v.iter().chain([first].iter())
-                                                  .cloned().collect(),
-                                            v[0].clone().into()))),
-        Err(r) => Err(r)
-    }
-}
-
-fn intersection(s: Span) -> IResult<Span, Type> {
-    let res = (intersection_helper, many1(intersection_helper)).parse(s);
-
-    match res {
-        Ok((s, (first, v))) => Ok((s, Type::Intersection(v.iter().chain([first].iter())
-                                                  .cloned().collect(),
-                                            v[0].clone().into()))),
-        Err(r) => Err(r)
-    }
-}
-
-
 
 fn chars(s: Span) -> IResult<Span, Type> {
     let res = tag("char")(s);
@@ -570,36 +540,6 @@ fn index_algebra(s: Span) -> IResult<Span, Type> {
     alt((index_chain, index)).parse(s)
 }
 
-fn propagate_multiplicity(t: &Type) -> Option<Type> {
-    match t {
-        Type::Record(body, h) => {
-            if body.len() == 1 {
-                let argt = body.iter().next().unwrap().clone();
-                Some(Type::Record([ArgumentType(
-                    Type::Multi(Box::new(argt.get_argument()), HelpData::default()),
-                    Type::Multi(Box::new(argt.get_type()), HelpData::default()),
-                    false)].iter().cloned().collect(), h.clone()))
-            } else { panic!("The Record {} should have only one couple 'label: type'", t) }
-        },
-        _ => None 
-    }
-}
-
-fn multitype(s: Span) -> IResult<Span, Type> {
-    let res = preceded(tag("*"), ltype).parse(s);
-    match res {
-        Ok((s, t)) 
-            => {
-                if let Some(new_t) = propagate_multiplicity(&t) {
-                    Ok((s, new_t))
-                } else {
-                    Ok((s, Type::Multi(Box::new(t.clone()), t.into())))
-                }
-            }
-        Err(r) => Err(r)
-    }
-}
-
 fn type_condition(s: Span) -> IResult<Span, Type> {
     let res = (ltype, op, ltype).parse(s);
     match res {
@@ -639,52 +579,6 @@ fn r_class(s: Span) -> IResult<Span, Type> {
     }
 }
 
-pub fn utype(s: Span) -> IResult<Span, Type> {
-    terminated(alt((
-            intersection,
-            multitype,
-            r_class,
-            vector_type,
-            sequence_type,
-            any,
-            empty,
-            interface,
-            label_generic,
-            index_algebra,
-            primitive_types,
-            strict_union,
-            type_alias,
-            generic,
-            array_type,
-            function_type,
-            tuple_type,
-            record_type,
-            )), multispace0).parse(s)
-}
-
-pub fn itype(s: Span) -> IResult<Span, Type> {
-    terminated(alt((
-            union,
-            multitype,
-            r_class,
-            vector_type,
-            sequence_type,
-            any,
-            empty,
-            interface,
-            label_generic,
-            index_algebra,
-            primitive_types,
-            strict_union,
-            type_alias,
-            generic,
-            array_type,
-            function_type,
-            tuple_type,
-            record_type,
-            )), multispace0).parse(s)
-}
-
 fn sequence_type(s: Span) -> IResult<Span, Type> {
     let res = (
             terminated(tag("Seq["), multispace0),
@@ -709,14 +603,126 @@ pub fn primitive_types(s: Span) -> IResult<Span, Type> {
             chars)).parse(s)
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+enum TypeOperator {
+    Union,
+    Intersection,
+    #[default]
+    Unknown,
+}
 
-//ltype to not use the reserved symbol "type"
+impl TypeOperator {
+    fn join_helper(self, type1: Type, type2: Type) -> Type {
+        let types = [type1.clone(), type2.clone()].iter().cloned().collect::<HashSet<_>>();
+        match self {
+            TypeOperator::Union => Type::Union(types, type1.into()),
+            TypeOperator::Intersection => Type::Union(types, type1.into()),
+            _ => panic!("We can't combine {} and {} with the empty type operator",
+                                type1.pretty(), type2.pretty())
+        }
+    }
+
+    fn join(self, type1: Option<&Type>, type2: Option<&Type>) -> Option<Type> {
+        match (type1, type2) {
+            (Some(t1), Some(t2)) 
+                => Some(self.join_helper(t1.clone(), t2.clone())),
+            _ => None
+        }
+    }
+}
+
+fn type_operator(s: Span) -> IResult<Span, TypeOperator> {
+    let res = alt((
+            tag("|"),
+            tag("&")
+        )).parse(s);
+
+    match res {
+        Ok((s, op)) => {
+            let operator = match op.into_fragment() {
+                "|" => TypeOperator::Union,
+                "&" => TypeOperator::Intersection,
+                _ => TypeOperator::Unknown,
+            };
+            Ok((s, operator))
+        },
+        Err(r) => Err(r)
+    }
+}
+
+#[derive(Debug, Default)]
+struct TypeStack {
+    types: Stack<Type>,
+    operators: Stack<TypeOperator>
+}
+
+impl TypeStack {
+    fn push_type(self, typ: Type) -> Self {
+        let new = Self {
+            types: self.types.push(typ),
+            ..self
+        };
+        new.compute()
+    }
+
+    fn push_op_helper(self, op: TypeOperator) -> Self {
+        Self {
+            operators: self.operators.push(op),
+            ..self
+        }
+    }
+
+    fn push_op(self, op: Option<TypeOperator>) -> Self {
+        match op {
+            Some(ope) => self.push_op_helper(ope),
+            _ => self
+        }
+    }
+
+
+    fn get_type(self) -> Type {
+        match self.types.peek() {
+            Some(typ) => typ.clone(),
+            _ => panic!("This is an empty stack!")
+        } 
+    }
+
+    fn compute(self) -> Self {
+        let new_type = self.operators.peek()
+            .expect("The type operator stack is empty!")
+            .join(self.types.peek(), self.types.peek())
+            .expect("The type operator Stack wasn't able to build the type");
+        Self {
+            types: self.types.push(new_type),
+            ..self
+        }
+    }
+
+    fn load(self, v: &[(Type, Option<TypeOperator>)]) -> Self {
+        v.iter()
+         .fold(self, 
+              |acc, (typ, op)| 
+                acc.push_type(typ.clone()).push_op(op.clone()))
+    }
+}
+
+// Named "ltype" to not use the reserved symbol "type"
+// Will work on union and intersection types that use infix operators
 // main
 pub fn ltype(s: Span) -> IResult<Span, Type> {
+    let res = many1((single_type, opt(type_operator))).parse(s);
+    match res {
+        Ok((s, v)) => {
+            let new_type = TypeStack::default().load(&v).get_type();
+            Ok((s, new_type))
+        },
+        Err(r) => Err(r)
+    }
+}
+
+// main
+pub fn single_type(s: Span) -> IResult<Span, Type> {
     terminated(alt((
-            union,
-            intersection,
-            multitype,
             r_class,
             vector_type,
             sequence_type,
@@ -735,6 +741,7 @@ pub fn ltype(s: Span) -> IResult<Span, Type> {
             record_type,
             )), multispace0).parse(s)
 }
+
 
 #[cfg(test)]
 mod tests {

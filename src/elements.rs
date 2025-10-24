@@ -35,8 +35,8 @@ use nom::combinator::recognize;
 use crate::help_message::SyntaxError;
 use crate::help_message::ErrorMsg;
 use nom::bytes::complete::take_while1;
-use crate::types::utype;
 use crate::builder;
+use crate::types::single_type;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -491,7 +491,7 @@ fn if_exp(s: Span) -> IResult<Span, Lang> {
 
 fn branch(s: Span) -> IResult<Span, (Type, Box<Lang>)> {
     let res = (
-            terminated(utype, multispace0),
+            terminated(single_type, multispace0),
             terminated(tag("=>"), multispace0),
             terminated(parse_elements, multispace0),
             opt(terminated(tag(","), multispace0)),

@@ -6,7 +6,7 @@ use nom::sequence::terminated;
 use nom::bytes::complete::tag;
 use crate::elements::variable;
 use crate::types::type_alias;
-use crate::types::ltype;
+use crate::types::single_type;
 use crate::r#type::Type;
 use crate::var::Var;
 use nom::combinator::opt;
@@ -72,7 +72,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
             terminated(tag("let"), multispace0),
             pattern_var,
-            opt(preceded(terminated(tag(":"), multispace0), ltype)),
+            opt(preceded(terminated(tag(":"), multispace0), single_type)),
             equality_operator,
             single_parse,
           ).parse(s);
@@ -116,7 +116,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 fn base_let_mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
             pattern_var,
-            opt(preceded(terminated(tag(":"), multispace0), ltype)),
+            opt(preceded(terminated(tag(":"), multispace0), single_type)),
             equality_operator,
             single_parse,
           ).parse(s);
@@ -207,7 +207,7 @@ fn base_mut_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
             terminated(tag("mut"), multispace0),
             pattern_var,
-            opt(preceded(terminated(tag(":"), multispace0), ltype)),
+            opt(preceded(terminated(tag(":"), multispace0), single_type)),
             equality_operator,
             single_parse,
           ).parse(s);
@@ -256,7 +256,7 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
             terminated(tag("type"), multispace0),
             type_alias,
             equality_operator,
-            ltype,
+            single_type,
             terminated(tag(";"), multispace0) 
           ).parse(s);
     match res {
@@ -297,7 +297,7 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
     let res = (terminated(tag("opaque"), multispace0),
             type_alias,
             terminated(tag("="), multispace0),
-            ltype,
+            single_type,
             terminated(tag(";"), multispace0) 
           ).parse(s);
     match res {
@@ -484,7 +484,7 @@ fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("@"),
                 alt((variable_exp, custom_operators)),
                 terminated(tag(":"), multispace0),
-                ltype, 
+                single_type, 
                 terminated(tag(";"), multispace0)).parse(s);
     match res {
         Ok((s, (at, (name, h), _col, typ, _))) 
@@ -500,7 +500,7 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("@"),
                 type_alias,
                 terminated(tag(":"), multispace0),
-                ltype, 
+                single_type, 
                 terminated(tag(";"), multispace0)).parse(s);
     match res {
         Ok((s, (at, Type::Alias(name, _params, _path, _, h), _, typ, _))) 
