@@ -933,6 +933,22 @@ impl From<FunctionType> for Type {
    } 
 }
 
+
+
+#[derive(Debug)]
+pub struct ErrorStruct;
+
+impl FromStr for Type {
+    type Err = ErrorStruct;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let val = ltype(s.into())
+            .map(|x| x.1).unwrap_or(builder::empty_type());
+        Ok(val)
+    }
+
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -979,31 +995,11 @@ mod tests {
         assert_eq!(t1.is_subtype(&t1), true);
     }
 
-}
-
-
-#[derive(Debug)]
-pub struct ErrorStruct;
-
-impl FromStr for Type {
-    type Err = ErrorStruct;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let val = ltype(s.into())
-            .map(|x| x.1).unwrap_or(builder::empty_type());
-        Ok(val)
-    }
-
-}
-
-#[cfg(test)]
-mod tests_type {
-    use super::*;
-
     #[test]
     fn test_tuple_subtyping(){
         let typ1 = "{int, int}".parse::<Type>().unwrap();
         let typ2 = "{T, T}".parse::<Type>().unwrap();
         assert!(typ1 < typ2)
     }
+
 }

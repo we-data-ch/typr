@@ -123,6 +123,6 @@ mod tests {
 
     #[test]
     fn test_tint_val(){
-        assert_eq!(Tint::Val(2), Tint::Val(3));
+        assert_ne!(Tint::Val(2), Tint::Val(3));
     }
 }

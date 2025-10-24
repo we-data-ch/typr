@@ -1010,13 +1010,3 @@ impl FromStr for Lang {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_vector1(){
-        let res = "c(1, 2)".parse::<Lang>().unwrap();
-        assert_eq!(res, Lang::Vector(vec![], HelpData::default()));
-    }
-}

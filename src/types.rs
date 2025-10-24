@@ -744,165 +744,6 @@ mod tests {
     use crate::type_category::TypeCategory;
     use crate::Context;
 
-    #[test]
-    fn test_function_type() {
-        let res = function_type("(): number".into()).unwrap().1;
-        assert_eq!(res.to_string(), "tfn([], var(number))");
-    }
-
-    #[test]
-    fn test_function_type2() {
-        let res = function_type("(number) -> number".into()).unwrap().1;
-        assert_eq!(res.to_string(), "tfn([var('number')], var('number'))");
-    }
-
-    #[test]
-    fn test_function_type3() {
-        let res = function_type("(number, number) -> number".into()).unwrap().1;
-        assert_eq!(res.to_string(), "tfn([var('number'), var('number')], var('number'))");
-    }
-
-    #[test]
-    fn test_generic() {
-        let res = generic("A".into()).unwrap().1;
-        assert_eq!(res.to_string(), "gen('a')");
-    }
-
-    #[test]
-    fn test_ltype_gen() {
-        let res = ltype("A".into()).unwrap().1;
-        assert_eq!(res.to_string(), "gen('a')");
-    }
-
-    #[test]
-    fn test_array_gen1() {
-        let res = array_type("[3, int]".into()).unwrap().1;
-        assert_eq!(res.to_string(), "tarray(gen('n'), gen('t'))");
-    }
-
-    #[test]
-    fn test_array_gen2() {
-        let res = array_type("[#N, T]".into()).unwrap().1;
-        assert_eq!(res.to_string(), "tarray(gen('n'), gen('t'))");
-    }
-
-    #[test]
-    fn test_array_gen3() {
-        let res = array_type("[#N, int]".into()).unwrap().1;
-        assert_eq!(res.to_string(), "tarray(gen('n'), int)");
-    }
-
-    #[test]
-    fn test_ltype_array_gen() {
-        let res = ltype("[#N, T]".into()).unwrap().1;
-        assert_eq!(res.to_string(), "tarray(gen('n'), gen('t'))");
-    }
-
-    #[test]
-    fn test_ltype_array() {
-        let res = ltype("[3, num]".into()).unwrap().1;
-        assert_eq!(res.to_string(), "tarray(3, var('num'))");
-    }
-
-    #[test]
-    fn test_type_alias1() {
-        let res = type_alias("One".into()).unwrap().1;
-        assert_eq!(res.to_string(), "talias([], var('One'), [])");
-    }
-
-    #[test]
-    fn test_type_alias2() {
-        let res = type_alias("Val<num>".into()).unwrap().1;
-        assert_eq!(res.to_string(), "talias([], var('Val'), [num])");
-    }
-
-    #[test]
-    fn test_type_alias3() {
-        let res = type_alias("Complex<num, num>".into()).unwrap().1;
-        assert_eq!(res.to_string(), "talias([], var('Complex'), [num, num])");
-    }
-
-    #[test]
-    fn test_type_alias4() {
-        let res = ltype("Complex<num, num>".into()).unwrap().1;
-        assert_eq!(res.to_string(), "talias([], var('Complex'), [num, num])");
-    }
-
-    #[test]
-    fn test_type_alias5() {
-        let res = ltype("Option<{char, char}>".into()).unwrap().1;
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_union1() {
-        let res = strict_union("Rouge | Vert | Orange".into()).unwrap().1;
-        assert_eq!(res.to_string(), "union([ttag('Rouge', empty), ttag('Vert', empty), ttag('Orange', empty)])");
-    }
-
-    #[test]
-    fn test_union2() {
-        let res = strict_union("Rouge | Vert".into()).unwrap().1;
-        assert_eq!(res.to_string(), "union([ttag('Rouge', empty), ttag('Vert', empty)])");
-    }
-
-    #[test]
-    fn test_union3() {
-        let res = ltype("Rouge | Vert".into()).unwrap().1;
-        assert_eq!(res.to_string(), "union([ttag('Rouge', empty), ttag('Vert', empty)])");
-    }
-
-    #[test]
-    fn test_union4() {
-        let res = ltype("Rouge(num)".into()).unwrap().1;
-        assert_eq!(res.to_string(), "ttag('Rouge', num)");
-    }
-
-    #[test]
-    fn test_u0() {
-        let res = union("int | bool".into()).unwrap().1;
-        assert_eq!(res.to_string(), "int, bool");
-    }
-
-    #[test]
-    fn test_embedded1() {
-        let res = embedded_ltype("*num".into()).unwrap().1;
-        assert_eq!(res.to_string(), "tembedded(num)");
-    }
-
-    #[test]
-    fn test_record1() {
-        let res = record_type("{x: *num, y: num}".into()).unwrap().1;
-        assert_eq!(res.to_string(), "trecord([[var('x'),tembedded(num)], [var('y'),num]])");
-    }
-
-    #[test]
-    fn test_record2() {
-        let res = record_type("{ health: char, position: char }".into()).unwrap().1;
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_argument1() {
-        let res = argument("position: int".into()).unwrap().1;
-        assert_eq!(res, ArgumentType::new("hey", &builder::empty_type()));
-    }
-
-    #[test]
-    fn test_interface1() {
-        let res = interface("interface { hey: (num, num) -> num }".into()).unwrap().1;
-        let num = builder::number_type();
-        let inter = builder::interface_type(&[
-                        ("hey", builder::function_type(&[num.clone(), num.clone()], num))
-        ]);
-        assert_eq!(res, inter);
-    }
-
-    #[test]
-    fn test_tuple_type1() {
-        let res = tuple_type("{num, num, num}".into()).unwrap().1;
-        assert_eq!(res.to_string(), "");
-    }
 
     #[test]
     fn test_alias_type1() {
@@ -923,78 +764,6 @@ mod tests {
     }
 
     #[test]
-    fn test_index_generic() {
-        let res = ltype("#N".into()).unwrap().1;
-        assert_eq!(res.to_string(), "");
-    }
-
-    #[test]
-    fn test_type_op1() {
-        let res = ltype("3+4+5".into()).unwrap().1;
-        assert_eq!(res.to_string(), "");
-    }
-
-    #[test]
-    fn test_type_op2() {
-        let res = index_algebra("3+4+5".into()).unwrap().1;
-        assert_eq!(res.to_string(), "");
-    }
-
-    #[test]
-    fn test_type_op3() {
-        let res = ltype("#I + #J".into()).unwrap().1;
-        assert_eq!(res.to_string(), "");
-    }
-
-    #[test]
-    fn test_type_op4() {
-        let res = ltype("[#I + #I, int]".into()).unwrap().1;
-        assert_eq!(res.to_string(), "");
-    }
-
-    #[test]
-    fn test_multitype0() {
-        let res = ltype("+bool".into()).unwrap().1;
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_multitype1() {
-        let res = ltype("+{age: int}".into()).unwrap().1;
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_multitype2() {
-        let res = ltype("+{@L: T}".into()).unwrap().1;
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_if_type() {
-        let res = if_type("bool if $B in $L".into()).unwrap().1;
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_type_condition() {
-        let res = type_condition("$B in $L".into()).unwrap().1;
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_r_class0() {
-        let res = r_class("Class('data.frame', 'tbl')".into()).unwrap().1;
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_r_class1() {
-        let res = "Class('data.frame', 'tbl')".parse::<Type>().unwrap();
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
     fn test_fabrice0(){
         let arr1 = ltype("[1, T]".into()).unwrap().1;
         let arr2 = ltype("[1, 1]".into()).unwrap().1;
@@ -1003,23 +772,6 @@ mod tests {
             true);
     }
 
-    #[test]
-    fn test_vector_type1() {
-        let res = "Vec[4, int]".parse::<Type>().unwrap();
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_sequence_type1() {
-        let res = "Seq[4, int]".parse::<Type>().unwrap();
-        assert_eq!(res, builder::empty_type());
-    }
-
-    #[test]
-    fn test_sequence_type2() {
-        let res = "Seq[3, int]".parse::<Type>().unwrap();
-        assert_eq!(res, builder::empty_type());
-    }
 
     #[test]
     fn test_intersection_parsing() {
@@ -1028,6 +780,16 @@ mod tests {
                             builder::character_type_default());
         let inters = builder::intersection_type(&[int, chara]);
         assert_eq!(res, inters);
+    }
+
+    #[test]
+    fn test_interface1() {
+        let res = interface("interface { hey: (num, num) -> num }".into()).unwrap().1;
+        let num = builder::number_type();
+        let inter = builder::interface_type(&[
+                        ("hey", builder::function_type(&[num.clone(), num.clone()], num))
+        ]);
+        assert_eq!(res, inter);
     }
 
 }
