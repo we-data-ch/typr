@@ -205,10 +205,6 @@ fn argument_val(s: Span) -> IResult<Span, ArgumentValue> {
 
 
 
-pub fn function_symbol(s: Span) -> IResult<Span, Span> {
-    alt((tag("function"), tag("func"), tag("fn"))).parse(s)
-}
-
 fn extract_generics(args: &[ArgumentType], ret_typ: &Type) -> Vec<ArgumentKind> {
     args.iter()
         .map(|at| at.get_type())

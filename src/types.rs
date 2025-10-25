@@ -2,14 +2,11 @@ use nom::IResult;
 use nom::character::complete::multispace0;
 use nom::bytes::complete::tag;
 use nom::combinator::opt;
-use nom::character::complete::alpha1;
 use crate::argument_type::ArgumentType;
 use nom::character::complete::one_of;
 use nom::character::complete::digit1;
 use crate::tag::Tag;
 use nom::character::complete::alphanumeric1;
-use crate::elements::scope;
-use crate::elements::function_symbol;
 use crate::r#type::Type;
 use std::collections::HashSet;
 use crate::argument_kind::ArgumentKind;
@@ -170,19 +167,6 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
         Ok((s, (e1, _, Type::Embedded(ty, _), _))) 
             => Ok((s, ArgumentType(e1, *ty.clone(), true))),
         Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false))),
-        Err(r) => Err(r)
-    }
-}
-
-pub fn argument2(s: Span) -> IResult<Span, Type> {
-    let res = (
-        terminated(alpha1, multispace0),
-        terminated(tag(":"), multispace0),
-        alt((ltype, embedded_ltype)),
-        opt(terminated(tag(","), multispace0))
-                ).parse(s);
-    match res {
-        Ok((s, (_, _, e, _))) => Ok((s, e)),
         Err(r) => Err(r)
     }
 }
@@ -367,44 +351,11 @@ fn chars(s: Span) -> IResult<Span, Type> {
     }
 }
 
-fn pseudo_function_signature(s: Span) -> IResult<Span, Type> {
-    let res = (
-        terminated(function_symbol, multispace0),
-        terminated(tag("("), multispace0),
-        many0(argument2),
-        terminated(tag(")"), multispace0),
-        terminated(tag(":"), multispace0),
-        terminated(ltype, multispace0)
-          ).parse(s);
-    match res {
-        Ok((s, (start, _, args, _, _, typ))) => 
-            Ok((s, Type::Function(vec![], args, Box::new(typ), start.into()))),
-        Err(r) => Err(r)
-    }
-}
-
-fn interface_simple_function(s: Span) -> IResult<Span, Type> {
-    let res = (
-        terminated(function_symbol, multispace0),
-        terminated(tag("("), multispace0),
-        many0(argument2),
-        terminated(tag(")"), multispace0),
-        terminated(tag(":"), multispace0),
-        terminated(ltype, multispace0),
-        scope
-          ).parse(s);
-    match res {
-        Ok((s, (start, _par1, vt, _par2, _dp, ty, _body))) 
-            => Ok((s, Type::Function(vec![], vt, Box::new(ty), start.into()))),
-        Err(r) => Err(r)
-    }
-}
-
 fn interface_function(s: Span) -> IResult<Span, ArgumentType> {
     let res = (
         terminated(label, multispace0),
         terminated(tag(":"), multispace0),
-        alt((pseudo_function_signature, interface_simple_function)),
+        function_type,
         opt(terminated(tag(","), multispace0))
                 ).parse(s);
     match res {
@@ -631,7 +582,11 @@ pub fn ltype(s: Span) -> IResult<Span, Type> {
     let res = many1((single_type, opt(type_operator))).parse(s);
     match res {
         Ok((s, v)) => {
-            let new_type = TypeStack::default().load(&v).get_type();
+            let new_type = if v.len() == 1 {
+                v[0].0.clone()
+            } else {
+                TypeStack::default().load(&v).get_type()
+            };
             Ok((s, new_type))
         },
         Err(r) => Err(r)
@@ -674,7 +629,8 @@ mod tests {
     fn test_alias_type1() {
         //Test if alias can be parsed
         let res = ltype("Option<T>".into()).unwrap().1;
-        assert_eq!(res.to_category(), TypeCategory::Alias);
+        assert_eq!(res.to_category(), TypeCategory::Alias,
+        "Parsing 'Option<T>' should give an Alias type");
     }
 
     #[test]
