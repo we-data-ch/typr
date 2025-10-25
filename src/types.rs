@@ -699,11 +699,13 @@ mod tests {
 
     #[test]
     fn test_intersection_parsing() {
-        let res = "int & char".parse::<Type>().unwrap();
-        let (int, chara) = (builder::integer_type_default(), 
-                            builder::character_type_default());
-        let inters = builder::intersection_type(&[int, chara]);
-        assert_eq!(res, inters);
+        let res = "int & char & bool".parse::<Type>().unwrap();
+        let (int, chara, boole) = (builder::integer_type_default(), 
+                            builder::character_type_default(),
+                            builder::boolean_type());
+        let inters = builder::intersection_type(&[int, chara, boole]);
+        assert_eq!(res, inters,
+                   "Parsing 'int & char & bool' should give an intersection");
     }
 
     #[test]
