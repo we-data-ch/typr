@@ -2,7 +2,6 @@ use rpds::Stack;
 use crate::Type;
 use std::collections::HashSet;
 use crate::graph::TypeSystem;
-use crate::builder;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum TypeOperator {
@@ -107,6 +106,7 @@ impl TypeStack {
                 acc.push_type(typ.clone()).push_op(op.clone()))
     }
 
+    #[cfg(test)]
     fn get_last_operator(&self) -> TypeOperator {
         self.last_operator.clone()
     }
@@ -116,6 +116,7 @@ impl TypeStack {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::builder;
 
     #[test]
     fn test_type_operator_default_value(){
