@@ -26,7 +26,8 @@ pub enum TypeCategory {
     Template,
     Vector,
     Sequence,
-    Rest
+    Rest,
+    Intersection,
 }
 
 impl TypeCategory {
@@ -64,6 +65,7 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Vector => "Vector",
             TypeCategory::Sequence => "Sequence",
             TypeCategory::Rest => "Rest",
+            TypeCategory::Intersection => "Intersection",
         };
         write!(f, "{}", res)       
     }

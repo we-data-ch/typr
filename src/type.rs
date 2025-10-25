@@ -582,6 +582,7 @@ impl Type {
             Type::Div(_, _, _) => TypeCategory::Template,
             Type::Vector(_, _, _) => TypeCategory::Vector,
             Type::Sequence(_, _, _) => TypeCategory::Sequence,
+            Type::Intersection(_, _) => TypeCategory::Intersection,
             _ => {
                 println!("{:?} return Rest", self);
                 TypeCategory::Rest
@@ -783,6 +784,7 @@ impl From<Type> for HelpData {
            Type::Boolean(h) => h,
            Type::Array(_, _, h) => h,
            Type::Number(h) => h,
+           Type::Intersection(_, h) => h,
            e => panic!("The type element {:?} is not yet implemented", e)
        }.clone()
    } 
@@ -839,6 +841,7 @@ impl PartialEq for Type {
                     el1.difference(&el2).collect::<Vec<_>>().len() == 0
                 },
             (Type::Union(s1, _), Type::Union(s2, _)) => s1 == s2,
+            (Type::Intersection(s1, _), Type::Intersection(s2, _)) => s1 == s2,
             _ => false
         }
     }

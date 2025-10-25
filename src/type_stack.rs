@@ -1,7 +1,7 @@
-use rpds::Stack;
+use rpds::Vector;
 use crate::Type;
 use std::collections::HashSet;
-use crate::graph::TypeSystem;
+use crate::help_data::HelpData;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum TypeOperator {
@@ -12,43 +12,31 @@ pub enum TypeOperator {
 }
 
 impl TypeOperator {
-    fn join_helper(self, type1: Type, type2: Type) -> Type {
-        let types = [type1.clone(), type2.clone()].iter().cloned().collect::<HashSet<_>>();
+    fn build_type(self, types: HashSet<Type>, help_data: HelpData) -> Type {
         match self {
-            TypeOperator::Union => Type::Union(types, type1.into()),
-            TypeOperator::Intersection => Type::Intersection(types, type1.into()),
-            _ => panic!("We can't combine {} and {} with the empty type operator",
-                                type1.pretty(), type2.pretty())
-        }
-    }
-
-    fn join(self, type1: Option<&Type>, type2: Option<&Type>) -> Option<Type> {
-        match (type1, type2) {
-            (Some(t1), Some(t2)) 
-                => Some(self.join_helper(t1.clone(), t2.clone())),
-            _ => None
+            TypeOperator::Union => Type::Union(types, help_data),
+            TypeOperator::Intersection => Type::Intersection(types, help_data),
+            _ => panic!("We can't combine types with the empty type operator")
         }
     }
 }
 
 #[derive(Debug, Default)]
 pub struct TypeStack {
-    types: Stack<Type>,
-    operators: Stack<TypeOperator>,
+    types: Vector<Type>,
     last_operator: TypeOperator
 }
 
 impl TypeStack {
     fn push_type(self, typ: Type) -> Self {
         Self {
-            types: self.types.push(typ),
+            types: self.types.push_back(typ),
             ..self
         }
     }
 
     fn push_operator(self, op: TypeOperator) -> Self {
         Self {
-            operators: self.operators.push(op),
             last_operator: op,
             ..self
         }
@@ -67,36 +55,27 @@ impl TypeStack {
     fn push_op(self, op: Option<TypeOperator>) -> Self {
         match op {
             Some(ope) => self.push_op_helper(ope),
-            _ => self
+            _ => self.compute()
         }
     }
 
 
     pub fn get_type(self) -> Type {
-        match self.types.peek() {
-            Some(typ) => typ.clone(),
-            _ => panic!("This is an empty stack!")
-        } 
+        self.types.last()
+            .expect("This is an empty stack!")
+            .clone()
     }
 
     fn compute(self) -> Self {
-        let mut stack = self;
-        while stack.operators.peek().is_some() {
-            stack = match stack.operators.peek() {
-                None => stack,
-                Some(res) => {
-                    let type1 = stack.types.peek(); let types = stack.types.pop().unwrap();
-                    let type2 = types.peek(); let types = types.pop().unwrap();
-                    let new_type = res.join(type1, type2)
-                       .expect("The type operator Stack wasn't able to build the type");
-                    Self {
-                        types: types.push(new_type),
-                        ..stack
-                    }
-                }
-            }
+        let new_types = self.types.iter()
+            .cloned()
+            .collect::<HashSet<_>>();
+        let help_data = self.types[0].clone().into();
+        let new_type = self.last_operator.build_type(new_types, help_data);
+        Self {
+            types: Vector::default().push_back(new_type),
+            ..self
         }
-        stack
     }
 
     pub fn load(self, v: &[(Type, Option<TypeOperator>)]) -> Self {
@@ -117,6 +96,9 @@ impl TypeStack {
 mod tests {
     use super::*;
     use crate::builder;
+    use crate::builder::integer_type_default;
+    use crate::builder::character_type_default;
+    use crate::type_category::TypeCategory;
 
     #[test]
     fn test_type_operator_default_value(){
@@ -137,10 +119,58 @@ mod tests {
     }
 
     #[test]
-    fn test_stack_get_last_operator() {
+    fn test_stack_get_last_operator1() {
         let stack = TypeStack::default();
         assert_eq!(stack.get_last_operator(), TypeOperator::Unknown,
-        "The result should be 'Unknown' if no operator have been added yet");
+        "The result should be 'Unknown' if no operator has not been added yet");
+    }
+
+    #[test]
+    fn test_stack_get_last_operator2() {
+        let stack = TypeStack::default().push_op(Some(TypeOperator::Union));
+        assert_eq!(stack.get_last_operator(), TypeOperator::Union,
+        "The result should be 'Union' since we added an union operator");
+    }
+
+    #[test]
+    fn test_stack_push_operator_to_compute1() {
+        let stack = TypeStack::default()
+            .push_type(integer_type_default())
+            .push_type(character_type_default())
+            .push_op(Some(TypeOperator::Union))
+            .push_op(None);
+        assert_eq!(stack.get_type().to_category(), TypeCategory::Union,
+        "The result should be an Union type if the last operator added is None");
+    }
+
+    #[test]
+    fn test_stack_push_operator_to_compute2() {
+        let stack = TypeStack::default()
+            .push_type(integer_type_default())
+            .push_op(Some(TypeOperator::Intersection))
+            .push_type(character_type_default())
+            .push_op(Some(TypeOperator::Intersection))
+            .push_type(character_type_default())
+            .push_op(Some(TypeOperator::Union));
+        assert_eq!(stack.get_type().to_category(), TypeCategory::Intersection,
+        "The result should be an Intersection if the last operator added differ from the previous ones.");
+    }
+
+    #[test]
+    fn test_stack_push_operator_to_compute3() {
+        let integer = integer_type_default();
+        let character = character_type_default();
+        let stack = TypeStack::default()
+            .push_type(integer.clone())
+            .push_op(Some(TypeOperator::Intersection))
+            .push_type(character.clone())
+            .push_op(Some(TypeOperator::Union))
+            .push_type(integer.clone())
+            .push_op(Some(TypeOperator::Intersection));
+        let intersection = builder::intersection_type(&[integer.clone(), character]);
+        let union = builder::union_type(&[intersection, integer]);
+        assert_eq!(stack.get_type(), union,
+        "The result should be an Union of an intersection");
     }
 
 }
