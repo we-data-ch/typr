@@ -11,6 +11,10 @@ pub fn generic_type() -> Type {
         Type::Generic("T".to_string(), HelpData::default())
 }
 
+pub fn self_generic_type() -> Type {
+        Type::Generic("Self".to_string(), HelpData::default())
+}
+
 pub fn empty_type() -> Type {
     Type::Empty(HelpData::default())
 }

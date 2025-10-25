@@ -101,11 +101,11 @@ impl TypeSystem for Type {
                 args1.iter().chain([&(**ret_typ1)])
                     .zip(args2.iter().chain([&(**ret_typ2)]))
                     .all(|(typ1, typ2)| typ1.is_subtype(typ2, context))
-            }
+            },
             // Interface subtyping
             (Type::Interface(args1, _), Type::Interface(args2, _)) => {
                 args1 == args2 || args1.is_superset(args2)
-            }
+            },
             (typ, Type::Interface(args2, _)) => {
                 match typ.to_interface(context) {
                     Type::Interface(args1, _) 
@@ -742,7 +742,8 @@ impl Type {
             typ => {
                 let function_signatures = context.get_functions(typ)
                     .iter().cloned()
-                    .map(|(var, typ)| (var.to_string(), typ))
+                    .map(|(var, typ)| 
+                         (var.to_string(), typ.replace_function_types(builder::self_generic_type(), self.clone())))
                     .collect::<Vec<_>>();
                 builder::interface_type2(&function_signatures)
             }
