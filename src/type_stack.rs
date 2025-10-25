@@ -102,7 +102,8 @@ mod tests {
 
     #[test]
     fn test_type_operator_default_value(){
-        assert_eq!(TypeOperator::default(), TypeOperator::Unknown); 
+        assert_eq!(TypeOperator::default(), TypeOperator::Unknown,
+        "The default value of the TypeOperator should be 'Unknown'"); 
     }
 
     #[test]
@@ -115,7 +116,8 @@ mod tests {
     fn test_empty_stack_get_first_type() {
         let typ = builder::empty_type();
         let stack = TypeStack::default().push_type(typ.clone());
-        assert_eq!(stack.get_type(), typ);
+        assert_eq!(stack.get_type(), typ,
+        "The TypeStack should keep the given type in its 'types' field");
     }
 
     #[test]
