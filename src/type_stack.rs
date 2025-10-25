@@ -2,6 +2,7 @@ use rpds::Stack;
 use crate::Type;
 use std::collections::HashSet;
 use crate::graph::TypeSystem;
+use crate::builder;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum TypeOperator {
@@ -105,4 +106,40 @@ impl TypeStack {
               |acc, (typ, op)| 
                 acc.push_type(typ.clone()).push_op(op.clone()))
     }
+
+    fn get_last_operator(&self) -> TypeOperator {
+        self.last_operator.clone()
+    }
+}
+
+// TODO: write some tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_type_operator_default_value(){
+        assert_eq!(TypeOperator::default(), TypeOperator::Unknown); 
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_empty_stack_get_type() {
+        TypeStack::default().get_type();
+    }
+
+    #[test]
+    fn test_empty_stack_get_first_type() {
+        let typ = builder::empty_type();
+        let stack = TypeStack::default().push_type(typ.clone());
+        assert_eq!(stack.get_type(), typ);
+    }
+
+    #[test]
+    fn test_stack_get_last_operator() {
+        let stack = TypeStack::default();
+        assert_eq!(stack.get_last_operator(), TypeOperator::Unknown,
+        "The result should be 'Unknown' if no operator have been added yet");
+    }
+
 }
