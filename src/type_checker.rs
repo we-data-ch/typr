@@ -446,6 +446,10 @@ pub fn typing(context: &Context, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Co
                     };
                     Type::Record(fields3, h.clone()).with_lang(expr, context)
                 },
+                (Type::Generic(symbol, h), Lang::Record(fields2, _)) => {
+                    builder::intersection_type(&[ty2.clone(), e1.typing(context).0])
+                        .with_lang(expr, context)
+                },
                 (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
             }
         },

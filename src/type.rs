@@ -86,6 +86,10 @@ impl TypeSystem for Type {
         match (self, other) {
             (Type::Empty(_), _) => true,
             (typ1, typ2) if typ1 == typ2 => true,
+            (Type::Intersection(types, _), typ) => {
+                types.iter()
+                    .any(|x| x.is_subtype(typ, context))
+            },
             // Array subtyping
             (_, Type::Any(_)) => true,
             (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
