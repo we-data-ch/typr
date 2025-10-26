@@ -81,6 +81,7 @@ pub fn format(ty: &Type) -> String {
         Type::RFunction(_) => "RFunction".to_string(),
         Type::RClass(elem, _) => format!("class({})", elem.iter().cloned().collect::<Vec<_>>().join(", ")),
         Type::Union(s, _) => format!("{}", s.iter().cloned().map(|x| x.pretty()).collect::<Vec<_>>().join(" | ")),
+        Type::Intersection(s, _) => format!("{}", s.iter().cloned().map(|x| x.pretty()).collect::<Vec<_>>().join(" & ")),
         t => format!("{:?}", t)
     }
 }
