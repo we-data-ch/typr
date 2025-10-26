@@ -438,10 +438,12 @@ pub fn typing(context: &Context, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Co
                         .with_lang(expr)
                 },
                 (Type::Record(fields1, h), Lang::Record(fields2, _)) => {
-                    let at = fields2[0].clone();
-                    let fields3 = fields1.iter()
-                        .map(replace_fields_type_if_needed(context, at))
-                        .collect::<HashSet<_>>();
+                    let fields3: HashSet<_> = match e1.typing(context).0 {
+                        Type::Record(fields, _) => {
+                            fields1.union(&fields).cloned().collect()
+                        },
+                        _ => panic!("Typing {} should produce a record type", e1)
+                    };
                     Type::Record(fields3, h.clone()).with_lang(expr, context)
                 },
                 (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
