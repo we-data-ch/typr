@@ -791,6 +791,7 @@ impl From<Type> for HelpData {
            Type::Number(h) => h,
            Type::Intersection(_, h) => h,
            Type::Sequence(_, _, h) => h,
+           Type::Union(_, h) => h,
            e => panic!("The type element {:?} is not yet implemented", e)
        }.clone()
    } 
