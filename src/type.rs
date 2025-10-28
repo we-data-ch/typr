@@ -790,6 +790,7 @@ impl From<Type> for HelpData {
            Type::Array(_, _, h) => h,
            Type::Number(h) => h,
            Type::Intersection(_, h) => h,
+           Type::Sequence(_, _, h) => h,
            e => panic!("The type element {:?} is not yet implemented", e)
        }.clone()
    } 
@@ -1084,6 +1085,14 @@ mod tests {
         let typ1 = "{int, int}".parse::<Type>().unwrap();
         let typ2 = "{T, T}".parse::<Type>().unwrap();
         assert!(typ1 < typ2)
+    }
+
+    #[test]
+    fn test_sequence_subtyping1() {
+        let s1 = "Seq[0, Empty]".parse::<Type>().unwrap();
+        let s2 = "Seq[0, int]".parse::<Type>().unwrap();
+        assert!(s1.is_subtype(&s2, &Context::default()),
+                "An Empty sequence should be subtype of an empty sequence of a defined type.");
     }
 
 }

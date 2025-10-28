@@ -28,6 +28,7 @@ use nom::combinator::recognize;
 use crate::elements;
 use crate::type_stack::TypeStack;
 use crate::type_stack::TypeOperator;
+use nom::character::complete::none_of;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -593,6 +594,21 @@ pub fn ltype(s: Span) -> IResult<Span, Type> {
     }
 }
 
+pub fn char_litteral(s: Span) -> IResult<Span, Type> {
+    let res = terminated(alt((
+            (tag("\""), many0(none_of("\"")), tag("\"")),
+            (tag("'"), many0(none_of("'")), tag("'")),
+                  )), multispace0).parse(s);
+    match res {
+        Ok((s, (start, st, _end))) 
+            => {
+                let val: String = st.clone().iter().collect();
+                Ok((s, Type::Char(val.into(), start.into())))
+            },
+        Err(r) => Err(r)
+    }
+}
+
 // main
 pub fn single_type(s: Span) -> IResult<Span, Type> {
     terminated(alt((
@@ -603,6 +619,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             empty,
             interface,
             label_generic,
+            char_litteral,
             index_algebra,
             primitive_types,
             strict_union,
@@ -672,6 +689,13 @@ mod tests {
                         ("hey", builder::function_type(&[num.clone(), num.clone()], num))
         ]);
         assert_eq!(res, inter);
+    }
+
+    #[test]
+    fn test_char_litteral() {
+        let typ = "\"char\"".parse::<Type>().unwrap();
+        assert_eq!(typ.to_category(), TypeCategory::Char,
+                    "Char litterals should be parsable");
     }
 
 }

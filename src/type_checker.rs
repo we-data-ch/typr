@@ -376,8 +376,8 @@ impl TypeContext for (Type, Context) {
     }
 
     fn get_covariant_type(self, typ: &Type) -> Self {
-        self.0.get_covariant_type(typ, &self.1)
-            .tuple(&self.1)
+        self.0.get_covariant_type(typ, &self.1);
+        (builder::empty_type(), self.1)
     }
 
     fn add_to_context(self, var: Var) -> Self {
