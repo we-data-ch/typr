@@ -259,7 +259,8 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
         terminated(tag(")"), multispace0),
         opt(terminated(tag(":"), multispace0)),
         opt(terminated(alt((if_type, ltype)), multispace0)),
-        alt((scope, parse_elements))
+        //alt((scope, parse_elements))
+        scope
           ).parse(s);
     match res {
         Ok((s, (_, _, args, _, Some(_), Some(typ), exp))) =>{
@@ -387,9 +388,13 @@ fn record(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (Some(start), _, args, _))) 
             => Ok((s, Lang::Record(args.clone(), start.into()))),
-        Ok((_s, (None, _ob, _args, _))) => {
-            println!("{}", _s);
-            panic!("You forgot to put a record identifier before the bracket: ':{{...}}'");
+        Ok((_s, (None, _ob, args, _))) => {
+            if args.len() == 0 {
+                panic!("Error: the scope shouldn't be empty")
+            } else {
+                println!("{}", _s);
+                panic!("You forgot to put a record identifier before the bracket: ':{{...}}'");
+            }
         } 
         Err(r) => Err(r)
     }
@@ -719,13 +724,17 @@ pub fn single_element(s: Span) -> IResult<Span,Lang> {
 pub fn scope(s: Span) -> IResult<Span, Lang> {
     let res = delimited(
         terminated(alt((tag("("), tag("{"))), multispace0),
-        parse_exp,
+        opt(parse_exp),
         terminated(alt((tag(")"), tag("}"))), multispace0)).parse(s);
     match res {
-        Ok((s, Lang::Empty(h))) => Ok((s, Lang::Scope(vec![], h.clone()))),
-        Ok((s, Lang::Lines(v, _h))) 
-            => Ok((s, Lang::Scope(v.clone(), v.into()))),
-        Ok((s, rest)) => Ok((s, Lang::Scope(vec![rest.clone()], rest.into()))),
+        Ok((_s, Some(Lang::Empty(_h)))) 
+            => panic!("Error: the scope shouldn't be empty"),
+        Ok((s, Some(Lang::Lines(v, _h))))
+            => {
+                Ok((s, Lang::Scope(v.clone(), v.into())))
+            },
+        Ok((_s, None)) => panic!("Error: the scope shouldn't be empty"),
+        Ok((_s, _)) => panic!("Unalowed expression in scope"),
         Err(r) => Err(r),
     }
 }
@@ -939,4 +948,34 @@ pub fn parse_elements(s: Span) -> IResult<Span, Lang> {
         element_chain,
         single_element
         )).parse(s)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic]
+    fn test_empty_scope(){
+        let _ = "{  }".parse::<Lang>();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_function_with_empty_scope1() {
+        let _ = "fn(): int {}".parse::<Lang>();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_function_with_empty_scope2() {
+        let _ = simple_function("fn(): int {}".into());
+    }
+
+    #[test]
+    fn test_function_with_empty_scope3() {
+        let res = simple_function("fn(): int { 5 }".into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Function");
+    }
+
 }

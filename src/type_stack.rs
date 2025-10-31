@@ -55,7 +55,7 @@ impl TypeStack {
     fn push_op(self, op: Option<TypeOperator>) -> Self {
         match op {
             Some(ope) => self.push_op_helper(ope),
-            _ => self.compute()
+            _ => self // maybe add a .compute()
         }
     }
 
@@ -70,7 +70,7 @@ impl TypeStack {
         let new_types = self.types.iter()
             .cloned()
             .collect::<HashSet<_>>();
-        let help_data = self.types[0].clone().into();
+        let help_data: HelpData = self.types[0].clone().into();
         let new_type = self.last_operator.build_type(new_types, help_data);
         Self {
             types: Vector::default().push_back(new_type),

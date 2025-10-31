@@ -505,15 +505,15 @@ pub fn typing(context: &Context, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Co
                 .map(|arg_typ| arg_typ.clone().to_var(context))
                 .zip(list_of_types.clone().into_iter().map(|typ| typ.reduce(context)))
                 .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
-            let res = body.typing(&sub_context);
-            let reduced_body_type = res.0.reduce(&sub_context);
+            let body_type = body.typing(&sub_context);
+            let reduced_body_type = body_type.0.reduce(&sub_context);
             let reduced_expected_ty = ret_ty.reduce(&context);
             if !reduced_body_type.is_subtype(&reduced_expected_ty, context) {
                 None.expect(
                     &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display())
             }
             Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone())
-                .with_lang(expr, &res.1)
+                .with_lang(expr, &body_type.1)
         }
         Lang::Lines(exprs, _h) => {
             if exprs.len() == 1 {
