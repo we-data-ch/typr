@@ -741,7 +741,7 @@ pub fn scope(s: Span) -> IResult<Span, Lang> {
 
 
 
-fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
+pub fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
     // (params, op)
     let first = v.pop()
         .unwrap_or((Lang::Empty(HelpData::default()), Op::Empty(HelpData::default())));
@@ -875,7 +875,7 @@ fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
     }
 }
 
-fn element_operator(s: Span) -> IResult<Span, (Lang, Op)> {
+pub fn element_operator(s: Span) -> IResult<Span, (Lang, Op)> {
     let res = (opt(op),
                 single_element
                 ).parse(s);
@@ -885,25 +885,6 @@ fn element_operator(s: Span) -> IResult<Span, (Lang, Op)> {
         Err(r) => Err(r)
     }
 }
-
-pub fn bang_exp(s: Span) -> IResult<Span, Lang> {
-    let res = (
-        many1(element_operator),
-        terminated(tag("!;"), multispace0)
-                    ).parse(s);
-    match res {
-        Ok((s, (v, _bang))) => {
-            let base = v[0].0.clone();
-            Ok((s, 
-                Lang::Assign(
-                    Box::new(base),
-                    Box::new(op_reverse(&mut v.clone())),
-                    _bang.into())))
-        },
-        Err(r) => Err(r)
-    }
-}
-
 
 fn check_minus_sign(v: Vec<(Lang, Op)>) -> Vec<(Lang, Op)> {
     if v.len() > 0 {

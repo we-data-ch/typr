@@ -14,7 +14,6 @@ use nom::sequence::delimited;
 use crate::elements::tag_exp;
 use nom::character::complete::not_line_ending;
 use nom::character::complete::line_ending;
-use crate::elements::bang_exp;
 use crate::adt::Adt;
 use crate::elements::variable_exp;
 use nom::branch::alt;
@@ -30,8 +29,30 @@ use crate::elements::return_exp;
 use crate::elements::chars;
 use crate::elements::vector;
 use crate::elements::break_exp;
+use nom::multi::many1;
+use crate::elements::element_operator;
+use crate::elements::op_reverse;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
+
+
+pub fn bang_exp(s: Span) -> IResult<Span, Lang> {
+    let res = (
+        many1(element_operator),
+        terminated(tag("!;"), multispace0)
+                    ).parse(s);
+    match res {
+        Ok((s, (v, _bang))) => {
+            let base = v[0].0.clone();
+            Ok((s, 
+                Lang::Assign(
+                    Box::new(base),
+                    Box::new(op_reverse(&mut v.clone())),
+                    _bang.into())))
+        },
+        Err(r) => Err(r)
+    }
+}
 
 fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
     let res = alt((tag_exp, variable)).parse(s);
