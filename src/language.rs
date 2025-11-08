@@ -372,7 +372,7 @@ impl Lang {
             Lang::Match(_, _, _, _) => "Match".to_string(),
             Lang::Tuple(_, _) => "Tuple".to_string(),
             Lang::Lines(_, _) => "Sequence".to_string(),
-            Lang::Assign(_, _, _) => "Addign".to_string(),
+            Lang::Assign(_, _, _) => "Assign".to_string(),
             Lang::Comment(_, _) => "Comment".to_string(),
             Lang::ModImp(_, _) => "ModImp".to_string(),
             Lang::Import(_, _) => "Import".to_string(),

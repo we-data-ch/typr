@@ -911,7 +911,7 @@ fn accessor(s: Span) -> IResult<Span, (Lang, Op)> {
     }
 }
 
-fn element_chain(s: Span) -> IResult<Span, Lang> {
+pub fn element_chain(s: Span) -> IResult<Span, Lang> {
     let res = many1(alt((accessor, element_operator))).parse(s);
     match res {
         Ok((s, v)) => {

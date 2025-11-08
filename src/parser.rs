@@ -32,6 +32,7 @@ use crate::elements::break_exp;
 use nom::multi::many1;
 use crate::elements::element_operator;
 use crate::elements::op_reverse;
+use crate::elements::element_chain;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -370,7 +371,7 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
 
 fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
-            variable,
+            element_chain,
             alt((
                 terminated(tag("="), multispace0),
                 terminated(tag("<-"), multispace0))),
@@ -644,6 +645,27 @@ mod tesus {
         } else {
             assert!(false)
         }
+    }
+
+    #[test]
+    fn test_assign1() {
+        let res = assign("a <- 12;".into()).unwrap().1;
+        assert_eq!("Assign", res[0].simple_print(),
+        "The expression 'a <- 12;' should be identified as an assignation");
+    }
+
+    #[test]
+    fn test_assign2() {
+        let res = assign("a.b() <- 12;".into()).unwrap().1;
+        assert_eq!("Assign", res[0].simple_print(),
+        "The expression 'a.b() <- 12;' should be identified as an assignation");
+    }
+
+    #[test]
+    fn test_assign3() {
+        let res = assign("a$b <- 12;".into()).unwrap().1;
+        assert_eq!("Assign", res[0].simple_print(),
+        "The expression 'a$b <- 12;' should be identified as an assignation");
     }
 
 }
