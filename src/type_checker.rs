@@ -193,6 +193,7 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
                 new_context3.push_alias(name.get_name(), typ.to_owned()))
         },
         Lang::Assign(var, expr, _h) => {
+            // if var is var do the block, else just check the type of the exp
             let variable_assigned = Var::try_from(var.clone()).unwrap();
             let expr_type = typing(&context, expr).0[0].clone();
             let expr_type_reduced = reduce_type(context, &expr_type);
