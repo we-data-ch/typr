@@ -192,40 +192,20 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
             (builder::empty_type(),
                 new_context3.push_alias(name.get_name(), typ.to_owned()))
         },
-        Lang::Assign(var, expr, _h) => {
-            // if var is var do the block, else just check the type of the exp
-            let variable_assigned = Var::try_from(var.clone()).unwrap();
-            let expr_type = typing(&context, expr).0[0].clone();
-            let expr_type_reduced = reduce_type(context, &expr_type);
-            if !context.we_check_mutability() {
-               let new_context = variable_assigned.exist(context) 
-                   .map(|var| {
-                        let res = is_matching(context, &expr_type_reduced, &var.get_type())
-                            .then_some(context.clone()
-                                       .update_variable(var.clone()
-                                        .set_type(expr_type_reduced.clone())));
-                        match res {
-                            Some(val) => val,
-                            None => panic!("{}", TypeError::Param(var.get_type(), expr_type_reduced.clone()).display())
-                        }
-                   })
-                   .unwrap_or(context.clone().push_var_type(
-                                        variable_assigned.set_type(expr_type_reduced.clone()),
-                                        expr_type_reduced, &context));
-                expr_type.tuple(&new_context)
-            } else {
-                let variable = context.get_true_variable(&variable_assigned);
-                let var_type = context.get_type_from_existing_variable(variable.clone());
-                let var_type_reduced = reduce_type(context, &var_type);
-                if (expr_type_reduced != var_type_reduced) && !expr_type_reduced.is_subtype(&var_type_reduced, context) {
-                    panic!("{}", TypeError::Param(expr_type, var_type).display());
-                } else if !variable.is_mutable() && context.we_check_mutability() {
-                    panic!("{}", TypeError::ImmutableVariable(variable_assigned, variable).display());
-                } else {
-                    expr_type.tuple(context)
-                }
+        Lang::Assign(left_expr, right_expr, _h) => {
+            let left_type = typing(&context, left_expr).0;
+            let right_type = typing(&context, right_expr).0;
+            let left_type = left_type.first().unwrap();
+            let right_type = right_type.first().unwrap();
+            let reduced_left_type = reduce_type(context, left_type);
+            let reduced_right_type = reduce_type(context, right_type);
+            if reduced_right_type.is_subtype(&reduced_left_type, context) {
+                (builder::empty_type(), context.clone())
+            } else { 
+                panic!("The right side and left sides don't match {} <- {}",
+                       left_type.pretty(), right_type.pretty())
             }
-        }
+        },
         Lang::Library(name, _h) => {
             install_package(name);
             let function_list = execute_r_function(&format!("library({})\n\nls('package:{}')", name, name))
@@ -377,8 +357,8 @@ impl TypeContext for (Type, Context) {
     }
 
     fn get_covariant_type(self, typ: &Type) -> Self {
-        self.0.get_covariant_type(typ, &self.1);
-        (builder::empty_type(), self.1)
+        let typ = self.0.get_covariant_type(typ, &self.1);
+        (typ, self.1)
     }
 
     fn add_to_context(self, var: Var) -> Self {
@@ -813,6 +793,29 @@ mod tests {
         let res = "typr(true)".parse::<Lang>().unwrap();
         let context = Context::default();
         typing(&context, &res);
+    }
+
+    #[test]
+    fn test_let1() {
+        let context = Context::default();
+        let lang = Var::default().set_name("a");
+        let typ = builder::integer_type_default();
+        let context2 = context.clone().push_var_type(lang.clone(), typ.clone(), &context);
+        let res = context2.get_type_from_variable(&lang);
+        assert_eq!(res, Some(typ));
+    }
+
+    #[test]
+    fn test_let2() {
+        let context = Context::default();
+        let let_exps = parse("let a: int <- 8;".into()).unwrap().1.0;
+        let let_exp = let_exps[0].clone();
+        let var = Var::default().set_name("a");
+        let new_context = typing(&context, &let_exp).2;
+        let res = new_context.get_type_from_variable(&var);
+        let typ = builder::integer_type_default();
+        assert_eq!(res, Some(typ));
+        //assert!(true);
     }
 
 }

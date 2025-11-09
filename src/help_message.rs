@@ -191,7 +191,8 @@ impl ErrorMsg for TypeError {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();
                 let (file_name, text) = help_data1.get_file_data()
-                    .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
+                    .unwrap_or(("std.ty".to_string(), 
+                                fs::read_to_string("std.ty").unwrap_or("".to_string())));
                 DoubleBuilder::new(file_name.clone(), text.clone(), file_name, text)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
