@@ -417,7 +417,7 @@ impl Lang {
                  context.clone())
             },
             Lang::Assign(var, body, _) => {
-                (format!("let {} = {};", var.to_js(context).0, body.to_js(context).0),
+                (format!("{} = {};", var.to_js(context).0, body.to_js(context).0),
                  context.clone())
             },
             Lang::Scope(langs, _) => {
@@ -492,6 +492,9 @@ impl Lang {
             },
             Lang::Lambda(body, _) => {
                 (format!("x => {}", body.to_js(context).0), context.clone())
+            },
+            Lang::Bool(b, _) => {
+                (b.to_string(), context.clone())
             },
             _ => {
                 let empty = builder::empty_type();

@@ -43,6 +43,7 @@ mod type_category;
 mod typer;
 mod var_function;
 mod type_stack;
+mod js_types;
 
 use crate::help_message::TypeError;
 use parser::parse;
