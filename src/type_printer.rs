@@ -5,6 +5,7 @@ use crate::tint::Tint;
 use crate::tchar::Tchar;
 use crate::type_category::TypeCategory;
 use crate::graph::TypeSystem;
+use crate::r#type::pretty;
 
 fn format_kind(ki: &Kind) -> String {
    match ki {
@@ -82,6 +83,9 @@ pub fn format(ty: &Type) -> String {
         Type::RClass(elem, _) => format!("class({})", elem.iter().cloned().collect::<Vec<_>>().join(", ")),
         Type::Union(s, _) => format!("{}", s.iter().cloned().map(|x| x.pretty()).collect::<Vec<_>>().join(" | ")),
         Type::Intersection(s, _) => format!("{}", s.iter().cloned().map(|x| x.pretty()).collect::<Vec<_>>().join(" & ")),
+        Type::Interface(args, _) => {
+            format!("interface{{ {} }}", pretty(args.clone()))
+        }
         t => format!("{:?}", t)
     }
 }

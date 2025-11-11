@@ -9,7 +9,6 @@ use crate::tag::Tag;
 use nom::character::complete::alphanumeric1;
 use crate::r#type::Type;
 use std::collections::HashSet;
-use crate::argument_kind::ArgumentKind;
 use crate::operators::{Op, op};
 use nom::sequence::terminated;
 use nom::multi::many0;
@@ -29,11 +28,12 @@ use crate::elements;
 use crate::type_stack::TypeStack;
 use crate::type_stack::TypeOperator;
 use nom::character::complete::none_of;
+use crate::builder;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
 fn ltype_arg(s: Span) -> IResult<Span, Type> {
-    let res = (ltype, terminated(opt(tag(",")), multispace0)).parse(s);
+    let res = (ltype, terminated(opt(terminated(tag(","), multispace0)), multispace0)).parse(s);
     match res {
         Ok((s, (t, _))) => Ok((s, t)),
         Err(r) => Err(r)
@@ -50,13 +50,7 @@ fn function_type(s: Span) -> IResult<Span, Type> {
           ).parse(s);
     match res {
         Ok((s, (start, v, _, _, t))) => {
-            let kind_vec = v.iter()
-                .flat_map(|typ| typ.extract_generics())
-                .collect::<HashSet<_>>()
-                .into_iter()
-                .map(|typ| ArgumentKind::from((typ.clone(), typ.get_kind())))
-                .collect::<Vec<_>>();
-            Ok((s, Type::Function(kind_vec, v.clone(), Box::new(t), start.into())))
+            Ok((s, Type::Function(vec![], v.clone(), Box::new(t), start.into())))
         },
         Err(r) => Err(r)
     }
@@ -443,6 +437,14 @@ fn any(s: Span) -> IResult<Span, Type> {
     }
 }
 
+fn self_type(s: Span) -> IResult<Span, Type> {
+    match tag("Self")(s) {
+        Ok((s, e)) 
+            => Ok((s, builder::self_generic_type().set_help_data(e.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 fn empty(s: Span) -> IResult<Span, Type> {
     match tag("Empty")(s) {
         Ok((s, e)) => Ok((s, Type::Empty(e.into()))),
@@ -623,6 +625,7 @@ pub fn char_litteral(s: Span) -> IResult<Span, Type> {
 // main
 pub fn single_type(s: Span) -> IResult<Span, Type> {
     terminated(alt((
+            self_type,
             r_class,
             vector_type,
             sequence_type,
@@ -701,11 +704,33 @@ mod tests {
     }
 
     #[test]
-    fn test_interface_parsing() {
+    fn test_interface_parsing1() {
         let res = interface("interface { hey: (num, num) -> num }".into()).unwrap().1;
         let num = builder::number_type();
         let inter = builder::interface_type(&[
                         ("hey", builder::function_type(&[num.clone(), num.clone()], num))
+        ]);
+        assert_eq!(res, inter);
+    }
+
+    #[test]
+    fn test_interface_parsing2() {
+        let res = interface("interface { hey: (Self, num) -> num }".into()).unwrap().1;
+        let num = builder::number_type();
+        let self_t = builder::self_generic_type();
+        let inter = builder::interface_type(&[
+                        ("hey", builder::function_type(&[self_t, num.clone()], num))
+        ]);
+        assert_eq!(res, inter);
+    }
+
+    #[test]
+    fn test_interface_parsing3() {
+        let res = interface("interface { hey: (Self) -> num }".into()).unwrap().1;
+        let num = builder::number_type();
+        let self_t = builder::self_generic_type();
+        let inter = builder::interface_type(&[
+                        ("hey", builder::function_type(&[self_t], num))
         ]);
         assert_eq!(res, inter);
     }
@@ -716,6 +741,12 @@ mod tests {
         let typ = "\"char\"".parse::<Type>().unwrap();
         assert_eq!(typ.to_category(), TypeCategory::Char,
                     "Char litterals should be parsable");
+    }
+
+    #[test]
+    fn test_self_ltype() {
+        let typ = ltype("Self".into()).unwrap().1;
+        assert_eq!(typ.to_category(), TypeCategory::Generic);
     }
 
 }

@@ -36,6 +36,13 @@ fn to_string<T: ToString>(v: &[T]) -> String {
     format!("[{}]", res)
 }
 
+pub fn pretty(hs: HashSet<ArgumentType>) -> String {
+    hs.iter()
+        .map(|arg_typ| format!("{}: {}", 
+                               arg_typ.get_argument_str(), 
+                               arg_typ.get_type().pretty()))
+        .collect::<Vec<_>>().join("\n")
+}
 
 
 #[derive(Debug, Clone, Serialize, Eq)]
@@ -113,7 +120,9 @@ impl TypeSystem for Type {
             (typ, Type::Interface(args2, _)) => {
                 match typ.to_interface(context) {
                     Type::Interface(args1, _) 
-                        => &args1 == args2 || args1.is_superset(args2),
+                        => {
+                            &args1 == args2 || args1.is_superset(args2)
+                        },
                     _ => todo!()
                 }
             }
@@ -746,8 +755,9 @@ impl Type {
             typ => {
                 let function_signatures = context.get_functions(typ)
                     .iter().cloned()
-                    .map(|(var, typ)| 
-                         (var.to_string(), typ.replace_function_types(builder::self_generic_type(), self.clone())))
+                    .map(|(var, typ2)| {
+                        (var.get_name(), typ2.replace_function_types(typ.clone(), builder::self_generic_type()))
+                    })
                     .collect::<Vec<_>>();
                 builder::interface_type2(&function_signatures)
             }
@@ -1038,6 +1048,8 @@ impl FromStr for Type {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parse;
+    use crate::typing;
 
     #[test]
     fn test_record_hierarchy0(){
@@ -1094,6 +1106,61 @@ mod tests {
         let s2 = "Seq[0, int]".parse::<Type>().unwrap();
         assert!(s1.is_subtype(&s2, &Context::default()),
                 "An Empty sequence should be subtype of an empty sequence of a defined type.");
+    }
+
+    #[test]
+    fn test_interface_and_type_subtyping1() {
+        let self_fn_type = builder::function_type(
+            &[builder::self_generic_type()],
+            builder::character_type_default());
+        let int_type = builder::integer_type_default();
+        let fn_type = builder::function_type(
+            &[int_type.clone()],
+            builder::character_type_default());
+        let interface = builder::interface_type(&[("view", self_fn_type.clone())]);
+
+        let var = Var::from_name("view").set_type(int_type.clone());
+        let ctx = Context::default();
+        let context = ctx.clone().push_var_type(var, fn_type, &ctx);
+
+        assert_eq!(int_type.is_subtype(&interface, &context), true);
+    }
+
+    #[test]
+    fn test_interface_and_type_subtyping2() {
+        let self_fn_type = builder::function_type(
+            &[builder::self_generic_type()],
+            builder::character_type_default());
+        let int_type = builder::integer_type_default();
+        let fn_type = builder::function_type(
+            &[int_type.clone()],
+            builder::character_type_default());
+        let interface = builder::interface_type(&[("view", self_fn_type.clone())]);
+
+        let var = Var::from_name("view").set_type(int_type.clone());
+        let ctx = Context::default();
+        let context = ctx.clone()
+            .push_var_type(var, fn_type, &ctx)
+            .push_alias("Model".to_string(), interface.clone());
+
+        let let_expression = 
+            parse("let a: Model <- 10;".into()).unwrap().1;
+        let new_types = typing(&context, &let_expression.0[0]).0;
+        dbg!(&new_types[0].pretty());
+        assert!(true)
+        //assert_eq!(int_type.is_subtype(&interface, &context), true);
+    }
+
+    #[test]
+    fn test_replace_function_type() {
+        let int_type = builder::integer_type_default();
+        let fn_type = builder::function_type(
+            &[int_type.clone()],
+            builder::character_type_default());
+
+        let new_type = fn_type.replace_function_types(int_type, builder::self_generic_type());
+        println!("new_type.pretty(): {:?}", new_type.pretty());
+        assert!(true);
     }
 
 }
