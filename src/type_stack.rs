@@ -42,10 +42,14 @@ impl TypeStack {
         }
     }
 
+    fn differ_from_last_operator(&self, op: TypeOperator) -> bool {
+        op != self.last_operator && self.last_operator != TypeOperator::Unknown
+    }
+
     fn push_op_helper(self, op: TypeOperator) -> Self {
         if op == TypeOperator::Unknown {
             self.compute()
-        } else if op != self.last_operator && self.last_operator != TypeOperator::Unknown {
+        } else if self.differ_from_last_operator(op) {
             self.compute().push_operator(op)
         } else {
             self.push_operator(op)
@@ -78,10 +82,10 @@ impl TypeStack {
         }
     }
 
-    pub fn load(self, v: &[(Type, Option<TypeOperator>)]) -> Self {
+    pub fn load(self, v: &[(Option<TypeOperator>, Type)]) -> Self {
         v.iter()
          .fold(self, 
-              |acc, (typ, op)| 
+              |acc, (op, typ)| 
                 acc.push_type(typ.clone()).push_op(op.clone()))
     }
 
@@ -140,7 +144,8 @@ mod tests {
             .push_type(integer_type_default())
             .push_type(character_type_default())
             .push_op(Some(TypeOperator::Union))
-            .push_op(None);
+            .push_op(Some(TypeOperator::Unknown));
+
         assert_eq!(stack.get_type().to_category(), TypeCategory::Union,
         "The result should be an Union type if the last operator added is None");
     }

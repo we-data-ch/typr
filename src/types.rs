@@ -228,6 +228,14 @@ pub fn pascal_case(s: Span) -> IResult<Span, (String, HelpData)> {
     }
 }
 
+pub fn pascal_case_no_space(s: Span) -> IResult<Span, (String, HelpData)> {
+    let res = (one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), alphanumeric1).parse(s);
+    match res {
+        Ok((s, (t1, t2))) => Ok((s.clone(), (format!("{}{}", t1, t2.clone()), t2.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
     let res = many1(terminated(pascal_case, tag("::"))).parse(s);
     match res {
@@ -246,7 +254,7 @@ fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
 pub fn type_alias(s: Span) -> IResult<Span, Type> {
     let res = (
             opt(module_path),
-            alt((pascal_case, variable_exp)),
+            alt((pascal_case_no_space, variable_exp)),
             terminated(opt(type_params), multispace0)
           ).parse(s);
     match res {
@@ -483,7 +491,9 @@ fn index_operator(s: Span) -> IResult<Span, (Type, Op)> {
 fn index_chain(s: Span) -> IResult<Span, Type> {
     let res = many1(index_operator).parse(s);
     match res {
-        Ok((s, v)) => Ok((s, compute_operators(&mut v.clone()))),
+        Ok((s, v)) => {
+            Ok((s, compute_operators(&mut v.clone())))
+        },
         Err(r) => Err(r)
     }
 }
@@ -580,11 +590,12 @@ fn type_operator(s: Span) -> IResult<Span, TypeOperator> {
 // Will work on union and intersection types that use infix operators
 // main
 pub fn ltype(s: Span) -> IResult<Span, Type> {
-    let res = many1((single_type, opt(type_operator))).parse(s);
+    //let res = many1((single_type, opt(type_operator))).parse(s);
+    let res = many1((opt(type_operator), single_type)).parse(s);
     match res {
         Ok((s, v)) => {
             let new_type = if v.len() == 1 {
-                v[0].0.clone()
+                v[0].1.clone()
             } else {
                 TypeStack::default().load(&v).get_type()
             };
@@ -662,6 +673,14 @@ mod tests {
     }
 
     #[test]
+    fn test_alias_type3() {
+        //Test if alias can be parsed
+        let res = ltype("Model".into()).unwrap().1;
+        assert_eq!(res.to_category(), TypeCategory::Alias,
+        "Parsing 'Model' should give an Alias type");
+    }
+
+    #[test]
     fn test_fabrice0(){
         let arr1 = ltype("[1, T]".into()).unwrap().1;
         let arr2 = ltype("[1, 1]".into()).unwrap().1;
@@ -690,6 +709,7 @@ mod tests {
         ]);
         assert_eq!(res, inter);
     }
+
 
     #[test]
     fn test_char_litteral() {

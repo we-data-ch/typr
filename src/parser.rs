@@ -630,6 +630,7 @@ pub fn parse(s: Span) -> IResult<Span, Adt> {
 #[cfg(test)]
 mod tesus {
     use super::*;
+    use crate::builder;
 
     #[test]
     fn test_type_exp2() {
