@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use miette::{Diagnostic, NamedSource, SourceSpan, Result};
 use thiserror::Error;
 use miette::SourceCode;
