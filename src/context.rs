@@ -7,7 +7,6 @@ use crate::argument_type::ArgumentType;
 use crate::vartype::VarType;
 use crate::type_comparison;
 use crate::Environment;
-use crate::type_comparison::is_matching;
 use crate::help_data::HelpData;
 use crate::typing;
 use crate::type_checker::match_types;
@@ -88,7 +87,7 @@ impl Context {
             let Var(name2, path2, perm2, bo2, typ2, _h2) = var2;
             let conditions = (name1 == name2) &&
                 (path1 == path2) && (perm1 == perm2) &&
-                (bo1 == bo2) && (type_comparison::is_matching(self, typ1, typ2));
+                (bo1 == bo2) && typ1.is_subtype(typ2, self);
             if conditions { Some(type_.clone()) } else { None }
         }).next()
     }
@@ -99,7 +98,7 @@ impl Context {
             let Var(name2, path2, perm2, bo2, typ2, _h2) = var2;
             let conditions = (name1 == name2) &&
                 (path1 == path2) && (perm1 == perm2) &&
-                (bo1 == bo2) && (type_comparison::is_matching(self, typ1, typ2));
+                (bo1 == bo2) && typ1.is_subtype(typ2, self);
             if conditions { Some(type_.clone()) } else { None }
         }).next()
     }
@@ -108,8 +107,8 @@ impl Context {
         let Var(name1, path1, perm1, _bo1, params1, _h1) = var1;
         let Var(name2, path2, perm2, _bo2, params2, _h2) = var2;
         (name1 == name2) &&
-            (path1 == path2) && (perm1 == perm2) &&
-            (type_comparison::is_matching(self, params1, params2))
+            (path1 == path2) && (perm1 == perm2) && 
+            params1.is_subtype(params2, self)
     }
 
     fn is_matching_alias(&self, var1: &Var, var2: &Var) -> bool {
@@ -234,7 +233,7 @@ impl Context {
             .filter(|(var, _typ)| {
                 let related_typ = var.get_type();
                 related_typ != Type::Empty(HelpData::default())
-                    && is_matching(self, t, &related_typ) 
+                    && t.is_subtype(&related_typ, self)
             }).cloned()
             .collect()
     }
@@ -261,6 +260,16 @@ impl Context {
                 let new_cont2 = new_cont.add_lang_to_header(&self.build_concret_functions(&type_functions));
                 (type_functions.iter().map(|(_arg, var, fun)| (var.clone(), fun.clone())).collect(),
                 new_cont2)
+            },
+            Type::Interface(args, _) => {
+                let vec = args.iter().cloned()
+                    .map(|arg_typ| (
+                            Var::from_name(&arg_typ.get_argument_str())
+                                .set_type(t.clone()),
+                            arg_typ.get_type()
+                                .replace_function_types(builder::self_generic_type(), t.clone())))
+                    .collect::<Vec<_>>();
+                (vec, self.clone())
             },
             _ => (vec![], self.clone())
         }

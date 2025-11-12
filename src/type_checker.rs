@@ -24,7 +24,6 @@ use crate::help_message::ErrorMsg;
 use std::error::Error;
 use crate::argument_value::ArgumentValue;
 use crate::typer::Typer;
-use crate::type_comparison::is_matching;
 use crate::function_type::FunctionType;
 use crate::graph::TypeSystem;
 use crate::array_type::ArrayType;
@@ -317,6 +316,7 @@ pub fn match_types(ctx: &Context, type1: &Type, type2: &Type)
     -> Option<Vec<(Type, Type)>> {
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
+    dbg!(&ctx.display_typing_context());
     let res = get_gen_type(&type1, &type2)
         .expect(&TypeError::Param(type2, type1).display());
     let unif_map = res.iter()

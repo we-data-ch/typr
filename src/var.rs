@@ -4,7 +4,6 @@ use crate::Lang;
 use std::fmt;
 use serde::Serialize;
 use crate::context::Context;
-use crate::type_comparison;
 use crate::help_data::HelpData;
 use crate::path::Path;
 use crate::translatable::RTranslatable;
@@ -12,6 +11,7 @@ use crate::function_type::FunctionType;
 use crate::typing;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
+use crate::graph::TypeSystem;
 
 type Name = String;
 type IsMutableOpaque = bool;
@@ -113,11 +113,18 @@ impl Var {
     }
 
     pub fn set_type(self, typ: Type) -> Var {
-        let typ = if let Type::Function(_, params, _, h) = typ {
-            if params.len() >= 1 {
-                params[0].clone()
-            } else { Type::Any(h) }
-        } else { typ };
+        let typ = match typ {
+            Type::Function(_, params, _, h) => {
+                if params.len() >= 1 {
+                    params[0].clone()
+                } else { Type::Any(h) }
+            },
+            _ => typ
+        };
+        Var(self.0, self.1, self.2, self.3, typ, self.5)
+    }
+
+    pub fn set_type_raw(self, typ: Type) -> Var {
         Var(self.0, self.1, self.2, self.3, typ, self.5)
     }
 
@@ -169,7 +176,7 @@ impl Var {
     pub fn match_with(&self, var: &Var, context: &Context) -> bool {
         (self.get_name() == var.get_name()) &&
         (self.get_path() == var.get_path()) &&
-        type_comparison::is_matching(context, &self.get_type(), &var.get_type())
+        self.get_type().is_subtype(&var.get_type(), context)
     }
 
     pub fn set_help_data(self, h: HelpData) -> Var {
