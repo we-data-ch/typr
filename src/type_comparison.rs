@@ -66,12 +66,12 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
             Type::Tag(name.clone(), Box::new(reduce_type_helper(context, inner, memory.clone())), h.clone())
         }
         Type::If(typ, _conditions, _) => *typ.clone(),
-        Type::Function(kinds, typs, ret_typ, h) => {
+        Type::Function(typs, ret_typ, h) => {
             let typs2 = typs.iter()
                 .map(|x| reduce_type_helper(context, x, memory.clone()))
                 .collect::<Vec<_>>();
             let ret_typ2 = reduce_type_helper(context, ret_typ, memory.clone());
-            Type::Function(kinds.to_owned(), typs2, Box::new(ret_typ2), h.to_owned())
+            Type::Function(typs2, Box::new(ret_typ2), h.to_owned())
         },
         Type::Array(ind, typ, h) => {
             Type::Array(ind.clone(),

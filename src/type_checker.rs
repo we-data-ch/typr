@@ -175,6 +175,8 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
         Lang::Let(name, ty, exp, _h) => {
             let new_context = context.clone()
                 .push_types(&exp.extract_types_from_expression(context));
+
+            //TODO l'erreur est dans le bloc du bas
             exp.typing(&new_context)
                 .get_covariant_type(ty)
                 .add_to_context(name.clone())
@@ -250,7 +252,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
             },
             (_, Type::Generic(_, _)) | (_, Type::IndexGen(_, _)) | (_, Type::LabelGen(_, _))
                 => Some(vec![(type1.clone(), type2.clone())]),
-            (Type::Function(_, args1, ret_typ1, _), Type::Function(_, args2, ret_typ2, _)) => {
+            (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
                 let res = args1.iter()
                     .zip(args2.iter())
                     .chain([(&(**ret_typ1), &(**ret_typ2))].iter().cloned())
@@ -316,7 +318,6 @@ pub fn match_types(ctx: &Context, type1: &Type, type2: &Type)
     -> Option<Vec<(Type, Type)>> {
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
-    dbg!(&ctx.display_typing_context());
     let res = get_gen_type(&type1, &type2)
         .expect(&TypeError::Param(type2, type1).display());
     let unif_map = res.iter()
@@ -478,7 +479,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Co
                 (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
             }
         },
-        Lang::Function(kinds, params, ret_ty, body, h) => {
+        Lang::Function(params, ret_ty, body, h) => {
             let list_of_types = params.iter()
                 .map(ArgumentType::get_type)
                 .collect::<Vec<_>>();
@@ -493,7 +494,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Co
                 None.expect(
                     &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display())
             }
-            Type::Function(kinds.clone(), list_of_types, Box::new(ret_ty.clone()), h.clone())
+            Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone())
                 .with_lang(expr, &body_type.1)
         }
         Lang::Lines(exprs, _h) => {
@@ -816,6 +817,13 @@ mod tests {
         let typ = builder::integer_type_default();
         assert_eq!(res, Some(typ));
         //assert!(true);
+    }
+
+    #[test]
+    fn test_interface() {
+        //créer l'interface Animal
+        //créer une fonction cri pour les booléens
+        assert!(true);
     }
 
 }

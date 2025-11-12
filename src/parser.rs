@@ -99,11 +99,11 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             single_parse,
           ).parse(s);
     match res {
-        Ok((s, (_let, (pat_var, None), typ, _eq, Lang::Function(ki, params, ty, body, h)))) 
+        Ok((s, (_let, (pat_var, None), typ, _eq, Lang::Function(params, ty, body, h)))) 
             if params.len() > 0 => {
                 let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false);
                 Ok((s, vec![Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
-                Box::new(Lang::Function(ki, params, ty, body, h)), _let.into())]))
+                Box::new(Lang::Function(params, ty, body, h)), _let.into())]))
             },
         Ok((s, (_let, (pat_var, None), typ, _eq, body))) => {
                 Ok((s, 
@@ -143,11 +143,11 @@ fn base_let_mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             single_parse,
           ).parse(s);
     match res {
-        Ok((s, ((pat_var, None), typ, _eq, Lang::Function(ki, params, ty, body, h)))) 
+        Ok((s, ((pat_var, None), typ, _eq, Lang::Function(params, ty, body, h)))) 
             if params.len() > 0 => {
                 let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false);
                 Ok((s, vec![Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
-                Box::new(Lang::Function(ki, params, ty, body, h)), pat_var.into())]))
+                Box::new(Lang::Function(params, ty, body, h)), pat_var.into())]))
             },
         Ok((s, ((pat_var, None), typ, _eq, body))) => {
                 Ok((s, 
@@ -234,14 +234,14 @@ fn base_mut_exp(s: Span) -> IResult<Span, Lang> {
             single_parse,
           ).parse(s);
     match res {
-        Ok((s, (_met, (var, None), typ, _eq, Lang::Function(ki, params, ty, body, h)))) 
+        Ok((s, (_met, (var, None), typ, _eq, Lang::Function(params, ty, body, h)))) 
             if params.len() > 0 => {
                 let newvar = Var::from_language(var[0].clone())
                     .unwrap()
                     .set_type(params[0].1.clone())
                     .set_mutability(true);
                 Ok((s, Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
-                Box::new(Lang::Function(ki, params, ty, body, h.clone())), h)))
+                Box::new(Lang::Function(params, ty, body, h.clone())), h)))
             },
         Ok((s, (_let, (var, _), typ, _eq, body))) => {
             Ok((s, Lang::Let(

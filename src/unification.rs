@@ -124,9 +124,8 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         }
 
         // Function type substitution
-        Type::Function(kinds, params, return_type, h) => {
+        Type::Function(params, return_type, h) => {
             Type::Function(
-                kinds.clone(),
                 params.iter()
                     .map(|param| type_substitution(param, substitutions))
                     .collect(),
@@ -211,7 +210,7 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
         }
 
         // Function case
-        (Type::Function(_, params1, ret1, _), Type::Function(_, params2, ret2, _)) => {
+        (Type::Function(params1, ret1, _), Type::Function(params2, ret2, _)) => {
             if params1.len() != params2.len() {
                 return vec![];
             }

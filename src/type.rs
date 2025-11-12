@@ -1,10 +1,8 @@
 #![allow(dead_code)]
 use serde::Serialize;
 use crate::argument_type::ArgumentType;
-use crate::argument_kind::ArgumentKind;
 use crate::tag::Tag;
 use crate::context::generate_arg;
-use crate::kind::Kind;
 use std::collections::HashSet;
 use crate::help_data::HelpData;
 use crate::type_printer::format;
@@ -52,7 +50,7 @@ pub enum Type {
     Boolean(HelpData),
     Char(Tchar, HelpData),
     Embedded(Box<Type>, HelpData),
-    Function(Vec<ArgumentKind>, Vec<Type>, Box<Type>, HelpData),
+    Function(Vec<Type>, Box<Type>, HelpData),
     Generic(String, HelpData),
     IndexGen(String, HelpData),
     LabelGen(String, HelpData),
@@ -108,7 +106,7 @@ impl TypeSystem for Type {
             (Type::Sequence(n1, t1, _), Type::Sequence(n2, t2, _)) => {
                 n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
             },
-            (Type::Function(_, args1, ret_typ1, _), Type::Function(_, args2, ret_typ2, _)) => {
+            (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
                 args1.iter().chain([&(**ret_typ1)])
                     .zip(args2.iter().chain([&(**ret_typ2)]))
                     .all(|(typ1, typ2)| typ1.is_subtype(typ2, context))
@@ -191,7 +189,7 @@ impl Type {
 
     pub fn is_function(&self) -> bool {
         match self {
-            Type::Function(_, _, _, _) => true,
+            Type::Function(_, _, _) => true,
             _ => false
         }
     }
@@ -216,7 +214,7 @@ impl Type {
 
     pub fn extract_types(&self) -> Vec<Type> {
         match self {
-            Type::Function(_, args, ret, _)
+            Type::Function(args, ret, _)
                 => {
                     let mut sol = args.clone();
                     sol.push((**ret).clone());
@@ -227,9 +225,7 @@ impl Type {
                sol.push(self.clone()); sol
             },
             typ => vec![typ.clone()]
-        }.iter()
-        .map(|typ| typ.add_kinds_in_functions_if_not())
-        .collect()
+        }
     }
 
     pub fn get_label(&self) -> String {
@@ -240,30 +236,14 @@ impl Type {
         }
     }
 
-    fn add_kinds_in_functions_if_not(&self) -> Type {
-        match self {
-            Type::Function(_kinds, args, ret, h) => {
-                let new_kinds = args.iter()
-                    .chain([(**ret).clone()].iter())
-                    .flat_map(|typ| typ.extract_generics())
-                    .collect::<HashSet<_>>()
-                    .iter()
-                    .map(|typ| ArgumentKind::from((typ.clone(), typ.get_kind())))
-                    .collect::<Vec<_>>();
-                Type::Function(new_kinds, args.clone(), ret.clone(), h.clone())
-            },
-            typ => typ.clone()
-        }
-    }
-
     pub fn replace_function_types(self: Type, t1: Type, t2: Type) -> Type {
         match self {
-            Type::Function(kinds, args, ret, h) => {
+            Type::Function(args, ret, h) => {
                 let new_args = args.iter()
                     .map(|typ| if *typ == t1 { t2.clone() } else {t1.clone()})
                     .collect::<Vec<_>>();
                 let new_ret = if *ret == t1 { t2 } else { *ret };
-                Type::Function(kinds.clone(), new_args, Box::new(new_ret), h)
+                Type::Function(new_args, Box::new(new_ret), h)
             },
             _ => self
         }
@@ -296,20 +276,12 @@ impl Type {
            Type::Array(_size, body, _) => format!("{}[]", body.to_typescript()),
            Type::IndexGen(id, _) => id.to_uppercase(),
            Type::Generic(val, _) => val.to_uppercase(), 
-           Type::Function(kinds, args, ret, _) => {
+           Type::Function(args, ret, _) => {
                let res = args.iter()
                     .enumerate()
                     .map(|(i, typ)| format!("{}: {}", generate_arg(i), typ.to_typescript()))
                     .collect::<Vec<_>>().join(", ");
-               if kinds.len() == 0 {
-                   format!("({}) => {}", res, ret.to_typescript())
-               } else {
-                   let res2 = kinds.iter()
-                       .map(|ak| ak.get_argument().to_typescript())
-                       .collect::<Vec<_>>()
-                       .join(", ");
-                   format!("<{}>({}) => {}", res2, res, ret.to_typescript())
-               }
+               format!("({}) => {}", res, ret.to_typescript())
            },
            Type::Tag(name, typ, _) 
                => format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript()),
@@ -338,20 +310,12 @@ impl Type {
            Type::Array(_size, body, _) => format!("{}[]", body.to_typescript()),
            Type::IndexGen(id, _) => id.to_uppercase(),
            Type::Generic(val, _) => val.to_uppercase(), 
-           Type::Function(kinds, args, ret, _) => {
+           Type::Function(args, ret, _) => {
                let res = args.iter()
                     .enumerate()
                     .map(|(i, typ)| format!("{}: {}", generate_arg(i), typ.to_typescript()))
                     .collect::<Vec<_>>().join(", ");
-               if kinds.len() == 0 {
-                   format!("({}) => {}", res, ret.to_typescript())
-               } else {
-                   let res2 = kinds.iter()
-                       .map(|ak| ak.get_argument().to_typescript())
-                       .collect::<Vec<_>>()
-                       .join(", ");
-                   format!("<{}>({}) => {}", res2, res, ret.to_typescript())
-               }
+               format!("({}) => {}", res, ret.to_typescript())
            },
            Type::Tag(name, typ, _) => format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript()),
            Type::Any(_) => "null".to_string(),
@@ -368,10 +332,8 @@ impl Type {
         match self {
             Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _)
                 => vec![self.clone()],
-            Type::Function(kinds, args, ret_typ, _) => {
-                kinds.iter()
-                    .map(|ak| ak.get_argument())
-                    .chain(args.iter().cloned())
+            Type::Function(args, ret_typ, _) => {
+                    args.iter().cloned()
                     .chain([(**ret_typ).clone()].iter().cloned())
                     .collect::<HashSet<_>>()
                     .iter().flat_map(|typ| typ.extract_generics())
@@ -396,13 +358,6 @@ impl Type {
         }
     }
 
-    pub fn get_kind(&self) -> Kind {
-        match self {
-            Type::IndexGen(_, _) | Type::Integer(_, _) => Kind::Dim,
-            _ => Kind::Type
-        }
-    }
-
     pub fn index_calculation(&self) -> Type {
         match self {
             Type::Add(a, b, _) 
@@ -418,17 +373,11 @@ impl Type {
                     Box::new(ind.index_calculation()), 
                     Box::new(typ.index_calculation()),
                     h.clone()),
-                    Type::Function(_kinds, args, ret_typ, h) => {
+                    Type::Function(args, ret_typ, h) => {
                         let new_args = args.iter()
                             .map(|typ| typ.index_calculation())
                             .collect::<Vec<_>>();
-                        let new_kinds = args.iter()
-                            .flat_map(|typ| typ.extract_generics())
-                            .collect::<HashSet<_>>().iter()
-                            .map(|typ| ArgumentKind::from((typ.clone(), typ.get_kind())))
-                            .collect::<Vec<_>>();
                         Type::Function(
-                            new_kinds,
                             new_args,
                             Box::new(ret_typ.index_calculation()), h.clone())
                     }
@@ -484,10 +433,10 @@ impl Type {
 
     pub fn to_function_type(&self) -> Option<FunctionType> {
         match self {
-            Type::Function(kinds, args, ret_ty, h) 
-                => Some(FunctionType(kinds.clone(), args.clone(), (**ret_ty).clone(), h.clone())),
+            Type::Function(args, ret_ty, h) 
+                => Some(FunctionType(args.clone(), (**ret_ty).clone(), h.clone())),
             Type::RFunction(h) 
-                => Some(FunctionType(vec![], vec![], builder::empty_type(), h.clone())),
+                => Some(FunctionType(vec![], builder::empty_type(), h.clone())),
             _ => None
         }
     }
@@ -545,17 +494,20 @@ impl Type {
         }
     }
 
-    pub fn exact_match(&self, other: &Type) -> bool {
+    pub fn exact_equality(&self, other: &Type) -> bool {
         match (self, other) {
             (Type::Integer(a, _), Type::Integer(b, _)) => a == b,
             (Type::Char(a, _), Type::Char(b, _)) => a == b,
+            (Type::Generic(e1, _), Type::Generic(e2, _)) => e1 == e2,
+            (Type::IndexGen(e1, _), Type::IndexGen(e2, _)) => e1 == e2,
+            (Type::LabelGen(e1, _), Type::LabelGen(e2, _)) => e1 == e2,
             _ => self == other
         }
     }
 
     pub fn for_var(self) -> Type {
         match self.to_owned() {
-            Type::Function(_k, p, _r, _h) => {
+            Type::Function(p, _r, _h) => {
                 if p.len() > 0 {
                    p[0].to_owned()
                 } else {
@@ -569,7 +521,7 @@ impl Type {
     pub fn to_category(&self) -> TypeCategory {
         match self {
             Type::Array(_, _, _) => TypeCategory::Array,
-            Type::Function(_, _, _, _) => TypeCategory::Function,
+            Type::Function(_, _, _) => TypeCategory::Function,
             Type::Record(_, _) => TypeCategory::Record,
             Type::Tuple(_, _) => TypeCategory::Tuple,
             Type::Tag(_, _, _) => TypeCategory::Tag,
@@ -620,7 +572,7 @@ impl Type {
 
     fn get_type_shape(&self) -> usize {
         match self {
-            Type::Function(_, v, _, _) => v.len(),
+            Type::Function(v, _, _) => v.len(),
             Type::Tuple(v, _) => v.len(),
             _ => 0 as usize
         }
@@ -637,7 +589,7 @@ impl Type {
             Type::Char(_, h) => h.clone(),
             Type::Boolean(h) => h.clone(),
             Type::Embedded(_, h) => h.clone(),
-            Type::Function(_, _, _, h) => h.clone(),
+            Type::Function(_, _, h) => h.clone(),
             Type::Generic(_, h) => h.clone(),
             Type::IndexGen(_, h) => h.clone(),
             Type::LabelGen(_, h) => h.clone(),
@@ -677,7 +629,7 @@ impl Type {
             Type::Char(a, _) => Type::Char(a, h2),
             Type::Boolean(_) => Type::Boolean(h2),
             Type::Embedded(a, _) => Type::Embedded(a, h2),
-            Type::Function(a1, a2, a3, _) => Type::Function(a1, a2, a3, h2),
+            Type::Function(a2, a3, _) => Type::Function(a2, a3, h2),
             Type::Generic(a, _) => Type::Generic(a, h2),
             Type::IndexGen(a, _) => Type::IndexGen(a, h2),
             Type::LabelGen(a, _) => Type::LabelGen(a, h2),
@@ -792,7 +744,7 @@ impl From<Type> for HelpData {
            Type::Mul(_, _, h) => h,
            Type::Div(_, _, h) => h,
            Type::Tag(_, _, h) => h,
-           Type::Function(_, _, _, h) => h,
+           Type::Function(_, _, h) => h,
            Type::Char(_, h) => h,
            Type::Integer(_, h) => h,
            Type::Record(_, h) => h,
@@ -815,11 +767,11 @@ impl PartialEq for Type {
             (Type::Boolean(_), Type::Boolean(_)) => true,
             (Type::Char(_, _), Type::Char(_, _)) => true, 
             (Type::Embedded(e1, _), Type::Embedded(e2, _)) => e1 == e2,
-            (Type::Function(a1, b1, c1, _), Type::Function(a2, b2, c2, _)) 
-                => a1 == a2 && b1 == b2 && c1 == c2,
-            (Type::Generic(e1, _), Type::Generic(e2, _)) => e1 == e2,
-            (Type::IndexGen(e1, _), Type::IndexGen(e2, _)) => e1 == e2,
-            (Type::LabelGen(e1, _), Type::LabelGen(e2, _)) => e1 == e2,
+            (Type::Function(b1, c1, _), Type::Function(b2, c2, _)) 
+                => b1 == b2 && c1 == c2,
+            (Type::Generic(_, _), Type::Generic(_, _)) => true,
+            (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
+            (Type::LabelGen(_, _), Type::LabelGen(_, _)) => true,
             (Type::Array(a1, b1, _), Type::Array(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
             (Type::Vector(a1, b1, _), Type::Sequence(a2, b2, _)) 
@@ -867,7 +819,7 @@ impl PartialEq for Type {
 impl fmt::Display for Type {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Type::Function(_k, p, r, h) 
+            Type::Function(p, r, h) 
                 => write!(f, "({}) -> {}", Type::Params(p.clone(), h.clone()), r),
             Type::Params(v, _) => {
                 let res = v.iter()
@@ -901,7 +853,7 @@ impl PartialOrd for Type {
                 (n1.partial_cmp(&*n2).is_some() && t1.partial_cmp(&*t2).is_some())
                     .then_some(Ordering::Less)
             },
-            (Type::Function(_, args1, ret_typ1, _), Type::Function(_, args2, ret_typ2, _)) => {
+            (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
                 args1.iter().chain([&(**ret_typ1)])
                     .zip(args2.iter().chain([&(**ret_typ2)]))
                     .all(|(typ1, typ2)| typ1.partial_cmp(typ2).is_some())
@@ -979,7 +931,7 @@ impl Hash for Type {
             Type::Boolean(_) => 2.hash(state),
             Type::Char(_, _) => 3.hash(state),
             Type::Embedded(_, _) => 4.hash(state),
-            Type::Function(_, _, _, _) => 5.hash(state),
+            Type::Function(_, _, _) => 5.hash(state),
             Type::Generic(_, _) => 6.hash(state),
             Type::IndexGen(_, _) => 7.hash(state),
             Type::LabelGen(_, _) => 8.hash(state),
@@ -1022,8 +974,7 @@ pub fn display_types(v: &[Type]) -> String {
 
 impl From<FunctionType> for Type {
    fn from(val: FunctionType) -> Self {
-        Type::Function(vec![], 
-                       val.get_param_types(), 
+        Type::Function(val.get_param_types(), 
                        Box::new(val.get_return_type()), 
                        val.get_help_data())
    } 

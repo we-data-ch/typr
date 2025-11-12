@@ -1,18 +1,10 @@
 use crate::Type;
-use crate::kind::Kind;
 use crate::help_data::HelpData;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
 use crate::type_category::TypeCategory;
 use crate::graph::TypeSystem;
 use crate::r#type::pretty;
-
-fn format_kind(ki: &Kind) -> String {
-   match ki {
-       Kind::Type => "k_type",
-       _ => "k_index"
-   }.to_string()
-}
 
 pub fn format(ty: &Type) -> String {
     match ty {
@@ -33,10 +25,9 @@ pub fn format(ty: &Type) -> String {
         Type::Sequence(dim, ty, _) => {
             format!("Seq[{}, {}]", format2(dim), format(ty))
         },
-        Type::Function(kinds, params, ret_ty, _h) => {
-            let formatted_kinds = kinds.iter().map(|arg_kind| format_kind(&arg_kind.get_kind())).collect::<Vec<_>>();
+        Type::Function(params, ret_ty, _h) => {
             let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();
-            format!("fn<{}>({}) -> {}", formatted_kinds.join(", "), formatted_params.join(", "), format(ret_ty))
+            format!("fn({}) -> {}", formatted_params.join(", "), format(ret_ty))
         }
         Type::Tag(name, param, _) => {
             if (**param == Type::Any(HelpData::default())) || (**param == Type::Empty(HelpData::default())){

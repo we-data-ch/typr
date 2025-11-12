@@ -33,11 +33,11 @@ fn accessibility_change(module_name: &str, adt: Adt) -> Vec<Lang> {
                 => Lang::Alias(
                     var.clone().add_path(module_name.into()),
                     params.clone(), typ.to_owned().add_path(module_name.into()), h.clone()),
-            Lang::Function(k, a, r, b, h) => {
+            Lang::Function(a, r, b, h) => {
                 let arg_typ = a.iter()
                     .map(|a_t| a_t.to_owned().set_type(a_t.get_type().add_path(module_name.into())))
                     .collect::<Vec<_>>();
-                Lang::Function(k.to_owned(), arg_typ.to_owned(),
+                Lang::Function(arg_typ.to_owned(),
                     r.to_owned().add_path(module_name.into()), b.to_owned(), h.to_owned())
             },
             _ => Lang::Empty(line.clone().into())

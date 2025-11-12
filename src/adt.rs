@@ -15,7 +15,7 @@ pub struct Adt(pub Vec<Lang>);
 impl fmt::Display for Adt {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let empty = builder::empty_type();
-        let cont = Context::new(vec![], vec![]);
+        let cont = Context::default();
         let res = self.0.iter().map(|x| x.to_r(empty.clone(), &cont).0)
             .reduce(|acc, x| format!("{}, {}", acc, x))
             .unwrap_or("".to_string());

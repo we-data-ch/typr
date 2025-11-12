@@ -4,7 +4,6 @@ use crate::var::Permission;
 use serde::Serialize;
 use crate::argument_type::ArgumentType;
 use crate::argument_value::ArgumentValue;
-use crate::argument_kind::ArgumentKind;
 use crate::Context;
 use crate::typing;
 use crate::help_data::HelpData;
@@ -75,7 +74,7 @@ pub enum Lang {
     Chain(Box<Lang>, Box<Lang>, HelpData),
     Dollar(Box<Lang>, Box<Lang>, HelpData),
     Scope(Vec<Lang>, HelpData),
-    Function(Vec<ArgumentKind>, Vec<ArgumentType>, Type, Box<Lang>, HelpData),
+    Function(Vec<ArgumentType>, Type, Box<Lang>, HelpData),
     Module(String, Vec<Lang>, HelpData), // module name { lines }
     ModuleDecl(String, HelpData), // to create an env
     Variable(String, Path, Permission, bool, Type, HelpData),
@@ -196,7 +195,7 @@ impl Lang {
     }
 
     pub fn is_undefined(&self) -> bool {
-        if let Lang::Function(_, _, _, body, _h) = self.clone() {
+        if let Lang::Function(_, _, body, _h) = self.clone() {
             if let Lang::Scope(v, _) = *body.clone() {
                    let ele = v.first().unwrap();
                    if let Lang::Empty(_) = ele {true} else {false}
@@ -206,7 +205,7 @@ impl Lang {
 
     pub fn is_function(&self) -> bool {
         match self {
-            Lang::Function(_, _, _, _, _) => true,
+            Lang::Function(_, _, _, _) => true,
             Lang::RFunction(_, _, _) => true,
             _ => false
         }
@@ -262,7 +261,7 @@ impl Lang {
             Lang::GreaterOrEqual(_, _, h) => h,
             Lang::Chain(_, _, h) => h,
             Lang::Scope(_, h) => h,
-            Lang::Function(_, _, _, _, h) => h,
+            Lang::Function(_, _, _, h) => h,
             Lang::Module(_, _, h) => h,
             Lang::ModuleDecl(_, h) => h,
             Lang::Variable(_, _, _, _, _, h) => h,
@@ -328,7 +327,7 @@ impl Lang {
     pub fn nb_params(&self) -> usize {
         self.simple_print();
         match self {
-            Lang::Function(_, params, _, _, _) => params.len(),
+            Lang::Function(params, _, _, _) => params.len(),
             _ => 0 as usize
         }
     }
@@ -354,7 +353,7 @@ impl Lang {
             Lang::GreaterOrEqual(_, _, _) => "GreatOrEqual".to_string(),
             Lang::Chain(_, _, _) => "Chain".to_string(),
             Lang::Scope(_, _) => "Scope".to_string(),
-            Lang::Function(_, _, _, _, _) => "Function".to_string(),
+            Lang::Function(_, _, _, _) => "Function".to_string(),
             Lang::Module(_, _, _) => "Module".to_string(),
             Lang::ModuleDecl(_, _) => "ModuleDecl".to_string(),
             Lang::Variable(name, _, _, _, _, _) => format!("Variable({})", name),
@@ -440,7 +439,7 @@ impl Lang {
                         .collect::<Vec<_>>().join(", "));
                 (res, context.clone())
             },
-            Lang::Function(_, params, _, body, _) => {
+            Lang::Function(params, _, body, _) => {
                 let parameters = &params.iter()
                     .map(|x| x.get_argument_str())
                     .collect::<Vec<_>>()
@@ -526,7 +525,7 @@ impl From<Lang> for HelpData {
            Lang::Let(_, _, _, h) => h,
            Lang::Alias(_, _, _, h) => h,
            Lang::Lambda(_, h) => h,
-           Lang::Function(_, _, _, _, h) => h,
+           Lang::Function(_, _, _, h) => h,
            Lang::VecBlock(_, h) => h,
            Lang::If(_, _, _, h) => h,
            Lang::Assign(_, _, h) => h,
@@ -678,7 +677,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     .join(exps, "")
                     .add("\n}").into()
             },
-            Lang::Function(_, args, _, body, _) => {
+            Lang::Function(args, _, body, _) => {
                 let fn_type = FunctionType::try_from(typing(cont, self).0[0].clone()).unwrap();
                 let output_conversion = cont.get_type_anotation(&fn_type.get_return_type());
                 let res = (output_conversion == "")

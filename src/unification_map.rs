@@ -23,7 +23,7 @@ impl SafeHashMap {
             Some((Type::Generic(_, _), Type::Integer(_, _))) => { 
                self.map.push((key, value.generalize())) 
             },
-            Some((_ke, va)) => if !(va.exact_match(&value)) { 
+            Some((_ke, va)) => if !(va.exact_equality(&value)) { 
                 None.expect(
                     &TypeError::Param(va.to_owned(), value).display()
                            )

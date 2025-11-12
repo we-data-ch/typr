@@ -50,7 +50,7 @@ fn function_type(s: Span) -> IResult<Span, Type> {
           ).parse(s);
     match res {
         Ok((s, (start, v, _, _, t))) => {
-            Ok((s, Type::Function(vec![], v.clone(), Box::new(t), start.into())))
+            Ok((s, Type::Function(v.clone(), Box::new(t), start.into())))
         },
         Err(r) => Err(r)
     }

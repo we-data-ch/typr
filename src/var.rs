@@ -114,7 +114,7 @@ impl Var {
 
     pub fn set_type(self, typ: Type) -> Var {
         let typ = match typ {
-            Type::Function(_, params, _, h) => {
+            Type::Function(params, _, h) => {
                 if params.len() >= 1 {
                     params[0].clone()
                 } else { Type::Any(h) }

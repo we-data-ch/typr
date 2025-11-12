@@ -22,7 +22,7 @@ impl ArgumentValue {
 impl fmt::Display for ArgumentValue {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let empty = builder::empty_type();
-        let cont = Context::new(vec![], vec![]);
+        let cont = Context::default();
         write!(f, "[var('{}'),{}]", self.0, self.1.to_r(empty, &cont).0)       
     }
 }

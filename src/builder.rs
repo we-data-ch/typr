@@ -80,8 +80,7 @@ pub fn opaque_type(name: &str) -> Type {
 }
 
 pub fn function_type(args: &[Type], return_type: Type) -> Type {
-    Type::Function(vec![], 
-                   args.to_vec(), 
+    Type::Function(args.to_vec(), 
                    Box::new(return_type),
                    HelpData::default())
 }

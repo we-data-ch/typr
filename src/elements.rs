@@ -10,7 +10,6 @@ use nom::character::complete::alphanumeric1;
 use nom::combinator::opt;
 use crate::argument_type::ArgumentType;
 use crate::argument_value::ArgumentValue;
-use crate::argument_kind::ArgumentKind;
 use crate::types::ltype;
 use nom::character::complete::one_of;
 use nom::character::complete::none_of;
@@ -19,7 +18,6 @@ use nom::character::complete::multispace1;
 use crate::parser::parse_exp;
 use crate::var::Permission;
 use nom::character::complete::digit1;
-use std::collections::HashSet;
 use crate::types::label;
 use crate::types::if_type;
 use nom::sequence::terminated;
@@ -203,19 +201,6 @@ fn argument_val(s: Span) -> IResult<Span, ArgumentValue> {
     }
 }
 
-
-
-fn extract_generics(args: &[ArgumentType], ret_typ: &Type) -> Vec<ArgumentKind> {
-    args.iter()
-        .map(|at| at.get_type())
-        .chain([ret_typ.clone()].iter().cloned())
-        .flat_map(|typ| typ.extract_generics())
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .map(|typ| ArgumentKind::from((typ.clone(), typ.get_kind())))
-        .collect::<Vec<_>>()
-}
-
 pub fn parse_block(input: Span) -> IResult<Span, Span> {
     recognize(parse_nested_braces).parse(input)
 }
@@ -264,8 +249,7 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
           ).parse(s);
     match res {
         Ok((s, (_, _, args, _, Some(_), Some(typ), exp))) =>{
-            let gen_vec = extract_generics(&args, &typ);
-            Ok((s, Lang::Function(gen_vec, args, typ, Box::new(exp), HelpData::default())))
+            Ok((s, Lang::Function(args, typ, Box::new(exp), HelpData::default())))
         },
         Ok((_s, (_, _, _args, _cp, None, None, _exp))) 
             => {

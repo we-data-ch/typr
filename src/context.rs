@@ -2,7 +2,6 @@
 use crate::r#type::Type;
 use crate::language::Lang;
 use crate::var::Var;
-use crate::kind::Kind;
 use crate::argument_type::ArgumentType;
 use crate::vartype::VarType;
 use crate::type_comparison;
@@ -33,7 +32,6 @@ pub struct Context {
    pub subtypes: Graph<Type>,
    header: Header,
    config: Config,
-   kinds: Vec<(Type, Kind)>,
    js_subcontexts: Vector<Context>,
 }
 
@@ -43,7 +41,6 @@ impl Default for Context {
             header: Header::default(),
             config: Config::default(),
             typing_context: VarType::new(),
-            kinds: vec![],
             subtypes: Graph::new(),
             js_subcontexts: Vector::new(),
         }
@@ -65,10 +62,9 @@ impl From<Vec<(Lang, Type)>> for  Context {
 
 //main
 impl Context {
-    pub fn new(types: Vec<(Var, Type)>, kinds: Vec<(Type, Kind)>) -> Context {
+    pub fn new(types: Vec<(Var, Type)>) -> Context {
         Context {
             typing_context: types.into(),
-            kinds: kinds,
             ..Context::default()
         }
     }
@@ -142,7 +138,7 @@ impl Context {
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let types = typ.reduce(context).extract_types();
         let var_type = self.typing_context.clone()
-            .push_var_type(&[(lang, typ.clone())])
+            .push_var_type(&[(lang.clone(), typ.clone())])
             .push_types(&types);
         Context {
             typing_context: var_type, 
@@ -287,7 +283,7 @@ impl Context {
         var_typ.iter().map(|(par, var, typ)| {
             let t = var.get_type();
             match typ {
-                Type::Function(kinds, args, t2, h) => {
+                Type::Function(args, t2, h) => {
                    let manips = args.iter().enumerate()
                        .map(|(i, argtyp)| manip(&generate_arg(i), argtyp.clone(), t.clone(), par))
                        .collect::<Vec<_>>();
@@ -303,7 +299,7 @@ impl Context {
                        var.clone(),
                         Type::Empty(HelpData::default()),
                         Box::new(
-                           Lang::Function(kinds.to_vec(), new_args, new_t2,
+                           Lang::Function(new_args, new_t2,
                                           Box::new(build_concret_function(&manips, manip1, var.clone())), h.clone())
                                 ),
                             h.clone())
@@ -322,7 +318,7 @@ impl Context {
         let param_types = params.iter()
             .map(|arg_typ| reduce_type(self, &arg_typ.get_type()).for_var())
             .map(|typ| match typ.to_owned() {
-                Type::Function(_, typs, _, _) => {
+                Type::Function(typs, _, _) => {
                     if typs.len() > 0 {
                         typs[0].clone()
                     } else { typ }
