@@ -37,8 +37,6 @@ impl<T: TypeSystem> Graph<T> {
             self
         } else {
             let new_memory = self.memory.iter().chain([typ.clone()].iter()).cloned().collect();
-            self.print_hierarchy();
-            println!("--------------------------");
             let new_root = self.root.add_type(typ.clone(), context);
             Graph {
                 memory: new_memory, 
@@ -204,9 +202,9 @@ impl<T: TypeSystem> Node<T> {
             self
         } else {
             match (typ.is_subtype(&self.value, context), self.subtypes.len()) {
-                (true, 0) => self.add_subtype(typ),
+                (true, 0) =>  self.add_subtype(typ),
                 (true, n) => self.propagate(typ, context),
-                _ => self.switch_if_reverse_subtype(typ, context) 
+                _ => self.switch_if_reverse_subtype(typ, context)
             }
         }
     }

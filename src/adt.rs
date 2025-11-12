@@ -1,13 +1,13 @@
 use std::fmt;
-use serde::Serialize;
-use crate::language::Lang;
-use crate::Context;
-use std::path::PathBuf;
 use std::fs::File;
 use std::io::Write;
-use crate::translatable::RTranslatable;
 use crate::builder;
+use crate::Context;
+use serde::Serialize;
+use std::path::PathBuf;
+use crate::language::Lang;
 use crate::var_function::VarFunction;
+use crate::translatable::RTranslatable;
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct Adt(pub Vec<Lang>);

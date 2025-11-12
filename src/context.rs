@@ -140,9 +140,10 @@ impl Context {
         let var_type = self.typing_context.clone()
             .push_var_type(&[(lang.clone(), typ.clone())])
             .push_types(&types);
+        let new_subtypes = self.subtypes.add_types(&types, context);
         Context {
             typing_context: var_type, 
-            subtypes: self.subtypes.add_types(&types, context),
+            subtypes: new_subtypes,
             ..self
         }
     }

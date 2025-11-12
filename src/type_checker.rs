@@ -176,7 +176,6 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
             let new_context = context.clone()
                 .push_types(&exp.extract_types_from_expression(context));
 
-            //TODO l'erreur est dans le bloc du bas
             exp.typing(&new_context)
                 .get_covariant_type(ty)
                 .add_to_context(name.clone())

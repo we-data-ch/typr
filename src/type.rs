@@ -107,9 +107,10 @@ impl TypeSystem for Type {
                 n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
             },
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
+                args1.len() == args2.len() &&
                 args1.iter().chain([&(**ret_typ1)])
                     .zip(args2.iter().chain([&(**ret_typ2)]))
-                    .all(|(typ1, typ2)| typ1.is_subtype(typ2, context))
+                    .all(|(typ1, typ2)| typ1.strict_subtype(typ2))
             },
             // Interface subtyping
             (Type::Interface(args1, _), Type::Interface(args2, _)) => {
@@ -704,6 +705,8 @@ impl Type {
     pub fn to_interface(&self, context: &Context) -> Type {
         match self {
             Type::Interface(_, _) => self.clone(),
+            Type::Function(_, _, _) 
+                => builder::interface_type(&[("_", builder::empty_type())]),
             typ => {
                 let function_signatures = context.get_functions(typ)
                     .iter().cloned()
@@ -713,6 +716,17 @@ impl Type {
                     .collect::<Vec<_>>();
                 builder::interface_type2(&function_signatures)
             }
+        }
+    }
+
+    fn strict_subtype(&self, other: &Type) -> bool {
+        match (self, other) {
+            (Type::Empty(_), _) => true,
+            (_, Type::Any(_)) => true,
+            (typ1, typ2) if typ1 == typ2 => true,
+            // Generic subtyping
+            (_, Type::Generic(_, _)) => true,
+            _ => false
         }
     }
 
@@ -1097,7 +1111,6 @@ mod tests {
         let let_expression = 
             parse("let a: Model <- 10;".into()).unwrap().1;
         let new_types = typing(&context, &let_expression.0[0]).0;
-        dbg!(&new_types[0].pretty());
         assert!(true)
         //assert_eq!(int_type.is_subtype(&interface, &context), true);
     }
