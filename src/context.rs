@@ -423,8 +423,7 @@ impl Context {
             Type::RClass(v, _) 
                 => format!("{} struct(c({}))", first_part, v.iter().cloned()
                            .collect::<Vec<_>>().join(", ")),
-            _ => format!("{} struct(c({}, {}))", first_part, self.get_class(typ),
-                       self.get_classes(typ).unwrap()) 
+            _ => format!("{} struct(c({}))", first_part, self.get_class(typ)) 
         }
     }
 
@@ -456,6 +455,7 @@ impl Context {
     pub fn get_type_definition(&self, functions: &VarFunction) -> String {
         match self.get_target_language() {
             TargetLanguage::R => {
+                dbg!(&self.typing_context.aliases.len());
                 self.typing_context.aliases.iter()
                     .map(|(var, typ)| self.s3_type_definition(var, typ))
                     .collect::<Vec<_>>().join("\n")
