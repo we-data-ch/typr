@@ -228,9 +228,11 @@ impl Context {
     pub fn get_functions(&self, var1: Var) -> Vec<(Var, Type)> {
         self.typing_context.variables()
             .filter(|(var2, typ)| {
+                let reduced_type1 = var1.get_type().reduce(self);
+                let reduced_type2 = var2.get_type().reduce(self);
                 var1.get_name() == var2.get_name()
                     && typ.is_function()
-                    && var1.get_type().is_subtype(&var2.get_type(), self)
+                    && reduced_type1.is_subtype(&reduced_type2, self)
             }).cloned()
             .collect()
     }

@@ -245,7 +245,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
             (Type::Char(c, _), Type::Char(d, _)) => {
                 (d.gen_of(c)).then(|| vec![])
             },
-            (_, Type::Generic(_, _)) | (_, Type::IndexGen(_, _)) | (_, Type::LabelGen(_, _))
+            (_, Type::Generic(_, _)) | (_, Type::IndexGen(_, _)) | (_, Type::LabelGen(_, _)) | (_, Type::Interface(_, _))
                 => Some(vec![(type1.clone(), type2.clone())]),
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
                 let res = args1.iter()
@@ -512,12 +512,11 @@ pub fn typing(context: &Context, expr: &Lang) -> (Vector<Type>, Vector<Lang>, Co
         Lang::FunctionApp(fn_var_name, values, _, h) => {
             let var = Var::try_from(fn_var_name.clone()).unwrap();
             let func = var.get_function_signature(values, context)
-                          .infer_return_type(values, context);
-
+                        .infer_return_type(values, context);
             func.get_return_type().clone()
                 .tuple(&context.clone().push(expr.clone(), func))
                 .with_lang(expr)
-        }
+        },
         Lang::Tag(name, expr, h) => {
             let ty = typing(context, expr).0;
             Type::Tag(name.clone(), Box::new(ty[0].clone()), h.clone())
