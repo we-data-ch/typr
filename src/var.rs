@@ -55,6 +55,7 @@ impl Var {
     pub fn get_related_function(self, args: &Vec<Lang>, context: &Context) 
         -> Option<FunctionType> {
         let typed_var = self.infer_var_related_type(args, context);
+        // TODO: check why it's not bool < Incr while calling to_num function
         let related_functions = context.get_functions(typed_var.clone());
         if related_functions.len() > 0 {
             related_functions[0].1.to_function_type()
