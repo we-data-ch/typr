@@ -95,7 +95,6 @@ impl TypeStack {
     }
 }
 
-// TODO: write some tests
 #[cfg(test)]
 mod tests {
     use super::*;

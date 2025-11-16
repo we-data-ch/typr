@@ -270,7 +270,6 @@ fn run_file(path: &PathBuf) {
     let type_checker = adt_manager.type_check();
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
     let functions = adt_manager.get_body().generate_var_functions();
-    //TODO stack overflow en bas
     let content = type_checker.transpile(false, &functions);
     Adt::write_to_r_lang(content, &dir, &r_file_name, false);
     execute_r_with_path(&dir, &r_file_name);
