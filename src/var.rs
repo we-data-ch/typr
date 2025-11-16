@@ -42,10 +42,11 @@ impl Var {
             .set_type(Type::Params(params.to_vec(), HelpData::default()))
     }
 
-    pub fn infer_var_name(&self, args: &Vec<Lang>, context: &Context) -> Var {
+    pub fn infer_var_related_type(&self, args: &Vec<Lang>, context: &Context) -> Var {
         if args.len() > 0 {
-            let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
-            self.clone().set_type(first[0].clone())
+            let first_param_type = 
+                typing(context, &args.iter().nth(0).unwrap().clone()).0;
+            self.clone().set_type(first_param_type[0].clone())
         } else {
             self.clone()
         }
@@ -53,9 +54,14 @@ impl Var {
 
     pub fn get_related_function(self, args: &Vec<Lang>, context: &Context) 
         -> Option<FunctionType> {
-        let var_name = self.infer_var_name(args, context);
-        let fn_ty = typing(context, &var_name.to_language()).0;
-        fn_ty[0].clone().to_function_type()
+        let typed_var = self.infer_var_related_type(args, context);
+        let related_functions = context.get_functions(typed_var.clone());
+        if related_functions.len() > 0 {
+            related_functions[0].1.to_function_type()
+        } else {
+            panic!("There is no function compatible with this signature: {}\n{}", 
+                   typed_var, context.display_typing_context());
+        }
     }
 
     pub fn get_function_signature(&self, values: &Vec<Lang>, context: &Context) -> FunctionType {

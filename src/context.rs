@@ -225,53 +225,15 @@ impl Context {
         }
     }
 
-    pub fn get_functions(&self, t: &Type) -> Vec<(Var, Type)> {
+    pub fn get_functions(&self, var1: Var) -> Vec<(Var, Type)> {
         self.typing_context.variables()
-            .filter(|(var, _typ)| {
-                let related_typ = var.get_type();
-                related_typ != Type::Empty(HelpData::default())
-                    && t.is_subtype(&related_typ, self)
+            .filter(|(var2, typ)| {
+                var1.get_name() == var2.get_name()
+                    && typ.is_function()
+                    && var1.get_type().is_subtype(&var2.get_type(), self)
             }).cloned()
             .collect()
     }
-
-    pub fn get_embeddings(&self, t: &Type) -> (Vec<(Var, Type)>, Context) {
-        match t {
-            Type::Record(arg_typs, _) => {
-                let new_t = t.clone().without_embeddings();
-                let type_functions = arg_typs.iter()
-                    .filter(|arg_typ| arg_typ.is_embedded())
-                    .map(|arg_typ| arg_typ.remove_embeddings())
-                    .map(|arg_typ| (arg_typ.get_argument(), arg_typ.get_type()))
-                    .flat_map(|(arg, ty)| {
-                        let funcs = self.get_functions(&ty);
-                        funcs.iter().map(|(var, fun)| (arg.get_label(), var.clone(), fun.clone())).collect::<Vec<_>>()
-                    })
-                    .map(|(arg, var, fun): (String, Var, Type)| 
-                         (arg, var.clone().set_type(new_t.clone()),
-                         fun.clone().replace_function_types(var.get_type(), new_t.clone())))
-                    .collect::<Vec<_>>();
-                let new_cont = 
-                    type_functions.iter()
-                    .fold(self.clone(), |ctx, tf| ctx.clone().push_var_type(tf.1.clone(), tf.2.clone(), &ctx));
-                let new_cont2 = new_cont.add_lang_to_header(&self.build_concret_functions(&type_functions));
-                (type_functions.iter().map(|(_arg, var, fun)| (var.clone(), fun.clone())).collect(),
-                new_cont2)
-            },
-            Type::Interface(args, _) => {
-                let vec = args.iter().cloned()
-                    .map(|arg_typ| (
-                            Var::from_name(&arg_typ.get_argument_str())
-                                .set_type(t.clone()),
-                            arg_typ.get_type()
-                                .replace_function_types(builder::self_generic_type(), t.clone())))
-                    .collect::<Vec<_>>();
-                (vec, self.clone())
-            },
-            _ => (vec![], self.clone())
-        }
-    }
-
 
     pub fn add_module_declarations(self, data: &[Lang]) -> Context {
         Context {
@@ -440,6 +402,14 @@ impl Context {
         functions.get_bodies(&names)
     }
 
+    pub fn get_functions_from_type(&self, typ: &Type) -> Vec<(Var, Type)> {
+        self.variables()
+            .cloned()
+            .filter(|(var, typ2)| {
+                typ2.is_function() && &var.get_type() == typ
+            }).collect()
+    }
+
     fn js_class_definition(&self, var: &Var, typ: &Type, functions: &VarFunction) -> Option<String> {
         let super_typs = self.subtypes.get_supertypes(typ, self);
         let functions = super_typs.iter().chain([typ.clone()].iter())
@@ -455,7 +425,6 @@ impl Context {
     pub fn get_type_definition(&self, functions: &VarFunction) -> String {
         match self.get_target_language() {
             TargetLanguage::R => {
-                dbg!(&self.typing_context.aliases.len());
                 self.typing_context.aliases.iter()
                     .map(|(var, typ)| self.s3_type_definition(var, typ))
                     .collect::<Vec<_>>().join("\n")

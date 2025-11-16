@@ -708,7 +708,7 @@ impl Type {
             Type::Function(_, _, _) 
                 => builder::interface_type(&[("_", builder::empty_type())]),
             typ => {
-                let function_signatures = context.get_functions(typ)
+                let function_signatures = context.get_functions_from_type(typ)
                     .iter().cloned()
                     .map(|(var, typ2)| {
                         (var.get_name(), typ2.replace_function_types(typ.clone(), builder::self_generic_type()))
