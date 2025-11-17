@@ -46,7 +46,7 @@ impl Var {
         if args.len() > 0 {
             let first_param_type = 
                 typing(context, &args.iter().nth(0).unwrap().clone()).0;
-            self.clone().set_type(first_param_type[0].clone())
+            self.clone().set_type(first_param_type.clone())
         } else {
             self.clone()
         }

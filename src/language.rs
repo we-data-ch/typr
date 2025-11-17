@@ -171,7 +171,7 @@ impl Lang {
 
     pub fn extract_types_from_expression(&self, context: &Context) -> Vec<Type> {
         if self.is_value() {
-            vec![typing(context, self).0[0].clone()]
+            vec![typing(context, self).0.clone()]
         } else {
             match self {
                 Lang::FunctionApp(exp, arg_typs, _, _) => {
@@ -215,7 +215,7 @@ impl Lang {
         if args.len() > 0 {
                         let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
                         Var::from_language(self.clone())
-                            .unwrap().set_type(first[0].clone())
+                            .unwrap().set_type(first.clone())
                     } else {
                         Var::from_language(self.clone()).unwrap()
             }
@@ -225,7 +225,7 @@ impl Lang {
         -> Option<FunctionType> {
         let var_name = self.infer_var_name(args, context);
         let fn_ty = typing(context, &var_name.to_language()).0;
-        fn_ty[0].clone().to_function_type()
+        fn_ty.clone().to_function_type()
     }
 
     pub fn lang_substitution(&self, sub_var: &Lang, var: &Lang, context: &Context) -> String {
@@ -401,7 +401,7 @@ impl Lang {
 
     pub fn typing(&self, context: &Context) -> (Type, Context) {
         let res = typing(context, self);
-        (res.0[0].clone(), res.2)
+        (res.0.clone(), res.2)
     }
 
     //main
@@ -674,11 +674,11 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Scope(exps, _) => {
                 Translatable::from(cont.clone())
                     .add("{\n")
-                    .join(exps, "")
+                    .join(exps, "\n")
                     .add("\n}").into()
             },
             Lang::Function(args, _, body, _) => {
-                let fn_type = FunctionType::try_from(typing(cont, self).0[0].clone()).unwrap();
+                let fn_type = FunctionType::try_from(typing(cont, self).0.clone()).unwrap();
                 let output_conversion = cont.get_type_anotation(&fn_type.get_return_type());
                 let res = (output_conversion == "")
                     .then_some("".to_string())
