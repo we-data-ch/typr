@@ -61,10 +61,10 @@ impl TypeChecker {
     }
 
     fn typing_helper(self, exp: &Lang) -> Self {
-        let (typ, langs, context) = typing(&self.context, exp);
+        let (typ, lang, context) = typing(&self.context, exp);
         Self {
             context: context,
-            code: langs.iter().cloned().fold(self.code, |acc, x| acc.push_back(x)),
+            code: self.code.push_back(lang),
             types: self.types.push_back(typ.clone()),
             last_type: typ
         }
@@ -340,14 +340,14 @@ fn are_homogenous_types(types: &[Type]) -> bool {
 }
 
 trait TypeContext {
-    fn with_lang(self, expr: &Lang) -> (Type, Vector<Lang>, Context);
+    fn with_lang(self, expr: &Lang) -> (Type, Lang, Context);
     fn get_covariant_type(self, typ: &Type) -> Self;
     fn add_to_context(self, var: Var) -> Self;
 }
 
 impl TypeContext for (Type, Context) {
-    fn with_lang(self, expr: &Lang) -> (Type, Vector<Lang>, Context) {
-        (self.0, Vector::new().push_back(expr.clone()), self.1)
+    fn with_lang(self, expr: &Lang) -> (Type, Lang, Context) {
+        (self.0, expr.clone(), self.1)
     }
 
     fn get_covariant_type(self, typ: &Type) -> Self {
@@ -362,17 +362,17 @@ impl TypeContext for (Type, Context) {
 }
 
 trait WithLang2 {
-    fn with_lang(self, expr: &Lang, context: &Context) -> (Type, Vector<Lang>, Context);
+    fn with_lang(self, expr: &Lang, context: &Context) -> (Type, Lang, Context);
 }
 
 impl WithLang2 for Type {
-    fn with_lang(self, expr: &Lang, context: &Context) -> (Type, Vector<Lang>, Context) {
-        (self, Vector::new().push_back(expr.clone()), context.clone())
+    fn with_lang(self, expr: &Lang, context: &Context) -> (Type, Lang, Context) {
+        (self, expr.clone(), context.clone())
     }
 }
 
 //main
-pub fn typing(context: &Context, expr: &Lang) -> (Type, Vector<Lang>, Context) {
+pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
     match expr {
         Lang::Number(_, h) => (Type::Number(h.clone()), context.clone()).with_lang(expr),
         Lang::Integer(i, h) => Type::Integer((*i).into(), h.clone()).with_lang(expr, context),
