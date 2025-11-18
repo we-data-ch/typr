@@ -16,7 +16,7 @@ impl fmt::Display for Adt {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let empty = builder::empty_type();
         let cont = Context::default();
-        let res = self.0.iter().map(|x| x.to_r(empty.clone(), &cont).0)
+        let res = self.0.iter().map(|x| x.to_r(&cont).0)
             .reduce(|acc, x| format!("{}, {}", acc, x))
             .unwrap_or("".to_string());
         write!(f, "sequence([{}])", res)       
@@ -41,7 +41,24 @@ impl Adt {
         
         for exp in self.iter() {
             let empty = builder::empty_type();
-            let (exp_str, _new_cont) = exp.to_r(empty, &current_cont);
+            let (exp_str, _new_cont) = exp.to_r(&current_cont);
+            results.push(exp_str);
+        }
+        let res = results.join("\n");
+        if res == "" {
+            res
+        } else {
+            results.join("\n") + "\n"
+        }
+    }
+
+    pub fn to_simple_r(&self, cont: &Context) -> String {
+        //let mut current_cont = cont.update_classes();
+        let current_cont = cont.clone();
+        let mut results = Vec::new();
+        
+        for exp in self.iter() {
+            let (exp_str, _new_cont) = exp.to_simple_r(&current_cont);
             results.push(exp_str);
         }
         let res = results.join("\n");

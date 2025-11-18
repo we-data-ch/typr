@@ -270,7 +270,7 @@ impl Default for Var {
 }
 
 impl RTranslatable<String> for Var {
-    fn to_r(&self, _: Type, _: &Context) -> String {
+    fn to_r(&self, _: &Context) -> String {
         format!("{}{}", self.1.clone().to_r(), self.0)
     }
 }

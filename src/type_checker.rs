@@ -89,10 +89,10 @@ impl TypeChecker {
     pub fn transpile(self, project: bool, functions: &VarFunction) -> String {
         let code = self.code.iter()
             .zip(self.types.iter())
-            .map(|(lang, typ)| lang.to_r(typ.clone(), &self.context).0)
+            .map(|(lang, typ)| lang.to_simple_r(&self.context).0)
             .collect::<Vec<_>>().join("\n");
         let type_converters = self.context.get_type_definition(functions);
-        let headers = self.context.get_adt().to_r(&self.context);
+        let headers = self.context.get_adt().to_simple_r(&self.context);
         let import = if project {
             "source('R/std.R', echo = FALSE)"
         } else {
