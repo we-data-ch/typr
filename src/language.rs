@@ -859,8 +859,11 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::Comment(txt, _) => 
                 ("#".to_string() + txt, cont.clone()),
-            Lang::Integer(i, _) => 
-                (format!("{}L", i), cont.clone()),
+            Lang::Integer(i, _) => {
+                let (typ, _, _) = typing(cont, self);
+                let anotation = cont.get_type_anotation(&typ);
+                (format!("{}L |> {}", i, anotation), cont.clone())
+            },
             Lang::Tag(s, t, _) => {
                 let empty = builder::empty_type();
                 let (t_str, new_cont) = t.to_r(cont);

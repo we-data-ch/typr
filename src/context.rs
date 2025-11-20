@@ -391,6 +391,11 @@ impl Context {
         }
     }
 
+    fn get_primitive_type_definition(&self) -> Vec<String> {
+        let int_super_classes = self.get_classes(&builder::integer_type_default()).unwrap();
+        vec![format!("Integer <- function(x) x |> struct(c({}))", int_super_classes)]
+    }
+
     fn js_constructor(typ: &Type) -> String {
         todo!();
     }
@@ -429,6 +434,7 @@ impl Context {
             TargetLanguage::R => {
                 self.typing_context.aliases.iter()
                     .map(|(var, typ)| self.s3_type_definition(var, typ))
+                    .chain(self.get_primitive_type_definition().iter().cloned())
                     .collect::<Vec<_>>().join("\n")
             },
             TargetLanguage::JS => {
