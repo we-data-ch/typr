@@ -387,20 +387,32 @@ impl Context {
             Type::RClass(v, _) 
                 => format!("{} struct(c({}))", first_part, v.iter().cloned()
                            .collect::<Vec<_>>().join(", ")),
-            _ => format!("{} struct(c({}))", first_part, self.get_class(typ)) 
+            _ => {
+                let class = if typ.is_primitive() {
+                    format!("'{}'", var.get_name())
+                } else { self.get_class(typ) };
+                format!("{} struct(c({}))", first_part, class) 
+            }
         }
     }
 
     fn get_primitive_type_definition(&self) -> Vec<String> {
-        let int_super_classes = self.get_classes(&builder::integer_type_default()).unwrap();
-        let integer = format!("Integer <- function(x) x |> struct(c({}))", int_super_classes);
-        let char_super_classes = self.get_classes(&builder::character_type_default()).unwrap();
-        let character = format!("Character <- function(x) x |> struct(c({}))", int_super_classes);
-        let bool_super_classes = self.get_classes(&builder::boolean_type()).unwrap();
-        let boolean = format!("Boolean <- function(x) x |> struct(c({}))", int_super_classes);
-        let num_super_classes = self.get_classes(&builder::number_type()).unwrap();
-        let number = format!("Number <- function(x) x |> struct(c({}))", int_super_classes);
-        vec![integer, character, boolean, number]
+        let primitives =[
+            ("Integer", builder::integer_type_default()),
+            ("Character", builder::character_type_default()),
+            ("Number", builder::number_type()),
+            ("Boolean", builder::boolean_type())
+        ];
+        let new_context = self.clone()
+            .push_types(&primitives.iter().map(|(_, typ)| typ).cloned().collect::<Vec<_>>());
+        primitives.iter()
+            .map(|(name, prim)| 
+                 (name,
+                  new_context.get_classes(prim).unwrap(),
+                  new_context.get_class(prim)))
+            .map(|(name, cls, cl)| 
+                 format!("{} <- function(x) x |> struct(c({}, {}))", name, cls, cl))
+            .collect::<Vec<_>>()
     }
 
     fn js_constructor(typ: &Type) -> String {
