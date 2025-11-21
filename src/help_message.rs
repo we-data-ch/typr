@@ -181,7 +181,9 @@ pub enum TypeError {
     UndefinedVariable(Lang),
     UnmatchingReturnType(Type, Type),
     ImmutableVariable(Var, Var),
-    PrivateVariable(Var, Var)
+    PrivateVariable(Var, Var),
+    GenericPatternMatch(Type, Type),
+    FieldNotFound((String, HelpData), Type),
 }
 
 // main
@@ -217,6 +219,21 @@ impl ErrorMsg for TypeError {
                     .text(format!("type {} doesn't match type {}", t1.pretty(), t2.pretty()))
                     .pos_text1(format!("Expected {}", t1.pretty()))
                     .pos_text2(format!("Recieved {}", t2.pretty()))
+                    .build()
+            },
+            TypeError::GenericPatternMatch(t1, t2) => {
+                let help_data1 = t1.get_help_data();
+                let help_data2 = t2.get_help_data();
+                let (file_name1, text1) = help_data1.get_file_data()
+                    .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
+                let (file_name2, text2) = help_data2.get_file_data()
+                    .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
+                DoubleBuilder::new(file_name1, text1, file_name2, text2)
+                    .pos1((help_data1.get_offset(), 0))
+                    .pos2((help_data2.get_offset(), 1))
+                    .text(format!("can't pattern match {{{} => {}}}", t1.pretty2(), t2.pretty2()))
+                    .pos_text1(format!("{} should be a generic variable", t1.pretty2()))
+                    .pos_text2(format!("Substitution type: {}", t2.pretty2()))
                     .build()
             },
             TypeError::UnmatchingReturnType(t1, t2) => {
@@ -302,6 +319,20 @@ impl ErrorMsg for TypeError {
                     .help("Try to add the 'pub' keyword befor the 'let' keyword")
                     .build()
                 }
+            TypeError::FieldNotFound((name, h), typ) => {
+                let help_data1 = h;
+                let help_data2 = typ.get_help_data();
+                let (file_name, text) = help_data1.get_file_data()
+                    .unwrap_or(("std.ty".to_string(), 
+                                fs::read_to_string("std.ty").unwrap_or("".to_string())));
+                DoubleBuilder::new(file_name.clone(), text.clone(), file_name, text)
+                    .pos1((help_data1.get_offset(), 0))
+                    .pos2((help_data2.get_offset(), 1))
+                    .text(format!("{} doesn't have a field '{}'", typ.pretty(), name))
+                    .pos_text1(format!("Field '{}' doesn't exist", name))
+                    .pos_text2(format!("Type {} defined here", typ.pretty()))
+                    .build()
+            },
         };
         format!("{:?}", msg)
     }

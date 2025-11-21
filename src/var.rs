@@ -65,13 +65,11 @@ impl Var {
     }
 
     pub fn get_function_signature(&self, values: &Vec<Lang>, context: &Context) -> FunctionType {
-        if context.is_an_untyped_function(&self.get_name()) {
-            FunctionType::try_from(Type::RFunction(HelpData::default())).unwrap()
-        } else {
-            self.clone()
-                .get_related_function(values, context)
-                .expect(&TypeError::UndefinedFunction((self).clone()).display())
-        }
+        //if context.is_an_untyped_function(&self.get_name()) {
+        self.clone()
+            .get_related_function(values, context)
+            .unwrap_or(FunctionType::try_from(Type::RFunction(HelpData::default()))
+                        .expect(&TypeError::UndefinedFunction((self).clone()).display()))
     }
 
     pub fn from_language(l: Lang) -> Option<Var> {

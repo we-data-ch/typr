@@ -8,7 +8,7 @@ use crate::type_comparison;
 use crate::Environment;
 use crate::help_data::HelpData;
 use crate::typing;
-use crate::type_checker::match_types;
+use crate::type_checker::match_types_to_generic;
 use crate::graph::Graph;
 use crate::type_comparison::reduce_type;
 use crate::TypeError;
@@ -375,7 +375,7 @@ impl Context {
         let res = values.iter()
             .map(|val| typing(self, val).0)
             .zip(param_types.iter())
-            .flat_map(|(val_typ, par_typ)| match_types(self, &val_typ.clone(), par_typ))
+            .flat_map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
             .flatten()
             .collect::<Vec<_>>();
         (res.len() > 0).then(|| UnificationMap::new(res))
@@ -393,7 +393,14 @@ impl Context {
 
     fn get_primitive_type_definition(&self) -> Vec<String> {
         let int_super_classes = self.get_classes(&builder::integer_type_default()).unwrap();
-        vec![format!("Integer <- function(x) x |> struct(c({}))", int_super_classes)]
+        let integer = format!("Integer <- function(x) x |> struct(c({}))", int_super_classes);
+        let char_super_classes = self.get_classes(&builder::character_type_default()).unwrap();
+        let character = format!("Character <- function(x) x |> struct(c({}))", int_super_classes);
+        let bool_super_classes = self.get_classes(&builder::boolean_type()).unwrap();
+        let boolean = format!("Boolean <- function(x) x |> struct(c({}))", int_super_classes);
+        let num_super_classes = self.get_classes(&builder::number_type()).unwrap();
+        let number = format!("Number <- function(x) x |> struct(c({}))", int_super_classes);
+        vec![integer, character, boolean, number]
     }
 
     fn js_constructor(typ: &Type) -> String {

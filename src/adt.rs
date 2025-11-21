@@ -1,7 +1,6 @@
 use std::fmt;
 use std::fs::File;
 use std::io::Write;
-use crate::builder;
 use crate::Context;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -14,7 +13,6 @@ pub struct Adt(pub Vec<Lang>);
 
 impl fmt::Display for Adt {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let empty = builder::empty_type();
         let cont = Context::default();
         let res = self.0.iter().map(|x| x.to_r(&cont).0)
             .reduce(|acc, x| format!("{}, {}", acc, x))
@@ -40,7 +38,6 @@ impl Adt {
         let mut results = Vec::new();
         
         for exp in self.iter() {
-            let empty = builder::empty_type();
             let (exp_str, _new_cont) = exp.to_r(&current_cont);
             results.push(exp_str);
         }

@@ -307,12 +307,13 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         }
 }
 
-pub fn match_types(ctx: &Context, type1: &Type, type2: &Type) 
+//Check if we really have a type (type1) matched with a genery (type2)
+pub fn match_types_to_generic(ctx: &Context, type1: &Type, type2: &Type) 
     -> Option<Vec<(Type, Type)>> {
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
     let res = get_gen_type(&type1, &type2)
-        .expect(&TypeError::Param(type2, type1).display());
+        .expect(&TypeError::GenericPatternMatch(type2, type1).display());
     let unif_map = res.iter()
         .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
         .collect::<Vec<_>>();
@@ -390,13 +391,14 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 .expect("Type error").with_lang(expr)
         }
         Lang::Chain(e1, e2, _) => {
-            let ty2 = typing(context, e2).0.clone();
-            match (ty2.reduce(context), *e1.clone()) {
-                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _, _)) => {
+            let ty2 = typing(context, e2).0.clone().reduce(context);
+            match (ty2.clone(), *e1.clone()) {
+                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _, h)) => {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
-                        .expect(&format!("Field {} not found", name))
+                        //.expect(&format!("Field {} not found", name))
+                        .expect(&TypeError::FieldNotFound((name, h), ty2).display())
                         .with_lang(expr)
                 },
                 (Type::Record(fields, _), Lang::Char(name, _)) => {

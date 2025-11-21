@@ -12,7 +12,6 @@ use crate::argument_type::ArgumentType;
 use crate::argument_value::ArgumentValue;
 use crate::types::ltype;
 use nom::character::complete::one_of;
-use nom::character::complete::none_of;
 use crate::r#type::Type;
 use nom::character::complete::multispace1;
 use crate::parser::parse_exp;
@@ -35,6 +34,9 @@ use crate::help_message::ErrorMsg;
 use nom::bytes::complete::take_while1;
 use crate::builder;
 use crate::types::single_type;
+use nom::character::complete::char;
+use nom::bytes::complete::escaped;
+use nom::bytes::complete::is_not;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -84,16 +86,46 @@ fn boolean(s: Span) -> IResult<Span,Lang> {
 }
 
 pub fn chars(s: Span) -> IResult<Span, Lang> {
-    let res = terminated(alt((
-            (tag("\""), many0(none_of("\"")), tag("\"")),
-            (tag("'"), many0(none_of("'")), tag("'")),
-                  )), multispace0).parse(s);
+    terminated(alt((
+                double_quotes,
+                single_quotes
+                  )), multispace0).parse(s)
+}
+
+pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
+    let res = delimited(
+        char('"'),
+        escaped(
+            is_not("\\\""),    
+            '\\',              
+            alt((char('"'), char('\''))),
+        ),
+        char('"'),
+    ).parse(input);
     match res {
-        Ok((s, (start, st, _end))) 
-            => Ok((s, Lang::Char(st.clone().iter().collect(), start.into()))),
+        Ok((s, st)) 
+            => Ok((s, Lang::Char(st.to_string(), st.into()))),
         Err(r) => Err(r)
     }
 }
+
+pub fn single_quotes(input: Span) -> IResult<Span, Lang> {
+    let res = delimited(
+        char('\''),
+        escaped(
+            is_not("\\'"),    
+            '\\',              
+            alt((char('"'), char('\''))),
+        ),
+        char('\''),
+    ).parse(input);
+    match res {
+        Ok((s, st)) 
+            => Ok((s, Lang::Char(st.to_string(), st.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 
 fn starting_char(s: Span) -> IResult<Span, (char, HelpData)> {
     let res = one_of("abcdefghijklmnopqrstuvwxyz_")(s);

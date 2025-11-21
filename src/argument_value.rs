@@ -3,8 +3,6 @@ use crate::Lang;
 use std::fmt;
 use crate::Context;
 use crate::translatable::RTranslatable;
-use crate::Type;
-use crate::builder;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ArgumentValue(pub String, pub Lang);
@@ -21,7 +19,6 @@ impl ArgumentValue {
 
 impl fmt::Display for ArgumentValue {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let empty = builder::empty_type();
         let cont = Context::default();
         write!(f, "[var('{}'),{}]", self.0, self.1.to_r(&cont).0)       
     }
@@ -29,7 +26,6 @@ impl fmt::Display for ArgumentValue {
 
 impl RTranslatable<String> for ArgumentValue {
     fn to_r(&self, cont: &Context) -> String {
-        let empty = builder::empty_type();
         format!("{} = {}", self.0, self.1.to_r(cont).0)
     }
 

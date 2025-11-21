@@ -133,7 +133,6 @@ fn condition_to_if(var: &Var, typ: &Type, context: &Context) -> String {
 }
 
 fn to_if_statement(var: Var, exp: Lang, branches: &[(Type, Box<Lang>)], context: &Context) -> String {
-    let empty = builder::empty_type();
     let res = branches.iter()
         .map(|(typ, body)| { (condition_to_if(&var, typ, context), body)})
         .enumerate()
@@ -229,7 +228,6 @@ impl Lang {
     }
 
     pub fn lang_substitution(&self, sub_var: &Lang, var: &Lang, context: &Context) -> String {
-        let empty = builder::empty_type();
         if let Lang::Variable(name, _, _, _, _, _) = var {
             let res = match self {
                 Lang::Variable(_, _, _, _, _, h) if self == sub_var 
@@ -496,7 +494,6 @@ impl Lang {
                 (b.to_string(), context.clone())
             },
             _ => {
-                let empty = builder::empty_type();
                 self.to_r(context)
             }
         }
@@ -603,8 +600,11 @@ impl fmt::Display for Lang {
 impl RTranslatable<(String, Context)> for Lang {
     fn to_r(&self, cont: &Context) -> (String, Context) {
         let result = match self {
-            Lang::Bool(b, _) => 
-                (format!("{}", b.to_string().to_uppercase()), cont.clone()),
+            Lang::Bool(b, _) => {
+                let (typ, _, _) = typing(cont, self);
+                let anotation = cont.get_type_anotation(&typ);
+                (format!("{} |> {}", b.to_string().to_uppercase(), anotation), cont.clone())
+            },
             Lang::In(b1, b2, _) => {
                 Translatable::from(cont.clone())
                     .to_r(b1).add(" %in% ").to_r(b2).into()
@@ -625,8 +625,11 @@ impl RTranslatable<(String, Context)> for Lang {
                 Translatable::from(cont.clone())
                     .to_r(e1).add(" %% ").to_r(e2).into()
             },
-            Lang::Number(n, _) => 
-                (format!("{}", n), cont.clone()),
+            Lang::Number(n, _) => {
+                let (typ, _, _) = typing(cont, self);
+                let anotation = cont.get_type_anotation(&typ);
+                (format!("{} |> {}", n, anotation), cont.clone())
+            },
             Lang::Eq(e1, e2, _) => {
                 Translatable::from(cont.clone())
                     .to_r(e2).add(" == ").to_r(e1).into()
@@ -712,7 +715,6 @@ impl RTranslatable<(String, Context)> for Lang {
                 ((path.clone().to_r() + &name).to_string(), cont.clone())
             },
             Lang::FunctionApp(exp, vals, _, _) => {
-                let empty = builder::empty_type();
                 let var = Var::try_from(exp.clone()).unwrap();
                 if cont.is_an_untyped_function(&var.get_name()) {
                     let name = var.get_name().replace("__", ".");
@@ -753,7 +755,6 @@ impl RTranslatable<(String, Context)> for Lang {
                 }
             },
             Lang::ArrayIndexing(exp, val, _) => {
-                let empty = builder::empty_type();
                 let (exp_str, _) = exp.to_r(cont);
                 let (val_str, _) = val.to_r(cont);
                 let (typ, _, _) = typing(&cont, exp);
@@ -770,7 +771,6 @@ impl RTranslatable<(String, Context)> for Lang {
                 (func.to_string(), cont.clone()),
             Lang::Let(var, ttype, body, _) => {
 
-                let empty = builder::empty_type();
                 let (body_str, new_cont) = body.to_r(cont);
                 let new_name = var.clone().to_r(cont);
 
@@ -805,7 +805,6 @@ impl RTranslatable<(String, Context)> for Lang {
                 
             },
             Lang::Array(_v, _h) => {
-                let empty = builder::empty_type();
                 let vector = &self.linearize_array()
                     .iter().map(|lang| lang.to_r(&cont).0)
                     .collect::<Vec<_>>().join(", ")
@@ -834,8 +833,11 @@ impl RTranslatable<(String, Context)> for Lang {
                                 body, anotation))
                     .to_some().map(|s| (s, current_cont)).unwrap()
             },
-            Lang::Char(s, _) => 
-                ("'".to_string() + s + "'", cont.clone()),
+            Lang::Char(s, _) => {
+                let (typ, _, _) = typing(cont, self);
+                let anotation = cont.get_type_anotation(&typ);
+                (format!("'{}' |> {}", s, anotation), cont.clone())
+            },
             Lang::If(cond, exp, els, _) if els == &Box::new(Lang::Empty(HelpData::default())) => {
                 Translatable::from(cont.clone())
                     .add("if(").to_r(cond).add(") {\n")
@@ -865,7 +867,6 @@ impl RTranslatable<(String, Context)> for Lang {
                 (format!("{}L |> {}", i, anotation), cont.clone())
             },
             Lang::Tag(s, t, _) => {
-                let empty = builder::empty_type();
                 let (t_str, new_cont) = t.to_r(cont);
                 let (typ, _, _) = typing(cont, self);
                 let class = cont.get_class(&typ);
@@ -890,7 +891,6 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::Lambda(bloc, _) 
                 =>  {
-                    let empty = builder::empty_type();
                     (format!("function(x) {{ {} }}", bloc.to_r(cont).0), cont.clone())
                 },
             Lang::VecBlock(bloc, _) => (bloc.to_string(), cont.clone()),
@@ -916,7 +916,6 @@ impl RTranslatable<(String, Context)> for Lang {
                     Lang::Variable(n, _, _, _, _, _) => n.to_string(),
                     _ => format!("{}", left) 
                 };
-                let empty = builder::empty_type();
                 (format!("{} = {}", res, right.to_r(cont).0), cont.clone())
             }
             Lang::Signature(_, _, _) => {
@@ -924,11 +923,9 @@ impl RTranslatable<(String, Context)> for Lang {
             }
             Lang::Alias(_, _, _, _) => ("".to_string(), cont.clone()),
             Lang::KeyValue(k, v, _) => {
-                let empty = builder::empty_type();
                 (format!("{} = {}", k, v.to_r(cont).0), cont.clone())
             },
             Lang::Vector(vals, _) => {
-                let empty = builder::empty_type();
                let res = "c(".to_string() + 
                    &vals.iter().map(|x| x.to_r(cont).0)
                    .collect::<Vec<_>>().join(", ")
@@ -936,7 +933,6 @@ impl RTranslatable<(String, Context)> for Lang {
                (res, cont.to_owned())
             },
             Lang::Dollar(e1, e2, _) => {
-                let empty = builder::empty_type();
                 let name = e2.to_r(cont).0;
                 match (**e1).clone() {
                     Lang::FunctionApp(exp, params, _, _) => {
@@ -951,12 +947,10 @@ impl RTranslatable<(String, Context)> for Lang {
                 }
             },
             Lang::Not(exp, _) => {
-                let empty = builder::empty_type();
                 (format!("!{}", exp.to_r(cont).0),
                     cont.clone())
             },
             Lang::Sequence(vals, _) => {
-                let empty = builder::empty_type();
                 let res = if vals.len() > 0 {
                     "c(".to_string() + 
                        &vals.iter().map(|x| "list(".to_string() + &x.to_r(cont).0 + ")")
@@ -985,7 +979,6 @@ impl RTranslatable<(String, Context)> for Lang {
                 let file_path = dir.join(&file_name);
 
                 // Écrire le contenu
-                let empty = builder::empty_type();
                 let mut file = fs::File::create(&file_path).unwrap();
                 file.write_all(body.to_r(cont).0.as_bytes()).unwrap();
                 ("".to_string(), cont.clone())

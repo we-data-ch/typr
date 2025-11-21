@@ -100,6 +100,7 @@ pub fn format2(t: &Type) -> String {
         Type::IndexGen(idgen, _) => format!("#{}", idgen),
         val if val.to_category() == TypeCategory::Template
             => val.pretty(),
-        val => panic!("{:?} doesn't have a second format", val)
+        val => val.pretty()
+        //val => panic!("{:?} doesn't have a second format", val)
     }
 }
