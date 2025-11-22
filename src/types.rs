@@ -18,7 +18,6 @@ use nom::sequence::delimited;
 use nom::Parser;
 use nom_locate::LocatedSpan;
 use crate::help_data::HelpData;
-use crate::elements::variable;
 use crate::Lang;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
@@ -29,6 +28,7 @@ use crate::type_stack::TypeStack;
 use crate::type_stack::TypeOperator;
 use nom::character::complete::none_of;
 use crate::builder;
+use crate::elements::variable2;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -137,7 +137,7 @@ fn embedded_ltype(s: Span) -> IResult<Span, Type> {
 }
 
 fn simple_label(s: Span) -> IResult<Span, Type> {
-    let res = variable(s);
+    let res = variable2(s);
     match res.clone() {
         Ok((s, Lang::Variable(name, _, _, _, _, h))) 
             => Ok((s, Type::Char(name.to_owned().into(), h.clone()))),

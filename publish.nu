@@ -22,4 +22,3 @@ cargo publish
 git add .
 git commit -m $updated_line 
 cargo publish
-

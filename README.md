@@ -53,7 +53,6 @@ Hey awesome scientist!
 If this project sparks your curiosity, makes your life easier, or simply inspires you, here’s how you can help it grow:
 
 - 🛠️ **Contribute**: improve the code, report bugs , or suggest cool new features
-- 💸 **Donate** via [Patreon](https://patreon.com/FabriceHategekimana?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink) to keep the project alive & thriving 
 - 📢 **Share** it with friends, colleagues, or your community — spread the word!
 
 Every little action counts — together we can make this project shine even brighter. 

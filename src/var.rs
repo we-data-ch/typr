@@ -12,6 +12,7 @@ use crate::typing;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use crate::graph::TypeSystem;
+use crate::builder;
 
 type Name = String;
 type IsMutableOpaque = bool;
@@ -29,6 +30,15 @@ impl fmt::Display for Permission {
             Permission::Public => write!(f, "public")
         }
     }
+}
+
+impl From<Permission> for bool {
+   fn from(val: Permission) -> Self {
+       match val {
+           Permission::Public => true,
+           _ => false
+       }
+   } 
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
@@ -226,8 +236,22 @@ impl Var {
         self.3
     }
 
-    pub fn to_alias(self) -> Type  {
+    pub fn to_alias_type(self) -> Type  {
         Type::Alias(self.get_name(), vec![], self.get_path().into(), self.get_opacity(), self.get_help_data()) 
+    }
+
+    pub fn to_alias_lang(self) -> Lang  {
+        Lang::Alias(self.clone(),
+                vec![], 
+                builder::empty_type(),
+                self.get_help_data())
+    }
+
+    pub fn to_let(self) -> Lang  {
+        Lang::Let(self.clone(),
+                builder::empty_type(),
+                Box::new(builder::empty_lang()),
+                self.get_help_data())
     }
 
     pub fn contains(&self, s: &str) -> bool {

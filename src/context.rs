@@ -118,7 +118,7 @@ impl Context {
         self.aliases().find(|(var2, _)| self.is_matching_alias(var, var2))
             .map(|(var2, target_type)| {
                 if var2.is_opaque() {
-                    (var2.clone().to_alias(), vec![])
+                    (var2.clone().to_alias_type(), vec![])
                 } else {
                     if let Type::Params(types, _) = var2.get_type() {
                         (target_type.clone(), types.clone())

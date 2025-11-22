@@ -174,34 +174,44 @@ fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
     }
 }
 
-fn variable_helper(s: Span) -> IResult<Span, Lang> {
-    let res = (opt(module_path), alt((pascal_case, variable_exp)), opt(type_annotation)).parse(s);
+pub enum Case {
+    Maj,
+    Min,
+}
+
+fn variable_exp_2(s: Span) -> IResult<Span, (String, Case, HelpData)> {
+    let res = variable_exp.parse(s);
     match res {
-        Ok((s, (Some(mp), (v, h), Some(ty)))) 
-            => Ok((s, Var::from_name(&v)
-                   .set_path(mp.0.into())
-                   .set_type(ty)
-                   .set_help_data(h.clone()).into())),
-        Ok((s, (None, (v, h), Some(ty)))) 
-            => Ok((s, Var::from_name(&v)
-                        .set_type(ty)
-                        .set_help_data(h).into())),
-        Ok((s, (Some(mp), (v, h), None))) 
-            => Ok((s.clone(), Var::from_name(&v)
-                        .set_path(mp.0.into())
-                        .set_help_data(h)
-                        .into())),
-        Ok((s, (None, (v, h), None))) 
-            => Ok((s.clone(), Var::from_name(&v)
-                        .set_help_data(h).into())),
+        Ok((s, (name, h))) => Ok((s, (name, Case::Min, h))),
         Err(r) => Err(r)
     }
 }
 
-pub fn variable(s: Span) -> IResult<Span, Lang> {
-    terminated(variable_helper, multispace0).parse(s)
+fn pascal_case_2(s: Span) -> IResult<Span, (String, Case, HelpData)> {
+    let res = pascal_case.parse(s);
+    match res {
+        Ok((s, (name, h))) => Ok((s, (name, Case::Maj, h))),
+        Err(r) => Err(r)
+    }
 }
 
+fn variable_helper(s: Span) -> IResult<Span, (Lang, Case)> {
+    let res = (opt(module_path), alt((pascal_case_2, variable_exp_2)), opt(type_annotation)).parse(s);
+    match res {
+        Ok((s, (mod_path, (v, case, h), typ))) => {
+            let res = Var::from_name(&v)
+                .set_path(mod_path.unwrap_or(("".to_string(), HelpData::default())).0.into())
+                .set_type(typ.unwrap_or(builder::empty_type()))
+                .set_help_data(h);
+            Ok((s, (res.into(), case)))
+        },
+        Err(r) => Err(r)
+    }
+}
+
+pub fn variable(s: Span) -> IResult<Span, (Lang, Case)> {
+    terminated(variable_helper, multispace0).parse(s)
+}
 
 pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
     let res = (
@@ -262,6 +272,7 @@ pub fn r_function(s: Span) -> IResult<Span, Lang> {
                  panic!("{}", SyntaxError::FunctionWithoutType(id.into()).display())
         },
         Ok((s, (id, _op, args, _cl, exp))) =>{
+            let args = args.iter().map(|(arg, _)| arg).cloned().collect::<Vec<_>>();
             Ok((s, Lang::RFunction(args, exp.to_string(), id.into())))
         },
         Err(r) => Err(r)
@@ -326,11 +337,19 @@ fn values(s: Span) -> IResult<Span, Vec<Lang>> {
             terminated(opt(tag(",")), multispace0))).parse(s)
 }
 
+pub fn variable2(s: Span) -> IResult<Span, Lang> {
+    let res = variable.parse(s);
+    match res {
+        Ok((s, (lang, _))) => Ok((s, lang)),
+        Err(r) => Err(r)
+    }
+}
+
 fn array_indexing(s: Span) -> IResult<Span, Lang> {
     let res = (
-            alt((scope, variable)),
+            alt((scope, variable2)),
             terminated(tag("["), multispace0),
-            alt((integer, variable)),
+            alt((integer, variable2)),
             terminated(tag("]"), multispace0),
             multispace0
           ).parse(s);
@@ -343,7 +362,7 @@ fn array_indexing(s: Span) -> IResult<Span, Lang> {
 
 fn function_application(s: Span) -> IResult<Span, Lang> {
     let res = (
-            alt((scope, variable)),
+            alt((scope, variable2)),
             terminated(tag("("), multispace0),
             values,
             terminated(tag(")"), multispace0)
@@ -427,7 +446,6 @@ fn pascal_case_helper(s: Span) -> IResult<Span, (String, HelpData)> {
 }
 
 fn pascal_case(s: Span) -> IResult<Span, (String, HelpData)> {
-    //terminated(pascal_case_helper, multispace0).parse(s)
     pascal_case_helper.parse(s)
 }
 
@@ -523,9 +541,9 @@ fn branch(s: Span) -> IResult<Span, (Type, Box<Lang>)> {
 fn match_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
             terminated(tag("match"), multispace0),
-            alt((variable, element_chain)),
+            alt((variable2, element_chain)),
             terminated(tag("as"), multispace0),
-            variable,
+            variable2,
             terminated(tag("{"), multispace0),
             many1(branch),
             terminated(tag("}"), multispace0),
@@ -552,7 +570,7 @@ fn tuple_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn int_or_var(s: Span) -> IResult<Span, Lang> {
-    alt((integer, variable)).parse(s)
+    alt((integer, variable2)).parse(s)
 }
 
 fn create_range(params: &[Lang]) -> Lang {
@@ -596,7 +614,7 @@ fn function_application2(s: Span) -> IResult<Span, Lang> {
 }
 
 fn dot_variable(s: Span) -> IResult<Span, Lang> {
-    let res = preceded(tag("."), variable).parse(s);
+    let res = preceded(tag("."), variable2).parse(s);
     match res {
         Ok((s, Lang::Variable(n, a, b, c, d, e))) 
             => Ok((s, Lang::Variable(format!(".{}", n), a, b, c, d, e))),
@@ -607,7 +625,7 @@ fn dot_variable(s: Span) -> IResult<Span, Lang> {
 
 fn element_operator2(s: Span) -> IResult<Span, (Lang, Op)> {
     let res = (opt(op),
-                alt((function_application2, number, integer, chars, boolean, variable, dot_variable))
+                alt((function_application2, number, integer, chars, boolean, variable2, dot_variable))
                 ).parse(s);
     match res {
         Ok((s, (Some(ope), ele))) => Ok((s, (ele, ope))),
@@ -659,7 +677,7 @@ fn not_exp(s: Span) -> IResult<Span, Lang> {
             tuple_exp,
             function_application,
             array_indexing,
-            variable,
+            variable2,
             scope,
             array
         ))).parse(s);
@@ -731,7 +749,7 @@ pub fn single_element(s: Span) -> IResult<Span,Lang> {
             tuple_exp,
             function_application,
             array_indexing,
-            variable,
+            variable2,
             scope,
             array
         )).parse(s)
@@ -918,7 +936,7 @@ fn check_minus_sign(v: Vec<(Lang, Op)>) -> Vec<(Lang, Op)> {
 fn accessor(s: Span) -> IResult<Span, (Lang, Op)> {
     let res = (
                 terminated(tag("[["), multispace0),
-                alt((integer, chars, variable)),
+                alt((integer, chars, variable2)),
                 terminated(tag("]]"), multispace0)
               ).parse(s);
     match res {
@@ -973,6 +991,24 @@ mod tests {
     fn test_function_with_empty_scope3() {
         let res = simple_function("fn(): int { 5 }".into()).unwrap().1;
         assert_eq!(res.simple_print(), "Function");
+    }
+
+    #[test]
+    fn test_variable1() {
+        let res = variable_exp("hello".into()).unwrap().1.0;
+        assert_eq!(res, "hello", "Should return the variable name 'hello'");
+    }
+
+    #[test]
+    fn test_simple_variable1() {
+        let res = variable_exp("hello".into()).unwrap().1.0;
+        assert_eq!(res, "hello", "Should return the variable name 'hello'");
+    }
+    
+    #[test]
+    fn test_simple_variable2() {
+        let res = variable_exp("module::hello".into()).unwrap().1.0;
+        assert_eq!(res, "hello", "Should return the variable name 'hello'");
     }
 
 }

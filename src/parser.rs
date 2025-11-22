@@ -33,9 +33,10 @@ use nom::multi::many1;
 use crate::elements::element_operator;
 use crate::elements::op_reverse;
 use crate::elements::element_chain;
+use crate::elements::variable2;
+use crate::elements::Case;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
-
 
 pub fn bang_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
@@ -56,7 +57,7 @@ pub fn bang_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
-    let res = alt((tag_exp, variable)).parse(s);
+    let res = alt((tag_exp, variable2)).parse(s);
     match res {
         Ok((s, Lang::Tag(name, val, _h)))
             => {
@@ -434,14 +435,14 @@ fn import_var(s: Span) -> IResult<Span, Vec<Lang>> {
                 variable,
                 terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (_use, Lang::Variable(name, path, perm, mutop, typ, h), _sc))) => {
-            let var1 =  Lang::Variable(name.clone(), path.clone(), perm.clone(), mutop.clone(), typ.clone(), h.clone());
-            let var2 =  Lang::Variable(name.clone(), "".into(), perm.clone(), mutop.clone(), typ.clone(), h.clone());
-            let shortcut = Lang::Let(Var::from_language(var2).unwrap(), Type::Any(HelpData::default()), Box::new(var1), h.clone());
-            Ok((s, vec![shortcut]))
-        }
+        Ok((s, (_use, (lang, case), _sc))) => {
+            let res = match case {
+                Case::Maj => Var::from_language(lang).unwrap().to_alias_lang(),
+                _ => Var::from_language(lang).unwrap().to_let()
+            };
+            Ok((s, vec![res]))
+        },
         Err(r) => Err(r),
-        _ => todo!()
     }
 }
 
