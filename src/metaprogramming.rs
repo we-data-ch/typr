@@ -43,23 +43,6 @@ fn accessibility_change(_module_name: &str, adt: Adt) -> Vec<Lang> {
     }).collect::<Vec<_>>()
 }
 
-fn unnest_module(line: &Lang) -> Vec<Lang> {
-    match line {
-        Lang::Module(name, body, h) 
-            => {
-                let new_adt = unnest_modules(body.clone().into());
-                let mut lines = accessibility_change(name, new_adt);
-                lines.insert(0, Lang::ModuleDecl(name.to_string(), h.clone()));
-                lines
-            },
-        lang => vec![lang.clone()]
-    }
-}
-
-fn unnest_modules(adt: Adt) -> Adt {
-    adt.iter().flat_map(unnest_module).collect::<Vec<_>>().into()
-}
-
 pub fn metaprogrammation(adt: Adt) -> Adt {
-    unnest_modules(import_file_modules_code(adt))
+    import_file_modules_code(adt)
 }

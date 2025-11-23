@@ -168,6 +168,18 @@ impl Lang {
         }
     }
 
+    pub fn to_arg_type(&self) -> Option<ArgumentType> {
+        match self {
+            Lang::Let(var, ty, _, _) => {
+                Some(ArgumentType::new(&var.get_name(), &ty))
+            },
+            Lang::Alias(var, _types, ty, _) => {
+                Some(ArgumentType::new(&var.get_name(), &ty))
+            },
+            _ => None
+        }
+    }
+
     pub fn extract_types_from_expression(&self, context: &Context) -> Vec<Type> {
         if self.is_value() {
             vec![typing(context, self).0.clone()]

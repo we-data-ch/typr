@@ -226,6 +226,15 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
             let res = typing(context, body);
             builder::empty_type().tuple(context)
         },
+        Lang::Module(name, members, h) => {
+            let var = Var::from_name(name);
+            let args = members.iter()
+                .flat_map(|def| def.to_arg_type())
+                .collect::<HashSet<_>>();
+            let new_context = context.clone()
+                .push_var_type(var, Type::Module(args, h.clone()), &context);
+            builder::empty_type().tuple(context)
+        },
         _ => builder::empty_type().tuple(context)
     }
 }
@@ -741,6 +750,8 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         Lang::Return(exp, _) => {
             typing(context, exp)
         },
+        Lang::Module(name, members, h) => 
+            eval(context, expr).with_lang(expr),
         _ => builder::any_type().with_lang(expr, context)
     }
 }

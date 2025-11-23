@@ -76,3 +76,5 @@ perf.data.old
 lcov.info
 *.gcno
 *.gcda
+
+/meta
