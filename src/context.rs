@@ -79,10 +79,10 @@ impl Context {
 
     pub fn get_type_from_variable(&self, var: &Var) -> Option<Type> {
         self.variables().flat_map(|(var2, type_)| {
-            let Var(name1, path1, perm1, bo1, typ1, _h1) = var;
-            let Var(name2, path2, perm2, bo2, typ2, _h2) = var2;
+            let Var(name1, perm1, bo1, typ1, _h1) = var;
+            let Var(name2, perm2, bo2, typ2, _h2) = var2;
             let conditions = (name1 == name2) &&
-                (path1 == path2) && (perm1 == perm2) &&
+                (perm1 == perm2) &&
                 (bo1 == bo2) && typ1.is_subtype(typ2, self);
             if conditions { Some(type_.clone()) } else { None }
         }).next()
@@ -90,28 +90,27 @@ impl Context {
 
     pub fn get_type_from_aliases(&self, var: &Var) -> Option<Type> {
         self.aliases().flat_map(|(var2, type_)| {
-            let Var(name1, path1, perm1, bo1, typ1, _h1) = var;
-            let Var(name2, path2, perm2, bo2, typ2, _h2) = var2;
+            let Var(name1, perm1, bo1, typ1, _h1) = var;
+            let Var(name2, perm2, bo2, typ2, _h2) = var2;
             let conditions = (name1 == name2) &&
-                (path1 == path2) && (perm1 == perm2) &&
+                (perm1 == perm2) &&
                 (bo1 == bo2) && typ1.is_subtype(typ2, self);
             if conditions { Some(type_.clone()) } else { None }
         }).next()
     }
 
     fn is_matching(&self, var1: &Var, var2: &Var) -> bool {
-        let Var(name1, path1, perm1, _bo1, params1, _h1) = var1;
-        let Var(name2, path2, perm2, _bo2, params2, _h2) = var2;
+        let Var(name1, perm1, _bo1, params1, _h1) = var1;
+        let Var(name2, perm2, _bo2, params2, _h2) = var2;
         (name1 == name2) &&
-            (path1 == path2) && (perm1 == perm2) && 
+            (perm1 == perm2) && 
             params1.is_subtype(params2, self)
     }
 
     fn is_matching_alias(&self, var1: &Var, var2: &Var) -> bool {
-        let Var(name1, path1, perm1, _bo1, _, _h1) = var1;
-        let Var(name2, path2, perm2, _bo2, _, _h2) = var2;
-        (name1 == name2) &&
-            (path1 == path2) && (perm1 == perm2)
+        let Var(name1, perm1, _bo1, _, _h1) = var1;
+        let Var(name2, perm2, _bo2, _, _h2) = var2;
+        (name1 == name2) && (perm1 == perm2)
     }
 
     pub fn get_matching_alias_signature(&self, var: &Var) -> Option<(Type, Vec<Type>)> {

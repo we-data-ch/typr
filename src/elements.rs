@@ -160,20 +160,6 @@ fn type_annotation(s: Span) -> IResult<Span, Type> {
     delimited(tag("<"), ltype, tag(">")).parse(s)
 }
 
-fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
-    let res = many1(terminated(variable_exp, tag("::"))).parse(s);
-    match res {
-        Ok((s, v)) => {
-            let res = v.iter()
-                .map(|(name, _)| name.clone())
-                .collect::<Vec<_>>()
-                .join("/");
-            Ok((s, (res, v[0].1.clone())))
-        },
-        Err(r) => Err(r)
-    }
-}
-
 pub enum Case {
     Maj,
     Min,
@@ -196,11 +182,10 @@ fn pascal_case_2(s: Span) -> IResult<Span, (String, Case, HelpData)> {
 }
 
 fn variable_helper(s: Span) -> IResult<Span, (Lang, Case)> {
-    let res = (opt(module_path), alt((pascal_case_2, variable_exp_2)), opt(type_annotation)).parse(s);
+    let res = (alt((pascal_case_2, variable_exp_2)), opt(type_annotation)).parse(s);
     match res {
-        Ok((s, (mod_path, (v, case, h), typ))) => {
+        Ok((s, ((v, case, h), typ))) => {
             let res = Var::from_name(&v)
-                .set_path(mod_path.unwrap_or(("".to_string(), HelpData::default())).0.into())
                 .set_type(typ.unwrap_or(builder::empty_type()))
                 .set_help_data(h);
             Ok((s, (res.into(), case)))
@@ -616,8 +601,8 @@ fn function_application2(s: Span) -> IResult<Span, Lang> {
 fn dot_variable(s: Span) -> IResult<Span, Lang> {
     let res = preceded(tag("."), variable2).parse(s);
     match res {
-        Ok((s, Lang::Variable(n, a, b, c, d, e))) 
-            => Ok((s, Lang::Variable(format!(".{}", n), a, b, c, d, e))),
+        Ok((s, Lang::Variable(n, a, b, c, d))) 
+            => Ok((s, Lang::Variable(format!(".{}", n), a, b, c, d))),
         Ok((_s, _)) => todo!(),
         Err(r) => Err(r)
     }
@@ -818,7 +803,7 @@ pub fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                 rest => rest.clone()
             };
             let func = Lang::FunctionApp(
-                Box::new(Lang::Variable("map".to_string(), "".into(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())),
+                Box::new(Lang::Variable("map".to_string(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())),
                 vec![res.clone()], builder::empty_type(), res.into());
             Lang::Chain(Box::new(func), Box::new(op_reverse(v)), p.into())
         },

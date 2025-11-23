@@ -19,11 +19,18 @@ pub enum CompileMode {
     Module
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum FileType {
+    Main,
+    Module
+}
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
    pub compile_mode: CompileMode,
    pub environment: Environment,
+   pub file_type: FileType,
    pub immutability: bool,
    target_language: TargetLanguage,
 }
@@ -37,6 +44,12 @@ impl Config {
         }
     }
 
+    pub fn set_as_module(self) -> Self {
+        Self {
+            file_type: FileType::Module,
+            ..self
+        }
+    }
 
     pub fn set_compile_mode(self, cm: CompileMode) -> Self {
         Self {
@@ -65,6 +78,7 @@ impl Default for Config {
             target_language: TargetLanguage::default(),
             compile_mode: CompileMode::Body,
             environment: Environment::StandAlone,
+            file_type: FileType::Main,
             immutability: false
         }
     }

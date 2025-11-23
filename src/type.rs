@@ -8,7 +8,6 @@ use crate::help_data::HelpData;
 use crate::type_printer::format;
 use crate::type_printer::format2;
 use std::fmt;
-use crate::path::Path;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
 use crate::function_type::FunctionType;
@@ -56,7 +55,8 @@ pub enum Type {
     LabelGen(String, HelpData),
     Array(Box<Type>, Box<Type>, HelpData),
     Record(HashSet<ArgumentType>, HelpData),
-    Alias(String, Vec<Type>, Path, bool, HelpData), //for opacity
+    Module(HashSet<ArgumentType>, HelpData),
+    Alias(String, Vec<Type>, bool, HelpData), //for opacity
     Tag(String, Box<Type>, HelpData),
     Union(HashSet<Type>, HelpData),
     Intersection(HashSet<Type>, HelpData),
@@ -485,16 +485,6 @@ impl Type {
         }
     }
 
-    pub fn add_path(self, path: Path) -> Type {
-        match self.clone() {
-            Type::Alias(name, params, path2, opacity, h) 
-                => {
-                    Type::Alias(name, params, path2.add_path(path), opacity, h)
-                },
-            _ => self.to_owned()
-        }
-    }
-
     pub fn exact_equality(&self, other: &Type) -> bool {
         match (self, other) {
             (Type::Integer(a, _), Type::Integer(b, _)) => a == b,
@@ -535,12 +525,12 @@ impl Type {
             Type::IndexGen(_, _) => TypeCategory::Generic,
             Type::LabelGen(_, _) => TypeCategory::Generic,
             Type::Integer(_, _) => TypeCategory::Integer,
-            Type::Alias(_, _, _, false, _) => TypeCategory::Alias,
+            Type::Alias(_, _, false, _) => TypeCategory::Alias,
+            Type::Alias(name, _, _, _) => TypeCategory::Opaque(name.clone()),
             Type::Any(_) => TypeCategory::Any,
             Type::Empty(_) => TypeCategory::Empty,
             Type::RClass(_, _) => TypeCategory::RClass,
             Type::RFunction(_) => TypeCategory::RFunction,
-            Type::Alias(name, _, _, _, _) => TypeCategory::Opaque(name.clone()),
             Type::Union(_, _) => TypeCategory::Union,
             Type::Add(_, _, _) => TypeCategory::Template,
             Type::Minus(_, _, _) => TypeCategory::Template,
@@ -596,7 +586,8 @@ impl Type {
             Type::LabelGen(_, h) => h.clone(),
             Type::Array(_, _, h) => h.clone(),
             Type::Record(_, h) => h.clone(),
-            Type::Alias(_, _, _, _, h) => h.clone(),
+            Type::Module(_, h) => h.clone(),
+            Type::Alias(_, _, _, h) => h.clone(),
             Type::Tag(_, _, h) => h.clone(),
             Type::StrictUnion(_, h) => h.clone(),
             Type::Interface(_, h) => h.clone(),
@@ -636,7 +627,8 @@ impl Type {
             Type::LabelGen(a, _) => Type::LabelGen(a, h2),
             Type::Array(a1, a2, _) => Type::Array(a1, a2, h2),
             Type::Record(a, _) => Type::Record(a, h2),
-            Type::Alias(a1, a2, a3, a4, _) => Type::Alias(a1, a2, a3, a4, h2),
+            Type::Module(a, _) => Type::Module(a, h2),
+            Type::Alias(a1, a2, a3, _) => Type::Alias(a1, a2, a3, h2),
             Type::Tag(a1, a2, _) => Type::Tag(a1, a2, h2),
             Type::StrictUnion(a, _) => Type::StrictUnion(a, h2),
             Type::Interface(a, _) => Type::Interface(a, h2),
@@ -793,7 +785,7 @@ impl PartialEq for Type {
             (Type::Sequence(a1, b1, _), Type::Sequence(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
-            (Type::Alias(a1, b1, c1, _, _), Type::Alias(a2, b2, c2, _, _)) 
+            (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) 
                 => a1 == a2 && b1 == b2 && c1 == c2,
             (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
@@ -951,7 +943,7 @@ impl Hash for Type {
             Type::LabelGen(_, _) => 8.hash(state),
             Type::Array(_, _, _) => 9.hash(state),
             Type::Record(_, _) => 10.hash(state),
-            Type::Alias(_, _, _, _, _) => 11.hash(state),
+            Type::Alias(_, _, _, _) => 11.hash(state),
             Type::Tag(_, _, _) => 12.hash(state),
             Type::StrictUnion(_, _) => 13.hash(state),
             Type::Interface(_, _) => 14.hash(state),
@@ -975,6 +967,7 @@ impl Hash for Type {
             Type::Vector(_, _, _) => 34.hash(state),
             Type::Sequence(_, _, _) => 35.hash(state),
             Type::Intersection(_, _) => 36.hash(state),
+            Type::Module(_, _) => 37.hash(state),
         }
     }
 }

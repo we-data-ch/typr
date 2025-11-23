@@ -61,16 +61,16 @@ fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
     match res {
         Ok((s, Lang::Tag(name, val, _h)))
             => {
-                if let Lang::Variable(name2, path, perm, mutopa, typ, h) = *val {
+                if let Lang::Variable(name2, perm, mutopa, typ, h) = *val {
                     Ok((s, 
-                        (vec![Lang::Variable(name2.to_string(), path, perm, mutopa, typ, h.clone())],
+                        (vec![Lang::Variable(name2.to_string(), perm, mutopa, typ, h.clone())],
                         Some(name.to_string()))))
                 } else {
                     Ok((s, (vec![], Some(name.to_string()))))
                 }
             } ,
-        Ok((s, Lang::Variable(name, path, perm, mutopa, typ, h)))
-            => Ok((s, (vec![Lang::Variable(name, path, perm, mutopa, typ, h.clone())], None))),
+        Ok((s, Lang::Variable(name, perm, mutopa, typ, h)))
+            => Ok((s, (vec![Lang::Variable(name, perm, mutopa, typ, h.clone())], None))),
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -283,13 +283,12 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
             terminated(tag(";"), multispace0) 
           ).parse(s);
     match res {
-        Ok((s, (_ty, Type::Alias(name, params, path, _, h), _eq, ty, _))) 
+        Ok((s, (_ty, Type::Alias(name, params, _, h), _eq, ty, _))) 
             => {
                 let h2 = if params.len() > 0 { params[0].clone().into()} else { HelpData::default() };
                 Ok((s, Lang::Alias(
                                 Var::from_name(&name)
-                                    .set_type(Type::Params(params.clone(), h2))
-                                    .add_path(path),
+                                    .set_type(Type::Params(params.clone(), h2)),
                                 params, ty, h)))
             },
         Ok((s, (_ty, _, _eq, _ty2, _)))
@@ -324,11 +323,10 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
             terminated(tag(";"), multispace0) 
           ).parse(s);
     match res {
-        Ok((s, (_ty, Type::Alias(name, params, path, _, h), _eq, ty, _))) 
+        Ok((s, (_ty, Type::Alias(name, params, _, h), _eq, ty, _))) 
             => Ok((s, Lang::Alias(
                         Var::from_name(&name)
                             .set_type(Type::Params(params.clone(), params.clone().into()))
-                            .add_path(path)
                             .set_opacity(true),
                         params, ty, h))),
         Ok((s, (_ty, _, _eq, _ty2, _)))
@@ -425,7 +423,7 @@ fn mod_imp(s: Span) -> IResult<Span, Vec<Lang>> {
             terminated(tag(";"), multispace0)).parse(s);
     match res {
         Ok((s, (_mod, (name, _), _sc))) 
-            => Ok((s, vec![Lang::ModImp(name.to_string(), _mod.into())])),
+            => Ok((s, vec![Lang::ModuleImport(name.to_string(), _mod.into())])),
         Err(r) => Err(r)
     }
 }
@@ -526,7 +524,7 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
                 ltype, 
                 terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (at, Type::Alias(name, _params, _path, _, h), _, typ, _))) 
+        Ok((s, (at, Type::Alias(name, _params, _, h), _, typ, _))) 
             => {
                 let var2 = Var::from_name(&name)
                     .set_help_data(h.clone())

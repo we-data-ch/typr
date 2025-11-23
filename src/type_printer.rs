@@ -8,7 +8,7 @@ use crate::r#type::pretty;
 
 pub fn format(ty: &Type) -> String {
     match ty {
-        Type::Alias(name, params, _path, _, _) => {
+        Type::Alias(name, params, _, _) => {
             if params.len() == 0 {
                 format!("{}", name)
             } else {

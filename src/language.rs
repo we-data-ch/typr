@@ -77,7 +77,7 @@ pub enum Lang {
     Function(Vec<ArgumentType>, Type, Box<Lang>, HelpData),
     Module(String, Vec<Lang>, HelpData), // module name { lines }
     ModuleDecl(String, HelpData), // to create an env
-    Variable(String, Path, Permission, bool, Type, HelpData),
+    Variable(String, Permission, bool, Type, HelpData),
     FunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
     MethodCall(Box<Lang>, Vec<Lang>, Type, HelpData),
     ArrayIndexing(Box<Lang>, Box<Lang>, HelpData),
@@ -92,7 +92,7 @@ pub enum Lang {
     Lines(Vec<Lang>, HelpData),
     Assign(Box<Lang>, Box<Lang>, HelpData),
     Comment(String, HelpData),
-    ModImp(String, HelpData), // mod name;
+    ModuleImport(String, HelpData), // mod name;
     Import(Type, HelpData), // type alias
     GenFunc(String, String, HelpData), //body, name, helpdata
     Test(Vec<Lang>, HelpData),
@@ -118,7 +118,7 @@ pub enum Lang {
 
 impl From<Var> for Lang {
    fn from(val: Var) -> Self {
-       Lang::Variable(val.0, val.1.into(), val.2, val.3, val.4, val.5)
+       Lang::Variable(val.0, val.1, val.2, val.3, val.4)
    } 
 }
 
@@ -162,8 +162,8 @@ fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
 impl Lang {
     fn set_type_if_variable(&self, typ: &Type) -> Lang {
         match self {
-            Lang::Variable(name, path, perm, spec, _, h) 
-                => Lang::Variable(name.clone(), path.clone(), perm.clone(), spec.clone(), typ.clone(), h.clone()),
+            Lang::Variable(name, perm, spec, _, h) 
+                => Lang::Variable(name.clone(), perm.clone(), spec.clone(), typ.clone(), h.clone()),
             _ => self.clone()
         }
     }
@@ -228,9 +228,9 @@ impl Lang {
     }
 
     pub fn lang_substitution(&self, sub_var: &Lang, var: &Lang, context: &Context) -> String {
-        if let Lang::Variable(name, _, _, _, _, _) = var {
+        if let Lang::Variable(name, _, _, _, _) = var {
             let res = match self {
-                Lang::Variable(_, _, _, _, _, h) if self == sub_var 
+                Lang::Variable(_, _, _, _, h) if self == sub_var 
                     => Lang::Exp(format!("{}[[2]]", name.to_string()), h.clone()),
                 lang => lang.clone()
             };
@@ -262,7 +262,7 @@ impl Lang {
             Lang::Function(_, _, _, h) => h,
             Lang::Module(_, _, h) => h,
             Lang::ModuleDecl(_, h) => h,
-            Lang::Variable(_, _, _, _, _, h) => h,
+            Lang::Variable(_, _, _, _, h) => h,
             Lang::FunctionApp(_, _, _, h) => h,
             Lang::MethodCall(_, _, _, h) => h,
             Lang::ArrayIndexing(_, _, h) => h,
@@ -277,7 +277,7 @@ impl Lang {
             Lang::Lines(_, h) => h,
             Lang::Assign(_, _, h) => h,
             Lang::Comment(_, h) => h,
-            Lang::ModImp(_, h) => h,
+            Lang::ModuleImport(_, h) => h,
             Lang::Import(_, h) => h,
             Lang::GenFunc(_, _, h) => h,
             Lang::Test(_, h) => h,
@@ -354,7 +354,7 @@ impl Lang {
             Lang::Function(_, _, _, _) => "Function".to_string(),
             Lang::Module(_, _, _) => "Module".to_string(),
             Lang::ModuleDecl(_, _) => "ModuleDecl".to_string(),
-            Lang::Variable(name, _, _, _, _, _) => format!("Variable({})", name),
+            Lang::Variable(name, _, _, _, _) => format!("Variable({})", name),
             Lang::FunctionApp(var, _, _, _) => 
                 format!("FunctionApp({})", Var::from_language(*(var.clone())).unwrap().get_name()),
             Lang::MethodCall(var, _, _, _) => 
@@ -371,7 +371,7 @@ impl Lang {
             Lang::Lines(_, _) => "Sequence".to_string(),
             Lang::Assign(_, _, _) => "Assign".to_string(),
             Lang::Comment(_, _) => "Comment".to_string(),
-            Lang::ModImp(_, _) => "ModImp".to_string(),
+            Lang::ModuleImport(_, _) => "ModImp".to_string(),
             Lang::Import(_, _) => "Import".to_string(),
             Lang::GenFunc(_, _, _) => "GenFunc".to_string(),
             Lang::Test(_, _) => "Test".to_string(),
@@ -516,7 +516,7 @@ impl From<Lang> for HelpData {
            Lang::Integer(_, h) => h,
            Lang::Bool(_, h) => h,
            Lang::Char(_, h) => h,
-           Lang::Variable(_, _, _, _, _, h) => h,
+           Lang::Variable(_, _, _, _, h) => h,
            Lang::Match(_, _, _, h) => h,
            Lang::FunctionApp(_, _, _, h) => h,
            Lang::MethodCall(_, _, _, h) => h,
@@ -543,7 +543,7 @@ impl From<Lang> for HelpData {
            Lang::Modu2(_, _, h) => h,
            Lang::Module(_, _, h) => h,
            Lang::ModuleDecl(_, h) => h,
-           Lang::ModImp(_, h) => h,
+           Lang::ModuleImport(_, h) => h,
            Lang::Import(_, h) => h,
            Lang::GreaterThan(_, _, h) => h,
            Lang::GreaterOrEqual(_, _, h) => h,
@@ -588,8 +588,8 @@ use std::fmt;
 impl fmt::Display for Lang {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
-            Lang::Variable(name, path, _permision, _bo, typ, _h) 
-                => format!("{}{} -> {}", path, name, typ),
+            Lang::Variable(name, _permision, _bo, typ, _h) 
+                => format!("{} -> {}", name, typ),
             _ => format!("{:?}", self)
         };
         write!(f, "{}", res)       
@@ -656,7 +656,7 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::Chain(e1, e2, _) => {
                 match *e1.clone() {
-                    Lang::Variable(_, _, _, _, _, _) => {
+                    Lang::Variable(_, _, _, _, _) => {
                         Translatable::from(cont.clone())
                             .to_r(e2)
                             .add("[['").to_r(e1).add("']]").into()
@@ -702,7 +702,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         cont.get_type_anotation(&fn_type.into())),
                 cont.clone())
             },
-            Lang::Variable(v, path, _, _, ty, _) => {
+            Lang::Variable(v, _, _, ty, _) => {
                 //Here we only keep the variable name, the path and the type
                 let name = if v.contains("__") {
                     v.replace("__", ".")
@@ -712,7 +712,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         _ => v.clone() + "." + &cont.get_class(ty)
                     }
                 };
-                ((path.clone().to_r() + &name).to_string(), cont.clone())
+                ((&name).to_string(), cont.clone())
             },
             Lang::FunctionApp(exp, vals, _, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
@@ -913,7 +913,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Eq2(right, left, _) => {
                 let res = match &**left {
                     Lang::Tag(n, _, _) => n.to_string(),
-                    Lang::Variable(n, _, _, _, _, _) => n.to_string(),
+                    Lang::Variable(n, _, _, _, _) => n.to_string(),
                     _ => format!("{}", left) 
                 };
                 (format!("{} = {}", res, right.to_r(cont).0), cont.clone())

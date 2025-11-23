@@ -5,7 +5,6 @@ use std::fmt;
 use serde::Serialize;
 use crate::context::Context;
 use crate::help_data::HelpData;
-use crate::path::Path;
 use crate::translatable::RTranslatable;
 use crate::function_type::FunctionType;
 use crate::typing;
@@ -42,7 +41,7 @@ impl From<Permission> for bool {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
-pub struct Var(pub Name, pub Path, pub Permission, pub IsMutableOpaque, pub Type, pub HelpData);
+pub struct Var(pub Name, pub Permission, pub IsMutableOpaque, pub Type, pub HelpData);
 
 // main
 impl Var {
@@ -84,15 +83,15 @@ impl Var {
 
     pub fn from_language(l: Lang) -> Option<Var> {
         match l {
-            Lang::Variable(name, path, perm, muta, typ, h) 
-                => Some(Var(name, path, perm, muta, typ, h)),
+            Lang::Variable(name, perm, muta, typ, h) 
+                => Some(Var(name, perm, muta, typ, h)),
             _ => None
         }
     }
 
     pub fn from_type(t: Type) -> Option<Var> {
         match t {
-            Type::Alias(name, concret_types, _base_type, opacity, h) => {
+            Type::Alias(name, concret_types, opacity, h) => {
                     let var = Var::from_name(&name)
                         .set_type(Type::Params(concret_types.to_vec(), concret_types.clone().into()))
                         .set_help_data(h)
@@ -111,7 +110,6 @@ impl Var {
     pub fn from_name(name: &str) -> Self {
         Var(
             name.to_string(),
-            "".into(),
             Permission::Private,
             false,
             Type::Empty(HelpData::default()),
@@ -119,11 +117,11 @@ impl Var {
     }
 
     pub fn to_language(self) -> Lang {
-        Lang::Variable(self.0, self.1, self.2, self.3, self.4, self.5)
+        Lang::Variable(self.0, self.1, self.2, self.3, self.4)
     }
 
     pub fn set_name(self, s: &str) -> Var {
-       Var(s.to_string(), self.1, self.2, self.3, self.4, self.5)
+       Var(s.to_string(), self.1, self.2, self.3, self.4)
     }
 
     pub fn set_type(self, typ: Type) -> Var {
@@ -135,32 +133,24 @@ impl Var {
             },
             _ => typ
         };
-        Var(self.0, self.1, self.2, self.3, typ, self.5)
+        Var(self.0, self.1, self.2, typ, self.4)
     }
 
     pub fn set_type_raw(self, typ: Type) -> Var {
-        Var(self.0, self.1, self.2, self.3, typ, self.5)
+        Var(self.0, self.1, self.2, typ, self.4)
     }
 
     pub fn set_permission(self, perm: bool) -> Var {
         let new_perm = if perm == true { Permission::Public } else { Permission::Private };
-        Var(self.0, self.1, new_perm, self.3, self.4, self.5)
+        Var(self.0, new_perm, self.2, self.3, self.4)
     }
 
     pub fn set_mutability(self, muta: bool) -> Var {
-        Var(self.0, self.1, self.2, muta, self.4, self.5)
+        Var(self.0, self.1, muta, self.3, self.4)
     }
 
     pub fn set_opacity(self, opa: bool) -> Var {
-        Var(self.0, self.1, self.2, opa, self.4, self.5)
-    }
-
-    pub fn add_path(self, name: Path) -> Var {
-        if self.1 == Path::default() {
-            Var(self.0, name.into(), self.2, self.3, self.4, self.5)
-        } else {
-            Var(self.0, self.1 + name, self.2, self.3, self.4, self.5)
-        }
+        Var(self.0, self.1, opa, self.3, self.4)
     }
 
     pub fn get_name(&self) -> String {
@@ -172,19 +162,15 @@ impl Var {
     }
 
     pub fn get_permission(&self) -> Permission {
-        self.2
-    }
-
-    pub fn set_path(self, new_path: Path) -> Var {
-        Var(self.0, new_path, self.2, self.3, self.4, self.5)
+        self.1
     }
 
     pub fn get_type(&self) -> Type {
-        self.4.clone()
+        self.3.clone()
     }
 
     pub fn get_help_data(&self) -> HelpData {
-        self.5.clone()
+        self.4.clone()
     }
 
     pub fn match_with(&self, var: &Var, context: &Context) -> bool {
@@ -194,27 +180,19 @@ impl Var {
     }
 
     pub fn set_help_data(self, h: HelpData) -> Var {
-        Var(self.0, self.1, self.2, self.3, self.4, h)
+        Var(self.0, self.1, self.2, self.3, h)
     }
 
     pub fn is_mutable(&self) -> bool {
-        self.is_variable() && self.3.clone()
+        self.is_variable() && self.2.clone()
     }
 
     pub fn is_private(&self) -> bool {
-        self.2 == Permission::Private
+        self.1 == Permission::Private
     }
 
     pub fn is_public(&self) -> bool {
         !self.is_private()
-    }
-
-    pub fn is_from_other_module(&self) -> bool {
-        !self.1.is_empty()
-    }
-
-    pub fn is_natif_to_module(&self) -> bool {
-        !self.is_from_other_module()
     }
 
     pub fn is_alias(&self) -> bool {
@@ -229,15 +207,15 @@ impl Var {
     }
 
     pub fn is_opaque(&self) -> bool {
-        self.is_alias() && self.3
+        self.is_alias() && self.2
     }
 
     pub fn get_opacity(&self) -> bool {
-        self.3
+        self.2
     }
 
     pub fn to_alias_type(self) -> Type  {
-        Type::Alias(self.get_name(), vec![], self.get_path().into(), self.get_opacity(), self.get_help_data()) 
+        Type::Alias(self.get_name(), vec![], self.get_opacity(), self.get_help_data()) 
     }
 
     pub fn to_alias_lang(self) -> Lang  {
@@ -281,19 +259,19 @@ impl Var {
 impl fmt::Display for Var {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "{}{}<{}>",
-            self.1, self.0, self.4)       
+            self.1, self.0, self.3)       
     }
 }
 
 impl Default for Var {
     fn default() -> Self {
-        Var("".to_string(), "".into(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())
+        Var("".to_string(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())
     }
 }
 
 impl RTranslatable<String> for Var {
     fn to_r(&self, _: &Context) -> String {
-        format!("{}{}", self.1.clone().to_r(), self.0)
+        format!("{}", self.0)
     }
 }
 
@@ -302,8 +280,8 @@ impl TryFrom<Lang> for Var {
 
     fn try_from(value: Lang) -> Result<Self, Self::Error> {
         match value {
-            Lang::Variable(name, path, perm, muta, typ, h) 
-                => Ok(Var(name, path, perm, muta, typ, h)),
+            Lang::Variable(name, perm, muta, typ, h) 
+                => Ok(Var(name, perm, muta, typ, h)),
             _ => Err(())
         }
     }
@@ -321,22 +299,9 @@ impl From<&str> for Var {
    fn from(val: &str) -> Self {
         Var(
             val.to_string(),
-            "".into(),
             Permission::Private,
             false,
             Type::Empty(HelpData::default()),
             HelpData::default())
    } 
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_default_var_not_foreign(){
-        let var = Var::default();
-        assert!(!var.is_from_other_module())
-    }
-
 }

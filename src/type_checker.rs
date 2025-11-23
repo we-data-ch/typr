@@ -393,11 +393,10 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         Lang::Chain(e1, e2, _) => {
             let ty2 = typing(context, e2).0.clone().reduce(context);
             match (ty2.clone(), *e1.clone()) {
-                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _, h)) => {
+                (Type::Record(fields, _), Lang::Variable(name, _, _, _, h)) => {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
-                        //.expect(&format!("Field {} not found", name))
                         .expect(&TypeError::FieldNotFound((name, h), ty2).display())
                         .with_lang(expr)
                 },
@@ -433,11 +432,18 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         Lang::Dollar(e1, e2, _) => {
             let ty2 = typing(context, e2).0.clone();
             match (ty2.reduce(context), *e1.clone()) {
-                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _, _)) => {
+                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _)) => {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect(&format!("Field {} not found", name))
+                        .with_lang(expr)
+                },
+                (Type::Module(fields, _), Lang::Variable(name, _, _, _, _)) => {
+                    fields.iter()
+                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
+                        .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
+                        .expect(&format!("Variable {} not found in the module", name))
                         .with_lang(expr)
                 },
                 (Type::Record(fields, _), Lang::Char(name, _)) => {
@@ -661,10 +667,10 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                         index),
             }
         },
-        Lang::Variable(_, _, _, _, _, _) => {
+        Lang::Variable(_, _, _, _, _) => {
             let old_var = Var::try_from(expr.clone()).unwrap();
             let var = context.get_true_variable(&old_var);
-            if var.is_private() && var.is_from_other_module() {
+            if var.is_private() {
                panic!("{}", TypeError::PrivateVariable(old_var, var).display())
             } else {
                     context

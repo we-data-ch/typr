@@ -139,7 +139,7 @@ fn embedded_ltype(s: Span) -> IResult<Span, Type> {
 fn simple_label(s: Span) -> IResult<Span, Type> {
     let res = variable2(s);
     match res.clone() {
-        Ok((s, Lang::Variable(name, _, _, _, _, h))) 
+        Ok((s, Lang::Variable(name, _, _, _, h))) 
             => Ok((s, Type::Char(name.to_owned().into(), h.clone()))),
         Ok((_s, _)) 
             => panic!("Error: {:?} shouldn't be something different from a variable", res),
@@ -230,36 +230,16 @@ pub fn pascal_case_no_space(s: Span) -> IResult<Span, (String, HelpData)> {
     }
 }
 
-fn module_path(s: Span) -> IResult<Span, (String, HelpData)> {
-    let res = many1(terminated(pascal_case, tag("::"))).parse(s);
-    match res {
-        Ok((s, v)) => {
-            let res =  v.iter()
-                .map(|(string, _)| string.clone())
-                .collect::<Vec<_>>()
-                .join("/");
-            Ok((s, (res, v[0].1.clone())))
-        },
-        Err(r) => Err(r)
-    }
-}
-
-
 pub fn type_alias(s: Span) -> IResult<Span, Type> {
     let res = (
-            opt(module_path),
             alt((pascal_case_no_space, variable_exp)),
             terminated(opt(type_params), multispace0)
           ).parse(s);
     match res {
-        Ok((s, (Some(p), (name, h), Some(v)))) 
-            => Ok((s, Type::Alias(name, v.clone(), p.0.into(), false, h))),
-        Ok((s, (None, (name, h), Some(v)))) 
-            => Ok((s, Type::Alias(name, v.clone(), "".into(), false, h))),
-        Ok((s, (Some(p), (name, h), None))) 
-            => Ok((s, Type::Alias(name, vec![], p.0.into(), false, h))),
-        Ok((s, (None, (name, h), None))) 
-            => Ok((s, Type::Alias(name, vec![], "".into(), false, h))),
+        Ok((s, ((name, h), Some(v)))) 
+            => Ok((s, Type::Alias(name, v.clone(), false, h))),
+        Ok((s, ((name, h), None))) 
+            => Ok((s, Type::Alias(name, vec![], false, h))),
         Err(r) => Err(r),
     }
 }

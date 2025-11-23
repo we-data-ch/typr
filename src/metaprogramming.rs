@@ -9,7 +9,7 @@ use crate::help_data::HelpData;
 
 fn import_file_module_code(line: &Lang) -> Lang {
     match line {
-        Lang::ModImp(name, _h) => {
+        Lang::ModuleImport(name, _h) => {
             let file = get_os_file(&format!("{}.ty", name));
             let new_adt = metaprogrammation(parse(LocatedSpan::new_extra(&read_file_from_name(&name), file)).unwrap().1);
             Lang::Module(name.to_string(), new_adt.0, HelpData::default())
@@ -22,23 +22,21 @@ fn import_file_modules_code(adt: Adt) -> Adt {
     adt.iter().map(import_file_module_code).collect::<Vec<_>>().into()
 }
 
-fn accessibility_change(module_name: &str, adt: Adt) -> Vec<Lang> {
+fn accessibility_change(_module_name: &str, adt: Adt) -> Vec<Lang> {
     adt.0.iter().map(|line| {
         match line {
             Lang::Let(var, typ, body, h) 
-                => Lang::Let(
-                    var.clone().add_path(module_name.into()),
-                    typ.to_owned().add_path(module_name.into()), body.clone(), h.clone()),
+                => Lang::Let(var.clone(), typ.to_owned(), body.clone(), h.clone()),
             Lang::Alias(var, params, typ, h) 
                 => Lang::Alias(
-                    var.clone().add_path(module_name.into()),
-                    params.clone(), typ.to_owned().add_path(module_name.into()), h.clone()),
+                    var.clone(),
+                    params.clone(), typ.to_owned(), h.clone()),
             Lang::Function(a, r, b, h) => {
                 let arg_typ = a.iter()
-                    .map(|a_t| a_t.to_owned().set_type(a_t.get_type().add_path(module_name.into())))
+                    .map(|a_t| a_t.to_owned().set_type(a_t.get_type()))
                     .collect::<Vec<_>>();
                 Lang::Function(arg_typ.to_owned(),
-                    r.to_owned().add_path(module_name.into()), b.to_owned(), h.to_owned())
+                    r.to_owned(), b.to_owned(), h.to_owned())
             },
             _ => Lang::Empty(line.clone().into())
         }
