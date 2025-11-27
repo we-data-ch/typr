@@ -28,6 +28,7 @@ pub enum TypeCategory {
     Sequence,
     Rest,
     Intersection,
+    Module
 }
 
 impl TypeCategory {
@@ -66,6 +67,7 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Sequence => "Sequence",
             TypeCategory::Rest => "Rest",
             TypeCategory::Intersection => "Intersection",
+            TypeCategory::Module => "Module",
         };
         write!(f, "{}", res)       
     }

@@ -7,7 +7,6 @@ use crate::argument_value::ArgumentValue;
 use crate::Context;
 use crate::typing;
 use crate::help_data::HelpData;
-use crate::path::Path;
 use crate::function_type::FunctionType;
 use crate::type_comparison::reduce_type;
 use crate::translatable::Translatable;
@@ -81,10 +80,10 @@ pub enum Lang {
     FunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
     MethodCall(Box<Lang>, Vec<Lang>, Type, HelpData),
     ArrayIndexing(Box<Lang>, Box<Lang>, HelpData),
-    Let(Var, Type, Box<Lang>, HelpData),
+    Let(Box<Lang>, Type, Box<Lang>, HelpData),
+    Alias(Box<Lang>, Vec<Type>, Type, HelpData),
     Array(Vec<Lang>, HelpData),
     Record(Vec<ArgumentValue>, HelpData),
-    Alias(Var, Vec<Type>, Type, HelpData),
     Tag(String, Box<Lang>, HelpData),
     If(Box::<Lang>, Box<Lang>, Box<Lang>, HelpData),
     Match(Box<Lang>, Var, Vec<(Type, Box<Lang>)>, HelpData),
@@ -171,10 +170,12 @@ impl Lang {
     pub fn to_arg_type(&self) -> Option<ArgumentType> {
         match self {
             Lang::Let(var, ty, _, _) => {
-                Some(ArgumentType::new(&var.get_name(), &ty))
+                Some(ArgumentType::new(&Var::from_language((**var).clone())
+                                       .unwrap().get_name(), &ty))
             },
             Lang::Alias(var, _types, ty, _) => {
-                Some(ArgumentType::new(&var.get_name(), &ty))
+                Some(ArgumentType::new(&Var::from_language((**var).clone())
+                                       .unwrap().get_name(), &ty))
             },
             _ => None
         }
@@ -372,7 +373,8 @@ impl Lang {
             Lang::MethodCall(var, _, _, _) => 
                 format!("MethodCall({})", Var::from_language(*(var.clone())).unwrap().get_name()),
             Lang::ArrayIndexing(_, _, _) => "ArrayIndexing".to_string(),
-            Lang::Let(var, _, _, _) => format!("let {}", var.get_name()),
+            Lang::Let(var, _, _, _) 
+                => format!("let {}", Var::from_language((**var).clone()).unwrap().get_name()),
             Lang::Array(_, _) => "Array".to_string(),
             Lang::Record(_, _) => "Record".to_string(),
             Lang::Alias(_, _, _, _) => "Alias".to_string(),
@@ -422,7 +424,7 @@ impl Lang {
                  context.clone())
             },
             Lang::Let(var, _, body, _) => {
-                (format!("let {} = {};", var.get_name(), body.to_js(context).0),
+                (format!("let {} = {};", Var::from_language(*(var.clone())).unwrap().get_name(), body.to_js(context).0),
                  context.clone())
             },
             Lang::Assign(var, body, _) => {
@@ -516,6 +518,44 @@ impl Lang {
         match self {
             Lang::Number(n, _) => (n.to_string(), context.clone()),
             _ => self.to_r(context)
+        }
+    }
+
+    pub fn to_module_member(self) -> Lang {
+        match self {
+            Lang::Module(name, body, h) => {
+                Lang::Lines(body.clone(), h).to_module_helper(&name)
+            },
+            res => res
+        }
+    }
+
+    pub fn to_module_helper(self, name: &str) -> Lang{
+        match self.clone() {
+            Lang::Variable(_, _, _, _, h) => {
+                Lang::Dollar(Box::new(Var::from_name(name).to_language()),
+                            Box::new(self), h)
+            },
+            Lang::Let(var, typ, lang, h) => {
+                let expr = Lang::Dollar(var,
+                    Box::new(Var::from_name(name).to_language()), h.clone());
+                Lang::Let(Box::new(expr), typ, lang, h)
+            },
+            Lang::Alias(var, types, typ, h) => {
+                let expr = Lang::Dollar(
+                    Box::new(Var::from_name(name).to_language()), var, h.clone());
+                Lang::Alias(Box::new(expr), types, typ, h)
+            },
+            Lang::Function(args, typ, body, h) => {
+                Lang::Function(args, typ, Box::new(body.to_module_helper(name)), h)
+            },
+            Lang::Lines(exprs, h) => {
+                Lang::Lines(exprs.iter()
+                    .cloned()
+                    .map(|expr| expr.to_module_helper(name))
+                    .collect::<Vec<_>>(), h)
+            },
+            rest => rest
         }
     }
 
@@ -721,7 +761,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 } else {
                     match ty {
                         Type::Empty(_) | Type::Any(_) => v.clone(),
-                        _ => v.clone() + "." + &cont.get_class(ty)
+                        _ => v.clone() + "." + &cont.get_class(ty).replace("'", "")
                     }
                 };
                 ((&name).to_string(), cont.clone())
@@ -743,7 +783,6 @@ impl RTranslatable<(String, Context)> for Lang {
                     let fn_t = cont1.get_true_fn_type(self)
                                     .unwrap_or(
                                         FunctionType::try_from(cont1.get_type_from_variable(&var).expect(&format!("variable {} don't have a related type", var))).unwrap());
-
                     let new_args = fn_t.get_param_types().into_iter()
                             .map(|arg| reduce_type(&cont1, &arg))
                             .collect::<Vec<_>>();
@@ -755,14 +794,11 @@ impl RTranslatable<(String, Context)> for Lang {
                     
                     Var::from_language(*exp.clone())
                         .map(|var| {
-                            let (name, path) = (var.get_name(), Path::new(&var.get_path()));
+                            let name = var.get_name();
                             let new_name = if &name[0..1] == "%" {
                                 format!("`{}`", name.replace("__", "."))
                             } else { name.replace("__", ".") };
-                            (path != Path::default())
-                                .then_some((format!("eval(quote({}({})), envir = {})",
-                                    new_name, args, path.get_value()), current_cont.clone()))
-                                .unwrap_or((format!("{}({})", new_name, args), current_cont.clone()))
+                            (format!("{}({})", new_name, args), current_cont.clone())
                         }).unwrap_or((format!("{}({})", exp_str, args), current_cont))
                 }
             },
@@ -781,25 +817,22 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::GenFunc(func, _, _) => 
                 (func.to_string(), cont.clone()),
-            Lang::Let(var, ttype, body, _) => {
-
+            Lang::Let(expr, ttype, body, _) => {
                 let (body_str, new_cont) = body.to_r(cont);
-                let new_name = var.clone().to_r(cont);
+                let new_name = expr.clone().to_r(cont).0;
 
                 let (r_code, _new_name2) =
                 Function::try_from((**body).clone())
                     .map(|_| {
-                        let related_type = var.get_type();
+                        //let related_type = Var::try_from(expr).unwrap().get_type();
+                        let related_type = typing(cont, expr).0;
                         match related_type {
                             Type::Empty(_) 
                                 => (format!("{} <- {}", new_name, body_str), new_name.clone()),
                             Type::Any(_) | Type::Generic(_, _) 
                                 => (format!("{}.default <- {}", new_name, body_str), new_name.clone()),
                             _ => {
-                                //let class = cont.get_class_unquoted(&reduce_type(cont, &related_type));
-                                let class = cont.get_type_anotation_no_parentheses(&related_type);
-                                let new_name2 = format!("{}.{}", new_name.clone(), class);
-                                (format!("{} <- {}", new_name2, body_str), new_name2)
+                                (format!("{} <- {}", new_name, body_str), new_name.clone())
                             }
                         }
                     }).unwrap_or((format!("{} <- {}", new_name, body_str), new_name));
@@ -945,18 +978,8 @@ impl RTranslatable<(String, Context)> for Lang {
                (res, cont.to_owned())
             },
             Lang::Dollar(e1, e2, _) => {
-                let name = e2.to_r(cont).0;
-                match (**e1).clone() {
-                    Lang::FunctionApp(exp, params, _, _) => {
-                        let var = Var::from_language(*exp).unwrap();
-                        let new_params = params.iter().map(|x| x.to_r(cont).0)
-                                .collect::<Vec<_>>().join(", ");
-                        (format!("{}${}({})", name, var.get_name(), new_params),
-                            cont.to_owned())
-                    },
-                    _ => (format!("{}${}", name, e1.to_r(cont).0),
-                            cont.to_owned())
-                }
+                let val = format!("{}${}", e2.to_r(cont).0, e1.to_r(cont).0);
+                (val, cont.clone())
             },
             Lang::Not(exp, _) => {
                 (format!("!{}", exp.to_r(cont).0),
@@ -1007,7 +1030,14 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::Break(_) => {
                 ("break".to_string(), cont.clone())
-            }
+            },
+            Lang::Module(name, _, _) => {
+                let env_def = format!("{} <- new.env()", name);
+                let module = self.clone()
+                    .to_module_member();
+                let text = module.to_r(&cont.extract_module_as_vartype(name)).0;
+                (format!("{}\n{}", env_def, text), cont.clone())
+            },
             _ => {
                 println!("This language structure won't transpile: {:?}", self);
                 ("".to_string(), cont.clone())

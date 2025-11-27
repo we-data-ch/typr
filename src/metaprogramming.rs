@@ -22,27 +22,6 @@ fn import_file_modules_code(adt: Adt) -> Adt {
     adt.iter().map(import_file_module_code).collect::<Vec<_>>().into()
 }
 
-fn accessibility_change(_module_name: &str, adt: Adt) -> Vec<Lang> {
-    adt.0.iter().map(|line| {
-        match line {
-            Lang::Let(var, typ, body, h) 
-                => Lang::Let(var.clone(), typ.to_owned(), body.clone(), h.clone()),
-            Lang::Alias(var, params, typ, h) 
-                => Lang::Alias(
-                    var.clone(),
-                    params.clone(), typ.to_owned(), h.clone()),
-            Lang::Function(a, r, b, h) => {
-                let arg_typ = a.iter()
-                    .map(|a_t| a_t.to_owned().set_type(a_t.get_type()))
-                    .collect::<Vec<_>>();
-                Lang::Function(arg_typ.to_owned(),
-                    r.to_owned(), b.to_owned(), h.to_owned())
-            },
-            _ => Lang::Empty(line.clone().into())
-        }
-    }).collect::<Vec<_>>()
-}
-
 pub fn metaprogrammation(adt: Adt) -> Adt {
     import_file_modules_code(adt)
 }

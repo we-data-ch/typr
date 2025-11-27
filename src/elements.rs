@@ -283,9 +283,11 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
             => {
                 panic!("You forgot to specify the function return type: 'fn(...): Type'");
             }, 
-        Ok((_s, (_, _, _args, _, Some(_), None, _exp))) 
+        Ok((_s, (_, _, _args, _, Some(tag), None, _exp))) 
             => {
-            println!("Hey You forgot to specify the function return type after the ':' : 'fn(...): Type'");
+                None::<bool>.expect(
+                    &SyntaxError::FunctionWithoutReturnType(tag.into()).display()
+                           );
             exit(1)
             },
         Ok((_s, (_, _, _args, _, None, Some(typ), _exp))) 

@@ -177,16 +177,17 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
 
             exp.typing(&new_context)
                 .get_covariant_type(ty)
-                .add_to_context(name.clone())
+                .add_to_context(Var::try_from(name).unwrap())
         },
-        Lang::Alias(name, params, typ, h) => {
-            let var = name.clone()
+        Lang::Alias(expr, params, typ, h) => {
+            let var = Var::try_from(expr).unwrap()
                 .set_type(Type::Params(params.to_vec(), h.clone()));
             let alias_context = context.clone()
-                .push_alias(name.get_name(), typ.to_owned());
-            let new_context = context.clone().push_var_type(var, typ.clone(), &alias_context);
+                .push_alias(var.get_name(), typ.to_owned());
+            let new_context = context.clone()
+                .push_var_type(var.clone(), typ.clone(), &alias_context);
             (builder::empty_type(),
-                new_context.push_alias(name.get_name(), typ.to_owned()))
+                new_context.push_alias(var.get_name(), typ.to_owned()))
         },
         Lang::Assign(left_expr, right_expr, _h) => {
             let left_type = typing(&context, left_expr).0;
@@ -227,13 +228,19 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
             builder::empty_type().tuple(context)
         },
         Lang::Module(name, members, h) => {
+            let expr = if members.len() > 1 {
+                Lang::Lines(members.iter().cloned().collect(), h.clone())
+            } else { members.iter().next().unwrap().clone() }; // TODO: Modules can't be empty
+            let new_context = 
+                typing(&Context::default(), &expr).2;
             let var = Var::from_name(name);
-            let args = members.iter()
-                .flat_map(|def| def.to_arg_type())
+            let arg_types = new_context.get_members()
+                .iter().cloned()
+                .map(|arg_type| ArgumentType::from(arg_type))
                 .collect::<HashSet<_>>();
-            let new_context = context.clone()
-                .push_var_type(var, Type::Module(args, h.clone()), &context);
-            builder::empty_type().tuple(context)
+            let new_context = context.clone().set_as_module_context()
+                .push_var_type(var, Type::Module(arg_types, h.clone()), &context);
+            builder::empty_type().tuple(&new_context)
         },
         _ => builder::empty_type().tuple(context)
     }
@@ -454,6 +461,15 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect(&format!("Variable {} not found in the module", name))
                         .with_lang(expr)
+                },
+                (Type::Module(fields, h1), Lang::FunctionApp(exp, args, _, h2)) => {
+                    let var = Var::from_language(*exp).unwrap();
+                    let typ = fields.iter()
+                        .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
+                        .expect(&format!("Field {} not found", var.get_name()))
+                        .get_type();
+                    let res = FunctionType::try_from(typ).unwrap().get_return_type();
+                    (res, expr.clone(), context.clone())
                 },
                 (Type::Record(fields, _), Lang::Char(name, _)) => {
                     fields.iter()
@@ -679,13 +695,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         Lang::Variable(_, _, _, _, _) => {
             let old_var = Var::try_from(expr.clone()).unwrap();
             let var = context.get_true_variable(&old_var);
-            if var.is_private() {
-               panic!("{}", TypeError::PrivateVariable(old_var, var).display())
-            } else {
-                    context
-                        .get_type_from_existing_variable(var)
-                        .with_lang(expr, context)
-            }
+            context
+                .get_type_from_existing_variable(var)
+                .with_lang(expr, context)
         },
         Lang::Scope(expr, _) if expr.len() == 1 => {
             typing(context, &expr[0])
@@ -750,8 +762,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         Lang::Return(exp, _) => {
             typing(context, exp)
         },
-        Lang::Module(name, members, h) => 
-            eval(context, expr).with_lang(expr),
+        Lang::Module(name, members, h) => {
+            eval(context, expr).with_lang(expr)
+        },
         _ => builder::any_type().with_lang(expr, context)
     }
 }
@@ -836,5 +849,6 @@ mod tests {
         //créer une fonction cri pour les booléens
         assert!(true);
     }
+
 
 }

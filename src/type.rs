@@ -539,6 +539,7 @@ impl Type {
             Type::Vector(_, _, _) => TypeCategory::Vector,
             Type::Sequence(_, _, _) => TypeCategory::Sequence,
             Type::Intersection(_, _) => TypeCategory::Intersection,
+            Type::Module(_, _) => TypeCategory::Module,
             _ => {
                 println!("{:?} return Rest", self);
                 TypeCategory::Rest

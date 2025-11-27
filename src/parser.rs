@@ -35,6 +35,7 @@ use crate::elements::op_reverse;
 use crate::elements::element_chain;
 use crate::elements::variable2;
 use crate::elements::Case;
+use std::ops::Deref;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -103,14 +104,15 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
         Ok((s, (_let, (pat_var, None), typ, _eq, Lang::Function(params, ty, body, h)))) 
             if params.len() > 0 => {
                 let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false);
-                Ok((s, vec![Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
+                Ok((s, vec![Lang::Let(Box::new(newvar.to_language()),
+                    typ.unwrap_or(Type::Empty(HelpData::default())),
                 Box::new(Lang::Function(params, ty, body, h)), _let.into())]))
             },
         Ok((s, (_let, (pat_var, None), typ, _eq, body))) => {
                 Ok((s, 
                     vec![
                     Lang::Let(
-                        Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
+                        Box::new(pat_var[0].clone()),
                         typ.clone().unwrap_or(Type::Empty(HelpData::default())),
                         Box::new(body), _let.into())]))
                 }
@@ -119,7 +121,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 Ok((s, 
                     vec![
                     Lang::Let(
-                        Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
+                        Box::new(pat_var[0].clone()),
                         typ.clone().unwrap_or(Type::Empty(HelpData::default())),
                         Box::new(Lang::Chain(Box::new(Lang::Number(0.0, eq.into())),
                         Box::new(body), pat_var.into())), _let.into())]))
@@ -127,7 +129,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             } else {
                 Ok((s,
                 pat_var.iter().map(|x| {
-                    Lang::Let(Var::from_language(x.clone()).unwrap().set_permission(false), typ.clone().unwrap_or(Type::Empty(HelpData::default())), Box::new(body.clone()), HelpData::default())
+                    Lang::Let(Box::new(x.clone()), typ.clone().unwrap_or(Type::Empty(HelpData::default())), Box::new(body.clone()), HelpData::default())
                 }).collect::<Vec<_>>()
                    ))
             }
@@ -146,15 +148,15 @@ fn base_let_mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, ((pat_var, None), typ, _eq, Lang::Function(params, ty, body, h)))) 
             if params.len() > 0 => {
-                let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false);
-                Ok((s, vec![Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
+                let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false).to_language();
+                Ok((s, vec![Lang::Let(Box::new(newvar), typ.unwrap_or(Type::Empty(HelpData::default())),
                 Box::new(Lang::Function(params, ty, body, h)), pat_var.into())]))
             },
         Ok((s, ((pat_var, None), typ, _eq, body))) => {
                 Ok((s, 
                     vec![
                     Lang::Let(
-                        Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
+                        Box::new(pat_var[0].clone()),
                         typ.clone().unwrap_or(Type::Empty(HelpData::default())),
                         Box::new(body), pat_var.into())]))
                 }
@@ -163,14 +165,14 @@ fn base_let_mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 Ok((s, 
                     vec![
                     Lang::Let(
-                        Var::from_language(pat_var[0].clone()).unwrap().set_permission(false),
+                        Box::new(pat_var[0].clone()),
                         typ.clone().unwrap_or(Type::Empty(HelpData::default())),
                         Box::new(Lang::Chain(Box::new(Lang::Number(0.0, eq.into())),
                         Box::new(body), pat_var.clone().into())), pat_var.into())]))
             } else {
                 Ok((s,
                 pat_var.iter().map(|x| {
-                    Lang::Let(Var::from_language(x.clone()).unwrap().set_permission(false), typ.clone().unwrap_or(Type::Empty(HelpData::default())), Box::new(body.clone()), HelpData::default())
+                    Lang::Let(Box::new(x.clone()), typ.clone().unwrap_or(Type::Empty(HelpData::default())), Box::new(body.clone()), HelpData::default())
                 }).collect::<Vec<_>>()
                    ))
             }
@@ -190,9 +192,14 @@ fn let_mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             let new_le = le.iter().map(|x| {
                 match x {
                     Lang::Let(var, typ, body, h) 
-                        => Lang::Let(var.clone().set_permission(true),
-                                    typ.clone(),
-                                    body.clone(), h.clone()),
+                        => {
+                        let vari = Var::from_language(*(var.clone())).unwrap()
+                            .set_permission(true).to_language();
+                        Lang::Let(
+                                Box::new(vari),
+                                typ.clone(),
+                                body.clone(), h.clone())
+                        }
                     lan => lan.clone()
                 }
             }).collect();
@@ -214,9 +221,15 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             let new_le = le.iter().map(|x| {
                 match x {
                     Lang::Let(var, typ, body, h) 
-                        => Lang::Let(var.clone().set_permission(true),
+                        => {
+                        let vari = Var::from_language(var.deref().clone())
+                            .unwrap()
+                            .set_permission(true)
+                            .to_language();
+                        Lang::Let(Box::new(vari),
                                     typ.clone(),
-                                    body.clone(), h.clone()),
+                                    body.clone(), h.clone())
+                        }
                     lan => lan.clone()
                 }
             }).collect();
@@ -240,15 +253,18 @@ fn base_mut_exp(s: Span) -> IResult<Span, Lang> {
                 let newvar = Var::from_language(var[0].clone())
                     .unwrap()
                     .set_type(params[0].1.clone())
-                    .set_mutability(true);
-                Ok((s, Lang::Let(newvar, typ.unwrap_or(Type::Empty(HelpData::default())),
+                    .set_mutability(true)
+                    .to_language();
+                Ok((s, Lang::Let(Box::new(newvar), 
+                                 typ.unwrap_or(Type::Empty(HelpData::default())),
                 Box::new(Lang::Function(params, ty, body, h.clone())), h)))
             },
         Ok((s, (_let, (var, _), typ, _eq, body))) => {
             Ok((s, Lang::Let(
-                        Var::from_language(var[0].clone())
+                        Box::new(Var::from_language(var[0].clone())
                             .unwrap()
-                            .set_mutability(true),
+                            .set_mutability(true)
+                            .to_language()),
                             typ.unwrap_or(Type::Empty(HelpData::default())), Box::new(body),
                             _let.into())))
         },
@@ -263,12 +279,17 @@ fn mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (None, le))) => Ok((s, vec![le])),
         Ok((s, (Some(_pu), Lang::Let(var, typ, body, h)))) 
-            => Ok((s, vec![Lang::Let(
-                    var.clone().set_permission(true),
-                    typ.clone(),
-                    body.clone(),
-                    h.clone())] 
-                   )),
+            => {
+                let vari = Var::from_language(var.deref().clone()).unwrap()
+                    .set_permission(true)
+                    .to_language();
+                Ok((s, vec![Lang::Let(
+                            Box::new(vari),
+                            typ.clone(),
+                            body.clone(),
+                            h.clone())] 
+                           ))
+            },
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -286,9 +307,11 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
         Ok((s, (_ty, Type::Alias(name, params, _, h), _eq, ty, _))) 
             => {
                 let h2 = if params.len() > 0 { params[0].clone().into()} else { HelpData::default() };
+                let vari = Var::from_name(&name)
+                    .set_type(Type::Params(params.clone(), h2))
+                    .to_language();
                 Ok((s, Lang::Alias(
-                                Var::from_name(&name)
-                                    .set_type(Type::Params(params.clone(), h2)),
+                                Box::new(vari),
                                 params, ty, h)))
             },
         Ok((s, (_ty, _, _eq, _ty2, _)))
@@ -306,10 +329,15 @@ fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (Some(_pu), ali))) => Ok((s, vec![ali])),
         Ok((s, (None, Lang::Alias(var, params, typ, h)))) 
-            => Ok((s, vec![Lang::Alias(
-                        var.set_permission(false),
-                        params,
-                        typ, h)])),
+            => {
+                let vari = Var::from_language(var.deref().clone())
+                    .unwrap().set_permission(false)
+                    .to_language();
+                Ok((s, vec![Lang::Alias(
+                            Box::new(vari),
+                            params,
+                            typ, h)]))
+            },
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -324,11 +352,15 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
           ).parse(s);
     match res {
         Ok((s, (_ty, Type::Alias(name, params, _, h), _eq, ty, _))) 
-            => Ok((s, Lang::Alias(
-                        Var::from_name(&name)
-                            .set_type(Type::Params(params.clone(), params.clone().into()))
-                            .set_opacity(true),
-                        params, ty, h))),
+            => {
+                let vari = Var::from_name(&name)
+                        .set_type(Type::Params(params.clone(), params.clone().into()))
+                        .set_opacity(true)
+                        .to_language();
+                Ok((s, Lang::Alias(
+                            Box::new(vari),
+                            params, ty, h)))
+            }
         Ok((s, (_ty, _, _eq, _ty2, _)))
             => Ok((s, Lang::Empty(_ty.into()))),
         Err(r) => Err(r),
@@ -340,12 +372,25 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 base_opaque_exp).parse(s);
     match res {
         Ok((s, (Some(_pu), Lang::Alias(var, params, typ, h)))) 
-            => Ok((s, vec![Lang::Alias(var.set_opacity(true), params, typ, h)])),
+            => {
+                let vari = Var::from_language(var.deref().clone())
+                    .unwrap()
+                    .set_opacity(true)
+                    .to_language();
+                Ok((s, vec![Lang::Alias(Box::new(vari), params, typ, h)]))
+            }
         Ok((s, (None, Lang::Alias(var, params, typ, h)))) 
-            => Ok((s, vec![Lang::Alias(
-                        var.set_permission(false).set_opacity(true),
-                        params,
-                        typ, h)])),
+            => {
+                let vari = Var::from_language(var.deref().clone())
+                    .unwrap()
+                    .set_permission(false)
+                    .set_opacity(true)
+                    .to_language();
+                Ok((s, vec![Lang::Alias(
+                                Box::new(vari),
+                                params,
+                                typ, h)]))
+            }
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -630,6 +675,8 @@ pub fn parse(s: Span) -> IResult<Span, Adt> {
 mod tesus {
     use super::*;
     use crate::builder;
+    use crate::typing;
+    use crate::Context;
 
     #[test]
     fn test_type_exp2() {
@@ -666,6 +713,15 @@ mod tesus {
         let res = assign("a$b <- 12;".into()).unwrap().1;
         assert_eq!("Assign", res[0].simple_print(),
         "The expression 'a$b <- 12;' should be identified as an assignation");
+    } 
+
+    #[test]
+    fn test_module_type() {
+        let res = parse("module math { let a <- 29; };".into()).unwrap().1.0;
+        let first = res.iter().next().unwrap();
+        let new_context = typing(&Context::default(), first).2;
+        println!("{}", new_context.display_typing_context());
+        assert!(true);
     }
 
 }

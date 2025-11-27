@@ -69,6 +69,21 @@ impl Context {
         }
     }
 
+    pub fn set_as_module_context(self) -> Context {
+        Self {
+           config: self.config.set_as_module(),
+           ..self
+        }
+    }
+
+    pub fn get_members(&self) -> Vec<(Var, Type)> {
+        self.typing_context
+            .variables()
+            .chain(self.aliases())
+            .cloned()
+            .collect::<Vec<_>>()
+    }
+
     pub fn print_hierarchy(&self) {
         self.subtypes.print_hierarchy();
     }
@@ -260,7 +275,7 @@ impl Context {
                        .collect::<Vec<_>>();
                    let new_t2 = if t_end == t { typ.clone() } else {t_end.clone()};
                    Lang::Let(
-                       var.clone(),
+                       Box::new(var.clone().into()),
                         Type::Empty(HelpData::default()),
                         Box::new(
                            Lang::Function(new_args, new_t2,
@@ -520,6 +535,23 @@ impl Context {
     pub fn set_new_aliase_signature(self, alias: &str, related_type: Type) -> Self {
         let alias = Var::from_type(alias.parse::<Type>().unwrap()).unwrap();
         self.clone().push_alias2(alias, related_type)
+    }
+
+    pub fn extract_module_as_vartype(&self, module_name: &str) -> Self {
+        let typ = self.get_type_from_variable(&Var::from_name(module_name))
+            .expect("The module name was not found");
+        let empty_context = Context::default();
+        let new_context = match typ.clone() {
+            Type::Module(args, _) => {
+                args.iter()
+                    .map(|arg_type| 
+                         (Var::try_from(arg_type.0.clone()).unwrap(),
+                          arg_type.1.clone()))
+                    .fold(empty_context.clone(), |acc, (var, typ)| acc.push_var_type(var, typ, &empty_context))
+            },
+            _ => panic!("{} is not a module", module_name) 
+        };
+        new_context.clone().push_var_type(Var::from_name(module_name), typ, &new_context)
     }
 
 }

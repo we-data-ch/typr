@@ -75,6 +75,10 @@ impl ArgumentType {
         format!("{} = {}", self.0.pretty(), self.1.pretty())
     }
 
+    pub fn pretty2(&self) -> String {
+        format!("{} = {}", self.0.pretty2(), self.1.pretty())
+    }
+
     pub fn pretties<T>(args: &T) -> String where
     T: IntoIterator<Item = Self> + Clone {
         args.clone().into_iter()
@@ -103,6 +107,14 @@ impl From<(&str, Type)> for ArgumentType {
    fn from(val: (&str, Type)) -> Self {
         ArgumentType(
             Type::Char(val.0.to_string().into(), val.1.clone().into()),
+            val.1, false)
+   } 
+}
+
+impl From<(Var, Type)> for ArgumentType {
+   fn from(val: (Var, Type)) -> Self {
+        ArgumentType(
+            Type::Char(val.0.get_name().into(), val.1.clone().into()),
             val.1, false)
    } 
 }

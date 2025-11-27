@@ -341,21 +341,33 @@ impl ErrorMsg for TypeError {
 
 pub enum SyntaxError {
     FunctionWithoutType(HelpData),
+    FunctionWithoutReturnType(HelpData),
 }
 
 impl ErrorMsg for SyntaxError {
     fn display(self) -> String {
         let msg: Result<()> = match self {
-            SyntaxError::FunctionWithoutType(help_data)
-                => {
+            SyntaxError::FunctionWithoutType(help_data) => {
                     let (file_name, text) = help_data.get_file_data()
                         .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
-                    let res = SingleBuilder::new(file_name, text)
-                        .pos((help_data.get_offset(), 0));
-                    res.build()
-                },
+                    SingleBuilder::new(file_name, text)
+                        .pos((help_data.get_offset(), 0))
+                        .build()
+            },
+            SyntaxError::FunctionWithoutReturnType(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap();
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text("Hey You forgot to specify the function return type after the ':' : 'fn(...): Type'")
+                    .pos_text("Here")
+                    .help("Just add the type")
+                    .build()
+            }
         };
-        format!("{:?}", msg)
+        match msg {
+            Err(val) => format!("Syntax error:\n{:?}", val),
+            _ => todo!()
+        }
     }
 
 }

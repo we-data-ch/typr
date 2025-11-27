@@ -12,6 +12,7 @@ use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use crate::graph::TypeSystem;
 use crate::builder;
+use crate::tchar::Tchar;
 
 type Name = String;
 type IsMutableOpaque = bool;
@@ -157,10 +158,6 @@ impl Var {
         self.0.to_string()
     }
 
-    pub fn get_path(&self) -> String {
-        self.1.to_string()
-    }
-
     pub fn get_permission(&self) -> Permission {
         self.1
     }
@@ -175,7 +172,6 @@ impl Var {
 
     pub fn match_with(&self, var: &Var, context: &Context) -> bool {
         (self.get_name() == var.get_name()) &&
-        (self.get_path() == var.get_path()) &&
         self.get_type().is_subtype(&var.get_type(), context)
     }
 
@@ -219,14 +215,14 @@ impl Var {
     }
 
     pub fn to_alias_lang(self) -> Lang  {
-        Lang::Alias(self.clone(),
+        Lang::Alias(Box::new(self.clone().to_language()),
                 vec![], 
                 builder::empty_type(),
                 self.get_help_data())
     }
 
     pub fn to_let(self) -> Lang  {
-        Lang::Let(self.clone(),
+        Lang::Let(Box::new(self.clone().to_language()),
                 builder::empty_type(),
                 Box::new(builder::empty_lang()),
                 self.get_help_data())
@@ -258,8 +254,7 @@ impl Var {
 
 impl fmt::Display for Var {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}{}<{}>",
-            self.1, self.0, self.3)       
+            write!(f, "{}<{}>", self.0, self.3)       
     }
 }
 
@@ -295,6 +290,14 @@ impl TryFrom<Box<Lang>> for Var {
     }
 }
 
+impl TryFrom<&Box<Lang>> for Var {
+    type Error = ();
+
+    fn try_from(value: &Box<Lang>) -> Result<Self, Self::Error> {
+        Var::try_from((*value).clone())
+    }
+}
+
 impl From<&str> for Var {
    fn from(val: &str) -> Self {
         Var(
@@ -304,4 +307,20 @@ impl From<&str> for Var {
             Type::Empty(HelpData::default()),
             HelpData::default())
    } 
+}
+
+impl TryFrom<Type> for Var {
+    type Error = String;
+
+    fn try_from(value: Type) -> Result<Self, Self::Error> {
+       match value {
+           Type::Char(tchar, h) => {
+                match tchar {
+                    Tchar::Val(name) => Ok(Var::from_name(&name).set_help_data(h)),
+                    _ => todo!()
+                }
+           },
+           _ => Err("From type to Var, not possible".to_string())
+       }
+    }
 }
