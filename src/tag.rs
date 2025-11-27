@@ -1,10 +1,10 @@
 use crate::Type;
-use serde::Serialize;
 use crate::help_data::HelpData;
+use serde::{Serialize, Deserialize};
 
 type Name = String;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub struct Tag(pub Name, pub Type, pub HelpData);
 
 impl Tag {
@@ -19,13 +19,6 @@ impl Tag {
             _ => None
         }
     }
-
-    //pub fn from_language(lang: Lang, _context: &Context) -> Option<Tag> {
-        //match lang {
-            //Lang::Tag(name, _typ, h) => Some(Tag(name, Type::Any, h)),
-            //_ => None
-        //}
-    //}
 
     pub fn to_type(&self) -> Type {
         Type::Tag(self.0.clone(), Box::new(self.1.clone()), self.2.clone())

@@ -2,10 +2,10 @@ use std::ops::Add;
 use std::ops::Sub;
 use std::ops::Mul;
 use std::ops::Div;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Tint {
     Val(i32),
     Unknown

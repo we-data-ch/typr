@@ -1,10 +1,10 @@
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use crate::Lang;
 use std::fmt;
 use crate::Context;
 use crate::translatable::RTranslatable;
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArgumentValue(pub String, pub Lang);
 
 impl ArgumentValue {

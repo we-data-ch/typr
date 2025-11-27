@@ -1,8 +1,8 @@
 use nom_locate::LocatedSpan;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use std::fs;
 
-#[derive(Debug, PartialEq, Serialize, Eq, Clone, Hash, Default)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Eq, Clone, Hash, Default)]
 pub struct HelpData {
    offset: usize,
    file_name: String

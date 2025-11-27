@@ -2,7 +2,6 @@
 use crate::Type;
 use crate::Lang;
 use std::fmt;
-use serde::Serialize;
 use crate::context::Context;
 use crate::help_data::HelpData;
 use crate::translatable::RTranslatable;
@@ -13,11 +12,12 @@ use crate::help_message::ErrorMsg;
 use crate::graph::TypeSystem;
 use crate::builder;
 use crate::tchar::Tchar;
+use serde::{Serialize, Deserialize};
 
 type Name = String;
 type IsMutableOpaque = bool;
 
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Eq, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Eq, Hash)]
 pub enum Permission {
     Private,
     Public
@@ -41,7 +41,7 @@ impl From<Permission> for bool {
    } 
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub struct Var(pub Name, pub Permission, pub IsMutableOpaque, pub Type, pub HelpData);
 
 // main

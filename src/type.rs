@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use serde::Serialize;
 use crate::argument_type::ArgumentType;
 use crate::tag::Tag;
 use crate::context::generate_arg;
@@ -24,6 +23,7 @@ use crate::Var;
 use crate::graph::TypeSystem;
 use std::str::FromStr;
 use crate::types::ltype;
+use serde::{Serialize, Deserialize};
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -42,7 +42,7 @@ pub fn pretty(hs: HashSet<ArgumentType>) -> String {
 }
 
 
-#[derive(Debug, Clone, Serialize, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq)]
 pub enum Type {
     Number(HelpData),
     Integer(Tint, HelpData),

@@ -1,7 +1,7 @@
 use nom_locate::LocatedSpan;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub enum Tchar {
     Val(String),
     Unknown

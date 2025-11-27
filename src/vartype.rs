@@ -7,8 +7,12 @@ use crate::builder;
 use crate::Context;
 use crate::graph::TypeSystem;
 use crate::config::TargetLanguage;
+use serde::{Serialize, Deserialize};
+use std::fs::File;
+use std::io::Read;
+use std::io::Write;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VarType {
    pub variables: Vec<(Var, Type)>,
    pub aliases: Vec<(Var, Type)>
@@ -304,4 +308,27 @@ impl From<Vec<(Var, Type)>> for  VarType {
            aliases: aliases
        }
    } 
+}
+
+fn sauvegarder_vartype(var_type: &VarType, chemin: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Sérialiser en binaire
+    let donnees_binaires = bincode::serialize(var_type)?;
+    
+    // Écrire dans le fichier
+    let mut fichier = File::create(chemin)?;
+    fichier.write_all(&donnees_binaires)?;
+    
+    Ok(())
+}
+
+fn charger_vartype(chemin: &str) -> Result<VarType, Box<dyn std::error::Error>> {
+    // Lire le fichier
+    let mut fichier = File::open(chemin)?;
+    let mut buffer = Vec::new();
+    fichier.read_to_end(&mut buffer)?;
+    
+    // Désérialiser
+    let var_type: VarType = bincode::deserialize(&buffer)?;
+    
+    Ok(var_type)
 }

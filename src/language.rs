@@ -1,7 +1,7 @@
 use crate::r#type::Type;
 use crate::var::Var;
 use crate::var::Permission;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use crate::argument_type::ArgumentType;
 use crate::argument_value::ArgumentValue;
 use crate::Context;
@@ -51,7 +51,7 @@ impl<T: Sized> ToSome for T {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Lang {
     Number(f32, HelpData),
     Integer(i32, HelpData),

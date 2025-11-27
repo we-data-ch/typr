@@ -132,6 +132,8 @@ enum Commands {
     },
     Load,
     Cran,
+    /// Update the standard library
+    Std,
 }
 
 #[derive(Subcommand)]
@@ -611,6 +613,13 @@ fn cran() {
     }
 }
 
+fn standard_library() {
+    //lire std
+    //parser std
+    //sérializer
+    //écrire dans un fichier binaire
+}
+
 
 fn main() {
     let cli = Cli::parse();
@@ -668,6 +677,9 @@ fn main() {
         },
         Some(Commands::Cran) => {
             cran()
+        },
+        Some(Commands::Std) => {
+            standard_library()
         },
         None => {
             println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");
