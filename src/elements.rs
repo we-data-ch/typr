@@ -14,7 +14,6 @@ use crate::types::ltype;
 use nom::character::complete::one_of;
 use crate::r#type::Type;
 use nom::character::complete::multispace1;
-use crate::parser::parse_exp;
 use crate::var::Permission;
 use nom::character::complete::digit1;
 use crate::types::label;
@@ -37,6 +36,7 @@ use crate::types::single_type;
 use nom::character::complete::char;
 use nom::bytes::complete::escaped;
 use nom::bytes::complete::is_not;
+use crate::parser::base_parse;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -745,17 +745,14 @@ pub fn single_element(s: Span) -> IResult<Span,Lang> {
 pub fn scope(s: Span) -> IResult<Span, Lang> {
     let res = delimited(
         terminated(alt((tag("("), tag("{"))), multispace0),
-        opt(parse_exp),
+        opt(base_parse),
         terminated(alt((tag(")"), tag("}"))), multispace0)).parse(s);
     match res {
-        Ok((_s, Some(Lang::Empty(_h)))) 
-            => panic!("Error: the scope shouldn't be empty"),
-        Ok((s, Some(Lang::Lines(v, _h))))
+        Ok((s, Some(v)))
             => {
                 Ok((s, Lang::Scope(v.clone(), v.into())))
             },
         Ok((_s, None)) => panic!("Error: the scope shouldn't be empty"),
-        Ok((_s, _)) => panic!("Unalowed expression in scope"),
         Err(r) => Err(r),
     }
 }

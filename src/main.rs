@@ -11,20 +11,17 @@ mod argument_value;
 mod type_comparison;
 mod unification;
 mod context;
-mod adt;
 mod r#type;
 mod type_checker;
 mod type_printer;
 mod tag;
 mod index;
-mod adt_manager;
 mod engine;
 mod vartype;
 mod unification_map;
 mod function_type;
 mod help_message;
 mod help_data;
-mod adt_header;
 mod builder;
 mod path;
 mod generic;
@@ -34,7 +31,6 @@ mod error_message;
 mod translatable;
 mod function_lang;
 mod array_type;
-mod header;
 mod config;
 mod graph;
 mod type_category;
@@ -43,16 +39,16 @@ mod var_function;
 mod type_stack;
 mod js_types;
 
+use std::io::Write;
+use std::fs::File;
 use crate::help_message::TypeError;
 use parser::parse;
 use my_io::read_file;
 use crate::r#type::Type;
 use crate::language::Lang;
 use crate::metaprogramming::metaprogrammation;
-use crate::adt::Adt;
 use crate::type_checker::typing;
 use crate::context::Context;
-use crate::adt_manager::AdtManager;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::fs;
@@ -61,6 +57,18 @@ use crate::my_io::execute_r_with_path;
 use crate::var::Var;
 use crate::engine::write_std_for_type_checking;
 use std::process::Command;
+use crate::type_checker::TypeChecker;
+
+pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, _project: bool) -> () {
+        let rstd = include_str!("../configs/r/std.R");
+        let std_path = output_dir.join("std.R");
+        let mut rstd_file = File::create(std_path).unwrap();
+        rstd_file.write_all(rstd.as_bytes()).unwrap();
+
+        let app_path = output_dir.join(file_name);
+        let mut app = File::create(app_path).unwrap();
+        app.write_all(content.as_bytes()).unwrap();
+}
 
 #[derive(Debug, Parser, Clone, Copy, PartialEq)]
 pub enum Environment {
@@ -219,38 +227,37 @@ fn new(name: &str) {
 }
 
 fn check_project() {
-    let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
-    let _ = adt_manager.type_check();
+    let lang = parse_code(&PathBuf::from("TypR/main.ty"));
+    let _ = typing(&Context::default(), &lang);
     println!("✓ Vérification du code réussie!");
 }
 
 fn check_file(path: &PathBuf) {
-    let adt_manager = parse_code(path);
+    let lang = parse_code(path);
     let dir = PathBuf::from(".");
     write_std_for_type_checking(&dir);
-    let _ = adt_manager.type_check();
+    let _ = typing(&Context::default(), &lang);
     println!("✓ Vérification du fichier {:?} réussie!", path);
 }
 
 fn build_project() {
-    let adt_manager = parse_code(&PathBuf::from("TypR/main.ty"));
-    let type_checker = adt_manager.type_check();
-    
-    let content = type_checker.transpile(true, &adt_manager.get_body().generate_var_functions());
-    Adt::write_to_r_lang(content, &PathBuf::from("R"), "main.R", true);
+    let lang = parse_code(&PathBuf::from("TypR/main.ty"));
+    let type_checker = TypeChecker::new(Context::default()).typing(&lang);
+    let content = type_checker.transpile(true);
+    write_to_r_lang(content, &PathBuf::from("R"), "main.R", true);
     println!("✓ Code R généré avec succès dans le dossier R/");
 }
 
 fn build_file(path: &PathBuf) {
-    let adt_manager = parse_code(path);
+    let lang = parse_code(path);
     let dir = PathBuf::from(".");
     
     // HEADER
     write_std_for_type_checking(&dir);
-    let type_checker = adt_manager.type_check();
+    let type_checker = TypeChecker::new(Context::default()).typing(&lang);
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    let content = type_checker.transpile(false, &adt_manager.get_body().generate_var_functions());
-    Adt::write_to_r_lang(content, &dir, &r_file_name, false);
+    let content = type_checker.transpile(false);
+    write_to_r_lang(content, &dir, &r_file_name, false);
     //adt_manager.get_body().write_to_r(&context, &dir, &r_file_name, false);
     println!("✓ Code R généré: {:?}", dir.join(&r_file_name));
 }
@@ -262,16 +269,15 @@ fn run_project() {
 
 
 fn run_file(path: &PathBuf) {
-    let adt_manager = parse_code(path);
+    let lang = parse_code(path);
     let dir = PathBuf::from(".");
 
     //HEADER
     write_std_for_type_checking(&dir);
-    let type_checker = adt_manager.type_check();
+    let type_checker = TypeChecker::new(Context::default()).typing(&lang);
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    let functions = adt_manager.get_body().generate_var_functions();
-    let content = type_checker.transpile(false, &functions);
-    Adt::write_to_r_lang(content, &dir, &r_file_name, false);
+    let content = type_checker.transpile(false);
+    write_to_r_lang(content, &dir, &r_file_name, false);
     execute_r_with_path(&dir, &r_file_name);
 }
 

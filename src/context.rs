@@ -15,9 +15,7 @@ use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use std::iter::Rev;
 use crate::config::CompileMode;
-use crate::header::Header;
 use crate::config::Config;
-use crate::Adt;
 use crate::builder;
 use crate::unification_map::UnificationMap;
 use crate::function_type::FunctionType;
@@ -30,19 +28,15 @@ use crate::graph::TypeSystem;
 pub struct Context {
    pub typing_context: VarType,
    pub subtypes: Graph<Type>,
-   header: Header,
    config: Config,
-   js_subcontexts: Vector<Context>,
 }
 
 impl Default for Context {
     fn default() -> Self {
         Context { 
-            header: Header::default(),
             config: Config::default(),
             typing_context: VarType::new(),
             subtypes: Graph::new(),
-            js_subcontexts: Vector::new(),
         }
     }
 }
@@ -203,13 +197,12 @@ impl Context {
     }
 
     fn is_a_standard_function(&self, name: &str) -> bool {
-        !self.typing_context.name_exists(name) && self.header.exist_in_standard_lib(name)
+        !self.typing_context.name_exists(name)
     }
 
     pub fn is_an_untyped_function(&self, name: &str) -> bool {
         self.typing_context.is_untyped_custom_function(name) || 
-        self.is_a_standard_function(name) || 
-        self.header.is_generic(name.to_string())
+        self.is_a_standard_function(name)
     }
 
     pub fn get_class(&self, t: &Type) -> String {
@@ -249,13 +242,6 @@ impl Context {
                     && reduced_type1.is_subtype(&reduced_type2, self)
             }).cloned()
             .collect()
-    }
-
-    pub fn add_module_declarations(self, data: &[Lang]) -> Context {
-        Context {
-            header: self.header.add_module_declarations(data),
-            ..self
-        }
     }
 
     fn build_concret_functions(&self, var_typ: &[(String, Var, Type)]) -> Vec<Lang> {
@@ -356,24 +342,6 @@ impl Context {
 
     pub fn is_in_header_mode(&self) -> bool {
         self.config.compile_mode == CompileMode::Header 
-    }
-
-    pub fn append_function_list(&self, t: &str) -> Context {
-        Context {
-            header: self.header.clone().add_function_list(t),
-            ..self.clone()
-        } 
-    }
-
-    pub fn add_lang_to_header(self, langs: &[Lang]) -> Context {
-        Context {
-            header: self.header.add_lang(langs),
-            ..self
-        }
-    }
-
-    pub fn get_adt(&self) -> Adt {
-        self.header.metadata.get_adt()
     }
 
     pub fn in_a_project(&self) -> bool {
@@ -478,16 +446,6 @@ impl Context {
         }
     }
 
-    pub fn push(self, fn_lang: Lang, fn_type: FunctionType) -> Self {
-        Self {
-            header: self.header.push(fn_lang, fn_type),
-            ..self
-        }
-    }
-
-    pub fn get_true_fn_type(&self, fn_lang: &Lang) -> Option<FunctionType> {
-        self.header.get_true_fn_type(fn_lang)
-    }
 
     pub fn update_variable(self, var: Var) -> Self {
         Self {
@@ -496,29 +454,12 @@ impl Context {
         }
     }
 
-    pub fn not_generic_yet(&self, name: String) -> bool {
-        self.header.not_generic_yet(name)
-    }
-
     pub fn set_target_language(self, language: TargetLanguage) -> Self {
         Self {
             config: self.config.set_target_language(language),
-            header: self.header.set_function_list(language),
             typing_context: self.typing_context.source(language),
             ..self
         }
-    }
-
-    pub fn add_js_subcontext(self, js_context: Context) -> (Self, u32) {
-        (Self {
-            js_subcontexts: self.js_subcontexts.push_back(js_context),
-            ..self
-        },
-        self.js_subcontexts.len() as u32)
-    }
-
-    pub fn get_js_subcontext(&self, id: u32) -> Self {
-        self.js_subcontexts[id as usize].clone()
     }
 
     pub fn set_default_var_types(self) -> Self {

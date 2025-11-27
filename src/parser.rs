@@ -14,7 +14,6 @@ use nom::sequence::delimited;
 use crate::elements::tag_exp;
 use nom::character::complete::not_line_ending;
 use nom::character::complete::line_ending;
-use crate::adt::Adt;
 use crate::elements::variable_exp;
 use nom::branch::alt;
 use nom::sequence::preceded;
@@ -400,15 +399,14 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (terminated(tag("module"), multispace0),
         terminated(variable_exp, multispace0),
         terminated(tag("{"), multispace0),
-        parse_exp,
+        base_parse,
         terminated(tag("}"), multispace0),
         terminated(tag(";"), multispace0)
           ).parse(s);
     match res {
-        Ok((s, (modu, (name, _), _op, Lang::Lines(v, _h), _cl, _dv))) => 
+        Ok((s, (modu, (name, _), _op, v, _cl, _dv))) => 
             Ok((s, vec![Lang::Module(name, v, modu.into())])),
         Err(r) => Err(r),
-        _ => todo!()
     }
 }
 
@@ -638,7 +636,7 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
 
 
 // main
-fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
+pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
         many0(alt((break_exp, use_exp, test_block, while_loop, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
@@ -653,20 +651,11 @@ fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
-pub fn parse_exp(s: Span) -> IResult<Span, Lang> {
-    let res = base_parse(s);
+pub fn parse(s: Span) -> Lang {
+    let res = base_parse(s.clone());
     match res {
-        Ok((s, v)) => Ok((s, Lang::Lines(v.clone(), v.into()))),
-        Err(r) => Err(r)
-    }
-}
-
-// main
-pub fn parse(s: Span) -> IResult<Span, Adt> {
-    let res = base_parse(s);
-    match res {
-        Ok((s, v)) => Ok((s, Adt(v.clone()))),
-        Err(r) => Err(r)
+        Ok((_, v)) => Lang::Lines(v.clone(), v.into()),
+        Err(_) => panic!("Can't parse string {}", s)
     }
 }
 
@@ -674,7 +663,6 @@ pub fn parse(s: Span) -> IResult<Span, Adt> {
 #[cfg(test)]
 mod tesus {
     use super::*;
-    use crate::builder;
     use crate::typing;
     use crate::Context;
 

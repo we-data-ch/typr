@@ -159,6 +159,13 @@ fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
 
 //main
 impl Lang {
+    pub fn to_module(self, name: &str) -> Self {
+        match self {
+            Lang::Lines(v, h) => Lang::Module(name.to_string(), v, h),
+            s => s 
+        }
+    }
+
     fn set_type_if_variable(&self, typ: &Type) -> Lang {
         match self {
             Lang::Variable(name, perm, spec, _, h) 
@@ -780,9 +787,9 @@ impl RTranslatable<(String, Context)> for Lang {
                     (s, cont.clone())
                 } else {
                     let (exp_str, cont1) = exp.to_r(cont);
-                    let fn_t = cont1.get_true_fn_type(self)
-                                    .unwrap_or(
-                                        FunctionType::try_from(cont1.get_type_from_variable(&var).expect(&format!("variable {} don't have a related type", var))).unwrap());
+                    let fn_t =  FunctionType::try_from(cont1.get_type_from_variable(&var)
+                                    .expect(&format!("variable {} don't have a related type", var)))
+                                    .unwrap();
                     let new_args = fn_t.get_param_types().into_iter()
                             .map(|arg| reduce_type(&cont1, &arg))
                             .collect::<Vec<_>>();
@@ -1018,8 +1025,8 @@ impl RTranslatable<(String, Context)> for Lang {
                 file.write_all(body.to_r(cont).0.as_bytes()).unwrap();
                 ("".to_string(), cont.clone())
             },
-            Lang::JSBlock(exp, id, _h) => {
-                let js_cont = cont.get_js_subcontext(*id);
+            Lang::JSBlock(exp, _id, _h) => {
+                let js_cont = Context::default(); //TODO get js context from memory
                 let res = exp.to_js(&js_cont).0;
                 (format!("'{}\n\n{}'", JS_HEADER, res), cont.clone())
             },

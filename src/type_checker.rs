@@ -12,7 +12,6 @@ use crate::type_comparison::reduce_type;
 use crate::argument_type::ArgumentType;
 use crate::unification_map::UnificationMap;
 use std::process::Command;
-use crate::AdtManager;
 use std::fs::File;
 use crate::parse;
 use std::fs;
@@ -86,20 +85,18 @@ impl TypeChecker {
         self.last_type.clone()
     }
 
-    pub fn transpile(self, project: bool, functions: &VarFunction) -> String {
+    pub fn transpile(self, project: bool) -> String {
         let code = self.code.iter()
             .zip(self.types.iter())
             .map(|(lang, typ)| lang.to_simple_r(&self.context).0)
             .collect::<Vec<_>>().join("\n");
-        let type_converters = self.context.get_type_definition(functions);
-        let headers = self.context.get_adt().to_simple_r(&self.context);
         let import = if project {
             "source('R/std.R', echo = FALSE)"
         } else {
             "source('std.R', echo = FALSE)"
         };
 
-        format!("{}\n\n#Existing types\n{}\n\n{}{}", import, type_converters, headers, code)
+        format!("{}\n\n#Existing types\n\n{}", import, code)
     }
 
 }
@@ -149,26 +146,6 @@ fn install_package(name: &str) -> () {
         .expect("failed to execute Rscript");
 }
 
-fn install_header(name: &str, context: &Context) -> Context {
-    let full_path = if context.in_a_project() {
-        String::from("headers/") + name + ".ty"
-    } else {
-        name.to_string() + ".ty"
-    };
-    // copy it from the package
-    // create an header file if not exist
-    if !std::path::Path::new(&full_path).exists() {
-        let _ = File::create(&full_path); 
-    }
-    
-    let content = fs::read_to_string(full_path.clone()).unwrap();
-    let adt_manager = AdtManager::new()
-        .add_to_header(parse(LocatedSpan::new_extra(&content, full_path)).unwrap().1);
-    let context2 = context.clone();
-    adt_manager.get_header().iter()
-            .fold(context2, |ctx, expr| eval(&ctx, expr).1)
-}
-
 pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
     match expr {
         Lang::Let(name, ty, exp, _h) => {
@@ -205,11 +182,12 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
             install_package(name);
             let function_list = execute_r_function(&format!("library({})\n\nls('package:{}')", name, name))
                 .expect("The R command didn't work");
-            let new_context = context.append_function_list(&function_list);
-            (builder::empty_type(), install_header(name, &new_context))
+            //TODO append a function list to VarType std
+            //let new_context = context.append_function_list(&function_list);
+            (builder::empty_type(), context.clone())
         },
         Lang::ModuleDecl(_name, _h) 
-            => (builder::empty_type(), context.clone().add_module_declarations(&[expr.clone()])),
+            => (builder::empty_type(), context.clone()),
         Lang::Signature(var, typ, _h) => {
             if var.is_variable(){
                 let new_var = FunctionType::try_from(typ.clone())
@@ -545,7 +523,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             let func = var.get_function_signature(values, context)
                         .infer_return_type(values, context);
             func.get_return_type().clone()
-                .tuple(&context.clone().push(expr.clone(), func))
+                .tuple(&context.clone())
                 .with_lang(expr)
         },
         Lang::Tag(name, expr, h) => {
@@ -734,7 +712,8 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             let js_context = Context::default()
                 .set_target_language(TargetLanguage::JS);
             let js_context = typing(&js_context, body).2;
-            let (new_context, id) = context.clone().add_js_subcontext(js_context);
+            //TODO add js subcontext
+            let (new_context, id) = (context.clone(), 0);//.add_js_subcontext(js_context);
             let new_expr = Lang::JSBlock(body.clone(), id, h.clone());
             builder::character_type_default().with_lang(&new_expr, &new_context)
         },
