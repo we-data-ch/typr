@@ -23,7 +23,7 @@ fn import_file_modules_code(adt: Lang) -> Lang {
             let new_lines = lines.iter().map(import_file_module_code).collect::<Vec<_>>();
             Lang::Module(name, new_lines, h)
         }
-        _ => panic!("This is not a chaining of lines")
+        s =>  s 
     }
     
 }
