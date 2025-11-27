@@ -15,7 +15,8 @@ use std::io::Write;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VarType {
    pub variables: Vec<(Var, Type)>,
-   pub aliases: Vec<(Var, Type)>
+   pub aliases: Vec<(Var, Type)>,
+   pub std: Vec<(Var, Type)>
 }
 
 //main
@@ -25,7 +26,8 @@ impl VarType {
         let typ = builder::generic_type();
         VarType {
             variables: vec![],
-            aliases: vec![(var, typ)]
+            aliases: vec![(var, typ)],
+            std: vec![]
         }
     }
 
@@ -305,7 +307,8 @@ impl From<Vec<(Var, Type)>> for  VarType {
        let (variables, aliases) = VarType::separate_variables_aliases(val);
        VarType {
            variables: variables,
-           aliases: aliases
+           aliases: aliases,
+           std: vec![]
        }
    } 
 }
