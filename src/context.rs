@@ -14,7 +14,6 @@ use crate::type_comparison::reduce_type;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use std::iter::Rev;
-use crate::config::CompileMode;
 use crate::config::Config;
 use crate::builder;
 use crate::unification_map::UnificationMap;
@@ -221,6 +220,19 @@ impl Context {
         self.typing_context.get_class_unquoted(t)
     }
 
+
+    pub fn get_type_anotations(&self) -> String {
+        self.aliases()
+            .chain([(Var::from_name("Integer"), builder::integer_type_default()),
+                    (Var::from_name("Character"), builder::character_type_default()),
+                    (Var::from_name("Number"), builder::number_type()),
+                    (Var::from_name("Boolean"), builder::boolean_type())].iter())
+            .map(|(var, typ)| (typ, var.get_name()))
+            .map(|(typ, name)| 
+                 format!("{} <- function(x) x |> struct({})", name, self.get_classes(typ).unwrap()))
+            .collect::<Vec<_>>().join("\n")
+    }
+
     pub fn get_type_anotation(&self, t: &Type) -> String {
         self.typing_context.get_type_anotation(t)
     }
@@ -335,13 +347,6 @@ impl Context {
         }
     }
 
-    pub fn set_compile_mode(self, cm: CompileMode) -> Context {
-        Context {
-            config: self.config.set_compile_mode(cm),
-            ..self
-        }
-    }
-
     pub fn display_typing_context(&self) -> String {
        let res = self.variables()
             .chain(self.aliases())
@@ -367,10 +372,6 @@ impl Context {
             typing_context: self.typing_context.push_alias2(alias_var, typ),
             ..self
         }
-    }
-
-    pub fn is_in_header_mode(&self) -> bool {
-        self.config.compile_mode == CompileMode::Header 
     }
 
     pub fn in_a_project(&self) -> bool {

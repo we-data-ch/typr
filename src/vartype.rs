@@ -36,8 +36,8 @@ impl VarType {
     pub fn from_config(config: Config) -> VarType {
         let vartype = VarType::new();
         match config.target_language {
-            TargetLanguage::R => vartype.load_r().unwrap(),
-            TargetLanguage::JS => vartype.load_js().unwrap()
+            TargetLanguage::R => vartype.load_r().unwrap().load_typed_r().unwrap(),
+            TargetLanguage::JS => vartype.load_js().unwrap().load_typed_js().unwrap()
         }
     }
 
@@ -154,6 +154,7 @@ impl VarType {
         };
         format!("{}()", res)
     }
+
 
     pub fn get_type_anotation_no_parentheses(&self, t: &Type) -> String {
         match t {
@@ -338,8 +339,20 @@ impl VarType {
         Ok(self + var_type)
     }
 
+    pub fn load_typed_r(self) -> Result<VarType, Box<dyn std::error::Error>> {
+        let buffer = include_bytes!("../configs/bin/std_r_typed.bin");
+        let var_type: VarType = bincode::deserialize(buffer)?;
+        Ok(self + var_type)
+    }
+
     pub fn load_js(self) -> Result<VarType, Box<dyn std::error::Error>> {
         let buffer = include_bytes!("../configs/bin/std_js.bin");
+        let var_type: VarType = bincode::deserialize(buffer)?;
+        Ok(self + var_type)
+    }
+
+    pub fn load_typed_js(self) -> Result<VarType, Box<dyn std::error::Error>> {
+        let buffer = include_bytes!("../configs/bin/std_js_typed.bin");
         let var_type: VarType = bincode::deserialize(buffer)?;
         Ok(self + var_type)
     }

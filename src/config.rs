@@ -13,13 +13,6 @@ impl Default for TargetLanguage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum CompileMode {
-    Header,
-    Body,
-    Module
-}
-
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum FileType {
     Main,
@@ -29,7 +22,6 @@ pub enum FileType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
-   pub compile_mode: CompileMode,
    pub environment: Environment,
    pub file_type: FileType,
    pub target_language: TargetLanguage,
@@ -47,13 +39,6 @@ impl Config {
     pub fn set_as_module(self) -> Self {
         Self {
             file_type: FileType::Module,
-            ..self
-        }
-    }
-
-    pub fn set_compile_mode(self, cm: CompileMode) -> Self {
-        Self {
-            compile_mode: cm,
             ..self
         }
     }
@@ -80,7 +65,6 @@ impl Default for Config {
     fn default() -> Config {
         Config {
             target_language: TargetLanguage::R,
-            compile_mode: CompileMode::Body,
             environment: Environment::StandAlone,
             file_type: FileType::Main,
         }

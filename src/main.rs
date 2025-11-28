@@ -63,17 +63,28 @@ use crate::type_checker::execute_r_function;
 use crate::vartype::VarType;
 
 const R_FUNCTIONS: &str = "../configs/src/functions_R.txt";
+const TYPED_R_FUNCTIONS: &str = "../configs/std/std_R.ty";
 const JS_FUNCTIONS: &str = "../configs/src/functions_JS.txt";
+const TYPED_JS_FUNCTIONS: &str = "../configs/std/std_JS.ty";
+
+pub fn write_header(context: Context, output_dir: &PathBuf) -> () {
+        let header = context.get_type_anotations();
+        let app_path = output_dir.join("types.R");
+        let mut app = File::create(app_path).unwrap();
+        app.write_all(header.as_bytes()).unwrap();
+}
 
 pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, _project: bool) -> () {
-        let rstd = include_str!("../configs/r/std.R");
+        let rstd = include_str!("../configs/src/std.R");
         let std_path = output_dir.join("std.R");
         let mut rstd_file = File::create(std_path).unwrap();
         rstd_file.write_all(rstd.as_bytes()).unwrap();
 
         let app_path = output_dir.join(file_name);
         let mut app = File::create(app_path).unwrap();
-        app.write_all(content.as_bytes()).unwrap();
+        app.write_all(
+            format!("source('types.R')\n{}", content).as_bytes()
+            ).unwrap();
 }
 
 #[derive(Debug, Parser, Clone, Copy, PartialEq)]
@@ -202,8 +213,8 @@ fn new(name: &str) {
         (".Rbuildignore", include_str!("../configs/.Rbuildignore").replace("{{PACKAGE_NAME}}", name)),
         (".gitignore", include_str!("../configs/.gitignore").replace("{{PACKAGE_NAME}}", name)),
         ("TypR/main.ty", include_str!("../configs/main.ty").replace("{{PACKAGE_NAME}}", name)),
-        ("TypR/std.ty", include_str!("../configs/r/std.ty").to_string()),
-        ("std.ty", include_str!("../configs/r/std.ty").to_string()),
+        ("TypR/std.ty", include_str!("../configs/std/std_R.ty").to_string()),
+        ("std.ty", include_str!("../configs/std/std_R.ty").to_string()),
         ("R/.gitkeep", include_str!("../configs/.gitkeep").replace("{{PACKAGE_NAME}}", name)),
         ("tests/testthat.R", include_str!("../configs/testthat.R").replace("{{PACKAGE_NAME}}", name)),
         ("tests/testthat/test-basic.R", include_str!("../configs/test-basic.R").replace("{{PACKAGE_NAME}}", name)),
@@ -284,7 +295,8 @@ fn run_file(path: &PathBuf) {
     write_std_for_type_checking(&dir);
     let type_checker = TypeChecker::new(Context::default()).typing(&lang);
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    let content = type_checker.transpile(false);
+    let content = type_checker.clone().transpile(false);
+    write_header(type_checker.get_context(), &dir);
     write_to_r_lang(content, &dir, &r_file_name, false);
     execute_r_with_path(&dir, &r_file_name);
 }
@@ -624,14 +636,30 @@ fn standard_library() {
     fs::write(R_FUNCTIONS, function_list).unwrap();
     let empty = builder::empty_type();
 
-    //Save R functions
+    //Save base R functions
     let std_txt = fs::read_to_string(R_FUNCTIONS).unwrap();
     let std = std_txt.lines()
         .map(|line| (Var::from_name(line), empty.clone()))
         .collect::<Vec<_>>();
     let _ = VarType::default().set_std(std).save("../configs/bin/std_r.bin");
 
-    //Save JS functions
+    //Save std R typed functions
+    let lang = parse_code(&PathBuf::from(TYPED_R_FUNCTIONS));
+    let _ = TypeChecker::new(Context::default())
+        .typing(&lang)
+        .get_context()
+        .get_vartype()
+        .save("../configs/bin/std_r_typed.bin");
+
+    //Save std JS typed functions
+    let lang = parse_code(&PathBuf::from(TYPED_JS_FUNCTIONS));
+    let _ = TypeChecker::new(Context::default())
+        .typing(&lang)
+        .get_context()
+        .get_vartype()
+        .save("../configs/bin/std_js_typed.bin");
+
+    //Save base JS functions
     let std_txt = fs::read_to_string(JS_FUNCTIONS).unwrap();
     let std = std_txt.lines()
         .map(|line| (Var::from_name(line), empty.clone()))

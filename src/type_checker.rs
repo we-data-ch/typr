@@ -98,7 +98,7 @@ impl TypeChecker {
             "source('std.R', echo = FALSE)"
         };
 
-        format!("{}\n\n#Existing types\n\n{}", import, code)
+        format!("{}\n\n\n{}", import, code)
     }
 
 }
