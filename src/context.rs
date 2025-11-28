@@ -495,6 +495,10 @@ impl Context {
         new_context.clone().push_var_type(Var::from_name(module_name), typ, &new_context)
     }
 
+    pub fn get_vartype(&self) -> VarType {
+        self.clone().typing_context
+    }
+
 }
 
 fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {

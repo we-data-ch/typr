@@ -11,6 +11,7 @@ use serde::{Serialize, Deserialize};
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
+use std::ops::Add;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VarType {
@@ -299,6 +300,44 @@ impl VarType {
            TargetLanguage::R => self.set_r_var_types()
        } 
     }
+    
+    pub fn set_std(self, v: Vec<(Var, Type)>) -> Self {
+        Self {
+            std: v,
+            ..self
+        }
+    }
+
+    pub fn save(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let binary_data = bincode::serialize(self)?;
+        let mut file = File::create(path)?;
+        file.write_all(&binary_data)?;
+        Ok(())
+    }
+
+    pub fn load(self, path: &str) -> Result<VarType, Box<dyn std::error::Error>> {
+        let mut file = File::open(path)?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)?;
+        let var_type: VarType = bincode::deserialize(&buffer)?;
+        Ok(self + var_type)
+    }
+
+    pub fn from_file(path: &str) -> Result<VarType, Box<dyn std::error::Error>> {
+        let mut file = File::open(path)?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)?;
+        let var_type: VarType = bincode::deserialize(&buffer)?;
+        Ok(var_type)
+    }
+    
+}
+
+impl Default for VarType {
+    fn default() -> Self {
+        VarType::from_file("../configs/bin/std.bin")
+            .expect("File not found")
+    }
 }
 
 
@@ -313,25 +352,14 @@ impl From<Vec<(Var, Type)>> for  VarType {
    } 
 }
 
-fn sauvegarder_vartype(var_type: &VarType, chemin: &str) -> Result<(), Box<dyn std::error::Error>> {
-    // Sérialiser en binaire
-    let donnees_binaires = bincode::serialize(var_type)?;
-    
-    // Écrire dans le fichier
-    let mut fichier = File::create(chemin)?;
-    fichier.write_all(&donnees_binaires)?;
-    
-    Ok(())
-}
+impl Add for VarType {
+    type Output = Self;
 
-fn charger_vartype(chemin: &str) -> Result<VarType, Box<dyn std::error::Error>> {
-    // Lire le fichier
-    let mut fichier = File::open(chemin)?;
-    let mut buffer = Vec::new();
-    fichier.read_to_end(&mut buffer)?;
-    
-    // Désérialiser
-    let var_type: VarType = bincode::deserialize(&buffer)?;
-    
-    Ok(var_type)
+    fn add(self, other: Self) -> Self {
+        Self {
+            variables: self.variables.iter().chain(other.variables.iter()).cloned().collect(),
+            aliases: self.aliases.iter().chain(other.aliases.iter()).cloned().collect(),
+            std: self.std.iter().chain(other.std.iter()).cloned().collect(),
+        }
+    }
 }

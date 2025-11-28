@@ -58,6 +58,8 @@ use crate::var::Var;
 use crate::engine::write_std_for_type_checking;
 use std::process::Command;
 use crate::type_checker::TypeChecker;
+use crate::type_checker::execute_r_function;
+use crate::vartype::VarType;
 
 pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, _project: bool) -> () {
         let rstd = include_str!("../configs/r/std.R");
@@ -614,10 +616,14 @@ fn cran() {
 }
 
 fn standard_library() {
-    //lire std
-    //parser std
-    //sérializer
-    //écrire dans un fichier binaire
+    let function_list = execute_r_function("funcs <- ls('package:base', sorted = TRUE)\nfor (element in funcs) {\nprint(element)\n}").unwrap().replace("\"", "").replace("[1] ", "");
+    fs::write("../configs/src/functions_R.txt", function_list).unwrap();
+    let std_txt = include_str!("../configs/src/functions_R.txt");
+    let empty = builder::empty_type();
+    let std = std_txt.lines()
+        .map(|line| (Var::from_name(line), empty.clone()))
+        .collect::<Vec<_>>();
+    let _ = VarType::new().set_std(std).save("../configs/bin/std.bin");
 }
 
 

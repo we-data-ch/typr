@@ -101,7 +101,7 @@ impl TypeChecker {
 
 }
 
-fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
+pub fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
     // Créer un script R temporaire avec la fonction à exécuter
     let r_script = format!("{}\n", function_code);
 
