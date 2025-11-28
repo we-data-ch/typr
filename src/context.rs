@@ -181,7 +181,7 @@ impl Context {
     }
 
     pub fn get_type_from_existing_variable(&self, var: Var) -> Type {
-        if let Type::RFunction(_) = var.get_type() {
+        if let Type::UnknownFunction(_) = var.get_type() {
             var.get_type()
         } else {
             self.typing_context.variables()
@@ -199,7 +199,7 @@ impl Context {
         match res {
             Some(vari) => vari.clone(),
             _ => self.is_an_untyped_function(&var.get_name()) 
-                .then(|| var.clone().set_type(Type::RFunction(var.get_help_data())))
+                .then(|| var.clone().set_type(Type::UnknownFunction(var.get_help_data())))
                 .expect(&format!("The variable {} was not found:\n {}", var, self.display_typing_context()))
         }
     }
@@ -248,8 +248,29 @@ impl Context {
                 var1.get_name() == var2.get_name()
                     && typ.is_function()
                     && reduced_type1.is_subtype(&reduced_type2, self)
-            }).cloned()
-            .collect()
+            }).cloned().collect()
+    }
+
+    pub fn get_first_matching_function(&self, var1: Var) -> Type {
+        let res = self.typing_context.variables()
+            .find(|(var2, typ)| {
+                let reduced_type1 = var1.get_type().reduce(self);
+                let reduced_type2 = var2.get_type().reduce(self);
+                var1.get_name() == var2.get_name()
+                    && typ.is_function()
+                    && reduced_type1.is_subtype(&reduced_type2, self)
+            });
+        if res.is_none() {
+            self.typing_context
+                .standard_library()
+                .iter()
+                .find(|(var2, typ)| var2.get_name() == var1.get_name())
+                .expect(&format!("Can't find var {} in the context:\n {}", 
+                       var1.to_string(), self.display_typing_context()))
+                .clone()
+        } else { 
+            res.unwrap().clone()
+        }.1
     }
 
     fn build_concret_functions(&self, var_typ: &[(String, Var, Type)]) -> Vec<Lang> {

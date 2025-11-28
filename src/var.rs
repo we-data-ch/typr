@@ -65,6 +65,13 @@ impl Var {
     pub fn get_related_function(self, args: &Vec<Lang>, context: &Context) 
         -> Option<FunctionType> {
         let typed_var = self.infer_var_related_type(args, context);
+         context.get_first_matching_function(typed_var.clone())
+             .to_function_type()
+    }
+
+    pub fn old_get_related_function(self, args: &Vec<Lang>, context: &Context) 
+        -> Option<FunctionType> {
+        let typed_var = self.infer_var_related_type(args, context);
         let related_functions = context.get_functions(typed_var.clone());
         if related_functions.len() > 0 {
             related_functions[0].1.to_function_type()
@@ -78,7 +85,7 @@ impl Var {
         //if context.is_an_untyped_function(&self.get_name()) {
         self.clone()
             .get_related_function(values, context)
-            .unwrap_or(FunctionType::try_from(Type::RFunction(HelpData::default()))
+            .unwrap_or(FunctionType::try_from(Type::UnknownFunction(HelpData::default()))
                         .expect(&TypeError::UndefinedFunction((self).clone()).display()))
     }
 

@@ -351,6 +351,10 @@ impl VarType {
         let var_type: VarType = bincode::deserialize(&buffer)?;
         Ok(var_type)
     }
+
+    pub fn standard_library(&self) -> Vec<(Var, Type)> {
+        self.clone().std
+    }
     
 }
 

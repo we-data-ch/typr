@@ -31,7 +31,7 @@ use rpds::Vector;
 use crate::translatable::RTranslatable;
 use crate::var_function::VarFunction;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TypeChecker {
     context: Context,
     code: Vector<Lang>,
@@ -50,13 +50,15 @@ impl TypeChecker {
     }
 
     pub fn typing(self, exp: &Lang) -> Self {
-        match exp {
+        let res = match exp {
             Lang::Lines(exps, _) => {
                 exps.iter()
-                    .fold(self, |acc, lang| acc.typing_helper(lang))
+                    .fold(self.clone(), |acc, lang| acc.typing_helper(lang))
             },
-            _ => self.typing_helper(exp)
-        }
+            _ => self.clone().typing_helper(exp)
+        };
+        println!("Typing:\n{}\n", self.last_type.pretty());
+        res
     }
 
     fn typing_helper(self, exp: &Lang) -> Self {
@@ -688,7 +690,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 .with_lang(expr, context)
         },
         Lang::VecBlock(_, h) => Type::Empty(h.clone()).with_lang(expr, context),
-        Lang::RFunction(_, _, h) => Type::RFunction(h.clone()).with_lang(expr, context),
+        Lang::RFunction(_, _, h) => Type::UnknownFunction(h.clone()).with_lang(expr, context),
         Lang::ForLoop(var, iter, body, _h) => {
             let base_type = typing(context, iter).0.to_array()
                 .expect(&format!("The iterator is not an array {:?}", iter))

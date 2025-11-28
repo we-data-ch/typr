@@ -74,7 +74,7 @@ pub enum Type {
     If(Box<Type>, Vec<Type>, HelpData),
     Condition(Box<Type>, Box<Type>, Box<Type>, HelpData),
     In(HelpData),
-    RFunction(HelpData),
+    UnknownFunction(HelpData),
     RClass(HashSet<String>, HelpData),
     Empty(HelpData),
     Vector(Box<Type>, Box<Type>, HelpData),
@@ -191,6 +191,7 @@ impl Type {
     pub fn is_function(&self) -> bool {
         match self {
             Type::Function(_, _, _) => true,
+            Type::UnknownFunction(_) => true,
             _ => false
         }
     }
@@ -436,7 +437,7 @@ impl Type {
         match self {
             Type::Function(args, ret_ty, h) 
                 => Some(FunctionType(args.clone(), (**ret_ty).clone(), h.clone())),
-            Type::RFunction(h) 
+            Type::UnknownFunction(h) 
                 => Some(FunctionType(vec![], builder::empty_type(), h.clone())),
             _ => None
         }
@@ -530,7 +531,7 @@ impl Type {
             Type::Any(_) => TypeCategory::Any,
             Type::Empty(_) => TypeCategory::Empty,
             Type::RClass(_, _) => TypeCategory::RClass,
-            Type::RFunction(_) => TypeCategory::RFunction,
+            Type::UnknownFunction(_) => TypeCategory::RFunction,
             Type::Union(_, _) => TypeCategory::Union,
             Type::Add(_, _, _) => TypeCategory::Template,
             Type::Minus(_, _, _) => TypeCategory::Template,
@@ -604,7 +605,7 @@ impl Type {
             Type::If(_, _, h) => h.clone(),
             Type::Condition(_, _, _, h) => h.clone(),
             Type::In(h) => h.clone(),
-            Type::RFunction(h) => h.clone(),
+            Type::UnknownFunction(h) => h.clone(),
             Type::Empty(h) => h.clone(),
             Type::Any(h) => h.clone(),
             Type::RClass(_, h) => h.clone(),
@@ -645,7 +646,7 @@ impl Type {
             Type::If(a1, a2, _) => Type::If(a1, a2, h2),
             Type::Condition(a1, a2, a3, _) => Type::Condition(a1, a2, a3, h2),
             Type::In(_) => Type::In(h2),
-            Type::RFunction(_) => Type::RFunction(h2),
+            Type::UnknownFunction(_) => Type::UnknownFunction(h2),
             Type::Empty(_) => Type::Empty(h2),
             Type::Any(_) => Type::Any(h2),
             Type::RClass(v, _) => Type::RClass(v, h2),
@@ -677,7 +678,7 @@ impl Type {
 
     pub fn is_r_function(&self) -> bool {
         match self {
-            Type::RFunction(_) => true,
+            Type::UnknownFunction(_) => true,
             _ => false
         }
     }
@@ -962,7 +963,7 @@ impl Hash for Type {
             Type::In(_) => 26.hash(state),
             Type::Empty(_) => 27.hash(state),
             Type::Any(_) => 28.hash(state),
-            Type::RFunction(_) => 30.hash(state),
+            Type::UnknownFunction(_) => 30.hash(state),
             Type::RClass(_, _) => 31.hash(state),
             Type::Union(_, _) => 33.hash(state),
             Type::Vector(_, _, _) => 34.hash(state),

@@ -68,7 +68,7 @@ impl TryFrom<Type> for FunctionType {
     fn try_from(value: Type) -> Result<Self, Self::Error> {
         match value {
         Type::Function(args, ret, h) => Ok(FunctionType(args, *ret, h)),
-        Type::RFunction(h)  => Ok(FunctionType::default().set_help_data(h.clone())),
+        Type::UnknownFunction(h)  => Ok(FunctionType::default().set_help_data(h.clone())),
         _ => Err(format!("{} is a type not convertible to FunctionType", value)) 
         }
     }
