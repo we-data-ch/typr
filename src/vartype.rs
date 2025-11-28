@@ -12,6 +12,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Write;
 use std::ops::Add;
+use crate::Config;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VarType {
@@ -29,6 +30,14 @@ impl VarType {
             variables: vec![],
             aliases: vec![(var, typ)],
             std: vec![]
+        }
+    }
+
+    pub fn from_config(config: Config) -> VarType {
+        let vartype = VarType::new();
+        match config.target_language {
+            TargetLanguage::R => vartype.load_r().unwrap(),
+            TargetLanguage::JS => vartype.load_js().unwrap()
         }
     }
 
@@ -323,6 +332,18 @@ impl VarType {
         Ok(self + var_type)
     }
 
+    pub fn load_r(self) -> Result<VarType, Box<dyn std::error::Error>> {
+        let buffer = include_bytes!("../configs/bin/std_r.bin");
+        let var_type: VarType = bincode::deserialize(buffer)?;
+        Ok(self + var_type)
+    }
+
+    pub fn load_js(self) -> Result<VarType, Box<dyn std::error::Error>> {
+        let buffer = include_bytes!("../configs/bin/std_js.bin");
+        let var_type: VarType = bincode::deserialize(buffer)?;
+        Ok(self + var_type)
+    }
+
     pub fn from_file(path: &str) -> Result<VarType, Box<dyn std::error::Error>> {
         let mut file = File::open(path)?;
         let mut buffer = Vec::new();
@@ -335,8 +356,9 @@ impl VarType {
 
 impl Default for VarType {
     fn default() -> Self {
-        VarType::from_file("../configs/bin/std.bin")
-            .expect("File not found")
+        VarType::new()
+            .load_r()
+            .unwrap()
     }
 }
 

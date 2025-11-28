@@ -38,6 +38,7 @@ mod typer;
 mod var_function;
 mod type_stack;
 mod js_types;
+use crate::config::Config;
 
 use std::io::Write;
 use std::fs::File;
@@ -60,6 +61,9 @@ use std::process::Command;
 use crate::type_checker::TypeChecker;
 use crate::type_checker::execute_r_function;
 use crate::vartype::VarType;
+
+const R_FUNCTIONS: &str = "../configs/src/functions_R.txt";
+const JS_FUNCTIONS: &str = "../configs/src/functions_JS.txt";
 
 pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, _project: bool) -> () {
         let rstd = include_str!("../configs/r/std.R");
@@ -617,13 +621,22 @@ fn cran() {
 
 fn standard_library() {
     let function_list = execute_r_function("funcs <- ls('package:base', sorted = TRUE)\nfor (element in funcs) {\nprint(element)\n}").unwrap().replace("\"", "").replace("[1] ", "");
-    fs::write("../configs/src/functions_R.txt", function_list).unwrap();
-    let std_txt = include_str!("../configs/src/functions_R.txt");
+    fs::write(R_FUNCTIONS, function_list).unwrap();
     let empty = builder::empty_type();
+
+    //Save R functions
+    let std_txt = fs::read_to_string(R_FUNCTIONS).unwrap();
     let std = std_txt.lines()
         .map(|line| (Var::from_name(line), empty.clone()))
         .collect::<Vec<_>>();
-    let _ = VarType::new().set_std(std).save("../configs/bin/std.bin");
+    let _ = VarType::default().set_std(std).save("../configs/bin/std_r.bin");
+
+    //Save JS functions
+    let std_txt = fs::read_to_string(JS_FUNCTIONS).unwrap();
+    let std = std_txt.lines()
+        .map(|line| (Var::from_name(line), empty.clone()))
+        .collect::<Vec<_>>();
+    let _ = VarType::default().set_std(std).save("../configs/bin/std_js.bin");
 }
 
 

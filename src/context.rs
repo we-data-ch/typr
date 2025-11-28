@@ -33,9 +33,10 @@ pub struct Context {
 
 impl Default for Context {
     fn default() -> Self {
+        let config = Config::default();
         Context { 
-            config: Config::default(),
-            typing_context: VarType::new(),
+            config: config.clone(),
+            typing_context: VarType::from_config(config),
             subtypes: Graph::new(),
         }
     }
@@ -60,6 +61,13 @@ impl Context {
         Context {
             typing_context: types.into(),
             ..Context::default()
+        }
+    }
+
+    pub fn set_config(self, config: Config) -> Self {
+        Self {
+            config: config,
+            ..self
         }
     }
 
@@ -346,10 +354,6 @@ impl Context {
 
     pub fn in_a_project(&self) -> bool {
         self.config.environment == Environment::Project
-    }
-
-    pub fn we_check_mutability(&self) -> bool {
-        self.config.immutability 
     }
 
     pub fn get_unification_map(&self, values: &[Lang], param_types: &[Type]) 

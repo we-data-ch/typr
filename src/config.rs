@@ -1,4 +1,5 @@
 use crate::Environment;
+use crate::Context;
 
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub enum TargetLanguage {
@@ -31,8 +32,7 @@ pub struct Config {
    pub compile_mode: CompileMode,
    pub environment: Environment,
    pub file_type: FileType,
-   pub immutability: bool,
-   target_language: TargetLanguage,
+   pub target_language: TargetLanguage,
 }
 
 //main
@@ -69,17 +69,21 @@ impl Config {
         self.target_language
     }
 
-}
+    pub fn to_context(self) -> Context {
+        Context::default().set_config(self)
+    }
 
+
+}
 
 impl Default for Config {
     fn default() -> Config {
         Config {
-            target_language: TargetLanguage::default(),
+            target_language: TargetLanguage::R,
             compile_mode: CompileMode::Body,
             environment: Environment::StandAlone,
             file_type: FileType::Main,
-            immutability: false
         }
     }
 }
+
