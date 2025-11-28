@@ -229,7 +229,8 @@ impl Context {
                     (Var::from_name("Boolean"), builder::boolean_type())].iter())
             .map(|(var, typ)| (typ, var.get_name()))
             .map(|(typ, name)| 
-                 format!("{} <- function(x) x |> struct({})", name, self.get_classes(typ).unwrap()))
+                 format!("{} <- function(x) x |> struct(c({}, {}))", 
+                         name, self.get_class(typ), self.get_classes(typ).unwrap()))
             .collect::<Vec<_>>().join("\n")
     }
 
@@ -261,6 +262,12 @@ impl Context {
                     && typ.is_function()
                     && reduced_type1.is_subtype(&reduced_type2, self)
             }).cloned().collect()
+    }
+
+    pub fn get_all_functions(&self) -> Vec<(Var, Type)> {
+        self.typing_context.variables()
+            .filter(|(_, typ)| { typ.is_function()})
+            .cloned().collect()
     }
 
     pub fn get_first_matching_function(&self, var1: Var) -> Type {

@@ -68,10 +68,18 @@ const JS_FUNCTIONS: &str = "../configs/src/functions_JS.txt";
 const TYPED_JS_FUNCTIONS: &str = "../configs/std/std_JS.ty";
 
 pub fn write_header(context: Context, output_dir: &PathBuf) -> () {
-        let header = context.get_type_anotations();
+        let type_anotations = context.get_type_anotations();
         let app_path = output_dir.join("types.R");
         let mut app = File::create(app_path).unwrap();
-        app.write_all(header.as_bytes()).unwrap();
+        app.write_all(type_anotations.as_bytes()).unwrap();
+
+        let generic_functions = context.get_all_functions() .iter()
+                            .map(|(var, _)| var.get_name())
+                            .map(|fn_name| format!("{} <- function(x, ...) UseMethod('{}', x)", fn_name, fn_name))
+                            .collect::<Vec<_>>().join("\n");
+        let app_path = output_dir.join("generic_functions.R");
+        let mut app = File::create(app_path).unwrap();
+        app.write_all(generic_functions.as_bytes()).unwrap();
 }
 
 pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, _project: bool) -> () {
@@ -83,7 +91,7 @@ pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, _
         let app_path = output_dir.join(file_name);
         let mut app = File::create(app_path).unwrap();
         app.write_all(
-            format!("source('types.R')\n{}", content).as_bytes()
+            format!("source('types.R')\nsource('generic_functions.R')\n{}", content).as_bytes()
             ).unwrap();
 }
 
