@@ -38,8 +38,9 @@ mod typer;
 mod var_function;
 mod type_stack;
 mod js_types;
-use crate::config::Config;
+mod module_lang;
 
+use crate::config::Config;
 use std::io::Write;
 use std::fs::File;
 use crate::help_message::TypeError;
@@ -61,6 +62,7 @@ use std::process::Command;
 use crate::type_checker::TypeChecker;
 use crate::type_checker::execute_r_function;
 use crate::vartype::VarType;
+use crate::config::Environment;
 
 const R_FUNCTIONS: &str = "../configs/src/functions_R.txt";
 const TYPED_R_FUNCTIONS: &str = "../configs/std/std_R.ty";
@@ -95,11 +97,6 @@ pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, _
             ).unwrap();
 }
 
-#[derive(Debug, Parser, Clone, Copy, PartialEq)]
-pub enum Environment {
-    StandAlone,
-    Project
-}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

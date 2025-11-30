@@ -226,6 +226,12 @@ impl Type {
                let mut sol = tags.iter().map(|tag| tag.to_type()).collect::<Vec<_>>();
                sol.push(self.clone()); sol
             },
+            Type::Module(argtypes, _) => {
+                let mut sol = argtypes.iter()
+                    .map(|argtype| argtype.get_type())
+                    .collect::<Vec<_>>();
+                sol.push(self.clone()); sol
+            },
             typ => vec![typ.clone()]
         }
     }
@@ -723,6 +729,24 @@ impl Type {
             _ => false
         }
     }
+    pub fn get_first_function_parameter_type(&self, name: &str) -> Option<Type> {
+        match self {
+            Type::Module(args, _) => {
+                args.iter()
+                    .find(|arg_typ| arg_typ.get_argument_str() == name)
+                    .map(|arg_typ| arg_typ.get_type().get_first_parameter().unwrap())
+            },
+            _ => None
+        }
+    }
+
+    pub fn get_first_parameter(&self) -> Option<Type> {
+        match self {
+            Type::Function(args, _, _) 
+                => args.iter().next().cloned(),
+            _ => None
+        }
+    }
 
 }
 
@@ -762,6 +786,7 @@ impl From<Type> for HelpData {
            Type::Intersection(_, h) => h,
            Type::Sequence(_, _, h) => h,
            Type::Union(_, h) => h,
+           Type::Any(h) => h,
            e => panic!("The type element {:?} is not yet implemented", e)
        }.clone()
    } 

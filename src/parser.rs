@@ -35,6 +35,8 @@ use crate::elements::element_chain;
 use crate::elements::variable2;
 use crate::elements::Case;
 use std::ops::Deref;
+use crate::Config;
+use crate::language::ModulePosition;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -405,7 +407,7 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
           ).parse(s);
     match res {
         Ok((s, (modu, (name, _), _op, v, _cl, _dv))) => 
-            Ok((s, vec![Lang::Module(name, v, modu.into())])),
+            Ok((s, vec![Lang::Module(name, v, ModulePosition::Internal, Config::default(), modu.into())])),
         Err(r) => Err(r),
     }
 }

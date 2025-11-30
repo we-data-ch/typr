@@ -50,15 +50,15 @@ impl TypeChecker {
     }
 
     pub fn typing(self, exp: &Lang) -> Self {
-        let res = match exp {
+        match exp {
             Lang::Lines(exps, _) => {
-                exps.iter()
-                    .fold(self.clone(), |acc, lang| acc.typing_helper(lang))
+                let type_checker = exps.iter()
+                    .fold(self.clone(), |acc, lang| acc.typing_helper(lang));
+                println!("Typing:\n{}\n", type_checker.last_type.pretty());
+                type_checker
             },
             _ => self.clone().typing_helper(exp)
-        };
-        println!("Typing:\n{}\n", self.last_type.pretty());
-        res
+        }
     }
 
     fn typing_helper(self, exp: &Lang) -> Self {
@@ -207,7 +207,7 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
             let res = typing(context, body);
             builder::empty_type().tuple(context)
         },
-        Lang::Module(name, members, h) => {
+        Lang::Module(name, members, _position, _config, h) => {
             let expr = if members.len() > 1 {
                 Lang::Lines(members.iter().cloned().collect(), h.clone())
             } else { members.iter().next().unwrap().clone() }; // TODO: Modules can't be empty
@@ -218,9 +218,10 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
                 .iter().cloned()
                 .map(|arg_type| ArgumentType::from(arg_type))
                 .collect::<HashSet<_>>();
+            let module_type = Type::Module(arg_types, h.clone());
             let new_context = context.clone().set_as_module_context()
-                .push_var_type(var, Type::Module(arg_types, h.clone()), &context);
-            builder::empty_type().tuple(&new_context)
+                .push_var_type(var, module_type.clone(), &context);
+            module_type.tuple(&new_context)
         },
         _ => builder::empty_type().tuple(context)
     }
@@ -743,7 +744,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         Lang::Return(exp, _) => {
             typing(context, exp)
         },
-        Lang::Module(name, members, h) => {
+        Lang::Module(name, members, _position, config, h) => {
             eval(context, expr).with_lang(expr)
         },
         _ => builder::any_type().with_lang(expr, context)

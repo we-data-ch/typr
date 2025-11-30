@@ -18,6 +18,10 @@ use std::str::FromStr;
 use crate::elements::parse_elements;
 use crate::fs;
 use std::io::Write;
+use crate::Config;
+use std::path::PathBuf;
+use std::fs::File;
+use crate::module_lang::ModuleLang;
 
 const JS_HEADER: &str = "let add = (a, b) => a+b;\nlet mul = (a, b) => a*b;\nlet minus = (a, b) => a - b;\nlet div = (a, b) => a/b;";
 
@@ -51,6 +55,12 @@ impl<T: Sized> ToSome for T {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub enum ModulePosition {
+    Internal,
+    External
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Lang {
     Number(f32, HelpData),
@@ -64,8 +74,8 @@ pub enum Lang {
     Eq(Box<Lang>, Box<Lang>, HelpData),
     Eq2(Box<Lang>, Box<Lang>, HelpData),
     NotEq(Box<Lang>, Box<Lang>, HelpData),
-    Modu(Box<Lang>, Box<Lang>, HelpData), // modulus
-    Modu2(Box<Lang>, Box<Lang>, HelpData), // modulus2
+    Modulo(Box<Lang>, Box<Lang>, HelpData), // modulus
+    Modulo2(Box<Lang>, Box<Lang>, HelpData), // modulus2
     LesserThan(Box<Lang>, Box<Lang>, HelpData),
     GreaterThan(Box<Lang>, Box<Lang>, HelpData),
     LesserOrEqual(Box<Lang>, Box<Lang>, HelpData),
@@ -74,7 +84,7 @@ pub enum Lang {
     Dollar(Box<Lang>, Box<Lang>, HelpData),
     Scope(Vec<Lang>, HelpData),
     Function(Vec<ArgumentType>, Type, Box<Lang>, HelpData),
-    Module(String, Vec<Lang>, HelpData), // module name { lines }
+    Module(String, Vec<Lang>, ModulePosition, Config, HelpData), // module name { lines }
     ModuleDecl(String, HelpData), // to create an env
     Variable(String, Permission, bool, Type, HelpData),
     FunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
@@ -161,7 +171,7 @@ fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
 impl Lang {
     pub fn to_module(self, name: &str) -> Self {
         match self {
-            Lang::Lines(v, h) => Lang::Module(name.to_string(), v, h),
+            Lang::Lines(v, h) => Lang::Module(name.to_string(), v, ModulePosition::External, Config::default(), h),
             s => s 
         }
     }
@@ -271,8 +281,8 @@ impl Lang {
             Lang::Eq(_, _, h) => h,
             Lang::Eq2(_, _, h) => h,
             Lang::NotEq(_, _, h) => h,
-            Lang::Modu(_, _, h) => h,
-            Lang::Modu2(_, _, h) => h,
+            Lang::Modulo(_, _, h) => h,
+            Lang::Modulo2(_, _, h) => h,
             Lang::LesserThan(_, _, h) => h,
             Lang::GreaterThan(_, _, h) => h,
             Lang::LesserOrEqual(_, _, h) => h,
@@ -280,7 +290,7 @@ impl Lang {
             Lang::Chain(_, _, h) => h,
             Lang::Scope(_, h) => h,
             Lang::Function(_, _, _, h) => h,
-            Lang::Module(_, _, h) => h,
+            Lang::Module(_, _, _, _, h) => h,
             Lang::ModuleDecl(_, h) => h,
             Lang::Variable(_, _, _, _, h) => h,
             Lang::FunctionApp(_, _, _, h) => h,
@@ -363,8 +373,8 @@ impl Lang {
             Lang::Eq(_, _, _) => "Eq".to_string(),
             Lang::Eq2(_, _, _) => "Eq2".to_string(),
             Lang::NotEq(_, _, _) => "NotEq".to_string(),
-            Lang::Modu(_, _, _) => "Modu".to_string(),
-            Lang::Modu2(_, _, _) => "Modu2".to_string(),
+            Lang::Modulo(_, _, _) => "Modu".to_string(),
+            Lang::Modulo2(_, _, _) => "Modu2".to_string(),
             Lang::LesserThan(_, _, _) => "LesserThan".to_string(),
             Lang::GreaterThan(_, _, _) => "GreaterThan".to_string(),
             Lang::LesserOrEqual(_, _, _) => "LesserOrEqual".to_string(),
@@ -372,7 +382,7 @@ impl Lang {
             Lang::Chain(_, _, _) => "Chain".to_string(),
             Lang::Scope(_, _) => "Scope".to_string(),
             Lang::Function(_, _, _, _) => "Function".to_string(),
-            Lang::Module(_, _, _) => "Module".to_string(),
+            Lang::Module(_, _, _, _, _) => "Module".to_string(),
             Lang::ModuleDecl(_, _) => "ModuleDecl".to_string(),
             Lang::Variable(name, _, _, _, _) => format!("Variable({})", name),
             Lang::FunctionApp(var, _, _, _) => 
@@ -530,7 +540,7 @@ impl Lang {
 
     pub fn to_module_member(self) -> Lang {
         match self {
-            Lang::Module(name, body, h) => {
+            Lang::Module(name, body, _, _, h) => {
                 Lang::Lines(body.clone(), h).to_module_helper(&name)
             },
             res => res
@@ -566,6 +576,28 @@ impl Lang {
         }
     }
 
+    pub fn to_arg_value(self, type_module: &Type, context: &Context) 
+        -> Option<Vec<ArgumentValue>> {
+        match self {
+            Lang::Let(lang, _, body, h) 
+                if Var::from_language(*lang.clone()).is_some() => {
+                    let var = Var::from_language(*lang).unwrap();
+                    type_module.get_first_function_parameter_type(&var.get_name())
+                        .map(|typ_par| 
+                             var.clone().set_name(&format!("{}.{}", 
+                                                  var.get_name(),
+                                                  context.get_type_anotation_no_parentheses(&typ_par))))
+                        .map(|var2| Some(vec![
+                                        ArgumentValue(var.get_name(), 
+                                                      Lang::GenFunc(var.get_name(), var.get_name(), h)),
+                                        ArgumentValue(var2.get_name(), *body.clone())
+                        ]))
+                        .unwrap_or(Some(vec![ArgumentValue(var.get_name(), *body)]))
+                },
+            _ => None
+        }
+    }
+
 }
 
 impl From<Lang> for HelpData {
@@ -598,9 +630,9 @@ impl From<Lang> for HelpData {
            Lang::Or(_, _, h) => h,
            Lang::Union(_, _, h) => h,
            Lang::In(_, _, h) => h,
-           Lang::Modu(_, _, h) => h,
-           Lang::Modu2(_, _, h) => h,
-           Lang::Module(_, _, h) => h,
+           Lang::Modulo(_, _, h) => h,
+           Lang::Modulo2(_, _, h) => h,
+           Lang::Module(_, _, _, _, h) => h,
            Lang::ModuleDecl(_, h) => h,
            Lang::ModuleImport(_, h) => h,
            Lang::Import(_, h) => h,
@@ -676,11 +708,11 @@ impl RTranslatable<(String, Context)> for Lang {
                 Translatable::from(cont.clone())
                     .to_r(b1).add(" | ").to_r(b2).into()
             },
-            Lang::Modu(e1, e2, _) => {
+            Lang::Modulo(e1, e2, _) => {
                 Translatable::from(cont.clone())
                     .to_r(e1).add(" % ").to_r(e2).into()
             },
-            Lang::Modu2(e1, e2, _) => {
+            Lang::Modulo2(e1, e2, _) => {
                 Translatable::from(cont.clone())
                     .to_r(e1).add(" %% ").to_r(e2).into()
             },
@@ -823,7 +855,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 (res, cont.clone())
             },
             Lang::GenFunc(func, _, _) => 
-                (func.to_string(), cont.clone()),
+                (format!("function(x, ...) UseMethod('{}')", func.to_string()), cont.clone()),
             Lang::Let(expr, ttype, body, _) => {
                 let (body_str, new_cont) = body.to_r(cont);
                 let new_name = expr.clone().to_r(cont).0;
@@ -1038,12 +1070,26 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Break(_) => {
                 ("break".to_string(), cont.clone())
             },
-            Lang::Module(name, _, _) => {
-                let env_def = format!("{} <- new.env()", name);
-                let module = self.clone()
-                    .to_module_member();
-                let text = module.to_r(&cont.extract_module_as_vartype(name)).0;
-                (format!("{}\n{}", env_def, text), cont.clone())
+            Lang::Module(name, _, position, _, _) => {
+                let module_type = cont
+                    .get_type_from_variable(&Var::from_name(name))
+                    .unwrap();
+                let module_record = ModuleLang::try_from(self.clone())
+                    .unwrap()
+                    .to_record(&module_type, cont);
+                let text = module_record
+                    .to_r(&cont.extract_module_as_vartype(name)).0;
+                let global_env = format!("invisible(list2env({}, envir = .GlobalEnv))", name);
+                let content = format!("{} <- {}\n{}", name, text, global_env);
+                if *position == ModulePosition::Internal {
+                    (content, cont.clone())
+                } else {
+                    let output_dir: PathBuf = ".".into();
+                    let std_path = output_dir.join(format!("{}.R", name));
+                    let mut module_file = File::create(std_path.clone()).unwrap();
+                    module_file.write_all(content.as_bytes()).unwrap();
+                    (format!("source('{}')", std_path.display()), cont.clone())
+                }
             },
             _ => {
                 println!("This language structure won't transpile: {:?}", self);

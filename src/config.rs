@@ -1,7 +1,14 @@
-use crate::Environment;
+use serde::{Serialize, Deserialize};
 use crate::Context;
+use crate::Parser;
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Parser, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum Environment {
+    StandAlone,
+    Project
+}
+
+#[derive(Debug, Clone, PartialEq, Copy, Serialize, Deserialize)]
 pub enum TargetLanguage {
     R,
     JS
@@ -13,14 +20,14 @@ impl Default for TargetLanguage {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum FileType {
     Main,
     Module
 }
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
    pub environment: Environment,
    pub file_type: FileType,

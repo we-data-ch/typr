@@ -787,9 +787,9 @@ pub fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
         (p, Op::GreaterOrEqual(_)) 
 			=> Lang::GreaterOrEqual(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::Modu(_)) 
-            => Lang::Modu(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+            => Lang::Modulo(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::Modu2(_)) 
-            => Lang::Modu2(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
+            => Lang::Modulo2(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (Lang::FunctionApp(name, params, fn_typ, h1), Op::Pipe(_h2)) 
             => { // (UFC) add the "object" as te first parameter of the function call
                 let res = [op_reverse(v)].iter().chain(params.iter()).cloned().collect::<Vec<_>>();

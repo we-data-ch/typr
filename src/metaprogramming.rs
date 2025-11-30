@@ -19,10 +19,14 @@ fn import_file_module_code(line: &Lang) -> Lang {
 
 fn import_file_modules_code(adt: Lang) -> Lang {
     match adt {
-        Lang::Module(name, lines, h) => {
+        Lang::Module(name, lines, position, config, h) => {
             let new_lines = lines.iter().map(import_file_module_code).collect::<Vec<_>>();
-            Lang::Module(name, new_lines, h)
+            Lang::Module(name, new_lines, position, config, h)
         }
+        Lang::Lines(lines, h) => {
+            let new_lines = lines.iter().map(import_file_module_code).collect::<Vec<_>>();
+            Lang::Lines(new_lines, h)
+        },
         s =>  s 
     }
     
