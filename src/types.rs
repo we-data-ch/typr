@@ -24,11 +24,13 @@ use crate::tchar::Tchar;
 use crate::elements::variable_exp;
 use nom::combinator::recognize;
 use crate::elements;
-use crate::type_stack::TypeStack;
-use crate::type_stack::TypeOperator;
 use nom::character::complete::none_of;
 use crate::builder;
 use crate::elements::variable2;
+use crate::type_operator::TypeOperator;
+use crate::type_token::TypeToken;
+use crate::vector_priority::VectorPriority;
+use crate::operation_priority::PriorityTokens;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -547,11 +549,15 @@ pub fn primitive_types(s: Span) -> IResult<Span, Type> {
             chars)).parse(s)
 }
 
-
-fn type_operator(s: Span) -> IResult<Span, TypeOperator> {
+fn type_operator(s: Span) -> IResult<Span, TypeToken> {
     let res = terminated(alt((
             tag("|"),
-            tag("&")
+            tag("&"),
+            tag("+"),
+            tag("-"),
+            tag("*"),
+            tag("/"),
+            tag("$")
         )), multispace0).parse(s);
 
     match res {
@@ -559,9 +565,14 @@ fn type_operator(s: Span) -> IResult<Span, TypeOperator> {
             let operator = match op.into_fragment() {
                 "|" => TypeOperator::Union,
                 "&" => TypeOperator::Intersection,
+                "+" => TypeOperator::Addition,
+                "-" => TypeOperator::Substraction,
+                "*" => TypeOperator::Multiplication,
+                "/" => TypeOperator::Division,
+                "$" => TypeOperator::Access,
                 _ => TypeOperator::Unknown,
             };
-            Ok((s, operator))
+            Ok((s, operator.into()))
         },
         Err(r) => Err(r)
     }
@@ -572,16 +583,10 @@ fn type_operator(s: Span) -> IResult<Span, TypeOperator> {
 // Will work on union and intersection types that use infix operators
 // main
 pub fn ltype(s: Span) -> IResult<Span, Type> {
-    //let res = many1((single_type, opt(type_operator))).parse(s);
-    let res = many1((opt(type_operator), single_type)).parse(s);
+    let res = many1(alt((type_operator, single_type_token))).parse(s);
     match res {
         Ok((s, v)) => {
-            let new_type = if v.len() == 1 {
-                v[0].1.clone()
-            } else {
-                TypeStack::default().load(&v).get_type()
-            };
-            Ok((s, new_type))
+            Ok((s, VectorPriority::from(v).run()))
         },
         Err(r) => Err(r)
     }
@@ -601,6 +606,7 @@ pub fn char_litteral(s: Span) -> IResult<Span, Type> {
         Err(r) => Err(r)
     }
 }
+
 
 // main
 pub fn single_type(s: Span) -> IResult<Span, Type> {
@@ -626,6 +632,13 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             )), multispace0).parse(s)
 }
 
+fn single_type_token(s: Span) -> IResult<Span,TypeToken> {
+    let res = single_type.parse(s);
+    match res {
+        Ok((s, typ)) => Ok((s, typ.into())),
+        Err(r) => Err(r)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -634,7 +647,6 @@ mod tests {
     use crate::graph::TypeSystem;
     use crate::type_category::TypeCategory;
     use crate::Context;
-
 
     #[test]
     fn test_alias_type1() {
@@ -714,7 +726,6 @@ mod tests {
         ]);
         assert_eq!(res, inter);
     }
-
 
     #[test]
     fn test_char_litteral() {

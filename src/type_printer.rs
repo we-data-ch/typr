@@ -83,6 +83,9 @@ pub fn format(ty: &Type) -> String {
                 .collect::<Vec<_>>().join("\n");
             format!("Module {{\n{}\n}}", body)
         },
+        Type::Operator(op, left, right, _) => {
+            format!("({} {} {})", op.to_string(), left.pretty(), right.pretty())
+        },
         t => format!("{:?}", t)
     }
 }
@@ -108,5 +111,24 @@ pub fn format2(t: &Type) -> String {
             => val.pretty(),
         val => val.pretty()
         //val => panic!("{:?} doesn't have a second format", val)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::type_operator::TypeOperator;
+    use crate::builder;
+
+    #[test]
+    fn test_my_pretty(){
+        let typ = Type::Operator(
+                TypeOperator::Union,
+                Box::new(builder::boolean_type()),
+                Box::new(builder::number_type()),
+                HelpData::default()
+                );
+        dbg!(&typ.pretty());
+        assert!(true)
     }
 }

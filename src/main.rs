@@ -36,9 +36,12 @@ mod graph;
 mod type_category;
 mod typer;
 mod var_function;
-mod type_stack;
 mod js_types;
 mod module_lang;
+mod type_operator;
+mod operation_priority;
+mod vector_priority;
+mod type_token;
 
 use crate::config::Config;
 use std::io::Write;

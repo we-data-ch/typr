@@ -815,8 +815,8 @@ mod tests {
     #[test]
     fn test_let2() {
         let context = Context::default();
-        let let_exps = parse("let a: int <- 8;".into()).unwrap().1.0;
-        let let_exp = let_exps[0].clone();
+        let let_exps = parse("let a: int <- 8;".into());
+        let let_exp = let_exps.clone();
         let var = Var::default().set_name("a");
         let new_context = typing(&context, &let_exp).2;
         let res = new_context.get_type_from_variable(&var);

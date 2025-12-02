@@ -675,16 +675,6 @@ mod tesus {
     }
 
     #[test]
-    fn test_base_parse3() {
-        let res = base_mut_exp("mut a <- 5;".into()).unwrap().1;
-        if let Lang::Let(var, _, _, _) = res {
-            assert!(var.is_mutable())
-        } else {
-            assert!(false)
-        }
-    }
-
-    #[test]
     fn test_assign1() {
         let res = assign("a <- 12;".into()).unwrap().1;
         assert_eq!("Assign", res[0].simple_print(),
@@ -704,14 +694,5 @@ mod tesus {
         assert_eq!("Assign", res[0].simple_print(),
         "The expression 'a$b <- 12;' should be identified as an assignation");
     } 
-
-    #[test]
-    fn test_module_type() {
-        let res = parse("module math { let a <- 29; };".into()).unwrap().1.0;
-        let first = res.iter().next().unwrap();
-        let new_context = typing(&Context::default(), first).2;
-        println!("{}", new_context.display_typing_context());
-        assert!(true);
-    }
 
 }

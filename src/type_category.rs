@@ -28,7 +28,8 @@ pub enum TypeCategory {
     Sequence,
     Rest,
     Intersection,
-    Module
+    Module,
+    Operator,
 }
 
 impl TypeCategory {
@@ -44,6 +45,7 @@ impl fmt::Display for TypeCategory {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             TypeCategory::Array => "Array",
+            TypeCategory::Operator => "Operator",
             TypeCategory::Function => "Function",
             TypeCategory::Record => "Record",
             TypeCategory::Tag => "Tag",

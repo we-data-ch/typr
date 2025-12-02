@@ -1,29 +1,32 @@
 #![allow(dead_code)]
-use crate::argument_type::ArgumentType;
-use crate::tag::Tag;
-use crate::context::generate_arg;
-use std::collections::HashSet;
-use crate::help_data::HelpData;
-use crate::type_printer::format;
-use crate::type_printer::format2;
-use std::fmt;
-use crate::tint::Tint;
-use crate::tchar::Tchar;
-use crate::function_type::FunctionType;
-use std::cmp::Ordering;
-use crate::Context;
+use crate::operation_priority::TokenKind;
 use crate::type_comparison::reduce_type;
-use std::hash::Hash;
-use std::hash::Hasher;
-use crate::builder;
+use crate::argument_type::ArgumentType;
+use crate::type_operator::TypeOperator;
+use crate::function_type::FunctionType;
 use crate::type_category::TypeCategory;
-use crate::TypeError;
-use crate::help_message::ErrorMsg;
-use crate::Var;
-use crate::graph::TypeSystem;
-use std::str::FromStr;
-use crate::types::ltype;
 use serde::{Serialize, Deserialize};
+use crate::help_message::ErrorMsg;
+use crate::context::generate_arg;
+use crate::type_printer::format2;
+use crate::type_token::TypeToken;
+use crate::type_printer::format;
+use crate::help_data::HelpData;
+use std::collections::HashSet;
+use crate::graph::TypeSystem;
+use crate::tchar::Tchar;
+use crate::types::ltype;
+use std::cmp::Ordering;
+use std::str::FromStr;
+use crate::tint::Tint;
+use std::hash::Hasher;
+use crate::TypeError;
+use crate::tag::Tag;
+use std::hash::Hash;
+use crate::Context;
+use crate::builder;
+use crate::Var;
+use std::fmt;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -40,7 +43,6 @@ pub fn pretty(hs: HashSet<ArgumentType>) -> String {
                                arg_typ.get_type().pretty()))
         .collect::<Vec<_>>().join("\n")
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq)]
 pub enum Type {
@@ -79,6 +81,7 @@ pub enum Type {
     Empty(HelpData),
     Vector(Box<Type>, Box<Type>, HelpData),
     Sequence(Box<Type>, Box<Type>, HelpData),
+    Operator(TypeOperator, Box<Type>, Box<Type>, HelpData),
     Any(HelpData)
 }
 
@@ -547,6 +550,7 @@ impl Type {
             Type::Sequence(_, _, _) => TypeCategory::Sequence,
             Type::Intersection(_, _) => TypeCategory::Intersection,
             Type::Module(_, _) => TypeCategory::Module,
+            Type::Operator(_, _, _, _) => TypeCategory::Operator,
             _ => {
                 println!("{:?} return Rest", self);
                 TypeCategory::Rest
@@ -619,6 +623,7 @@ impl Type {
             Type::Vector(_, _, h) => h.clone(),
             Type::Sequence(_, _, h) => h.clone(),
             Type::Intersection(_, h) => h.clone(),
+            Type::Operator(_, _, _, h) => h.clone()
         }
     }
 
@@ -660,6 +665,7 @@ impl Type {
             Type::Vector(i, t, _) => Type::Vector(i, t, h2),
             Type::Sequence(i, t, _) => Type::Sequence(i, t, h2),
             Type::Intersection(i, _) => Type::Intersection(i, h2),
+            Type::Operator(op, t1, t2, _) => Type::Operator(op, t1, t2, h2)
         }
     }
 
@@ -746,6 +752,14 @@ impl Type {
                 => args.iter().next().cloned(),
             _ => None
         }
+    }
+
+    pub fn get_token_type(&self) -> TokenKind {
+        TokenKind::Expression
+    }
+
+    pub fn get_binding_power(&self) -> i32 {
+        0
     }
 
 }
@@ -995,6 +1009,7 @@ impl Hash for Type {
             Type::Sequence(_, _, _) => 35.hash(state),
             Type::Intersection(_, _) => 36.hash(state),
             Type::Module(_, _) => 37.hash(state),
+            Type::Operator(_, _, _, _) => 38.hash(state),
         }
     }
 }
@@ -1028,6 +1043,24 @@ impl FromStr for Type {
         Ok(val)
     }
 
+}
+
+impl From<TokenKind> for  Type {
+   fn from(val: TokenKind) -> Self {
+        match val {
+            TokenKind::Empty => builder::empty_type(),
+            _ => builder::any_type()
+        }
+   } 
+}
+
+impl From<TypeToken> for Type {
+   fn from(val: TypeToken) -> Self {
+       match val {
+           TypeToken::Expression(typ) => typ,
+           _ => builder::empty_type()
+       }
+   } 
 }
 
 #[cfg(test)]
@@ -1127,10 +1160,9 @@ mod tests {
         let context = ctx.clone()
             .push_var_type(var, fn_type, &ctx)
             .push_alias("Model".to_string(), interface.clone());
-
         let let_expression = 
-            parse("let a: Model <- 10;".into()).unwrap().1;
-        let new_types = typing(&context, &let_expression.0[0]).0;
+            parse("let a: Model <- 10;".into());
+        let new_types = typing(&context, &let_expression).0;
         assert!(true)
         //assert_eq!(int_type.is_subtype(&interface, &context), true);
     }
