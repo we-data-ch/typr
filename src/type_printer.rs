@@ -5,6 +5,7 @@ use crate::tchar::Tchar;
 use crate::type_category::TypeCategory;
 use crate::graph::TypeSystem;
 use crate::r#type::pretty;
+use crate::type_operator::TypeOperator;
 
 pub fn format(ty: &Type) -> String {
     match ty {
@@ -79,9 +80,13 @@ pub fn format(ty: &Type) -> String {
                 .collect::<Vec<_>>().join("\n");
             format!("Module {{\n{}\n}}", body)
         },
+        Type::Operator(TypeOperator::Access, left, right, _) => {
+            format!("{}${}", left.pretty(), right.pretty())
+        },
         Type::Operator(op, left, right, _) => {
             format!("({} {} {})", left.pretty(), op.to_string(), right.pretty())
         },
+        Type::Variable(name, _) => name.to_string(),
         t => format!("{:?}", t)
     }
 }

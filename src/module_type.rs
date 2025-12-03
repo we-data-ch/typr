@@ -4,6 +4,7 @@ use crate::help_data::HelpData;
 use crate::argument_type::ArgumentType;
 use crate::Type;
 
+#[derive(Debug)]
 pub struct ModuleType {
    args: HashSet<ArgumentType>,
    help_data: HelpData
