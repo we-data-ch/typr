@@ -14,6 +14,7 @@ pub enum TypeOperator {
     Multiplication,
     Division,
     Access,
+    Arrow,
     #[default]
     Unknown,
 }
@@ -29,7 +30,7 @@ impl TypeOperator {
 
     pub fn get_binding_power(&self) -> i32 {
         match self {
-            TypeOperator::Access => 3,
+            TypeOperator::Access | TypeOperator::Arrow => 3,
             TypeOperator::Addition | TypeOperator::Substraction |
             TypeOperator::Multiplication | TypeOperator::Division 
             => 2,
@@ -41,6 +42,7 @@ impl TypeOperator {
 impl fmt::Display for TypeOperator {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
+            TypeOperator::Arrow => "->",
             TypeOperator::Union => "|",
             TypeOperator::Intersection => "&",
             TypeOperator::Addition => "+",

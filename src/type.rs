@@ -724,9 +724,12 @@ impl Type {
     pub fn get_first_function_parameter_type(&self, name: &str) -> Option<Type> {
         match self {
             Type::Module(args, _) => {
-                args.iter()
-                    .find(|arg_typ| arg_typ.get_argument_str() == name)
-                    .map(|arg_typ| arg_typ.get_type().get_first_parameter().unwrap())
+                let res = args.iter()
+                    .find(|arg_typ| arg_typ.get_argument_str() == name);
+                match res {
+                    Some(arg_typ) => arg_typ.get_type().get_first_parameter(),
+                    _ => None
+                }
             },
             _ => None
         }

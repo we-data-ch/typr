@@ -60,6 +60,10 @@ impl PriorityToken for TypeToken {
 
     fn combine(self, left: TypeToken, right: TypeToken) -> Self {
         match (self.clone(), left.clone(), right.clone()) {
+            (TypeToken::Operator(TypeOperator::Arrow),
+            TypeToken::Expression(Type::Tuple(v, h)), 
+            TypeToken::Expression(exp2))  
+                => TypeToken::Expression(Type::Function(v, Box::new(exp2), h)),
             (TypeToken::Operator(op), TypeToken::Expression(exp1), TypeToken::Expression(exp2)) 
                 => TypeToken::Expression(op.combine(exp1, exp2)),
             _ => panic!("Should be (op exp1 exp2) not ({} {} {})", self, left, right)

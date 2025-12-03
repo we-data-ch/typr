@@ -27,7 +27,7 @@ pub trait PriorityToken: ToString + Default + Clone + From<TokenKind> + Debug + 
     }
 }
 
-pub trait PriorityTokens<T: PriorityToken, E: From<T>>: Sized {
+pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
 
     fn get_first(&mut self) -> Option<T>;
     fn peak_first(&self) -> Option<T>;
@@ -62,14 +62,21 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T>>: Sized {
     }
 
     fn run(&mut self) -> E {
-        E::from(self.run_helper(0))
+        if self.len() == 0 {
+            E::default()
+        } else {
+            //println!("START SESSION");
+            let res = E::from(self.run_helper(0));
+            //println!("END SESSION");
+            res
+        }
     }
 
     fn run_helper(&mut self, binding_power: i32) -> T {
         //println!("--------------------");
         //println!("binding_power: {}", binding_power);
         //println!("{}", self.display_state());
-        let mut left = self.get_expression().unwrap();
+        let mut left = self.get_expression().expect("Empty expression");
         //println!("left: {}", left);
         loop {
             let op = match self.peak_operator() {

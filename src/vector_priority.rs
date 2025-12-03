@@ -6,7 +6,7 @@ pub struct VectorPriority<T: PriorityToken> {
    body: Vec<T>
 }
 
-impl<T: PriorityToken, E: From<T>> PriorityTokens<T, E> for VectorPriority<T> {
+impl<T: PriorityToken, E: From<T> + Default> PriorityTokens<T, E> for VectorPriority<T> {
     fn get_first(&mut self) -> Option<T> {
         if self.body.len() > 0 {
             Some(self.body.remove(0))

@@ -34,9 +34,10 @@ use crate::operation_priority::PriorityTokens;
 type Span<'a> = LocatedSpan<&'a str, String>;
 
 fn ltype_arg(s: Span) -> IResult<Span, Type> {
-    let res = (ltype, terminated(opt(terminated(tag(","), multispace0)), multispace0)).parse(s);
+    let res = terminated(terminated(ltype, multispace0), 
+                         opt(terminated(tag(","), multispace0))).parse(s);
     match res {
-        Ok((s, (t, _))) => Ok((s, t)),
+        Ok((s, t)) => Ok((s, t)),
         Err(r) => Err(r)
     }
 }
@@ -286,9 +287,9 @@ fn interface(s: Span) -> IResult<Span, Type> {
 
 fn tuple_type(s: Span) -> IResult<Span, Type> {
     let res = (
-                tag("{"),
+                alt((tag("{"), tag("("))),
                 many0(ltype_parameter),
-                tag("}")).parse(s);
+                alt((tag("}"), tag(")")))).parse(s);
     match res {
         Ok((s, (ope, v, _cl))) => {
             Ok((s, Type::Tuple(v, ope.into())))
@@ -469,18 +470,20 @@ pub fn primitive_types(s: Span) -> IResult<Span, Type> {
 
 fn type_operator(s: Span) -> IResult<Span, TypeToken> {
     let res = terminated(alt((
+            tag("->"),
             tag("|"),
             tag("&"),
             tag("+"),
             tag("-"),
             tag("*"),
             tag("/"),
-            tag("$")
+            tag("$"),
         )), multispace0).parse(s);
 
     match res {
         Ok((s, op)) => {
             let operator = match op.into_fragment() {
+                "->" => TypeOperator::Arrow,
                 "|" => TypeOperator::Union,
                 "&" => TypeOperator::Intersection,
                 "+" => TypeOperator::Addition,
@@ -538,6 +541,7 @@ fn type_variable(s: Span) -> IResult<Span, Type> {
 // main
 pub fn single_type(s: Span) -> IResult<Span, Type> {
     terminated(alt((
+            function_type,
             self_type,
             r_class,
             vector_type,
@@ -554,7 +558,6 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             type_variable,
             generic,
             array_type,
-            function_type,
             tuple_type,
             record_type,
             )), multispace0).parse(s)
@@ -683,5 +686,24 @@ mod tests {
         let typ = ltype("Self".into()).unwrap().1;
         assert_eq!(typ.to_category(), TypeCategory::Generic);
     }
+
+    #[test]
+    fn test_function_signature1() {
+        let typ = ltype("() -> Empty".into()).unwrap().1;
+        assert_eq!(typ.pretty(), "fn() -> Empty".to_string());
+    }
+
+    #[test]
+    fn test_function_signature2() {
+        let typ = ltype("(bool) -> Empty".into()).unwrap().1;
+        assert_eq!(typ.pretty(), "fn(bool) -> Empty".to_string());
+    }
+
+    #[test]
+    fn test_function_signature3() {
+        let typ = function_type("(bool) -> Empty".into()).unwrap().1;
+        assert_eq!(typ.pretty(), "fn(bool) -> Empty".to_string());
+    }
+
 
 }

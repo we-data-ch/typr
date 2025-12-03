@@ -37,7 +37,7 @@ impl VarType {
         let vartype = VarType::new();
         match config.target_language {
             TargetLanguage::R => vartype.load_r().unwrap().load_typed_r().unwrap(),
-            TargetLanguage::JS => vartype.load_js().unwrap().load_typed_js().unwrap()
+            TargetLanguage::JS => vartype.load_js().unwrap().load_typed_js().unwrap(),
         }
     }
 
