@@ -41,6 +41,7 @@ mod type_operator;
 mod operation_priority;
 mod vector_priority;
 mod type_token;
+mod module_type;
 
 use crate::config::Config;
 use std::io::Write;

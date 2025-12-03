@@ -26,6 +26,7 @@ use crate::Context;
 use crate::builder;
 use crate::Var;
 use std::fmt;
+use crate::module_type::ModuleType;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -721,6 +722,7 @@ impl Type {
             _ => false
         }
     }
+
     pub fn get_first_function_parameter_type(&self, name: &str) -> Option<Type> {
         match self {
             Type::Module(args, _) => {
@@ -749,6 +751,13 @@ impl Type {
 
     pub fn get_binding_power(&self) -> i32 {
         0
+    }
+
+    pub fn to_module_type(self) -> Result<ModuleType, String> {
+        match self {
+            Type::Module(args, h) => Ok(ModuleType::from((args, h))),
+            _ => Err(format!("{} can't be turn into a ModuleType", self.pretty()))
+        }
     }
 
 }

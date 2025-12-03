@@ -94,6 +94,19 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
                 type_.clone()
             }
         },
+        Type::Operator(TypeOperator::Access, t1, t2, _) => {
+            let t1 = (**t1).clone();
+            let t2 = (**t2).clone();
+            match (t1, t2) {
+                (Type::Variable(module_name, _), Type::Alias(alias_name, _args, _opaque, _)) => {
+                    let module_type = context
+                        .get_type_from_variable(&Var::from_name(&module_name))
+                        .unwrap().to_module_type().unwrap();
+                    module_type.get_type_from_name(&alias_name).unwrap()
+                },
+                _ => panic!("Function not yet implemented for unalowed patterns")
+            }
+        },
         _ => type_.clone()
     }
 }
