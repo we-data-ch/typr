@@ -5,7 +5,6 @@ use crate::Type;
 use crate::context::Context;
 use crate::Lang;
 use crate::var::Var;
-use crate::tag::Tag;
 use crate::index::Index;
 use crate::unification;
 use crate::type_comparison::reduce_type;
@@ -290,12 +289,6 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                        .into_iter().collect::<Vec<_>>();
                     Some(res)
                 },
-                (Type::StrictUnion(types1, _), Type::StrictUnion(types2, _)) => {
-                   Some(types1.iter() 
-                       .zip(types2.iter())
-                       .flat_map(|(typ1, typ2)| get_gen_type(&typ1.to_type(), &typ2.to_type()))
-                       .fold(vec![], |acc: Vec<(Type, Type)>, vec| acc.iter().chain(vec.iter()).cloned().collect::<Vec<_>>()))
-                },
                 (Type::Tag(_name1, typ1, _h1), Type::Tag(_name2, typ2, _h2)) => {
                     get_gen_type(typ1, typ2)
                 }
@@ -315,22 +308,6 @@ pub fn match_types_to_generic(ctx: &Context, type1: &Type, type2: &Type)
         .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
         .collect::<Vec<_>>();
     Some(unif_map)
-}
-
-fn get_variable_type(lang: &Lang, tags: &[Tag]) -> Option<(Var, Type)> {
-    if let Lang::Tag(name, variable, _h) = lang {
-        let res = tags.iter()
-            .find(|&tag| name == &tag.get_name());
-        match res {
-            Some(typ) => {
-                let variable = Var::from_language((**variable).clone())
-                    .unwrap_or(Var::from_name("_"));
-                Some((variable, typ.get_type()))
-            },
-            _ => None
-        }
-        
-    } else { panic!("The element in the left hand side of the match statement is not a tag") }
 }
 
 fn are_homogenous_types(types: &[Type]) -> bool {
@@ -762,25 +739,6 @@ fn replace_fields_type_if_needed(context: &Context, at: ArgumentValue) -> impl F
 
 fn unify_type(ty1: &Type, ty2: &Type) -> Type {
     match (ty1, ty2) {
-        (Type::Tag(name1, params1, h1), Type::Tag(name2, params2, _h2)) => {
-            if name1 == name2 && params1 == params2 {
-                ty1.clone()
-            } else {
-                Type::StrictUnion(vec![
-                            Tag::from_type(ty1.clone()).unwrap(),
-                            Tag::from_type(ty2.clone()).unwrap()], h1.clone())
-            }
-        }
-        (Type::StrictUnion(union1, h1), Type::Tag(name, params, h2)) => {
-            let mut union2 = union1.clone();
-            union2.push(Tag::new(name.clone(), *params.clone(), h2.clone()));
-            Type::StrictUnion(union2, h1.clone())
-        }
-        (Type::Tag(name, params, h), Type::StrictUnion(union1, _)) => {
-            let mut union2 = union1.clone();
-            union2.push(Tag::new(name.clone(), *params.clone(), h.clone()));
-            Type::StrictUnion(union2, h.clone())
-        }
         (Type::Any(_), _) | (_, Type::Any(_)) => Type::Any(HelpData::default()),
         (Type::Empty(_), ty) | (ty, Type::Empty(_)) => ty.clone(),
         (ty1, ty2) if ty1 == ty2 => ty1.clone(),

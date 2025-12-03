@@ -3,8 +3,9 @@ use crate::argument_type::ArgumentType;
 use crate::r#type::Type;
 use crate::var::Var;
 use crate::context::Context;
-use crate::tag::Tag;
 use rpds::Vector;
+use crate::type_operator::TypeOperator;
+use crate::graph::TypeSystem;
 
 pub fn reduce_param(
     context: &Context,
@@ -56,12 +57,6 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
                 }
             }
         },
-        Type::StrictUnion(types, h) => {
-            Type::StrictUnion(types.iter()
-                .map(|t| reduce_type_helper(context, &t.to_type(), memory.clone()))
-                .flat_map(Tag::from_type)
-                .collect(), h.clone())
-        }
         Type::Tag(name, inner, h) => {
             Type::Tag(name.clone(), Box::new(reduce_type_helper(context, inner, memory.clone())), h.clone())
         }
@@ -87,6 +82,17 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
             Type::Sequence(ind.clone(),
                     Box::new(reduce_type_helper(context, typ, memory.clone())),
                     h.clone())
+        },
+        Type::Operator(TypeOperator::Union, t1, t2, _) => {
+            let typ1: Type = (**t1).clone();
+            let typ2: Type = (**t2).clone();
+            if typ1.is_subtype(&typ2, context) {
+                typ1
+            } else if typ2.is_subtype(&typ1, context) {
+                typ2
+            } else {
+                type_.clone()
+            }
         },
         _ => type_.clone()
     }

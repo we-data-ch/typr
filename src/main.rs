@@ -14,7 +14,6 @@ mod context;
 mod r#type;
 mod type_checker;
 mod type_printer;
-mod tag;
 mod index;
 mod engine;
 mod vartype;

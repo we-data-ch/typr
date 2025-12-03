@@ -21,7 +21,6 @@ use std::str::FromStr;
 use crate::tint::Tint;
 use std::hash::Hasher;
 use crate::TypeError;
-use crate::tag::Tag;
 use std::hash::Hash;
 use crate::Context;
 use crate::builder;
@@ -62,7 +61,6 @@ pub enum Type {
     Tag(String, Box<Type>, HelpData),
     Union(HashSet<Type>, HelpData),
     Intersection(HashSet<Type>, HelpData),
-    StrictUnion(Vec<Tag>, HelpData),
     Interface(HashSet<ArgumentType>, HelpData),
     Params(Vec<Type>, HelpData),
     Add(Box<Type>, Box<Type>, HelpData),
@@ -219,10 +217,6 @@ impl Type {
                     sol.push((**ret).clone());
                     sol.push(self.clone()); sol
                 }
-            Type::StrictUnion(tags, _) => {
-               let mut sol = tags.iter().map(|tag| tag.to_type()).collect::<Vec<_>>();
-               sol.push(self.clone()); sol
-            },
             Type::Module(argtypes, _) => {
                 let mut sol = argtypes.iter()
                     .map(|argtype| argtype.get_type())
@@ -475,7 +469,6 @@ impl Type {
     pub fn is_tag_or_union(&self) -> bool {
         match self {
             Type::Tag(_, _, _) => true,
-            Type::StrictUnion(_, _) => true,
             _ => false
         }
     }
@@ -520,7 +513,6 @@ impl Type {
             Type::Record(_, _) => TypeCategory::Record,
             Type::Tuple(_, _) => TypeCategory::Tuple,
             Type::Tag(_, _, _) => TypeCategory::Tag,
-            Type::StrictUnion(_, _) => TypeCategory::Union,
             Type::Interface(_, _) => TypeCategory::Interface,
             Type::Boolean(_) => TypeCategory::Boolean,
             Type::Number(_) => TypeCategory::Number,
@@ -595,7 +587,6 @@ impl Type {
             Type::Module(_, h) => h.clone(),
             Type::Alias(_, _, _, h) => h.clone(),
             Type::Tag(_, _, h) => h.clone(),
-            Type::StrictUnion(_, h) => h.clone(),
             Type::Interface(_, h) => h.clone(),
             Type::Params(_, h) => h.clone(),
             Type::Add(_, _, h) => h.clone(),
@@ -638,7 +629,6 @@ impl Type {
             Type::Module(a, _) => Type::Module(a, h2),
             Type::Alias(a1, a2, a3, _) => Type::Alias(a1, a2, a3, h2),
             Type::Tag(a1, a2, _) => Type::Tag(a1, a2, h2),
-            Type::StrictUnion(a, _) => Type::StrictUnion(a, h2),
             Type::Interface(a, _) => Type::Interface(a, h2),
             Type::Params(a, _) => Type::Params(a, h2),
             Type::Add(a1, a2, _) => Type::Add(a1, a2, h2),
@@ -826,7 +816,6 @@ impl PartialEq for Type {
                 => a1 == a2 && b1 == b2 && c1 == c2,
             (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
-            (Type::StrictUnion(e1, _), Type::StrictUnion(e2, _)) => e1 == e2,
             (Type::Interface(e1, _), Type::Interface(e2, _)) => e1 == e2,
             (Type::Params(e1, _), Type::Params(e2, _)) => e1 == e2,
             (Type::Add(a1, b1, _), Type::Add(a2, b2, _)) 
@@ -914,16 +903,6 @@ impl PartialOrd for Type {
                     .then_some(Ordering::Less)
             },
 
-            (Type::StrictUnion(types1, _), Type::StrictUnion(_types2, _)) => {
-                types1.iter().all(|t1| t1.to_type().partial_cmp(other).is_some())
-                        .then_some(Ordering::Less)
-            },
-
-            // Union subtyping
-            (Type::Tag(_name, _body, _h), Type::StrictUnion(types, _)) => {
-                types.iter().any(|t| self.partial_cmp(&t.to_type()).is_some())
-                        .then_some(Ordering::Less)
-            },
             (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
                 ((name1 == name2) && body1.partial_cmp(&*body2).is_some())
                         .then_some(Ordering::Less)
@@ -983,7 +962,6 @@ impl Hash for Type {
             Type::Record(_, _) => 10.hash(state),
             Type::Alias(_, _, _, _) => 11.hash(state),
             Type::Tag(_, _, _) => 12.hash(state),
-            Type::StrictUnion(_, _) => 13.hash(state),
             Type::Interface(_, _) => 14.hash(state),
             Type::Params(_, _) => 15.hash(state),
             Type::Add(_, _, _) => 16.hash(state),

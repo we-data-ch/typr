@@ -5,7 +5,6 @@ use nom::combinator::opt;
 use crate::argument_type::ArgumentType;
 use nom::character::complete::one_of;
 use nom::character::complete::digit1;
-use crate::tag::Tag;
 use nom::character::complete::alphanumeric1;
 use crate::r#type::Type;
 use std::collections::HashSet;
@@ -216,13 +215,6 @@ fn type_params(s: Span) -> IResult<Span, Vec<Type>> {
 }
 
 
-pub fn pascal_case(s: Span) -> IResult<Span, (String, HelpData)> {
-    let res = terminated((one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), alphanumeric1), multispace0).parse(s);
-    match res {
-        Ok((s, (t1, t2))) => Ok((s.clone(), (format!("{}{}", t1, t2.clone()), t2.into()))),
-        Err(r) => Err(r)
-    }
-}
 
 pub fn pascal_case_no_space(s: Span) -> IResult<Span, (String, HelpData)> {
     let res = (one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), alphanumeric1).parse(s);
@@ -253,80 +245,6 @@ fn parenthese_value(s: Span) -> IResult<Span, Type> {
             terminated(tag(")"), multispace0)
           ).parse(s)
 }
-
-fn tag_default_helper(s: Span) -> IResult<Span, Type> {
-        let res = (tag("."),
-            pascal_case,
-            opt(parenthese_value)).parse(s);
-    match res {
-        Ok((s, (_, (n, h), Some(val)))) 
-            => Ok((s, Type::Tag(n, Box::new(val), h))),
-        Ok((s, (_, (n, h), None))) 
-            => Ok((s, Type::Tag(n, Box::new(Type::Empty(HelpData::default())), h))),
-        Err(r) => Err(r)
-    }
-}
-
-fn tag_default(s: Span) -> IResult<Span, Type> {
-    terminated(tag_default_helper, multispace0).parse(s)
-}
-
-fn get_primitive(ls: LocatedSpan<&str, String>) -> Type {
-    match ls.clone().into_fragment() {
-        "bool" 
-            => Type::Tag("Bool".to_string(), Box::new(Type::Boolean(ls.clone().into())), ls.into()),
-        "num" 
-            => Type::Tag("Num".to_string(), Box::new(Type::Number(ls.clone().into())), ls.into()),
-        "char" 
-            => Type::Tag("Char".to_string(), Box::new(Type::Char(Tchar::Unknown, ls.clone().into())), ls.into()),
-        _ => todo!()
-    }
-}
-
-fn tag_from_primitive(s: Span) -> IResult<Span, Type> {
-    let res = alt((
-                tag("bool"),
-                tag("num"),
-                tag("char"),
-                  )).parse(s);
-    match res {
-        Ok((s, ls)) => Ok((s, get_primitive(ls))),
-        Err(r) => Err(r)
-    }
-}
-
-fn tag_exp(s: Span) -> IResult<Span, Type> {
-    alt((tag_default, tag_from_primitive)).parse(s)
-}
-
-fn tags(s: Span) -> IResult<Span, Type> {
-    let res = (
-        tag_exp,
-        terminated(tag("||"), multispace0)
-          ).parse(s);
-    match res {
-        Ok((s, (t, _))) => Ok((s, t)),
-        Err(r) => Err(r)
-    }
-}
-
-
-fn strict_union(s: Span) -> IResult<Span, Type> {
-    let res = (
-           alt((tags, tag_exp)),
-           many0(alt((tags, tag_exp)))).parse(s);
-   match res {
-       Ok((s, (t, v))) if v.len() == 0 => Ok((s, t.clone())),
-       Ok((s, (t, v))) => {
-           let res = [t].iter()
-               .chain(v.iter()).cloned()
-               .flat_map(Tag::from_type).collect();
-           Ok((s.clone(), Type::StrictUnion(res, s.into())))
-       },
-       Err(r) => Err(r)
-   }
-}
-
 
 fn chars(s: Span) -> IResult<Span, Type> {
     let res = tag("char")(s);
@@ -624,6 +542,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             r_class,
             vector_type,
             sequence_type,
+            parenthese_value,
             any,
             empty,
             interface,
@@ -631,7 +550,6 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             char_litteral,
             index_algebra,
             primitive_types,
-            strict_union,
             type_alias,
             type_variable,
             generic,

@@ -52,10 +52,6 @@ pub fn format(ty: &Type) -> String {
         Type::Boolean(_) => "bool".to_string(),
         Type::Char(_, _) => "char".to_string(),
         Type::Empty(_) => "Empty".to_string(),
-        Type::StrictUnion(types, _) => {
-            let formatted_types = types.iter().map(|ty| format(&ty.to_type())).collect::<Vec<_>>();
-            format!("{}", formatted_types.join(" | "))
-        }
         Type::Any(_) => "any".to_string(),
         Type::IndexGen(i, _) => format!("#{}", i),
         Type::LabelGen(l, _) => format!("%{}", l),

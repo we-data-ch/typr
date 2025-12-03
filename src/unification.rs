@@ -2,7 +2,6 @@ use crate::r#type::Type;
 use crate::argument_type::ArgumentType;
 use crate::Context;
 use crate::type_comparison;
-use crate::tag::Tag;
 use std::collections::HashSet;
 
 pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
@@ -153,14 +152,6 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
                 Box::new(type_substitution(inner_type, substitutions)),
                 h.clone()
             )
-        }
-
-        Type::StrictUnion(types, h) => {
-            let new_types = types.iter()
-                .map(|typ| {
-                    Tag::from_type(type_substitution(&typ.to_type(), substitutions)).unwrap()
-                }).collect::<Vec<_>>();
-            Type::StrictUnion(new_types, h.clone())
         }
 
         // Default case: return the type unchanged
