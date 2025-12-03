@@ -51,7 +51,6 @@ mod tests {
     use crate::builder;
     use crate::Type;
     use crate::type_category::TypeCategory;
-    use crate::graph::TypeSystem;
 
     #[test]
     fn test_type_tokens1(){

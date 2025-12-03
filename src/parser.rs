@@ -665,8 +665,6 @@ pub fn parse(s: Span) -> Lang {
 #[cfg(test)]
 mod tesus {
     use super::*;
-    use crate::typing;
-    use crate::Context;
 
     #[test]
     fn test_type_exp2() {

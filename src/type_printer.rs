@@ -84,7 +84,7 @@ pub fn format(ty: &Type) -> String {
             format!("Module {{\n{}\n}}", body)
         },
         Type::Operator(op, left, right, _) => {
-            format!("({} {} {})", op.to_string(), left.pretty(), right.pretty())
+            format!("({} {} {})", left.pretty(), op.to_string(), right.pretty())
         },
         t => format!("{:?}", t)
     }

@@ -82,7 +82,8 @@ pub enum Type {
     Vector(Box<Type>, Box<Type>, HelpData),
     Sequence(Box<Type>, Box<Type>, HelpData),
     Operator(TypeOperator, Box<Type>, Box<Type>, HelpData),
-    Any(HelpData)
+    Any(HelpData),
+    Variable(String, HelpData),
 }
 
 impl TypeSystem for Type {
@@ -132,13 +133,6 @@ impl TypeSystem for Type {
             (Type::Record(r1, _), Type::Record(r2, _)) => {
                 r1 == r2 || r1.is_superset(r2)
             },
-            (Type::StrictUnion(types1, _), Type::StrictUnion(_types2, _)) => {
-                types1.iter().all(|t1| t1.to_type().is_subtype(other, context))
-            },
-            // Union subtyping
-            (Type::Tag(_name, _body, _h), Type::StrictUnion(types, _)) => {
-                types.iter().any(|t| self.is_subtype(&t.to_type(), context))
-            },
             (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
                 (name1 == name2) && body1.is_subtype(&*body2, context)
             },
@@ -154,10 +148,11 @@ impl TypeSystem for Type {
             }
             (Type::RClass(set1, _), Type::RClass(set2, _)) 
                 => set1.is_subset(&set2),
-            (Type::Union(s1, _), Type::Union(s2, _)) 
-                => s1.is_subset(&s2),
-            (typ, Type::Union(s2, _)) 
-                => s2.contains(&typ),
+            (Type::Operator(TypeOperator::Union, _t1, _t2, _), 
+             Type::Operator(TypeOperator::Union, _tp1, _tp2, _))
+                => true, //TODO: Fix this
+            (typ, Type::Operator(TypeOperator::Union, t1, t2, _)) 
+                => typ.is_subtype(&t1, context) || typ.is_subtype(t2, context),
             (Type::Char(_, _), Type::Char(_, _)) => true,
             (Type::Integer(_, _), Type::Integer(_, _)) => true,
             (Type::Tuple(types1, _), Type::Tuple(types2, _)) => {
@@ -165,9 +160,8 @@ impl TypeSystem for Type {
                     .zip(types2.iter())
                     .all(|(typ1, typ2)| typ1.is_subtype(typ2, context))
             },
-            (typ, Type::Intersection(types, _)) => {
-               types.iter() 
-                   .all(|typ2| typ.is_subtype(typ2, context))
+            (typ, Type::Operator(TypeOperator::Intersection, t1, t2, _)) => {
+                typ.is_subtype(t1, context) && typ.is_subtype(t2, context)
             },
             _ => false
         }
@@ -623,7 +617,8 @@ impl Type {
             Type::Vector(_, _, h) => h.clone(),
             Type::Sequence(_, _, h) => h.clone(),
             Type::Intersection(_, h) => h.clone(),
-            Type::Operator(_, _, _, h) => h.clone()
+            Type::Operator(_, _, _, h) => h.clone(),
+            Type::Variable(_, h) => h.clone(),
         }
     }
 
@@ -665,7 +660,8 @@ impl Type {
             Type::Vector(i, t, _) => Type::Vector(i, t, h2),
             Type::Sequence(i, t, _) => Type::Sequence(i, t, h2),
             Type::Intersection(i, _) => Type::Intersection(i, h2),
-            Type::Operator(op, t1, t2, _) => Type::Operator(op, t1, t2, h2)
+            Type::Operator(op, t1, t2, _) => Type::Operator(op, t1, t2, h2),
+            Type::Variable(name, _) => Type::Variable(name, h2),
         }
     }
 
@@ -858,6 +854,7 @@ impl PartialEq for Type {
                 },
             (Type::Union(s1, _), Type::Union(s2, _)) => s1 == s2,
             (Type::Intersection(s1, _), Type::Intersection(s2, _)) => s1 == s2,
+            (Type::Variable(s1, _), Type::Variable(s2, _)) => s1 == s2,
             _ => false
         }
     }
@@ -1010,6 +1007,7 @@ impl Hash for Type {
             Type::Intersection(_, _) => 36.hash(state),
             Type::Module(_, _) => 37.hash(state),
             Type::Operator(_, _, _, _) => 38.hash(state),
+            Type::Variable(_, _) => 39.hash(state),
         }
     }
 }
@@ -1162,7 +1160,7 @@ mod tests {
             .push_alias("Model".to_string(), interface.clone());
         let let_expression = 
             parse("let a: Model <- 10;".into());
-        let new_types = typing(&context, &let_expression).0;
+        let _ = typing(&context, &let_expression).0;
         assert!(true)
         //assert_eq!(int_type.is_subtype(&interface, &context), true);
     }

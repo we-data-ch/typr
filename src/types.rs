@@ -234,7 +234,7 @@ pub fn pascal_case_no_space(s: Span) -> IResult<Span, (String, HelpData)> {
 
 pub fn type_alias(s: Span) -> IResult<Span, Type> {
     let res = (
-            alt((pascal_case_no_space, variable_exp)),
+            pascal_case_no_space,
             terminated(opt(type_params), multispace0)
           ).parse(s);
     match res {
@@ -607,6 +607,15 @@ pub fn char_litteral(s: Span) -> IResult<Span, Type> {
     }
 }
 
+fn type_variable(s: Span) -> IResult<Span, Type> {
+    let res = variable_exp.parse(s);
+    match res {
+        Ok((s, (name, help_data))) 
+            => Ok((s, Type::Variable(name, help_data))),
+        Err(r) => Err(r)
+    }
+}
+
 
 // main
 pub fn single_type(s: Span) -> IResult<Span, Type> {
@@ -624,6 +633,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             primitive_types,
             strict_union,
             type_alias,
+            type_variable,
             generic,
             array_type,
             function_type,
@@ -676,6 +686,12 @@ mod tests {
     }
 
     #[test]
+    fn test_variable_type1(){
+        let var = ltype("my_var".into()).unwrap().1;
+        assert_eq!(var, Type::Variable("my_var".to_string(), HelpData::default()));
+    }
+
+    #[test]
     fn test_fabrice0(){
         let arr1 = ltype("[1, T]".into()).unwrap().1;
         let arr2 = ltype("[1, 1]".into()).unwrap().1;
@@ -687,11 +703,21 @@ mod tests {
     #[test]
     fn test_intersection_parsing() {
         let res = "int & char & bool".parse::<Type>().unwrap();
-        let (int, chara, boole) = (builder::integer_type_default(), 
-                            builder::character_type_default(),
-                            builder::boolean_type());
-        let inters = builder::intersection_type(&[int, chara, boole]);
-        assert_eq!(res, inters,
+        assert_eq!(res.pretty(), "(& (& int char) bool)".to_string(),
+                   "Parsing 'int & char & bool' should give an intersection");
+    }
+
+    #[test]
+    fn test_union_parsing() {
+        let res = "int | char | bool".parse::<Type>().unwrap();
+        assert_eq!(res.pretty(), "(| (| int char) bool)".to_string(),
+                   "Parsing 'int & char & bool' should give an intersection");
+    }
+
+    #[test]
+    fn test_union_intersection_parsing() {
+        let res = "int | char & bool".parse::<Type>().unwrap();
+        assert_eq!(res.pretty(), "(& (| int char) bool)".to_string(),
                    "Parsing 'int & char & bool' should give an intersection");
     }
 
