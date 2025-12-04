@@ -31,7 +31,7 @@ use crate::elements::break_exp;
 use nom::multi::many1;
 use crate::elements::element_operator;
 use crate::elements::op_reverse;
-use crate::elements::element_chain;
+use crate::elements::elements;
 use crate::elements::variable2;
 use crate::elements::Case;
 use std::ops::Deref;
@@ -415,7 +415,7 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
 
 fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
-            element_chain,
+            elements,
             alt((
                 terminated(tag("="), multispace0),
                 terminated(tag("<-"), multispace0))),

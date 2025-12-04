@@ -10,10 +10,13 @@ use crate::help_data::HelpData;
 use nom::character::complete::char;
 use nom::bytes::complete::take_until;
 use nom::combinator::recognize;
+use crate::operation_priority::TokenKind;
+use crate::Lang;
+use serde::{Serialize, Deserialize};
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Op {
     And(HelpData),
     Or(HelpData),
@@ -40,21 +43,46 @@ pub enum Op {
     GreaterThan(HelpData),
     LesserOrEqual(HelpData),
     GreaterOrEqual(HelpData),
-    Modu(HelpData),
-    Modu2(HelpData),
-    Empty(HelpData),
+    Modulo(HelpData),
+    Modulo2(HelpData),
     Dollar(HelpData),
     Dollar2(HelpData),
-    Custom(String, HelpData)
+    Custom(String, HelpData),
+    Empty(HelpData),
 }
 
+//main
 impl Op {
+
     pub fn to_type(&self) -> Option<Type> {
         match self {
             Op::In(h) => Some(Type::In(h.clone())),
             _ => None
         }
     }
+
+    pub fn get_token_type(&self) -> TokenKind {
+        TokenKind::Operator
+    }
+
+    pub fn get_binding_power(&self) -> i32 {
+        match self {
+            Op::Dot(_) | Op::Dot2(_) | Op::Pipe(_) | Op::Pipe2(_) |
+            Op::Dollar(_) | Op::Dollar2(_) | Op::In(_)
+                => 4,
+            Op::Mul(_) | Op::Mul2(_) | Op::Div(_) | Op::Div2(_) |
+            Op::Modulo(_) | Op::Modulo2(_) | Op::At(_) | Op::At2(_)
+                => 3,
+            Op::Add(_) | Op::Add2(_) | Op::Minus(_) | Op::Minus2(_)
+                => 2,
+            _ => 1
+        }
+    }
+
+    pub fn combine(self, left: Lang, right: Lang) -> Lang {
+        Lang::Operator(self, Box::new(left.clone()), Box::new(right), left.get_help_data())
+    }
+
 }
 
 
@@ -88,8 +116,8 @@ fn get_op(ls: LocatedSpan<&str, String>) -> Op {
         "//" => Op::Div2(ls.into()),
         "@" => Op::At(ls.into()),
         "@@" => Op::At2(ls.into()),
-        "%%" => Op::Modu2(ls.into()),
-        "%" => Op::Modu(ls.into()),
+        "%%" => Op::Modulo2(ls.into()),
+        "%" => Op::Modulo(ls.into()),
         "|>" => Op::Pipe(ls.into()),
         "|>>" => Op::Pipe2(ls.into()),
         "=" => Op::Eq2(ls.into()),
@@ -176,8 +204,8 @@ fn get_string(op: &Op) -> String {
         Op::GreaterThan(_) => ">".to_string(),
         Op::LesserOrEqual(_) => "<=".to_string(),
         Op::GreaterOrEqual(_) => ">=".to_string(),
-        Op::Modu2(_) => "%%".to_string(),
-        Op::Modu(_) => "%".to_string(),
+        Op::Modulo2(_) => "%%".to_string(),
+        Op::Modulo(_) => "%".to_string(),
         Op::Dollar(_) => "$".to_string(),
         Op::Dollar2(_) => "$$".to_string(),
         _ => todo!()

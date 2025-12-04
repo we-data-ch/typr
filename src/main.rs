@@ -42,6 +42,7 @@ mod operation_priority;
 mod vector_priority;
 mod type_token;
 mod module_type;
+mod lang_token;
 
 use crate::config::Config;
 use std::io::Write;

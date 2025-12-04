@@ -1,6 +1,7 @@
 use crate::operation_priority::PriorityTokens;
 use crate::operation_priority::PriorityToken;
 use crate::type_token::TypeToken;
+use crate::lang_token::LangToken;
 
 pub struct VectorPriority<T: PriorityToken> {
    body: Vec<T>
@@ -38,6 +39,15 @@ impl<T: PriorityToken> fmt::Display for VectorPriority<T> {
 
 impl From<Vec<TypeToken>> for VectorPriority<TypeToken> {
    fn from(val: Vec<TypeToken>) -> Self {
+       VectorPriority {
+        body: val
+       }
+   } 
+}
+
+
+impl From<Vec<LangToken>> for VectorPriority<LangToken> {
+   fn from(val: Vec<LangToken>) -> Self {
        VectorPriority {
         body: val
        }

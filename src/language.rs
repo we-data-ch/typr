@@ -15,7 +15,6 @@ use crate::array_type::ArrayType;
 use crate::translatable::RTranslatable;
 use crate::builder;
 use std::str::FromStr;
-use crate::elements::parse_elements;
 use crate::fs;
 use std::io::Write;
 use crate::Config;
@@ -23,6 +22,10 @@ use std::path::PathBuf;
 use std::fs::File;
 use crate::module_lang::ModuleLang;
 use crate::Environment;
+use crate::operation_priority::TokenKind;
+use crate::operators::Op;
+use crate::lang_token::LangToken;
+use crate::elements::elements;
 
 const JS_HEADER: &str = "let add = (a, b) => a+b;\nlet mul = (a, b) => a*b;\nlet minus = (a, b) => a - b;\nlet div = (a, b) => a/b;";
 
@@ -124,11 +127,29 @@ pub enum Lang {
     Empty(HelpData),
     WhileLoop(Box<Lang>, Box<Lang>, HelpData),
     Break(HelpData),
+    Operator(Op, Box<Lang>, Box<Lang>, HelpData),
+}
+
+impl Default for Lang {
+    fn default() -> Lang {
+        builder::empty_lang()
+    }
 }
 
 impl From<Var> for Lang {
    fn from(val: Var) -> Self {
        Lang::Variable(val.0, val.1, val.2, val.3, val.4)
+   } 
+}
+
+impl From<LangToken> for  Lang {
+   fn from(val: LangToken) -> Self {
+        match val {
+            LangToken::Expression(exp) => exp,
+            LangToken::Operator(op) 
+                => panic!("Shouldn't convert the token to lang {}", op),
+            LangToken::EmptyOperator => panic!("Shouldn't be empty ")
+        }
    } 
 }
 
@@ -331,6 +352,7 @@ impl Lang {
             Lang::Use(_, _, h) => h,
             Lang::WhileLoop(_, _, h) => h,
             Lang::Break(h) => h,
+            Lang::Operator(_, _, _, h) => h,
         }.clone()
     }
 
@@ -426,6 +448,7 @@ impl Lang {
             Lang::Use(_, _, _) => "Use".to_string(),
             Lang::WhileLoop(_, _, _) => "WhileLoop".to_string(),
             Lang::Break(_) => "Break".to_string(),
+            Lang::Operator(_, _, _, _) => "Operator".to_string(),
         }
     }
 
@@ -599,6 +622,14 @@ impl Lang {
         }
     }
 
+    pub fn get_token_type(&self) -> TokenKind {
+        TokenKind::Expression
+    }
+
+    pub fn get_binding_power(&self) -> i32 {
+        1
+    }
+
 }
 
 impl From<Lang> for HelpData {
@@ -664,6 +695,7 @@ impl From<Lang> for HelpData {
            Lang::Use(_, _, h) => h,
            Lang::WhileLoop(_, _, h) => h,
            Lang::Break(h) => h,
+           Lang::Operator(_, _, _, h) => h,
        }.clone()
    } 
 }
@@ -697,23 +729,39 @@ impl RTranslatable<(String, Context)> for Lang {
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("{} |> {}", b.to_string().to_uppercase(), anotation), cont.clone())
             },
-            Lang::In(b1, b2, _) => {
+            Lang::Operator(Op::In(_), b2, b1, _) => {
                 Translatable::from(cont.clone())
-                    .to_r(b1).add(" %in% ").to_r(b2).into()
+                    .to_r(b2).add(" %in% ").to_r(b1).into()
             },
-            Lang::And(b1, b2, _) => {
+            Lang::Operator(Op::Add(_), b2, b1, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(b1).add(" + ").to_r(b2).into()
+            },
+            Lang::Operator(Op::Mul(_), b2, b1, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(b1).add(" * ").to_r(b2).into()
+            },
+            Lang::Operator(Op::Div(_), b2, b1, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(b1).add(" / ").to_r(b2).into()
+            },
+            Lang::Operator(Op::Minus(_), b2, b1, _) => {
+                Translatable::from(cont.clone())
+                    .to_r(b1).add(" - ").to_r(b2).into()
+            },
+            Lang::Operator(Op::And(_), b2, b1, _) => {
                 Translatable::from(cont.clone())
                     .to_r(b1).add(" & ").to_r(b2).into()
             },
-            Lang::Or(b1, b2, _) => {
+            Lang::Operator(Op::Or(_), b2, b1, _) => {
                 Translatable::from(cont.clone())
                     .to_r(b1).add(" | ").to_r(b2).into()
             },
-            Lang::Modulo(e1, e2, _) => {
+            Lang::Operator(Op::Modulo(_), e2, e1, _) => {
                 Translatable::from(cont.clone())
                     .to_r(e1).add(" % ").to_r(e2).into()
             },
-            Lang::Modulo2(e1, e2, _) => {
+            Lang::Operator(Op::Modulo2(_), e2, e1, _) => {
                 Translatable::from(cont.clone())
                     .to_r(e1).add(" %% ").to_r(e2).into()
             },
@@ -722,31 +770,32 @@ impl RTranslatable<(String, Context)> for Lang {
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("{} |> {}", n, anotation), cont.clone())
             },
-            Lang::Eq(e1, e2, _) => {
+            Lang::Operator(Op::Eq(_), e2, e1, _) => {
                 Translatable::from(cont.clone())
                     .to_r(e2).add(" == ").to_r(e1).into()
             },
-            Lang::NotEq(e1, e2, _) => {
+            Lang::Operator(Op::NotEq(_), e2, e1, _) => {
                 Translatable::from(cont.clone())
                     .to_r(e2).add(" != ").to_r(e1).into()
             },
-            Lang::LesserThan(e1, e2, _) => {
+            Lang::Operator(Op::LesserThan(_), e2, e1, _) => {
                 Translatable::from(cont.clone())
                     .to_r(e2).add(" < ").to_r(e1).into()
             },
-            Lang::GreaterThan(e1, e2, _) => {
+            Lang::Operator(Op::GreaterThan(_), e2, e1, _) => {
                 Translatable::from(cont.clone())
                     .to_r(e2).add(" > ").to_r(e1).into()
             },
-            Lang::LesserOrEqual(e1, e2, _) => {
+            Lang::Operator(Op::LesserOrEqual(_), e2, e1, _) => {
                 Translatable::from(cont.clone())
                     .to_r(e2).add(" <= ").to_r(e1).into()
             },
-            Lang::GreaterOrEqual(e1, e2, _) => {
+            Lang::Operator(Op::GreaterOrEqual(_), e2, e1, _) => {
                 Translatable::from(cont.clone())
                     .to_r(e2).add(" >= ").to_r(e1).into()
             },
-            Lang::Chain(e1, e2, _) => {
+            Lang::Operator(Op::Dot(_), e2, e1, _) | Lang::Operator(Op::Pipe(_), e2, e1, _) 
+                => {
                 match *e1.clone() {
                     Lang::Variable(_, _, _, _, _) => {
                         Translatable::from(cont.clone())
@@ -995,13 +1044,13 @@ impl RTranslatable<(String, Context)> for Lang {
                     .add(") \n").add(&body).add("\n")
                     .into()
             }
-            Lang::Eq2(right, left, _) => {
-                let res = match &**left {
+            Lang::Operator(Op::Eq2(_), e1, e2, _) => {
+                let res = match &**e1 {
                     Lang::Tag(n, _, _) => n.to_string(),
                     Lang::Variable(n, _, _, _, _) => n.to_string(),
-                    _ => format!("{}", left) 
+                    _ => format!("{}", e1) 
                 };
-                (format!("{} = {}", res, right.to_r(cont).0), cont.clone())
+                (format!("{} = {}", res, e2.to_r(cont).0), cont.clone())
             }
             Lang::Signature(_, _, _) => {
                 ("".to_string(), cont.clone())
@@ -1017,7 +1066,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 + ")";
                (res, cont.to_owned())
             },
-            Lang::Dollar(e1, e2, _) => {
+            Lang::Operator(Op::Dollar(_), e2, e1, _) => {
                 let val = format!("{}${}", e2.to_r(cont).0, e1.to_r(cont).0);
                 (val, cont.clone())
             },
@@ -1119,7 +1168,7 @@ impl FromStr for Lang {
     type Err = ErrorStruct;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let val = parse_elements(s.into())
+        let val = elements(s.into())
             .map(|x| x.1).unwrap_or(builder::empty_lang());
         Ok(val)
     }

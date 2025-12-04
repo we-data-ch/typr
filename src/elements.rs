@@ -38,6 +38,9 @@ use nom::bytes::complete::escaped;
 use nom::bytes::complete::is_not;
 use crate::parser::base_parse;
 use crate::types::pascal_case_no_space;
+use crate::lang_token::LangToken;
+use crate::vector_priority::VectorPriority;
+use crate::operation_priority::PriorityTokens;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -537,7 +540,7 @@ fn branch(s: Span) -> IResult<Span, (Type, Box<Lang>)> {
 fn match_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
             terminated(tag("match"), multispace0),
-            alt((variable2, element_chain)),
+            alt((variable2, elements)),
             terminated(tag("as"), multispace0),
             variable2,
             terminated(tag("{"), multispace0),
@@ -645,7 +648,7 @@ fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
 }
 
 fn lambda(s: Span) -> IResult<Span, Lang> {
-    let res = preceded(tag("~"), element_chain).parse(s);
+    let res = preceded(tag("~"), elements).parse(s);
     match res {
         Ok((s, e)) 
             => Ok((s, Lang::Lambda(Box::new(e.clone()), e.into()))),
@@ -795,9 +798,9 @@ pub fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
 			=> Lang::LesserOrEqual(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (p, Op::GreaterOrEqual(_)) 
 			=> Lang::GreaterOrEqual(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::Modu(_)) 
+        (p, Op::Modulo(_)) 
             => Lang::Modulo(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
-        (p, Op::Modu2(_)) 
+        (p, Op::Modulo2(_)) 
             => Lang::Modulo2(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
         (Lang::FunctionApp(name, params, fn_typ, h1), Op::Pipe(_h2)) 
             => { // (UFC) add the "object" as te first parameter of the function call
@@ -913,37 +916,25 @@ pub fn element_operator(s: Span) -> IResult<Span, (Lang, Op)> {
     }
 }
 
-fn check_minus_sign(v: Vec<(Lang, Op)>) -> Vec<(Lang, Op)> {
-    if v.len() > 0 {
-        let mut v2 = v.clone();
-        let (lang, op) = v2.first().unwrap();
-        let first = match (op.clone(), lang.clone()) {
-            (Op::Minus(h1), Lang::Integer(l, h)) => (Lang::Integer(-l, h), Op::Empty(h1)),
-            (Op::Minus(h1), Lang::Number(l, h)) => (Lang::Number(-l, h), Op::Empty(h1)),
-            _ => (lang.clone(), op.clone())
-        };
-        v2.insert(0, first); v2
-    } else { v.clone() }
-}
-
-fn accessor(s: Span) -> IResult<Span, (Lang, Op)> {
-    let res = (
-                terminated(tag("[["), multispace0),
-                alt((integer, chars, variable2)),
-                terminated(tag("]]"), multispace0)
-              ).parse(s);
-    match res {
-        Ok((s, (op, content, _cl))) => Ok((s, (content, Op::Dot(op.into())))),
+fn element_operator_token(s: Span) -> IResult<Span, LangToken> {
+    match op.parse(s) {
+        Ok((s, op)) => Ok((s, LangToken::Operator(op))),
         Err(r) => Err(r)
     }
 }
 
-pub fn element_chain(s: Span) -> IResult<Span, Lang> {
-    let res = many1(alt((accessor, element_operator))).parse(s);
+fn single_element_token(s: Span) -> IResult<Span, LangToken> {
+    match single_element.parse(s) {
+        Ok((s, op)) => Ok((s, LangToken::Expression(op))),
+        Err(r) => Err(r)
+    }
+}
+
+pub fn elements(s: Span) -> IResult<Span, Lang> {
+    let res = many1(alt((element_operator_token, single_element_token))).parse(s);
     match res {
         Ok((s, v)) => {
-            let v2 = check_minus_sign(v);
-            Ok((s, op_reverse(&mut v2.clone())))
+            Ok((s, VectorPriority::from(v).run()))
         },
         Err(r) => Err(r)
     }
@@ -953,8 +944,8 @@ pub fn element_chain(s: Span) -> IResult<Span, Lang> {
 pub fn parse_elements(s: Span) -> IResult<Span, Lang> {
     alt((
         vectorial_bloc,
-        element_chain,
-        single_element
+        elements,
+        //single_element
         )).parse(s)
 }
 
@@ -1002,6 +993,48 @@ mod tests {
     fn test_simple_variable2() {
         let res = variable_exp("module::hello".into()).unwrap().1.0;
         assert_eq!(res, "hello", "Should return the variable name 'hello'");
+    }
+
+    #[test]
+    fn test_addition1() {
+        let res = "1 + 2".parse::<Lang>().unwrap();
+        dbg!(&res);
+        assert_eq!(res.simple_print(), "Operator", "Should parse 1 + 2");
+    }
+
+    #[test]
+    fn test_addition2() {
+        let res = "1 + 2 + 3".parse::<Lang>().unwrap();
+        dbg!(&res);
+        assert_eq!(res.simple_print(), "Operator", "Should parse 1 + 2 + 3");
+    }
+
+    #[test]
+    fn test_multiplication1() {
+        let res = "1 + 2 * 3".parse::<Lang>().unwrap();
+        dbg!(&res);
+        assert_eq!(res.simple_print(), "Operator", "Should put multiplication first 1 + 2 * 3");
+    }
+
+    #[test]
+    fn test_multiplication2() {
+        let res = "1 * 2 + 3".parse::<Lang>().unwrap();
+        dbg!(&res);
+        assert_eq!(res.simple_print(), "Operator", "Should put multiplication first 1 * 2 + 3");
+    }
+
+    #[test]
+    fn test_multiplication3() {
+        let res = "1 * 2 + 3 * 4".parse::<Lang>().unwrap();
+        dbg!(&res);
+        assert_eq!(res.simple_print(), "Operator", "Should put multiplication first 1 * 2 + 3 * 4");
+    }
+
+    #[test]
+    fn test_accessor1() {
+        let res = "3 + personne$age ".parse::<Lang>().unwrap();
+        dbg!(&res);
+        assert_eq!(res.simple_print(), "Operator", "Should put multiplication first 1 * 2 + 3 * 4");
     }
 
 }

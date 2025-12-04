@@ -31,7 +31,6 @@ pub fn not_in_blacklist(name: &str) -> bool {
     !hs.contains(name)
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
    pub typing_context: VarType,
