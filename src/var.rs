@@ -13,6 +13,7 @@ use crate::graph::TypeSystem;
 use crate::builder;
 use crate::tchar::Tchar;
 use serde::{Serialize, Deserialize};
+use crate::elements::is_pascal_case;
 
 type Name = String;
 type IsMutableOpaque = bool;
@@ -318,7 +319,17 @@ impl TryFrom<Type> for Var {
        match value {
            Type::Char(tchar, h) => {
                 match tchar {
-                    Tchar::Val(name) => Ok(Var::from_name(&name).set_help_data(h)),
+                    Tchar::Val(name) => {
+                        let var = if is_pascal_case(&name) {
+                            Var::from_name(&name)
+                                .set_help_data(h)
+                                .set_type(builder::params_type())
+                        } else {
+                            Var::from_name(&name)
+                                .set_help_data(h)
+                        };
+                        Ok(var)
+                    },
                     _ => todo!()
                 }
            },

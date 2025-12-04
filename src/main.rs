@@ -78,7 +78,7 @@ pub fn write_header(context: Context, output_dir: &PathBuf) -> () {
         let mut app = File::create(app_path).unwrap();
         app.write_all(type_anotations.as_bytes()).unwrap();
 
-        let generic_functions = context.get_all_functions() .iter()
+        let generic_functions = context.get_all_functions().iter()
                             .map(|(var, _)| var.get_name())
                             .map(|fn_name| format!("{} <- function(x, ...) UseMethod('{}', x)", fn_name, fn_name))
                             .collect::<Vec<_>>().join("\n");
@@ -221,8 +221,8 @@ fn new(name: &str) {
         (".Rbuildignore", include_str!("../configs/.Rbuildignore").replace("{{PACKAGE_NAME}}", name)),
         (".gitignore", include_str!("../configs/.gitignore").replace("{{PACKAGE_NAME}}", name)),
         ("TypR/main.ty", include_str!("../configs/main.ty").replace("{{PACKAGE_NAME}}", name)),
-        ("TypR/std.ty", include_str!("../configs/std/std_R.ty").to_string()),
-        ("std.ty", include_str!("../configs/std/std_R.ty").to_string()),
+        //("TypR/std.ty", include_str!("../configs/std/std_R.ty").to_string()),
+        //("std.ty", include_str!("../configs/std/std_R.ty").to_string()),
         ("R/.gitkeep", include_str!("../configs/.gitkeep").replace("{{PACKAGE_NAME}}", name)),
         ("tests/testthat.R", include_str!("../configs/testthat.R").replace("{{PACKAGE_NAME}}", name)),
         ("tests/testthat/test-basic.R", include_str!("../configs/test-basic.R").replace("{{PACKAGE_NAME}}", name)),
@@ -254,29 +254,32 @@ fn new(name: &str) {
 }
 
 fn check_project() {
-    let lang = parse_code(&PathBuf::from("TypR/main.ty"));
-    let _ = typing(&Context::default(), &lang);
+    let context = Context::default().set_environment(Environment::Project);
+    let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    let _ = typing(&context, &lang);
     println!("✓ Vérification du code réussie!");
 }
 
 fn check_file(path: &PathBuf) {
-    let lang = parse_code(path);
+    let context = Context::default().set_environment(Environment::Project);
+    let lang = parse_code(path, context.get_environment());
     let dir = PathBuf::from(".");
     write_std_for_type_checking(&dir);
-    let _ = typing(&Context::default(), &lang);
+    let _ = typing(&context, &lang);
     println!("✓ Vérification du fichier {:?} réussie!", path);
 }
 
 fn build_project() {
-    let lang = parse_code(&PathBuf::from("TypR/main.ty"));
-    let type_checker = TypeChecker::new(Context::default()).typing(&lang);
+    let context = Context::default().set_environment(Environment::Project);
+    let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    let type_checker = TypeChecker::new(context).typing(&lang);
     let content = type_checker.transpile(true);
     write_to_r_lang(content, &PathBuf::from("R"), "main.R", true);
     println!("✓ Code R généré avec succès dans le dossier R/");
 }
 
 fn build_file(path: &PathBuf) {
-    let lang = parse_code(path);
+    let lang = parse_code(path, Environment::StandAlone);
     let dir = PathBuf::from(".");
     
     // HEADER
@@ -285,7 +288,6 @@ fn build_file(path: &PathBuf) {
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
     let content = type_checker.transpile(false);
     write_to_r_lang(content, &dir, &r_file_name, false);
-    //adt_manager.get_body().write_to_r(&context, &dir, &r_file_name, false);
     println!("✓ Code R généré: {:?}", dir.join(&r_file_name));
 }
 
@@ -296,7 +298,7 @@ fn run_project() {
 
 
 fn run_file(path: &PathBuf) {
-    let lang = parse_code(path);
+    let lang = parse_code(path, Environment::StandAlone);
     let dir = PathBuf::from(".");
 
     //HEADER
@@ -652,7 +654,7 @@ fn standard_library() {
     let _ = VarType::default().set_std(std).save("../configs/bin/std_r.bin");
 
     //Save std R typed functions
-    let lang = parse_code(&PathBuf::from(TYPED_R_FUNCTIONS));
+    let lang = parse_code(&PathBuf::from(TYPED_R_FUNCTIONS), Environment::StandAlone);
     let _ = TypeChecker::new(Context::default())
         .typing(&lang)
         .get_context()
@@ -660,7 +662,7 @@ fn standard_library() {
         .save("../configs/bin/std_r_typed.bin");
 
     //Save std JS typed functions
-    let lang = parse_code(&PathBuf::from(TYPED_JS_FUNCTIONS));
+    let lang = parse_code(&PathBuf::from(TYPED_JS_FUNCTIONS), Environment::StandAlone);
     let _ = TypeChecker::new(Context::default())
         .typing(&lang)
         .get_context()

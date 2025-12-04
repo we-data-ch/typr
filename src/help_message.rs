@@ -259,7 +259,7 @@ impl ErrorMsg for TypeError {
                 => {
                     let help_data = fun.get_help_data();
                     let (file_name, text) = help_data.get_file_data()
-                        .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
+                        .unwrap_or(("std.ty".to_string(), "".to_string()));
                     let res = SingleBuilder::new(file_name, text)
                         .pos((help_data.get_offset(), 0))
                         .text("The function doesn't exist");

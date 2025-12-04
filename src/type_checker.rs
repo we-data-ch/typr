@@ -29,6 +29,7 @@ use crate::config::TargetLanguage;
 use rpds::Vector;
 use crate::translatable::RTranslatable;
 use crate::var_function::VarFunction;
+use crate::Environment;
 
 #[derive(Debug, Clone)]
 pub struct TypeChecker {
@@ -89,15 +90,18 @@ impl TypeChecker {
     pub fn transpile(self, project: bool) -> String {
         let code = self.code.iter()
             .zip(self.types.iter())
-            .map(|(lang, typ)| lang.to_simple_r(&self.context).0)
+            .map(|(lang, typ)| lang.to_r(&self.context).0)
             .collect::<Vec<_>>().join("\n");
-        let import = if project {
-            "source('R/std.R', echo = FALSE)"
-        } else {
-            "source('std.R', echo = FALSE)"
+        let import = match self.get_environment() {
+            Environment::Project => "",
+            Environment::StandAlone => "source('std.R', echo = FALSE)"
         };
 
-        format!("{}\n\n\n{}", import, code)
+        format!("{}\n\n{}", import, code)
+    }
+
+    fn get_environment(&self) -> Environment {
+        self.context.get_environment()
     }
 
 }
@@ -216,7 +220,7 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
             let arg_types = new_context.get_members()
                 .iter().cloned()
                 .map(|arg_type| ArgumentType::from(arg_type))
-                .collect::<HashSet<_>>();
+                .collect::<Vec<_>>();
             let module_type = Type::Module(arg_types, h.clone());
             let new_context = context.clone().set_as_module_context()
                 .push_var_type(var, module_type.clone(), &context);

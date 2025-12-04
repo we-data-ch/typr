@@ -22,6 +22,7 @@ use crate::Config;
 use std::path::PathBuf;
 use std::fs::File;
 use crate::module_lang::ModuleLang;
+use crate::Environment;
 
 const JS_HEADER: &str = "let add = (a, b) => a+b;\nlet mul = (a, b) => a*b;\nlet minus = (a, b) => a - b;\nlet div = (a, b) => a/b;";
 
@@ -169,9 +170,9 @@ fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
 
 //main
 impl Lang {
-    pub fn to_module(self, name: &str) -> Self {
+    pub fn to_module(self, name: &str, environment: Environment) -> Self {
         match self {
-            Lang::Lines(v, h) => Lang::Module(name.to_string(), v, ModulePosition::External, Config::default(), h),
+            Lang::Lines(v, h) => Lang::Module(name.to_string(), v, ModulePosition::External, Config::default().set_environment(environment), h),
             s => s 
         }
     }
@@ -907,7 +908,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Record(args, _) => {
                 let (body, current_cont) = 
                 Translatable::from(cont.clone())
-                    .join_arg_val(args, ", ").into();
+                    .join_arg_val(args, ",\n ").into();
                let (typ, _, _) = typing(cont, self);
                let anotation = cont.get_type_anotation(&typ);
                 cont.get_classes(&typ)
@@ -1070,7 +1071,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Break(_) => {
                 ("break".to_string(), cont.clone())
             },
-            Lang::Module(name, _, position, _, _) => {
+            Lang::Module(name, _, position, config, _) => {
                 let module_type = cont
                     .get_type_from_variable(&Var::from_name(name))
                     .unwrap();
@@ -1081,14 +1082,25 @@ impl RTranslatable<(String, Context)> for Lang {
                     .to_r(&cont.extract_module_as_vartype(name)).0;
                 let global_env = format!("invisible(list2env({}, envir = .GlobalEnv))", name);
                 let content = format!("{} <- {}\n{}", name, text, global_env);
-                if *position == ModulePosition::Internal {
-                    (content, cont.clone())
-                } else {
-                    let output_dir: PathBuf = ".".into();
-                    let std_path = output_dir.join(format!("{}.R", name));
-                    let mut module_file = File::create(std_path.clone()).unwrap();
-                    module_file.write_all(content.as_bytes()).unwrap();
-                    (format!("source('{}')", std_path.display()), cont.clone())
+                dbg!(&config.environment);
+                match (position, config.environment) {
+                    (ModulePosition::Internal, _) => {
+                        (content, cont.clone())
+                    },
+                    (ModulePosition::External, Environment::StandAlone) => {
+                        let output_dir: PathBuf = ".".into();
+                        let std_path = output_dir.join(format!("{}.R", name));
+                        let mut module_file = File::create(std_path.clone()).unwrap();
+                        module_file.write_all(content.as_bytes()).unwrap();
+                        (format!("source('{}')", std_path.display()), cont.clone())
+                    },
+                    (ModulePosition::External, Environment::Project) => {
+                        let output_dir: PathBuf = ".".into();
+                        let std_path = output_dir.join(format!("R/{}.R", name));
+                        let mut module_file = File::create(std_path.clone()).unwrap();
+                        module_file.write_all(content.as_bytes()).unwrap();
+                        ("".to_string(), cont.clone())
+                    },
                 }
             },
             _ => {

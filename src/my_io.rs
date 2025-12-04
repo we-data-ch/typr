@@ -2,6 +2,7 @@
 use std::process::Command;
 use std::fs;
 use std::path::PathBuf;
+use crate::Environment;
 
 
 pub fn get_os_file(file: &str) -> String {
@@ -18,8 +19,12 @@ pub fn read_file(path: &PathBuf) -> String {
         .expect(&format!("File not found {}", file))
 }
 
-pub fn read_file_from_name(name: &str) -> String {
-    let file = get_os_file(&format!("{}.ty", name));
+pub fn read_file_from_name(name: &str, environment: Environment) -> String {
+    let base = match environment {
+           Environment::StandAlone => "",
+           Environment::Project => "TypR/"
+    };
+    let file = get_os_file(&format!("{}{}.ty", base, name));
     fs::read_to_string(&file).expect(&format!("Can't Read file {}", name))
 }
 

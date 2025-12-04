@@ -93,7 +93,7 @@ impl Context {
         self.typing_context.variable_exist(var)
     }
 
-    pub fn get_type_from_variable(&self, var: &Var) -> Option<Type> {
+    pub fn get_type_from_variable(&self, var: &Var) -> Result<Type, String> {
         self.variables().flat_map(|(var2, type_)| {
             let Var(name1, perm1, bo1, typ1, _h1) = var;
             let Var(name2, perm2, bo2, typ2, _h2) = var2;
@@ -102,6 +102,7 @@ impl Context {
                 (bo1 == bo2) && typ1.is_subtype(typ2, self);
             if conditions { Some(type_.clone()) } else { None }
         }).next()
+        .ok_or(format!("Didn't find {} in the context: {}", var.get_name(), self.display_typing_context()))
     }
 
     pub fn get_type_from_aliases(&self, var: &Var) -> Option<Type> {
@@ -220,6 +221,13 @@ impl Context {
         self.typing_context.get_class_unquoted(t)
     }
 
+    pub fn module_aliases(&self) -> Vec<(Var, Type)> {
+        self.variables()
+            .flat_map(|(var, typ)| typ.clone().to_module_type())
+            .flat_map(|module| module.get_aliases())
+            .collect()
+    }
+
 
     pub fn get_type_anotations(&self) -> String {
         self.aliases()
@@ -227,10 +235,13 @@ impl Context {
                     (Var::from_name("Character"), builder::character_type_default()),
                     (Var::from_name("Number"), builder::number_type()),
                     (Var::from_name("Boolean"), builder::boolean_type())].iter())
+            .cloned()
+            .chain(self.module_aliases())
+            .filter(|(_, typ)| typ.clone().to_module_type().is_err())
             .map(|(var, typ)| (typ, var.get_name()))
             .map(|(typ, name)| 
-                 format!("{} <- function(x) x |> struct(c({}, {}))", 
-                         name, self.get_class(typ), self.get_classes(typ).unwrap()))
+                 format!("{} <- function(x) x |> struct(c('{}', {}, {}))", 
+                         name, name, self.get_class(&typ), self.get_classes(&typ).unwrap()))
             .collect::<Vec<_>>().join("\n")
     }
 
@@ -244,7 +255,10 @@ impl Context {
 
     pub fn get_classes(&self, t: &Type) -> Option<String> {
         let res = self.subtypes.get_supertypes(t, self)
-            .iter().map(|typ| self.get_class(typ))
+            .iter()
+            .filter(|typ| (*typ).clone().to_module_type().is_err())
+            .filter(|typ| !typ.is_empty())
+            .map(|typ| self.get_class(typ))
             .collect::<Vec<_>>().join(", ");
         if res == "" {
             Some("'None'".to_string())
@@ -518,10 +532,12 @@ impl Context {
         let new_context = match typ.clone() {
             Type::Module(args, _) => {
                 args.iter()
+                    .rev()
                     .map(|arg_type| 
                          (Var::try_from(arg_type.0.clone()).unwrap(),
-                          arg_type.1.clone()))
-                    .fold(empty_context.clone(), |acc, (var, typ)| acc.push_var_type(var, typ, &empty_context))
+                          arg_type.1.clone())) //TODO: Differenciate between pushing variable and
+                                               //aliases
+                    .fold(empty_context.clone(), |acc, (var, typ)| acc.clone().push_var_type(var, typ, &acc))
             },
             _ => panic!("{} is not a module", module_name) 
         };
@@ -530,6 +546,10 @@ impl Context {
 
     pub fn get_vartype(&self) -> VarType {
         self.clone().typing_context
+    }
+
+    pub fn get_environment(&self) -> Environment {
+        self.config.environment
     }
 
 }

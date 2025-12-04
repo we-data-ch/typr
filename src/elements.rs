@@ -37,8 +37,17 @@ use nom::character::complete::char;
 use nom::bytes::complete::escaped;
 use nom::bytes::complete::is_not;
 use crate::parser::base_parse;
+use crate::types::pascal_case_no_space;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
+
+pub fn is_pascal_case(name: &str) -> bool {
+    let res = recognize(pascal_case_no_space).parse(name.into());
+    match res {
+        Ok((_, _)) => true,
+        Err(_) => false
+    }
+}
 
 fn number_helper(s: Span) -> IResult<Span, Lang> {
     let res = (opt(tag("-")), digit1, tag("."), digit1).parse(s);

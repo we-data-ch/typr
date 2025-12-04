@@ -57,7 +57,7 @@ pub enum Type {
     LabelGen(String, HelpData),
     Array(Box<Type>, Box<Type>, HelpData),
     Record(HashSet<ArgumentType>, HelpData),
-    Module(HashSet<ArgumentType>, HelpData),
+    Module(Vec<ArgumentType>, HelpData),
     Alias(String, Vec<Type>, bool, HelpData), //for opacity
     Tag(String, Box<Type>, HelpData),
     Union(HashSet<Type>, HelpData),

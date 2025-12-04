@@ -1,12 +1,14 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use std::collections::HashSet;
 use crate::help_data::HelpData;
 use crate::argument_type::ArgumentType;
+use crate::elements::is_pascal_case;
 use crate::Type;
+use crate::Var;
+use crate::builder;
 
 #[derive(Debug)]
 pub struct ModuleType {
-   args: HashSet<ArgumentType>,
+   args: Vec<ArgumentType>,
    help_data: HelpData
 }
 
@@ -17,10 +19,20 @@ impl ModuleType {
             .map(|arg_typ| arg_typ.get_type())
             .ok_or("Alias not available in the module".to_string())
     }
+
+    pub fn get_aliases(&self) -> Vec<(Var, Type)> {
+       self.args.iter()
+           .filter(|arg_typ| is_pascal_case(&arg_typ.get_argument_str()))
+           .map(|arg_typ| 
+                (Var::from_name(&arg_typ.get_argument_str()).set_type(builder::params_type()),
+                arg_typ.get_type()))
+           .collect()
+    }
+
 }
 
-impl From<(HashSet<ArgumentType>, HelpData)> for  ModuleType {
-   fn from(val: (HashSet<ArgumentType>, HelpData)) -> Self {
+impl From<(Vec<ArgumentType>, HelpData)> for  ModuleType {
+   fn from(val: (Vec<ArgumentType>, HelpData)) -> Self {
        ModuleType {
            args: val.0,
            help_data: val.1

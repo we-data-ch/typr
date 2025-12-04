@@ -7,6 +7,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use nom_locate::LocatedSpan;
 use crate::my_io::get_os_file;
+use crate::Environment;
 
 
 pub fn write_std_for_type_checking(output_dir: &PathBuf) {
@@ -39,11 +40,10 @@ impl<'a> TypRFile<'a> {
 
 
 //1. 
-pub fn parse_code(path: &PathBuf) -> Lang {
-    //let typr_std = include_str!("../configs/r/std.ty");
+pub fn parse_code(path: &PathBuf, environment: Environment) -> Lang {
     let file = get_os_file(path.to_str().unwrap());
     let file_content = read_file(path);
     let base_file = TypRFile::new(&file_content, file);
 
-    metaprogrammation(base_file.parse())
+    metaprogrammation(base_file.parse(), environment)
 }
