@@ -94,7 +94,7 @@ impl TypeChecker {
             .collect::<Vec<_>>().join("\n");
         let import = match self.get_environment() {
             Environment::Project => "",
-            Environment::StandAlone => "source('std.R', echo = FALSE)"
+            Environment::StandAlone => "source('a_std.R', echo = FALSE)"
         };
 
         format!("{}\n\n{}", import, code)

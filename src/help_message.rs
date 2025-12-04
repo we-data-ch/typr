@@ -225,9 +225,9 @@ impl ErrorMsg for TypeError {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();
                 let (file_name1, text1) = help_data1.get_file_data()
-                    .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
+                    .unwrap_or(("std.ty".to_string(), "".to_string()));
                 let (file_name2, text2) = help_data2.get_file_data()
-                    .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
+                    .unwrap_or(("std.ty".to_string(), "".to_string()));
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
@@ -271,7 +271,7 @@ impl ErrorMsg for TypeError {
                     let help_data = var.get_help_data();
                     let var2 = Var::from_language(var).unwrap();
                     let (file_name, text) = help_data.get_file_data()
-                    .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
+                    .unwrap_or(("std.ty".to_string(), "".to_string()));
                     SingleBuilder::new(file_name, text)
                         .pos((help_data.get_offset(), 0))
                         .pos_text(format!("Undefined variable '{}'", var2.get_name()))

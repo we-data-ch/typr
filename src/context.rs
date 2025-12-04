@@ -22,6 +22,15 @@ use crate::config::TargetLanguage;
 use rpds::Vector;
 use crate::var_function::VarFunction;
 use crate::graph::TypeSystem;
+use std::collections::HashSet;
+
+const BLACKLIST: [&str; 2] = ["test_that", "expect_true"];
+
+pub fn not_in_blacklist(name: &str) -> bool {
+    let hs = BLACKLIST.iter().cloned().collect::<HashSet<&str>>();
+    !hs.contains(name)
+}
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
@@ -280,7 +289,8 @@ impl Context {
 
     pub fn get_all_functions(&self) -> Vec<(Var, Type)> {
         self.typing_context.variables()
-            .filter(|(_, typ)| { typ.is_function()})
+            .filter(|(_, typ)| typ.is_function())
+            .filter(|(var, _)| not_in_blacklist(&var.get_name()))
             .cloned().collect()
     }
 

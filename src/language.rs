@@ -1082,7 +1082,6 @@ impl RTranslatable<(String, Context)> for Lang {
                     .to_r(&cont.extract_module_as_vartype(name)).0;
                 let global_env = format!("invisible(list2env({}, envir = .GlobalEnv))", name);
                 let content = format!("{} <- {}\n{}", name, text, global_env);
-                dbg!(&config.environment);
                 match (position, config.environment) {
                     (ModulePosition::Internal, _) => {
                         (content, cont.clone())

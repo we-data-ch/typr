@@ -74,7 +74,9 @@ const TYPED_JS_FUNCTIONS: &str = "../configs/std/std_JS.ty";
 
 pub fn write_header(context: Context, output_dir: &PathBuf) -> () {
         let type_anotations = context.get_type_anotations();
-        let app_path = output_dir.join("types.R");
+        let app_path = output_dir
+            .join(context.get_environment().to_base_path())
+            .join("c_types.R");
         let mut app = File::create(app_path).unwrap();
         app.write_all(type_anotations.as_bytes()).unwrap();
 
@@ -82,21 +84,27 @@ pub fn write_header(context: Context, output_dir: &PathBuf) -> () {
                             .map(|(var, _)| var.get_name())
                             .map(|fn_name| format!("{} <- function(x, ...) UseMethod('{}', x)", fn_name, fn_name))
                             .collect::<Vec<_>>().join("\n");
-        let app_path = output_dir.join("generic_functions.R");
+        let app_path = output_dir
+            .join(context.get_environment().to_string())
+            .join("b_generic_functions.R");
         let mut app = File::create(app_path).unwrap();
         app.write_all(generic_functions.as_bytes()).unwrap();
 }
 
-pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, _project: bool) -> () {
+pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, environment: Environment) -> () {
         let rstd = include_str!("../configs/src/std.R");
-        let std_path = output_dir.join("std.R");
+        let std_path = output_dir.join("a_std.R");
         let mut rstd_file = File::create(std_path).unwrap();
         rstd_file.write_all(rstd.as_bytes()).unwrap();
 
         let app_path = output_dir.join(file_name);
         let mut app = File::create(app_path).unwrap();
+        let source = match environment {
+            Environment::Project => "",
+            Environment::StandAlone => "source('b_generic_functions.R')\nsource('c_types.R')"
+        };
         app.write_all(
-            format!("source('types.R')\nsource('generic_functions.R')\n{}", content).as_bytes()
+            format!("{}\n{}", source, content).as_bytes()
             ).unwrap();
 }
 
@@ -194,7 +202,6 @@ fn new(name: &str) {
         "TypR",        // Code TypR source
         "man",         // Documentation
         "tests",       // Tests
-        "testthat",    // Tests unitaires
         "data",        // Données
         "inst",        // Fichiers installés
         "src",         // Code source (C++, Fortran, etc.)
@@ -221,8 +228,6 @@ fn new(name: &str) {
         (".Rbuildignore", include_str!("../configs/.Rbuildignore").replace("{{PACKAGE_NAME}}", name)),
         (".gitignore", include_str!("../configs/.gitignore").replace("{{PACKAGE_NAME}}", name)),
         ("TypR/main.ty", include_str!("../configs/main.ty").replace("{{PACKAGE_NAME}}", name)),
-        //("TypR/std.ty", include_str!("../configs/std/std_R.ty").to_string()),
-        //("std.ty", include_str!("../configs/std/std_R.ty").to_string()),
         ("R/.gitkeep", include_str!("../configs/.gitkeep").replace("{{PACKAGE_NAME}}", name)),
         ("tests/testthat.R", include_str!("../configs/testthat.R").replace("{{PACKAGE_NAME}}", name)),
         ("tests/testthat/test-basic.R", include_str!("../configs/test-basic.R").replace("{{PACKAGE_NAME}}", name)),
@@ -270,11 +275,13 @@ fn check_file(path: &PathBuf) {
 }
 
 fn build_project() {
+    let dir = PathBuf::from(".");
     let context = Context::default().set_environment(Environment::Project);
     let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
-    let type_checker = TypeChecker::new(context).typing(&lang);
-    let content = type_checker.transpile(true);
-    write_to_r_lang(content, &PathBuf::from("R"), "main.R", true);
+    let type_checker = TypeChecker::new(context.clone()).typing(&lang);
+    let content = type_checker.clone().transpile(true);
+    write_header(type_checker.get_context(), &dir);
+    write_to_r_lang(content, &PathBuf::from("R"), "main.R", context.get_environment());
     println!("✓ Code R généré avec succès dans le dossier R/");
 }
 
@@ -284,10 +291,12 @@ fn build_file(path: &PathBuf) {
     
     // HEADER
     write_std_for_type_checking(&dir);
-    let type_checker = TypeChecker::new(Context::default()).typing(&lang);
+    let context = Context::default();
+    let type_checker = TypeChecker::new(context.clone()).typing(&lang);
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    let content = type_checker.transpile(false);
-    write_to_r_lang(content, &dir, &r_file_name, false);
+    let content = type_checker.clone().transpile(false);
+    write_header(type_checker.get_context(), &dir);
+    write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
     println!("✓ Code R généré: {:?}", dir.join(&r_file_name));
 }
 
@@ -303,11 +312,12 @@ fn run_file(path: &PathBuf) {
 
     //HEADER
     write_std_for_type_checking(&dir);
-    let type_checker = TypeChecker::new(Context::default()).typing(&lang);
+    let context = Context::default();
+    let type_checker = TypeChecker::new(context.clone()).typing(&lang);
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
     let content = type_checker.clone().transpile(false);
     write_header(type_checker.get_context(), &dir);
-    write_to_r_lang(content, &dir, &r_file_name, false);
+    write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
     execute_r_with_path(&dir, &r_file_name);
 }
 

@@ -1,11 +1,28 @@
 use serde::{Serialize, Deserialize};
 use crate::Context;
 use crate::Parser;
+use std::fmt;
 
 #[derive(Debug, Parser, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Environment {
     StandAlone,
     Project
+}
+
+impl Environment {
+    pub fn to_base_path(self) -> String {
+        self.to_string()
+    }
+}
+
+impl fmt::Display for Environment {
+    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let res = match self {
+            Environment::Project => "R/",
+            Environment::StandAlone => ""
+        };
+        write!(f, "{}", res)       
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Copy, Serialize, Deserialize)]
