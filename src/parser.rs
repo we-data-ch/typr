@@ -640,7 +640,7 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
 // main
 pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((break_exp, use_exp, test_block, while_loop, for_loop, signature, library, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
+        many0(alt((library, break_exp, use_exp, test_block, while_loop, for_loop, signature, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {

@@ -43,6 +43,7 @@ mod vector_priority;
 mod type_token;
 mod module_type;
 mod lang_token;
+mod package_loader;
 
 use crate::config::Config;
 use std::io::Write;

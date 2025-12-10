@@ -30,6 +30,7 @@ use rpds::Vector;
 use crate::translatable::RTranslatable;
 use crate::var_function::VarFunction;
 use crate::Environment;
+use crate::operators::Op;
 
 #[derive(Debug, Clone)]
 pub struct TypeChecker {
@@ -185,8 +186,15 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
         },
         Lang::Library(name, _h) => {
             install_package(name);
-            let function_list = execute_r_function(&format!("library({})\n\nls('package:{}')", name, name))
+            let function_list = execute_r_function(&format!("library({})\n\npaste(ls('package:{}', all = FALSE), collapse =';')", name, name))
                 .expect("The R command didn't work");
+            //Remove extra character at the beginning and at the end
+            let function_list = function_list[..(function_list.len()-1)][5..].to_string();
+            function_list.split(";").for_each(|x| println!("x: {:?}", x));
+            let empty = builder::empty_type();
+            let var_types = function_list.lines()
+                .map(|line| (Var::from_name(line), empty.clone()))
+                .collect::<Vec<_>>();
             //TODO append a function list to VarType std
             //let new_context = context.append_function_list(&function_list);
             (builder::empty_type(), context.clone())
@@ -407,24 +415,28 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
             }
         },
-        Lang::Dollar(e1, e2, _) => {
-            let ty2 = typing(context, e2).0.clone();
-            match (ty2.reduce(context), *e1.clone()) {
-                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _)) => {
+        Lang::Operator(Op::Dollar(_), e1, e2, _) | Lang::Operator(Op::Dot(_), e1, e2, _) => {
+            let op = match expr {
+                Lang::Operator(op, _, _, _) => op,
+                _ => panic!("expr n'est pas un opérateur"),
+            };
+            let ty1 = typing(context, e1).0.clone();
+            match (ty1.reduce(context), *e2.clone(), op) {
+                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _), _) => {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect(&format!("Field {} not found", name))
                         .with_lang(expr)
                 },
-                (Type::Module(fields, _), Lang::Variable(name, _, _, _, _)) => {
+                (Type::Module(fields, _), Lang::Variable(name, _, _, _, _), _) => {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect(&format!("Variable {} not found in the module", name))
                         .with_lang(expr)
                 },
-                (Type::Module(fields, h1), Lang::FunctionApp(exp, args, _, h2)) => {
+                (Type::Module(fields, h1), Lang::FunctionApp(exp, args, _, h2), _) => {
                     let var = Var::from_language(*exp).unwrap();
                     let typ = fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
@@ -433,38 +445,47 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                     let res = FunctionType::try_from(typ).unwrap().get_return_type();
                     (res, expr.clone(), context.clone())
                 },
-                (Type::Record(fields, _), Lang::Char(name, _)) => {
+                (Type::Record(fields, _), Lang::Char(name, _), _) => {
                     fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect(&format!("Field {} not found", name))
                         .with_lang(expr)
                 },
-                (Type::Tuple(vals, _), Lang::Integer(i, _)) => {
+                (Type::Tuple(vals, _), Lang::Integer(i, _), _) => {
                     vals.iter()
                         .nth((i-1) as usize)
                         .map(|typ| (typ.clone(), context.clone()))
                         .expect(&format!("no value at the position {}", i))
                         .with_lang(expr)
                 },
-                (Type::Record(fields1, h), Lang::Record(fields2, _)) => {
+                (Type::Record(fields1, h), Lang::Record(fields2, _), _) => {
                     let at = fields2[0].clone();
                     let fields3 = fields1.iter()
                         .map(replace_fields_type_if_needed(context, at))
                         .collect::<HashSet<_>>();
                     Type::Record(fields3, h.clone()).with_lang(expr, context)
                 },
-                (Type::Record(fields, h1), Lang::FunctionApp(exp, args, _, h2)) => {
+                (Type::Record(fields, h1), Lang::FunctionApp(exp, args, _, h2), _) => {
                     let var = Var::from_language(*exp).unwrap();
                     let typ = fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
                         .expect(&format!("Field {} not found", var.get_name()))
                         .get_type();
                     typing(&context.clone()
-                           .push_var_type(var, typ, context), e1).0.clone()
+                           .push_var_type(var, typ, context), e2).0.clone()
                            .with_lang(expr, context)
                 },
-                (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
+                (typ , Lang::FunctionApp(exp, args, ret, h2), Op::Dot(_)) => {
+                    typing(
+                        context,
+                        &Lang::FunctionApp(
+                            exp,
+                            [(**e1).clone()].iter().chain(args.iter()).cloned().collect(),
+                            ret,
+                            h2))
+                },
+                (a, b, _c) => panic!("Type error we can't combine {} and {:?}", a, b)
             }
         },
         Lang::Function(params, ret_ty, body, h) => {

@@ -794,9 +794,9 @@ impl RTranslatable<(String, Context)> for Lang {
                 Translatable::from(cont.clone())
                     .to_r(e2).add(" >= ").to_r(e1).into()
             },
-            Lang::Operator(Op::Dot(_), e2, e1, _) | Lang::Operator(Op::Pipe(_), e2, e1, _) 
+            Lang::Operator(Op::Dot(_), e1, e2, _) | Lang::Operator(Op::Pipe(_), e1, e2, _) 
                 => {
-                match *e1.clone() {
+                match *e2.clone() {
                     Lang::Variable(_, _, _, _, _) => {
                         Translatable::from(cont.clone())
                             .to_r(e2)
