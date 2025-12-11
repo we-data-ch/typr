@@ -38,7 +38,7 @@ impl FunctionType {
 
     pub fn is_r_function(&self) -> bool {
         (self.0 == vec![]) &&
-        (self.1 == builder::empty_type())
+        (self.1 == builder::unknown_function())
     }
 
     pub fn get_first_param(&self) -> Option<Type> {
@@ -76,7 +76,7 @@ impl TryFrom<Type> for FunctionType {
 
 impl Default for FunctionType {
     fn default() -> FunctionType {
-        FunctionType(vec![], builder::empty_type(), HelpData::default())
+        FunctionType(vec![], builder::unknown_function(), HelpData::default())
     }
 }
 

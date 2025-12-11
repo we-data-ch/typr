@@ -47,7 +47,7 @@ impl TypeChecker {
             context: context,
             code: Vector::new(),
             types: Vector::new(),
-            last_type: builder::empty_type()
+            last_type: builder::unknown_function()
         }
     }
 
@@ -170,7 +170,7 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
                 .push_alias(var.get_name(), typ.to_owned());
             let new_context = context.clone()
                 .push_var_type(var.clone(), typ.clone(), &alias_context);
-            (builder::empty_type(),
+            (builder::unknown_function(),
                 new_context.push_alias(var.get_name(), typ.to_owned()))
         },
         Lang::Assign(left_expr, right_expr, _h) => {
@@ -179,7 +179,7 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
             let reduced_left_type = reduce_type(context, &left_type);
             let reduced_right_type = reduce_type(context, &right_type);
             if reduced_right_type.is_subtype(&reduced_left_type, context) {
-                (builder::empty_type(), context.clone())
+                (builder::unknown_function(), context.clone())
             } else { 
                 panic!("The right side and left sides don't match {} <- {}",
                        left_type.pretty(), right_type.pretty())
@@ -192,26 +192,26 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
                 package_manager.clone().save();
             }
             let var_type = package_manager.load().unwrap();
-            (builder::empty_type(), context.clone().extend_typing_context(var_type))
+            (builder::unknown_function(), context.clone().extend_typing_context(var_type))
         },
         Lang::ModuleDecl(_name, _h) 
-            => (builder::empty_type(), context.clone()),
+            => (builder::unknown_function(), context.clone()),
         Lang::Signature(var, typ, _h) => {
             if var.is_variable(){
                 let new_var = FunctionType::try_from(typ.clone())
-                            .map(|ft| var.clone().set_type(ft.get_first_param().unwrap_or(builder::empty_type())))
+                            .map(|ft| var.clone().set_type(ft.get_first_param().unwrap_or(builder::unknown_function())))
                             .unwrap_or(var.clone());
-                (builder::empty_type(),
+                (builder::unknown_function(),
                 context.clone().push_var_type(new_var, typ.to_owned(), context))
             } else { // is alias
-                (builder::empty_type(),
+                (builder::unknown_function(),
                         context.clone()
                             .push_var_type(var.to_owned(), typ.to_owned(), context))
             }
         },
         Lang::TestBlock(body, _) => {
             let res = typing(context, body);
-            builder::empty_type().tuple(context)
+            builder::unknown_function().tuple(context)
         },
         Lang::Module(name, members, _position, _config, h) => {
             let expr = if members.len() > 1 {
@@ -229,7 +229,7 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
                 .push_var_type(var, module_type.clone(), &context);
             module_type.tuple(&new_context)
         },
-        _ => builder::empty_type().tuple(context)
+        _ => builder::unknown_function().tuple(context)
     }
 }
 
@@ -508,7 +508,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 (typ.clone(), langs.clone(), 
                  context.clone().push_var_type(Var::from("_out"), typ.clone(), &context))
             } else if exprs.len() == 0 {
-                    builder::empty_type().with_lang(expr, context)
+                    builder::unknown_function().with_lang(expr, context)
             } else {
                 let context2 = context.clone();
                 let mut exprs2 = exprs.clone();
@@ -663,7 +663,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                       .with_lang(expr)
                 },
                 Type::Any(h) => {
-                    builder::empty_type().set_help_data(h).with_lang(expr, context)
+                    builder::unknown_function().set_help_data(h).with_lang(expr, context)
                 },
                 _ => panic!("Indexing error: {:?} can't be indexable by {}",
                         expr, 
@@ -699,7 +699,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 .set_var(var)
                 .push_var_type()
                 .typing((**body).clone());
-                builder::empty_type().with_lang(expr, context)
+                builder::unknown_function().with_lang(expr, context)
         },
         Lang::Not(exp, h) => {
             let typ = typing(context, exp).0;

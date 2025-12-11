@@ -198,7 +198,7 @@ fn variable_helper(s: Span) -> IResult<Span, (Lang, Case)> {
     match res {
         Ok((s, ((v, case, h), typ))) => {
             let res = Var::from_name(&v)
-                .set_type(typ.unwrap_or(builder::empty_type()))
+                .set_type(typ.unwrap_or(builder::unknown_function()))
                 .set_help_data(h);
             Ok((s, (res.into(), case)))
         },
@@ -368,7 +368,7 @@ fn function_application(s: Span) -> IResult<Span, Lang> {
           ).parse(s);
     match res {
         Ok((s, (exp, _, v, _))) 
-            => Ok((s, Lang::FunctionApp(Box::new(exp.clone()), v.clone(), builder::empty_type(), exp.into()))),
+            => Ok((s, Lang::FunctionApp(Box::new(exp.clone()), v.clone(), builder::unknown_function(), exp.into()))),
         Err(r) => Err(r)
     }
 }
@@ -577,13 +577,13 @@ fn create_range(params: &[Lang]) -> Lang {
         Lang::FunctionApp(
            Box::new(Var::from_name("seq").to_language()),
            vec![params[0].clone(), params[1].clone(), Lang::Integer(1, HelpData::default())],
-           builder::empty_type(),
+           builder::unknown_function(),
            params.to_vec().into())
     } else {
         Lang::FunctionApp(
            Box::new(Var::from_name("seq").to_language()),
            vec![params[0].clone(), params[1].clone(), params[2].clone()],
-           builder::empty_type(),
+           builder::unknown_function(),
            params.to_vec().into())
     }
 }
@@ -815,59 +815,59 @@ pub fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
             };
             let func = Lang::FunctionApp(
                 Box::new(Lang::Variable("map".to_string(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())),
-                vec![res.clone()], builder::empty_type(), res.into());
+                vec![res.clone()], builder::unknown_function(), res.into());
             Lang::Chain(Box::new(func), Box::new(op_reverse(v)), p.into())
         },
         (p, Op::Add(h)) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::from(Var::from_name("add")
                                               .set_help_data(h.clone().into())));
-                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::unknown_function(), res.into()) },
         (p, Op::Add2(h)) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::from(Var::from_name("add2")
                                               .set_help_data(h.clone().into())));
-                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::unknown_function(), res.into()) },
         (p, Op::Minus(h)) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::from(Var::from_name("minus")
                                               .set_help_data(h.clone().into())));
-                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::unknown_function(), res.into()) },
         (p, Op::Minus2(h)) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::from(Var::from_name("minus2")
                                               .set_help_data(h.clone().into())));
-                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::unknown_function(), res.into()) },
         (p, Op::Mul(h)) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::from(Var::from_name("mul")
                                               .set_help_data(h.clone().into())));
-                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::unknown_function(), res.into()) },
         (p, Op::Mul2(h)) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::from(Var::from_name("mul2")
                                               .set_help_data(h.clone().into())));
-                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::unknown_function(), res.into()) },
         (p, Op::Div(h)) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::from(Var::from_name("div")
                                               .set_help_data(h.clone().into())));
-                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::unknown_function(), res.into()) },
         (p, Op::Div2(h)) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::from(Var::from_name("div2")
                                               .set_help_data(h.clone().into())));
-                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::unknown_function(), res.into()) },
         (p, Op::At(h)) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::from(Var::from_name("at")
                                               .set_help_data(h.clone().into())));
-                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::unknown_function(), res.into()) },
         (p, Op::At2(h)) 
             => {let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::from(Var::from_name("at2")
                                               .set_help_data(h.clone().into())));
-                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::unknown_function(), res.into()) },
         (Lang::FunctionApp(name, params, fn_typ, h1), Op::Dot(_h2)) 
             => { // (UFC) add the "object" as te first parameter of the function call
                 let res = [op_reverse(v)].iter().chain(params.iter()).cloned().collect::<Vec<_>>();
@@ -881,7 +881,7 @@ pub fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
             };
             let func = Lang::FunctionApp(
                 Box::new(Var::from_name("map").to_language()),
-                vec![res.clone()], builder::empty_type(), res.into());
+                vec![res.clone()], builder::unknown_function(), res.into());
             Lang::Chain(Box::new(func), Box::new(op_reverse(v)), p.into())
         },
         (p, Op::Dollar(_)) => Lang::Dollar(Box::new(p.clone()), Box::new(op_reverse(v)), p.into()),
@@ -892,7 +892,7 @@ pub fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
             };
             let func = Lang::FunctionApp(
                 Box::new(Var::from_name("map").to_language()),
-                vec![res.clone()], builder::empty_type(), res.into());
+                vec![res.clone()], builder::unknown_function(), res.into());
             Lang::Chain(Box::new(func), Box::new(op_reverse(v)), p.into())
         },
         (p, Op::Custom(s, h)) 
@@ -900,7 +900,7 @@ pub fn op_reverse(v: &mut Vec<(Lang, Op)>) -> Lang {
                 let res = op_reverse(v); let pp = p;
                 let var = Box::new(Lang::from(Var::from_name(&s)
                                               .set_help_data(h.clone().into())));
-                Lang::FunctionApp(var, vec![res.clone(), pp], builder::empty_type(), res.into()) },
+                Lang::FunctionApp(var, vec![res.clone(), pp], builder::unknown_function(), res.into()) },
         (p, Op::Empty(_)) => p
     }
 }

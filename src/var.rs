@@ -225,13 +225,13 @@ impl Var {
     pub fn to_alias_lang(self) -> Lang  {
         Lang::Alias(Box::new(self.clone().to_language()),
                 vec![], 
-                builder::empty_type(),
+                builder::unknown_function(),
                 self.get_help_data())
     }
 
     pub fn to_let(self) -> Lang  {
         Lang::Let(Box::new(self.clone().to_language()),
-                builder::empty_type(),
+                builder::unknown_function(),
                 Box::new(builder::empty_lang()),
                 self.get_help_data())
     }

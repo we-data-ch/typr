@@ -970,7 +970,8 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Char(s, _) => {
                 let (typ, _, _) = typing(cont, self);
                 let anotation = cont.get_type_anotation(&typ);
-                (format!("'{}' |> {}", s, anotation), cont.clone())
+                //(format!("'{}' |> {}", s, anotation), cont.clone())
+                (format!("'{}'", s), cont.clone())
             },
             Lang::If(cond, exp, els, _) if els == &Box::new(Lang::Empty(HelpData::default())) => {
                 Translatable::from(cont.clone())

@@ -436,7 +436,7 @@ impl Type {
             Type::Function(args, ret_ty, h) 
                 => Some(FunctionType(args.clone(), (**ret_ty).clone(), h.clone())),
             Type::UnknownFunction(h) 
-                => Some(FunctionType(vec![], builder::empty_type(), h.clone())),
+                => Some(FunctionType(vec![], builder::unknown_function(), h.clone())),
             _ => None
         }
     }
@@ -699,7 +699,7 @@ impl Type {
         match self {
             Type::Interface(_, _) => self.clone(),
             Type::Function(_, _, _) 
-                => builder::interface_type(&[("_", builder::empty_type())]),
+                => builder::interface_type(&[("_", builder::unknown_function())]),
             typ => {
                 let function_signatures = context.get_functions_from_type(typ)
                     .iter().cloned()
@@ -1027,7 +1027,7 @@ impl FromStr for Type {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let val = ltype(s.into())
-            .map(|x| x.1).unwrap_or(builder::empty_type());
+            .map(|x| x.1).unwrap_or(builder::unknown_function());
         Ok(val)
     }
 
@@ -1036,7 +1036,7 @@ impl FromStr for Type {
 impl From<TokenKind> for  Type {
    fn from(val: TokenKind) -> Self {
         match val {
-            TokenKind::Empty => builder::empty_type(),
+            TokenKind::Empty => builder::unknown_function(),
             _ => builder::any_type()
         }
    } 
@@ -1046,7 +1046,7 @@ impl From<TypeToken> for Type {
    fn from(val: TypeToken) -> Self {
        match val {
            TypeToken::Expression(typ) => typ,
-           _ => builder::empty_type()
+           _ => builder::unknown_function()
        }
    } 
 }

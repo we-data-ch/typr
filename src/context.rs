@@ -580,14 +580,14 @@ fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
                 vec![
                     Var::from_name("a").to_language(),
                     Lang::Char(param.to_string(), HelpData::default()),
-                    Lang::FunctionApp(Box::new(name.to_language()), args.clone(), builder::empty_type(), args.clone().into()),
+                    Lang::FunctionApp(Box::new(name.to_language()), args.clone(), builder::unknown_function(), args.clone().into()),
                 ],
-                builder::empty_type(),
+                builder::unknown_function(),
                 args.into()
             )
         },
         _ => {
-            Lang::FunctionApp(Box::new(name.to_language()), args.clone(), builder::empty_type(), args.into())
+            Lang::FunctionApp(Box::new(name.to_language()), args.clone(), builder::unknown_function(), args.into())
         }
     }
 }
@@ -621,7 +621,7 @@ impl Manip {
                         Var::from_name(&argname).to_language(),
                         Lang::Char(field.to_string(), HelpData::default())
                     ],
-                    builder::empty_type(),
+                    builder::unknown_function(),
                     HelpData::default())
             },
             _ => builder::empty_lang()

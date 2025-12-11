@@ -110,3 +110,7 @@ pub fn union_type(types: &[Type]) -> Type {
     let type_set = types.iter().cloned().collect::<HashSet<_>>();
     Type::Union(type_set, HelpData::default())
 }
+
+pub fn unknown_function() -> Type {
+    Type::UnknownFunction(HelpData::default())
+}

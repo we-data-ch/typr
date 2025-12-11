@@ -58,7 +58,7 @@ impl Default for Typer {
             context: Context::default(),
             memory: vec![],
            var: Var::default(),
-           typ: builder::empty_type()
+           typ: builder::unknown_function()
         }
     }
 }
