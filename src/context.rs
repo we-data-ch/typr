@@ -560,6 +560,12 @@ impl Context {
     pub fn get_environment(&self) -> Environment {
         self.config.environment
     }
+    pub fn extend_typing_context(self, var_types: VarType) -> Self {
+        Self {
+            typing_context: self.typing_context + var_types,
+            ..self
+        }
+    }
 
 }
 

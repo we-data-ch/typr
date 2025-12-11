@@ -191,8 +191,8 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
             if !package_manager.exists() {
                 package_manager.clone().save();
             }
-            let var_type = package_manager.load();
-            (builder::empty_type(), context.clone())
+            let var_type = package_manager.load().unwrap();
+            (builder::empty_type(), context.clone().extend_typing_context(var_type))
         },
         Lang::ModuleDecl(_name, _h) 
             => (builder::empty_type(), context.clone()),

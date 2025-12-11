@@ -44,6 +44,7 @@ mod type_token;
 mod module_type;
 mod lang_token;
 mod package_loader;
+use std::path::Path;
 
 use crate::config::Config;
 use std::io::Write;
@@ -170,6 +171,7 @@ enum Commands {
     Cran,
     /// Update the standard library
     Std,
+    Clean,
 }
 
 #[derive(Subcommand)]
@@ -671,42 +673,25 @@ fn standard_library() {
         .unwrap().set_target_path("configs/bin/").set_name("std_r_typed").save();
 }
 
-fn old_standard_library() {
-    let function_list = execute_r_function("funcs <- ls('package:base', sorted = TRUE)\nfor (element in funcs) {\nprint(element)\n}").unwrap().replace("\"", "").replace("[1] ", "");
-    fs::write(R_FUNCTIONS, function_list).unwrap();
-    let empty = builder::empty_type();
-
-    //Save base R functions
-    let std_txt = fs::read_to_string(R_FUNCTIONS).unwrap();
-    let std = std_txt.lines()
-        .map(|line| (Var::from_name(line), empty.clone()))
-        .collect::<Vec<_>>();
-    let _ = VarType::default().set_std(std).save("../configs/bin/std_r.bin");
-
-    //Save std R typed functions
-    let lang = parse_code(&PathBuf::from(TYPED_R_FUNCTIONS), Environment::StandAlone);
-    let _ = TypeChecker::new(Context::default())
-        .typing(&lang)
-        .get_context()
-        .get_vartype()
-        .save("../configs/bin/std_r_typed.bin");
-
-    //Save std JS typed functions
-    let lang = parse_code(&PathBuf::from(TYPED_JS_FUNCTIONS), Environment::StandAlone);
-    let _ = TypeChecker::new(Context::default())
-        .typing(&lang)
-        .get_context()
-        .get_vartype()
-        .save("../configs/bin/std_js_typed.bin");
-
-    //Save base JS functions
-    let std_txt = fs::read_to_string(JS_FUNCTIONS).unwrap();
-    let std = std_txt.lines()
-        .map(|line| (Var::from_name(line), empty.clone()))
-        .collect::<Vec<_>>();
-    let _ = VarType::default().set_std(std).save("../configs/bin/std_js.bin");
+fn clean() {
+    let folder = Path::new(".");
+    if folder.is_dir() {
+        for entry_result in fs::read_dir(folder).unwrap() {
+            let entry = entry_result.unwrap();
+            let path = entry.path();
+            if let Some(file_name) = path.file_name() {
+                if let Some(str_name) = file_name.to_str() {
+                    if str_name.starts_with(".") {
+                        if path.is_file() {
+                            let _ = fs::remove_file(&path);
+                            //println!("Supprimé: {:?}", path);
+                        }
+                    }
+                }
+            }
+        }
+    };
 }
-
 
 fn main() {
     let cli = Cli::parse();
@@ -767,6 +752,9 @@ fn main() {
         },
         Some(Commands::Std) => {
             standard_library()
+        },
+        Some(Commands::Clean) => {
+            clean()
         },
         None => {
             println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");

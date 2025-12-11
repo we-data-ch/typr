@@ -55,8 +55,8 @@ impl PackageManager {
                 //Remove extra character at the beginning and at the end
                 let function_list = function_list[..(function_list.len()-1)][5..].to_string();
                 let empty = builder::empty_type();
-                let var_types = function_list.lines()
-                    .map(|line| (Var::from_name(line), empty.clone()))
+                let var_types = function_list.split(";")
+                    .map(|name| (Var::from_name(name), empty.clone()))
                     .collect::<Vec<_>>();
                 let _ = VarType::from(var_types).save(&self.get_bin_name());
             }
