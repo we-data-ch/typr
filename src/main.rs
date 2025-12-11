@@ -68,6 +68,7 @@ use crate::type_checker::TypeChecker;
 use crate::type_checker::execute_r_function;
 use crate::vartype::VarType;
 use crate::config::Environment;
+use crate::package_loader::PackageManager;
 
 const R_FUNCTIONS: &str = "../configs/src/functions_R.txt";
 const TYPED_R_FUNCTIONS: &str = "../configs/std/std_R.ty";
@@ -653,14 +654,24 @@ fn cran() {
     }
 }
 
-//fn standard_library() {
-    //let function_list = execute_r_function("funcs <- ls('package:base', sorted = TRUE)\nfor (element in funcs) {\nprint(element)\n}").unwrap().replace("\"", "").replace("[1] ", "");
-    //fs::write(R_FUNCTIONS, function_list).unwrap();
-    //let empty = builder::empty_type();
-    //let std_txt = fs::read_to_string(R_FUNCTIONS).unwrap();
-//}
-
 fn standard_library() {
+    let function_list = execute_r_function("funcs <- ls('package:base', sorted = TRUE)\nfor (element in funcs) {\nprint(element)\n}").unwrap().replace("\"", "").replace("[1] ", "");
+    fs::write(R_FUNCTIONS, function_list).unwrap();
+
+    let std_r_txt = fs::read_to_string(R_FUNCTIONS).unwrap();
+    PackageManager::to_name_list(&std_r_txt)
+        .unwrap().set_target_path("configs/bin/").set_name("std_r").save();
+    PackageManager::to_header(TYPED_R_FUNCTIONS)
+        .unwrap().set_target_path("configs/bin/").set_name("std_r_typed").save();
+
+    let std_js_txt = fs::read_to_string(JS_FUNCTIONS).unwrap();
+    PackageManager::to_name_list(&std_js_txt)
+        .unwrap().set_target_path("configs/bin/").set_name("std_r").save();
+    PackageManager::to_header(TYPED_JS_FUNCTIONS)
+        .unwrap().set_target_path("configs/bin/").set_name("std_r_typed").save();
+}
+
+fn old_standard_library() {
     let function_list = execute_r_function("funcs <- ls('package:base', sorted = TRUE)\nfor (element in funcs) {\nprint(element)\n}").unwrap().replace("\"", "").replace("[1] ", "");
     fs::write(R_FUNCTIONS, function_list).unwrap();
     let empty = builder::empty_type();

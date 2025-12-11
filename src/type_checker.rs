@@ -31,6 +31,7 @@ use crate::translatable::RTranslatable;
 use crate::var_function::VarFunction;
 use crate::Environment;
 use crate::operators::Op;
+use crate::PackageManager;
 
 #[derive(Debug, Clone)]
 pub struct TypeChecker {
@@ -186,17 +187,11 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
         },
         Lang::Library(name, _h) => {
             install_package(name);
-            let function_list = execute_r_function(&format!("library({})\n\npaste(ls('package:{}', all = FALSE), collapse =';')", name, name))
-                .expect("The R command didn't work");
-            //Remove extra character at the beginning and at the end
-            let function_list = function_list[..(function_list.len()-1)][5..].to_string();
-            function_list.split(";").for_each(|x| println!("x: {:?}", x));
-            let empty = builder::empty_type();
-            let var_types = function_list.lines()
-                .map(|line| (Var::from_name(line), empty.clone()))
-                .collect::<Vec<_>>();
-            //TODO append a function list to VarType std
-            //let new_context = context.append_function_list(&function_list);
+            let package_manager = PackageManager::to_package(name).unwrap();
+            if !package_manager.exists() {
+                package_manager.clone().save();
+            }
+            let var_type = package_manager.load();
             (builder::empty_type(), context.clone())
         },
         Lang::ModuleDecl(_name, _h) 

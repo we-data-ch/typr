@@ -1,7 +1,10 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::execute_r_function;
+use crate::my_io::get_os_file;
 use crate::engine::TypRFile;
 use crate::TypeChecker;
+use std::path::PathBuf;
+use crate::read_file;
 use std::path::Path;
 use crate::VarType;
 use crate::builder;
@@ -9,7 +12,7 @@ use crate::Context;
 use crate::Var;
 use crate::fs;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub enum Source {
     PackageName,
     #[default]
@@ -18,6 +21,7 @@ pub enum Source {
 }
 
 // Manage the loading and saving of packages
+#[derive(Debug, Clone)]
 pub struct PackageManager {
    name: String,
    kind: Source,
@@ -26,7 +30,7 @@ pub struct PackageManager {
 }
 
 impl PackageManager {
-    fn save(self) -> Self {
+    pub fn save(self) -> Self {
         match self.kind {
             Source::NameList => {
                 let empty = builder::empty_type();
@@ -36,7 +40,8 @@ impl PackageManager {
                 let _ = VarType::from(res).save(&self.get_bin_name());
             },
             Source::Header => {
-                let base_file = TypRFile::new(&self.content, self.name.clone() + ".typ");
+                let file_content = read_file(&PathBuf::from(self.content.clone()));
+                let base_file = TypRFile::new(&file_content, self.content.clone());
                 let lang = base_file.parse();
                 let _ = TypeChecker::new(Context::default())
                     .typing(&lang)
@@ -59,28 +64,28 @@ impl PackageManager {
         self
     }
 
-    fn set_target_path(self, path: &str) -> Self {
+    pub fn set_target_path(self, path: &str) -> Self {
         Self {
             target_path: path.to_string(),
             ..Self::default()
         }
     }
 
-    fn set_content(self, content: &str) -> Self {
+    pub fn set_content(self, content: &str) -> Self {
         Self {
             content: content.to_string(),
             ..Self::default()
         }
     }
 
-    fn set_name(self, name: &str) -> Self {
+    pub fn set_name(self, name: &str) -> Self {
         Self {
             name: name.to_string(),
             ..self
         }
     }
 
-    fn load(&self) -> Result<VarType, String> {
+    pub fn load(&self) -> Result<VarType, String> {
         Self::load_with_path(&self.name, &self.target_path)
     }
 
@@ -106,7 +111,7 @@ impl PackageManager {
         }
     }
 
-    fn to_name_list(content: &str) -> Result<PackageManager, String> {
+    pub fn to_name_list(content: &str) -> Result<PackageManager, String> {
         let package_manager = PackageManager {
             content: content.to_string(),
             ..PackageManager::default()
@@ -114,7 +119,7 @@ impl PackageManager {
         Ok(package_manager)
     }
 
-    fn to_header(content: &str) -> Result<PackageManager, String> {
+    pub fn to_header(content: &str) -> Result<PackageManager, String> {
         let package_manager = PackageManager {
             content: content.to_string(),
             kind: Source::Header,
@@ -123,16 +128,17 @@ impl PackageManager {
         Ok(package_manager)
     }
 
-    fn to_package(content: &str) -> Result<PackageManager, String> {
+    pub fn to_package(content: &str) -> Result<PackageManager, String> {
         let package_manager = PackageManager {
             content: content.to_string(),
+            name: content.to_string(),
             kind: Source::PackageName,
             ..PackageManager::default()
         };
         Ok(package_manager)
     }
 
-    fn remove(&self) {
+    pub fn remove(&self) {
         let _ = fs::remove_file(&self.get_bin_name());
     }
 
@@ -152,7 +158,7 @@ impl PackageManager {
         Path::new(&Self::to_bin_name(name, path)).exists()
     }
 
-    fn exists(&self) -> bool {
+    pub fn exists(&self) -> bool {
         Path::new(&self.get_bin_name()).exists()
     }
 
@@ -196,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_saving_typr_code() {
-        let var_type = PackageManager::to_header("@a: int;")
+        let var_type = PackageManager::to_header("configs/std/test.ty")
             .unwrap().set_name("header").save();
         assert!(var_type.exists(), "The header should exist as .header.bin");
     }
