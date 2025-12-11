@@ -16,7 +16,7 @@ use serde::{Serialize, Deserialize};
 use crate::elements::is_pascal_case;
 
 type Name = String;
-type IsMutableOpaque = bool;
+type IsPackageOpaque = bool;
 
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Eq, Hash)]
 pub enum Permission {
@@ -43,7 +43,7 @@ impl From<Permission> for bool {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
-pub struct Var(pub Name, pub Permission, pub IsMutableOpaque, pub Type, pub HelpData);
+pub struct Var(pub Name, pub Permission, pub IsPackageOpaque, pub Type, pub HelpData);
 
 // main
 impl Var {
@@ -154,8 +154,16 @@ impl Var {
         Var(self.0, new_perm, self.2, self.3, self.4)
     }
 
-    pub fn set_mutability(self, muta: bool) -> Var {
+    pub fn set_importability(self, muta: bool) -> Var {
         Var(self.0, self.1, muta, self.3, self.4)
+    }
+
+    pub fn set_is_imported(self) -> Var {
+        Var(self.0, self.1, true, self.3, self.4)
+    }
+
+    pub fn set_is_not_imported(self) -> Var {
+        Var(self.0, self.1, false, self.3, self.4)
     }
 
     pub fn set_opacity(self, opa: bool) -> Var {
@@ -187,7 +195,7 @@ impl Var {
         Var(self.0, self.1, self.2, self.3, h)
     }
 
-    pub fn is_mutable(&self) -> bool {
+    pub fn is_imported(&self) -> bool {
         self.is_variable() && self.2.clone()
     }
 

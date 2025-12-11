@@ -139,78 +139,6 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
-fn base_let_mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (
-            pattern_var,
-            opt(preceded(terminated(tag(":"), multispace0), ltype)),
-            equality_operator,
-            single_parse,
-          ).parse(s);
-    match res {
-        Ok((s, ((pat_var, None), typ, _eq, Lang::Function(params, ty, body, h)))) 
-            if params.len() > 0 => {
-                let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false).to_language();
-                Ok((s, vec![Lang::Let(Box::new(newvar), typ.unwrap_or(Type::Empty(HelpData::default())),
-                Box::new(Lang::Function(params, ty, body, h)), pat_var.into())]))
-            },
-        Ok((s, ((pat_var, None), typ, _eq, body))) => {
-                Ok((s, 
-                    vec![
-                    Lang::Let(
-                        Box::new(pat_var[0].clone()),
-                        typ.clone().unwrap_or(Type::Empty(HelpData::default())),
-                        Box::new(body), pat_var.into())]))
-                }
-        Ok((s, ((pat_var, Some(_)), typ, eq, body))) => {
-            if pat_var.len() == 1 {
-                Ok((s, 
-                    vec![
-                    Lang::Let(
-                        Box::new(pat_var[0].clone()),
-                        typ.clone().unwrap_or(Type::Empty(HelpData::default())),
-                        Box::new(Lang::Chain(Box::new(Lang::Number(0.0, eq.into())),
-                        Box::new(body), pat_var.clone().into())), pat_var.into())]))
-            } else {
-                Ok((s,
-                pat_var.iter().map(|x| {
-                    Lang::Let(Box::new(x.clone()), typ.clone().unwrap_or(Type::Empty(HelpData::default())), Box::new(body.clone()), HelpData::default())
-                }).collect::<Vec<_>>()
-                   ))
-            }
-        },
-        Err(r) => Err(r),
-    }
-}
-
-fn let_mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (
-        opt(terminated(tag("pub"), multispace0)),
-        base_let_mut_exp
-                    ).parse(s);
-    match res {
-        Ok((s, (None, le))) => Ok((s, le)),
-        Ok((s, (Some(_pu), le))) => {
-            let new_le = le.iter().map(|x| {
-                match x {
-                    Lang::Let(var, typ, body, h) 
-                        => {
-                        let vari = Var::from_language(*(var.clone())).unwrap()
-                            .set_permission(true).to_language();
-                        Lang::Let(
-                                Box::new(vari),
-                                typ.clone(),
-                                body.clone(), h.clone())
-                        }
-                    lan => lan.clone()
-                }
-            }).collect();
-            Ok((s, new_le))
-        },
-        Err(r) => Err(r),
-    }
-}
-
-
 fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         opt(terminated(tag("pub"), multispace0)),
@@ -237,62 +165,6 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             Ok((s, new_le))
         },
         Err(r) => Err(r),
-    }
-}
-
-fn base_mut_exp(s: Span) -> IResult<Span, Lang> {
-    let res = (
-            terminated(tag("mut"), multispace0),
-            pattern_var,
-            opt(preceded(terminated(tag(":"), multispace0), ltype)),
-            equality_operator,
-            single_parse,
-          ).parse(s);
-    match res {
-        Ok((s, (_met, (var, None), typ, _eq, Lang::Function(params, ty, body, h)))) 
-            if params.len() > 0 => {
-                let newvar = Var::from_language(var[0].clone())
-                    .unwrap()
-                    .set_type(params[0].1.clone())
-                    .set_mutability(true)
-                    .to_language();
-                Ok((s, Lang::Let(Box::new(newvar), 
-                                 typ.unwrap_or(Type::Empty(HelpData::default())),
-                Box::new(Lang::Function(params, ty, body, h.clone())), h)))
-            },
-        Ok((s, (_let, (var, _), typ, _eq, body))) => {
-            Ok((s, Lang::Let(
-                        Box::new(Var::from_language(var[0].clone())
-                            .unwrap()
-                            .set_mutability(true)
-                            .to_language()),
-                            typ.unwrap_or(Type::Empty(HelpData::default())), Box::new(body),
-                            _let.into())))
-        },
-        Err(r) => Err(r)
-    }
-}
-
-fn mut_exp(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (
-        opt(terminated(tag("pub"), multispace0)),
-        base_mut_exp).parse(s);
-    match res {
-        Ok((s, (None, le))) => Ok((s, vec![le])),
-        Ok((s, (Some(_pu), Lang::Let(var, typ, body, h)))) 
-            => {
-                let vari = Var::from_language(var.deref().clone()).unwrap()
-                    .set_permission(true)
-                    .to_language();
-                Ok((s, vec![Lang::Let(
-                            Box::new(vari),
-                            typ.clone(),
-                            body.clone(),
-                            h.clone())] 
-                           ))
-            },
-        Err(r) => Err(r),
-        _ => todo!()
     }
 }
 
@@ -640,7 +512,7 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
 // main
 pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((library, break_exp, use_exp, test_block, while_loop, for_loop, signature, tests, import_type, import_var, mod_imp, comment, type_exp, mut_exp, opaque_exp, let_exp, module, assign, let_mut_exp, bangs_exp, simple_exp))),
+        many0(alt((library, break_exp, use_exp, test_block, while_loop, for_loop, signature, tests, import_type, import_var, mod_imp, comment, type_exp, opaque_exp, let_exp, module, assign, bangs_exp, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {
