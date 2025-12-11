@@ -57,7 +57,7 @@ impl PackageManager {
                     .to_string().replace("<-", "");
                 let unknown_function = builder::unknown_function();
                 let var_types = function_list.split(";")
-                    .map(|name| (Var::from_name(name), unknown_function.clone()))
+                    .map(|name| (Var::from_name(name).set_importability(true), unknown_function.clone()))
                     .collect::<Vec<_>>();
                 let _ = VarType::from(var_types).save(&self.get_bin_name());
             }

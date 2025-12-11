@@ -84,7 +84,7 @@ pub fn write_header(context: Context, output_dir: &PathBuf) -> () {
         let mut app = File::create(app_path).unwrap();
         app.write_all(type_anotations.as_bytes()).unwrap();
 
-        let generic_functions = context.get_all_functions().iter()
+        let generic_functions = context.get_all_generic_functions().iter()
                             .map(|(var, _)| var.get_name())
                             .map(|fn_name| format!("{} <- function(x, ...) UseMethod('{}', x)", fn_name, fn_name))
                             .collect::<Vec<_>>().join("\n");

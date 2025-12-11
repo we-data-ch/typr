@@ -286,10 +286,11 @@ impl Context {
             }).cloned().collect()
     }
 
-    pub fn get_all_functions(&self) -> Vec<(Var, Type)> {
+    pub fn get_all_generic_functions(&self) -> Vec<(Var, Type)> {
         self.typing_context.variables()
             .filter(|(_, typ)| typ.is_function())
             .filter(|(var, _)| not_in_blacklist(&var.get_name()))
+            .filter(|(var, _)| var.is_imported())
             .cloned().collect()
     }
 
