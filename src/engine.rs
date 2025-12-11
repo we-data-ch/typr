@@ -18,21 +18,21 @@ pub fn write_std_for_type_checking(output_dir: &PathBuf) {
 }
 
 
-struct TypRFile<'a> {
+pub struct TypRFile<'a> {
     content: &'a str,
     name: String
 }
 
 impl<'a> TypRFile<'a> {
 
-    fn new(content: &'a str, name: String) -> TypRFile<'a> {
+    pub fn new(content: &'a str, name: String) -> TypRFile<'a> {
         TypRFile {
             content: content,
             name: name
         }
     }
 
-    fn parse(self) -> Lang  {
+    pub fn parse(self) -> Lang  {
         parse(LocatedSpan::new_extra(self.content, self.name))
     }
 

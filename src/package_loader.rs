@@ -1,77 +1,172 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+use crate::execute_r_function;
+use crate::engine::TypRFile;
+use crate::TypeChecker;
+use std::path::Path;
 use crate::VarType;
-//use std::path::Path;
+use crate::builder;
+use crate::Context;
+use crate::Var;
+use crate::fs;
 
+#[derive(Debug, Default)]
 pub enum Source {
     PackageName,
+    #[default]
     NameList,
     Header
 }
 
 // Manage the loading and saving of packages
 pub struct PackageManager {
+   name: String,
    kind: Source,
    content: String,
    target_path: String
 }
 
 impl PackageManager {
-    fn save(&self, name: &str) -> Self {
-        todo!();
+    fn save(self) -> Self {
+        match self.kind {
+            Source::NameList => {
+                let empty = builder::empty_type();
+                let res = self.content.lines()
+                    .map(|line| (Var::from_name(line), empty.clone()))
+                    .collect::<Vec<_>>();
+                let _ = VarType::from(res).save(&self.get_bin_name());
+            },
+            Source::Header => {
+                let base_file = TypRFile::new(&self.content, self.name.clone() + ".typ");
+                let lang = base_file.parse();
+                let _ = TypeChecker::new(Context::default())
+                    .typing(&lang)
+                    .get_context()
+                    .get_vartype()
+                    .save(&self.get_bin_name());
+            }
+            Source::PackageName => {
+                let function_list = execute_r_function(&format!("library({})\n\npaste(ls('package:{}', all = FALSE), collapse =';')", self.content, self.content))
+                    .expect("The R command didn't work");
+                //Remove extra character at the beginning and at the end
+                let function_list = function_list[..(function_list.len()-1)][5..].to_string();
+                let empty = builder::empty_type();
+                let var_types = function_list.lines()
+                    .map(|line| (Var::from_name(line), empty.clone()))
+                    .collect::<Vec<_>>();
+                let _ = VarType::from(var_types).save(&self.get_bin_name());
+            }
+        }
+        self
     }
 
     fn set_target_path(self, path: &str) -> Self {
-        todo!();
+        Self {
+            target_path: path.to_string(),
+            ..Self::default()
+        }
     }
 
     fn set_content(self, content: &str) -> Self {
-        todo!();
+        Self {
+            content: content.to_string(),
+            ..Self::default()
+        }
     }
 
     fn set_name(self, name: &str) -> Self {
-        todo!();
-    }
-
-    fn set_kind(self, name: &str) -> Self {
-        todo!();
+        Self {
+            name: name.to_string(),
+            ..self
+        }
     }
 
     fn load(&self) -> Result<VarType, String> {
-        todo!();
+        Self::load_with_path(&self.name, &self.target_path)
+    }
+
+    fn get_bin_name(&self) -> String {
+        Self::to_bin_name(&self.name, &self.target_path)
+    }
+
+    fn to_bin_name(name: &str, path: &str) -> String {
+       path.to_string() + "." + name + ".bin"
     }
 
     fn load_from_name(name: &str) -> Result<VarType, String> {
-        todo!();
+        Self::load_with_path(name, "./")
     }
 
     fn load_with_path(name: &str, path: &str) -> Result<VarType, String> {
-        todo!();
+        let var_type = VarType::new();
+        let full_name = Self::to_bin_name(name, path);
+        let res = var_type.load(&full_name);
+        match res {
+            Ok(var_type) => Ok(var_type),
+            _ => Err(format!("File {} not found", full_name))
+        }
     }
 
     fn to_name_list(content: &str) -> Result<PackageManager, String> {
-        todo!();
+        let package_manager = PackageManager {
+            content: content.to_string(),
+            ..PackageManager::default()
+        };
+        Ok(package_manager)
     }
 
-    fn to_header(context: &str) -> Result<PackageManager, String> {
-        todo!();
+    fn to_header(content: &str) -> Result<PackageManager, String> {
+        let package_manager = PackageManager {
+            content: content.to_string(),
+            kind: Source::Header,
+            ..PackageManager::default()
+        };
+        Ok(package_manager)
     }
 
-    fn to_package(context: &str) -> Result<PackageManager, String> {
-        todo!();
+    fn to_package(content: &str) -> Result<PackageManager, String> {
+        let package_manager = PackageManager {
+            content: content.to_string(),
+            kind: Source::PackageName,
+            ..PackageManager::default()
+        };
+        Ok(package_manager)
     }
 
-    fn remove(context: &str) {
-        todo!();
+    fn remove(&self) {
+        let _ = fs::remove_file(&self.get_bin_name());
     }
 
-    fn does_name_exists(name: &str, path: &str) -> bool {
-        todo!();
+    fn remove_from_path(name: &str, path: &str) {
+        let _ = fs::remove_file(Self::to_bin_name(name, "./"));
+    }
+
+    fn remove_from_name(name: &str) {
+        let _ = fs::remove_file(Self::to_bin_name(name, "./"));
+    }
+
+    fn does_name_exists(name: &str) -> bool {
+        Path::new(&Self::to_bin_name(name, "./")).exists()
+    }
+
+    fn does_name_exists_with_path(name: &str, path: &str) -> bool {
+        Path::new(&Self::to_bin_name(name, path)).exists()
     }
 
     fn exists(&self) -> bool {
-        todo!();
+        Path::new(&self.get_bin_name()).exists()
     }
 
+}
+
+impl Default for PackageManager {
+    fn default() -> Self {
+        PackageManager {
+            name: String::default(),
+            kind: Source::default(),
+            content: String::default(),
+            target_path: "./".to_string()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -88,37 +183,37 @@ mod tests {
 
     #[test]
     fn test_loading_existing_file() {
-        let var_type = PackageManager::load_with_path("std_r", "configs/bin");
+        let var_type = PackageManager::load_with_path("std_r", "configs/bin/");
         assert!(var_type.is_ok(), "The path configs/bin should exist");
     }
 
     #[test]
     fn test_saving_name_list() {
         let var_type = PackageManager::to_name_list("name1\nname2\nname3")
-            .unwrap().save("name_list");
+            .unwrap().set_name("name_list").save();
         assert!(var_type.exists(), "The names should exist as .name_list.bin");
     }
 
     #[test]
     fn test_saving_typr_code() {
-        let var_type = PackageManager::to_header("@a: int")
-            .unwrap().save("header");
+        let var_type = PackageManager::to_header("@a: int;")
+            .unwrap().set_name("header").save();
         assert!(var_type.exists(), "The header should exist as .header.bin");
     }
 
     #[test]
     fn test_saving_package() {
         let var_type = PackageManager::to_package("dplyr")
-            .unwrap().save("package");
+            .unwrap().set_name("package").save();
         assert!(var_type.exists(), "The header should exist as .package.bin");
     }
 
     #[test]
     fn test_remove_bin_files() {
-        PackageManager::remove("name_list");
-        PackageManager::remove("header");
-        PackageManager::remove("package");
-        assert!(!PackageManager::does_name_exists("name_list", "."), 
+        PackageManager::remove_from_name("name_list");
+        PackageManager::remove_from_name("header");
+        PackageManager::remove_from_name("package");
+        assert!(!PackageManager::does_name_exists("name_list"), 
                 "The file .name_list.bin shouldn't exist");
     }
 

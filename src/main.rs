@@ -653,6 +653,13 @@ fn cran() {
     }
 }
 
+//fn standard_library() {
+    //let function_list = execute_r_function("funcs <- ls('package:base', sorted = TRUE)\nfor (element in funcs) {\nprint(element)\n}").unwrap().replace("\"", "").replace("[1] ", "");
+    //fs::write(R_FUNCTIONS, function_list).unwrap();
+    //let empty = builder::empty_type();
+    //let std_txt = fs::read_to_string(R_FUNCTIONS).unwrap();
+//}
+
 fn standard_library() {
     let function_list = execute_r_function("funcs <- ls('package:base', sorted = TRUE)\nfor (element in funcs) {\nprint(element)\n}").unwrap().replace("\"", "").replace("[1] ", "");
     fs::write(R_FUNCTIONS, function_list).unwrap();
