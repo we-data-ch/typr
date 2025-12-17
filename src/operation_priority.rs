@@ -1,6 +1,9 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use std::fmt::Debug;
 use std::fmt::Display;
+use crate::TypeError;
+use crate::help_message::ErrorMsg;
+use crate::help_data::HelpData;
 
 #[derive(Debug, Default)]
 pub enum TokenKind {
@@ -33,6 +36,7 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
     fn peak_first(&self) -> Option<T>;
     fn len(&self) -> usize;
     fn display_state(&self) -> String;
+    fn get_initial_expression(&self) -> HelpData;
 
     fn get_operator(&mut self) -> Result<T, String> {
         match self.get_first() {
@@ -76,7 +80,8 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
         //println!("--------------------");
         //println!("binding_power: {}", binding_power);
         //println!("{}", self.display_state());
-        let mut left = self.get_expression().expect("Empty expression");
+        let mut left = self.get_expression()
+            .expect(&TypeError::WrongExpression(self.get_initial_expression()).display());
         //println!("left: {}", left);
         loop {
             let op = match self.peak_operator() {

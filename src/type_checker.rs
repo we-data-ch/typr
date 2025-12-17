@@ -153,7 +153,7 @@ fn install_package(name: &str) -> () {
         .expect("failed to execute Rscript");
 }
 
-pub fn eval(context: &Context, expr: &Lang) -> (Type, Context){
+pub fn eval(context: &Context, expr: &Lang) -> (Type, Context) {
     match expr {
         Lang::Let(name, ty, exp, _h) => {
             let new_context = context.clone()
@@ -356,15 +356,18 @@ impl WithLang2 for Type {
 //main
 pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
     match expr {
-        Lang::Number(_, h) => (Type::Number(h.clone()), context.clone()).with_lang(expr),
-        Lang::Integer(i, h) => Type::Integer((*i).into(), h.clone()).with_lang(expr, context),
-        Lang::Bool(_, h) => Type::Boolean(h.clone()).with_lang(expr, context),
-        Lang::Char(s, h) => Type::Char(s.to_owned().into(), h.clone()).with_lang(expr, context),
-        Lang::Empty(h) => Type::Empty(h.clone()).with_lang(expr, context),
+        Lang::Number(_, h) => (Type::Number(h.clone()), expr.clone(), context.clone()),
+        Lang::Integer(i, h) 
+            => (builder::integer_type(*i).set_help_data(h.clone()), expr.clone(), context.clone()),
+        Lang::Bool(_, h) => (Type::Boolean(h.clone()), expr.clone(), context.clone()),
+        Lang::Char(s, h) 
+            => (builder::character_type(&s).set_help_data(h.clone()), expr.clone(), context.clone()),
+        Lang::Empty(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()),
         Lang::And(e1, e2, _) | Lang::Or(e1, e2, _) => {
             (typing(context, e1).0.is_boolean() && typing(context, e2).0.is_boolean())
                 .then_some((builder::boolean_type(), context.clone()))
-                .expect("Type error").with_lang(expr)
+                .expect("Type error")
+                .with_lang(expr)
         }
         Lang::Eq(e1, e2, _) | Lang::LesserOrEqual(e1, e2, _) | Lang::GreaterOrEqual(e1, e2, _) | Lang::GreaterThan(e1, e2, _) | Lang::LesserThan(e1, e2, _) => {
             (typing(context, e1).0 == typing(context, e2).0)
@@ -801,9 +804,12 @@ mod tests {
         let new_context = typing(&context, &let_exp).2;
         let res = new_context.get_type_from_variable(&var);
         let typ = builder::integer_type_default();
-        //assert_eq!(res, Some(typ));
         assert!(true);
     }
 
+    //#[test]
+    //fn test_let3() {
+        //MockParser::new("let a: int <- 8;")
+    //}
 
 }

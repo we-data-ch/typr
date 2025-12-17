@@ -83,6 +83,42 @@ impl Op {
         Lang::Operator(self, Box::new(left.clone()), Box::new(right), left.get_help_data())
     }
 
+    pub fn get_help_data(&self) -> HelpData {
+        match self {
+            Op::Empty(h) => h.clone(),
+            Op::Custom(_, h) => h.clone(),
+            Op::Dollar(h) => h.clone(),
+            Op::Dollar2(h) => h.clone(),
+            Op::Modulo2(h) => h.clone(),
+            Op::Modulo(h) => h.clone(),
+            Op::LesserOrEqual(h) => h.clone(),
+            Op::GreaterOrEqual(h) => h.clone(),
+            Op::Add(h) => h.clone(),
+            Op::Add2(h) => h.clone(),
+            Op::And(h) => h.clone(),
+            Op::Or(h) => h.clone(),
+            Op::Eq(h) => h.clone(),
+            Op::Eq2(h) => h.clone(),
+            Op::NotEq(h) => h.clone(),
+            Op::Pipe(h) => h.clone(),
+            Op::Pipe2(h) => h.clone(),
+            Op::Dot(h) => h.clone(),
+            Op::Dot2(h) => h.clone(),
+            Op::Union(h) => h.clone(),
+            Op::Minus(h) => h.clone(),
+            Op::Minus2(h) => h.clone(),
+            Op::Mul(h) => h.clone(),
+            Op::Mul2(h) => h.clone(),
+            Op::In(h) => h.clone(),
+            Op::At(h) => h.clone(),
+            Op::At2(h) => h.clone(),
+            Op::Div(h) => h.clone(),
+            Op::Div2(h) => h.clone(),
+            Op::LesserThan(h) => h.clone(),
+            Op::GreaterThan(h) => h.clone(),
+        }
+    }
+
 }
 
 
@@ -208,7 +244,9 @@ fn get_string(op: &Op) -> String {
         Op::Modulo(_) => "%".to_string(),
         Op::Dollar(_) => "$".to_string(),
         Op::Dollar2(_) => "$$".to_string(),
-        _ => todo!()
+        Op::Eq2(_) => "=".to_string(),
+        Op::NotEq(_) => "!=".to_string(),
+        n => {dbg!(n); todo!()}
     }
 }
 

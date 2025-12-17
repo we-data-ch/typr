@@ -35,6 +35,10 @@ pub fn integer_type_default() -> Type {
     Type::Integer(Tint::Unknown, HelpData::default())
 }
 
+pub fn character_type(s: &str) -> Type {
+    Type::Char(Tchar::Val(s.to_string()), HelpData::default())
+}
+
 pub fn character_type_default() -> Type {
     Type::Char(Tchar::Unknown, HelpData::default())
 }

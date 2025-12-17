@@ -1,6 +1,7 @@
 use crate::operation_priority::PriorityToken;
-use crate::type_operator::TypeOperator;
 use crate::operation_priority::TokenKind;
+use crate::type_operator::TypeOperator;
+use crate::help_data::HelpData;
 use crate::Type;
 use std::fmt;
 
@@ -41,6 +42,16 @@ impl fmt::Display for TypeToken {
     }
 }
 
+impl TypeToken {
+    pub fn get_help_data(&self) -> HelpData {
+        match self {
+            TypeToken::Expression(exp) => exp.get_help_data(),
+            TypeToken::Operator(_) => HelpData::default(),
+            TypeToken::EmptyOperator => HelpData::default()
+        }
+    }
+}
+
 impl PriorityToken for TypeToken {
     fn get_token_type(&self) -> TokenKind {
         match self {
@@ -69,4 +80,6 @@ impl PriorityToken for TypeToken {
             _ => panic!("Should be (op exp1 exp2) not ({} {} {})", self, left, right)
         }
     }
+
+
 }

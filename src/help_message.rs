@@ -184,6 +184,7 @@ pub enum TypeError {
     PrivateVariable(Var, Var),
     GenericPatternMatch(Type, Type),
     FieldNotFound((String, HelpData), Type),
+    WrongExpression(HelpData),
 }
 
 // main
@@ -333,6 +334,15 @@ impl ErrorMsg for TypeError {
                     .pos_text2(format!("Type {} defined here", typ.pretty()))
                     .build()
             },
+            TypeError::WrongExpression(help_data) => {
+                let (file_name, text) = help_data.get_file_data()
+                    .unwrap_or(("std.ty".to_string(), 
+                                fs::read_to_string("std.ty").unwrap_or("".to_string())));
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .build()
+            }
+                
         };
         format!("{:?}", msg)
     }

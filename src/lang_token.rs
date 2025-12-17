@@ -1,6 +1,7 @@
 use crate::operation_priority::PriorityToken;
 use crate::operators::Op;
 use crate::operation_priority::TokenKind;
+use crate::help_data::HelpData;
 use crate::Lang;
 use std::fmt;
 
@@ -10,6 +11,16 @@ pub enum LangToken {
     Expression(Lang),
     #[default]
     EmptyOperator
+}
+
+impl LangToken {
+    pub fn get_help_data(&self) -> HelpData {
+        match self {
+            LangToken::Operator(op) => op.get_help_data(),
+            LangToken::Expression(exp) => exp.get_help_data(),
+            LangToken::EmptyOperator => HelpData::default()
+        }
+    }
 }
 
 impl From<Lang> for LangToken {

@@ -44,8 +44,8 @@ mod type_token;
 mod module_type;
 mod lang_token;
 mod package_loader;
-use std::path::Path;
 
+use std::path::Path;
 use crate::config::Config;
 use std::io::Write;
 use std::fs::File;

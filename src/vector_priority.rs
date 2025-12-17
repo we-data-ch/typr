@@ -2,9 +2,12 @@ use crate::operation_priority::PriorityTokens;
 use crate::operation_priority::PriorityToken;
 use crate::type_token::TypeToken;
 use crate::lang_token::LangToken;
+use crate::help_data::HelpData;
 
 pub struct VectorPriority<T: PriorityToken> {
-   body: Vec<T>
+    body: Vec<T>,
+    initial_expression: String,
+    help_data: HelpData
 }
 
 impl<T: PriorityToken, E: From<T> + Default> PriorityTokens<T, E> for VectorPriority<T> {
@@ -26,6 +29,10 @@ impl<T: PriorityToken, E: From<T> + Default> PriorityTokens<T, E> for VectorPrio
         format!("self: {}", self)
     }
 
+    fn get_initial_expression(&self) -> HelpData {
+            self.help_data.clone()
+    }
+
 }
 
 use std::fmt;
@@ -39,17 +46,24 @@ impl<T: PriorityToken> fmt::Display for VectorPriority<T> {
 
 impl From<Vec<TypeToken>> for VectorPriority<TypeToken> {
    fn from(val: Vec<TypeToken>) -> Self {
+       let res = val.iter().next().unwrap().clone();
+       let expression = val.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(" ");
        VectorPriority {
-        body: val
+        body: val,
+        initial_expression: expression,
+        help_data: res.get_help_data()
        }
    } 
 }
 
-
 impl From<Vec<LangToken>> for VectorPriority<LangToken> {
    fn from(val: Vec<LangToken>) -> Self {
+       let res = val.iter().next().unwrap().clone();
+       let expression = val.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(" ");
        VectorPriority {
-        body: val
+           body: val,
+           initial_expression: expression,
+           help_data: res.get_help_data()
        }
    } 
 }
