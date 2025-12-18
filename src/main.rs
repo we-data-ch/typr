@@ -45,6 +45,7 @@ mod module_type;
 mod lang_token;
 mod package_loader;
 mod fluent_parser;
+mod repl;
 
 use std::path::Path;
 use crate::config::Config;
@@ -71,6 +72,7 @@ use crate::type_checker::execute_r_function;
 use crate::vartype::VarType;
 use crate::config::Environment;
 use crate::package_loader::PackageManager;
+use repl::repl;
 
 const R_FUNCTIONS: &str = "../configs/src/functions_R.txt";
 const TYPED_R_FUNCTIONS: &str = "../configs/std/std_R.ty";
@@ -173,6 +175,7 @@ enum Commands {
     /// Update the standard library
     Std,
     Clean,
+    Repl
 }
 
 #[derive(Subcommand)]
@@ -756,6 +759,9 @@ fn main() {
         },
         Some(Commands::Clean) => {
             clean()
+        },
+        Some(Commands::Repl) => {
+            repl().expect("Console stopped")
         },
         None => {
             println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");
