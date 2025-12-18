@@ -71,6 +71,14 @@ impl Context {
         }
     }
 
+    pub fn empty() -> Self {
+        Context { 
+            config: Config::default(),
+            typing_context: VarType::new(),
+            subtypes: Graph::new(),
+        }
+    }
+
     pub fn set_config(self, config: Config) -> Self {
         Self {
             config: config,

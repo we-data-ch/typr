@@ -44,6 +44,7 @@ mod type_token;
 mod module_type;
 mod lang_token;
 mod package_loader;
+mod fluent_parser;
 
 use std::path::Path;
 use crate::config::Config;

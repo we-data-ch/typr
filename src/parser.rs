@@ -533,6 +533,14 @@ pub fn parse(s: Span) -> Lang {
     }
 }
 
+pub fn parse2(s: Span) -> Result<Lang, String> {
+    let res = base_parse(s.clone());
+    match res {
+        Ok((_, v)) => Ok(Lang::Lines(v.clone(), v.into())),
+        Err(_) => Err(format!("Can't parse string {}", s))
+    }
+}
+
 // main test
 #[cfg(test)]
 mod tesus {

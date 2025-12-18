@@ -807,9 +807,4 @@ mod tests {
         assert!(true);
     }
 
-    //#[test]
-    //fn test_let3() {
-        //MockParser::new("let a: int <- 8;")
-    //}
-
 }
