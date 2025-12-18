@@ -3,6 +3,7 @@ use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, Result};
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio, ChildStdin, ChildStdout};
+use crate::fluent_parser::FluentParser;
 
 pub struct RSession {
     stdin: ChildStdin,
@@ -25,7 +26,10 @@ impl RSession {
         Ok(RSession { stdin, stdout })
     }
 
-    pub fn execute(&mut self, command: &str) -> std::io::Result<String> {
+    pub fn execute(&mut self, command: &str, fluent_parser: FluentParser) -> std::io::Result<(String, FluentParser)> {
+        let (command, fluent_parser) = fluent_parser
+            .push(command).run()
+            .next_r_code().expect("The command went wrong");
         // Envoyer la commande à R avec un marqueur de fin immédiatement après
         writeln!(self.stdin, "{}", command)?;
         writeln!(self.stdin, "cat('__END_OUTPUT__\\n')")?;
@@ -39,24 +43,27 @@ impl RSession {
         loop {
             line.clear();
             self.stdout.read_line(&mut line)?;
+            println!("line: {:?}", line);
             
             // Détecter le marqueur de fin
             if line.contains("__END_OUTPUT__\\n") {
                 break;
+            }
+
+            if line == "" {
+                continue;
             }
             
             // Ignorer les lignes de prompt R (qui commencent par >)
             if line.trim().starts_with('>') && !started {
                 continue;
             }
-
-            let _ = 3;
             
             started = true;
             output.push_str(&line);
         }
 
-        Ok(output.trim().to_string().replace("__END_OUTPUT__\n", ""))
+        Ok((output.trim().to_string().replace("__END_OUTPUT__\n", ""), fluent_parser))
     }
 }
 
@@ -81,6 +88,8 @@ pub fn repl() -> Result<()> {
         println!("No previous history.");
     }
 
+    let mut fluent_parser = FluentParser::new();
+
     loop {
         let readline = rl.readline("R> ");
         match readline {
@@ -95,8 +104,9 @@ pub fn repl() -> Result<()> {
                 rl.add_history_entry(line.as_str())?;
                 
                 // Exécuter la commande dans R
-                match r_session.execute(&line) {
-                    Ok(output) => {
+                match r_session.execute(&line, fluent_parser.clone()) {
+                    Ok((output, new_fluent_parser)) => {
+                        fluent_parser = new_fluent_parser;
                         if !output.is_empty() {
                             println!("{}", output);
                         }

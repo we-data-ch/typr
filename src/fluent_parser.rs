@@ -7,11 +7,15 @@ use crate::Context;
 use crate::parser::parse2;
 use crate::typing;
 use crate::builder;
+use crate::translatable::RTranslatable;
+use crate::graph::TypeSystem;
 
 #[derive(Debug, Clone)]
-struct FluentParser {
+pub struct FluentParser {
     raw_code: Vector<String>,
     code: Vector<Lang>,
+    new_code: Vector<Lang>,
+    r_code: Vector<String>,
     logs: Vector<String>,
     context: Context,
     last_type: Type
@@ -23,6 +27,8 @@ impl FluentParser {
        FluentParser {
            raw_code: Vector::new(),
            code: Vector::new(),
+           new_code: Vector::new(),
+           r_code: Vector::new(),
            logs: Vector::new(),
            context: Context::empty(),
            last_type: builder::empty_type()
@@ -123,12 +129,20 @@ impl FluentParser {
         }
     }
 
+    pub fn push_new_code(self, code: Lang) -> Self {
+        Self {
+            new_code: self.new_code.push_back(code),
+            ..self
+        }
+    }
+
     // Type the next parser code
     pub fn type_next(self) -> Self {
         match self.clone().next_code() {
             Some((code, rest)) => {
                 let (typ, lang, new_context) =  typing(&self.context, &code);
                 rest.set_context(new_context)
+                    .push_new_code(lang)
                     .set_last_type(typ)
             },
             _ => self.push_log("No more Lang code left")
@@ -185,6 +199,72 @@ impl FluentParser {
         self.last_type.clone()
     }
 
+    fn drop_first_new_code(self) -> Self {
+        Self {
+            new_code: self.new_code.iter().skip(1).cloned().collect(),
+            ..self
+        }
+    }
+
+    fn next_new_code(self) -> Option<(Lang, Self)> {
+        match self.new_code.first() {
+            Some(lang) 
+                => Some((lang.clone(), self.drop_first_new_code())),
+            _ => None
+        }
+    }
+
+    pub fn push_r_code(self, r_code: String) -> Self {
+        Self {
+            r_code: self.r_code.push_back(r_code),
+            ..self
+        }
+    }
+
+    pub fn transpile_next(self) -> Self {
+        match self.clone().next_new_code() {
+            Some((code, rest)) => {
+                let (r_code, new_context) =  code.to_r(&self.context);
+                rest.set_context(new_context)
+                    .push_r_code(r_code)
+            },
+            _ => self.push_log("No more Lang code left")
+        }
+    }
+
+    pub fn parse_type_transpile_next(self) -> Self {
+        self
+            .parse_next()
+            .type_next()
+            .transpile_next()
+    }
+
+    pub fn run(self) -> Self {
+        self.parse_type_transpile_next()
+    }
+
+    pub fn next_r_code(self) -> Option<(String, Self)> {
+        match self.r_code.first() {
+            Some(lang) 
+                => Some((lang.clone(), self.drop_first_new_code())),
+            _ => None
+        }
+    }
+
+}
+
+
+use std::fmt;
+impl fmt::Display for FluentParser {
+    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let res = format!("raw_code: {}\ncode: {}\nnew_code: {}\nr_code: {}\nlast_type: {}",
+                self.raw_code.iter().cloned().collect::<Vec<_>>().join(" | "),
+                self.code.iter().map(|x| x.simple_print()).collect::<Vec<_>>().join(" | "),
+                self.new_code.iter().map(|x| x.simple_print()).collect::<Vec<_>>().join(" | "),
+                self.r_code.iter().cloned().collect::<Vec<_>>().join(" | "),
+                self.last_type.pretty());
+        write!(f, "{}", res)       
+    }
 }
 
 #[cfg(test)]
@@ -210,6 +290,15 @@ mod tests {
             .push("9").parse_type_next()
             .get_last_type();
         assert_eq!(typ, builder::integer_type(8))
+    }
+
+    #[test]
+    fn test_fluent_transpiler1(){
+        let fp = FluentParser::new()
+            .push("8")
+            .run()
+            ;
+        assert_eq!(fp.next_r_code().unwrap().0, "8L")
     }
 
 }
