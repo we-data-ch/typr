@@ -185,6 +185,7 @@ pub enum TypeError {
     GenericPatternMatch(Type, Type),
     FieldNotFound((String, HelpData), Type),
     WrongExpression(HelpData),
+    WrongIndexing(Type, Type),
 }
 
 // main
@@ -342,6 +343,21 @@ impl ErrorMsg for TypeError {
                     .pos((help_data.get_offset(), 0))
                     .build()
             }
+            TypeError::WrongIndexing(t1, t2) => {
+                let help_data1 = t1.get_help_data();
+                let help_data2 = t2.get_help_data();
+                let (file_name1, text1) = help_data1.get_file_data()
+                    .unwrap_or(("std.ty".to_string(), "".to_string()));
+                let (file_name2, text2) = help_data2.get_file_data()
+                    .unwrap_or(("std.ty".to_string(), "".to_string()));
+                DoubleBuilder::new(file_name1, text1, file_name2, text2)
+                    .pos1((help_data1.get_offset(), 0))
+                    .pos2((help_data2.get_offset(), 1))
+                    .text(format!("Wrong indexing"))
+                    .pos_text1(format!("{} Can't be indexed", t1.pretty2()))
+                    .pos_text2(format!("Has a bigger dimension {}", t2.pretty2()))
+                    .build()
+            },
                 
         };
         format!("{:?}", msg)

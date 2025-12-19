@@ -69,9 +69,15 @@ pub fn number(s: Span) -> IResult<Span,Lang> {
 }
 
 fn integer(s: Span) -> IResult<Span, Lang> {
-    let res = terminated(digit1, multispace0).parse(s);
+    let res = terminated((opt(tag("-")), digit1), multispace0).parse(s);
     match res {
-        Ok((s, d)) => Ok((s, Lang::Integer(d.parse::<i32>().unwrap(), d.into()))),
+        Ok((s, (minus, d))) => {
+            let symbol = match minus {
+                Some(_) => "-",
+                None => ""
+            }.to_string() + &d.to_string();
+            Ok((s, Lang::Integer(symbol.parse::<i32>().unwrap(), d.into())))
+        },
         Err(r) => Err(r)
     }
 }
@@ -198,7 +204,7 @@ fn variable_helper(s: Span) -> IResult<Span, (Lang, Case)> {
     match res {
         Ok((s, ((v, case, h), typ))) => {
             let res = Var::from_name(&v)
-                .set_type(typ.unwrap_or(builder::unknown_function()))
+                .set_type(typ.unwrap_or(builder::empty_type()))
                 .set_help_data(h);
             Ok((s, (res.into(), case)))
         },
@@ -345,17 +351,12 @@ pub fn variable2(s: Span) -> IResult<Span, Lang> {
 }
 
 fn array_indexing(s: Span) -> IResult<Span, Lang> {
-    let res = (
-            alt((scope, variable2)),
-            terminated(tag("["), multispace0),
-            alt((integer, variable2)),
-            terminated(tag("]"), multispace0),
-            multispace0
-          ).parse(s);
+    let res = (alt((scope, variable2)), array).parse(s);
+    
     match res {
-        Ok((s, (exp, _, int_var, _, _))) 
-            => Ok((s, Lang::ArrayIndexing(Box::new(exp.clone()), Box::new(int_var), exp.into()))),
-        Err(r) => Err(r),
+        Ok((s, (lang1, lang2))) 
+            => Ok((s, Lang::ArrayIndexing(Box::new(lang1.clone()), Box::new(lang2), lang1.into()))),
+        Err(r) => Err(r)
     }
 }
 
@@ -931,7 +932,7 @@ fn single_element_token(s: Span) -> IResult<Span, LangToken> {
 }
 
 pub fn elements(s: Span) -> IResult<Span, Lang> {
-    let res = many1(alt((element_operator_token, single_element_token))).parse(s);
+    let res = many1(alt((single_element_token, element_operator_token))).parse(s);
     match res {
         Ok((s, v)) => {
             Ok((s, VectorPriority::from(v).run()))
@@ -952,6 +953,7 @@ pub fn parse_elements(s: Span) -> IResult<Span, Lang> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fluent_parser::FluentParser;
 
     #[test]
     #[should_panic]
@@ -1035,6 +1037,22 @@ mod tests {
         let res = "3 + personne$age ".parse::<Lang>().unwrap();
         dbg!(&res);
         assert_eq!(res.simple_print(), "Operator", "Should put multiplication first 1 * 2 + 3 * 4");
+    }
+
+    #[test]
+    fn test_array_indexing0() {
+        let res = array_indexing("name[1, 2, 3]".into()).unwrap().1;
+        dbg!(&res);
+        assert!(true);
+    }
+
+    #[test]
+    fn test_array_indexing() {
+        let fp = FluentParser::new()
+            .push("name[1, 2, 3]")
+            .parse_next();
+        println!("fp: {}", fp);
+        assert!(true);
     }
 
 }

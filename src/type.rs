@@ -176,7 +176,7 @@ impl Default for Type {
 //main
 impl Type {
     pub fn add_to_context(self, var: Var, context: Context) -> (Type, Context) {
-        let cont = context.clone().push_var_type(var.clone(), self.clone(), &context);
+        let cont = context.clone().push_var_type(var.clone().set_type(self.clone()), self.clone(), &context);
         if self.is_function() {
             self.tuple(&cont) //TODO save if function
         } else {
@@ -671,6 +671,19 @@ impl Type {
         }
     }
 
+    pub fn to_array2(args: Vec<Type>) -> Type {
+        let h = HelpData::default();
+        if args.len() > 1 {
+            Type::Array(
+                Box::new(args[0].clone()), 
+                Box::new(Self::to_array2(args[1..].to_vec())), h)
+        } else {
+            Type::Array(
+                Box::new(args[0].clone()), 
+                Box::new(builder::integer_type_default()), h)
+        }
+    }
+
     pub fn is_any(&self) -> bool {
         *self == builder::any_type()
     }
@@ -757,6 +770,14 @@ impl Type {
         match self {
             Type::Module(args, h) => Ok(ModuleType::from((args, h))),
             _ => Err(format!("{} can't be turn into a ModuleType", self.pretty()))
+        }
+    }
+
+    pub fn linearize(self) -> Vec<Type> {
+        match self {
+            Type::Array(t1, t2, _) 
+                => [*t1].iter().chain((*t2).linearize().iter()).cloned().collect(),
+            other => vec![other]
         }
     }
 

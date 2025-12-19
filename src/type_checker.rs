@@ -640,40 +640,25 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 _ => panic!("Type error"),
             }
         }
-        Lang::ArrayIndexing(expr, index, _) => {
-            let ty = typing(context, expr).0.reduce(context);
-            let index_type = typing(context, index).0.reduce(context);
-            match ty.clone() {
-                Type::Array(len, elem_ty, _) => {
-                    ArrayType::try_from(ty).unwrap()
-                      .respect_the_bound(&index_type)
-                      .then_some((*elem_ty, context.clone()))
-                      .expect("Index out of bounds")
-                      .with_lang(expr)
-                },
-                Type::Sequence(len, elem_ty, _) => {
-                    ArrayType::try_from(ty).unwrap()
-                      .respect_the_bound(&index_type)
-                      .then_some((*elem_ty, context.clone()))
-                      .expect("Index out of bounds")
-                      .with_lang(expr)
-                },
-                Type::Vector(len, elem_ty, _) => {
-                    ArrayType::try_from(ty).unwrap()
-                      .respect_the_bound(&index_type)
-                      .then_some((*elem_ty, context.clone()))
-                      .expect("Index out of bounds")
-                      .with_lang(expr)
-                },
-                Type::Any(h) => {
-                    builder::unknown_function().set_help_data(h).with_lang(expr, context)
-                },
-                _ => panic!("Indexing error: {:?} can't be indexable by {}",
-                        expr, 
-                        index),
+        Lang::ArrayIndexing(exp, index, _) => {
+            let typ1 = typing(context, exp).0;
+            let args_target = typ1.clone().linearize();
+            let args_index = index.get_members_if_array()
+                .expect(&format!("{} is not an array", index.simple_print()))
+                .iter()
+                .map(|x| builder::integer_type(x.len()).set_help_data((*x).clone().into()))
+                .collect::<Vec<_>>();
+            let is_indexable = args_target.iter()
+                .zip(args_index.iter())
+                .all(|(target, index)| index <= target);
+            let typ2 = Type::to_array2(args_index).set_help_data((**exp).clone().into());
+            if is_indexable {
+                (typ2, expr.clone(), context.clone())
+            } else {
+                None.expect(&TypeError::WrongIndexing(typ1, typ2).display())
             }
         },
-        Lang::Variable(_, _, _, _, _) => {
+        Lang::Variable(_, _, _, typ, _) => {
             let old_var = Var::try_from(expr.clone()).unwrap();
             let var = context.get_true_variable(&old_var);
             context
@@ -774,6 +759,7 @@ fn unify_type(ty1: &Type, ty2: &Type) -> Type {
 mod tests {
     use super::*;
     use crate::parser::signature;
+    use crate::fluent_parser::FluentParser;
 
     #[test]
     #[should_panic]
@@ -805,6 +791,29 @@ mod tests {
         let res = new_context.get_type_from_variable(&var);
         let typ = builder::integer_type_default();
         assert!(true);
+    }
+
+    #[test]
+    fn test_let2_0() {
+        let context = Context::default();
+        let let_exps = parse("a".into());
+        let let_exp = let_exps.clone();
+        let var = Var::default().set_name("a");
+        let new_context = typing(&context, &let_exp).2;
+        let res = new_context.get_type_from_variable(&var);
+        let typ = builder::integer_type_default();
+        assert!(true);
+    }
+
+    #[test]
+    fn test_let3() {
+        let fp = FluentParser::new()
+            .push("let n <- 8;")
+            .parse_type_next()
+            .push("n")
+            .parse_next();
+        println!("{}", fp);
+        assert!(true)
     }
 
 }

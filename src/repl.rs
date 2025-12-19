@@ -83,10 +83,10 @@ pub fn repl() -> Result<()> {
     println!("REPL R connecté. Tapez vos commandes R ci-dessous.");
     println!("Utilisez CTRL-C ou CTRL-D pour quitter.\n");
 
-    #[cfg(feature = "with-file-history")]
-    if rl.load_history("history.txt").is_err() {
-        println!("No previous history.");
-    }
+    //#[cfg(feature = "with-file-history")]
+    //if rl.load_history("history.txt").is_err() {
+        //println!("No previous history.");
+    //}
 
     let mut fluent_parser = FluentParser::new();
 
@@ -131,8 +131,8 @@ pub fn repl() -> Result<()> {
         }
     }
 
-    #[cfg(feature = "with-file-history")]
-    rl.save_history("history.txt").ok();
+    //#[cfg(feature = "with-file-history")]
+    //rl.save_history("history.txt").ok();
     
     Ok(())
 }

@@ -630,6 +630,20 @@ impl Lang {
         1
     }
 
+    pub fn get_members_if_array(&self) -> Option<Vec<Lang>> {
+        match self {
+            Lang::Array(members, _) => Some(members.clone()),
+            _ => None
+        }
+    }
+
+    pub fn len(&self) -> i32 {
+        match self {
+            Lang::Integer(i, _) => *i,
+            n => panic!("not implemented for language {}", n.simple_print())
+        }
+    }
+
 }
 
 impl From<Lang> for HelpData {
@@ -700,13 +714,6 @@ impl From<Lang> for HelpData {
    } 
 }
 
-impl From<Vec<Lang>> for HelpData {
-   fn from(val: Vec<Lang>) -> Self {
-       if val.len() > 0 {
-            val[0].clone().into()
-       } else { HelpData::default() }
-   } 
-}
 
 use std::fmt;
 impl fmt::Display for Lang {

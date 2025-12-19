@@ -1,5 +1,6 @@
 use nom_locate::LocatedSpan;
 use serde::{Serialize, Deserialize};
+use crate::Lang;
 use std::fs;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Eq, Clone, Hash, Default)]
@@ -43,5 +44,14 @@ impl From<LocatedSpan<&str, String>> for  HelpData {
            offset: ls.location_offset(),
            file_name: ls.extra
        }
+   } 
+}
+
+
+impl From<Vec<Lang>> for HelpData {
+   fn from(val: Vec<Lang>) -> Self {
+       if val.len() > 0 {
+            val[0].clone().into()
+       } else { HelpData::default() }
    } 
 }
