@@ -28,35 +28,15 @@ use crate::elements::return_exp;
 use crate::elements::chars;
 use crate::elements::vector;
 use crate::elements::break_exp;
-use nom::multi::many1;
-use crate::elements::element_operator;
-use crate::elements::op_reverse;
 use crate::elements::elements;
 use crate::elements::variable2;
 use crate::elements::Case;
 use std::ops::Deref;
 use crate::Config;
 use crate::language::ModulePosition;
+use crate::operators::Op;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
-
-pub fn bang_exp(s: Span) -> IResult<Span, Lang> {
-    let res = (
-        many1(element_operator),
-        terminated(tag("!;"), multispace0)
-                    ).parse(s);
-    match res {
-        Ok((s, (v, _bang))) => {
-            let base = v[0].0.clone();
-            Ok((s, 
-                Lang::Assign(
-                    Box::new(base),
-                    Box::new(op_reverse(&mut v.clone())),
-                    _bang.into())))
-        },
-        Err(r) => Err(r)
-    }
-}
 
 fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
     let res = alt((tag_exp, variable2)).parse(s);
@@ -124,7 +104,8 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     Lang::Let(
                         Box::new(pat_var[0].clone()),
                         typ.clone().unwrap_or(Type::Empty(HelpData::default())),
-                        Box::new(Lang::Chain(Box::new(Lang::Number(0.0, eq.into())),
+                        Box::new(Lang::Operator(Op::Dollar(HelpData::default()), 
+                                                Box::new(Lang::Number(0.0, eq.into())),
                         Box::new(body), pat_var.into())), _let.into())]))
 
             } else {
@@ -309,14 +290,6 @@ fn comment(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (_hashtag, txt, _, _))) 
             => Ok((s, vec![Lang::Comment(txt.to_string(), _hashtag.into())])),
-        Err(r) => Err(r)
-    }
-}
-
-fn bangs_exp(s: Span) -> IResult<Span,Vec<Lang>> {
-    let res = bang_exp(s);
-    match res {
-        Ok((s, exp)) => Ok((s, vec![exp])),
         Err(r) => Err(r)
     }
 }
@@ -512,7 +485,7 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
 // main
 pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(multispace0),
-        many0(alt((library, break_exp, use_exp, test_block, while_loop, for_loop, signature, tests, import_type, import_var, mod_imp, comment, type_exp, opaque_exp, let_exp, module, assign, bangs_exp, simple_exp))),
+        many0(alt((library, break_exp, use_exp, test_block, while_loop, for_loop, signature, tests, import_type, import_var, mod_imp, comment, type_exp, opaque_exp, let_exp, module, assign, simple_exp))),
         opt(alt((return_exp, parse_elements)))).parse(s);
     match res {
         Ok((s, (_, v, Some(exp)))) => {

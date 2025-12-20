@@ -71,21 +71,7 @@ pub enum Lang {
     Integer(i32, HelpData),
     Bool(bool, HelpData),
     Char(String, HelpData),
-    And(Box<Lang>, Box<Lang>, HelpData),
-    Or(Box<Lang>, Box<Lang>, HelpData),
     Union(Box<Lang>, Box<Lang>, HelpData),
-    In(Box<Lang>, Box<Lang>, HelpData),
-    Eq(Box<Lang>, Box<Lang>, HelpData),
-    Eq2(Box<Lang>, Box<Lang>, HelpData),
-    NotEq(Box<Lang>, Box<Lang>, HelpData),
-    Modulo(Box<Lang>, Box<Lang>, HelpData), // modulus
-    Modulo2(Box<Lang>, Box<Lang>, HelpData), // modulus2
-    LesserThan(Box<Lang>, Box<Lang>, HelpData),
-    GreaterThan(Box<Lang>, Box<Lang>, HelpData),
-    LesserOrEqual(Box<Lang>, Box<Lang>, HelpData),
-    GreaterOrEqual(Box<Lang>, Box<Lang>, HelpData),
-    Chain(Box<Lang>, Box<Lang>, HelpData),
-    Dollar(Box<Lang>, Box<Lang>, HelpData),
     Scope(Vec<Lang>, HelpData),
     Function(Vec<ArgumentType>, Type, Box<Lang>, HelpData),
     Module(String, Vec<Lang>, ModulePosition, Config, HelpData), // module name { lines }
@@ -296,20 +282,7 @@ impl Lang {
             Lang::Integer(_, h) => h,
             Lang::Char(_, h) => h,
             Lang::Bool(_, h) => h,
-            Lang::And(_, _, h) => h,
-            Lang::Or(_, _, h) => h,
             Lang::Union(_, _, h) => h,
-            Lang::In(_, _, h) => h,
-            Lang::Eq(_, _, h) => h,
-            Lang::Eq2(_, _, h) => h,
-            Lang::NotEq(_, _, h) => h,
-            Lang::Modulo(_, _, h) => h,
-            Lang::Modulo2(_, _, h) => h,
-            Lang::LesserThan(_, _, h) => h,
-            Lang::GreaterThan(_, _, h) => h,
-            Lang::LesserOrEqual(_, _, h) => h,
-            Lang::GreaterOrEqual(_, _, h) => h,
-            Lang::Chain(_, _, h) => h,
             Lang::Scope(_, h) => h,
             Lang::Function(_, _, _, h) => h,
             Lang::Module(_, _, _, _, h) => h,
@@ -344,7 +317,6 @@ impl Lang {
             Lang::RFunction(_, _, h) => h,
             Lang::KeyValue(_, _, h) => h,
             Lang::Vector(_, h) => h,
-            Lang::Dollar(_, _, h) => h,
             Lang::Not(_, h) => h,
             Lang::Sequence(_, h) => h,
             Lang::TestBlock(_, h) => h,
@@ -389,20 +361,7 @@ impl Lang {
             Lang::Integer(_, _) => "Integer".to_string(),
             Lang::Char(_, _) => "Char".to_string(),
             Lang::Bool(_, _) => "Bool".to_string(),
-            Lang::And(_, _, _) => "And".to_string(),
-            Lang::Or(_, _, _) => "Or".to_string(),
             Lang::Union(_, _, _) => "Union".to_string(),
-            Lang::In(_, _, _) => "In".to_string(),
-            Lang::Eq(_, _, _) => "Eq".to_string(),
-            Lang::Eq2(_, _, _) => "Eq2".to_string(),
-            Lang::NotEq(_, _, _) => "NotEq".to_string(),
-            Lang::Modulo(_, _, _) => "Modu".to_string(),
-            Lang::Modulo2(_, _, _) => "Modu2".to_string(),
-            Lang::LesserThan(_, _, _) => "LesserThan".to_string(),
-            Lang::GreaterThan(_, _, _) => "GreaterThan".to_string(),
-            Lang::LesserOrEqual(_, _, _) => "LesserOrEqual".to_string(),
-            Lang::GreaterOrEqual(_, _, _) => "GreatOrEqual".to_string(),
-            Lang::Chain(_, _, _) => "Chain".to_string(),
             Lang::Scope(_, _) => "Scope".to_string(),
             Lang::Function(_, _, _, _) => "Function".to_string(),
             Lang::Module(_, _, _, _, _) => "Module".to_string(),
@@ -440,7 +399,6 @@ impl Lang {
             Lang::RFunction(_, _, _) => "RFunction".to_string(),
             Lang::KeyValue(_, _, _) => "KeyValue".to_string(),
             Lang::Vector(_, _) => "Vector".to_string(),
-            Lang::Dollar(_, _, _) => "Dollar".to_string(),
             Lang::Not(_, _) => "Not".to_string(),
             Lang::Sequence(_, _) => "Sequence".to_string(),
             Lang::TestBlock(_, _) => "TestBlock".to_string(),
@@ -499,10 +457,6 @@ impl Lang {
                     .join(", ");
                 (format!("({}) => {{\n{}\n}}", parameters, body.to_js(context).0),
                  context.clone())
-            },
-            Lang::Dollar(e1, e2, _) => {
-                (format!("{}.{}", e2.to_js(context).0, e1.to_js(context).0),
-                context.clone())
             },
             Lang::Use(lib, members, _) => {
                 let body = match (**members).clone() {
@@ -574,16 +528,17 @@ impl Lang {
     pub fn to_module_helper(self, name: &str) -> Lang{
         match self.clone() {
             Lang::Variable(_, _, _, _, h) => {
-                Lang::Dollar(Box::new(Var::from_name(name).to_language()),
-                            Box::new(self), h)
+                Lang::Operator(Op::Dollar(h.clone()), 
+                               Box::new(Var::from_name(name).to_language()),
+                               Box::new(self), h)
             },
             Lang::Let(var, typ, lang, h) => {
-                let expr = Lang::Dollar(var,
+                let expr = Lang::Operator(Op::Dollar(h.clone()), var,
                     Box::new(Var::from_name(name).to_language()), h.clone());
                 Lang::Let(Box::new(expr), typ, lang, h)
             },
             Lang::Alias(var, types, typ, h) => {
-                let expr = Lang::Dollar(
+                let expr = Lang::Operator(Op::Dollar(h.clone()),
                     Box::new(Var::from_name(name).to_language()), var, h.clone());
                 Lang::Alias(Box::new(expr), types, typ, h)
             },
@@ -659,10 +614,6 @@ impl From<Lang> for HelpData {
            Lang::MethodCall(_, _, _, h) => h,
            Lang::Empty(h) => h,
            Lang::Array(_, h) => h,
-           Lang::Eq(_, _, h) => h,
-           Lang::Eq2(_, _, h) => h,
-           Lang::NotEq(_, _, h) => h,
-           Lang::Chain(_, _, h) => h,
            Lang::Record(_, h) => h,
            Lang::Scope(_, h) => h,
            Lang::Let(_, _, _, h) => h,
@@ -672,20 +623,11 @@ impl From<Lang> for HelpData {
            Lang::VecBlock(_, h) => h,
            Lang::If(_, _, _, h) => h,
            Lang::Assign(_, _, h) => h,
-           Lang::And(_, _, h) => h,
-           Lang::Or(_, _, h) => h,
            Lang::Union(_, _, h) => h,
-           Lang::In(_, _, h) => h,
-           Lang::Modulo(_, _, h) => h,
-           Lang::Modulo2(_, _, h) => h,
            Lang::Module(_, _, _, _, h) => h,
            Lang::ModuleDecl(_, h) => h,
            Lang::ModuleImport(_, h) => h,
            Lang::Import(_, h) => h,
-           Lang::GreaterThan(_, _, h) => h,
-           Lang::GreaterOrEqual(_, _, h) => h,
-           Lang::LesserThan(_, _, h) => h,
-           Lang::LesserOrEqual(_, _, h) => h,
            Lang::ArrayIndexing(_, _, h) => h,
            Lang::Tag(_, _, h) => h,
            Lang::Tuple(_, h) => h,
@@ -701,7 +643,6 @@ impl From<Lang> for HelpData {
            Lang::RFunction(_, _, h) => h,
            Lang::KeyValue(_, _, h) => h,
            Lang::Vector(_, h) => h,
-           Lang::Dollar(_, _, h) => h,
            Lang::Not(_, h) => h,
            Lang::Sequence(_, h) => h,
            Lang::TestBlock(_, h) => h,
@@ -950,7 +891,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     .iter().map(|lang| lang.to_r(&cont).0)
                     .collect::<Vec<_>>().join(", ")
                     .and_if(|lin_array| lin_array != "")
-                    .map(|lin_array| format!("c({})", lin_array))
+                    .map(|lin_array| format!("concatenate_s3({})", lin_array))
                     .unwrap_or("logical(0)".to_string());
 
                 let typ = self.typing(cont).0;
@@ -1068,7 +1009,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 (format!("{} = {}", k, v.to_r(cont).0), cont.clone())
             },
             Lang::Vector(vals, _) => {
-               let res = "c(".to_string() + 
+               let res = "concatenate_s3(".to_string() + 
                    &vals.iter().map(|x| x.to_r(cont).0)
                    .collect::<Vec<_>>().join(", ")
                 + ")";

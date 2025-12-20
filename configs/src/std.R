@@ -63,3 +63,31 @@ let_type <- function(x, new_class) {
   return(x)
 }
 
+concatenate_s3 <- function(...) {
+  # Récupérer tous les arguments
+  objects <- list(...)
+  
+  # Vérifier qu'il y a au moins un objet
+  if (length(objects) == 0) {
+    stop("At least one object must be provided")
+  }
+  
+  # Vérifier que tous les objets ont la même classe
+  first_class <- class(objects[[1]])
+  for (i in seq_along(objects)) {
+    if (!identical(class(objects[[i]]), first_class)) {
+      stop("Each object should have exactly the same class")
+    }
+  }
+  
+  # Sauvegarder la classe
+  original_class <- first_class
+  
+  # Combiner tous les objets avec do.call et c()
+  result <- do.call(c, objects)
+  
+  # Restaurer la classe
+  class(result) <- original_class
+  
+  return(result)
+}

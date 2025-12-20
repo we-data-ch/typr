@@ -363,18 +363,21 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         Lang::Char(s, h) 
             => (builder::character_type(&s).set_help_data(h.clone()), expr.clone(), context.clone()),
         Lang::Empty(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()),
-        Lang::And(e1, e2, _) | Lang::Or(e1, e2, _) => {
+        Lang::Operator(Op::And(_), e1, e2, _) | Lang::Operator(Op::Or(_), e1, e2, _) => {
             (typing(context, e1).0.is_boolean() && typing(context, e2).0.is_boolean())
                 .then_some((builder::boolean_type(), context.clone()))
                 .expect("Type error")
                 .with_lang(expr)
         }
-        Lang::Eq(e1, e2, _) | Lang::LesserOrEqual(e1, e2, _) | Lang::GreaterOrEqual(e1, e2, _) | Lang::GreaterThan(e1, e2, _) | Lang::LesserThan(e1, e2, _) => {
+        Lang::Operator(Op::Eq(_), e1, e2, _) | Lang::Operator(Op::LesserOrEqual(_), e1, e2, _) 
+            | Lang::Operator(Op::GreaterOrEqual(_), e1, e2, _) 
+            | Lang::Operator(Op::GreaterThan(_), e1, e2, _) 
+            | Lang::Operator(Op::LesserThan(_), e1, e2, _) => {
             (typing(context, e1).0 == typing(context, e2).0)
                 .then_some((builder::boolean_type(), context.clone()))
                 .expect("Type error").with_lang(expr)
         }
-        Lang::Chain(e1, e2, _) => {
+        Lang::Operator(Op::Dot(_), e1, e2, _) => {
             let ty2 = typing(context, e2).0.clone().reduce(context);
             match (ty2.clone(), *e1.clone()) {
                 (Type::Record(fields, _), Lang::Variable(name, _, _, _, h)) => {
@@ -413,7 +416,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
             }
         },
-        Lang::Operator(Op::Dollar(_), e1, e2, _) | Lang::Operator(Op::Dot(_), e1, e2, _) => {
+        Lang::Operator(Op::Dollar(_), e1, e2, _) => {
             let op = match expr {
                 Lang::Operator(op, _, _, _) => op,
                 _ => panic!("expr n'est pas un opérateur"),

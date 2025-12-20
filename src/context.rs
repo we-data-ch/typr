@@ -298,7 +298,7 @@ impl Context {
         self.typing_context.variables()
             .filter(|(_, typ)| typ.is_function())
             .filter(|(var, _)| not_in_blacklist(&var.get_name()))
-            .filter(|(var, _)| var.is_imported())
+            //.filter(|(var, _)| var.is_imported())
             .cloned().collect()
     }
 

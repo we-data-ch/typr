@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::operation_priority::PriorityTokens;
 use crate::operation_priority::PriorityToken;
 use crate::type_token::TypeToken;
