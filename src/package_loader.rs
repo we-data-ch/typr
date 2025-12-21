@@ -68,14 +68,14 @@ impl PackageManager {
     pub fn set_target_path(self, path: &str) -> Self {
         Self {
             target_path: path.to_string(),
-            ..Self::default()
+            ..self
         }
     }
 
     pub fn set_content(self, content: &str) -> Self {
         Self {
             content: content.to_string(),
-            ..Self::default()
+            ..self
         }
     }
 

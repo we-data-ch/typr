@@ -24,11 +24,15 @@ use crate::var_function::VarFunction;
 use crate::graph::TypeSystem;
 use std::collections::HashSet;
 
-const BLACKLIST: [&str; 2] = ["test_that", "expect_true"];
+const BLACKLIST: [&str; 18] = ["test_that", "expect_true", "`+`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^"];
 
 pub fn not_in_blacklist(name: &str) -> bool {
     let hs = BLACKLIST.iter().cloned().collect::<HashSet<&str>>();
-    !hs.contains(name)
+    !hs.contains(name) 
+        && !name.contains("$") 
+        && !name.contains("~")
+        && !name.contains("||")
+        && !name.contains("|")
 }
 
 #[derive(Debug, Clone, PartialEq)]

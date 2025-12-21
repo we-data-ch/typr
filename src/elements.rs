@@ -173,6 +173,7 @@ pub fn variable_exp(s: Span) -> IResult<Span, (String, HelpData)> {
     }
 }
 
+
 fn type_annotation(s: Span) -> IResult<Span, Type> {
     delimited(tag("<"), ltype, tag(">")).parse(s)
 }
@@ -208,6 +209,16 @@ fn quoted_variable(s: Span) -> IResult<Span, (String, Case, HelpData)> {
     match res {
         Ok((s, st)) 
             => Ok((s, (format!("`{}`", st.clone()), Case::Min, st.into()))),
+        Err(r) => Err(r)
+    }
+}
+
+pub fn variable_recognizer(s: Span) -> IResult<Span, (String, HelpData)> {
+    let res = alt((quoted_variable, pascal_case_2, variable_exp_2)).parse(s);
+    match res {
+        Ok((s, (s1, _case, h))) => {
+            Ok((s, (s1, h)))
+        },
         Err(r) => Err(r)
     }
 }

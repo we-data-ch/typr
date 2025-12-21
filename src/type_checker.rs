@@ -369,7 +369,8 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 .expect("Type error")
                 .with_lang(expr)
         }
-        Lang::Operator(Op::Eq(_), e1, e2, _) | Lang::Operator(Op::LesserOrEqual(_), e1, e2, _) 
+        Lang::Operator(Op::Eq(_), e1, e2, _) 
+            | Lang::Operator(Op::LesserOrEqual(_), e1, e2, _) 
             | Lang::Operator(Op::GreaterOrEqual(_), e1, e2, _) 
             | Lang::Operator(Op::GreaterThan(_), e1, e2, _) 
             | Lang::Operator(Op::LesserThan(_), e1, e2, _) => {
@@ -489,6 +490,15 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 (a, b, _c) => panic!("Type error we can't combine {} and {:?}", a, b)
             }
         },
+        Lang::Operator(op, e1, e2, h) => {
+            let var_exp = Var::from_name(&format!("`{}`", op))
+                .set_help_data(e1.get_help_data())
+                .to_language();
+            let fun_app = Lang::FunctionApp(Box::new(var_exp), 
+                                            vec![(**e1).clone(), (**e2).clone()], 
+                                            builder::empty_type(), h.clone());
+            typing(context, &fun_app)
+        },
         Lang::Function(params, ret_ty, body, h) => {
             let list_of_types = params.iter()
                 .map(ArgumentType::get_type)
@@ -502,7 +512,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             let reduced_expected_ty = ret_ty.reduce(&context);
             if !reduced_body_type.is_subtype(&reduced_expected_ty, context) {
                 None.expect(
-                    &TypeError::UnmatchingReturnType(reduced_expected_ty, reduced_body_type).display())
+                    &TypeError::UnmatchingReturnType(ret_ty.clone(), body_type.0).display())
             }
             Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone())
                 .with_lang(expr, &body_type.1)

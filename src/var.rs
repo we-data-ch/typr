@@ -121,7 +121,8 @@ impl Var {
             name.to_string(),
             Permission::Private,
             false,
-            builder::any_type(),
+            //builder::any_type(),
+            builder::empty_type(),
             HelpData::default())
     }
 

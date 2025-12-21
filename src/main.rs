@@ -90,6 +90,7 @@ pub fn write_header(context: Context, output_dir: &PathBuf) -> () {
 
         let generic_functions = context.get_all_generic_functions().iter()
                             .map(|(var, _)| var.get_name())
+                            .filter(|x| !x.contains("<-"))
                             .map(|fn_name| format!("{} <- function(x, ...) UseMethod('{}', x)", fn_name, fn_name))
                             .collect::<Vec<_>>().join("\n");
         let app_path = output_dir
@@ -662,20 +663,20 @@ fn cran() {
 }
 
 fn standard_library() {
-    let function_list = execute_r_function("funcs <- ls('package:base', sorted = TRUE)\nfor (element in funcs) {\nprint(element)\n}").unwrap().replace("\"", "").replace("[1] ", "");
-    fs::write(R_FUNCTIONS, function_list).unwrap();
+    //let function_list = execute_r_function("funcs <- ls('package:base', sorted = TRUE)\nfor (element in funcs) {\nprint(element)\n}").unwrap().replace("\"", "").replace("[1] ", "");
+    //fs::write(R_FUNCTIONS, function_list).unwrap();
 
     let std_r_txt = fs::read_to_string(R_FUNCTIONS).unwrap();
     PackageManager::to_name_list(&std_r_txt)
-        .unwrap().set_target_path("configs/bin/").set_name("std_r").save();
+        .unwrap().set_target_path("../configs/bin/").set_name("std_r").save();
     PackageManager::to_header(TYPED_R_FUNCTIONS)
-        .unwrap().set_target_path("configs/bin/").set_name("std_r_typed").save();
+        .unwrap().set_target_path("../configs/bin/").set_name("std_r_typed").save();
 
     let std_js_txt = fs::read_to_string(JS_FUNCTIONS).unwrap();
     PackageManager::to_name_list(&std_js_txt)
-        .unwrap().set_target_path("configs/bin/").set_name("std_r").save();
+        .unwrap().set_target_path("../configs/bin/").set_name("std_js").save();
     PackageManager::to_header(TYPED_JS_FUNCTIONS)
-        .unwrap().set_target_path("configs/bin/").set_name("std_r_typed").save();
+        .unwrap().set_target_path("../configs/bin/").set_name("std_js_typed").save();
 }
 
 fn clean() {

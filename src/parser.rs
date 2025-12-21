@@ -35,6 +35,7 @@ use std::ops::Deref;
 use crate::Config;
 use crate::language::ModulePosition;
 use crate::operators::Op;
+use crate::elements::variable_recognizer;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -393,7 +394,7 @@ fn custom_operators(s: Span) -> IResult<Span, (String, HelpData)> {
 
 fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("@"),
-                alt((variable_exp, custom_operators)),
+                alt((variable_recognizer, custom_operators)),
                 terminated(tag(":"), multispace0),
                 ltype, 
                 terminated(tag(";"), multispace0)).parse(s);
