@@ -115,6 +115,7 @@ impl PackageManager {
     pub fn to_name_list(content: &str) -> Result<PackageManager, String> {
         let package_manager = PackageManager {
             content: content.to_string(),
+            kind: Source::NameList,
             ..PackageManager::default()
         };
         Ok(package_manager)
