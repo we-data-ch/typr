@@ -16,9 +16,9 @@ use crate::Config;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VarType {
-   pub variables: HashSet<(Var, Type)>,
-   pub aliases: HashSet<(Var, Type)>,
-   pub std: HashSet<(Var, Type)>
+   pub variables: Vec<(Var, Type)>,
+   pub aliases: Vec<(Var, Type)>,
+   pub std: Vec<(Var, Type)>
 }
 
 //main
@@ -26,12 +26,10 @@ impl VarType {
     pub fn new() -> VarType {
         let var = Var::from("Generic").set_type(builder::params_type());
         let typ = builder::generic_type();
-        let mut aliases = HashSet::new();
-        aliases.insert((var, typ));
         VarType {
-            variables: HashSet::new(),
-            aliases,
-            std: HashSet::new()
+            variables: vec![],
+            aliases: vec![(var, typ)],
+            std: vec![]
         }
     }
 
@@ -43,23 +41,22 @@ impl VarType {
         }
     }
 
-    pub fn variables(&self) -> Rev<std::vec::IntoIter<&(Var, Type)>> {
-        self.variables.iter().collect::<Vec<_>>().into_iter().rev()
+    pub fn variables(&self) -> Rev<std::slice::Iter<'_, (Var, Type)>> {
+        self.variables.iter().rev()
     }
 
-    pub fn aliases(&self) -> Rev<std::vec::IntoIter<&(Var, Type)>> {
-        self.aliases.iter().collect::<Vec<_>>().into_iter().rev()
+    pub fn aliases(&self) -> Rev<std::slice::Iter<'_, (Var, Type)>> {
+        self.aliases.iter().rev()
     }
 
     pub fn get_types(&self) -> HashSet<Type> {
-        self.variables.iter()
-            .chain(self.aliases.iter())
+        self.variables.iter().rev()
+            .chain(self.aliases.iter().rev())
             .flat_map(|(_var, typ)| typ.clone().extract_types()).collect()
     }
 
     pub fn push_var_type(self, vt: &[(Var, Type)]) -> Self {
         let (var, ali) = Self::separate_variables_aliases(vt.to_vec());
-        let ali = ali.iter().cloned().collect::<Vec<_>>();
         self.push_variables(var).push_aliases(&ali)
     }
 
@@ -68,7 +65,7 @@ impl VarType {
         match &name[..] {
             "Generic" | "character" | "integer" | "Alias" | "Any" | "Rfunction" => self.clone(),
             _ => {
-                let var = self.aliases.iter()
+                let var = self.aliases.iter().rev()
                     .find(|(var, _)| var.contains(&name))
                     .map(|(var, _)| var.get_digit(&name) + 1)
                     .map(|x| vt.0.clone().add_digit(x))
@@ -99,29 +96,29 @@ impl VarType {
     }
     
     pub fn separate_variables_aliases(val: Vec<(Var, Type)>) 
-        -> (HashSet<(Var, Type)>, HashSet<(Var, Type)>) {
+        -> (Vec<(Var, Type)>, Vec<(Var, Type)>) {
        let variables = val.iter()
            .filter(|(var, _)| var.is_variable())
            .cloned()
-           .collect::<HashSet<(Var, Type)>>();
+           .collect::<Vec<(Var, Type)>>();
        let aliases = val.iter()
            .filter(|(var, _)| var.is_alias())
            .cloned()
-           .collect::<HashSet<(Var, Type)>>();
+           .collect::<Vec<(Var, Type)>>();
        (variables, aliases)
     }
 
-    fn push_variables(self, vt: HashSet<(Var, Type)>) -> Self {
+    fn push_variables(self, vt: Vec<(Var, Type)>) -> Self {
+        //vt.iter().map(|var| )
         VarType {
-            variables: self.variables.union(&vt).cloned().collect(),
+            variables: self.variables.iter().chain(vt.iter()).cloned().collect(),
             ..self
         }
     }
 
     fn push_aliases(self, vt: &[(Var, Type)]) -> Self {
-        let vt_set: HashSet<(Var, Type)> = vt.iter().cloned().collect();
         VarType {
-            aliases: self.aliases.union(&vt_set).cloned().collect(),
+            aliases: self.aliases.iter().chain(vt.iter()).cloned().collect(),
             ..self
         }
     }
@@ -203,31 +200,29 @@ impl VarType {
     pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
         let var = Var::from_name(&alias_name)
                     .set_type(builder::params_type());
-        let mut new_aliases = self.aliases.clone();
-        if !self.in_aliases(&alias_name) {
-            new_aliases.insert((var, typ));
-        }
-        Self {
+        let new_aliases = if !self.in_aliases(&alias_name) {
+            self.aliases.iter().chain([(var, typ)].iter()).cloned().collect::<Vec<_>>()
+        } else { self.aliases.clone() };
+        let res = Self {
             aliases: new_aliases,
             ..self
-        }
+        };
+        res
     }
 
     pub fn push_alias2(self, var: Var, typ: Type) -> Self {
-        let mut new_aliases = self.aliases.clone();
-        if !self.in_aliases(&var.get_name()) {
-            new_aliases.insert((var, typ));
-        }
-        Self {
+        let new_aliases = if !self.in_aliases(&var.get_name()) {
+            self.aliases.iter().chain([(var, typ)].iter()).cloned().collect::<Vec<_>>()
+        } else { self.aliases.clone() };
+        let res = Self {
             aliases: new_aliases,
             ..self
-        }
+        };
+        res
     }
 
     pub fn get_aliases(&self) -> String {
-        let mut aliases_vec: Vec<_> = self.aliases.iter().collect();
-        aliases_vec.sort_by_key(|(var, _)| var.get_name());
-        aliases_vec.iter()
+        self.aliases.iter()
             .map(|(var, typ)| format!("{} = {}", var.get_name(), typ.pretty()))
             .collect::<Vec<_>>()
             .join("\n")
@@ -244,17 +239,17 @@ impl VarType {
     }
 
     pub fn update_variable(self, var: Var) -> Self {
-        let old_var = self.variables.iter()
-            .find(|(v, _)| v.get_name() == var.get_name())
-            .expect("Variable not found")
-            .clone();
+        let id = self.variables.iter().enumerate()
+            .find(|(_, (v, _))| v.get_name() == var.get_name())
+            .map(|(i, (_, _))| i)
+            .expect("Variable not found");
 
-        let mut new_variables = self.variables.clone();
-        new_variables.remove(&old_var);
-        new_variables.insert((var.clone(), var.get_type()));
+
+        let mut vec = self.variables.clone();
+        vec[id] = (var.clone(), var.get_type()); //TODO: latter check if vec[id].1 is a function
 
         Self {
-            variables: new_variables,
+            variables: vec,
             ..self
         }
     }
@@ -286,12 +281,12 @@ impl VarType {
     }
 
     pub fn set_default_var_types(self) -> Self {
-        let mut vars = HashSet::new();
-        vars.insert((Var::from("add"), "(T, T) -> T".parse::<Type>().unwrap()));
-        vars.insert((Var::from("minus"), "(T, T) -> T".parse::<Type>().unwrap()));
-        vars.insert((Var::from("mul"), "(T, T) -> T".parse::<Type>().unwrap()));
-        vars.insert((Var::from("div"), "(T, T) -> T".parse::<Type>().unwrap()));
-        self.push_variables(vars)
+        self.push_variables(vec![
+             (Var::from("add"), "(T, T) -> T".parse::<Type>().unwrap()),
+             (Var::from("minus"), "(T, T) -> T".parse::<Type>().unwrap()),
+             (Var::from("mul"), "(T, T) -> T".parse::<Type>().unwrap()),
+             (Var::from("div"), "(T, T) -> T".parse::<Type>().unwrap()),
+        ])
     }
 
     pub fn get_related_functions(&self, typ: &Type) -> Vec<Var> {
@@ -299,10 +294,10 @@ impl VarType {
     }
 
     pub fn set_js_var_types(self) -> Self {
-        let mut vars = HashSet::new();
-        vars.insert((Var::alias("Document", &[]), builder::opaque_type("Doc")));
         self.set_default_var_types()
-            .push_variables(vars)
+            .push_variables(vec![
+                (Var::alias("Document", &[]), builder::opaque_type("Doc"))
+            ])
     }
 
     pub fn set_r_var_types(self) -> Self {
@@ -318,7 +313,7 @@ impl VarType {
     
     pub fn set_std(self, v: Vec<(Var, Type)>) -> Self {
         Self {
-            std: v.into_iter().collect(),
+            std: v,
             ..self
         }
     }
@@ -371,7 +366,7 @@ impl VarType {
     }
 
     pub fn standard_library(&self) -> Vec<(Var, Type)> {
-        self.std.iter().cloned().collect()
+        self.clone().std
     }
     
 }
@@ -389,9 +384,9 @@ impl From<Vec<(Var, Type)>> for  VarType {
    fn from(val: Vec<(Var, Type)>) -> Self {
        let (variables, aliases) = VarType::separate_variables_aliases(val);
        VarType {
-           variables,
-           aliases,
-           std: HashSet::new()
+           variables: variables,
+           aliases: aliases,
+           std: vec![]
        }
    } 
 }
@@ -401,9 +396,9 @@ impl Add for VarType {
 
     fn add(self, other: Self) -> Self {
         Self {
-            variables: self.variables.union(&other.variables).cloned().collect(),
-            aliases: self.aliases.union(&other.aliases).cloned().collect(),
-            std: self.std.union(&other.std).cloned().collect(),
+            variables: self.variables.iter().chain(other.variables.iter()).cloned().collect(),
+            aliases: self.aliases.iter().chain(other.aliases.iter()).cloned().collect(),
+            std: self.std.iter().chain(other.std.iter()).cloned().collect(),
         }
     }
 }

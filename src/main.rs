@@ -133,7 +133,7 @@ struct Cli {
     command: Option<Commands>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum Commands {
     /// Creat a new project
     New {
@@ -180,7 +180,7 @@ enum Commands {
     Repl
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum PkgCommands {
     /// Install the package locally
     Install,
@@ -324,6 +324,7 @@ fn run_file(path: &PathBuf) {
     //HEADER
     write_std_for_type_checking(&dir);
     let context = Context::default();
+    println!("{}", context.display_typing_context());
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
     let content = type_checker.clone().transpile(false);
@@ -663,9 +664,6 @@ fn cran() {
 }
 
 fn standard_library() {
-    //let function_list = execute_r_function("funcs <- ls('package:base', sorted = TRUE)\nfor (element in funcs) {\nprint(element)\n}").unwrap().replace("\"", "").replace("[1] ", "");
-    //fs::write(R_FUNCTIONS, function_list).unwrap();
-
     let std_r_txt = fs::read_to_string(R_FUNCTIONS).unwrap();
     PackageManager::to_name_list(&std_r_txt)
         .unwrap().set_target_path("../configs/bin/").set_name("std_r").save();

@@ -23,6 +23,7 @@ use rpds::Vector;
 use crate::var_function::VarFunction;
 use crate::graph::TypeSystem;
 use std::collections::HashSet;
+use std::collections::HashMap;
 
 const BLACKLIST: [&str; 44] = ["test_that", "expect_true", "`+`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "*", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array"];
 
@@ -187,11 +188,11 @@ impl Context {
             })
     }
 
-    pub fn variables(&self) -> Rev<std::slice::Iter<'_, (Var, Type)>> {
+    pub fn variables(&self) -> Rev<std::vec::IntoIter<&(Var, Type)>> {
         self.typing_context.variables()
     }
 
-    pub fn aliases(&self) -> Rev<std::slice::Iter<'_, (Var, Type)>> {
+    pub fn aliases(&self) -> Rev<std::vec::IntoIter<&(Var, Type)>> {
         self.typing_context.aliases()
     }
 
@@ -339,7 +340,7 @@ impl Context {
                 let reduced_type2 = var2.get_type().reduce(self);
                 var1.get_name() == var2.get_name()
                     && typ.is_function()
-                    && reduced_type1.is_subtype(&reduced_type2, self)
+                    && (reduced_type1.is_subtype(&reduced_type2, self) || reduced_type1.is_upperrank_of(&reduced_type2))
             });
         if res.is_none() {
             self.typing_context
@@ -352,6 +353,29 @@ impl Context {
         } else { 
             res.unwrap().clone()
         }.1
+    }
+
+    pub fn get_matching_functions(&self, var1: Var) -> Vec<Type> {
+        let res = self.typing_context.variables()
+            .filter(|(var2, typ)| {
+                let reduced_type1 = var1.get_type().reduce(self);
+                let reduced_type2 = var2.get_type().reduce(self);
+                var1.get_name() == var2.get_name()
+                    && typ.is_function()
+                    && (reduced_type1.is_subtype(&reduced_type2, self) || reduced_type1.is_upperrank_of(&reduced_type2))
+            }).map(|(_, typ)| typ.clone()).collect::<Vec<_>>();
+        if res.len() == 0 {
+            vec![self.typing_context
+                .standard_library()
+                .iter()
+                .find(|(var2, typ)| var2.get_name() == var1.get_name())
+                .map(|(_, typ)| typ)
+                .expect(&format!("Can't find var {} in the context:\n {}", 
+                       var1.to_string(), self.display_typing_context()))
+                .clone()]
+        } else { 
+            res
+        }
     }
 
     fn build_concret_functions(&self, var_typ: &[(String, Var, Type)]) -> Vec<Lang> {
@@ -447,15 +471,77 @@ impl Context {
         self.config.environment == Environment::Project
     }
 
+    fn validate_vectorization(set: HashSet<(i32, Type)>) -> Option<HashSet<(i32, Type)>> {
+        let mut number_by_type: HashMap<Type, HashSet<i32>> = HashMap::new();
+        
+        for (num, typ) in &set {
+            number_by_type.entry((*typ).clone())
+                .or_insert_with(HashSet::new)
+                .insert(*num);
+        }
+        
+        // Check if each type don't have more than two related number
+        for numeros in number_by_type.values() {
+            if numeros.len() > 2 {
+                return None;
+            }
+        }
+        
+        // If there is 2 numbers, must be only 1 or n
+        let mut n_option: Option<i32> = None;
+        
+        for numeros in number_by_type.values() {
+            if numeros.len() == 2 {
+                if !numeros.contains(&1) {
+                    return None;
+                }
+                let n = numeros.iter().find(|&&x| x != 1).copied().unwrap();
+                if let Some(n_existant) = n_option {
+                    if n != n_existant {
+                        return None;
+                    }
+                } else {
+                    n_option = Some(n);
+                }
+            } else if numeros.len() == 1 {
+                let num = *numeros.iter().next().unwrap();
+                if num != 1 {
+                    if let Some(n_existant) = n_option {
+                        if num != n_existant {
+                            return None;
+                        }
+                    } else {
+                        n_option = Some(num);
+                    }
+                }
+            }
+        }
+        
+        Some(set)
+    }
+
+    pub fn get_unification_map_for_vectorizable_function(types: Vec<Type>) -> Option<UnificationMap> {
+        let unique_types = types.iter()
+            .map(|x| x.get_size_type())
+            .collect::<HashSet<_>>();
+        Self::validate_vectorization(unique_types)
+            .map(|x| UnificationMap::from(x))
+    }
+
     pub fn get_unification_map(&self, values: &[Lang], param_types: &[Type]) 
         -> Option<UnificationMap> {
-        let res = values.iter()
-            .map(|val| typing(self, val).0)
-            .zip(param_types.iter())
-            .flat_map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
-            .flatten()
-            .collect::<Vec<_>>();
-        (res.len() > 0).then(|| UnificationMap::new(res))
+        let entered_types = values.iter().map(|val| typing(self, val).0).collect::<Vec<_>>();
+        if let Some(unification_map) = 
+            Self::get_unification_map_for_vectorizable_function(entered_types.clone()) {
+            Some(unification_map)
+        } else {
+            let res = entered_types.iter()
+                .zip(param_types.iter())
+                .flat_map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
+                .flatten()
+                .collect::<Vec<_>>();
+            (res.len() > 0).then(|| UnificationMap::new(res))
+        }
     }
 
     fn s3_type_definition(&self, var: &Var, typ: &Type) -> String {

@@ -536,9 +536,11 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         },
         Lang::FunctionApp(fn_var_name, values, _, h) => {
             let var = Var::try_from(fn_var_name.clone()).unwrap();
-            let func = var.get_function_signature(values, context)
-                        .infer_return_type(values, context);
-            func.get_return_type().clone()
+            let func = var.get_function_signatures(values, context)
+                .iter()
+                .find_map(|x| x.clone().infer_return_type(values, context))
+                .unwrap();
+            func
                 .tuple(&context.clone())
                 .with_lang(expr)
         },

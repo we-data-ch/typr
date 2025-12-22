@@ -79,6 +79,11 @@ pub fn array_type(i: Type, t: Type) -> Type {
     Type::Array(Box::new(i), Box::new(t), HelpData::default())
 }
 
+pub fn array_type2(i: i32, t: Type) -> Type {
+    let i2 = integer_type(i);
+    Type::Array(Box::new(i2), Box::new(t), HelpData::default())
+}
+
 pub fn opaque_type(name: &str) -> Type {
     Type::Opaque(name.to_string(), HelpData::default())
 }

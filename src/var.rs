@@ -7,8 +7,6 @@ use crate::help_data::HelpData;
 use crate::translatable::RTranslatable;
 use crate::function_type::FunctionType;
 use crate::typing;
-use crate::TypeError;
-use crate::help_message::ErrorMsg;
 use crate::graph::TypeSystem;
 use crate::builder;
 use crate::tchar::Tchar;
@@ -63,11 +61,13 @@ impl Var {
         }
     }
 
-    pub fn get_related_function(self, args: &Vec<Lang>, context: &Context) 
-        -> Option<FunctionType> {
+    pub fn get_related_functions(self, args: &Vec<Lang>, context: &Context) 
+        -> Vec<FunctionType> {
         let typed_var = self.infer_var_related_type(args, context);
-         context.get_first_matching_function(typed_var.clone())
-             .to_function_type()
+         context.get_matching_functions(typed_var.clone())
+             .iter()
+             .map(|x| x.to_function_type().unwrap())
+             .collect()
     }
 
     pub fn old_get_related_function(self, args: &Vec<Lang>, context: &Context) 
@@ -82,12 +82,12 @@ impl Var {
         }
     }
 
-    pub fn get_function_signature(&self, values: &Vec<Lang>, context: &Context) -> FunctionType {
+    pub fn get_function_signatures(&self, values: &Vec<Lang>, context: &Context) -> Vec<FunctionType> {
         //if context.is_an_untyped_function(&self.get_name()) {
         self.clone()
-            .get_related_function(values, context)
-            .unwrap_or(FunctionType::try_from(Type::UnknownFunction(HelpData::default()))
-                        .expect(&TypeError::UndefinedFunction((self).clone()).display()))
+            .get_related_functions(values, context)
+            //.unwrap_or(FunctionType::try_from(Type::UnknownFunction(HelpData::default()))
+                        //.expect(&TypeError::UndefinedFunction((self).clone()).display()))
     }
 
     pub fn from_language(l: Lang) -> Option<Var> {

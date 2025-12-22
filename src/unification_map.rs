@@ -1,10 +1,12 @@
-use crate::Type;
-use crate::unification;
-use crate::Context;
-use crate::TypeError;
 use crate::help_message::ErrorMsg;
-use std::fmt;
+use std::collections::HashSet;
 use crate::graph::TypeSystem;
+use crate::unification;
+use crate::TypeError;
+use crate::builder;
+use crate::Context;
+use crate::Type;
+use std::fmt;
 
 #[derive(Debug)]
 struct SafeHashMap {
@@ -69,6 +71,15 @@ impl std::iter::FromIterator<(Type, Type)> for UnificationMap {
 impl From<Vec<Vec<(Type, Type)>>> for  UnificationMap {
    fn from(val: Vec<Vec<(Type, Type)>>) -> Self {
         val.iter().cloned().flatten().collect::<UnificationMap>()
+   } 
+}
+
+impl From<HashSet<(i32, Type)>> for UnificationMap {
+   fn from(val: HashSet<(i32, Type)>) -> Self {
+       let res = val.iter() 
+           .map(|(i, typ)| (typ.clone(), builder::array_type2(i.clone(), typ.clone())))
+           .collect::<Vec<_>>();
+       UnificationMap(res)
    } 
 }
 

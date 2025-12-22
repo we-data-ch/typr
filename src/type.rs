@@ -781,6 +781,32 @@ impl Type {
         }
     }
 
+    pub fn is_upperrank_of(&self, other: &Type) -> bool {
+        match (self, other) {
+            (Type::Array(_, typ1, _), typ2) => **typ1 == *typ2,
+            _ => false
+        }
+    }
+
+    pub fn has_generic(&self) -> bool {
+        self.extract_generics().len() > 0
+    }
+
+    pub fn has_operation(&self) -> bool {
+        false
+    }
+
+    pub fn is_reduced(&self) -> bool {
+        !self.has_generic() && !self.has_operation()
+    }
+
+    pub fn get_size_type(&self) -> (i32, Type) {
+        match self {
+            Type::Array(i, t, _) => (i.get_index().unwrap() as i32, (**t).clone()),
+            typ => (1, typ.clone())
+        }
+    }
+
 }
 
 pub struct Array {
