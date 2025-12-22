@@ -24,7 +24,7 @@ use crate::var_function::VarFunction;
 use crate::graph::TypeSystem;
 use std::collections::HashSet;
 
-const BLACKLIST: [&str; 25] = ["test_that", "expect_true", "`+`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "*", "next", "break", ".POSIXt"];
+const BLACKLIST: [&str; 37] = ["test_that", "expect_true", "`+`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "*", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod"];
 
 pub fn not_in_blacklist(name: &str) -> bool {
     let hs = BLACKLIST.iter().cloned().collect::<HashSet<&str>>();
@@ -48,6 +48,7 @@ pub fn not_in_blacklist(name: &str) -> bool {
         && !name.contains(":")
         && !name.contains("-")
         && !name.contains(".POSIXt")
+        && !name.contains(".")
 }
 
 pub fn add_backticks_if_percent(s: &str) -> String {
@@ -322,12 +323,13 @@ impl Context {
     }
 
     pub fn get_all_generic_functions(&self) -> Vec<(Var, Type)> {
-        self.typing_context.variables()
+        let res = self.typing_context.variables()
             .filter(|(_, typ)| typ.is_function())
             .filter(|(var, _)| not_in_blacklist(&var.get_name()))
-            .map(|(var, typ)| (var.clone().set_name(&add_backticks_if_percent(&var.get_name())), typ.clone()))
-            //.filter(|(var, _)| var.is_imported())
-            .collect()
+            .collect::<HashSet<_>>();
+        res.iter()
+           .map(|(var, typ)| (var.clone().set_name(&add_backticks_if_percent(&var.get_name())), typ.clone()))
+           .collect()
     }
 
     pub fn get_first_matching_function(&self, var1: Var) -> Type {

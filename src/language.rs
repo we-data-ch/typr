@@ -1,31 +1,31 @@
-use crate::r#type::Type;
-use crate::var::Var;
-use crate::var::Permission;
-use serde::{Serialize, Deserialize};
-use crate::argument_type::ArgumentType;
 use crate::argument_value::ArgumentValue;
-use crate::Context;
-use crate::typing;
-use crate::help_data::HelpData;
-use crate::function_type::FunctionType;
+use crate::operation_priority::TokenKind;
 use crate::type_comparison::reduce_type;
+use crate::argument_type::ArgumentType;
+use crate::translatable::RTranslatable;
+use crate::function_type::FunctionType;
 use crate::translatable::Translatable;
+use serde::{Serialize, Deserialize};
+use crate::module_lang::ModuleLang;
 use crate::function_lang::Function;
 use crate::array_type::ArrayType;
-use crate::translatable::RTranslatable;
-use crate::builder;
-use std::str::FromStr;
-use crate::fs;
-use std::io::Write;
-use crate::Config;
-use std::path::PathBuf;
-use std::fs::File;
-use crate::module_lang::ModuleLang;
-use crate::Environment;
-use crate::operation_priority::TokenKind;
-use crate::operators::Op;
 use crate::lang_token::LangToken;
+use crate::help_data::HelpData;
 use crate::elements::elements;
+use crate::var::Permission;
+use crate::operators::Op;
+use crate::r#type::Type;
+use crate::Environment;
+use std::path::PathBuf;
+use std::str::FromStr;
+use crate::var::Var;
+use crate::Context;
+use crate::builder;
+use std::io::Write;
+use crate::typing;
+use crate::Config;
+use std::fs::File;
+use crate::fs;
 
 const JS_HEADER: &str = "let add = (a, b) => a+b;\nlet mul = (a, b) => a*b;\nlet minus = (a, b) => a - b;\nlet div = (a, b) => a/b;";
 
@@ -668,6 +668,10 @@ impl fmt::Display for Lang {
     }
 }
 
+fn format_backtick(s: String) -> String {
+    "`".to_string() + &s.replace("`", "") + "`"
+}
+
 //main
 impl RTranslatable<(String, Context)> for Lang {
     fn to_r(&self, cont: &Context) -> (String, Context) {
@@ -856,7 +860,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 (format!("function(x, ...) UseMethod('{}')", func.to_string()), cont.clone()),
             Lang::Let(expr, ttype, body, _) => {
                 let (body_str, new_cont) = body.to_r(cont);
-                let new_name = expr.clone().to_r(cont).0;
+                let new_name = format_backtick(expr.clone().to_r(cont).0);
 
                 let (r_code, _new_name2) =
                 Function::try_from((**body).clone())
@@ -884,7 +888,6 @@ impl RTranslatable<(String, Context)> for Lang {
                     r_code + "\n"
                 };
                 (code, new_cont)
-                
             },
             Lang::Array(_v, _h) => {
                 let vector = &self.linearize_array()

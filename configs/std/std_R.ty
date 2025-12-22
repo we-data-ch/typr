@@ -1,1 +1,8 @@
 @`+`: (int, int) -> int;
+@`+`: (num, num) -> num;
+@`-`: (int, int) -> int;
+@`-`: (num, num) -> num;
+@`*`: (int, int) -> int;
+@`*`: (num, num) -> num;
+@`/`: (int, int) -> int;
+@`/`: (num, num) -> num;
