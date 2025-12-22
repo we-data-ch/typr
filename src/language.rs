@@ -890,18 +890,18 @@ impl RTranslatable<(String, Context)> for Lang {
                 (code, new_cont)
             },
             Lang::Array(_v, _h) => {
-                let vector = &self.linearize_array()
+                let typ = self.typing(cont).0;
+
+                let dimension = ArrayType::try_from(typ.clone()).unwrap().get_shape()
+                    .map(|sha| format!("c({})", sha))
+                    .unwrap_or(format!("c(0)"));
+
+                let array = &self.linearize_array()
                     .iter().map(|lang| lang.to_r(&cont).0)
                     .collect::<Vec<_>>().join(", ")
                     .and_if(|lin_array| lin_array != "")
-                    .map(|lin_array| format!("concatenate_s3({})", lin_array))
+                    .map(|lin_array| format!("concat({}, dim = {})", lin_array, dimension))
                     .unwrap_or("logical(0)".to_string());
-
-                let typ = self.typing(cont).0;
-                
-                let array = ArrayType::try_from(typ.clone()).unwrap().get_shape()
-                    .map(|sha| format!("array({}, dim = c({}))", vector, sha))
-                    .unwrap_or(format!("array({}, dim = c(0))", vector));
 
                 (format!("{} |> {}", array, cont.get_type_anotation(&typ)) ,cont.to_owned())
             },
@@ -1012,7 +1012,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 (format!("{} = {}", k, v.to_r(cont).0), cont.clone())
             },
             Lang::Vector(vals, _) => {
-               let res = "concatenate_s3(".to_string() + 
+               let res = "concat(".to_string() + 
                    &vals.iter().map(|x| x.to_r(cont).0)
                    .collect::<Vec<_>>().join(", ")
                 + ")";

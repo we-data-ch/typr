@@ -63,31 +63,52 @@ let_type <- function(x, new_class) {
   return(x)
 }
 
-concatenate_s3 <- function(...) {
-  # Récupérer tous les arguments
-  objects <- list(...)
+# Fonction générique de concaténation
+concat <- function(..., dim) {
+  UseMethod("concat")
+}
+
+# Méthode par défaut pour les vecteurs classiques
+concat.default <- function(..., dim) {
+  objets <- list(...)
   
-  # Vérifier qu'il y a au moins un objet
-  if (length(objects) == 0) {
-    stop("At least one object must be provided")
+  # Si un seul objet, le retourner tel quel
+  if (length(objets) == 1) {
+    return(objets[[1]])
   }
   
-  # Vérifier que tous les objets ont la même classe
-  first_class <- class(objects[[1]])
-  for (i in seq_along(objects)) {
-    if (!identical(class(objects[[i]]), first_class)) {
-      stop("Each object should have exactly the same class")
-    }
+  # Récupérer toutes les classes uniques
+  classes <- unique(unlist(lapply(objets, class)))
+  
+  # Utiliser c() pour les vecteurs
+  resultat <- do.call(c, objets)
+
+  resultat <- array(resultat, dim = dim)
+  
+  # Ajouter les classes sur le résultat
+  class(resultat) <- c(classes, class(resultat))
+  
+  return(resultat)
+}
+
+# Méthode pour data.frame
+concat.data.frame <- function(..., dim) {
+  objets <- list(...)
+  
+  # Si un seul objet, le retourner tel quel
+  if (length(objets) == 1) {
+    return(objets[[1]])
   }
   
-  # Sauvegarder la classe
-  original_class <- first_class
+  classes <- class(objets[[1]])
   
-  # Combiner tous les objets avec do.call et c()
-  result <- do.call(c, objects)
+  # Utiliser rbind pour combiner les data.frames
+  resultat <- do.call(rbind, objets)
   
-  # Restaurer la classe
-  class(result) <- original_class
+  # Ajouter les classes sur le résultat (data.frame reste à la fin)
+  if (length(classes) > 0) {
+    class(resultat) <- c(classes, "data.frame")
+  }
   
-  return(result)
+  return(resultat)
 }
