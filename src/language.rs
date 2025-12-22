@@ -912,9 +912,9 @@ impl RTranslatable<(String, Context)> for Lang {
                let (typ, _, _) = typing(cont, self);
                let anotation = cont.get_type_anotation(&typ);
                 cont.get_classes(&typ)
-                    .map(|_| format!("list({}) |> {}", 
+                    .map(|_| format!("data.frame({}) |> {}", 
                                 body, anotation))
-                    .unwrap_or(format!("list({}) |> {}",
+                    .unwrap_or(format!("data.frame({}) |> {}",
                                 body, anotation))
                     .to_some().map(|s| (s, current_cont)).unwrap()
             },
@@ -937,7 +937,7 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::Tuple(vals, _) => {
                 Translatable::from(cont.clone())
-                    .add("struct(list(")
+                    .add("struct(data.frame(")
                     .join(vals, ", ")
                     .add("), 'Tuple')").into()
             },
@@ -957,9 +957,9 @@ impl RTranslatable<(String, Context)> for Lang {
                 let (typ, _, _) = typing(cont, self);
                 let class = cont.get_class(&typ);
                 cont.get_classes(&typ)
-                    .map(|res| format!("struct(list('{}', {}), c('Tag', {}, {}))",
+                    .map(|res| format!("struct(data.frame('{}', {}), c('Tag', {}, {}))",
                                 s, t_str, class, res))
-                    .unwrap_or(format!("struct(list('{}', {}), c('Tag', {}))",
+                    .unwrap_or(format!("struct(data.frame('{}', {}), c('Tag', {}))",
                                 s, t_str, class))
                     .to_some().map(|s| (s, new_cont)).unwrap()
             },
@@ -1029,11 +1029,11 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Sequence(vals, _) => {
                 let res = if vals.len() > 0 {
                     "c(".to_string() + 
-                       &vals.iter().map(|x| "list(".to_string() + &x.to_r(cont).0 + ")")
+                       &vals.iter().map(|x| "data.frame(".to_string() + &x.to_r(cont).0 + ")")
                        .collect::<Vec<_>>().join(", ")
                     + ")"
                 } else {
-                    "c(list())".to_string()
+                    "c(data.frame())".to_string()
                 };
                (res, cont.to_owned())
             },
