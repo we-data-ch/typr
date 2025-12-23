@@ -324,7 +324,6 @@ fn run_file(path: &PathBuf) {
     //HEADER
     write_std_for_type_checking(&dir);
     let context = Context::default();
-    println!("{}", context.display_typing_context());
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
     let content = type_checker.clone().transpile(false);

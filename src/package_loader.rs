@@ -43,7 +43,7 @@ impl PackageManager {
                 let file_content = read_file(&PathBuf::from(self.content.clone()));
                 let base_file = TypRFile::new(&file_content, self.content.clone());
                 let lang = base_file.parse();
-                let _ = TypeChecker::new(Context::default())
+                let _ = TypeChecker::new(Context::empty())
                     .typing(&lang)
                     .get_context()
                     .get_vartype()

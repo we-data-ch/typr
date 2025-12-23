@@ -949,4 +949,13 @@ mod tests {
         assert_eq!(res.0, "`+`");
     }
 
+    #[test]
+    fn test_uniform_function_call() {
+        let res = FluentParser::new()
+            .push("true.not()")
+            .parse_next();
+        dbg!(&res.next_code());
+        assert!(true);
+    }
+
 }

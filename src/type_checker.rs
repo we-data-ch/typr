@@ -378,43 +378,54 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 .then_some((builder::boolean_type(), context.clone()))
                 .expect("Type error").with_lang(expr)
         }
-        Lang::Operator(Op::Dot(_), e1, e2, _) => {
-            let ty2 = typing(context, e2).0.clone().reduce(context);
-            match (ty2.clone(), *e1.clone()) {
-                (Type::Record(fields, _), Lang::Variable(name, _, _, _, h)) => {
-                    fields.iter()
-                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
-                        .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
-                        .expect(&TypeError::FieldNotFound((name, h), ty2).display())
-                        .with_lang(expr)
-                },
-                (Type::Record(fields, _), Lang::Char(name, _)) => {
-                    fields.iter()
-                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
-                        .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
-                        .expect("Field not found").with_lang(expr)
-                },
-                (Type::Tuple(vals, _), Lang::Integer(i, _)) => {
-                    vals.iter()
-                        .nth((i-1) as usize)
-                        .map(|typ| (typ.clone(), context.clone()))
-                        .expect(&format!("no value at the position {}", i))
-                        .with_lang(expr)
-                },
-                (Type::Record(fields1, h), Lang::Record(fields2, _)) => {
-                    let fields3: HashSet<_> = match e1.typing(context).0 {
-                        Type::Record(fields, _) => {
-                            fields1.union(&fields).cloned().collect()
-                        },
-                        _ => panic!("Typing {} should produce a record type", e1)
-                    };
-                    Type::Record(fields3, h.clone()).with_lang(expr, context)
-                },
-                (Type::Generic(symbol, h), Lang::Record(fields2, _)) => {
-                    builder::intersection_type(&[ty2.clone(), e1.typing(context).0])
-                        .with_lang(expr, context)
-                },
-                (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
+        Lang::Operator(Op::Dot(_), e1, e2, _) 
+            | Lang::Operator(Op::Pipe(_), e1, e2, _) 
+            => {
+            if let Lang::FunctionApp(exp, v, ty, h) = (**e2).clone() {
+                let fun_app = Lang::FunctionApp(exp, 
+                                            [(**e1).clone()].iter().chain(v.iter())
+                                            .cloned().collect::<Vec<_>>(), 
+                                            ty, h.clone());
+                typing(context, &fun_app)
+            } else {
+                let ty2 = typing(context, e2).0.clone().reduce(context);
+                match (ty2.clone(), *e1.clone()) {
+                    (Type::Record(fields, _), Lang::Variable(name, _, _, _, h)) => {
+                        fields.iter()
+                            .find(|arg_typ2| arg_typ2.get_argument_str() == name)
+                            .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
+                            .expect(&TypeError::FieldNotFound((name, h), ty2).display())
+                            .with_lang(expr)
+                    },
+                    (Type::Record(fields, _), Lang::Char(name, _)) => {
+                        fields.iter()
+                            .find(|arg_typ2| arg_typ2.get_argument_str() == name)
+                            .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
+                            .expect("Field not found").with_lang(expr)
+                    },
+                    (Type::Tuple(vals, _), Lang::Integer(i, _)) => {
+                        vals.iter()
+                            .nth((i-1) as usize)
+                            .map(|typ| (typ.clone(), context.clone()))
+                            .expect(&format!("no value at the position {}", i))
+                            .with_lang(expr)
+                    },
+                    (Type::Record(fields1, h), Lang::Record(fields2, _)) => {
+                        let fields3: HashSet<_> = match e1.typing(context).0 {
+                            Type::Record(fields, _) => {
+                                fields1.union(&fields).cloned().collect()
+                            },
+                            _ => panic!("Typing {} should produce a record type", e1)
+                        };
+                        Type::Record(fields3, h.clone()).with_lang(expr, context)
+                    },
+                    (Type::Generic(symbol, h), Lang::Record(fields2, _)) => {
+                        builder::intersection_type(&[ty2.clone(), e1.typing(context).0])
+                            .with_lang(expr, context)
+                    },
+                //(typ, Lang::FunctionApp(exp, v, ty, h)) => {
+                    (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
+                }
             }
         },
         Lang::Operator(Op::Dollar(_), e1, e2, _) => {
@@ -491,13 +502,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             }
         },
         Lang::Operator(op, e1, e2, h) => {
-            let var_exp = Var::from_name(&format!("`{}`", op))
-                .set_help_data(e1.get_help_data())
-                .to_language();
-            let fun_app = Lang::FunctionApp(Box::new(var_exp), 
-                                            vec![(**e1).clone(), (**e2).clone()], 
-                                            builder::empty_type(), h.clone());
-            typing(context, &fun_app)
+                let var_exp = Var::from_name(&format!("`{}`", op))
+                    .set_help_data(e1.get_help_data())
+                    .to_language();
+                let fun_app = Lang::FunctionApp(Box::new(var_exp), 
+                                                vec![(**e1).clone(), (**e2).clone()], 
+                                                builder::empty_type(), h.clone());
+                typing(context, &fun_app)
         },
         Lang::Function(params, ret_ty, body, h) => {
             let list_of_types = params.iter()

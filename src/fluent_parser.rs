@@ -107,7 +107,7 @@ impl FluentParser {
         }
     }
 
-    fn next_code(self) -> Option<(Lang, Self)> {
+    pub fn next_code(self) -> Option<(Lang, Self)> {
         match self.code.first() {
             Some(lang) 
                 => Some((lang.clone(), self.drop_first_code())),
@@ -206,7 +206,7 @@ impl FluentParser {
         }
     }
 
-    fn next_new_code(self) -> Option<(Lang, Self)> {
+    pub fn next_new_code(self) -> Option<(Lang, Self)> {
         match self.new_code.first() {
             Some(lang) 
                 => Some((lang.clone(), self.drop_first_new_code())),
