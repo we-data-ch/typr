@@ -546,11 +546,11 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         },
         Lang::FunctionApp(fn_var_name, values, _, h) => {
             let var = Var::try_from(fn_var_name.clone()).unwrap();
-            let func = var.get_function_signatures(values, context)
-                .iter()
-                .find_map(|x| x.clone().infer_return_type(values, context))
+            let name = var.get_name();
+            let typ = var.get_function_signatures(values, context).iter()
+                .find_map(|x| x.clone().infer_return_type2(values, context, &name))
                 .unwrap();
-            func
+            typ
                 .tuple(&context.clone())
                 .with_lang(expr)
         },
@@ -863,6 +863,18 @@ mod tests {
             .push("@incr: (int) -> int;")
             .parse_type_next()
             .push("incr([1, 2])")
+            .parse_type_next()
+            .get_last_type();
+        println!("{}", typ.pretty());
+        assert!(true);
+    }
+
+    #[test]
+    fn test_function_return_type2() {
+        let typ = FluentParser::new()
+            .set_context(Context::default())
+            .push("@scale: (bool, int) -> bool;").parse_type_next()
+            .push("scale([true, false], 2)")
             .parse_type_next()
             .get_last_type();
         println!("{}", typ.pretty());

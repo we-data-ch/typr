@@ -7,4 +7,4 @@
 @`*`: (int, int) -> int;
 @`*`: (num, num) -> num;
 @source: (char) -> Empty;
-@reduce: ([#N, T], (T) -> U) -> U;
+@reduce: ([#N, T], (T, U) -> T) -> T;

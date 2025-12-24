@@ -51,12 +51,21 @@ impl UnificationMap {
         UnificationMap(safe_map.to_vec())
     }
 
+    pub fn superficial_substitution(&self, ret_ty: &Type) -> Type {
+        self.0.iter()
+            .find(|(typ1, _)| ret_ty == typ1)
+            .map(|(_, typ2)| typ2.clone())
+            .unwrap_or(ret_ty.clone())
+    }
+
     pub fn type_substitution(&self, ret_ty: &Type) -> Type {
-        unification::type_substitution(ret_ty, &self.0)
+        let ret_ty = self.superficial_substitution(ret_ty) ;
+        unification::type_substitution(&ret_ty, &self.0)
     }
 
     pub fn apply_unification_type(&self, context: &Context, ret_ty: &Type) -> (Type, Context) {
-        let new_type = self.type_substitution(ret_ty)
+        let ret_ty = ret_ty.reduce(context);
+        let new_type = self.type_substitution(&ret_ty)
             .index_calculation();
         (new_type, context.clone())
     }

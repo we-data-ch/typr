@@ -202,6 +202,53 @@ vec_apply_fun <- function(fun_vec, ...) {
   )
 }
 
+vec_reduce <- function(vec, f, init = NULL) {
+  # Appliquer typed_vec sur vec s'il n'hérite pas de "typed_vec"
+  if (!inherits(vec, "typed_vec")) {
+    vec <- typed_vec(vec)
+  }
+  
+  n <- length(vec)
+  
+  # Si le vecteur est vide
+  if (n == 0) {
+    if (is.null(init)) {
+      stop("Cannot reduce empty vector without initial value")
+    }
+    return(init)
+  }
+  
+  # Déterminer la valeur initiale de l'accumulateur
+  if (is.null(init)) {
+    # Commencer avec le premier élément
+    accumulator <- vec$data[[1]]
+    start_index <- 2
+  } else {
+    # Commencer avec la valeur initiale fournie
+    accumulator <- init
+    start_index <- 1
+  }
+  
+  # Si on a déjà tout consommé
+  if (start_index > n) {
+    return(accumulator)
+  }
+  
+  # Réduction itérative
+  for (i in start_index:n) {
+    # Appeler f qui fera son propre dispatch S3
+    accumulator <- f(accumulator, vec$data[[i]])
+    if (inherits(accumulator, "typed_vec")) {
+      accumulator <- accumulator$data[[1]]
+    }
+  }
+  
+  return(structure(
+    list(data = list(accumulator)),
+    class = "typed_vec"
+  ))
+}
+
 
 print.typed_vec <- function(x, ...) {
   n <- length(x$data)

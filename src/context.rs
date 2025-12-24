@@ -153,6 +153,13 @@ impl Context {
         }
     }
 
+    pub fn get_types_from_name(&self, name: &str) -> Vec<Type> {
+        self.variables()
+            .filter(|(var, _)| var.get_name() == name )
+            .map(|(_, typ)| typ.clone())
+            .collect()
+    }
+
     pub fn get_type_from_aliases(&self, var: &Var) -> Option<Type> {
         self.aliases().flat_map(|(var2, type_)| {
             let Var(name1, perm1, bo1, typ1, _h1) = var;
@@ -544,9 +551,23 @@ impl Context {
             .map(|x| UnificationMap::from(x))
     }
 
-    pub fn get_unification_map(&self, values: &[Lang], param_types: &[Type]) 
+    fn var_typing(&self, val: &Lang) -> Vec<Type> {
+        match val {
+            Lang::Variable(name, _, _, typ, _) => {
+                if typ.is_empty() {
+                    self.get_types_from_name(name)
+                } else {
+                    vec![typing(self, val).0]
+                }
+            },
+            va =>  vec![typing(self, va).0]
+        }
+    }
+
+    pub fn get_unification_map(&self, values: &[Lang], param_types: &[Type], name: &str) 
         -> Option<UnificationMap> {
-        let entered_types = values.iter().map(|val| typing(self, val).0).collect::<Vec<_>>();
+        let entered_types = values.iter()
+            .map(|val| typing(self, val).0).collect::<Vec<_>>();
         if let Some(unification_map) = 
             Self::get_unification_map_for_vectorizable_function(entered_types.clone()) {
             Some(unification_map)

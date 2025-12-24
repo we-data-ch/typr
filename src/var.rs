@@ -61,33 +61,61 @@ impl Var {
         }
     }
 
+    fn keep_minimals(liste: Vec<Type>, context: &Context) -> Vec<Type> {
+        let mut mins: Vec<Type> = Vec::new();
+        
+        for candidat in liste {
+            let mut keep_candidat = true;
+            let mut indices_to_delete = Vec::new();
+            
+            for (i, existant) in mins.iter().enumerate() {
+                if candidat.is_subtype(existant, context) {
+                    indices_to_delete.push(i);
+                } else if existant.is_subtype(&candidat, context) {
+                    keep_candidat = false;
+                    break;
+                } 
+            }
+            
+            if keep_candidat {
+                // Supprimer les éléments dominés (en ordre inverse pour les indices)
+                for &i in indices_to_delete.iter().rev() {
+                    mins.remove(i);
+                }
+                mins.push(candidat);
+            }
+        }
+        mins
+    }
+
     pub fn get_related_functions(self, args: &Vec<Lang>, context: &Context) 
         -> Vec<FunctionType> {
         let typed_var = self.infer_var_related_type(args, context);
-         context.get_matching_functions(typed_var.clone())
+        let res = context.get_matching_functions(typed_var.clone());
+        Self::keep_minimals(res, context)
              .iter()
              .map(|x| x.to_function_type().unwrap())
              .collect()
     }
 
-    pub fn old_get_related_function(self, args: &Vec<Lang>, context: &Context) 
+    pub fn get_related_function(self, args: &Vec<Lang>, context: &Context) 
         -> Option<FunctionType> {
         let typed_var = self.infer_var_related_type(args, context);
-        let related_functions = context.get_functions(typed_var.clone());
-        if related_functions.len() > 0 {
-            related_functions[0].1.to_function_type()
-        } else {
-            panic!("There is no function compatible with this signature: {}\n{}", 
-                   typed_var, context.display_typing_context());
-        }
+         context.get_matching_functions(typed_var.clone())
+             .iter()
+             .reduce(|acc, x| if x.is_subtype(acc, context) { x } else { acc })
+             .map(|x| x.to_function_type().unwrap())
+    }
+
+    pub fn get_function_signature(&self, values: &Vec<Lang>, context: &Context) -> FunctionType {
+        self.clone()
+            .get_related_function(values, context)
+            .unwrap_or_default()
     }
 
     pub fn get_function_signatures(&self, values: &Vec<Lang>, context: &Context) -> Vec<FunctionType> {
-        //if context.is_an_untyped_function(&self.get_name()) {
         self.clone()
             .get_related_functions(values, context)
-            //.unwrap_or(FunctionType::try_from(Type::UnknownFunction(HelpData::default()))
-                        //.expect(&TypeError::UndefinedFunction((self).clone()).display()))
     }
 
     pub fn from_language(l: Lang) -> Option<Var> {
