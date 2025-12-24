@@ -114,6 +114,7 @@ impl TypeSystem for Type {
                     .zip(args2.iter().chain([&(**ret_typ2)]))
                     .all(|(typ1, typ2)| typ1.strict_subtype(typ2))
             },
+            (Type::Function(_, _, _), Type::UnknownFunction(_)) => true,
             // Interface subtyping
             (Type::Interface(args1, _), Type::Interface(args2, _)) => {
                 args1 == args2 || args1.is_superset(args2)
@@ -687,13 +688,6 @@ impl Type {
         *self == builder::any_type()
     }
 
-    pub fn is_r_function(&self) -> bool {
-        match self {
-            Type::UnknownFunction(_) => true,
-            _ => false
-        }
-    }
-
     pub fn tuple(self, context: &Context) -> (Type, Context) {
         (self, context.clone())
     }
@@ -803,6 +797,13 @@ impl Type {
         match self {
             Type::Array(i, t, _) => (i.get_index().unwrap() as i32, (**t).clone()),
             typ => (1, typ.clone())
+        }
+    }
+
+    pub fn is_unknown_function(&self) -> bool {
+        match self {
+            Type::UnknownFunction(_) => true,
+            _ => false
         }
     }
 
@@ -954,6 +955,7 @@ impl PartialOrd for Type {
                     .all(|(typ1, typ2)| typ1.partial_cmp(typ2).is_some())
                     .then_some(Ordering::Less)
             }
+            (Type::Function(_, _, _), Type::UnknownFunction(_)) => Some(Ordering::Less),
             // Interface subtyping
             (Type::Interface(args1, _), Type::Interface(args2, _)) => {
                 (args1 == args2 || args1.is_superset(args2))
@@ -1215,6 +1217,14 @@ mod tests {
         let new_type = fn_type.replace_function_types(int_type, builder::self_generic_type());
         println!("new_type.pretty(): {:?}", new_type.pretty());
         assert!(true);
+    }
+
+    #[test]
+    fn test_function_subtype_of_unknown_function() {
+        let fun = builder::function_type(&[], builder::empty_type());
+        let u_fun = builder::unknown_function();
+        let context = Context::empty();
+        assert!(fun.is_subtype(&u_fun, &context));
     }
 
 }

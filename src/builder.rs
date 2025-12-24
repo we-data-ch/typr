@@ -67,9 +67,6 @@ pub fn generic_function(s: &str) -> Lang {
     Lang::GenFunc(body, "".to_string(), HelpData::default())
 }
 
-pub fn r_function_type() -> Type {
-    Type::UnknownFunction(HelpData::default())
-}
 
 pub fn tuple_type(types: &[Type]) -> Type {
     Type::Tuple(types.to_vec(), HelpData::default())

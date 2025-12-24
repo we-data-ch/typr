@@ -809,8 +809,9 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::FunctionApp(exp, vals, _, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
-                if cont.is_an_untyped_function(&var.get_name()) {
-                    let name = var.get_name().replace("__", ".");
+                let name = var.get_name();
+                if cont.is_an_untyped_function(&name) {
+                    let name = name.replace("__", ".");
                     let new_name = if &name[0..1] == "%" {
                         format!("`{}`", name)
                     } else { name.to_string() };
@@ -832,7 +833,6 @@ impl RTranslatable<(String, Context)> for Lang {
                         .collect::<Vec<_>>();
                     let (args, current_cont) = Translatable::from(cont1)
                             .join(&new_vals, ", ").into();
-                    
                     Var::from_language(*exp.clone())
                         .map(|var| {
                             let name = var.get_name();
@@ -1025,7 +1025,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let t1 = typing(cont, &e1).0;
                 let val = match (t1.clone(), e2.clone()) {
                     (Type::Array(_, _, _), Lang::Variable(name, _, _, _, _))
-                        => format!("vec_apply(get.list, {}, typed_vec('{}'))", e1.to_r(cont).0, name),
+                        => format!("vec_apply(get, {}, typed_vec('{}'))", e1.to_r(cont).0, name),
                     (_, Lang::Variable(name, _, _, _, _))
                         => format!("{}${}", e1.to_r(cont).0, name),
                     _ => panic!("Dollar operation not yet implemented for {:?}", e2)

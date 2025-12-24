@@ -325,16 +325,11 @@ impl VarType {
         }
     }
 
-    pub fn name_exists(&self, name: &str) -> bool {
+    pub fn name_exists_outside_of_std(&self, name: &str) -> bool {
         self.variables.iter()
-            .find(|(var, _)| var.get_name() == name)
-            .is_some()
-    }
-
-    pub fn is_untyped_custom_function(&self, name: &str) -> bool {
-        self.variables.iter()
-            .find(|(var, typ)| (var.get_name() == name) && typ.is_r_function())
-            .is_some()
+            .filter(|(var, _)| var.get_name() == name)
+            .filter(|(var, typ)| !(var.get_type().is_any() && typ.is_unknown_function()))
+            .collect::<Vec<_>>().len() > 0
     }
 
     pub fn remove_vars(self, vars: &[Var]) -> Self {

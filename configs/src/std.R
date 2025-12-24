@@ -86,14 +86,22 @@ vec_apply <- function(f, ...) {
     }
   })
 
+	results <- vector("list", n)
+	for (i in seq_len(n)) {
+	  # Extraire les éléments à la position i de chaque argument
+	  elements <- lapply(recycled, `[[`, i)
+	  # Appeler f qui fera son propre dispatch S3
+	  results[[i]] <- do.call(f, elements)
+	}
+
   structure(
     list(
-      data = do.call(Map, c(list(f), recycled))
+      data = results
+      #data = do.call(Map, c(list(f), recycled))
     ),
     class = "typed_vec"
   )
 }
-
 
 vec_apply_fun <- function(fun_vec, ...) {
   # Appliquer typed_vec sur fun_vec s'il n'hérite pas de "typed_std"
@@ -180,7 +188,7 @@ print.typed_vec <- function(x, ...) {
   cat("typed_vec [", n, "]\n", sep = "")
 
   for (i in seq_len(n)) {
-    cat("[[", i, "]]\n", sep = "")
+    cat("[[", i, "]] ", sep = "")
     el <- x$data[[i]]
 
     # Délégation au print S3 de l'élément
@@ -201,8 +209,12 @@ print.typed_vec <- function(x, ...) {
   invisible(x)
 }
 
+get.typed_vec <- function(a, name) {
+	a$data[[1]][[name]]
+}
+
 get.list <- function(a, name) {
-	a[[name]]
+	a$data[[1]][[name]]
 }
 
 get.any <- function(a, name) {

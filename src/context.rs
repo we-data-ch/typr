@@ -25,7 +25,7 @@ use crate::graph::TypeSystem;
 use std::collections::HashSet;
 use std::collections::HashMap;
 
-const BLACKLIST: [&str; 55] = ["test_that", "expect_true", "`+`", "`*`", "`-`", "`/`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array", "cat", "rep", "str", "oldClass", "stop", "invisible", "capture__output", "paste0", "unclass"];
+const BLACKLIST: [&str; 57] = ["test_that", "expect_true", "`+`", "`*`", "`-`", "`/`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array", "cat", "rep", "str", "oldClass", "stop", "invisible", "capture__output", "paste0", "unclass", "exists", "vector"];
 
 pub fn not_in_blacklist(name: &str) -> bool {
     let hs = BLACKLIST.iter().cloned().collect::<HashSet<&str>>();
@@ -138,15 +138,19 @@ impl Context {
     }
 
     pub fn get_type_from_variable(&self, var: &Var) -> Result<Type, String> {
-        self.variables().flat_map(|(var2, type_)| {
+        let res = self.variables().flat_map(|(var2, typ)| {
             let Var(name1, perm1, bo1, typ1, _h1) = var;
             let Var(name2, perm2, bo2, typ2, _h2) = var2;
             let conditions = (name1 == name2) &&
                 (perm1 == perm2) &&
                 (bo1 == bo2) && typ1.is_subtype(typ2, self);
-            if conditions { Some(type_.clone()) } else { None }
-        }).next()
-        .ok_or(format!("Didn't find {} in the context: {}", var.get_name(), self.display_typing_context()))
+            if conditions { Some(typ.clone()) } else { None }
+        })
+        .reduce(|acc, x| if x.is_subtype(&acc, self) { x } else { acc });
+        match res {
+            Some(typ) => Ok(typ),
+            _ => Err(format!("Didn't find {} in the context: {}", var.get_name(), self.display_typing_context()))
+        }
     }
 
     pub fn get_type_from_aliases(&self, var: &Var) -> Option<Type> {
@@ -262,11 +266,10 @@ impl Context {
     }
 
     fn is_a_standard_function(&self, name: &str) -> bool {
-        !self.typing_context.name_exists(name)
+        !self.typing_context.name_exists_outside_of_std(name)
     }
 
     pub fn is_an_untyped_function(&self, name: &str) -> bool {
-        self.typing_context.is_untyped_custom_function(name) || 
         self.is_a_standard_function(name)
     }
 
