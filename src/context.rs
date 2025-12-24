@@ -568,17 +568,13 @@ impl Context {
         -> Option<UnificationMap> {
         let entered_types = values.iter()
             .map(|val| typing(self, val).0).collect::<Vec<_>>();
-        if let Some(unification_map) = 
-            Self::get_unification_map_for_vectorizable_function(entered_types.clone()) {
-            Some(unification_map)
-        } else {
-            let res = entered_types.iter()
-                .zip(param_types.iter())
-                .flat_map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
-                .flatten()
-                .collect::<Vec<_>>();
-            (res.len() > 0).then(|| UnificationMap::new(res))
-        }
+        let unification_map = Self::get_unification_map_for_vectorizable_function(entered_types.clone()).unwrap_or_default();
+        let res = entered_types.iter()
+            .zip(param_types.iter())
+            .flat_map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
+            .flatten()
+            .collect::<Vec<_>>();
+        (res.len() > 0).then(|| unification_map.append(UnificationMap::new(res)))
     }
 
     fn s3_type_definition(&self, var: &Var, typ: &Type) -> String {

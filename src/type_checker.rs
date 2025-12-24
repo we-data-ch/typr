@@ -547,8 +547,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         Lang::FunctionApp(fn_var_name, values, _, h) => {
             let var = Var::try_from(fn_var_name.clone()).unwrap();
             let name = var.get_name();
-            let typ = var.get_function_signatures(values, context).iter()
-                .find_map(|x| x.clone().infer_return_type2(values, context, &name))
+            let funs = var.get_function_signatures(values, context);
+            let typ = funs.iter()
+                .find_map(|x| x.clone().infer_return_type(values, context, &name))
                 .unwrap();
             typ
                 .tuple(&context.clone())

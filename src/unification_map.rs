@@ -69,6 +69,11 @@ impl UnificationMap {
             .index_calculation();
         (new_type, context.clone())
     }
+
+    pub fn append(self, other: Self) -> Self {
+        Self(self.0.iter().chain(other.0.iter()).cloned().collect::<Vec<_>>())
+    }
+
 }
 
 impl std::iter::FromIterator<(Type, Type)> for UnificationMap {
@@ -98,5 +103,11 @@ impl fmt::Display for UnificationMap {
             .map(|(ty1, ty2)| format!("{} = {}", ty1.pretty(), ty2.pretty2()))
             .fold("".to_string(), |acc, mapp| acc + " | " + &mapp);
         write!(f, "{}", res)       
+    }
+}
+
+impl Default for UnificationMap {
+    fn default() -> Self {
+        Self(vec![])
     }
 }

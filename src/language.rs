@@ -796,15 +796,16 @@ impl RTranslatable<(String, Context)> for Lang {
                         cont.get_type_anotation(&fn_type.into())),
                 cont.clone())
             },
-            Lang::Variable(v, _, _, ty, _) => {
+            Lang::Variable(v, _, _, _, _) => {
                 //Here we only keep the variable name, the path and the type
                 let name = if v.contains("__") {
                     v.replace("__", ".")
                 } else {
-                    match ty {
-                        Type::Empty(_) | Type::Any(_) => v.clone(),
-                        _ => v.clone() + "." + &cont.get_class(ty).replace("'", "")
-                    }
+                    v.clone()
+                    //match ty {
+                        //Type::Empty(_) | Type::Any(_) => v.clone(),
+                        //_ => v.clone() + "." + &cont.get_class(ty).replace("'", "")
+                    //}
                 };
                 ((&name).to_string(), cont.clone())
             },
