@@ -11,7 +11,7 @@ sys.setlocale <- function() { Sys.setlocale() }
 
 struct <- function(x, new_class) {
   if (is.null(x)) {
-    stop("Cannot assign class to NULL object")
+	  return(x)
   }
   
   old <- oldClass(x)
@@ -208,7 +208,6 @@ get.list <- function(a, name) {
 get.any <- function(a, name) {
 	a[[name]]
 }
-
 
 print.Integer <- function(i) {
 	print(unclass(i))

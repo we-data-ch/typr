@@ -14,6 +14,11 @@ use std::io::Write;
 use std::ops::Add;
 use crate::Config;
 
+pub fn same_var_type(element1: &(Var, Type), element2: &(Var, Type)) -> bool {
+    (element1.0.get_name() == element2.0.get_name()) &&
+    (element1.0.get_type() == element2.0.get_type())
+}
+
 pub fn merge_variables(set1: HashSet<(Var, Type)>, set2: HashSet<(Var, Type)>,) 
     -> HashSet<(Var, Type)> {
     let mut result = HashSet::new();
@@ -22,7 +27,7 @@ pub fn merge_variables(set1: HashSet<(Var, Type)>, set2: HashSet<(Var, Type)>,)
         let mut replaced = false;
         
         for elem1 in &set1 {
-            if elem2.0.get_type() == elem1.0.get_type() {
+            if same_var_type(elem1, elem2) {
                 result.insert(elem2.clone());
                 replaced = true;
                 break;
@@ -38,7 +43,7 @@ pub fn merge_variables(set1: HashSet<(Var, Type)>, set2: HashSet<(Var, Type)>,)
         let mut should_keep = true;
         
         for elem2 in &set2 {
-            if elem1.0.get_type() == elem2.0.get_type() {
+            if same_var_type(elem1, elem2) {
                 should_keep = false;
                 break;
             }

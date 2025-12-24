@@ -112,16 +112,19 @@ pub fn chars(s: Span) -> IResult<Span, Lang> {
 pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
     let res = delimited(
         char('"'),
-        escaped(
+        opt(escaped(
             is_not("\\\""),    
             '\\',              
             alt((char('"'), char('\''))),
-        ),
+        )),
         char('"'),
     ).parse(input);
     match res {
-        Ok((s, st)) 
-            => Ok((s, Lang::Char(st.to_string(), st.into()))),
+        Ok((s, st)) => {
+            let content = st.clone().map(|span| span.to_string()).unwrap_or_default();
+            let location = st.map(|span| span.into()).unwrap_or_else(|| s.clone().into());
+            Ok((s, Lang::Char(content, location)))
+        },
         Err(r) => Err(r)
     }
 }
@@ -129,16 +132,19 @@ pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
 pub fn single_quotes(input: Span) -> IResult<Span, Lang> {
     let res = delimited(
         char('\''),
-        escaped(
+        opt(escaped(
             is_not("\\'"),    
             '\\',              
             alt((char('"'), char('\''))),
-        ),
+        )),
         char('\''),
     ).parse(input);
     match res {
-        Ok((s, st)) 
-            => Ok((s, Lang::Char(st.to_string(), st.into()))),
+        Ok((s, st)) => {
+            let content = st.clone().map(|span| span.to_string()).unwrap_or_default();
+            let location = st.map(|span| span.into()).unwrap_or_else(|| s.clone().into());
+            Ok((s, Lang::Char(content, location)))
+        },
         Err(r) => Err(r)
     }
 }
@@ -955,6 +961,34 @@ mod tests {
             .push("true.not()")
             .parse_next();
         dbg!(&res.next_code());
+        assert!(true);
+    }
+
+    #[test]
+    fn test_key_value1() {
+        let res = key_value("sep = '3'".into()).unwrap().1;
+        dbg!(&res);
+        assert!(true);
+    }
+
+    #[test]
+    fn test_empty_char0() {
+        let res = single_element("''".into()).unwrap().1;
+        dbg!(&res);
+        assert!(true);
+    }
+
+    #[test]
+    fn test_empty_char1() {
+        let res = primitive("''".into()).unwrap().1;
+        dbg!(&res);
+        assert!(true);
+    }
+
+    #[test]
+    fn test_empty_char2() {
+        let res = chars("''".into()).unwrap().1;
+        dbg!(&res);
         assert!(true);
     }
 

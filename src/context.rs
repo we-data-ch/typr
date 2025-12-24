@@ -25,7 +25,7 @@ use crate::graph::TypeSystem;
 use std::collections::HashSet;
 use std::collections::HashMap;
 
-const BLACKLIST: [&str; 53] = ["test_that", "expect_true", "`+`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "*", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array", "cat", "rep", "str", "oldClass", "stop", "invisible", "capture__output", "paste0", "unclass"];
+const BLACKLIST: [&str; 55] = ["test_that", "expect_true", "`+`", "`*`", "`-`", "`/`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array", "cat", "rep", "str", "oldClass", "stop", "invisible", "capture__output", "paste0", "unclass"];
 
 pub fn not_in_blacklist(name: &str) -> bool {
     let hs = BLACKLIST.iter().cloned().collect::<HashSet<&str>>();
@@ -36,7 +36,6 @@ pub fn not_in_blacklist(name: &str) -> bool {
         && !name.contains("|")
         && !name.contains("&")
         && !name.contains("/")
-        && !name.contains("*")
         && !name.contains("@")
         && !name.contains("{")
         && !name.contains("[[")
@@ -790,4 +789,16 @@ fn add_if_absent(mut vec: Vec<Lang>, val: Lang) -> Vec<Lang> {
         vec.push(val);
     }
     vec // Retourne le nouveau vecteur
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_context1(){
+        let context = Context::default();
+        println!("{}", context.display_typing_context());
+        assert!(true)
+    }
 }

@@ -904,6 +904,8 @@ impl PartialEq for Type {
             (Type::Intersection(s1, _), Type::Intersection(s2, _)) => s1 == s2,
             (Type::Variable(s1, _), Type::Variable(s2, _)) => s1 == s2,
             (Type::UnknownFunction(_), Type::UnknownFunction(_)) => true,
+            (Type::UnknownFunction(_), Type::Empty(_)) => true,
+            (Type::Empty(_), Type::UnknownFunction(_)) => true,
             _ => false
         }
     }
