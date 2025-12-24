@@ -748,30 +748,31 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::Operator(Op::Dot(_), e1, e2, _) | Lang::Operator(Op::Pipe(_), e1, e2, _) 
                 => {
-                match *e2.clone() {
+                let e1 = (**e1).clone();
+                let e2 = (**e2).clone();
+                match e2.clone() {
                     Lang::Variable(_, _, _, _, _) => {
                         Translatable::from(cont.clone())
-                            .to_r(e2)
-                            .add("[['").to_r(e1).add("']]").into()
+                            .to_r(&e2)
+                            .add("[['").to_r(&e1).add("']]").into()
                     },
                     Lang::Record(fields, _) => {
                         let at = fields[0].clone();
                         Translatable::from(cont.clone())
-                            .add("within(").to_r(e2)
+                            .add("within(").to_r(&e2)
                             .add(", { ").add(&at.get_argument())
                             .add(" <- ")
                             .to_r(&at.get_value()).add(" })")
                             .into()
                     }
-                    Lang::FunctionApp(_, _, _, _) => {
-                        Translatable::from(cont.clone())
-                            .to_r(e1).add(" |> ").to_r(e2)
-                            .into()
+                    Lang::FunctionApp(var, v, typ, h) => {
+                        let v = [e1].iter().chain(v.iter()).cloned().collect();
+                        Lang::FunctionApp(var, v, typ, h).to_r(cont)
                     }
                     _ => {
                         Translatable::from(cont.clone())
-                            .to_r(e2).add("[[")
-                            .add("]]").to_r(e1)
+                            .to_r(&e2).add("[[")
+                            .add("]]").to_r(&e1)
                             .into()
                     }
                 }

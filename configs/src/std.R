@@ -33,8 +33,21 @@ let_type <- function(x, new_class) {
 
 typed_vec <- function(...) {
   x <- list(...)
-  if (inherits(x, "typed_vec")) return(x)
-
+  
+  # Vérifier si tous les arguments héritent de "typed_vec"
+  all_typed <- all(vapply(x, function(item) inherits(item, "typed_vec"), logical(1)))
+  
+  if (all_typed && length(x) > 0) {
+    # Combiner les paramètres data de chaque typed_vec
+    combined_data <- unlist(lapply(x, function(item) item$data), recursive = FALSE)
+    
+    return(structure(
+      list(data = combined_data),
+      class = "typed_vec"
+    ))
+  }
+  
+  # Sinon, retourner la structure normale
   structure(
     list(data = x),
     class = "typed_vec"
@@ -94,6 +107,20 @@ vec_apply <- function(f, ...) {
 	  results[[i]] <- do.call(f, elements)
 	}
 
+
+  # Vérifier si tous les arguments héritent de "typed_vec"
+  all_typed <- all(vapply(results, function(item) inherits(item, "typed_vec"), logical(1)))
+  
+  if (all_typed && length(results) > 0) {
+    # Combiner les paramètres data de chaque typed_vec
+    combined_data <- unlist(lapply(results, function(item) item$data), recursive = FALSE)
+    
+    return(structure(
+      list(data = combined_data),
+      class = "typed_vec"
+    ))
+  }
+
   structure(
     list(
       data = results
@@ -104,14 +131,14 @@ vec_apply <- function(f, ...) {
 }
 
 vec_apply_fun <- function(fun_vec, ...) {
-  # Appliquer typed_vec sur fun_vec s'il n'hérite pas de "typed_std"
+  # Appliquer typed_vec sur fun_vec s'il n'hérite pas de "typed_vec"
   if (!inherits(fun_vec, "typed_vec")) {
     fun_vec <- typed_vec(fun_vec)
   }
   
   args <- list(...)
   
-  # Appliquer typed_vec sur les arguments qui n'héritent pas de "typed_std"
+  # Appliquer typed_vec sur les arguments qui n'héritent pas de "typed_vec"
   args <- lapply(args, function(x) {
     if (!inherits(x, "typed_vec")) {
       typed_vec(x)
@@ -147,16 +174,30 @@ vec_apply_fun <- function(fun_vec, ...) {
     else rep(x$data, length.out = n)
   })
 
-  # Application élément-wise
-  result <- vector("list", n)
+  # Application élément-wise avec results intermédiaires
+  results <- vector("list", n)
   for (i in seq_len(n)) {
     f <- funs[[i]]
     params <- lapply(recycled_args, `[[`, i)
-    result[[i]] <- do.call(f, params)
+    # Appeler f qui fera son propre dispatch S3
+    results[[i]] <- do.call(f, params)
+  }
+
+  # Vérifier si tous les éléments de results héritent de "typed_vec"
+  all_typed <- all(vapply(results, function(item) inherits(item, "typed_vec"), logical(1)))
+  
+  if (all_typed && length(results) > 0) {
+    # Combiner les paramètres data de chaque typed_vec
+    combined_data <- unlist(lapply(results, function(item) item$data), recursive = FALSE)
+    
+    return(structure(
+      list(data = combined_data),
+      class = "typed_vec"
+    ))
   }
 
   structure(
-    list(data = result),
+    list(data = results),
     class = "typed_vec"
   )
 }
