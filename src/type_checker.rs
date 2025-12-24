@@ -202,11 +202,11 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Context) {
                             .map(|ft| var.clone().set_type(ft.get_first_param().unwrap_or(builder::unknown_function())))
                             .unwrap_or(var.clone());
                 (builder::unknown_function(),
-                context.clone().push_var_type(new_var, typ.to_owned(), context))
+                context.clone().replace_var_type(new_var, typ.to_owned(), context))
             } else { // is alias
                 (builder::unknown_function(),
                         context.clone()
-                            .push_var_type(var.to_owned(), typ.to_owned(), context))
+                            .replace_var_type(var.to_owned(), typ.to_owned(), context))
             }
         },
         Lang::TestBlock(body, _) => {
@@ -589,6 +589,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         Lang::Array(exprs, h) => {
             let types = exprs.iter()
                 .map(|expr| typing(context, expr).0)
+                .map(|typ| typ.reduce(context))
                 .collect::<Vec<_>>();
             if exprs.is_empty() {
                 let new_type = "[0, Empty]".parse::<Type>()
@@ -601,7 +602,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 (new_type.clone(), context.clone().push_types(&[new_type]))
                     .with_lang(expr)
             } else {
-                panic!("Type error: The array don't have homogenous types.");
+                let array_type = Type::Tuple(types, HelpData::default());
+                panic!("Type error: The array don't have homogenous types \n {}", 
+                               array_type.pretty());
             }
         }
         Lang::Vector(exprs, h) => {
@@ -840,6 +843,18 @@ mod tests {
             .parse_next();
         println!("{}", fp);
         assert!(true)
+    }
+
+    #[test]
+    fn test_simple_signature1() {
+        let val = FluentParser::new()
+            .push("@as__character: (Any) -> char;")
+            .parse_type_next()
+            .push("as__character(3)")
+            .parse_type_next()
+            .get_last_type();
+        println!("{}", val);
+        assert!(true);
     }
 
 }

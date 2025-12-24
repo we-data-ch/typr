@@ -6,3 +6,4 @@
 @`*`: (num, num) -> num;
 @`/`: (int, int) -> int;
 @`/`: (num, num) -> num;
+@source: (char) -> Empty;

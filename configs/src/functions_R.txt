@@ -1,6 +1,5 @@
 %*%
 %/%
-%%
 %||%
 %in%
 %o%
@@ -17,7 +16,6 @@ agrepl
 alist
 all
 allowInterrupts
-any
 anyDuplicated
 anyNA
 aperm
@@ -108,11 +106,12 @@ builtins
 by
 bzfile
 c
+capture__output
+cat
 call
 callCC
 capabilities
 casefold
-cat
 cbind
 ceiling
 char__expand
@@ -285,6 +284,7 @@ if
 ifelse
 Im
 importIntoEnv
+invisible
 infoRDS
 inherits
 integer
@@ -294,7 +294,6 @@ intersect
 intToBits
 intToUtf8
 inverse__rle
-invisible
 invokeRestart
 invokeRestartInteractively
 is__array
@@ -383,7 +382,6 @@ libcurlVersion
 library
 licence
 license
-list
 list2DF
 list2env
 load
@@ -404,14 +402,12 @@ ls
 make__names
 make__unique
 makeActiveBinding
-Map
 mapply
 margin__table
 marginSums
 mat__or__vec
 match
 matrix
-max
 max__col
 mean
 mem__maxNSize
@@ -570,7 +566,6 @@ searchpaths
 seek
 seq
 seq_along
-seq_len
 sequence
 sequence__default
 serialize
@@ -623,6 +618,7 @@ stdout
 stop
 stopifnot
 storage__mode
+str
 str2expression
 str2lang
 strftime
@@ -631,7 +627,6 @@ strrep
 strsplit
 strtoi
 strtrim
-structure
 strwrap
 sub
 subset
@@ -736,7 +731,6 @@ UseMethod
 utf8ToInt
 validEnc
 validUTF8
-vapply
 vector
 Vectorize
 version

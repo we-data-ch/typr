@@ -14,6 +14,44 @@ use std::io::Write;
 use std::ops::Add;
 use crate::Config;
 
+pub fn merge_variables(set1: HashSet<(Var, Type)>, set2: HashSet<(Var, Type)>,) 
+    -> HashSet<(Var, Type)> {
+    let mut result = HashSet::new();
+    
+    for elem2 in &set2 {
+        let mut replaced = false;
+        
+        for elem1 in &set1 {
+            if elem2.0.get_type() == elem1.0.get_type() {
+                result.insert(elem2.clone());
+                replaced = true;
+                break;
+            }
+        }
+        
+        if !replaced {
+            result.insert(elem2.clone());
+        }
+    }
+    
+    for elem1 in &set1 {
+        let mut should_keep = true;
+        
+        for elem2 in &set2 {
+            if elem1.0.get_type() == elem2.0.get_type() {
+                should_keep = false;
+                break;
+            }
+        }
+        
+        if should_keep {
+            result.insert(elem1.clone());
+        }
+    }
+    
+    result
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VarType {
    pub variables: HashSet<(Var, Type)>,
@@ -61,6 +99,12 @@ impl VarType {
         let (var, ali) = Self::separate_variables_aliases(vt.to_vec());
         let ali = ali.iter().cloned().collect::<Vec<_>>();
         self.push_variables(var).push_aliases(&ali)
+    }
+
+    pub fn replace_var_type(self, vt: &[(Var, Type)]) -> Self {
+        let (var, ali) = Self::separate_variables_aliases(vt.to_vec());
+        let ali = ali.iter().cloned().collect::<Vec<_>>();
+        self.replace_variables(var).push_aliases(&ali)
     }
 
     pub fn push_alias_increment(self, vt: (Var, Type)) -> Self {
@@ -118,10 +162,27 @@ impl VarType {
         }
     }
 
+    fn replace_variables(self, vt: HashSet<(Var, Type)>) -> Self {
+        let res = merge_variables(self.variables, vt);
+        VarType {
+            variables: res,
+            ..self
+        }
+    }
+
     fn push_aliases(self, vt: &[(Var, Type)]) -> Self {
         let vt_set: HashSet<(Var, Type)> = vt.iter().cloned().collect();
         VarType {
             aliases: self.aliases.union(&vt_set).cloned().collect(),
+            ..self
+        }
+    }
+
+    fn replace_aliases(self, vt: &[(Var, Type)]) -> Self {
+        let vt_set: HashSet<(Var, Type)> = vt.iter().cloned().collect();
+        let res = merge_variables(self.variables.clone(), vt_set);
+        VarType {
+            aliases: res,
             ..self
         }
     }

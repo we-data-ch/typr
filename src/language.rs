@@ -679,7 +679,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Bool(b, _) => {
                 let (typ, _, _) = typing(cont, self);
                 let anotation = cont.get_type_anotation(&typ);
-                (format!("{} |> {}", b.to_string().to_uppercase(), anotation), cont.clone())
+                (format!("typed_vec({} |> {})", b.to_string().to_uppercase(), anotation), cont.clone())
             },
             Lang::Operator(Op::In(_), b2, b1, _) => {
                 Translatable::from(cont.clone())
@@ -839,8 +839,8 @@ impl RTranslatable<(String, Context)> for Lang {
                             let new_name = if &name[0..1] == "%" {
                                 format!("`{}`", name.replace("__", "."))
                             } else { name.replace("__", ".") };
-                            (format!("{}({})", new_name, args), current_cont.clone())
-                        }).unwrap_or((format!("{}({})", exp_str, args), current_cont))
+                            (format!("vec_apply({}, {})", new_name, args), current_cont.clone())
+                        }).unwrap_or((format!("vec_apply({}, {})", exp_str, args), current_cont))
                 }
             },
             Lang::ArrayIndexing(exp, val, _) => {
@@ -912,9 +912,9 @@ impl RTranslatable<(String, Context)> for Lang {
                let (typ, _, _) = typing(cont, self);
                let anotation = cont.get_type_anotation(&typ);
                 cont.get_classes(&typ)
-                    .map(|_| format!("data.frame({}) |> {}", 
+                    .map(|_| format!("list({}) |> {}", 
                                 body, anotation))
-                    .unwrap_or(format!("data.frame({}) |> {}",
+                    .unwrap_or(format!("list({}) |> {}",
                                 body, anotation))
                     .to_some().map(|s| (s, current_cont)).unwrap()
             },
@@ -937,7 +937,7 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::Tuple(vals, _) => {
                 Translatable::from(cont.clone())
-                    .add("struct(data.frame(")
+                    .add("struct(list(")
                     .join(vals, ", ")
                     .add("), 'Tuple')").into()
             },
@@ -950,16 +950,16 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Integer(i, _) => {
                 let (typ, _, _) = typing(cont, self);
                 let anotation = cont.get_type_anotation(&typ);
-                (format!("{}L |> {}", i, anotation), cont.clone())
+                (format!("typed_vec({}L |> {})", i, anotation), cont.clone())
             },
             Lang::Tag(s, t, _) => {
                 let (t_str, new_cont) = t.to_r(cont);
                 let (typ, _, _) = typing(cont, self);
                 let class = cont.get_class(&typ);
                 cont.get_classes(&typ)
-                    .map(|res| format!("struct(data.frame('{}', {}), c('Tag', {}, {}))",
+                    .map(|res| format!("struct(list('{}', {}), c('Tag', {}, {}))",
                                 s, t_str, class, res))
-                    .unwrap_or(format!("struct(data.frame('{}', {}), c('Tag', {}))",
+                    .unwrap_or(format!("struct(list('{}', {}), c('Tag', {}))",
                                 s, t_str, class))
                     .to_some().map(|s| (s, new_cont)).unwrap()
             },
@@ -1019,7 +1019,12 @@ impl RTranslatable<(String, Context)> for Lang {
                (res, cont.to_owned())
             },
             Lang::Operator(Op::Dollar(_), e2, e1, _) => {
-                let val = format!("{}${}", e2.to_r(cont).0, e1.to_r(cont).0);
+                let e1 = (**e1).clone();
+                let val = match e1.clone() {
+                    Lang::Variable(name, _, _, _, _) 
+                        => format!("vec_apply(get.list, {}, typed_vec('{}'))", e2.to_r(cont).0, name),
+                    _ => panic!("Dollar operation not yet implemented for {:?}", e1)
+                };
                 (val, cont.clone())
             },
             Lang::Not(exp, _) => {
@@ -1029,11 +1034,11 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Sequence(vals, _) => {
                 let res = if vals.len() > 0 {
                     "c(".to_string() + 
-                       &vals.iter().map(|x| "data.frame(".to_string() + &x.to_r(cont).0 + ")")
+                       &vals.iter().map(|x| "list(".to_string() + &x.to_r(cont).0 + ")")
                        .collect::<Vec<_>>().join(", ")
                     + ")"
                 } else {
-                    "c(data.frame())".to_string()
+                    "c(list())".to_string()
                 };
                (res, cont.to_owned())
             },

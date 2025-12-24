@@ -44,10 +44,6 @@ pub fn format(ty: &Type) -> String {
         Type::Generic(name, _) => name.to_uppercase(),
         Type::Integer(_tint, _) => {
             "int".to_string()
-            //match tint {
-                //Tint::Val(i) => format!("int({})", i),
-                //_ => "int".to_string()
-            //}
         },
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
@@ -67,7 +63,7 @@ pub fn format(ty: &Type) -> String {
         Type::Minus(a, b, _) => format!("{}-{}", a, b),
         Type::Mul(a, b, _) => format!("{}*{}", a, b),
         Type::Div(a, b, _) => format!("{}/{}", a, b),
-        Type::UnknownFunction(_) => "RFunction".to_string(),
+        Type::UnknownFunction(_) => "UnknownFunction".to_string(),
         Type::RClass(elem, _) => format!("class({})", elem.iter().cloned().collect::<Vec<_>>().join(", ")),
         Type::Union(s, _) => format!("{}", s.iter().cloned().map(|x| x.pretty()).collect::<Vec<_>>().join(" | ")),
         Type::Intersection(s, _) => format!("{}", s.iter().cloned().map(|x| x.pretty()).collect::<Vec<_>>().join(" & ")),

@@ -25,7 +25,7 @@ use crate::graph::TypeSystem;
 use std::collections::HashSet;
 use std::collections::HashMap;
 
-const BLACKLIST: [&str; 44] = ["test_that", "expect_true", "`+`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "*", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array"];
+const BLACKLIST: [&str; 53] = ["test_that", "expect_true", "`+`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "*", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array", "cat", "rep", "str", "oldClass", "stop", "invisible", "capture__output", "paste0", "unclass"];
 
 pub fn not_in_blacklist(name: &str) -> bool {
     let hs = BLACKLIST.iter().cloned().collect::<HashSet<&str>>();
@@ -209,6 +209,19 @@ impl Context {
         }
     }
 
+    pub fn replace_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
+        let types = typ.reduce(context).extract_types();
+        let var_type = self.typing_context.clone()
+            .replace_var_type(&[(lang.clone(), typ.clone())])
+            .push_types(&types);
+        let new_subtypes = self.subtypes.add_types(&types, context);
+        Context {
+            typing_context: var_type, 
+            subtypes: new_subtypes,
+            ..self
+        }
+    }
+
     // Remove variables from the context
     // For removing added variables for evaluating a function's body
     pub fn remove_vars(self, vars: &[Var]) -> Context {
@@ -365,10 +378,11 @@ impl Context {
                     && (reduced_type1.is_subtype(&reduced_type2, self) || reduced_type1.is_upperrank_of(&reduced_type2))
             }).map(|(_, typ)| typ.clone()).collect::<Vec<_>>();
         if res.len() == 0 {
+            let name1 = var1.get_name();
             vec![self.typing_context
                 .standard_library()
                 .iter()
-                .find(|(var2, typ)| var2.get_name() == var1.get_name())
+                .find(|(var2, typ)| var2.get_name() == name1)
                 .map(|(_, typ)| typ)
                 .expect(&format!("Can't find var {} in the context:\n {}", 
                        var1.to_string(), self.display_typing_context()))

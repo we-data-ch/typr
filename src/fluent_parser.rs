@@ -251,6 +251,10 @@ impl FluentParser {
         }
     }
 
+    pub fn display_context(&self) -> String {
+        self.context.display_typing_context()
+    }
+
 }
 
 

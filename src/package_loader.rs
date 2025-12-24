@@ -34,8 +34,9 @@ impl PackageManager {
         match self.kind {
             Source::NameList => {
                 let unknown_function = builder::unknown_function();
+                let any_type = builder::any_type();
                 let res = self.content.lines()
-                    .map(|line| (Var::from_name(line), unknown_function.clone()))
+                    .map(|line| (Var::from_name(line).set_type(any_type.clone()), unknown_function.clone()))
                     .collect::<Vec<_>>();
                 let _ = VarType::from(res).save(&self.get_bin_name());
             },

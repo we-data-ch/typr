@@ -846,6 +846,7 @@ impl From<Type> for HelpData {
            Type::Sequence(_, _, h) => h,
            Type::Union(_, h) => h,
            Type::Any(h) => h,
+           Type::UnknownFunction(h) => h,
            e => panic!("The type element {:?} is not yet implemented", e)
        }.clone()
    } 

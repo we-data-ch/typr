@@ -537,6 +537,14 @@ fn type_variable(s: Span) -> IResult<Span, Type> {
     }
 }
 
+fn unknown_function(s: Span) -> IResult<Span, Type> {
+    let res = tag("UnknownFunction").parse(s);
+    match res {
+        Ok((s, rfunc)) => Ok((s, Type::UnknownFunction(rfunc.into()))),
+        Err(r) => Err(r)
+    }
+}
+
 
 // main
 pub fn single_type(s: Span) -> IResult<Span, Type> {
@@ -544,6 +552,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             function_type,
             self_type,
             r_class,
+            unknown_function,
             vector_type,
             sequence_type,
             parenthese_value,
