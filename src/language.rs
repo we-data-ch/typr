@@ -892,7 +892,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Array(_v, _h) => {
                 let typ = self.typing(cont).0;
 
-                let dimension = ArrayType::try_from(typ.clone()).unwrap().get_shape()
+                let _dimension = ArrayType::try_from(typ.clone()).unwrap().get_shape()
                     .map(|sha| format!("c({})", sha))
                     .unwrap_or(format!("c(0)"));
 
@@ -900,7 +900,8 @@ impl RTranslatable<(String, Context)> for Lang {
                     .iter().map(|lang| lang.to_r(&cont).0)
                     .collect::<Vec<_>>().join(", ")
                     .and_if(|lin_array| lin_array != "")
-                    .map(|lin_array| format!("concat({}, dim = {})", lin_array, dimension))
+                    //.map(|lin_array| format!("concat({}, dim = {})", lin_array, dimension))
+                    .map(|lin_array| format!("typed_vec({})", lin_array))
                     .unwrap_or("logical(0)".to_string());
 
                 (format!("{} |> {}", array, cont.get_type_anotation(&typ)) ,cont.to_owned())
@@ -1018,12 +1019,16 @@ impl RTranslatable<(String, Context)> for Lang {
                 + ")";
                (res, cont.to_owned())
             },
-            Lang::Operator(Op::Dollar(_), e2, e1, _) => {
+            Lang::Operator(Op::Dollar(_), e1, e2, _) => {
                 let e1 = (**e1).clone();
-                let val = match e1.clone() {
-                    Lang::Variable(name, _, _, _, _) 
-                        => format!("vec_apply(get.list, {}, typed_vec('{}'))", e2.to_r(cont).0, name),
-                    _ => panic!("Dollar operation not yet implemented for {:?}", e1)
+                let e2 = (**e2).clone();
+                let t1 = typing(cont, &e1).0;
+                let val = match (t1.clone(), e2.clone()) {
+                    (Type::Array(_, _, _), Lang::Variable(name, _, _, _, _))
+                        => format!("vec_apply(get.list, {}, typed_vec('{}'))", e1.to_r(cont).0, name),
+                    (_, Lang::Variable(name, _, _, _, _))
+                        => format!("{}${}", e1.to_r(cont).0, name),
+                    _ => panic!("Dollar operation not yet implemented for {:?}", e2)
                 };
                 (val, cont.clone())
             },

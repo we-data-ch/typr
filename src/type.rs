@@ -98,7 +98,6 @@ impl TypeSystem for Type {
                 types.iter()
                     .any(|x| x.is_subtype(typ, context))
             },
-            // Array subtyping
             (_, Type::Any(_)) => true,
             (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
                 n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
