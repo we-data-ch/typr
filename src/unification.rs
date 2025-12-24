@@ -153,9 +153,11 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
                 h.clone()
             )
         }
-
         // Default case: return the type unchanged
-        _ => type_.clone()
+        _ => substitutions.iter()
+            .find(|(typ1, _)| type_ == typ1)
+            .map(|(_, typ2)| typ2.clone())
+            .unwrap_or(type_.clone())
     }
 }
 

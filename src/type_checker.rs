@@ -423,7 +423,6 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                         builder::intersection_type(&[ty2.clone(), e1.typing(context).0])
                             .with_lang(expr, context)
                     },
-                //(typ, Lang::FunctionApp(exp, v, ty, h)) => {
                     (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
                 }
             }
@@ -854,6 +853,19 @@ mod tests {
             .parse_type_next()
             .get_last_type();
         println!("{}", val);
+        assert!(true);
+    }
+
+    #[test]
+    fn test_function_return_type1() {
+        let typ = FluentParser::new()
+            .set_context(Context::default())
+            .push("@incr: (int) -> int;")
+            .parse_type_next()
+            .push("incr([1, 2])")
+            .parse_type_next()
+            .get_last_type();
+        println!("{}", typ.pretty());
         assert!(true);
     }
 
