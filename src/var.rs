@@ -274,9 +274,23 @@ impl Var {
     }
 
     pub fn contains(&self, s: &str) -> bool {
-        if self.get_name().len() > s.len() {
-            &self.get_name()[0..s.len()] == s
-        } else { false }
+        self.get_name().contains(s)
+    }
+
+    pub fn replace(self, old: &str, new: &str) -> Self {
+        let res = self.get_name().replace(old, new);
+        self.set_name(&res)
+    }
+
+    pub fn display_type(self, cont: &Context) -> Self {
+        let type_str = match self.get_type() {
+            Type::Empty(_) | Type::Any(_) => "".to_string(),
+            ty => ".".to_string() + &cont.get_class(&ty).replace("'", "")
+        };
+        let new_name = if self.contains("`") {
+            "`".to_string() + &self.get_name().replace("`", "") + &type_str + "`"
+        } else { self.get_name() + &type_str };
+        self.set_name(&new_name)
     }
 
     pub fn get_digit(&self, s: &str) -> i8 {
