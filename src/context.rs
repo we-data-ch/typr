@@ -540,11 +540,16 @@ impl Context {
                 }
             }
         }
+
+        if set.iter().max_by(|x, y| x.0.cmp(&y.0)).unwrap().0 > 1 {
+            Some(set)
+        } else {
+            None
+        }
         
-        Some(set)
     }
 
-    pub fn get_unification_map_for_vectorizable_function(types: Vec<Type>) -> Option<UnificationMap> {
+    pub fn get_unification_map_for_vectorizable_function(types: Vec<Type>, name: &str) -> Option<UnificationMap> {
         let unique_types = types.iter()
             .map(|x| x.get_size_type())
             .collect::<HashSet<_>>();
@@ -570,7 +575,7 @@ impl Context {
         let entered_types = values.iter()
             .map(|val| typing(self, val).0).collect::<Vec<_>>();
 
-        let unification_map = Self::get_unification_map_for_vectorizable_function(entered_types.clone());
+        let unification_map = Self::get_unification_map_for_vectorizable_function(entered_types.clone(), name);
         let res = entered_types.iter()
             .zip(param_types.iter())
             .flat_map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
