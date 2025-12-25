@@ -15,7 +15,7 @@ pub struct Typer {
 
 impl Typer {
     pub fn typing(self, lang: Lang) -> Self {
-        let (typ, cont) = lang.typing(&self.context);
+        let (typ, lang, cont) = lang.typing(&self.context);
         Self {
             context: cont,
             memory: self.memory.iter().chain([(lang, typ)].iter()).cloned().collect(),

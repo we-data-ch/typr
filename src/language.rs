@@ -414,9 +414,9 @@ impl Lang {
         }
     }
 
-    pub fn typing(&self, context: &Context) -> (Type, Context) {
+    pub fn typing(&self, context: &Context) -> (Type, Lang, Context) {
         let res = typing(context, self);
-        (res.0.clone(), res.2)
+        (res.0.clone(), res.1, res.2)
     }
 
     //main
