@@ -53,8 +53,9 @@ impl Var {
 
     pub fn infer_var_related_type(&self, args: &Vec<Lang>, context: &Context) -> Var {
         if args.len() > 0 {
+            let first_arg = args.iter().nth(0).unwrap().clone();
             let first_param_type = 
-                typing(context, &args.iter().nth(0).unwrap().clone()).0;
+                typing(context, &first_arg).0;
             self.clone().set_type(first_param_type.clone())
         } else {
             self.clone()
@@ -91,26 +92,11 @@ impl Var {
     pub fn get_related_functions(self, args: &Vec<Lang>, context: &Context) 
         -> Vec<FunctionType> {
         let typed_var = self.infer_var_related_type(args, context);
-        let res = context.get_matching_functions(typed_var.clone());
+        let res = context.get_matching_functions(typed_var.clone()).unwrap();
         Self::keep_minimals(res, context)
              .iter()
              .map(|x| x.to_function_type().unwrap())
              .collect()
-    }
-
-    pub fn get_related_function(self, args: &Vec<Lang>, context: &Context) 
-        -> Option<FunctionType> {
-        let typed_var = self.infer_var_related_type(args, context);
-         context.get_matching_functions(typed_var.clone())
-             .iter()
-             .reduce(|acc, x| if x.is_subtype(acc, context) { x } else { acc })
-             .map(|x| x.to_function_type().unwrap())
-    }
-
-    pub fn get_function_signature(&self, values: &Vec<Lang>, context: &Context) -> FunctionType {
-        self.clone()
-            .get_related_function(values, context)
-            .unwrap_or_default()
     }
 
     pub fn get_function_signatures(&self, values: &Vec<Lang>, context: &Context) -> Vec<FunctionType> {

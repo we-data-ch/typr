@@ -300,7 +300,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                     get_gen_type(typ1, typ2)
                 }
             (t1, t2) if t1 == t2 => Some(vec![]),
-            _ => None
+            _ => Some(vec![])
         }
 }
 

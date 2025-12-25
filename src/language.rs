@@ -799,7 +799,6 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Variable(_, _, _, _, _) => {
                 //Here we only keep the variable name, the path and the type
                 let var = Var::from_language(self.clone()).unwrap();
-                //println!("v: {:?}", v);
                 let name = if var.contains("__") {
                     var.replace("__", ".").get_name()
                 } else {

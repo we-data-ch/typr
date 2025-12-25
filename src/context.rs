@@ -377,7 +377,7 @@ impl Context {
         }.1
     }
 
-    pub fn get_matching_functions(&self, var1: Var) -> Vec<Type> {
+    pub fn get_matching_functions(&self, var1: Var) -> Result<Vec<Type>, String> {
         let res = self.typing_context.variables()
             .filter(|(var2, typ)| {
                 let reduced_type1 = var1.get_type().reduce(self);
@@ -388,16 +388,17 @@ impl Context {
             }).map(|(_, typ)| typ.clone()).collect::<Vec<_>>();
         if res.len() == 0 {
             let name1 = var1.get_name();
-            vec![self.typing_context
-                .standard_library()
-                .iter()
+            let std_lib = self.typing_context
+                .standard_library();
+            let res = std_lib.iter()
                 .find(|(var2, typ)| var2.get_name() == name1)
-                .map(|(_, typ)| typ)
-                .expect(&format!("Can't find var {} in the context:\n {}", 
-                       var1.to_string(), self.display_typing_context()))
-                .clone()]
+                .map(|(_, typ)| typ);
+            match res {
+                Some(val) => Ok(vec![val.clone()]),
+                _ => Err(format!("Can't find var {} in the context:\n {}", var1.to_string(), self.display_typing_context()))
+            }
         } else { 
-            res
+            Ok(res)
         }
     }
 
@@ -568,13 +569,19 @@ impl Context {
         -> Option<UnificationMap> {
         let entered_types = values.iter()
             .map(|val| typing(self, val).0).collect::<Vec<_>>();
-        let unification_map = Self::get_unification_map_for_vectorizable_function(entered_types.clone()).unwrap_or_default();
+
+        let unification_map = Self::get_unification_map_for_vectorizable_function(entered_types.clone());
         let res = entered_types.iter()
             .zip(param_types.iter())
             .flat_map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
             .flatten()
             .collect::<Vec<_>>();
-        (res.len() > 0).then(|| unification_map.append(UnificationMap::new(res)))
+        match (unification_map, res.len() > 0) {
+            (Some(um), true) => Some(um.append(UnificationMap::new(res))),
+            (None, true) => Some(UnificationMap::new(res)),
+            (Some(um), false) => Some(um),
+            (None, false) => None
+        }
     }
 
     fn s3_type_definition(&self, var: &Var, typ: &Type) -> String {
