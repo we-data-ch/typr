@@ -78,6 +78,7 @@ pub enum Lang {
     ModuleDecl(String, HelpData), // to create an env
     Variable(String, Permission, bool, Type, HelpData),
     FunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
+    VecFunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
     MethodCall(Box<Lang>, Vec<Lang>, Type, HelpData),
     ArrayIndexing(Box<Lang>, Box<Lang>, HelpData),
     Let(Box<Lang>, Type, Box<Lang>, HelpData),
@@ -289,6 +290,7 @@ impl Lang {
             Lang::ModuleDecl(_, h) => h,
             Lang::Variable(_, _, _, _, h) => h,
             Lang::FunctionApp(_, _, _, h) => h,
+            Lang::VecFunctionApp(_, _, _, h) => h,
             Lang::MethodCall(_, _, _, h) => h,
             Lang::ArrayIndexing(_, _, h) => h,
             Lang::Let(_, _, _, h) => h,
@@ -369,6 +371,8 @@ impl Lang {
             Lang::Variable(name, _, _, _, _) => format!("Variable({})", name),
             Lang::FunctionApp(var, _, _, _) => 
                 format!("FunctionApp({})", Var::from_language(*(var.clone())).unwrap().get_name()),
+            Lang::VecFunctionApp(var, _, _, _) => 
+                format!("VecFunctionApp({})", Var::from_language(*(var.clone())).unwrap().get_name()),
             Lang::MethodCall(var, _, _, _) => 
                 format!("MethodCall({})", Var::from_language(*(var.clone())).unwrap().get_name()),
             Lang::ArrayIndexing(_, _, _) => "ArrayIndexing".to_string(),
@@ -512,6 +516,13 @@ impl Lang {
     pub fn to_simple_r(&self, context: &Context) -> (String, Context) {
         match self {
             Lang::Number(n, _) => (n.to_string(), context.clone()),
+            Lang::Array(v, _) => {
+                if v.len() == 1 {
+                    v[0].to_simple_r(context)
+                } else {
+                    panic!("Not yet implemented for indexing of multiple elements")
+                }
+            }
             _ => self.to_r(context)
         }
     }
@@ -611,6 +622,7 @@ impl From<Lang> for HelpData {
            Lang::Variable(_, _, _, _, h) => h,
            Lang::Match(_, _, _, h) => h,
            Lang::FunctionApp(_, _, _, h) => h,
+           Lang::VecFunctionApp(_, _, _, h) => h,
            Lang::MethodCall(_, _, _, h) => h,
            Lang::Empty(h) => h,
            Lang::Array(_, h) => h,
@@ -679,86 +691,22 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Bool(b, _) => {
                 let (typ, _, _) = typing(cont, self);
                 let anotation = cont.get_type_anotation(&typ);
-                (format!("typed_vec({} |> {})", b.to_string().to_uppercase(), anotation), cont.clone())
-            },
-            Lang::Operator(Op::In(_), b1, b2, _) => {
-                Translatable::from(cont.clone())
-                    .to_r(b2).add(" %in% ").to_r(b1).into()
-            },
-            Lang::Operator(Op::Add(_), b1, b2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`+`, ")
-                    .to_r(b1).add(", ").to_r(b2).add(")").into()
-            },
-            Lang::Operator(Op::Mul(_), b1, b2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`*`, ")
-                    .to_r(b1).add(", ").to_r(b2).add(")").into()
-            },
-            Lang::Operator(Op::Div(_), b1, b2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`/`, ")
-                    .to_r(b1).add(", ").to_r(b2).add(")").into()
-            },
-            Lang::Operator(Op::Minus(_), b1, b2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`-`, ")
-                    .to_r(b1).add(", ").to_r(b2).add(")").into()
-            },
-            Lang::Operator(Op::And(_), b1, b2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`&`, ")
-                    .to_r(b1).add(", ").to_r(b2).add(")").into()
-            },
-            Lang::Operator(Op::Or(_), b1, b2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`|`, ")
-                    .to_r(b1).add(", ").to_r(b2).add(")").into()
-            },
-            Lang::Operator(Op::Modulo(_), e1, e2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`%`, ")
-                    .to_r(e1).add(", ").to_r(e2).add(")").into()
-            },
-            Lang::Operator(Op::Modulo2(_), e1, e2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`%%`, ")
-                    .to_r(e1).add(", ").to_r(e2).add(")").into()
+                (format!("{} |> {}", b.to_string().to_uppercase(), anotation), cont.clone())
             },
             Lang::Number(n, _) => {
                 let (typ, _, _) = typing(cont, self);
                 let anotation = cont.get_type_anotation(&typ);
-                (format!("typed_vec({} |> {})", n, anotation), cont.clone())
+                (format!("{} |> {}", n, anotation), cont.clone())
             },
-            Lang::Operator(Op::Eq(_), e1, e2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`%==%`, ")
-                    .to_r(e1).add(", ").to_r(e2).add(")").into()
+            Lang::Integer(i, _) => {
+                let (typ, _, _) = typing(cont, self);
+                let anotation = cont.get_type_anotation(&typ);
+                (format!("{}L |> {}", i, anotation), cont.clone())
             },
-            Lang::Operator(Op::NotEq(_), e1, e2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`!=`, ")
-                    .to_r(e1).add(", ").to_r(e2).add(")").into()
-            },
-            Lang::Operator(Op::LesserThan(_), e1, e2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`<`, ")
-                    .to_r(e1).add(", ").to_r(e2).add(")").into()
-            },
-            Lang::Operator(Op::GreaterThan(_), e1, e2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`>`, ")
-                    .to_r(e1).add(", ").to_r(e2).add(")").into()
-            },
-            Lang::Operator(Op::LesserOrEqual(_), e1, e2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`<=`, ")
-                    .to_r(e1).add(", ").to_r(e2).add(")").into()
-            },
-            Lang::Operator(Op::GreaterOrEqual(_), e1, e2, _) => {
-                Translatable::from(cont.clone())
-                    .add("vec_apply(`>=`, ")
-                    .to_r(e1).add(", ").to_r(e2).add(")").into()
+            Lang::Char(s, _) => {
+                let (typ, _, _) = typing(cont, self);
+                let anotation = cont.get_type_anotation(&typ);
+                (format!("'{}' |> {}", s, anotation), cont.clone())
             },
             Lang::Operator(Op::Dot(_), e1, e2, _) | Lang::Operator(Op::Pipe(_), e1, e2, _) 
                 => {
@@ -791,6 +739,25 @@ impl RTranslatable<(String, Context)> for Lang {
                     }
                 }
             },
+            Lang::Operator(Op::Dollar(_), e1, e2, _) => {
+                let e1 = (**e1).clone();
+                let e2 = (**e2).clone();
+                let t1 = typing(cont, &e1).0;
+                let val = match (t1.clone(), e2.clone()) {
+                    (Type::Array(_, _, _), Lang::Variable(name, _, _, _, _))
+                        => format!("vec_apply(get, {}, typed_vec('{}'))", e1.to_r(cont).0, name),
+                    (_, Lang::Variable(name, _, _, _, _))
+                        => format!("{}${}", e1.to_r(cont).0, name),
+                    _ => format!("{}${}", e1.to_r(cont).0, e2.to_r(cont).0),
+                    //_ => panic!("Dollar operation not yet implemented for {:?}", e2)
+                };
+                (val, cont.clone())
+            },
+            Lang::Operator(op, e1, e2, _) => {
+                let op_str = format!(" {} ", op.to_string());
+                Translatable::from(cont.clone())
+                    .to_r(e2).add(&op_str).to_r(e1).into()
+            },
             Lang::Scope(exps, _) => {
                 Translatable::from(cont.clone())
                     .add("{\n")
@@ -821,6 +788,42 @@ impl RTranslatable<(String, Context)> for Lang {
                 ((&name).to_string(), cont.clone())
             },
             Lang::FunctionApp(exp, vals, _, _) => {
+                let var = Var::try_from(exp.clone()).unwrap();
+                let name = var.get_name();
+                let str_vals = vals.iter()
+                                .map(|x| x.to_r(cont).0)
+                                .collect::<Vec<_>>().join(", ");
+                if cont.is_an_untyped_function(&name) {
+                    let name = name.replace("__", ".");
+                    let new_name = if &name[0..1] == "%" {
+                        format!("`{}`", name)
+                    } else { name.to_string() };
+                    let s = format!("{}({})", new_name, str_vals); 
+                    (s, cont.clone())
+                } else {
+                    let (exp_str, cont1) = exp.to_r(cont);
+                    let fn_t =  FunctionType::try_from(cont1.get_type_from_variable(&var)
+                                    .expect(&format!("variable {} don't have a related type", var)))
+                                    .unwrap();
+                    let new_args = fn_t.get_param_types().into_iter()
+                            .map(|arg| reduce_type(&cont1, &arg))
+                            .collect::<Vec<_>>();
+                    let new_vals = vals.into_iter().zip(new_args.iter())
+                        .map(set_related_type_if_variable)
+                        .collect::<Vec<_>>();
+                    let (args, current_cont) = Translatable::from(cont1)
+                            .join(&new_vals, ", ").into();
+                    Var::from_language(*exp.clone())
+                        .map(|var| {
+                            let name = var.get_name();
+                            let new_name = if &name[0..1] == "%" {
+                                format!("`{}`", name.replace("__", "."))
+                            } else { name.replace("__", ".") };
+                            (format!("{}({})", new_name, args), current_cont.clone())
+                        }).unwrap_or((format!("{}({})", exp_str, args), current_cont))
+                }
+            },
+            Lang::VecFunctionApp(exp, vals, _, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
                 let name = var.get_name();
                 let str_vals = vals.iter()
@@ -860,12 +863,10 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::ArrayIndexing(exp, val, _) => {
                 let (exp_str, _) = exp.to_r(cont);
-                let (val_str, _) = val.to_r(cont);
+                let (val_str, _) = val.to_simple_r(cont);
                 let (typ, _, _) = typing(&cont, exp);
                 let res = match typ {
-                    Type::Array(_, _, _) | Type::Vector(_, _, _)
-                        => format!("{}[{}]", exp_str, val_str), 
-                    Type::Sequence(_, _, _) 
+                    Type::Array(_, _, _) | Type::Vector(_, _, _) | Type::Sequence(_, _, _)
                         => format!("{}[[{}]]", exp_str, val_str), 
                     _ => "".to_string()
                 };
@@ -934,12 +935,6 @@ impl RTranslatable<(String, Context)> for Lang {
                                 body, anotation))
                     .to_some().map(|s| (s, current_cont)).unwrap()
             },
-            Lang::Char(s, _) => {
-                let (typ, _, _) = typing(cont, self);
-                let anotation = cont.get_type_anotation(&typ);
-                (format!("'{}' |> {}", s, anotation), cont.clone())
-                //(format!("'{}'", s), cont.clone())
-            },
             Lang::If(cond, exp, els, _) if els == &Box::new(Lang::Empty(HelpData::default())) => {
                 Translatable::from(cont.clone())
                     .add("if(get.data(").to_r(cond).add(")) {\n")
@@ -963,11 +958,6 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::Comment(txt, _) => 
                 ("#".to_string() + txt, cont.clone()),
-            Lang::Integer(i, _) => {
-                let (typ, _, _) = typing(cont, self);
-                let anotation = cont.get_type_anotation(&typ);
-                (format!("typed_vec({}L |> {})", i, anotation), cont.clone())
-            },
             Lang::Tag(s, t, _) => {
                 let (t_str, new_cont) = t.to_r(cont);
                 let (typ, _, _) = typing(cont, self);
@@ -1012,14 +1002,6 @@ impl RTranslatable<(String, Context)> for Lang {
                     .add(") \n").add(&body).add("\n")
                     .into()
             }
-            Lang::Operator(Op::Eq2(_), e1, e2, _) => {
-                let res = match &**e1 {
-                    Lang::Tag(n, _, _) => n.to_string(),
-                    Lang::Variable(n, _, _, _, _) => n.to_string(),
-                    _ => format!("{}", e1) 
-                };
-                (format!("{} = {}", res, e2.to_r(cont).0), cont.clone())
-            }
             Lang::Signature(_, _, _) => {
                 ("".to_string(), cont.clone())
             }
@@ -1033,19 +1015,6 @@ impl RTranslatable<(String, Context)> for Lang {
                    .collect::<Vec<_>>().join(", ")
                 + ")";
                (res, cont.to_owned())
-            },
-            Lang::Operator(Op::Dollar(_), e1, e2, _) => {
-                let e1 = (**e1).clone();
-                let e2 = (**e2).clone();
-                let t1 = typing(cont, &e1).0;
-                let val = match (t1.clone(), e2.clone()) {
-                    (Type::Array(_, _, _), Lang::Variable(name, _, _, _, _))
-                        => format!("vec_apply(get, {}, typed_vec('{}'))", e1.to_r(cont).0, name),
-                    (_, Lang::Variable(name, _, _, _, _))
-                        => format!("{}${}", e1.to_r(cont).0, name),
-                    _ => panic!("Dollar operation not yet implemented for {:?}", e2)
-                };
-                (val, cont.clone())
             },
             Lang::Not(exp, _) => {
                 (format!("!{}", exp.to_r(cont).0),

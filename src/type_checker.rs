@@ -490,6 +490,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                            .push_var_type(var, typ, context), e2).0.clone()
                            .with_lang(expr, context)
                 },
+                (Type::UnknownFunction(h) , Lang::FunctionApp(exp, args, ret, h2), _ ) => {
+                    (Type::UnknownFunction(h), (*expr).clone(), context.clone())
+                }
                 (typ , Lang::FunctionApp(exp, args, ret, h2), Op::Dot(_)) => {
                     typing(
                         context,
@@ -546,16 +549,24 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 typing(&new_context, &exp)
             }
         },
-        Lang::FunctionApp(fn_var_name, values, _, h) => {
+        Lang::FunctionApp(fn_var_name, values, t, h) => {
             let var = Var::try_from(fn_var_name.clone()).unwrap();
             let name = var.get_name();
             let funs = var.get_function_signatures(values, context);
-            let typ = funs.iter()
-                .find_map(|x| x.clone().infer_return_type(values, context, &name))
+            let (id, typ) = funs.iter()
+                .enumerate()
+                .find_map(|(id, x)| 
+                          match x.clone().infer_return_type(values, context, &name) {
+                              Some(res) => Some((id, res)),
+                              _ => None})
                 .unwrap();
+            let old_ret_typ = funs[id].get_return_type();
+            let new_expr = if typ.is_vector_of(&old_ret_typ, context) {
+               Lang::VecFunctionApp(fn_var_name.clone(), values.clone(), t.clone(), h.clone()) 
+            } else { expr.clone() };
             typ
                 .tuple(&context.clone())
-                .with_lang(expr)
+                .with_lang(&new_expr)
         },
         Lang::Tag(name, expr, h) => {
             let ty = typing(context, expr).0;

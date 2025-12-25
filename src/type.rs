@@ -807,6 +807,15 @@ impl Type {
         }
     }
 
+    pub fn is_vector_of(&self, other: &Type, context: &Context) -> bool {
+        let reduced_self = self.reduce(context);
+        let reduced_other = other.reduce(context);
+        match reduced_self {
+            Type::Array(_, t, _) => *t == reduced_other,
+            _ => false
+        }
+    }
+
 }
 
 pub struct Array {

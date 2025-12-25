@@ -276,7 +276,7 @@ print.typed_vec <- function(x, ...) {
   cat("typed_vec [", n, "]\n", sep = "")
 
   for (i in seq_len(n)) {
-    cat("[[", i, "]] ", sep = "")
+    cat("[", i, "] ", sep = "")
     el <- x$data[[i]]
 
     # Délégation au print S3 de l'élément
@@ -314,22 +314,22 @@ get.any <- function(a, name) {
 }
 
 print.Integer <- function(i) {
-	print(unclass(i))
+	cat(unclass(i))
 	invisible(i)
 }
 
 print.Character <- function(c) {
-	print(unclass(c))
+	cat(unclass(c))
 	invisible(c)
 }
 
 print.Boolean <- function(b) {
-	print(unclass(b))
+	cat(unclass(b))
 	invisible(b)
 }
 
 print.Number <- function(n) {
-	print(unclass(n))
+	cat(unclass(n))
 	invisible(n)
 }
 

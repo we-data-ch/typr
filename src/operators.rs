@@ -215,7 +215,7 @@ pub fn op(s: Span) -> IResult<Span, Op> {
     }
 }
 
-fn get_string(op: &Op) -> String {
+pub fn get_string(op: &Op) -> String {
     match op {
         Op::In(_) => "in".to_string(),
         Op::And(_) => "and".to_string(),
