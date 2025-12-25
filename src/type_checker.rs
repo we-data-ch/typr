@@ -374,7 +374,9 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             | Lang::Operator(Op::GreaterOrEqual(_), e1, e2, _) 
             | Lang::Operator(Op::GreaterThan(_), e1, e2, _) 
             | Lang::Operator(Op::LesserThan(_), e1, e2, _) => {
-            (typing(context, e1).0 == typing(context, e2).0)
+            let t1 = typing(context, e1).0;
+            let t2 = typing(context, e2).0;
+            (t1 == t2)
                 .then_some((builder::boolean_type(), context.clone()))
                 .expect("Type error").with_lang(expr)
         }

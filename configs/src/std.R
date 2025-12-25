@@ -301,6 +301,10 @@ get.typed_vec <- function(a, name) {
 	a$data[[1]][[name]]
 }
 
+get.data <- function(a, name) {
+	a$data[[1]]
+}
+
 get.list <- function(a, name) {
 	a$data[[1]][[name]]
 }
@@ -328,3 +332,8 @@ print.Number <- function(n) {
 	print(unclass(n))
 	invisible(n)
 }
+
+`%==%.default` <- function(x, y) {
+	unclass(x) == unclass(y)
+}
+

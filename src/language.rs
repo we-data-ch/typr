@@ -681,46 +681,46 @@ impl RTranslatable<(String, Context)> for Lang {
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("typed_vec({} |> {})", b.to_string().to_uppercase(), anotation), cont.clone())
             },
-            Lang::Operator(Op::In(_), b2, b1, _) => {
+            Lang::Operator(Op::In(_), b1, b2, _) => {
                 Translatable::from(cont.clone())
                     .to_r(b2).add(" %in% ").to_r(b1).into()
             },
-            Lang::Operator(Op::Add(_), b2, b1, _) => {
+            Lang::Operator(Op::Add(_), b1, b2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`+`, ")
                     .to_r(b1).add(", ").to_r(b2).add(")").into()
             },
-            Lang::Operator(Op::Mul(_), b2, b1, _) => {
+            Lang::Operator(Op::Mul(_), b1, b2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`*`, ")
                     .to_r(b1).add(", ").to_r(b2).add(")").into()
             },
-            Lang::Operator(Op::Div(_), b2, b1, _) => {
+            Lang::Operator(Op::Div(_), b1, b2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`/`, ")
                     .to_r(b1).add(", ").to_r(b2).add(")").into()
             },
-            Lang::Operator(Op::Minus(_), b2, b1, _) => {
+            Lang::Operator(Op::Minus(_), b1, b2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`-`, ")
                     .to_r(b1).add(", ").to_r(b2).add(")").into()
             },
-            Lang::Operator(Op::And(_), b2, b1, _) => {
+            Lang::Operator(Op::And(_), b1, b2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`&`, ")
                     .to_r(b1).add(", ").to_r(b2).add(")").into()
             },
-            Lang::Operator(Op::Or(_), b2, b1, _) => {
+            Lang::Operator(Op::Or(_), b1, b2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`|`, ")
                     .to_r(b1).add(", ").to_r(b2).add(")").into()
             },
-            Lang::Operator(Op::Modulo(_), e2, e1, _) => {
+            Lang::Operator(Op::Modulo(_), e1, e2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`%`, ")
                     .to_r(e1).add(", ").to_r(e2).add(")").into()
             },
-            Lang::Operator(Op::Modulo2(_), e2, e1, _) => {
+            Lang::Operator(Op::Modulo2(_), e1, e2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`%%`, ")
                     .to_r(e1).add(", ").to_r(e2).add(")").into()
@@ -730,32 +730,32 @@ impl RTranslatable<(String, Context)> for Lang {
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("typed_vec({} |> {})", n, anotation), cont.clone())
             },
-            Lang::Operator(Op::Eq(_), e2, e1, _) => {
+            Lang::Operator(Op::Eq(_), e1, e2, _) => {
                 Translatable::from(cont.clone())
-                    .add("vec_apply(`==`, ")
+                    .add("vec_apply(`%==%`, ")
                     .to_r(e1).add(", ").to_r(e2).add(")").into()
             },
-            Lang::Operator(Op::NotEq(_), e2, e1, _) => {
+            Lang::Operator(Op::NotEq(_), e1, e2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`!=`, ")
                     .to_r(e1).add(", ").to_r(e2).add(")").into()
             },
-            Lang::Operator(Op::LesserThan(_), e2, e1, _) => {
+            Lang::Operator(Op::LesserThan(_), e1, e2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`<`, ")
                     .to_r(e1).add(", ").to_r(e2).add(")").into()
             },
-            Lang::Operator(Op::GreaterThan(_), e2, e1, _) => {
+            Lang::Operator(Op::GreaterThan(_), e1, e2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`>`, ")
                     .to_r(e1).add(", ").to_r(e2).add(")").into()
             },
-            Lang::Operator(Op::LesserOrEqual(_), e2, e1, _) => {
+            Lang::Operator(Op::LesserOrEqual(_), e1, e2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`<=`, ")
                     .to_r(e1).add(", ").to_r(e2).add(")").into()
             },
-            Lang::Operator(Op::GreaterOrEqual(_), e2, e1, _) => {
+            Lang::Operator(Op::GreaterOrEqual(_), e1, e2, _) => {
                 Translatable::from(cont.clone())
                     .add("vec_apply(`>=`, ")
                     .to_r(e1).add(", ").to_r(e2).add(")").into()
@@ -942,12 +942,12 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::If(cond, exp, els, _) if els == &Box::new(Lang::Empty(HelpData::default())) => {
                 Translatable::from(cont.clone())
-                    .add("if(").to_r(cond).add(") {\n")
+                    .add("if(get.data(").to_r(cond).add(")) {\n")
                     .to_r(exp).add(" \n}").into()
             },
             Lang::If(cond, exp, els, _) => {
                 Translatable::from(cont.clone())
-                    .add("if(").to_r(cond).add(") {\n")
+                    .add("if(get.data(").to_r(cond).add(")) {\n")
                     .to_r(exp).add(" \n} else ")
                     .to_r(els).into()
             },

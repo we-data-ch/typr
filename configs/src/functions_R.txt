@@ -4,6 +4,7 @@
 %in%
 %o%
 %x%
+%==%
 abbreviate
 abs
 acos

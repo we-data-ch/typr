@@ -91,7 +91,7 @@ pub fn write_header(context: Context, output_dir: &PathBuf) -> () {
         let generic_functions = context.get_all_generic_functions().iter()
                             .map(|(var, _)| var.get_name())
                             .filter(|x| !x.contains("<-"))
-                            .map(|fn_name| format!("{} <- function(x, ...) UseMethod('{}', x)", fn_name, fn_name))
+                            .map(|fn_name| format!("{} <- function(x, ...) UseMethod('{}', x)", fn_name, fn_name.replace("`", "")))
                             .collect::<Vec<_>>().join("\n");
         let app_path = output_dir
             .join(context.get_environment().to_string())
