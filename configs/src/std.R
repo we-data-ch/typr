@@ -249,6 +249,9 @@ reduce.typed_vec <- function(vec, f, init = NULL) {
   ))
 }
 
+sum.typed_vec <- function(x, ...) {
+	reduce(x, `+`)
+}
 
 print.typed_vec <- function(x, ...) {
   n <- length(x$data)
