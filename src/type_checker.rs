@@ -566,6 +566,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         Lang::FunctionApp(fn_var_name, values, t, h) => {
             let var = Var::try_from(fn_var_name.clone()).unwrap();
             let name = var.get_name();
+            let new_values = values.iter().map(|x| typing(context, x).1).collect::<Vec<_>>();
             let funs = var.get_function_signatures(values, context);
             let (id, typ) = funs.iter()
                 .enumerate()
@@ -576,8 +577,11 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 .unwrap();
             let old_ret_typ = funs[id].get_return_type();
             let new_expr = if typ.is_vector_of(&old_ret_typ, context) {
-               Lang::VecFunctionApp(fn_var_name.clone(), values.clone(), t.clone(), h.clone()) 
-            } else { expr.clone() };
+               Lang::VecFunctionApp(fn_var_name.clone(), new_values.clone(), t.clone(), h.clone()) 
+            } else { 
+               Lang::FunctionApp(fn_var_name.clone(), new_values.clone(), t.clone(), h.clone())
+            };
+
             let (typ, new_context) = typ
                 .tuple(&context.clone());
                 (typ, new_expr, new_context)

@@ -51,9 +51,9 @@ impl Var {
             .set_type(Type::Params(params.to_vec(), HelpData::default()))
     }
 
-    pub fn infer_var_related_type(&self, args: &Vec<Lang>, context: &Context) -> Var {
-        if args.len() > 0 {
-            let first_arg = args.iter().nth(0).unwrap().clone();
+    pub fn infer_var_related_type(&self, values: &Vec<Lang>, context: &Context) -> Var {
+        if values.len() > 0 {
+            let first_arg = values.iter().nth(0).unwrap().clone();
             let first_param_type = 
                 typing(context, &first_arg).0;
             self.clone().set_type(first_param_type.clone())
@@ -89,9 +89,9 @@ impl Var {
         mins
     }
 
-    pub fn get_related_functions(self, args: &Vec<Lang>, context: &Context) 
+    pub fn get_related_functions(self, values: &Vec<Lang>, context: &Context) 
         -> Vec<FunctionType> {
-        let typed_var = self.infer_var_related_type(args, context);
+        let typed_var = self.infer_var_related_type(values, context);
         let res = context.get_matching_functions(typed_var.clone()).unwrap();
         Self::keep_minimals(res, context)
              .iter()
