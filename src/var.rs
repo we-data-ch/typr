@@ -269,14 +269,16 @@ impl Var {
     }
 
     pub fn display_type(self, cont: &Context) -> Self {
-        let type_str = match self.get_type() {
-            Type::Empty(_) | Type::Any(_) => "".to_string(),
-            ty => ".".to_string() + &cont.get_class(&ty).replace("'", "")
-        };
-        let new_name = if self.contains("`") {
-            "`".to_string() + &self.get_name().replace("`", "") + &type_str + "`"
-        } else { self.get_name() + &type_str };
-        self.set_name(&new_name)
+        if !self.get_name().contains(".") {
+            let type_str = match self.get_type() {
+                Type::Empty(_) | Type::Any(_) => "".to_string(),
+                ty => ".".to_string() + &cont.get_class(&ty).replace("'", "")
+            };
+            let new_name = if self.contains("`") {
+                "`".to_string() + &self.get_name().replace("`", "") + &type_str + "`"
+            } else { self.get_name() + &type_str };
+            self.set_name(&new_name)
+        } else { self }
     }
 
     pub fn get_digit(&self, s: &str) -> i8 {

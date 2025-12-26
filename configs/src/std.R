@@ -202,7 +202,6 @@ vec_apply_fun <- function(fun_vec, ...) {
   )
 }
 
-#vec_reduce <- function(vec, f, init = NULL) {
 reduce.typed_vec <- function(vec, f, init = NULL) {
   # Appliquer typed_vec sur vec s'il n'hérite pas de "typed_vec"
   if (!inherits(vec, "typed_vec")) {
