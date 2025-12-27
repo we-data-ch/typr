@@ -114,7 +114,8 @@ impl TypeSystem for Type {
                     .zip(args2.iter().chain([&(**ret_typ2)]))
                     .all(|(typ1, typ2)| typ1.strict_subtype(typ2))
             },
-            (Type::Function(_, _, _), Type::UnknownFunction(_)) => true,
+            (_, Type::UnknownFunction(_)) => true,
+            //(Type::Function(_, _, _), Type::UnknownFunction(_)) => true,
             // Interface subtyping
             (Type::Interface(args1, _), Type::Interface(args2, _)) => {
                 args1 == args2 || args1.is_superset(args2)

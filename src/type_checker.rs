@@ -185,7 +185,10 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             let reduced_left_type = reduce_type(context, &left_type);
             let reduced_right_type = reduce_type(context, &right_type);
             if reduced_right_type.is_subtype(&reduced_left_type, context) {
-                (builder::unknown_function(), expr.clone(), context.clone())
+                (reduced_right_type, 
+                 expr.clone(), 
+                 context.clone()
+                    .push_var_type(Var::from_language((**left_expr).clone()).unwrap(), left_type, context))
             } else { 
                 panic!("The right side and left sides don't match {} <- {}",
                        left_type.pretty(), right_type.pretty())

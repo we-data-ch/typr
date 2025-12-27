@@ -28,7 +28,7 @@ use crate::elements::return_exp;
 use crate::elements::chars;
 use crate::elements::vector;
 use crate::elements::break_exp;
-use crate::elements::elements;
+//use crate::elements::elements;
 use crate::elements::variable2;
 use crate::elements::Case;
 use std::ops::Deref;
@@ -269,14 +269,14 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
 
 fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
-            elements,
+            variable,
             alt((
                 terminated(tag("="), multispace0),
                 terminated(tag("<-"), multispace0))),
             parse_elements,
             terminated(tag(";"), multispace0)).parse(s);
     match res {
-        Ok((s, (var, _eq, exp, _pv))) 
+        Ok((s, ((var, _), _eq, exp, _pv))) 
             => Ok((s, vec![Lang::Assign(Box::new(var.clone()), Box::new(exp), var.into())])),
         Err(r) => Err(r)
     } 
