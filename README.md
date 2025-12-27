@@ -18,7 +18,7 @@
 
 ## Website
 
-The link for the official website is [here](https://fabricehategekimana.github.io/typr.github.io/build/).
+The link for the official website is [here](https://we-data-ch.github.io/typr.github.io/).
 
 ## Installation
 
