@@ -22,7 +22,7 @@ The link for the official website is [here](https://we-data-ch.github.io/typr.gi
 
 ## Installation
 
-You can see it through the getting started of the documentation [here](https://fabricehategekimana.github.io/typr.github.io/build/docs/typr-start/getting-started).
+You can see it through the getting started of the documentation [here](https://we-data-ch.github.io/typr.github.io/docs/intro/).
 
 ## Code example
 
