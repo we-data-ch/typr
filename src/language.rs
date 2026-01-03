@@ -755,7 +755,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Operator(op, e1, e2, _) => {
                 let op_str = format!(" {} ", op.to_string());
                 Translatable::from(cont.clone())
-                    .to_r(e2).add(&op_str).to_r(e1).into()
+                    .to_r(e1).add(&op_str).to_r(e2).into()
             },
             Lang::Scope(exps, _) => {
                 Translatable::from(cont.clone())
@@ -936,12 +936,12 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::If(cond, exp, els, _) if els == &Box::new(Lang::Empty(HelpData::default())) => {
                 Translatable::from(cont.clone())
-                    .add("if(get.data(").to_r(cond).add(")) {\n")
+                    .add("if(").to_r(cond).add(") {\n")
                     .to_r(exp).add(" \n}").into()
             },
             Lang::If(cond, exp, els, _) => {
                 Translatable::from(cont.clone())
-                    .add("if(get.data(").to_r(cond).add(")) {\n")
+                    .add("if(").to_r(cond).add(") {\n")
                     .to_r(exp).add(" \n} else ")
                     .to_r(els).into()
             },
