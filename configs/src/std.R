@@ -62,6 +62,13 @@ length.typed_vec <- function(x) {
   x$data[[i]]
 }
 
+apply.typed_vec <- function(X, FUN, ...) {
+  # Appliquer la fonction à chaque élément de data
+  results <- lapply(X$data, FUN, ...)
+  
+  # Retourner un nouveau typed_vec avec les résultats
+  typed_vec(results)
+}
 
 vec_apply <- function(f, ...) {
   args <- list(...)

@@ -6,7 +6,6 @@ use crate::translatable::RTranslatable;
 use crate::function_type::FunctionType;
 use crate::translatable::Translatable;
 use serde::{Serialize, Deserialize};
-use crate::module_lang::ModuleLang;
 use crate::function_lang::Function;
 use crate::array_type::ArrayType;
 use crate::lang_token::LangToken;
@@ -1066,17 +1065,10 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Break(_) => {
                 ("break".to_string(), cont.clone())
             },
-            Lang::Module(name, _, position, config, _) => {
-                let module_type = cont
-                    .get_type_from_variable(&Var::from_name(name))
-                    .unwrap();
-                let module_record = ModuleLang::try_from(self.clone())
-                    .unwrap()
-                    .to_record(&module_type, cont);
-                let text = module_record
-                    .to_r(&cont.extract_module_as_vartype(name)).0;
-                let global_env = format!("invisible(list2env({}, envir = .GlobalEnv))", name);
-                let content = format!("{} <- {}\n{}", name, text, global_env);
+            Lang::Module(name, body, position, config, _) => {
+                let content = body.iter()
+                    .map(|lang| lang.to_r(cont).0)
+                    .collect::<Vec<_>>().join("\n");
                 match (position, config.environment) {
                     (ModulePosition::Internal, _) => {
                         (content, cont.clone())

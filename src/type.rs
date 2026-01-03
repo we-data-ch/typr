@@ -1118,6 +1118,7 @@ mod tests {
     use super::*;
     use crate::parse;
     use crate::typing;
+    use crate::fluent_parser::FluentParser;
 
     #[test]
     fn test_record_hierarchy0(){
@@ -1235,6 +1236,21 @@ mod tests {
         let u_fun = builder::unknown_function();
         let context = Context::empty();
         assert!(fun.is_subtype(&u_fun, &context));
+    }
+
+    #[test]
+    fn test_array_apply1() {
+        let fp = FluentParser::new()
+            .push("let v1 <- [1, 2, 3];")
+            .parse_type_next()
+            .push("let toto <- fn(a: int): bool { true };")
+            .parse_type_next()
+            .push("@apply: ([#N, T], (T) -> U) -> [#N, U];")
+            .parse_type_next()
+            .push("apply(v1, toto)")
+            .parse_type_next();
+        println!("fp: {}", fp);
+        assert!(true);
     }
 
 }

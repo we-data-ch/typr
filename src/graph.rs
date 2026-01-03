@@ -5,6 +5,7 @@ use std::hash::Hash;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use crate::Context;
+use std::ops::Add;
 
 pub trait TypeSystem: PartialOrd + Debug + Eq + Hash + Clone + Default {
     fn pretty(&self) -> String;
@@ -282,6 +283,18 @@ use std::fmt;
 impl<T: TypeSystem> fmt::Display for Node<T> {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.get_hierarchy())       
+    }
+}
+
+
+impl<T: TypeSystem> Add for Graph<T> {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        let context = Context::default(); // ou passer en paramètre si nécessaire
+        other.memory.iter()
+            .cloned()
+            .fold(self, |acc, typ| acc.add_type(typ, &context))
     }
 }
 

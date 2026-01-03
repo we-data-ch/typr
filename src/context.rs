@@ -24,6 +24,7 @@ use crate::var_function::VarFunction;
 use crate::graph::TypeSystem;
 use std::collections::HashSet;
 use std::collections::HashMap;
+use std::ops::Add;
 
 const BLACKLIST: [&str; 58] = ["test_that", "expect_true", "`+`", "`*`", "`-`", "`/`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array", "cat", "rep", "str", "oldClass", "stop", "invisible", "capture__output", "paste0", "unclass", "exists", "vector", "tags"];
 
@@ -822,6 +823,18 @@ fn add_if_absent(mut vec: Vec<Lang>, val: Lang) -> Vec<Lang> {
         vec.push(val);
     }
     vec // Retourne le nouveau vecteur
+}
+
+impl Add for Context {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        Context {
+            typing_context: self.typing_context + other.typing_context,
+            subtypes: self.subtypes + other.subtypes,
+            config: self.config
+        }
+    }
 }
 
 #[cfg(test)]

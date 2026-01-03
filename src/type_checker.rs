@@ -230,15 +230,15 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             } else { members.iter().next().unwrap().clone() }; // TODO: Modules can't be empty
             let new_context = 
                 typing(&Context::default(), &expr).2;
-            let var = Var::from_name(name);
-            let arg_types = new_context.get_members()
-                .iter().cloned()
-                .map(|arg_type| ArgumentType::from(arg_type))
-                .collect::<Vec<_>>();
-            let module_type = Type::Module(arg_types, h.clone());
-            let new_context = context.clone().set_as_module_context()
-                .push_var_type(var, module_type.clone(), &context);
-            (module_type, expr.clone(), new_context)
+            //let var = Var::from_name(name);
+            //let arg_types = new_context.get_members()
+                //.iter().cloned()
+                //.map(|arg_type| ArgumentType::from(arg_type))
+                //.collect::<Vec<_>>();
+            //let module_type = Type::Module(arg_types, h.clone());
+            //let new_context = context.clone().set_as_module_context()
+                //.push_var_type(var, module_type.clone(), &context);
+            (builder::empty_type(), expr.clone(), context.clone() + new_context)
         },
         _ => (builder::unknown_function(), expr.clone(), context.clone())
     }
