@@ -26,7 +26,7 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 use std::ops::Add;
 
-const BLACKLIST: [&str; 58] = ["test_that", "expect_true", "`+`", "`*`", "`-`", "`/`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array", "cat", "rep", "str", "oldClass", "stop", "invisible", "capture__output", "paste0", "unclass", "exists", "vector", "tags"];
+const BLACKLIST: [&str; 59] = ["test_that", "expect_true", "`+`", "`*`", "`-`", "`/`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array", "cat", "rep", "str", "oldClass", "stop", "invisible", "capture__output", "paste0", "unclass", "exists", "vector", "tags", "paste"];
 
 pub fn not_in_blacklist(name: &str) -> bool {
     let hs = BLACKLIST.iter().cloned().collect::<HashSet<&str>>();
@@ -140,10 +140,9 @@ impl Context {
 
     pub fn get_type_from_variable(&self, var: &Var) -> Result<Type, String> {
         let res = self.variables().flat_map(|(var2, typ)| {
-            let Var(name1, perm1, bo1, typ1, _h1) = var;
-            let Var(name2, perm2, bo2, typ2, _h2) = var2;
+            let Var(name1, _, bo1, typ1, _h1) = var;
+            let Var(name2, _, bo2, typ2, _h2) = var2;
             let conditions = (name1 == name2) &&
-                (perm1 == perm2) &&
                 (bo1 == bo2) && typ1.is_subtype(typ2, self);
             if conditions { Some(typ.clone()) } else { None }
         })
@@ -220,10 +219,10 @@ impl Context {
         }
     }
 
-    pub fn replace_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
+    pub fn replace_or_push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let types = typ.reduce(context).extract_types();
         let var_type = self.typing_context.clone()
-            .replace_var_type(&[(lang.clone(), typ.clone())])
+            .replace_or_push_var_type(&[(lang.clone(), typ.clone())])
             .push_types(&types);
         let new_subtypes = self.subtypes.add_types(&types, context);
         Context {
@@ -350,6 +349,8 @@ impl Context {
         let res = self.typing_context.variables()
             .filter(|(_, typ)| typ.is_function())
             .filter(|(var, _)| not_in_blacklist(&var.get_name()))
+            //.inspect(|(x, _)| println!("{}: {}", x.get_name(), x.get_permission()))
+            .filter(|(var, _)| var.is_public())
             .filter(|(var, _)| !var.get_type().is_any())
             .collect::<HashSet<_>>();
         res.iter()

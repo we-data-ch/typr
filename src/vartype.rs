@@ -106,10 +106,10 @@ impl VarType {
         self.push_variables(var).push_aliases(&ali)
     }
 
-    pub fn replace_var_type(self, vt: &[(Var, Type)]) -> Self {
+    pub fn replace_or_push_var_type(self, vt: &[(Var, Type)]) -> Self {
         let (var, ali) = Self::separate_variables_aliases(vt.to_vec());
         let ali = ali.iter().cloned().collect::<Vec<_>>();
-        self.replace_variables(var).push_aliases(&ali)
+        self.replace_or_push_variables(var).push_aliases(&ali)
     }
 
     pub fn push_alias_increment(self, vt: (Var, Type)) -> Self {
@@ -167,7 +167,7 @@ impl VarType {
         }
     }
 
-    fn replace_variables(self, vt: HashSet<(Var, Type)>) -> Self {
+    fn replace_or_push_variables(self, vt: HashSet<(Var, Type)>) -> Self {
         let res = merge_variables(self.variables, vt);
         VarType {
             variables: res,

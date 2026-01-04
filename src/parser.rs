@@ -85,7 +85,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (_let, (pat_var, None), typ, _eq, Lang::Function(params, ty, body, h)))) 
             if params.len() > 0 => {
-                let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone()).set_permission(false);
+                let newvar = Var::from_language(pat_var[0].clone()).unwrap().set_type(params[0].1.clone());
                 Ok((s, vec![Lang::Let(Box::new(newvar.to_language()),
                     typ.unwrap_or(Type::Empty(HelpData::default())),
                 Box::new(Lang::Function(params, ty, body, h)), _let.into())]))
@@ -401,7 +401,7 @@ fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (at, (name, h), _col, typ, _))) 
             => {
-                let var2 = Var::from_name(&name).set_help_data(h).set_type(typ.clone());
+                let var2 = Var::from_name(&name).set_help_data(h).set_type(typ.clone()).set_permission(false);
                 Ok((s, vec![Lang::Signature(var2, typ, at.into())]))
             },
         Err(r) => Err(r)

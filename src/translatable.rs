@@ -59,10 +59,14 @@ impl Translatable {
     }
 
     pub fn join(self, vals: &[Lang], joint: &str) -> Translatable {
-        vals.into_iter()
-            .fold(self, 
-                  |trans, val| trans.to_r(val).add(joint))
-            .sub(joint.len())
+        if vals.len() > 0 {
+            vals.into_iter()
+                .fold(self, 
+                      |trans, val| trans.to_r(val).add(joint))
+                .sub(joint.len())
+        } else {
+           self 
+        }
     }
 
     pub fn join_arg_val(self, vals: &[ArgumentValue], joint: &str) -> Translatable {

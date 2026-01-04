@@ -133,9 +133,8 @@ impl Var {
     pub fn from_name(name: &str) -> Self {
         Var(
             name.to_string(),
-            Permission::Private,
+            Permission::Public,
             false,
-            //builder::any_type(),
             builder::empty_type(),
             HelpData::default())
     }
@@ -302,7 +301,7 @@ impl fmt::Display for Var {
 
 impl Default for Var {
     fn default() -> Self {
-        Var("".to_string(), Permission::Private, false, Type::Empty(HelpData::default()), HelpData::default())
+        Var("".to_string(), Permission::Public, false, Type::Empty(HelpData::default()), HelpData::default())
     }
 }
 
@@ -344,7 +343,7 @@ impl From<&str> for Var {
    fn from(val: &str) -> Self {
         Var(
             val.to_string(),
-            Permission::Private,
+            Permission::Public,
             false,
             Type::Empty(HelpData::default()),
             HelpData::default())

@@ -213,11 +213,13 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                             .map(|ft| var.clone().set_type(ft.get_first_param().unwrap_or(builder::unknown_function())))
                             .unwrap_or(var.clone());
                 (builder::unknown_function(), expr.clone(),
-                context.clone().replace_var_type(new_var, typ.to_owned(), context))
+                context.clone().replace_or_push_var_type(new_var, typ.to_owned(), context))
+                //context.clone().push_var_type(new_var, typ.to_owned(), context))
             } else { // is alias
                 (builder::unknown_function(), expr.clone(),
                         context.clone()
-                            .replace_var_type(var.to_owned(), typ.to_owned(), context))
+                            .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context))
+                            //.push_var_type(var.to_owned(), typ.to_owned(), context))
             }
         },
         Lang::TestBlock(body, _) => {

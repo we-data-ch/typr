@@ -882,13 +882,18 @@ impl RTranslatable<(String, Context)> for Lang {
                     .map(|_| {
                         //let related_type = Var::try_from(expr).unwrap().get_type();
                         let related_type = typing(cont, expr).0;
+                        let method = match cont.get_environment() {
+                            Environment::Project => 
+                                format!("#' @method {}\n", new_name.replace(".", " ").replace("`", "")),
+                            _ => "".to_string()
+                        };
                         match related_type {
                             Type::Empty(_) 
                                 => (format!("{} <- {}", new_name, body_str), new_name.clone()),
                             Type::Any(_) | Type::Generic(_, _) 
                                 => (format!("{}.default <- {}", new_name, body_str), new_name.clone()),
                             _ => {
-                                (format!("{} <- {}", new_name, body_str), new_name.clone())
+                                (format!("{}{} <- {}", method, new_name, body_str), new_name.clone())
                             }
                         }
                     }).unwrap_or((format!("{} <- {}", new_name, body_str), new_name));

@@ -9,3 +9,5 @@
 @source: (char) -> Empty;
 @reduce: ([#N, T], (T, U) -> T) -> T;
 @sum: ([#N, T]) -> T;
+@test_that: (char, Any) -> Empty;
+@expect_true: (bool) -> Empty;

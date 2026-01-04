@@ -91,7 +91,7 @@ pub fn write_header(context: Context, output_dir: &PathBuf) -> () {
         let generic_functions = context.get_all_generic_functions().iter()
                             .map(|(var, _)| var.get_name())
                             .filter(|x| !x.contains("<-"))
-                            .map(|fn_name| format!("{} <- function(x, ...) UseMethod('{}', x)", fn_name, fn_name.replace("`", "")))
+                            .map(|fn_name| format!("#' @export\n{} <- function(x, ...) UseMethod('{}', x)", fn_name, fn_name.replace("`", "")))
                             .collect::<Vec<_>>().join("\n");
         let app_path = output_dir
             .join(context.get_environment().to_string())
@@ -241,7 +241,6 @@ fn new(name: &str) {
         ("TypR/main.ty", include_str!("../configs/main.ty").replace("{{PACKAGE_NAME}}", name)),
         ("R/.gitkeep", include_str!("../configs/.gitkeep").replace("{{PACKAGE_NAME}}", name)),
         ("tests/testthat.R", include_str!("../configs/testthat.R").replace("{{PACKAGE_NAME}}", name)),
-        ("tests/testthat/test-basic.R", include_str!("../configs/test-basic.R").replace("{{PACKAGE_NAME}}", name)),
         ("man/.gitkeep", include_str!("../configs/.gitkeep2").replace("{{PACKAGE_NAME}}", name)),
         ("README.md", include_str!("../configs/README.md").replace("{{PACKAGE_NAME}}", name)),
         ("rproj.Rproj", include_str!("../configs/rproj.Rproj").to_string()),
@@ -293,6 +292,7 @@ fn build_project() {
     let content = type_checker.clone().transpile(true);
     write_header(type_checker.get_context(), &dir);
     write_to_r_lang(content, &PathBuf::from("R"), "main.R", context.get_environment());
+    document();
     println!("✓ Code R généré avec succès dans le dossier R/");
 }
 
@@ -508,8 +508,6 @@ fn document() {
     // Construire la commande R
     let r_command = format!("devtools::document('{}')", project_path);
     
-    println!("Exécution de: R -e \"{}\"", r_command);
-    
     let output = Command::new("R")
         .arg("-e")
         .arg(&r_command)
@@ -518,14 +516,15 @@ fn document() {
     match output {
         Ok(output) => {
             if output.status.success() {
-                println!("✓ Documentation générée avec succès!");
+                println!("✓ Documentation successfully generated!");
                 
                 // Afficher la sortie standard si elle existe
                 if !output.stdout.is_empty() {
-                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                    //println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                    println!("")
                 }
             } else {
-                eprintln!("✗ Erreur lors de la génération de la documentation");
+                eprintln!("✗ Error while generating documentation");
                 
                 // Afficher les erreurs
                 if !output.stderr.is_empty() {
@@ -536,8 +535,8 @@ fn document() {
             }
         }
         Err(e) => {
-            eprintln!("Erreur lors de l'exécution de la commande R: {}", e);
-            eprintln!("Assurez-vous que R et devtools sont installés.");
+            eprintln!("Error while executing the R command : {}", e);
+            eprintln!("Be sure that R et devtools are installed.");
             std::process::exit(1);
         }
     }
