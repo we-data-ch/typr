@@ -170,12 +170,13 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
 
 fn record_type(s: Span) -> IResult<Span, Type> {
     let res = (
+            opt(terminated(tag("list"), multispace0)),
             terminated(tag("{"), multispace0),
             many0(argument),
             terminated(tag("}"), multispace0)
                     ).parse(s);
     match res {
-        Ok((s, (start, v, _))) 
+        Ok((s, (_, start, v, _))) 
             => Ok((s, Type::Record(v.iter().cloned().collect(), start.into()))),
         Err(r) => Err(r)
     }
@@ -554,6 +555,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             r_class,
             unknown_function,
             vector_type,
+            record_type,
             sequence_type,
             parenthese_value,
             any,
@@ -568,7 +570,6 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             generic,
             array_type,
             tuple_type,
-            record_type,
             )), multispace0).parse(s)
 }
 

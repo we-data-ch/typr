@@ -27,7 +27,7 @@ You can see it through the getting started of the documentation [here](https://w
 ## Code example
 
 ```scala
-type Person = {
+type Person = list {
 	name: char,
 	age: int
 };
