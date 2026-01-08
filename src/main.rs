@@ -759,7 +759,7 @@ fn main() {
             clean()
         },
         Some(Commands::Repl) => {
-            repl().expect("Console stopped")
+            repl()
         },
         None => {
             println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");

@@ -1,138 +1,206 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use rustyline::error::ReadlineError;
-use rustyline::{DefaultEditor, Result};
-use std::io::{BufRead, BufReader, Write};
-use std::process::{Command, Stdio, ChildStdin, ChildStdout};
-use crate::fluent_parser::FluentParser;
+use std::io::{self, BufRead, BufReader, Write};
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::thread;
 
-pub struct RSession {
+/// Gestionnaire du processus R externe
+struct RProcess {
+    child: Child,
     stdin: ChildStdin,
-    stdout: BufReader<ChildStdout>,
+    output_receiver: Receiver<String>,
 }
 
-impl RSession {
-    pub fn new() -> std::io::Result<Self> {
+impl RProcess {
+    /// Démarre un nouveau processus R
+    fn new() -> io::Result<Self> {
         let mut child = Command::new("R")
-            .arg("--vanilla")
-            .arg("--quiet")
+            .args(&["--vanilla", "--quiet", "--no-save", "--no-restore"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?;
 
         let stdin = child.stdin.take().expect("Failed to open stdin");
-        let stdout = BufReader::new(child.stdout.take().expect("Failed to open stdout"));
+        let stdout = child.stdout.take().expect("Failed to open stdout");
+        let stderr = child.stderr.take().expect("Failed to open stderr");
 
-        Ok(RSession { stdin, stdout })
+        // Canal pour recevoir les sorties
+        let (tx, rx) = mpsc::channel();
+
+        // Thread pour lire stdout
+        Self::spawn_output_reader(stdout, tx.clone(), "stdout");
+        
+        // Thread pour lire stderr
+        //Self::spawn_output_reader(stderr, tx, "stderr");
+
+        Ok(RProcess {
+            child,
+            stdin,
+            output_receiver: rx,
+        })
     }
 
-    pub fn execute(&mut self, command: &str, fluent_parser: FluentParser) -> std::io::Result<(String, FluentParser)> {
-        let (command, fluent_parser) = fluent_parser
-            .push(command).run()
-            .next_r_code().expect("The command went wrong");
-        // Envoyer la commande à R avec un marqueur de fin immédiatement après
-        writeln!(self.stdin, "{}", command)?;
-        writeln!(self.stdin, "cat('__END_OUTPUT__\\n')")?;
-        self.stdin.flush()?;
-
-        // Lire la réponse
-        let mut output = String::new();
-        let mut line = String::new();
-        let mut started = false;
-
-        loop {
-            line.clear();
-            self.stdout.read_line(&mut line)?;
-            println!("line: {:?}", line);
-            
-            // Détecter le marqueur de fin
-            if line.contains("__END_OUTPUT__\\n") {
-                break;
-            }
-
-            if line == "" {
-                continue;
-            }
-            
-            // Ignorer les lignes de prompt R (qui commencent par >)
-            if line.trim().starts_with('>') && !started {
-                continue;
-            }
-            
-            started = true;
-            output.push_str(&line);
-        }
-
-        Ok((output.trim().to_string().replace("__END_OUTPUT__\n", ""), fluent_parser))
-    }
-}
-
-pub fn repl() -> Result<()> {
-    let mut rl = DefaultEditor::new()?;
-    
-    // Initialiser la session R
-    let mut r_session = match RSession::new() {
-        Ok(session) => session,
-        Err(e) => {
-            eprintln!("Erreur lors du démarrage de R: {}", e);
-            eprintln!("Assurez-vous que R est installé et accessible dans le PATH");
-            return Ok(());
-        }
-    };
-
-    println!("REPL R connecté. Tapez vos commandes R ci-dessous.");
-    println!("Utilisez CTRL-C ou CTRL-D pour quitter.\n");
-
-    //#[cfg(feature = "with-file-history")]
-    //if rl.load_history("history.txt").is_err() {
-        //println!("No previous history.");
-    //}
-
-    let mut fluent_parser = FluentParser::new();
-
-    loop {
-        let readline = rl.readline("R> ");
-        match readline {
-            Ok(line) => {
-                let trimmed = line.trim();
-                
-                // Ignorer les lignes vides
-                if trimmed.is_empty() {
-                    continue;
-                }
-
-                rl.add_history_entry(line.as_str())?;
-                
-                // Exécuter la commande dans R
-                match r_session.execute(&line, fluent_parser.clone()) {
-                    Ok((output, new_fluent_parser)) => {
-                        fluent_parser = new_fluent_parser;
-                        if !output.is_empty() {
-                            println!("{}", output);
+    /// Crée un thread pour lire les sorties du processus R
+    fn spawn_output_reader(
+        stream: ChildStdout,
+        sender: Sender<String>,
+        stream_type: &'static str,
+    ) {
+        thread::spawn(move || {
+            let reader = BufReader::new(stream);
+            for line in reader.lines() {
+                match line {
+                    Ok(content) => {
+                        if sender.send(content).is_err() {
+                            eprintln!("[{}] Channel closed", stream_type);
+                            break;
                         }
                     }
                     Err(e) => {
-                        eprintln!("Erreur d'exécution: {}", e);
+                        eprintln!("[{}] Error reading: {}", stream_type, e);
+                        break;
                     }
                 }
-            },
-            Err(ReadlineError::Interrupted) => {
-                println!("\nCTRL-C - Arrêt du REPL");
-                break
-            },
-            Err(ReadlineError::Eof) => {
-                println!("\nCTRL-D - Arrêt du REPL");
-                break
-            },
-            Err(err) => {
-                println!("Error: {:?}", err);
-                break
             }
-        }
+        });
     }
 
-    //#[cfg(feature = "with-file-history")]
-    //rl.save_history("history.txt").ok();
-    
-    Ok(())
+    /// Envoie une commande au processus R
+    fn send_command(&mut self, command: &str) -> io::Result<()> {
+        writeln!(self.stdin, "{}", command)?;
+        self.stdin.flush()?;
+        Ok(())
+    }
+
+    /// Récupère les sorties disponibles avec timeout
+    fn collect_output(&self, timeout_ms: u64) -> Vec<String> {
+        let mut outputs = Vec::new();
+        let start = std::time::Instant::now();
+        let timeout = std::time::Duration::from_millis(timeout_ms);
+
+        loop {
+            let remaining = timeout.saturating_sub(start.elapsed());
+            if remaining.is_zero() {
+                break;
+            }
+
+            match self.output_receiver.recv_timeout(remaining) {
+                Ok(line) => {
+                    // Ignore les lignes vides et les prompts R
+                    if !line.trim().is_empty() && line != ">" && !line.starts_with("> ") {
+                        outputs.push(line);
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => break,
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    eprintln!("Output channel disconnected");
+                    break;
+                }
+            }
+        }
+
+        outputs
+    }
+
+    /// Termine le processus R
+    fn terminate(&mut self) -> io::Result<()> {
+        let _ = self.send_command("q(save='no')");
+        self.child.kill()?;
+        Ok(())
+    }
+}
+
+impl Drop for RProcess {
+    fn drop(&mut self) {
+        let _ = self.terminate();
+    }
+}
+
+/// REPL principal
+struct RRepl {
+    r_process: RProcess,
+}
+
+impl RRepl {
+    /// Crée un nouveau REPL
+    fn new() -> io::Result<Self> {
+        println!("🚀 Démarrage du REPL R...\n");
+        let r_process = RProcess::new()?;
+        println!("✓ Processus R initialisé");
+        println!("  Tapez 'exit' ou 'quit' pour quitter\n");
+        
+        Ok(RRepl { r_process })
+    }
+
+    /// Exécute la boucle REPL
+    fn run(&mut self) -> io::Result<()> {
+        let stdin = io::stdin();
+        let mut line_buffer = String::new();
+        let mut in_multiline = false;
+
+        loop {
+            // Affiche le prompt
+            if in_multiline {
+                print!("... ");
+            } else {
+                print!("R> ");
+            }
+            io::stdout().flush()?;
+
+            // Lit l'entrée utilisateur
+            line_buffer.clear();
+            stdin.read_line(&mut line_buffer)?;
+            let input = line_buffer.trim();
+
+            // Gère les commandes spéciales
+            if !in_multiline && (input == "exit" || input == "quit") {
+                println!("\n👋 Au revoir !");
+                break;
+            }
+
+            if input.is_empty() {
+                continue;
+            }
+
+            // Détecte les commandes multi-lignes (blocs non fermés)
+            let open_braces = input.matches('{').count();
+            let close_braces = input.matches('}').count();
+            let open_parens = input.matches('(').count();
+            let close_parens = input.matches(')').count();
+
+            in_multiline = (open_braces > close_braces) || (open_parens > close_parens);
+
+            // Envoie la commande à R
+            self.r_process.send_command(input)?;
+
+            if !in_multiline {
+                // Attend et collecte les résultats
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                let outputs = self.r_process.collect_output(500);
+
+                // Affiche les résultats
+                for output in outputs {
+                    println!("{}", output);
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+pub fn repl() {
+    match RRepl::new() {
+        Ok(mut repl) => {
+            if let Err(e) = repl.run() {
+                eprintln!("Erreur REPL: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("❌ Impossible de démarrer le processus R: {}", e);
+            eprintln!("   Vérifiez que R est installé et dans le PATH");
+            std::process::exit(1);
+        }
+    }
 }

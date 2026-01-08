@@ -1014,7 +1014,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 (format!("{} = {}", k, v.to_r(cont).0), cont.clone())
             },
             Lang::Vector(vals, _) => {
-               let res = "concat(".to_string() + 
+               let res = "c(".to_string() + 
                    &vals.iter().map(|x| x.to_r(cont).0)
                    .collect::<Vec<_>>().join(", ")
                 + ")";
