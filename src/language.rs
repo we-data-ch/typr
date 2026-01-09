@@ -178,12 +178,14 @@ fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
 //main
 impl Lang {
 
-    pub fn is_let(&self) -> bool {
+    pub fn save_in_memory(&self) -> bool {
         match self {
             Lang::Let(_, _, _, _) => true,
+            Lang::Assign(_, _, _) => true,
             _ => false
         }
     }
+
 
     pub fn to_module(self, name: &str, environment: Environment) -> Self {
         match self {

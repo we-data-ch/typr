@@ -239,7 +239,7 @@ impl FluentParser {
 
     fn get_let_definitions(v: Vector<Lang>, context: &Context) -> Vec<String> {
         v.iter()
-         .filter(|x| x.is_let())
+         .filter(|x| x.save_in_memory())
          .map(|x| x.to_r(context).0)
          .collect()
     }
