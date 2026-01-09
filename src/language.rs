@@ -177,6 +177,14 @@ fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
 
 //main
 impl Lang {
+
+    pub fn is_let(&self) -> bool {
+        match self {
+            Lang::Let(_, _, _, _) => true,
+            _ => false
+        }
+    }
+
     pub fn to_module(self, name: &str, environment: Environment) -> Self {
         match self {
             Lang::Lines(v, h) => Lang::Module(name.to_string(), v, ModulePosition::External, Config::default().set_environment(environment), h),
@@ -1078,7 +1086,8 @@ impl RTranslatable<(String, Context)> for Lang {
                     (ModulePosition::Internal, _) => {
                         (content, cont.clone())
                     },
-                    (ModulePosition::External, Environment::StandAlone) => {
+                    (ModulePosition::External, Environment::StandAlone) |
+                     (ModulePosition::External, Environment::Repl) => {
                         let output_dir: PathBuf = ".".into();
                         let std_path = output_dir.join(format!("{}.R", name));
                         let mut module_file = File::create(std_path.clone()).unwrap();

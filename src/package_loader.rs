@@ -41,7 +41,7 @@ impl PackageManager {
                 let _ = VarType::from(res).save(&self.get_bin_name());
             },
             Source::Header => {
-                let file_content = read_file(&PathBuf::from(self.content.clone()));
+                let file_content = read_file(&PathBuf::from(self.content.clone())).expect("Path not found");
                 let base_file = TypRFile::new(&file_content, self.content.clone());
                 let lang = base_file.parse();
                 let _ = TypeChecker::new(Context::empty())

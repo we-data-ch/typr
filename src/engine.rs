@@ -42,7 +42,7 @@ impl<'a> TypRFile<'a> {
 //1. 
 pub fn parse_code(path: &PathBuf, environment: Environment) -> Lang {
     let file = get_os_file(path.to_str().unwrap());
-    let file_content = read_file(path);
+    let file_content = read_file(path).expect(&format!("Path {:?} not found", path));
     let base_file = TypRFile::new(&file_content, file);
 
     metaprogrammation(base_file.parse(), environment)

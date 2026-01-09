@@ -1,9 +1,16 @@
 use rustyline::error::ReadlineError;
 use rustyline::{Config, DefaultEditor, Editor};
-use std::io::{self, BufRead, BufReader, Write};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::thread;
+use rpds::Vector;
+use crate::fluent_parser::FluentParser;
+use crate::Context;
+use std::path::PathBuf;
+use crate::write_to_r_lang;
+use crate::Environment;
+use crate::my_io::execute_r_with_path2;
+use crate::write_header;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::fs;
 
 /// Résultat de l'exécution d'une commande R
 #[derive(Debug, Clone)]
@@ -11,130 +18,6 @@ pub struct ExecutionResult {
     pub output: Vec<String>,
 }
 
-/// Gestionnaire du processus R externe
-pub struct RExecutor {
-    child: Child,
-    stdin: ChildStdin,
-    output_receiver: Receiver<String>,
-}
-
-impl RExecutor {
-    /// Démarre un nouveau processus R
-    pub fn new() -> io::Result<Self> {
-        let mut child = Command::new("R")
-            .args(&["--vanilla", "--quiet", "--no-save", "--no-restore"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-
-        let stdin = child.stdin.take().expect("Failed to open stdin");
-        let stdout = child.stdout.take().expect("Failed to open stdout");
-
-        let (tx, rx) = mpsc::channel();
-
-        Self::spawn_output_reader(stdout, tx.clone(), "stdout");
-
-        Ok(RExecutor {
-            child,
-            stdin,
-            output_receiver: rx,
-        })
-    }
-
-    /// Crée un thread pour lire les sorties du processus R
-    fn spawn_output_reader(
-        stream: ChildStdout,
-        sender: Sender<String>,
-        stream_type: &'static str,
-    ) {
-        thread::spawn(move || {
-            let reader = BufReader::new(stream);
-            for line in reader.lines() {
-                match line {
-                    Ok(content) => {
-                        if sender.send(content).is_err() {
-                            eprintln!("[{}] Channel closed", stream_type);
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("[{}] Error reading: {}", stream_type, e);
-                        break;
-                    }
-                }
-            }
-        });
-    }
-
-    /// Exécute une commande R et retourne le résultat
-    pub fn execute(&mut self, command: &str) -> io::Result<ExecutionResult> {
-        // Envoie la commande
-        writeln!(self.stdin, "{}", command)?;
-        self.stdin.flush()?;
-
-        // Attend un court instant pour que R traite la commande
-        thread::sleep(std::time::Duration::from_millis(50));
-
-        // Collecte les sorties
-        let outputs = self.collect_output(500);
-
-        Ok(ExecutionResult { output: outputs })
-    }
-
-    /// Récupère les sorties disponibles avec timeout
-    fn collect_output(&self, timeout_ms: u64) -> Vec<String> {
-        let mut outputs = Vec::new();
-        let start = std::time::Instant::now();
-        let timeout = std::time::Duration::from_millis(timeout_ms);
-
-        loop {
-            let remaining = timeout.saturating_sub(start.elapsed());
-            if remaining.is_zero() {
-                break;
-            }
-
-            match self.output_receiver.recv_timeout(remaining) {
-                Ok(line) => {
-                    if !line.trim().is_empty() && line != ">" && !line.starts_with("> ") {
-                        outputs.push(line);
-                    }
-                }
-                Err(mpsc::RecvTimeoutError::Timeout) => break,
-                Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    eprintln!("Output channel disconnected");
-                    break;
-                }
-            }
-        }
-
-        outputs
-    }
-
-    /// Vérifie si le processus R est toujours actif
-    pub fn is_alive(&mut self) -> bool {
-        self.child.try_wait().map(|s| s.is_none()).unwrap_or(false)
-    }
-
-    /// Termine le processus R proprement
-    pub fn terminate(&mut self) -> io::Result<()> {
-        let _ = writeln!(self.stdin, "q(save='no')");
-        let _ = self.stdin.flush();
-        thread::sleep(std::time::Duration::from_millis(100));
-        self.child.kill()?;
-        Ok(())
-    }
-}
-
-impl Drop for RExecutor {
-    fn drop(&mut self) {
-        let _ = self.terminate();
-    }
-}
-
-// ============================================================================
-// MODULE: CLI - Gestion de l'interface utilisateur avec Rustyline
-// ============================================================================
 
 /// État de la saisie utilisateur
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -179,7 +62,7 @@ impl CliInterface {
 
     /// Affiche le message de bienvenue
     pub fn show_welcome(&self) {
-        println!("R REPL");
+        println!("TypR REPL: 'exit' to quit");
     }
 
     /// Lit une ligne avec le prompt approprié
@@ -278,20 +161,57 @@ pub enum MyCommand {
     Empty,
 }
 
-// ============================================================================
-// MODULE: REPL - Orchestration de l'application
-// ============================================================================
+#[derive(Debug, Clone)]
+struct TypRExecutor {
+    api: FluentParser,
+}
+
+impl TypRExecutor {
+    pub fn new() -> Self {
+        TypRExecutor {
+            api: FluentParser::new().set_context(Context::default()),
+        }
+    }
+
+    fn get_r_code(self, cmd: &str) -> (Self, String) {
+        let (r_code, api) = self.api.push(cmd).run().next_r_code().unwrap();
+        let res = Self {
+            api: api.clone(),
+            ..self
+        };
+        let saved_code = format!("{}\n{}", api.get_saved_r_code(), r_code);
+        (res, saved_code)
+    }
+
+    fn run_r_code(context: Context, r_code: &str) -> String {
+        let dir = PathBuf::from(".");
+        let r_file_name = ".repl.R";
+        let _ = fs::remove_file(r_file_name);
+        let mut file = OpenOptions::new().write(true).create(true).open(r_file_name).unwrap();
+        let _ = file.write_all("source('a_std.R')\n".as_bytes());
+        write_header(context, &dir, Environment::Repl);
+        write_to_r_lang(r_code.to_string(), &dir, &r_file_name, Environment::Repl);
+        let res = execute_r_with_path2(&dir, &r_file_name);
+        res
+    }
+
+    fn execute(self, cmd: &str) -> Result<(Self, ExecutionResult), String> {
+        let (new, r_code) = Self::get_r_code(self, cmd);
+        let res = Self::run_r_code(new.api.context.clone(), &r_code);
+        Ok((new, ExecutionResult { output: vec![res] }))
+    }
+}
 
 /// REPL principal qui orchestre l'exécuteur et l'interface CLI
 pub struct RRepl {
-    executor: RExecutor,
+    executor: TypRExecutor,
     cli: CliInterface,
 }
 
 impl RRepl {
     /// Crée un nouveau REPL
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let executor = RExecutor::new()?;
+        let executor = TypRExecutor::new();
         let cli = CliInterface::new()?;
 
         Ok(RRepl { executor, cli })
@@ -306,8 +226,11 @@ impl RRepl {
                 Ok(line) => {
                     if let Some(command) = self.cli.process_input(&line) {
                         match command {
-                            MyCommand::Execute(cmd) => match self.executor.execute(&cmd) {
-                                Ok(result) => self.cli.display_result(&result),
+                            MyCommand::Execute(cmd) => match self.executor.clone().execute(&cmd) {
+                                Ok((executor, result)) => {
+                                    self.executor = executor;
+                                    self.cli.display_result(&result)
+                                },
                                 Err(e) => {
                                     self.cli.display_error(&format!("Exécution échouée: {}", e))
                                 }
@@ -325,23 +248,17 @@ impl RRepl {
                         }
                     }
 
-                    // Vérifie que le processus R est toujours actif
-                    if !self.executor.is_alive() {
-                        self.cli
-                            .display_error("Le processus R s'est arrêté inopinément");
-                        break;
-                    }
                 }
                 Err(ReadlineError::Interrupted) => {
                     // Ctrl-C - Quitter proprement
                     println!("\n^C");
                     self.cli.reset_multiline_state();
-                    println!("👋 Au revoir !");
+                    println!("exiting...");
                     break;
                 }
                 Err(ReadlineError::Eof) => {
                     // Ctrl-D - Quitter proprement
-                    println!("\n👋 Au revoir !");
+                    println!("\nexiting...");
                     break;
                 }
                 Err(err) => {

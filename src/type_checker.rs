@@ -95,7 +95,7 @@ impl TypeChecker {
             .map(|(lang, typ)| lang.to_r(&self.context).0)
             .collect::<Vec<_>>().join("\n");
         let import = match self.get_environment() {
-            Environment::Project => "",
+            Environment::Project | Environment::Repl => "",
             Environment::StandAlone => "source('a_std.R', echo = FALSE)"
         };
 

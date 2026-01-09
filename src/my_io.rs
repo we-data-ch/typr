@@ -13,15 +13,17 @@ pub fn get_os_file(file: &str) -> String {
     }
 }
 
-pub fn read_file(path: &PathBuf) -> String {
+pub fn read_file(path: &PathBuf) -> Option<String> {
     let file = get_os_file(path.to_str().unwrap());
-    fs::read_to_string(&file)
-        .expect(&format!("File not found {}", file))
+    match fs::read_to_string(&file) {
+        Ok(res) => Some(res),
+        _ => None
+    }
 }
 
 pub fn read_file_from_name(name: &str, environment: Environment) -> String {
     let base = match environment {
-           Environment::StandAlone => "",
+           Environment::StandAlone | Environment::Repl => "",
            Environment::Project => "TypR/"
     };
     let file = get_os_file(&format!("{}{}.ty", base, name));
@@ -73,6 +75,31 @@ pub fn execute_r_with_path(execution_path: &PathBuf, file_name: &str) -> () {
         },
         Err(e) => {
             println!("Échec lors de l'exécution de la commande: {}", e);
+        }
+    }
+}
+
+pub fn execute_r_with_path2(execution_path: &PathBuf, file_name: &str) -> String {
+    match Command::new("Rscript")
+        .current_dir(execution_path)
+        .arg(get_os_file(file_name))
+        .output()
+    {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            
+            if output.status.success() {
+                format!("{}", stdout)
+            } else {
+                println!("Error (code {}): \n{}", output.status, stderr);
+                if !stdout.is_empty() {
+                    format!("Sortie standard: \n{}", stdout)
+                } else { "".to_string() }
+            }
+        },
+        Err(e) => {
+            format!("Échec lors de l'exécution de la commande: {}", e)
         }
     }
 }

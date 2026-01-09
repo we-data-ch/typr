@@ -74,18 +74,25 @@ use crate::vartype::VarType;
 use crate::config::Environment;
 use crate::package_loader::PackageManager;
 use repl::repl;
+use std::fs::OpenOptions;
 
 const R_FUNCTIONS: &str = "../configs/src/functions_R.txt";
 const TYPED_R_FUNCTIONS: &str = "../configs/std/std_R.ty";
 const JS_FUNCTIONS: &str = "../configs/src/functions_JS.txt";
 const TYPED_JS_FUNCTIONS: &str = "../configs/std/std_JS.ty";
 
-pub fn write_header(context: Context, output_dir: &PathBuf) -> () {
+pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environment) -> () {
         let type_anotations = context.get_type_anotations();
-        let app_path = output_dir
-            .join(context.get_environment().to_base_path())
-            .join("c_types.R");
-        let mut app = File::create(app_path).unwrap();
+        let mut app = match environment {
+            Environment::Repl => OpenOptions::new()
+                .append(true).create(true).write(true).open(output_dir.join(".repl.R")),
+            _ => OpenOptions::new()
+                .append(true).create(true).write(true)
+                .open(output_dir
+                    .join(context.get_environment().to_base_path())
+                    .join("c_types.R"))
+        }.unwrap();
+
         app.write_all(type_anotations.as_bytes()).unwrap();
 
         let generic_functions = context.get_all_generic_functions().iter()
@@ -93,11 +100,16 @@ pub fn write_header(context: Context, output_dir: &PathBuf) -> () {
                             .filter(|x| !x.contains("<-"))
                             .map(|fn_name| format!("#' @export\n{} <- function(x, ...) UseMethod('{}', x)", fn_name, fn_name.replace("`", "")))
                             .collect::<Vec<_>>().join("\n");
-        let app_path = output_dir
-            .join(context.get_environment().to_string())
-            .join("b_generic_functions.R");
-        let mut app = File::create(app_path).unwrap();
-        app.write_all(generic_functions.as_bytes()).unwrap();
+        let mut app = match environment {
+            Environment::Repl => OpenOptions::new()
+                .append(true).create(true).write(true).open(output_dir.join(".repl.R")),
+            _ => OpenOptions::new()
+                .append(true).create(true).write(true)
+                .open(output_dir
+                    .join(context.get_environment().to_string())
+                    .join("b_generic_functions.R"))
+        }.unwrap();
+        app.write_all((generic_functions+"\n").as_bytes()).unwrap();
 }
 
 pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, environment: Environment) -> () {
@@ -107,9 +119,12 @@ pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, e
         rstd_file.write_all(rstd.as_bytes()).unwrap();
 
         let app_path = output_dir.join(file_name);
-        let mut app = File::create(app_path).unwrap();
+        let mut app = match environment {
+            Environment::Repl => OpenOptions::new().append(true).write(true).create(true).open(app_path),
+            _ => File::create(app_path)
+        }.unwrap();
         let source = match environment {
-            Environment::Project => "",
+            Environment::Project | Environment::Repl => "",
             Environment::StandAlone => "source('b_generic_functions.R')\nsource('c_types.R')"
         };
         app.write_all(
@@ -290,7 +305,7 @@ fn build_project() {
     let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
     let content = type_checker.clone().transpile(true);
-    write_header(type_checker.get_context(), &dir);
+    write_header(type_checker.get_context(), &dir, Environment::Project);
     write_to_r_lang(content, &PathBuf::from("R"), "main.R", context.get_environment());
     document();
     println!("✓ Code R généré avec succès dans le dossier R/");
@@ -306,7 +321,7 @@ fn build_file(path: &PathBuf) {
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
     let content = type_checker.clone().transpile(false);
-    write_header(type_checker.get_context(), &dir);
+    write_header(type_checker.get_context(), &dir, Environment::StandAlone);
     write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
     println!("✓ Code R généré: {:?}", dir.join(&r_file_name));
 }
@@ -327,7 +342,7 @@ fn run_file(path: &PathBuf) {
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
     let content = type_checker.clone().transpile(false);
-    write_header(type_checker.get_context(), &dir);
+    write_header(type_checker.get_context(), &dir, Environment::StandAlone);
     write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
     execute_r_with_path(&dir, &r_file_name);
 }

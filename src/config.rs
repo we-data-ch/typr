@@ -6,7 +6,8 @@ use std::fmt;
 #[derive(Debug, Parser, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Environment {
     StandAlone,
-    Project
+    Project,
+    Repl,
 }
 
 impl Environment {
@@ -19,7 +20,7 @@ impl fmt::Display for Environment {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             Environment::Project => "R/",
-            Environment::StandAlone => ""
+            Environment::StandAlone | Environment::Repl => ""
         };
         write!(f, "{}", res)       
     }

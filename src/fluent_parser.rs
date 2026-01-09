@@ -17,8 +17,9 @@ pub struct FluentParser {
     new_code: Vector<Lang>,
     r_code: Vector<String>,
     logs: Vector<String>,
-    context: Context,
-    last_type: Type
+    pub context: Context,
+    last_type: Type,
+    pub saved_r: Vector<String>
 }
 
 impl FluentParser {
@@ -31,7 +32,8 @@ impl FluentParser {
            r_code: Vector::new(),
            logs: Vector::new(),
            context: Context::empty(),
-           last_type: builder::empty_type()
+           last_type: builder::empty_type(),
+           saved_r: Vector::new()
        } 
     }
 
@@ -221,12 +223,36 @@ impl FluentParser {
         }
     }
 
+    fn save_r_code(self, r_code: &str) -> Self {
+        Self {
+            saved_r: self.saved_r.push_back(r_code.to_string()),
+            ..self
+        }
+    }
+
+    pub fn get_saved_r_code(&self) -> String {
+        self.saved_r.iter()
+            .cloned()
+            .reduce(|acc, x| format!("{}\n{}", acc, &x))
+            .unwrap_or("".to_string())
+    }
+
+    fn get_let_definitions(v: Vector<Lang>, context: &Context) -> Vec<String> {
+        v.iter()
+         .filter(|x| x.is_let())
+         .map(|x| x.to_r(context).0)
+         .collect()
+    }
+
     pub fn transpile_next(self) -> Self {
         match self.clone().next_new_code() {
             Some((code, rest)) => {
                 let (r_code, new_context) =  code.to_r(&self.context);
-                rest.set_context(new_context)
-                    .push_r_code(r_code)
+                let res = rest.set_context(new_context)
+                    .push_r_code(r_code);
+                Self::get_let_definitions(self.new_code, &self.context)
+                    .iter()
+                    .fold(res, |acc, x| acc.save_r_code(x))
             },
             _ => self.push_log("No more Lang code left")
         }
@@ -243,10 +269,17 @@ impl FluentParser {
         self.parse_type_transpile_next()
     }
 
+    fn drop_first_r_code(self) -> Self {
+        Self {
+            r_code: self.r_code.iter().skip(1).cloned().collect(),
+            ..self
+        }
+    }
+
     pub fn next_r_code(self) -> Option<(String, Self)> {
         match self.r_code.first() {
             Some(lang) 
-                => Some((lang.clone(), self.drop_first_new_code())),
+                => Some((lang.clone(), self.drop_first_r_code())),
             _ => None
         }
     }
