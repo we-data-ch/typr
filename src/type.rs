@@ -205,9 +205,15 @@ impl Type {
         let reduced_annotation = annotation.reduce(context);
         let reduced_type = self.reduce(context);
         if !annotation.is_empty() {
-            reduced_type.is_subtype(&reduced_annotation, context)
-                            .then_some(annotation.clone())
-                            .expect(&TypeError::Let(annotation.clone(), self.clone()).display())
+            let res = reduced_type.is_subtype(&reduced_annotation, context)
+                            .then_some(annotation.clone());
+            match res {
+                None => {
+                    println!("{}", &TypeError::Let(annotation.clone(), self.clone()).display());
+                    builder::empty_type()
+                } 
+                Some(val) => val
+            }
         } else { self.clone() }
     }
 

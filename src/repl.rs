@@ -1,5 +1,5 @@
 use rustyline::error::ReadlineError;
-use rustyline::{Config, DefaultEditor, Editor};
+use rustyline::{Config, Editor};
 use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
