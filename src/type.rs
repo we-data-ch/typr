@@ -6,7 +6,6 @@ use crate::type_operator::TypeOperator;
 use crate::function_type::FunctionType;
 use crate::type_category::TypeCategory;
 use serde::{Serialize, Deserialize};
-use crate::help_message::ErrorMsg;
 use crate::context::generate_arg;
 use crate::type_printer::format2;
 use crate::type_token::TypeToken;
@@ -27,6 +26,7 @@ use crate::builder;
 use crate::Var;
 use std::fmt;
 use crate::module_type::ModuleType;
+use crate::help_message::PrintAndDefault;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
@@ -205,15 +205,9 @@ impl Type {
         let reduced_annotation = annotation.reduce(context);
         let reduced_type = self.reduce(context);
         if !annotation.is_empty() {
-            let res = reduced_type.is_subtype(&reduced_annotation, context)
-                            .then_some(annotation.clone());
-            match res {
-                None => {
-                    println!("{}", &TypeError::Let(annotation.clone(), self.clone()).display());
-                    builder::empty_type()
-                } 
-                Some(val) => val
-            }
+            reduced_type.is_subtype(&reduced_annotation, context)
+                            .then_some(annotation.clone())
+                            .error_message(TypeError::Let(annotation.clone(), self.clone()))
         } else { self.clone() }
     }
 

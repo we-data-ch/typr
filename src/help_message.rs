@@ -13,6 +13,27 @@ pub trait ErrorMsg {
     fn display(self) -> String;
 }
 
+pub trait PrintAndDefault<T: Default> {
+    fn error_message(self, msg: impl ErrorMsg) -> T;
+}
+
+impl<T: Default> PrintAndDefault<T> for Option<T> {
+    fn error_message(self, msg: impl ErrorMsg) -> T {
+        println!("{}", msg.display());
+        self.unwrap_or_default()
+    }
+}
+
+impl<T: Default, E> PrintAndDefault<T> for Result<T, E> 
+where
+    E: std::fmt::Debug,
+{
+    fn error_message(self, msg: impl ErrorMsg) -> T {
+        println!("{}", msg.display());
+        self.unwrap_or_default()
+    }
+}
+
 
 #[derive(Error, Debug, Diagnostic)]
 pub enum MsgTemplate<S: SourceCode + 'static + std::fmt::Debug> {
@@ -213,8 +234,6 @@ impl ErrorMsg for TypeError {
                     .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
                 let (file_name2, text2) = help_data2.get_file_data()
                     .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
-                    //.expect(&format!("The file name of {:?} for {} doesn't exist", 
-                                     //help_data2, t2.pretty()));
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
@@ -243,12 +262,8 @@ impl ErrorMsg for TypeError {
                 let help_data2 = t2.get_help_data();
                 let (file_name1, text1) = help_data1.get_file_data()
                     .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
-                    //.expect(&format!("The file name of {:?} for {} doesn't exist", 
-                                     //help_data1, t1.pretty()));
                 let (file_name2, text2) = help_data2.get_file_data()
                     .unwrap_or(("std.ty".to_string(), fs::read_to_string("std.ty").unwrap()));
-                    //.expect(&format!("The file name of {:?} for {} doesn't exist", 
-                                     //help_data2, t2.pretty()));
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
