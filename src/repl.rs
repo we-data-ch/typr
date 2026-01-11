@@ -384,17 +384,18 @@ impl TypRExecutor {
         }
     }
 
-    fn get_r_code(self, cmd: &str) -> (Self, String) {
+    fn get_r_code(self, cmd: &str) -> (Self, String, String) {
         let (r_code, api) = self.api.push(cmd).run().next_r_code().unwrap();
+        let r_type = api.get_last_type().pretty2();
         let res = Self {
             api: api.clone(),
             ..self
         };
         let saved_code = format!("{}\n{}", api.get_saved_r_code(), r_code);
-        (res, saved_code)
+        (res, saved_code, r_type)
     }
 
-    fn run_r_code(context: Context, r_code: &str) -> String {
+    fn run_r_code(context: Context, r_code: &str, r_type: &str) -> String {
         let dir = PathBuf::from(".");
         let r_file_name = ".repl.R";
         let _ = fs::remove_file(r_file_name);
@@ -402,13 +403,14 @@ impl TypRExecutor {
         let _ = file.write_all("source('a_std.R')\n".as_bytes());
         write_header(context, &dir, Environment::Repl);
         write_to_r_lang(r_code.to_string(), &dir, &r_file_name, Environment::Repl);
+            println!("{}{}{}", colors::NUMBER, r_type, colors::RESET);
         let res = execute_r_with_path2(&dir, &r_file_name);
         res
     }
 
     fn execute(self, cmd: &str) -> Result<(Self, ExecutionResult), String> {
-        let (new, r_code) = Self::get_r_code(self, cmd);
-        let res = Self::run_r_code(new.api.context.clone(), &r_code);
+        let (new, r_code, r_type) = Self::get_r_code(self, cmd);
+        let res = Self::run_r_code(new.api.context.clone(), &r_code, &r_type);
         Ok((new, ExecutionResult { output: vec![res] }))
     }
 }

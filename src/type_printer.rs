@@ -39,15 +39,23 @@ pub fn format(ty: &Type) -> String {
         },
         Type::Record(fields, _) => {
             let formatted_fields = fields.iter().map(|arg_typ| format!("{}: {}", format2(&arg_typ.get_argument()), format(&arg_typ.get_type()))).collect::<Vec<_>>();
-            format!("{{{}}}", formatted_fields.join(", "))
+            format!("list{{{}}}", formatted_fields.join(", "))
         }
         Type::Generic(name, _) => name.to_uppercase(),
-        Type::Integer(_tint, _) => {
-            "int".to_string()
+        Type::Integer(tint, _) => {
+            match tint {
+                Tint::Val(i) => format!("{}", i),
+                _ => "int".to_string()
+            }
         },
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
-        Type::Char(_, _) => "char".to_string(),
+        Type::Char(tchar, _) => {
+            match tchar {
+                Tchar::Val(c) => format!("{}", c),
+                _ => "char".to_string()
+            }
+        },
         Type::Empty(_) => "Empty".to_string(),
         Type::Any(_) => "any".to_string(),
         Type::IndexGen(i, _) => format!("#{}", i),
@@ -91,19 +99,26 @@ pub fn format2(t: &Type) -> String {
     match t {
         Type::Integer(tint, _) => {
             match tint {
-                Tint::Val(i) => format!("{}", i),
+                Tint::Val(i) => format!("int({})", i),
                 _ => "int".to_string()
             }
         },
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
-        Type::Char(tchar, _) => {
-            match tchar {
-                Tchar::Val(c) => format!("{}", c),
-                _ => "char".to_string()
-            }
+        Type::Char(_tchar, _) => {
+            //match tchar {
+                //Tchar::Val(c) => format!("{}", c),
+                //_ => "char".to_string()
+            //}
+            "char".to_string()
         },
         Type::IndexGen(idgen, _) => format!("#{}", idgen),
+        Type::Array(i, t, _) => {
+            format!("[{}, {}]", i.pretty(), t.pretty2())
+        },
+        Type::Vector(i, t, _) => {
+            format!("Vec[{}, {}]", i.pretty(), t.pretty2())
+        },
         val if val.to_category() == TypeCategory::Template
             => val.pretty(),
         val => val.pretty()
