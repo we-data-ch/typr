@@ -87,7 +87,7 @@ pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environ
             Environment::Repl => OpenOptions::new()
                 .append(true).create(true).write(true).open(output_dir.join(".repl.R")),
             _ => OpenOptions::new()
-                .append(true).create(true).write(true)
+                .create(true).write(true)
                 .open(output_dir
                     .join(context.get_environment().to_base_path())
                     .join("c_types.R"))
@@ -104,7 +104,7 @@ pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environ
             Environment::Repl => OpenOptions::new()
                 .append(true).create(true).write(true).open(output_dir.join(".repl.R")),
             _ => OpenOptions::new()
-                .append(true).create(true).write(true)
+                .create(true).write(true)
                 .open(output_dir
                     .join(context.get_environment().to_string())
                     .join("b_generic_functions.R"))

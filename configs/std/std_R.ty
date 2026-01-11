@@ -6,6 +6,8 @@
 @`/`: (num, num) -> num;
 @`*`: (int, int) -> int;
 @`*`: (num, num) -> num;
+@`&&`: (bool, bool) -> bool;
+@`||`: (bool, bool) -> bool;
 @source: (char) -> Empty;
 @reduce: ([#N, T], (T, U) -> T) -> T;
 @sum: ([#N, T]) -> T;

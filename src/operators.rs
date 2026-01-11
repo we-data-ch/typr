@@ -19,7 +19,7 @@ type Span<'a> = LocatedSpan<&'a str, String>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Op {
     And(HelpData),
-    Or(HelpData),
+    And2(HelpData),
     Eq(HelpData),
     Eq2(HelpData),
     NotEq(HelpData),
@@ -29,7 +29,8 @@ pub enum Op {
     Dot(HelpData),
     Pipe2(HelpData),
     Dot2(HelpData),
-    Union(HelpData),
+    Or(HelpData),
+    Or2(HelpData),
     Minus(HelpData),
     Minus2(HelpData),
     Mul(HelpData),
@@ -96,7 +97,9 @@ impl Op {
             Op::Add(h) => h.clone(),
             Op::Add2(h) => h.clone(),
             Op::And(h) => h.clone(),
+            Op::And2(h) => h.clone(),
             Op::Or(h) => h.clone(),
+            Op::Or2(h) => h.clone(),
             Op::Eq(h) => h.clone(),
             Op::Eq2(h) => h.clone(),
             Op::NotEq(h) => h.clone(),
@@ -104,7 +107,6 @@ impl Op {
             Op::Pipe2(h) => h.clone(),
             Op::Dot(h) => h.clone(),
             Op::Dot2(h) => h.clone(),
-            Op::Union(h) => h.clone(),
             Op::Minus(h) => h.clone(),
             Op::Minus2(h) => h.clone(),
             Op::Mul(h) => h.clone(),
@@ -118,7 +120,6 @@ impl Op {
             Op::GreaterThan(h) => h.clone(),
         }
     }
-
 }
 
 
@@ -132,7 +133,10 @@ fn bool_op(s: Span) -> IResult<Span, Span> {
             tag("<"),
             tag(">"),
             tag("and"),
-            tag("or"),
+            tag("&&"),
+            tag("&"),
+            tag("|"),
+            tag("||"),
             tag("="),
             )), multispace0).parse(s)
 }
@@ -140,8 +144,12 @@ fn bool_op(s: Span) -> IResult<Span, Span> {
 fn get_op(ls: LocatedSpan<&str, String>) -> Op {
     match ls.clone().into_fragment() {
         "in " => Op::In(ls.into()),
-        "and" => Op::And(ls.into()),
-        "or" => Op::Or(ls.into()),
+        "&" => Op::And(ls.into()),
+        "&&" => Op::And2(ls.into()),
+        "and" => Op::And2(ls.into()),
+        "|" => Op::Or(ls.into()),
+        "||" => Op::Or2(ls.into()),
+        "or" => Op::Or2(ls.into()),
         "+" => Op::Add(ls.into()),
         "++" => Op::Add2(ls.into()),
         "-" => Op::Minus(ls.into()),
@@ -161,7 +169,6 @@ fn get_op(ls: LocatedSpan<&str, String>) -> Op {
         ".." => Op::Dot2(ls.into()),
         "$" => Op::Dollar(ls.into()),
         "$$" => Op::Dollar2(ls.into()),
-        "|" => Op::Union(ls.into()),
         "==" => Op::Eq(ls.into()),
         "!=" => Op::NotEq(ls.into()),
         "<=" => Op::LesserOrEqual(ls.into()),
@@ -206,7 +213,6 @@ pub fn op(s: Span) -> IResult<Span, Op> {
             tag("/"),
             tag("%%"),
             tag("%"),
-            tag("|"),
             )),
         multispace0).parse(s);
     match res {
@@ -218,8 +224,10 @@ pub fn op(s: Span) -> IResult<Span, Op> {
 pub fn get_string(op: &Op) -> String {
     match op {
         Op::In(_) => "in".to_string(),
-        Op::And(_) => "and".to_string(),
-        Op::Or(_) => "or".to_string(),
+        Op::And(_) => "&".to_string(),
+        Op::And2(_) => "&&".to_string(),
+        Op::Or(_) => "|".to_string(),
+        Op::Or2(_) => "||".to_string(),
         Op::Add(_) => "+".to_string(),
         Op::Add2(_) => "++".to_string(),
         Op::Minus(_) => "-".to_string(),
@@ -235,7 +243,6 @@ pub fn get_string(op: &Op) -> String {
         Op::Pipe2(_) => "|>>".to_string(),
         Op::Dot(_) => ".".to_string(),
         Op::Dot2(_) => "..".to_string(),
-        Op::Union(_) => "|".to_string(),
         Op::LesserThan(_) => "<".to_string(),
         Op::GreaterThan(_) => ">".to_string(),
         Op::LesserOrEqual(_) => "<=".to_string(),

@@ -927,6 +927,13 @@ mod tests {
     }
 
     #[test]
+    fn test_and1() {
+        let res = "true & true".parse::<Lang>().unwrap();
+        dbg!(&res);
+        assert_eq!(res.simple_print(), "Operator", "Should accept '&&'");
+    }
+
+    #[test]
     fn test_array_indexing0() {
         let res = array_indexing("name[1, 2, 3]".into()).unwrap().1;
         dbg!(&res);
