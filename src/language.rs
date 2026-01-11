@@ -26,7 +26,7 @@ use crate::Config;
 use std::fs::File;
 use crate::fs;
 
-const JS_HEADER: &str = "let add = (a, b) => a+b;\nlet mul = (a, b) => a*b;\nlet minus = (a, b) => a - b;\nlet div = (a, b) => a/b;";
+const JS_HEADER: &str = "";
 
 trait AndIf {
     fn and_if<F>(self, condition: F) -> Option<Self>
@@ -435,6 +435,15 @@ impl Lang {
                 (format!("\\'{}\\'", val),
                  context.clone())
             },
+            Lang::Bool(b, _) => {
+                (format!("{}", b.to_string().to_uppercase()), context.clone())
+            },
+            Lang::Number(n, _) => {
+                (format!("{}", n), context.clone())
+            },
+            Lang::Integer(i, _) => {
+                (format!("{}", i), context.clone())
+            },
             Lang::Let(var, _, body, _) => {
                 (format!("let {} = {};", Var::from_language(*(var.clone())).unwrap().get_name(), body.to_js(context).0),
                  context.clone())
@@ -451,9 +460,6 @@ impl Lang {
             },
             Lang::Return(exp, _) => {
                 (format!("return {};", exp.to_js(context).0), context.clone())
-            },
-            Lang::Integer(i, _) => {
-                (i.to_string(), context.clone())
             },
             Lang::FunctionApp(exp, params, _, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
@@ -512,8 +518,9 @@ impl Lang {
             Lang::Lambda(body, _) => {
                 (format!("x => {}", body.to_js(context).0), context.clone())
             },
-            Lang::Bool(b, _) => {
-                (b.to_string(), context.clone())
+            Lang::Operator(op, e1, e2, _) => {
+                (format!("{} {} {}", e1.to_js(context).0, op.to_string(), e2.to_js(context).0),
+                context.clone())
             },
             _ => {
                 self.to_r(context)
@@ -1070,7 +1077,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::JSBlock(exp, _id, _h) => {
                 let js_cont = Context::default(); //TODO get js context from memory
                 let res = exp.to_js(&js_cont).0;
-                (format!("'{}\n\n{}'", JS_HEADER, res), cont.clone())
+                (format!("'{}{}'", JS_HEADER, res), cont.clone())
             },
             Lang::WhileLoop(condition, body, _) => {
                 (format!("while ({}) {{\n{}\n}}", 

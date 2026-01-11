@@ -106,11 +106,12 @@ pub fn format2(t: &Type) -> String {
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
         Type::Char(_tchar, _) => {
-            //match tchar {
-                //Tchar::Val(c) => format!("{}", c),
-                //_ => "char".to_string()
-            //}
             "char".to_string()
+        },
+        Type::Record(fields, _) => {
+            //"char".to_string()
+            let formatted_fields = fields.iter().map(|arg_typ| format!("{}: {}", format(&arg_typ.get_argument()), format(&arg_typ.get_type()))).collect::<Vec<_>>();
+            format!("list{{{}}}", formatted_fields.join(", "))
         },
         Type::IndexGen(idgen, _) => format!("#{}", idgen),
         Type::Array(i, t, _) => {
