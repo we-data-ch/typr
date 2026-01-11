@@ -8,6 +8,7 @@
 @`*`: (num, num) -> num;
 @`&&`: (bool, bool) -> bool;
 @`||`: (bool, bool) -> bool;
+@`+`: (Vec[#M, T], Vec[#M, T]) -> Vec[#M, T];
 @source: (char) -> Empty;
 @reduce: ([#N, T], (T, U) -> T) -> T;
 @sum: ([#N, T]) -> T;

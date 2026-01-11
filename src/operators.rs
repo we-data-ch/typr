@@ -135,8 +135,8 @@ fn bool_op(s: Span) -> IResult<Span, Span> {
             tag("and"),
             tag("&&"),
             tag("&"),
-            tag("|"),
             tag("||"),
+            tag("|"),
             tag("="),
             )), multispace0).parse(s)
 }
