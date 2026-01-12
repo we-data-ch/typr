@@ -37,7 +37,7 @@ new_person <- fn(name: char, age: int): Person {
 };
 
 is_minor <- fn(p: Person): bool {
-	(p$age) < 18
+	p$age < 18
 };
 
 alice <- new_person("Alice", 35);
