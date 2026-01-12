@@ -2,7 +2,7 @@ use crate::unification::type_substitution;
 use crate::argument_type::ArgumentType;
 use crate::r#type::r#type::Type;
 use crate::var::Var;
-use crate::context::Context;
+use crate::context::context::Context;
 use rpds::Vector;
 use crate::type_operator::TypeOperator;
 use crate::graph::TypeSystem;

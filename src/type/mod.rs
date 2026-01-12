@@ -5,3 +5,6 @@ pub mod generic;
 pub mod tint;
 pub mod tchar;
 pub mod graph;
+pub mod index;
+pub mod js_types;
+pub mod module_type;

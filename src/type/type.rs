@@ -1,4 +1,8 @@
 #![allow(dead_code)]
+use crate::error_message::help_message::PrintAndDefault;
+use crate::error_message::help_message::TypeError;
+use crate::error_message::help_data::HelpData;
+use crate::context::context::generate_arg;
 use crate::operation_priority::TokenKind;
 use crate::type_comparison::reduce_type;
 use crate::argument_type::ArgumentType;
@@ -6,11 +10,10 @@ use crate::type_operator::TypeOperator;
 use crate::function_type::FunctionType;
 use crate::type_category::TypeCategory;
 use serde::{Serialize, Deserialize};
-use crate::context::generate_arg;
+use crate::module_type::ModuleType;
 use crate::type_printer::format2;
 use crate::type_token::TypeToken;
 use crate::type_printer::format;
-use crate::help_data::HelpData;
 use std::collections::HashSet;
 use crate::graph::TypeSystem;
 use crate::tchar::Tchar;
@@ -19,14 +22,11 @@ use std::cmp::Ordering;
 use std::str::FromStr;
 use crate::tint::Tint;
 use std::hash::Hasher;
-use crate::TypeError;
 use std::hash::Hash;
 use crate::Context;
 use crate::builder;
 use crate::Var;
 use std::fmt;
-use crate::module_type::ModuleType;
-use crate::help_message::PrintAndDefault;
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()
