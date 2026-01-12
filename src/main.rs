@@ -6,8 +6,7 @@ mod operators;
 mod my_io;
 mod var;
 mod metaprogramming;
-mod argument_type;
-mod argument_value;
+mod utils;
 mod type_comparison;
 mod unification;
 mod context;
@@ -48,6 +47,8 @@ mod fluent_parser;
 mod repl;
 mod indexation;
 
+use utils::argument_type;
+use utils::argument_value;
 use std::path::Path;
 use crate::config::Config;
 use std::io::Write;
