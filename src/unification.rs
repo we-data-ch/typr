@@ -1,4 +1,4 @@
-use crate::r#type::Type;
+use crate::r#type::r#type::Type;
 use crate::argument_type::ArgumentType;
 use crate::Context;
 use crate::type_comparison;

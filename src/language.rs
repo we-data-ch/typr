@@ -13,7 +13,7 @@ use crate::help_data::HelpData;
 use crate::elements::elements;
 use crate::var::Permission;
 use crate::operators::Op;
-use crate::r#type::Type;
+use crate::r#type::r#type::Type;
 use crate::Environment;
 use std::path::PathBuf;
 use std::str::FromStr;

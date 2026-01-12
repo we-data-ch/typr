@@ -12,7 +12,7 @@ use crate::argument_type::ArgumentType;
 use crate::argument_value::ArgumentValue;
 use crate::types::ltype;
 use nom::character::complete::one_of;
-use crate::r#type::Type;
+use crate::r#type::r#type::Type;
 use nom::character::complete::multispace1;
 use nom::character::complete::digit1;
 use crate::types::label;

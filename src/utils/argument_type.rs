@@ -1,5 +1,5 @@
 use std::fmt;
-use crate::r#type::Type;
+use crate::r#type::r#type::Type;
 use crate::help_data::HelpData;
 use crate::tchar::Tchar;
 use crate::Context;

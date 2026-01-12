@@ -1,6 +1,6 @@
 use crate::unification::type_substitution;
 use crate::argument_type::ArgumentType;
-use crate::r#type::Type;
+use crate::r#type::r#type::Type;
 use crate::var::Var;
 use crate::context::Context;
 use rpds::Vector;

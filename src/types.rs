@@ -6,7 +6,7 @@ use crate::argument_type::ArgumentType;
 use nom::character::complete::one_of;
 use nom::character::complete::digit1;
 use nom::character::complete::alphanumeric1;
-use crate::r#type::Type;
+use crate::r#type::r#type::Type;
 use std::collections::HashSet;
 use crate::operators::{Op, op};
 use nom::sequence::terminated;

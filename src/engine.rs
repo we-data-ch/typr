@@ -9,7 +9,6 @@ use nom_locate::LocatedSpan;
 use crate::my_io::get_os_file;
 use crate::Environment;
 
-
 pub fn write_std_for_type_checking(output_dir: &PathBuf) {
     let rstd = include_str!("../configs/std/std_R.ty");
     let std_path = output_dir.join("std.ty");
@@ -37,7 +36,6 @@ impl<'a> TypRFile<'a> {
     }
 
 }
-
 
 //1. 
 pub fn parse_code(path: &PathBuf, environment: Environment) -> Lang {

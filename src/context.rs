@@ -1,5 +1,5 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::r#type::Type;
+use crate::r#type::r#type::Type;
 use crate::language::Lang;
 use crate::var::Var;
 use crate::argument_type::ArgumentType;

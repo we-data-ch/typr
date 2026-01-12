@@ -7,7 +7,7 @@ use nom::bytes::complete::tag;
 use crate::elements::variable;
 use crate::types::type_alias;
 use crate::types::ltype;
-use crate::r#type::Type;
+use crate::r#type::r#type::Type;
 use crate::var::Var;
 use nom::combinator::opt;
 use nom::sequence::delimited;
