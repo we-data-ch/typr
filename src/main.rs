@@ -1,5 +1,4 @@
 mod language;
-mod elements;
 mod parser;
 mod types;
 mod operators;
@@ -14,7 +13,6 @@ mod r#type;
 mod type_checker;
 mod type_printer;
 mod index;
-mod engine;
 mod vartype;
 mod unification_map;
 mod help_message;
@@ -24,7 +22,6 @@ mod error_message;
 mod translatable;
 mod function_lang;
 mod config;
-mod graph;
 mod type_category;
 mod typer;
 mod var_function;
@@ -39,9 +36,14 @@ mod lang_token;
 mod package_loader;
 mod repl;
 mod indexation;
+mod parsing;
+mod lang;
+
+use parsing::elements;
 
 use r#type::function_type;
 use r#type::array_type;
+use r#type::graph;
 use r#type::tchar;
 use r#type::tint;
 
@@ -49,9 +51,9 @@ use utils::argument_value;
 use utils::fluent_parser;
 use utils::argument_type;
 use utils::builder;
+use utils::engine;
 
 use crate::engine::write_std_for_type_checking;
-use crate::metaprogramming::metaprogrammation;
 use crate::type_checker::execute_r_function;
 use crate::package_loader::PackageManager;
 use crate::my_io::execute_r_with_path;
