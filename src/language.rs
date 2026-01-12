@@ -6,7 +6,7 @@ use crate::translatable::RTranslatable;
 use crate::function_type::FunctionType;
 use crate::translatable::Translatable;
 use serde::{Serialize, Deserialize};
-use crate::function_lang::Function;
+use crate::lang::function_lang::Function;
 use crate::array_type::ArrayType;
 use crate::lang_token::LangToken;
 use crate::help_data::HelpData;

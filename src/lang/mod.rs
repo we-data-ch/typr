@@ -1,1 +1,1 @@
-pub use mod function_lang;
+pub mod function_lang;

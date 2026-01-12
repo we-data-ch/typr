@@ -20,7 +20,6 @@ mod help_data;
 mod path;
 mod error_message;
 mod translatable;
-mod function_lang;
 mod config;
 mod type_category;
 mod typer;
