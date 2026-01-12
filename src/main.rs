@@ -1,11 +1,11 @@
 mod error_message;
 mod type_checking;
+mod context;
 mod parsing;
 mod r#type;
 mod utils;
 mod lang;
-mod ui;
-mod context;
+mod interface;
 
 use crate::type_checking::type_checker::TypeChecker;
 use crate::type_checking::type_checker::typing;
@@ -50,7 +50,7 @@ use my_io::read_file;
 use std::path::Path;
 use std::io::Write;
 use std::fs::File;
-use ui::repl;
+use interface::repl;
 use std::fs;
 
 const R_FUNCTIONS: &str = "../configs/src/functions_R.txt";
