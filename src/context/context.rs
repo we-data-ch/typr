@@ -1,30 +1,30 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::r#type::r#type::Type;
 use crate::language::Lang;
-use crate::var::Var;
+use crate::lang::var::Var;
 use crate::argument_type::ArgumentType;
-use crate::vartype::VarType;
-use crate::type_comparison;
+use crate::context::vartype::VarType;
 use crate::Environment;
 use crate::help_data::HelpData;
-use crate::typing;
-use crate::type_checker::match_types_to_generic;
 use crate::graph::Graph;
-use crate::type_comparison::reduce_type;
 use crate::TypeError;
 use crate::help_message::ErrorMsg;
 use std::iter::Rev;
 use crate::config::Config;
 use crate::builder;
-use crate::unification_map::UnificationMap;
 use crate::function_type::FunctionType;
 use crate::config::TargetLanguage;
 use rpds::Vector;
-use crate::var_function::VarFunction;
+use crate::lang::var_function::VarFunction;
 use crate::graph::TypeSystem;
 use std::collections::HashSet;
 use std::collections::HashMap;
 use std::ops::Add;
+use crate::type_checking::unification_map;
+use crate::type_checking::type_checker::typing;
+use crate::type_checking::type_comparison::reduce_type;
+use crate::context::context::unification_map::UnificationMap;
+use crate::type_checking::type_checker::match_types_to_generic;
 
 const BLACKLIST: [&str; 59] = ["test_that", "expect_true", "`+`", "`*`", "`-`", "`/`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array", "cat", "rep", "str", "oldClass", "stop", "invisible", "capture__output", "paste0", "unclass", "exists", "vector", "tags", "paste"];
 

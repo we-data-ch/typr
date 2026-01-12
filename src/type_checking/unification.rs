@@ -1,8 +1,8 @@
-use crate::r#type::r#type::Type;
+use crate::type_checking::type_comparison;
 use crate::argument_type::ArgumentType;
-use crate::Context;
-use crate::type_comparison;
+use crate::r#type::r#type::Type;
 use std::collections::HashSet;
+use crate::Context;
 
 pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     if substitutions.is_empty() {

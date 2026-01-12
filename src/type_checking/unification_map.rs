@@ -1,7 +1,7 @@
+use crate::type_checking::unification;
 use crate::help_message::ErrorMsg;
 use std::collections::HashSet;
 use crate::graph::TypeSystem;
-use crate::unification;
 use crate::TypeError;
 use crate::builder;
 use crate::Context;

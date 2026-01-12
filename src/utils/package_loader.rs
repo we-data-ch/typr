@@ -1,8 +1,8 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::execute_r_function;
+use crate::type_checking::type_checker::execute_r_function;
+use crate::type_checking::type_checker::TypeChecker;
 use crate::my_io::get_os_file;
 use crate::engine::TypRFile;
-use crate::TypeChecker;
 use std::path::PathBuf;
 use crate::read_file;
 use std::path::Path;

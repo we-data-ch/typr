@@ -1,12 +1,12 @@
-use std::fmt;
+use crate::type_checking::type_comparison::reduce_type;
+use serde::{Serialize, Deserialize};
 use crate::r#type::r#type::Type;
 use crate::help_data::HelpData;
+use crate::graph::TypeSystem;
 use crate::tchar::Tchar;
 use crate::Context;
 use crate::Var;
-use crate::type_comparison::reduce_type;
-use crate::graph::TypeSystem;
-use serde::{Serialize, Deserialize};
+use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq)] // 3 argument is for the embedding
 pub struct ArgumentType(pub Type, pub Type, pub bool);

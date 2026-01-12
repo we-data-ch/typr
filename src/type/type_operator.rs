@@ -1,4 +1,4 @@
-use crate::operation_priority::TokenKind;
+use crate::parsing::operation_priority::TokenKind;
 use serde::{Serialize, Deserialize};
 use crate::help_data::HelpData;
 use std::collections::HashSet;

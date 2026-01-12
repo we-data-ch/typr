@@ -1,10 +1,14 @@
-pub mod r#type;
 pub mod array_type;
 pub mod function_type;
 pub mod generic;
-pub mod tint;
-pub mod tchar;
 pub mod graph;
 pub mod index;
 pub mod js_types;
 pub mod module_type;
+pub mod tchar;
+pub mod tint;
+pub mod r#type;
+pub mod type_category;
+pub mod type_operator;
+pub mod type_printer;
+pub mod typer;

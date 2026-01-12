@@ -1,18 +1,18 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use std::collections::HashSet;
-use std::iter::Rev;
-use crate::var::Var;
-use crate::Type;
-use crate::builder;
-use crate::Context;
-use crate::graph::TypeSystem;
 use crate::config::TargetLanguage;
 use serde::{Serialize, Deserialize};
+use std::collections::HashSet;
+use crate::graph::TypeSystem;
+use std::iter::Rev;
+use crate::builder;
+use crate::Context;
+use std::io::Write;
 use std::fs::File;
 use std::io::Read;
-use std::io::Write;
 use std::ops::Add;
 use crate::Config;
+use crate::Type;
+use crate::Var;
 
 pub fn same_var_type(element1: &(Var, Type), element2: &(Var, Type)) -> bool {
     (element1.0.get_name() == element2.0.get_name()) &&
@@ -400,25 +400,25 @@ impl VarType {
     }
 
     pub fn load_r(self) -> Result<VarType, Box<dyn std::error::Error>> {
-        let buffer = include_bytes!("../configs/bin/.std_r.bin");
+        let buffer = include_bytes!("../../configs/bin/.std_r.bin");
         let var_type: VarType = bincode::deserialize(buffer)?;
         Ok(self + var_type)
     }
 
     pub fn load_typed_r(self) -> Result<VarType, Box<dyn std::error::Error>> {
-        let buffer = include_bytes!("../configs/bin/.std_r_typed.bin");
+        let buffer = include_bytes!("../../configs/bin/.std_r_typed.bin");
         let var_type: VarType = bincode::deserialize(buffer)?;
         Ok(self + var_type)
     }
 
     pub fn load_js(self) -> Result<VarType, Box<dyn std::error::Error>> {
-        let buffer = include_bytes!("../configs/bin/.std_js.bin");
+        let buffer = include_bytes!("../../configs/bin/.std_js.bin");
         let var_type: VarType = bincode::deserialize(buffer)?;
         Ok(self + var_type)
     }
 
     pub fn load_typed_js(self) -> Result<VarType, Box<dyn std::error::Error>> {
-        let buffer = include_bytes!("../configs/bin/.std_js_typed.bin");
+        let buffer = include_bytes!("../../configs/bin/.std_js_typed.bin");
         let var_type: VarType = bincode::deserialize(buffer)?;
         Ok(self + var_type)
     }

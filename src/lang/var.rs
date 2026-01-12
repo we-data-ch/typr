@@ -1,6 +1,7 @@
 #![allow(dead_code)]
+use crate::type_checking::type_checker::typing;
 use crate::error_message::help_data::HelpData;
-use crate::translatable::RTranslatable;
+use crate::lang::translatable::RTranslatable;
 use crate::function_type::FunctionType;
 use crate::context::context::Context;
 use serde::{Serialize, Deserialize};
@@ -8,7 +9,6 @@ use crate::elements::is_pascal_case;
 use crate::graph::TypeSystem;
 use crate::tchar::Tchar;
 use crate::builder;
-use crate::typing;
 use crate::Type;
 use crate::Lang;
 use std::fmt;

@@ -1,68 +1,45 @@
-mod parser;
-mod types;
-mod operators;
-mod var;
-mod utils;
-mod type_comparison;
-mod unification;
-mod r#type;
-mod type_checker;
-mod type_printer;
-mod vartype;
-mod unification_map;
-mod path;
-mod translatable;
-mod type_category;
-mod typer;
-mod var_function;
-mod type_operator;
-mod operation_priority;
-mod vector_priority;
-mod package_loader;
-mod parsing;
-mod context;
-mod repl;
-mod lang;
 mod error_message;
+mod type_checking;
+mod parsing;
+mod r#type;
+mod utils;
+mod lang;
+mod ui;
+mod context;
 
+use crate::type_checking::type_checker::TypeChecker;
+use crate::type_checking::type_checker::typing;
 use utils::metaprogramming;
 use utils::my_io;
-
 use error_message::help_message;
 use error_message::help_data;
 use context::config;
-use r#type::index;
 use parsing::type_token;
 use r#type::module_type;
 use parsing::lang_token;
 use lang::language;
-
 use parsing::elements;
-
 use r#type::function_type;
 use r#type::array_type;
 use r#type::graph;
 use r#type::tchar;
 use r#type::tint;
-
 use utils::argument_value;
 use utils::fluent_parser;
 use utils::argument_type;
 use utils::builder;
 use utils::engine;
-
 use crate::engine::write_std_for_type_checking;
-use crate::type_checker::execute_r_function;
-use crate::package_loader::PackageManager;
+use crate::utils::package_loader::PackageManager;
 use crate::my_io::execute_r_with_path;
-use crate::type_checker::TypeChecker;
 use crate::context::context::Context;
 use crate::help_message::TypeError;
-use crate::type_checker::typing;
 use crate::config::Environment;
 use clap::{Parser, Subcommand};
 use crate::engine::parse_code;
-use crate::vartype::VarType;
+use crate::context::vartype::VarType;
+use parsing::parser::parse;
+use crate::lang::var::Var;
 use std::process::Command;
 use crate::config::Config;
 use crate::language::Lang;
@@ -70,12 +47,10 @@ use std::fs::OpenOptions;
 use r#type::r#type::Type;
 use std::path::PathBuf;
 use my_io::read_file;
-use crate::var::Var;
 use std::path::Path;
 use std::io::Write;
 use std::fs::File;
-use parser::parse;
-use repl::repl;
+use ui::repl;
 use std::fs;
 
 const R_FUNCTIONS: &str = "../configs/src/functions_R.txt";
@@ -776,7 +751,7 @@ fn main() {
             clean()
         },
         Some(Commands::Repl) => {
-            repl()
+            repl::start()
         },
         None => {
             println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");

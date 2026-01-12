@@ -1,5 +1,5 @@
-use crate::type_operator::TypeOperator;
-use crate::type_category::TypeCategory;
+use crate::r#type::type_operator::TypeOperator;
+use crate::r#type::type_category::TypeCategory;
 use crate::r#type::r#type::pretty;
 use crate::help_data::HelpData;
 use crate::graph::TypeSystem;

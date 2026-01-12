@@ -1,10 +1,10 @@
-use crate::unification::type_substitution;
+use crate::type_checking::unification::type_substitution;
 use crate::argument_type::ArgumentType;
 use crate::r#type::r#type::Type;
-use crate::var::Var;
+use crate::lang::var::Var;
 use crate::context::context::Context;
 use rpds::Vector;
-use crate::type_operator::TypeOperator;
+use crate::r#type::type_operator::TypeOperator;
 use crate::graph::TypeSystem;
 
 pub fn reduce_param(

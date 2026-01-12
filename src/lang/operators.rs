@@ -10,7 +10,7 @@ use crate::help_data::HelpData;
 use nom::character::complete::char;
 use nom::bytes::complete::take_until;
 use nom::combinator::recognize;
-use crate::operation_priority::TokenKind;
+use crate::parsing::operation_priority::TokenKind;
 use crate::Lang;
 use serde::{Serialize, Deserialize};
 

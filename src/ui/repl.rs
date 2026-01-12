@@ -489,7 +489,7 @@ impl RRepl {
     }
 }
 
-pub fn repl() {
+pub fn start() {
     match RRepl::new() {
         Ok(mut repl) => {
             if let Err(e) = repl.run() {

@@ -1,7 +1,7 @@
-use crate::operation_priority::PriorityToken;
-use crate::operators::Op;
-use crate::operation_priority::TokenKind;
+use crate::parsing::operation_priority::PriorityToken;
+use crate::parsing::operation_priority::TokenKind;
 use crate::help_data::HelpData;
+use crate::lang::operators::Op;
 use crate::Lang;
 use std::fmt;
 

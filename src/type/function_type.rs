@@ -1,9 +1,9 @@
-use crate::unification_map::UnificationMap;
-use crate::Type;
+use crate::type_checking::unification_map::UnificationMap;
 use crate::help_data::HelpData;
 use crate::builder;
-use crate::Lang;
 use crate::Context;
+use crate::Type;
+use crate::Lang;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionType(pub Vec<Type>, pub Type, pub HelpData);
