@@ -8,15 +8,15 @@ use rustyline::Helper;
 use crate::fluent_parser::FluentParser;
 use crate::Context;
 use std::path::PathBuf;
-use crate::write_to_r_lang;
 use crate::Environment;
 use crate::my_io::execute_r_with_path2;
-use crate::write_header;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::fs;
 use std::borrow::Cow;
 use rustyline::highlight::CmdKind;
+use crate::utils::project_management::write_header;
+use crate::utils::project_management::write_to_r_lang;
 
 // Coloration ANSI
 mod colors {

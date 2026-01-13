@@ -1,6 +1,13 @@
 use std::collections::HashSet;
 use std::collections::HashMap;
+use crate::PackageManager;
 use crate::Type;
+use crate::fs;
+
+const R_FUNCTIONS: &str = "../configs/src/functions_R.txt";
+const TYPED_R_FUNCTIONS: &str = "../configs/std/std_R.ty";
+const JS_FUNCTIONS: &str = "../configs/src/functions_JS.txt";
+const TYPED_JS_FUNCTIONS: &str = "../configs/std/std_JS.ty";
 
 const BLACKLIST: [&str; 59] = ["test_that", "expect_true", "`+`", "`*`", "`-`", "`/`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array", "cat", "rep", "str", "oldClass", "stop", "invisible", "capture__output", "paste0", "unclass", "exists", "vector", "tags", "paste"];
 
@@ -79,4 +86,18 @@ pub fn validate_vectorization(set: HashSet<(i32, Type)>) -> Option<HashSet<(i32,
     } else {
         None
     }
+}
+
+pub fn standard_library() {
+    let std_r_txt = fs::read_to_string(R_FUNCTIONS).unwrap();
+    PackageManager::to_name_list(&std_r_txt)
+        .unwrap().set_target_path("../configs/bin/").set_name("std_r").save();
+    PackageManager::to_header(TYPED_R_FUNCTIONS)
+        .unwrap().set_target_path("../configs/bin/").set_name("std_r_typed").save();
+
+    let std_js_txt = fs::read_to_string(JS_FUNCTIONS).unwrap();
+    PackageManager::to_name_list(&std_js_txt)
+        .unwrap().set_target_path("../configs/bin/").set_name("std_js").save();
+    PackageManager::to_header(TYPED_JS_FUNCTIONS)
+        .unwrap().set_target_path("../configs/bin/").set_name("std_js_typed").save();
 }

@@ -2,7 +2,7 @@ use crate::context::context::unification_map::get_unification_map_for_vectorizab
 use crate::type_checking::type_checker::match_types_to_generic;
 use crate::context::context::unification_map::UnificationMap;
 use crate::type_checking::type_comparison::reduce_type;
-use crate::utils::filter_std::not_in_blacklist;
+use crate::utils::standard_library::not_in_blacklist;
 use crate::type_checking::type_checker::typing;
 use crate::r#type::argument_type::ArgumentType;
 use crate::lang::var_function::VarFunction;

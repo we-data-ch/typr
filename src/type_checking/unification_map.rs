@@ -1,4 +1,4 @@
-use crate::utils::filter_std::validate_vectorization;
+use crate::utils::standard_library::validate_vectorization;
 use crate::type_checking::unification;
 use crate::help_message::ErrorMsg;
 use std::collections::HashSet;

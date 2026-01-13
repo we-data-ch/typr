@@ -1,22 +1,22 @@
-use crate::run_file;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use crate::new;
-use crate::check_file;
-use crate::check_project;
-use crate::build_file;
-use crate::build_project;
-use crate::run_project;
-use crate::test;
-use crate::pkg_install;
-use crate::pkg_uninstall;
-use crate::document;
-use crate::use_package;
-use crate::load;
-use crate::cran;
-use crate::standard_library;
-use crate::clean;
 use crate::interface::repl;
+use crate::utils::standard_library::standard_library;
+use crate::utils::project_management::run_file;
+use crate::utils::project_management::new;
+use crate::utils::project_management::check_file;
+use crate::utils::project_management::check_project;
+use crate::utils::project_management::build_file;
+use crate::utils::project_management::build_project;
+use crate::utils::project_management::run_project;
+use crate::utils::project_management::test;
+use crate::utils::project_management::pkg_install;
+use crate::utils::project_management::pkg_uninstall;
+use crate::utils::project_management::document;
+use crate::utils::project_management::use_package;
+use crate::utils::project_management::load;
+use crate::utils::project_management::cran;
+use crate::utils::project_management::clean;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
