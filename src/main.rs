@@ -199,16 +199,16 @@ fn new(name: &str) {
         std::process::exit(1);
     }
     
-    // Architecture classique d'un package R
+    // Classic architecture of a R package
     let package_folders = vec![
-        "R",           // Code R
-        "TypR",        // Code TypR source
+        "R",           // R code
+        "TypR",        // TypR code
         "man",         // Documentation
         "tests",       // Tests
-        "data",        // Données
-        "inst",        // Fichiers installés
-        "src",         // Code source (C++, Fortran, etc.)
-        "vignettes",   // Vignettes/tutoriels
+        "data",        // Data
+        "inst",        // Installed files
+        "src",         // Source code (C++, Fortran, etc.)
+        "vignettes",   // Vignettes/tutorials
     ];
     
     for folder in package_folders {
@@ -218,13 +218,13 @@ fn new(name: &str) {
         }
     }
     
-    // Créer les sous-dossiers spécifiques
+    // Create a specific sub-folder
     let tests_testthat = project_path.join("tests/testthat");
     if let Err(e) = fs::create_dir(&tests_testthat) {
         eprintln!("Avertissement: Impossible de créer le dossier tests/testthat: {}", e);
     }
     
-    // Créer les fichiers du package R
+    // Create files for R's package
     let package_files = vec![
         ("DESCRIPTION", include_str!("../configs/DESCRIPTION").replace("{{PACKAGE_NAME}}", name)),
         ("NAMESPACE", include_str!("../configs/NAMESPACE").replace("{{PACKAGE_NAME}}", name)),
@@ -292,7 +292,6 @@ fn build_file(path: &PathBuf) {
     let lang = parse_code(path, Environment::StandAlone);
     let dir = PathBuf::from(".");
     
-    // HEADER
     write_std_for_type_checking(&dir);
     let context = Context::default();
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
@@ -313,7 +312,6 @@ fn run_file(path: &PathBuf) {
     let lang = parse_code(path, Environment::StandAlone);
     let dir = PathBuf::from(".");
 
-    //HEADER
     write_std_for_type_checking(&dir);
     let context = Context::default();
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
@@ -338,18 +336,14 @@ fn test() {
     match output {
         Ok(output) => {
             if output.status.success() {
-                // Afficher la sortie standard si elle existe
                 if !output.stdout.is_empty() {
                     println!("\n{}", String::from_utf8_lossy(&output.stdout));
                 }
             } else {
                 eprintln!("✗ Error while running tests");
-                
-                // Afficher les erreurs
                 if !output.stderr.is_empty() {
                     eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
                 }
-                
                 std::process::exit(1);
             }
         }
@@ -384,7 +378,6 @@ fn get_package_name() -> Result<String, String> {
 fn pkg_install() {
     println!("Installation du package...");
     
-    // Récupérer le répertoire courant (racine du projet)
     let current_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -394,10 +387,7 @@ fn pkg_install() {
     };
     
     let project_path = current_dir.to_str().unwrap();
-    
-    // Construire la commande R
     let r_command = format!("devtools::install_local('{}')", project_path);
-    
     println!("Exécution de: R -e \"{}\"", r_command);
     
     let output = Command::new("R")
@@ -410,14 +400,11 @@ fn pkg_install() {
             if output.status.success() {
                 println!("✓ Package installé avec succès!");
                 
-                // Afficher la sortie standard si elle existe
                 if !output.stdout.is_empty() {
                     println!("\n{}", String::from_utf8_lossy(&output.stdout));
                 }
             } else {
                 eprintln!("✗ Erreur lors de l'installation du package");
-                
-                // Afficher les erreurs
                 if !output.stderr.is_empty() {
                     eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
                 }
@@ -436,7 +423,6 @@ fn pkg_install() {
 fn pkg_uninstall() {
     println!("Désinstallation du package...");
     
-    // Récupérer le nom du package depuis le fichier DESCRIPTION
     let package_name = match get_package_name() {
         Ok(name) => name,
         Err(e) => {
@@ -446,10 +432,7 @@ fn pkg_uninstall() {
     };
     
     println!("Désinstallation du package '{}'...", package_name);
-    
-    // Construire la commande R pour désinstaller
     let r_command = format!("remove.packages('{}')", package_name);
-    
     println!("Exécution de: R -e \"{}\"", r_command);
     
     let output = Command::new("R")
@@ -462,12 +445,10 @@ fn pkg_uninstall() {
             if output.status.success() {
                 println!("✓ Package '{}' désinstallé avec succès!", package_name);
                 
-                // Afficher la sortie standard si elle existe
                 if !output.stdout.is_empty() {
                     println!("\n{}", String::from_utf8_lossy(&output.stdout));
                 }
             } else {
-                // Note: remove.packages peut retourner un statut d'erreur même si le package n'était pas installé
                 eprintln!("Note: Le package '{}' n'était peut-être pas installé ou une erreur s'est produite", package_name);
                 
                 if !output.stderr.is_empty() {
@@ -484,20 +465,17 @@ fn pkg_uninstall() {
 }
 
 fn document() {
-    println!("Génération de la documentation du package...");
+    println!("Generating package documentation...");
     
-    // Récupérer le répertoire courant (racine du projet)
     let current_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => {
-            eprintln!("Erreur lors de l'obtention du répertoire courant: {}", e);
+            eprintln!("Error obtaining current directory: {}", e);
             std::process::exit(1);
         }
     };
     
     let project_path = current_dir.to_str().unwrap();
-    
-    // Construire la commande R
     let r_command = format!("devtools::document('{}')", project_path);
     
     let output = Command::new("R")
@@ -510,15 +488,12 @@ fn document() {
             if output.status.success() {
                 println!("✓ Documentation successfully generated!");
                 
-                // Afficher la sortie standard si elle existe
                 if !output.stdout.is_empty() {
-                    //println!("\n{}", String::from_utf8_lossy(&output.stdout));
                     println!("")
                 }
             } else {
                 eprintln!("✗ Error while generating documentation");
                 
-                // Afficher les erreurs
                 if !output.stderr.is_empty() {
                     eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
                 }
@@ -535,12 +510,9 @@ fn document() {
 }
 
 fn use_package(package_name: &str) {
-    println!("Ajout du package '{}' comme dépendance...", package_name);
-    
-    // Construire la commande R
+    println!("Adding the package '{}' as a dependency...", package_name);
     let r_command = format!("devtools::use_package('{}')", package_name);
-    
-    println!("Exécution de: R -e \"{}\"", r_command);
+    println!("Execution of: R -e \"{}\"", r_command);
     
     let output = Command::new("R")
         .arg("-e")
@@ -550,16 +522,14 @@ fn use_package(package_name: &str) {
     match output {
         Ok(output) => {
             if output.status.success() {
-                println!("✓ Package '{}' ajouté avec succès aux dépendances!", package_name);
+                println!("✓ Package '{}' successfully added to dependencies!", package_name);
                 
-                // Afficher la sortie standard si elle existe
                 if !output.stdout.is_empty() {
                     println!("\n{}", String::from_utf8_lossy(&output.stdout));
                 }
             } else {
-                eprintln!("✗ Erreur lors de l'ajout du package '{}'", package_name);
+                eprintln!("✗ Error adding package '{}'", package_name);
                 
-                // Afficher les erreurs
                 if !output.stderr.is_empty() {
                     eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
                 }
@@ -568,15 +538,14 @@ fn use_package(package_name: &str) {
             }
         }
         Err(e) => {
-            eprintln!("Erreur lors de l'exécution de la commande R: {}", e);
-            eprintln!("Assurez-vous que R et devtools sont installés.");
+            eprintln!("Error executing command R: {}", e);
+            eprintln!("Make sure that R and devtools are installed.");
             std::process::exit(1);
         }
     }
 }
 
 fn load() {
-    // Construire la commande R
     let r_command = "devtools::load_all('.')".to_string();
     
     println!("Execution of: R -e \"{}\"", r_command);
@@ -590,15 +559,11 @@ fn load() {
         Ok(output) => {
             if output.status.success() {
                 println!("✓ Elements loaded with success!");
-                
-                // Afficher la sortie standard si elle existe
                 if !output.stdout.is_empty() {
                     println!("\n{}", String::from_utf8_lossy(&output.stdout));
                 }
             } else {
                 eprintln!("✗ Error while loading elements");
-                
-                // Afficher les erreurs
                 if !output.stderr.is_empty() {
                     eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
                 }
@@ -615,9 +580,7 @@ fn load() {
 }
 
 fn cran() {
-    // Construire la commande R
     let r_command = "devtools::check()".to_string();
-    
     println!("Execution of: R -e \"{}\"", r_command);
     
     let output = Command::new("R")
@@ -629,15 +592,11 @@ fn cran() {
         Ok(output) => {
             if output.status.success() {
                 println!("✓ Checks passed with success!");
-                
-                // Afficher la sortie standard si elle existe
                 if !output.stdout.is_empty() {
                     println!("\n{}", String::from_utf8_lossy(&output.stdout));
                 }
             } else {
                 eprintln!("✗ Error while checking the project");
-                
-                // Afficher les erreurs
                 if !output.stderr.is_empty() {
                     eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
                 }
@@ -678,7 +637,6 @@ fn clean() {
                     if str_name.starts_with(".") {
                         if path.is_file() {
                             let _ = fs::remove_file(&path);
-                            //println!("Supprimé: {:?}", path);
                         }
                     }
                 }
@@ -689,18 +647,13 @@ fn clean() {
 
 fn main() {
     let cli = Cli::parse();
-
-    // Si un fichier est fourni en argument principal (sans sous-commande)
     if let Some(path) = cli.file {
         if cli.command.is_none() {
-            // Comportement original : exécuter le fichier directement
-            // run single file
             run_file(&path);
             return;
         }
     }
 
-    // Traitement des sous-commandes
     match cli.command {
         Some(Commands::New { name }) => {
             new(&name)
@@ -708,19 +661,19 @@ fn main() {
         Some(Commands::Check { file }) => {
             match file {
                 Some(path) => check_file(&path),
-                None => check_project(),
+                _ => check_project(),
             }
         },
         Some(Commands::Build { file }) => {
             match file {
                 Some(path) => build_file(&path),
-                None => build_project(),
+                _ => build_project(),
             }
         },
         Some(Commands::Run { file }) => {
             match file {
                 Some(path) => run_file(&path),
-                None => run_project(),
+                _ => run_project(),
             }
         },
         Some(Commands::Test) => {
@@ -753,7 +706,7 @@ fn main() {
         Some(Commands::Repl) => {
             repl::start()
         },
-        None => {
+        _ => {
             println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");
             std::process::exit(1);
         }
