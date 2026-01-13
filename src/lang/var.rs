@@ -43,7 +43,6 @@ impl From<Permission> for bool {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub struct Var(pub Name, pub Permission, pub IsPackageOpaque, pub Type, pub HelpData);
 
-// main
 impl Var {
 
     pub fn alias(name: &str, params: &[Type]) -> Self {
@@ -79,7 +78,6 @@ impl Var {
             }
             
             if keep_candidat {
-                // Supprimer les éléments dominés (en ordre inverse pour les indices)
                 for &i in indices_to_delete.iter().rev() {
                     mins.remove(i);
                 }

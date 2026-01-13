@@ -52,7 +52,6 @@ pub enum Op {
     Empty(HelpData),
 }
 
-//main
 impl Op {
 
     pub fn to_type(&self) -> Option<Type> {

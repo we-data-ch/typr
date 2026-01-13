@@ -113,11 +113,9 @@ pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, e
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// Fichier à exécuter directement
     #[arg(value_name = "FILE")]
     file: Option<PathBuf>,
 
-    /// Langage cible (r, typescript, assemblyscript)
     #[arg(short, long, value_name = "TARGET", default_value = "r")]
     target: Option<String>,
 
@@ -127,46 +125,32 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Creat a new project
     New {
-        /// Project Name
         name: String,
     },
-    /// check parsing and typechecking
     Check {
-        /// Optional file to check (if not provided, checks project)
         #[arg(value_name = "FILE")]
         file: Option<PathBuf>,
     },
-    /// Check and build the targeted code
     Build {
-        /// Optional file to build (if not provided, builds project)
         #[arg(value_name = "FILE")]
         file: Option<PathBuf>,
     },
-    /// Build and execute the targeted code
     Run {
-        /// Optional file to run (if not provided, runs project)
         #[arg(value_name = "FILE")]
         file: Option<PathBuf>,
     },
-    /// Run tests
     Test,
-    /// Package management commands
     Pkg {
         #[command(subcommand)]
         pkg_command: PkgCommands,
     },
-    /// Generate package documentation
     Document,
-    /// Add a package dependency
     Use {
-        /// Package name to add as dependency
         package_name: String,
     },
     Load,
     Cran,
-    /// Update the standard library
     Std,
     Clean,
     Repl
@@ -174,9 +158,7 @@ enum Commands {
 
 #[derive(Subcommand, Debug)]
 enum PkgCommands {
-    /// Install the package locally
     Install,
-    /// Uninstall the package from local machine
     Uninstall,
 }
 
@@ -218,13 +200,11 @@ fn new(name: &str) {
         }
     }
     
-    // Create a specific sub-folder
     let tests_testthat = project_path.join("tests/testthat");
     if let Err(e) = fs::create_dir(&tests_testthat) {
         eprintln!("Avertissement: Impossible de créer le dossier tests/testthat: {}", e);
     }
     
-    // Create files for R's package
     let package_files = vec![
         ("DESCRIPTION", include_str!("../configs/DESCRIPTION").replace("{{PACKAGE_NAME}}", name)),
         ("NAMESPACE", include_str!("../configs/NAMESPACE").replace("{{PACKAGE_NAME}}", name)),

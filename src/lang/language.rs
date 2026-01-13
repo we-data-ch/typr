@@ -73,8 +73,8 @@ pub enum Lang {
     Union(Box<Lang>, Box<Lang>, HelpData),
     Scope(Vec<Lang>, HelpData),
     Function(Vec<ArgumentType>, Type, Box<Lang>, HelpData),
-    Module(String, Vec<Lang>, ModulePosition, Config, HelpData), // module name { lines }
-    ModuleDecl(String, HelpData), // to create an env
+    Module(String, Vec<Lang>, ModulePosition, Config, HelpData),
+    ModuleDecl(String, HelpData),
     Variable(String, Permission, bool, Type, HelpData),
     FunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
     VecFunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
@@ -91,9 +91,9 @@ pub enum Lang {
     Lines(Vec<Lang>, HelpData),
     Assign(Box<Lang>, Box<Lang>, HelpData),
     Comment(String, HelpData),
-    ModuleImport(String, HelpData), // mod name;
-    Import(Type, HelpData), // type alias
-    GenFunc(String, String, HelpData), //body, name, helpdata
+    ModuleImport(String, HelpData),
+    Import(Type, HelpData),
+    GenFunc(String, String, HelpData),
     Test(Vec<Lang>, HelpData),
     Return(Box<Lang>, HelpData),
     VecBlock(String, HelpData),
@@ -101,14 +101,14 @@ pub enum Lang {
     Library(String, HelpData),
     Exp(String, HelpData),
     Signature(Var, Type, HelpData),
-    ForLoop(Var, Box<Lang>, Box<Lang>, HelpData), // variable, iterator, body
-    RFunction(Vec<Lang>, String, HelpData), // variable, iterator, body
+    ForLoop(Var, Box<Lang>, Box<Lang>, HelpData),
+    RFunction(Vec<Lang>, String, HelpData),
     KeyValue(String, Box<Lang>, HelpData),
     Vector(Vec<Lang>, HelpData),
     Sequence(Vec<Lang>, HelpData),
     Not(Box<Lang>, HelpData),
     TestBlock(Box<Lang>, HelpData),
-    JSBlock(Box<Lang>, u32, HelpData), // = (js_code, context_id, help_data)
+    JSBlock(Box<Lang>, u32, HelpData),
     Use(Box<Lang>, Box<Lang>, HelpData),
     Empty(HelpData),
     WhileLoop(Box<Lang>, Box<Lang>, HelpData),
@@ -175,7 +175,6 @@ fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
     
 }
 
-//main
 impl Lang {
 
     pub fn save_in_memory(&self) -> bool {
@@ -428,7 +427,6 @@ impl Lang {
         (res.0.clone(), res.1, res.2)
     }
 
-    //main
     pub fn to_js(&self, context: &Context) -> (String, Context) {
         match self {
             Lang::Char(val, _) => {
@@ -528,7 +526,6 @@ impl Lang {
         }
     }
 
-    //main
     pub fn to_simple_r(&self, context: &Context) -> (String, Context) {
         match self {
             Lang::Number(n, _) => (n.to_string(), context.clone()),
@@ -700,7 +697,6 @@ fn format_backtick(s: String) -> String {
     "`".to_string() + &s.replace("`", "") + "`"
 }
 
-//main
 impl RTranslatable<(String, Context)> for Lang {
     fn to_r(&self, cont: &Context) -> (String, Context) {
         let result = match self {
