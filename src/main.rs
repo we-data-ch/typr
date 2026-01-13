@@ -18,13 +18,13 @@ use crate::help_message::TypeError;
 use crate::lang::argument_value;
 use error_message::help_message;
 use crate::config::Environment;
-use clap::{Parser, Subcommand};
 use crate::engine::parse_code;
 use error_message::help_data;
 use utils::metaprogramming;
 use parsing::parser::parse;
 use r#type::function_type;
 use crate::context::graph;
+use crate::interface::cli;
 use crate::lang::var::Var;
 use std::process::Command;
 use crate::config::Config;
@@ -40,7 +40,6 @@ use std::path::PathBuf;
 use parsing::elements;
 use my_io::read_file;
 use context::config;
-use interface::repl;
 use std::path::Path;
 use lang::language;
 use utils::builder;
@@ -108,57 +107,6 @@ pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, e
             ).unwrap();
 }
 
-#[derive(Parser)]
-#[command(author, version, about, long_about = None)]
-struct Cli {
-    #[arg(value_name = "FILE")]
-    file: Option<PathBuf>,
-
-    #[arg(short, long, value_name = "TARGET", default_value = "r")]
-    target: Option<String>,
-
-    #[command(subcommand)]
-    command: Option<Commands>,
-}
-
-#[derive(Subcommand, Debug)]
-enum Commands {
-    New {
-        name: String,
-    },
-    Check {
-        #[arg(value_name = "FILE")]
-        file: Option<PathBuf>,
-    },
-    Build {
-        #[arg(value_name = "FILE")]
-        file: Option<PathBuf>,
-    },
-    Run {
-        #[arg(value_name = "FILE")]
-        file: Option<PathBuf>,
-    },
-    Test,
-    Pkg {
-        #[command(subcommand)]
-        pkg_command: PkgCommands,
-    },
-    Document,
-    Use {
-        package_name: String,
-    },
-    Load,
-    Cran,
-    Std,
-    Clean,
-    Repl
-}
-
-#[derive(Subcommand, Debug)]
-enum PkgCommands {
-    Install,
-    Uninstall,
-}
 
 
 fn new(name: &str) {
@@ -624,69 +572,5 @@ fn clean() {
 }
 
 fn main() {
-    let cli = Cli::parse();
-    if let Some(path) = cli.file {
-        if cli.command.is_none() {
-            run_file(&path);
-            return;
-        }
-    }
-
-    match cli.command {
-        Some(Commands::New { name }) => {
-            new(&name)
-        },
-        Some(Commands::Check { file }) => {
-            match file {
-                Some(path) => check_file(&path),
-                _ => check_project(),
-            }
-        },
-        Some(Commands::Build { file }) => {
-            match file {
-                Some(path) => build_file(&path),
-                _ => build_project(),
-            }
-        },
-        Some(Commands::Run { file }) => {
-            match file {
-                Some(path) => run_file(&path),
-                _ => run_project(),
-            }
-        },
-        Some(Commands::Test) => {
-            test()
-        },
-        Some(Commands::Pkg { pkg_command }) => {
-            match pkg_command {
-                PkgCommands::Install => pkg_install(),
-                PkgCommands::Uninstall => pkg_uninstall(),
-            }
-        },
-        Some(Commands::Document) => {
-            document()
-        },
-        Some(Commands::Use { package_name }) => {
-            use_package(&package_name)
-        },
-        Some(Commands::Load) => {
-            load()
-        },
-        Some(Commands::Cran) => {
-            cran()
-        },
-        Some(Commands::Std) => {
-            standard_library()
-        },
-        Some(Commands::Clean) => {
-            clean()
-        },
-        Some(Commands::Repl) => {
-            repl::start()
-        },
-        _ => {
-            println!("Please specify a subcommand or file to execute");
-            std::process::exit(1);
-        }
-    }
+    cli::start()
 }

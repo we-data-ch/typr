@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize};
 use crate::Context;
-use crate::Parser;
+use clap::Parser;
 use std::fmt;
 
 #[derive(Debug, Parser, Clone, Copy, PartialEq, Serialize, Deserialize)]

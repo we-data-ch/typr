@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::config::TargetLanguage;
 use serde::{Serialize, Deserialize};
+use crate::config::TargetLanguage;
 use std::collections::HashSet;
 use crate::graph::TypeSystem;
 use std::iter::Rev;
