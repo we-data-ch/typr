@@ -1,3 +1,4 @@
+use crate::utils::filter_std::validate_vectorization;
 use crate::type_checking::unification;
 use crate::help_message::ErrorMsg;
 use std::collections::HashSet;
@@ -110,4 +111,12 @@ impl Default for UnificationMap {
     fn default() -> Self {
         Self(vec![])
     }
+}
+
+pub fn get_unification_map_for_vectorizable_function(types: Vec<Type>, _name: &str) -> Option<UnificationMap> {
+    let unique_types = types.iter()
+        .map(|x| x.get_size_type())
+        .collect::<HashSet<_>>();
+    validate_vectorization(unique_types)
+        .map(|x| UnificationMap::from(x))
 }

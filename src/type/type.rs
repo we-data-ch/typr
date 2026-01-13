@@ -7,7 +7,6 @@ use crate::r#type::type_operator::TypeOperator;
 use crate::r#type::type_category::TypeCategory;
 use crate::r#type::argument_type::ArgumentType;
 use crate::error_message::help_data::HelpData;
-use crate::context::context::generate_arg;
 use crate::r#type::type_printer::format2;
 use crate::r#type::type_printer::format;
 use crate::function_type::FunctionType;
@@ -27,6 +26,24 @@ use crate::Context;
 use crate::builder;
 use crate::Var;
 use std::fmt;
+
+
+pub fn generate_arg(num: usize) -> String {
+    match num {
+        0 => "a",
+        1 => "b",
+        2 => "c",
+        3 => "d",
+        4 => "e",
+        5 => "f",
+        6 => "g",
+        7 => "h",
+        8 => "i",
+        9 => "j",
+        10 => "k",
+        _ => "overflow"
+    }.to_string()
+}
 
 fn to_string<T: ToString>(v: &[T]) -> String {
     let res = v.iter()

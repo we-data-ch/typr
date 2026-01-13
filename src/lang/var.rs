@@ -45,6 +45,16 @@ pub struct Var(pub Name, pub Permission, pub IsPackageOpaque, pub Type, pub Help
 
 impl Var {
 
+    pub fn add_backticks_if_percent(self) -> Self {
+        let s = self.get_name();
+        let res = if s.starts_with('%') && s.ends_with('%') {
+            format!("`{}`", s)
+        } else {
+            s.to_string()
+        };
+        self.set_name(&res)
+    } 
+
     pub fn alias(name: &str, params: &[Type]) -> Self {
         Var::from(name)
             .set_type(Type::Params(params.to_vec(), HelpData::default()))

@@ -1,64 +1,27 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+use crate::context::context::unification_map::get_unification_map_for_vectorizable_function;
+use crate::type_checking::type_checker::match_types_to_generic;
+use crate::context::context::unification_map::UnificationMap;
+use crate::type_checking::type_comparison::reduce_type;
+use crate::utils::filter_std::not_in_blacklist;
+use crate::type_checking::type_checker::typing;
 use crate::r#type::argument_type::ArgumentType;
+use crate::lang::var_function::VarFunction;
+use crate::type_checking::unification_map;
+use crate::context::vartype::VarType;
+use crate::help_message::ErrorMsg;
+use crate::config::TargetLanguage;
 use crate::r#type::r#type::Type;
+use std::collections::HashSet;
+use crate::graph::TypeSystem;
 use crate::language::Lang;
 use crate::lang::var::Var;
-use crate::context::vartype::VarType;
-use crate::Environment;
-use crate::help_data::HelpData;
-use crate::graph::Graph;
-use crate::TypeError;
-use crate::help_message::ErrorMsg;
-use std::iter::Rev;
 use crate::config::Config;
+use crate::graph::Graph;
+use crate::Environment;
+use crate::TypeError;
+use std::iter::Rev;
 use crate::builder;
-use crate::function_type::FunctionType;
-use crate::config::TargetLanguage;
-use rpds::Vector;
-use crate::lang::var_function::VarFunction;
-use crate::graph::TypeSystem;
-use std::collections::HashSet;
-use std::collections::HashMap;
 use std::ops::Add;
-use crate::type_checking::unification_map;
-use crate::type_checking::type_checker::typing;
-use crate::type_checking::type_comparison::reduce_type;
-use crate::context::context::unification_map::UnificationMap;
-use crate::type_checking::type_checker::match_types_to_generic;
-
-const BLACKLIST: [&str; 59] = ["test_that", "expect_true", "`+`", "`*`", "`-`", "`/`", "while", "repeat", "for", "if", "function", "||", "|", ">=", "<=", "<", ">", "==", "=", "+", "^", "&&", "&", "/", "next", "break", ".POSIXt", "source", "class", "union", "c", "library", "return", "list", "try", "integer", "character", "logical", "UseMethod", "length", "sapply", "inherits", "all", "lapply", "unlist", "array", "cat", "rep", "str", "oldClass", "stop", "invisible", "capture__output", "paste0", "unclass", "exists", "vector", "tags", "paste"];
-
-pub fn not_in_blacklist(name: &str) -> bool {
-    let hs = BLACKLIST.iter().cloned().collect::<HashSet<&str>>();
-    !hs.contains(name) 
-        && !name.contains("$") 
-        && !name.contains("~")
-        && !name.contains("||")
-        && !name.contains("|")
-        && !name.contains("&")
-        && !name.contains("/")
-        && !name.contains("@")
-        && !name.contains("{")
-        && !name.contains("[[")
-        && !name.contains("[")
-        && !name.contains("(")
-        && !name.contains("!=")
-        && !name.contains("!")
-        && !name.contains(":::")
-        && !name.contains("::")
-        && !name.contains(":")
-        && !name.contains("-")
-        && !name.contains(".POSIXt")
-        && !name.contains(".")
-}
-
-pub fn add_backticks_if_percent(s: &str) -> String {
-    if s.starts_with('%') && s.ends_with('%') {
-        format!("`{}`", s)
-    } else {
-        s.to_string()
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
@@ -91,7 +54,6 @@ impl From<Vec<(Lang, Type)>> for  Context {
    } 
 }
 
-//main
 impl Context {
     pub fn new(types: Vec<(Var, Type)>) -> Context {
         Context {
@@ -169,14 +131,6 @@ impl Context {
                 (bo1 == bo2) && typ1.is_subtype(typ2, self);
             if conditions { Some(type_.clone()) } else { None }
         }).next()
-    }
-
-    fn is_matching(&self, var1: &Var, var2: &Var) -> bool {
-        let Var(name1, perm1, _bo1, params1, _h1) = var1;
-        let Var(name2, perm2, _bo2, params2, _h2) = var2;
-        (name1 == name2) &&
-            (perm1 == perm2) && 
-            params1.is_subtype(params2, self)
     }
 
     fn is_matching_alias(&self, var1: &Var, var2: &Var) -> bool {
@@ -290,11 +244,10 @@ impl Context {
 
     pub fn module_aliases(&self) -> Vec<(Var, Type)> {
         self.variables()
-            .flat_map(|(var, typ)| typ.clone().to_module_type())
+            .flat_map(|(_, typ)| typ.clone().to_module_type())
             .flat_map(|module| module.get_aliases())
             .collect()
     }
-
 
     pub fn get_type_anotations(&self) -> String {
         self.aliases()
@@ -353,7 +306,7 @@ impl Context {
             .filter(|(var, _)| !var.get_type().is_any())
             .collect::<HashSet<_>>();
         res.iter()
-           .map(|(var, typ)| (var.clone().set_name(&add_backticks_if_percent(&var.get_name())), typ.clone()))
+           .map(|(var, typ)| (var.clone().add_backticks_if_percent(), typ.clone()))
            .collect()
     }
 
@@ -370,7 +323,7 @@ impl Context {
             self.typing_context
                 .standard_library()
                 .iter()
-                .find(|(var2, typ)| var2.get_name() == var1.get_name())
+                .find(|(var2, _)| var2.get_name() == var1.get_name())
                 .expect(&format!("Can't find var {} in the context:\n {}", 
                        var1.to_string(), self.display_typing_context()))
                 .clone()
@@ -393,7 +346,7 @@ impl Context {
             let std_lib = self.typing_context
                 .standard_library();
             let res = std_lib.iter()
-                .find(|(var2, typ)| var2.get_name() == name1)
+                .find(|(var2, _)| var2.get_name() == name1)
                 .map(|(_, typ)| typ);
             match res {
                 Some(val) => Ok(vec![val.clone()]),
@@ -402,36 +355,6 @@ impl Context {
         } else { 
             Ok(res)
         }
-    }
-
-    fn build_concret_functions(&self, var_typ: &[(String, Var, Type)]) -> Vec<Lang> {
-        var_typ.iter().map(|(par, var, typ)| {
-            let t = var.get_type();
-            match typ {
-                Type::Function(args, t2, h) => {
-                   let manips = args.iter().enumerate()
-                       .map(|(i, argtyp)| manip(&generate_arg(i), argtyp.clone(), t.clone(), par))
-                       .collect::<Vec<_>>();
-                   let t_end = (**t2).clone();
-                   let manip1 = if t_end == t { Manip::Set(par.to_string()) } else {Manip::Same("a".to_string())};
-                   let new_args = args.iter()
-                       .map(|ty| if *ty == t {typ.clone()} else { ty.clone() } )
-                       .enumerate()
-                       .map(|(i, typ)| ArgumentType::new(&generate_arg(i), &typ.clone()))
-                       .collect::<Vec<_>>();
-                   let new_t2 = if t_end == t { typ.clone() } else {t_end.clone()};
-                   Lang::Let(
-                       Box::new(var.clone().into()),
-                        Type::Empty(HelpData::default()),
-                        Box::new(
-                           Lang::Function(new_args, new_t2,
-                                          Box::new(build_concret_function(&manips, manip1, var.clone())), h.clone())
-                                ),
-                            h.clone())
-                },
-                _ => builder::empty_lang()
-            }
-        }).collect()
     }
 
     pub fn get_type_from_class(&self, class: &str) -> Type {
@@ -497,87 +420,13 @@ impl Context {
         self.config.environment == Environment::Project
     }
 
-    fn validate_vectorization(set: HashSet<(i32, Type)>) -> Option<HashSet<(i32, Type)>> {
-        let mut number_by_type: HashMap<Type, HashSet<i32>> = HashMap::new();
-        
-        for (num, typ) in &set {
-            number_by_type.entry((*typ).clone())
-                .or_insert_with(HashSet::new)
-                .insert(*num);
-        }
-        
-        // Check if each type don't have more than two related number
-        for numeros in number_by_type.values() {
-            if numeros.len() > 2 {
-                return None;
-            }
-        }
-        
-        // If there is 2 numbers, must be only 1 or n
-        let mut n_option: Option<i32> = None;
-        
-        for numeros in number_by_type.values() {
-            if numeros.len() == 2 {
-                if !numeros.contains(&1) {
-                    return None;
-                }
-                let n = numeros.iter().find(|&&x| x != 1).copied().unwrap();
-                if let Some(n_existant) = n_option {
-                    if n != n_existant {
-                        return None;
-                    }
-                } else {
-                    n_option = Some(n);
-                }
-            } else if numeros.len() == 1 {
-                let num = *numeros.iter().next().unwrap();
-                if num != 1 {
-                    if let Some(n_existant) = n_option {
-                        if num != n_existant {
-                            return None;
-                        }
-                    } else {
-                        n_option = Some(num);
-                    }
-                }
-            }
-        }
-
-        if set.iter().max_by(|x, y| x.0.cmp(&y.0)).unwrap().0 > 1 {
-            Some(set)
-        } else {
-            None
-        }
-        
-    }
-
-    pub fn get_unification_map_for_vectorizable_function(types: Vec<Type>, name: &str) -> Option<UnificationMap> {
-        let unique_types = types.iter()
-            .map(|x| x.get_size_type())
-            .collect::<HashSet<_>>();
-        Self::validate_vectorization(unique_types)
-            .map(|x| UnificationMap::from(x))
-    }
-
-    fn var_typing(&self, val: &Lang) -> Vec<Type> {
-        match val {
-            Lang::Variable(name, _, _, typ, _) => {
-                if typ.is_empty() {
-                    self.get_types_from_name(name)
-                } else {
-                    vec![typing(self, val).0]
-                }
-            },
-            va =>  vec![typing(self, va).0]
-        }
-    }
 
     pub fn get_unification_map(&self, values: &[Lang], param_types: &[Type], name: &str) 
         -> Option<UnificationMap> {
         let entered_types = values.iter()
             .map(|val| typing(self, val).0).collect::<Vec<_>>();
 
-        let unification_map = Self::get_unification_map_for_vectorizable_function(entered_types.clone(), name);
+        let unification_map = get_unification_map_for_vectorizable_function(entered_types.clone(), name);
         let res = entered_types.iter()
             .zip(param_types.iter())
             .flat_map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
@@ -625,14 +474,6 @@ impl Context {
             .collect::<Vec<_>>()
     }
 
-    fn js_constructor(typ: &Type) -> String {
-        todo!();
-    }
-
-    fn js_function(typ: &Lang) -> String {
-        todo!();
-    }
-
     pub fn get_related_functions(&self, typ: &Type, functions: &VarFunction) -> Vec<Lang> {
         let names = self.typing_context.get_related_functions(typ);
         functions.get_bodies(&names)
@@ -646,19 +487,7 @@ impl Context {
             }).collect()
     }
 
-    fn js_class_definition(&self, var: &Var, typ: &Type, functions: &VarFunction) -> Option<String> {
-        let super_typs = self.subtypes.get_supertypes(typ, self);
-        let functions = super_typs.iter().chain([typ.clone()].iter())
-            .flat_map(|super_typ| self.get_related_functions(super_typ, functions))
-            .map(|function| Self::js_function(&function))
-            .collect::<Vec<_>>().join("\n");
-        if functions != "" {
-            let constructor = Self::js_constructor(typ);
-            Some(format!("class {} {{ {}\n\n{} }} ", var.get_name(), constructor, functions))
-        } else { None }
-    }
-
-    pub fn get_type_definition(&self, functions: &VarFunction) -> String {
+    pub fn get_type_definition(&self, _functions: &VarFunction) -> String {
         match self.get_target_language() {
             TargetLanguage::R => {
                 self.typing_context.aliases.iter()
@@ -667,9 +496,7 @@ impl Context {
                     .collect::<Vec<_>>().join("\n")
             },
             TargetLanguage::JS => {
-                self.typing_context.aliases.iter()
-                    .flat_map(|(var, typ)| self.js_class_definition(var, typ, functions))
-                    .collect::<Vec<_>>().join("\n")
+                todo!();
             }
         }
     }
@@ -739,90 +566,6 @@ impl Context {
         }
     }
 
-}
-
-fn build_concret_function(m: &[Manip], end: Manip, name: Var) -> Lang {
-    let args = m.iter()
-        .map(|x| x.to_lang())
-        .collect::<Vec<_>>();
-    match end {
-        Manip::Set(param) => {
-            Lang::FunctionApp(
-                Box::new(Var::from_name("set").to_language()),
-                vec![
-                    Var::from_name("a").to_language(),
-                    Lang::Char(param.to_string(), HelpData::default()),
-                    Lang::FunctionApp(Box::new(name.to_language()), args.clone(), builder::unknown_function(), args.clone().into()),
-                ],
-                builder::unknown_function(),
-                args.into()
-            )
-        },
-        _ => {
-            Lang::FunctionApp(Box::new(name.to_language()), args.clone(), builder::unknown_function(), args.into())
-        }
-    }
-}
-
-
-fn manip(arg: &str, t1: Type, t2: Type, par: &str) -> Manip {
-   if t1 == t2 {
-       Manip::Get(arg.to_string(), par.to_string())
-   } else {
-        Manip::Same(arg.to_string())
-   }
-}
-
-type ArgName = String;
-type Field = String;
-
-enum Manip {
-    Get(ArgName, Field),
-    Set(Field),
-    Same(ArgName)
-}
-
-impl Manip {
-    fn to_lang(&self) -> Lang {
-        match self {
-            Manip::Same(argname) => Var::from_name(&argname).to_language(),
-            Manip::Get(argname, field) => {
-                Lang::FunctionApp(
-                    Box::new(Var::from_name("get").to_language()),
-                    vec![
-                        Var::from_name(&argname).to_language(),
-                        Lang::Char(field.to_string(), HelpData::default())
-                    ],
-                    builder::unknown_function(),
-                    HelpData::default())
-            },
-            _ => builder::empty_lang()
-        }
-    }
-}
-
-pub fn generate_arg(num: usize) -> String {
-    match num {
-        0 => "a",
-        1 => "b",
-        2 => "c",
-        3 => "d",
-        4 => "e",
-        5 => "f",
-        6 => "g",
-        7 => "h",
-        8 => "i",
-        9 => "j",
-        10 => "k",
-        _ => "overflow"
-    }.to_string()
-}
-
-fn add_if_absent(mut vec: Vec<Lang>, val: Lang) -> Vec<Lang> {
-    if !vec.contains(&val) {
-        vec.push(val);
-    }
-    vec // Retourne le nouveau vecteur
 }
 
 impl Add for Context {

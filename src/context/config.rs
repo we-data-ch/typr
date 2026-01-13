@@ -82,8 +82,6 @@ impl Config {
     pub fn to_context(self) -> Context {
         Context::default().set_config(self)
     }
-
-
 }
 
 impl Default for Config {
