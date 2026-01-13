@@ -3,9 +3,9 @@ use crate::Type;
 use crate::Lang;
 use crate::help_data::HelpData;
 use crate::tint::Tint;
-use crate::argument_type::ArgumentType;
 use crate::tchar::Tchar;
 use std::collections::HashSet;
+use crate::r#type::argument_type::ArgumentType;
 
 pub fn generic_type() -> Type {
         Type::Generic("T".to_string(), HelpData::default())

@@ -5,7 +5,6 @@ use crate::parse;
 use nom_locate::LocatedSpan;
 use crate::Environment;
 
-
 fn import_file_module_code(line: &Lang, environment: Environment) -> Lang {
     match line {
         Lang::ModuleImport(name, _h) => {
@@ -35,7 +34,6 @@ fn import_file_modules_code(adt: Lang, environment: Environment) -> Lang {
         },
         s =>  s 
     }
-    
 }
 
 pub fn metaprogrammation(adt: Lang, environment: Environment) -> Lang {

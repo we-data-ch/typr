@@ -1,56 +1,55 @@
 mod error_message;
 mod type_checking;
+mod interface;
 mod context;
 mod parsing;
 mod r#type;
 mod utils;
 mod lang;
-mod interface;
 
 use crate::type_checking::type_checker::TypeChecker;
-use crate::type_checking::type_checker::typing;
-use utils::metaprogramming;
-use utils::my_io;
-use error_message::help_message;
-use error_message::help_data;
-use context::config;
-use parsing::type_token;
-use r#type::module_type;
-use parsing::lang_token;
-use lang::language;
-use parsing::elements;
-use r#type::function_type;
-use r#type::array_type;
-use r#type::graph;
-use r#type::tchar;
-use r#type::tint;
-use utils::argument_value;
-use utils::fluent_parser;
-use utils::argument_type;
-use utils::builder;
-use utils::engine;
-use crate::engine::write_std_for_type_checking;
 use crate::utils::package_loader::PackageManager;
+use crate::type_checking::type_checker::typing;
+use crate::engine::write_std_for_type_checking;
 use crate::my_io::execute_r_with_path;
 use crate::context::context::Context;
+use crate::context::vartype::VarType;
 use crate::help_message::TypeError;
+use crate::lang::argument_value;
+use error_message::help_message;
 use crate::config::Environment;
 use clap::{Parser, Subcommand};
 use crate::engine::parse_code;
-use crate::context::vartype::VarType;
+use error_message::help_data;
+use utils::metaprogramming;
 use parsing::parser::parse;
+use r#type::function_type;
+use crate::context::graph;
 use crate::lang::var::Var;
 use std::process::Command;
 use crate::config::Config;
 use crate::language::Lang;
 use std::fs::OpenOptions;
 use r#type::r#type::Type;
+use utils::fluent_parser;
+use parsing::type_token;
+use r#type::module_type;
+use parsing::lang_token;
+use r#type::array_type;
 use std::path::PathBuf;
+use parsing::elements;
 use my_io::read_file;
+use context::config;
+use interface::repl;
 use std::path::Path;
+use lang::language;
+use utils::builder;
 use std::io::Write;
 use std::fs::File;
-use interface::repl;
+use r#type::tchar;
+use utils::engine;
+use utils::my_io;
+use r#type::tint;
 use std::fs;
 
 const R_FUNCTIONS: &str = "../configs/src/functions_R.txt";
@@ -164,12 +163,12 @@ enum PkgCommands {
 
 
 fn new(name: &str) {
-    println!("Création du package R '{}'...", name);
+    println!("Creating the R package '{}'...", name);
 
     let current_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => {
-            eprintln!("Erreur lors de l'obtention du répertoire courant: {}", e);
+            eprintln!("Error obtaining current directory: {}", e);
             std::process::exit(1);
         }
     };
@@ -177,7 +176,7 @@ fn new(name: &str) {
     let project_path = current_dir.join(name);
     
     if let Err(e) = fs::create_dir(&project_path) {
-        eprintln!("Erreur lors de la création du répertoire du projet: {}", e);
+        eprintln!("Error creating project directory: {}", e);
         std::process::exit(1);
     }
     
@@ -196,13 +195,13 @@ fn new(name: &str) {
     for folder in package_folders {
         let folder_path = project_path.join(folder);
         if let Err(e) = fs::create_dir(&folder_path) {
-            eprintln!("Avertissement: Impossible de créer le dossier {}: {}", folder_path.display(), e);
+            eprintln!("Warning: Unable to create the folder {}: {}", folder_path.display(), e);
         }
     }
     
     let tests_testthat = project_path.join("tests/testthat");
     if let Err(e) = fs::create_dir(&tests_testthat) {
-        eprintln!("Avertissement: Impossible de créer le dossier tests/testthat: {}", e);
+        eprintln!("Warning: Unable to create the tests/testthat folder: {}", e);
     }
     
     let package_files = vec![
@@ -222,13 +221,13 @@ fn new(name: &str) {
         let full_path = project_path.join(file_path);
         if let Some(parent) = full_path.parent() {
             if let Err(e) = fs::create_dir_all(parent) {
-                eprintln!("Warning: Impossible de créer le répertoire parent {}: {}", parent.display(), e);
+                eprintln!("Warning: Unable to create parent directory {}: {}", parent.display(), e);
                 continue;
             }
         }
         println!("Writing {} in '{:?}'", content.len(), full_path);
         if let Err(e) = fs::write(&full_path, content) {
-            eprintln!("Warning: Impossible de créer le fichier {}: {}", full_path.display(), e);
+            eprintln!("Warning: Unable to create parent directory {}: {}", full_path.display(), e);
         }
     }
     
@@ -244,7 +243,7 @@ fn check_project() {
     let context = Context::default().set_environment(Environment::Project);
     let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
     let _ = typing(&context, &lang);
-    println!("✓ Vérification du code réussie!");
+    println!("✓ Code verification successful!");
 }
 
 fn check_file(path: &PathBuf) {
@@ -253,7 +252,7 @@ fn check_file(path: &PathBuf) {
     let dir = PathBuf::from(".");
     write_std_for_type_checking(&dir);
     let _ = typing(&context, &lang);
-    println!("✓ Vérification du fichier {:?} réussie!", path);
+    println!("✓ File verification {:?} successful!", path);
 }
 
 fn build_project() {
@@ -265,7 +264,7 @@ fn build_project() {
     write_header(type_checker.get_context(), &dir, Environment::Project);
     write_to_r_lang(content, &PathBuf::from("R"), "main.R", context.get_environment());
     document();
-    println!("✓ Code R généré avec succès dans le dossier R/");
+    println!("✓ R code successfully generated in the R/ folder");
 }
 
 fn build_file(path: &PathBuf) {
@@ -279,7 +278,7 @@ fn build_file(path: &PathBuf) {
     let content = type_checker.clone().transpile(false);
     write_header(type_checker.get_context(), &dir, Environment::StandAlone);
     write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
-    println!("✓ Code R généré: {:?}", dir.join(&r_file_name));
+    println!("✓ Generated R code: {:?}", dir.join(&r_file_name));
 }
 
 fn run_project() {
@@ -339,11 +338,11 @@ fn get_package_name() -> Result<String, String> {
     let description_path = PathBuf::from("DESCRIPTION");
     
     if !description_path.exists() {
-        return Err("Fichier DESCRIPTION introuvable. Êtes-vous à la racine du projet?".to_string());
+        return Err("DESCRIPTION file not found. Are you at the project root?".to_string());
     }
     
     let content = fs::read_to_string(&description_path)
-        .map_err(|e| format!("Erreur lors de la lecture du fichier DESCRIPTION: {}", e))?;
+        .map_err(|e| format!("Error reading file DESCRIPTION: {}", e))?;
     
     for line in content.lines() {
         if line.starts_with("Package:") {
@@ -352,23 +351,23 @@ fn get_package_name() -> Result<String, String> {
         }
     }
     
-    Err("Nom du package introuvable dans le fichier DESCRIPTION".to_string())
+    Err("Package name not found in the DESCRIPTION file".to_string())
 }
 
 fn pkg_install() {
-    println!("Installation du package...");
+    println!("Installing the package...");
     
     let current_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => {
-            eprintln!("Erreur lors de l'obtention du répertoire courant: {}", e);
+            eprintln!("Error obtaining current directory: {}", e);
             std::process::exit(1);
         }
     };
     
     let project_path = current_dir.to_str().unwrap();
     let r_command = format!("devtools::install_local('{}')", project_path);
-    println!("Exécution de: R -e \"{}\"", r_command);
+    println!("Executing: R -e \"{}\"", r_command);
     
     let output = Command::new("R")
         .arg("-e")
@@ -378,13 +377,13 @@ fn pkg_install() {
     match output {
         Ok(output) => {
             if output.status.success() {
-                println!("✓ Package installé avec succès!");
+                println!("✓ Package installed successfully!");
                 
                 if !output.stdout.is_empty() {
                     println!("\n{}", String::from_utf8_lossy(&output.stdout));
                 }
             } else {
-                eprintln!("✗ Erreur lors de l'installation du package");
+                eprintln!("✗ Error during package installation");
                 if !output.stderr.is_empty() {
                     eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
                 }
@@ -393,27 +392,27 @@ fn pkg_install() {
             }
         }
         Err(e) => {
-            eprintln!("Erreur lors de l'exécution de la commande R: {}", e);
-            eprintln!("Assurez-vous que R et devtools sont installés.");
+            eprintln!("Error executing command R: {}", e);
+            eprintln!("Make sure that R and devtools are installed.");
             std::process::exit(1);
         }
     }
 }
 
 fn pkg_uninstall() {
-    println!("Désinstallation du package...");
+    println!("Uninstalling the package...");
     
     let package_name = match get_package_name() {
         Ok(name) => name,
         Err(e) => {
-            eprintln!("Erreur: {}", e);
+            eprintln!("Error: {}", e);
             std::process::exit(1);
         }
     };
     
-    println!("Désinstallation du package '{}'...", package_name);
+    println!("Uninstalling the package '{}'...", package_name);
     let r_command = format!("remove.packages('{}')", package_name);
-    println!("Exécution de: R -e \"{}\"", r_command);
+    println!("Executing: R -e \"{}\"", r_command);
     
     let output = Command::new("R")
         .arg("-e")
@@ -423,13 +422,13 @@ fn pkg_uninstall() {
     match output {
         Ok(output) => {
             if output.status.success() {
-                println!("✓ Package '{}' désinstallé avec succès!", package_name);
+                println!("✓ Package '{}' successfully uninstalled!", package_name);
                 
                 if !output.stdout.is_empty() {
                     println!("\n{}", String::from_utf8_lossy(&output.stdout));
                 }
             } else {
-                eprintln!("Note: Le package '{}' n'était peut-être pas installé ou une erreur s'est produite", package_name);
+                eprintln!("Note: The package '{}' may not have been installed or an error may have occurred", package_name);
                 
                 if !output.stderr.is_empty() {
                     eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
@@ -437,8 +436,8 @@ fn pkg_uninstall() {
             }
         }
         Err(e) => {
-            eprintln!("Erreur lors de l'exécution de la commande R: {}", e);
-            eprintln!("Assurez-vous que R est installé.");
+            eprintln!("Error executing command R: {}", e);
+            eprintln!("Make sure that R is installed.");
             std::process::exit(1);
         }
     }
@@ -687,7 +686,7 @@ fn main() {
             repl::start()
         },
         _ => {
-            println!("Veuillez spécifier une sous-commande ou un fichier à exécuter");
+            println!("Please specify a subcommand or file to execute");
             std::process::exit(1);
         }
     }

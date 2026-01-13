@@ -1,7 +1,6 @@
 pub mod array_type;
 pub mod function_type;
 pub mod generic;
-pub mod graph;
 pub mod index;
 pub mod js_types;
 pub mod module_type;
@@ -12,3 +11,4 @@ pub mod type_category;
 pub mod type_operator;
 pub mod type_printer;
 pub mod typer;
+pub mod argument_type;

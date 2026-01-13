@@ -1,9 +1,9 @@
 use crate::parsing::operation_priority::PriorityTokens;
+use crate::r#type::argument_type::ArgumentType;
 use crate::parsing::vector_priority::VectorPriority;
 use crate::r#type::type_operator::TypeOperator;
 use nom::character::complete::alphanumeric1;
 use nom::character::complete::multispace0;
-use crate::argument_type::ArgumentType;
 use nom::character::complete::none_of;
 use nom::character::complete::one_of;
 use nom::character::complete::digit1;

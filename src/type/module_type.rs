@@ -1,10 +1,10 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::help_data::HelpData;
-use crate::argument_type::ArgumentType;
+use crate::r#type::argument_type::ArgumentType;
 use crate::elements::is_pascal_case;
+use crate::help_data::HelpData;
+use crate::builder;
 use crate::Type;
 use crate::Var;
-use crate::builder;
 
 #[derive(Debug)]
 pub struct ModuleType {

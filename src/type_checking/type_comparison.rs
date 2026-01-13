@@ -1,5 +1,5 @@
 use crate::type_checking::unification::type_substitution;
-use crate::argument_type::ArgumentType;
+use crate::r#type::argument_type::ArgumentType;
 use crate::r#type::r#type::Type;
 use crate::lang::var::Var;
 use crate::context::context::Context;

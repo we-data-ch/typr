@@ -1,5 +1,5 @@
+use crate::r#type::argument_type::ArgumentType;
 use crate::type_checking::type_comparison;
-use crate::argument_type::ArgumentType;
 use crate::r#type::r#type::Type;
 use std::collections::HashSet;
 use crate::Context;

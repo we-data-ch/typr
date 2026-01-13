@@ -1,8 +1,8 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::argument_type::ArgumentType;
 use crate::Type;
 use crate::Lang;
 use crate::help_data::HelpData;
+use crate::r#type::argument_type::ArgumentType;
 
 pub struct Function {
     arg_types: Vec<ArgumentType>,

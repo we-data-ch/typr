@@ -18,7 +18,6 @@ pub trait TypeSystem: PartialOrd + Debug + Eq + Hash + Clone + Default {
     }
 }
 
-//main
 #[derive(Debug, Clone, PartialEq)]
 pub struct Graph<T: TypeSystem> {
     memory: HashSet<T>,
@@ -104,7 +103,6 @@ impl<T: TypeSystem> From<T> for Node<T> {
    } 
 }
 
-//main
 impl<T: TypeSystem> Node<T> {
     pub fn new() -> Self {
         Node {
@@ -286,15 +284,13 @@ impl<T: TypeSystem> fmt::Display for Node<T> {
     }
 }
 
-
 impl<T: TypeSystem> Add for Graph<T> {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
-        let context = Context::default(); // ou passer en paramètre si nécessaire
+        let context = Context::default(); // Or apply a parameter if necessary
         other.memory.iter()
             .cloned()
             .fold(self, |acc, typ| acc.add_type(typ, &context))
     }
 }
-

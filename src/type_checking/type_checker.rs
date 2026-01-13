@@ -1,4 +1,5 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+use crate::r#type::argument_type::ArgumentType;
 use crate::error_message::help_message::TypeError;
 use crate::error_message::help_message::ErrorMsg;
 use crate::error_message::help_data::HelpData;
@@ -7,7 +8,7 @@ use crate::type_checking::unification_map::UnificationMap;
 use crate::argument_value::ArgumentValue;
 use crate::type_checking::type_comparison::reduce_type;
 use crate::function_type::FunctionType;
-use crate::argument_type::ArgumentType;
+use crate::r#type::argument_type;
 use crate::lang::translatable::RTranslatable;
 use crate::lang::var_function::VarFunction;
 use crate::context::context::Context;

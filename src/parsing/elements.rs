@@ -1,3 +1,4 @@
+use crate::r#type::argument_type::ArgumentType;
 use std::process::exit;
 use nom::IResult;
 use nom::character::complete::multispace0;
@@ -8,7 +9,6 @@ use crate::lang::operators::{Op, op};
 use nom::character::complete::alpha1;
 use nom::character::complete::alphanumeric1;
 use nom::combinator::opt;
-use crate::argument_type::ArgumentType;
 use crate::argument_value::ArgumentValue;
 use crate::parsing::types::ltype;
 use nom::character::complete::one_of;

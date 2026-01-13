@@ -1,11 +1,11 @@
 use crate::type_checking::type_comparison::reduce_type;
 use crate::parsing::operation_priority::TokenKind;
+use crate::r#type::argument_type::ArgumentType;
 use crate::type_checking::type_checker::typing;
 use crate::lang::translatable::RTranslatable;
 use crate::lang::translatable::Translatable;
 use crate::argument_value::ArgumentValue;
 use crate::lang::function_lang::Function;
-use crate::argument_type::ArgumentType;
 use crate::function_type::FunctionType;
 use serde::{Serialize, Deserialize};
 use crate::array_type::ArrayType;

@@ -1,8 +1,8 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+use crate::r#type::argument_type::ArgumentType;
 use crate::r#type::r#type::Type;
 use crate::language::Lang;
 use crate::lang::var::Var;
-use crate::argument_type::ArgumentType;
 use crate::context::vartype::VarType;
 use crate::Environment;
 use crate::help_data::HelpData;
@@ -349,7 +349,6 @@ impl Context {
         let res = self.typing_context.variables()
             .filter(|(_, typ)| typ.is_function())
             .filter(|(var, _)| not_in_blacklist(&var.get_name()))
-            //.inspect(|(x, _)| println!("{}: {}", x.get_name(), x.get_permission()))
             .filter(|(var, _)| var.is_public())
             .filter(|(var, _)| !var.get_type().is_any())
             .collect::<HashSet<_>>();
