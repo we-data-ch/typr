@@ -108,7 +108,6 @@ pub fn write_to_r_lang(content: String, output_dir: &PathBuf, file_name: &str, e
             ).unwrap();
 }
 
-
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {

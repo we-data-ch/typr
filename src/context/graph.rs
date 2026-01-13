@@ -1,11 +1,9 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use std::collections::HashSet;
-use std::cmp::Eq;
 use std::hash::Hash;
-use std::cmp::Ordering;
 use std::fmt::Debug;
 use crate::Context;
 use std::ops::Add;
+use std::cmp::Eq;
 
 pub trait TypeSystem: PartialOrd + Debug + Eq + Hash + Clone + Default {
     fn pretty(&self) -> String;
@@ -111,14 +109,6 @@ impl<T: TypeSystem> Node<T> {
         }
     }
 
-    pub fn update(self, types: &[T]) -> Self {
-        todo!();
-    }
-
-    pub fn deep_clone(&self) -> Self {
-        todo!();
-    }
-
     pub fn propagate(self, typ: T, context: &Context) -> Self {
         let graph = Node {
             value: self.value.clone(),
@@ -202,7 +192,7 @@ impl<T: TypeSystem> Node<T> {
         } else {
             match (typ.is_subtype(&self.value, context), self.subtypes.len()) {
                 (true, 0) =>  self.add_subtype(typ),
-                (true, n) => self.propagate(typ, context),
+                (true, _) => self.propagate(typ, context),
                 _ => self.switch_if_reverse_subtype(typ, context)
             }
         }
@@ -214,17 +204,13 @@ impl<T: TypeSystem> Node<T> {
                 println!("{} is a subtype of the leaf {}",
                          typ.pretty(), self.value.pretty());
                 self.add_subtype(typ)},
-            (true, n) => {
+            (true, _) => {
                 println!("{} is a subtype of the node {}",
                          typ.pretty(), self.value.pretty());
                 self.propagate_trace(typ, context)},
             _ => {
                 self.switch_if_reverse_subtype_trace(typ, context)}
         }
-    }
-
-    pub fn print_structure(&self) {
-        todo!();
     }
 
     pub fn get_supertypes(&self, target_type: &T, context: &Context) -> Vec<T> {
