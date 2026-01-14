@@ -1,15 +1,14 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::components::context::vartype::VarType;
-use crate::type_checking::type_checker::execute_r_function;
-use crate::type_checking::type_checker::TypeChecker;
+use crate::processes::type_checking::type_checker::execute_r_function;
+use crate::processes::type_checking::type_checker::TypeChecker;
 use crate::components::context::vartype::VarType;
 use crate::components::context::context::Context;
 use crate::components::lang::var::Var;
-use crate::my_io::get_os_file;
-use crate::engine::TypRFile;
+use crate::utils::my_io::get_os_file;
+use crate::utils::my_io::read_file;
+use crate::utils::engine::TypRFile;
 use crate::utils::builder;
 use std::path::PathBuf;
-use crate::read_file;
 use std::path::Path;
 use std::fs;
 

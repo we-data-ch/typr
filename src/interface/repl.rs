@@ -1,23 +1,22 @@
+use crate::utils::project_management::write_to_r_lang;
+use crate::components::context::config::Environment;
+use crate::utils::project_management::write_header;
 use crate::components::context::context::Context;
-use rustyline::error::ReadlineError;
-use rustyline::{Config, Editor};
+use crate::utils::my_io::execute_r_with_path2;
+use crate::utils::fluent_parser::FluentParser;
 use rustyline::highlight::Highlighter;
-use rustyline::hint::Hinter;
-use rustyline::validate::Validator;
 use rustyline::completion::Completer;
-use rustyline::Helper;
-use crate::fluent_parser::FluentParser;
-use std::path::PathBuf;
-use crate::my_io::execute_r_with_path2;
+use rustyline::error::ReadlineError;
+use rustyline::validate::Validator;
+use rustyline::highlight::CmdKind;
+use rustyline::{Config, Editor};
+use rustyline::hint::Hinter;
 use std::fs::OpenOptions;
+use std::path::PathBuf;
+use rustyline::Helper;
+use std::borrow::Cow;
 use std::io::Write;
 use std::fs;
-use std::borrow::Cow;
-use rustyline::highlight::CmdKind;
-use crate::utils::project_management::write_header;
-use crate::utils::project_management::write_to_r_lang;
-use crate::components::context::context::Context;
-use crate::components::context::config::Environment;
 
 
 // Coloration ANSI

@@ -1,11 +1,11 @@
-use crate::type_checking::unification::type_substitution;
-use crate::r#type::argument_type::ArgumentType;
-use crate::r#type::r#type::Type;
-use crate::lang::var::Var;
-use crate::context::context::Context;
+use crate::processes::type_checking::unification::type_substitution;
+use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::context::graph::TypeSystem;
+use crate::components::context::context::Context;
+use crate::components::r#type::r#type::Type;
+use crate::components::lang::var::Var;
 use rpds::Vector;
-use crate::r#type::type_operator::TypeOperator;
-use crate::graph::TypeSystem;
 
 pub fn reduce_param(
     context: &Context,

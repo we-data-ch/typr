@@ -1,5 +1,11 @@
+use crate::components::r#type::type_category::TypeCategory;
+use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::context::graph::TypeSystem;
+use crate::components::r#type::r#type::pretty;
 use crate::components::r#type::r#type::Type;
-use crate::components::r#type::r#type::Type;
+use crate::components::r#type::tchar::Tchar;
+use crate::components::r#type::tint::Tint;
 
 pub fn format(ty: &Type) -> String {
     match ty {

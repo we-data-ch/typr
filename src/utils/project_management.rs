@@ -1,18 +1,17 @@
 use crate::processes::type_checking::type_checker::TypeChecker;
+use crate::processes::type_checking::type_checker::typing;
+use crate::utils::engine::write_std_for_type_checking;
 use crate::components::context::config::Environment;
 use crate::components::context::context::Context;
-use crate::write_std_for_type_checking;
-use crate::execute_r_with_path;
+use crate::utils::my_io::execute_r_with_path;
+use crate::utils::engine::parse_code;
 use std::process::Command;
 use std::fs::OpenOptions;
 use std::path::PathBuf;
-use crate::parse_code;
 use std::path::Path;
 use std::io::Write;
-use crate::typing;
-use std::fs;
 use std::fs::File;
-use nom::IResult;
+use std::fs;
 
 pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environment) -> () {
         let type_anotations = context.get_type_anotations();

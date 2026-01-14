@@ -1,9 +1,9 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use std::fmt::Debug;
-use std::fmt::Display;
-use crate::help_message::ErrorMsg;
-use crate::help_data::HelpData;
+use crate::components::error_message::help_message::ErrorMsg;
+use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::help_message::TypeError;
+use std::fmt::Display;
+use std::fmt::Debug;
 
 #[derive(Debug, Default)]
 pub enum TokenKind {

@@ -1,9 +1,9 @@
-use crate::parsing::operation_priority::PriorityToken;
-use crate::parsing::operation_priority::TokenKind;
-use crate::r#type::type_operator::TypeOperator;
-use crate::help_data::HelpData;
-use std::fmt;
+use crate::processes::parsing::operation_priority::PriorityToken;
+use crate::processes::parsing::operation_priority::TokenKind;
+use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::error_message::help_data::HelpData;
 use crate::components::r#type::r#type::Type;
+use std::fmt;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum TypeToken {

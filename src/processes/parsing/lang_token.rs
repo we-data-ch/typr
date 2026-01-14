@@ -1,9 +1,9 @@
-use crate::parsing::operation_priority::PriorityToken;
-use crate::parsing::operation_priority::TokenKind;
-use crate::help_data::HelpData;
-use crate::lang::operators::Op;
-use std::fmt;
+use crate::processes::parsing::operation_priority::PriorityToken;
+use crate::processes::parsing::operation_priority::TokenKind;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::lang::operators::Op;
 use crate::components::lang::language::Lang;
+use std::fmt;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum LangToken {

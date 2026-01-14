@@ -1,8 +1,8 @@
 use crate::components::context::config::Environment;
 use crate::components::lang::language::Lang;
-use crate::my_io::read_file_from_name;
-use crate::my_io::get_os_file;
-use crate::parse;
+use crate::utils::my_io::read_file_from_name;
+use crate::processes::parsing::parser::parse;
+use crate::utils::my_io::get_os_file;
 use nom_locate::LocatedSpan;
 
 fn import_file_module_code(line: &Lang, environment: Environment) -> Lang {

@@ -24,6 +24,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::io::Write;
 use std::fs::File;
+use std::fs;
 
 const JS_HEADER: &str = "";
 
@@ -136,12 +137,6 @@ impl From<LangToken> for  Lang {
             LangToken::EmptyOperator => panic!("Shouldn't be empty ")
         }
    } 
-}
-
-pub fn build_generic_function(s: &str) -> Lang {
-    builder::generic_function(
-        &format!("{} <- function(x, ...) {{\n\tUseMethod('{}')\n}}\n", s, s)
-                                                         )
 }
 
 fn condition_to_if(var: &Var, typ: &Type, context: &Context) -> String {

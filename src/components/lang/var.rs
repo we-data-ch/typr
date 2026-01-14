@@ -1,7 +1,13 @@
 #![allow(dead_code)]
+use crate::processes::parsing::elements::is_pascal_case;
+use crate::components::r#type::tchar::Tchar;
+use crate::components::lang::translatable::RTranslatable;
 use crate::components::error_message::help_data::HelpData;
+use crate::components::context::graph::TypeSystem;
+use crate::components::r#type::function_type::FunctionType;
 use crate::processes::type_checking::type_checker::typing;
 use crate::components::context::context::Context;
+use crate::utils::builder;
 use crate::components::r#type::r#type::Type;
 use crate::components::lang::language::Lang;
 use serde::{Serialize, Deserialize};

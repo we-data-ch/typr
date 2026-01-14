@@ -1,12 +1,12 @@
-use crate::utils::standard_library::validate_vectorization;
-use crate::type_checking::unification;
-use crate::help_message::ErrorMsg;
-use std::collections::HashSet;
-use crate::graph::TypeSystem;
 use crate::components::error_message::help_message::TypeError;
-use crate::utils::builder;
+use crate::components::error_message::help_message::ErrorMsg;
+use crate::utils::standard_library::validate_vectorization;
+use crate::components::context::graph::TypeSystem;
 use crate::components::context::context::Context;
+use crate::processes::type_checking::unification;
 use crate::components::r#type::r#type::Type;
+use std::collections::HashSet;
+use crate::utils::builder;
 use std::fmt;
 
 #[derive(Debug)]

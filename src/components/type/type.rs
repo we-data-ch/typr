@@ -1,6 +1,26 @@
 #![allow(dead_code)]
+use crate::components::error_message::help_message::PrintAndDefault;
+use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::components::error_message::help_message::TypeError;
+use crate::processes::parsing::operation_priority::TokenKind;
+use crate::components::r#type::type_category::TypeCategory;
+use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::r#type::function_type::FunctionType;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::module_type::ModuleType;
+use crate::processes::parsing::type_token::TypeToken;
+use crate::components::r#type::type_printer::format2;
+use crate::components::r#type::type_printer::format;
+use crate::components::context::graph::TypeSystem;
+use crate::components::context::context::Context;
+use crate::processes::parsing::types::ltype;
+use crate::components::r#type::tchar::Tchar;
+use crate::components::r#type::tint::Tint;
+use crate::components::lang::var::Var;
 use serde::{Serialize, Deserialize};
 use std::collections::HashSet;
+use crate::utils::builder;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use std::hash::Hasher;

@@ -1,9 +1,9 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::parsing::operation_priority::PriorityTokens;
-use crate::parsing::operation_priority::PriorityToken;
-use crate::type_token::TypeToken;
-use crate::lang_token::LangToken;
-use crate::help_data::HelpData;
+use crate::processes::parsing::operation_priority::PriorityTokens;
+use crate::processes::parsing::operation_priority::PriorityToken;
+use crate::processes::parsing::type_token::TypeToken;
+use crate::processes::parsing::lang_token::LangToken;
+use crate::components::error_message::help_data::HelpData;
 
 pub struct VectorPriority<T: PriorityToken> {
     body: Vec<T>,
