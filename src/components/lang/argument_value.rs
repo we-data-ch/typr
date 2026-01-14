@@ -1,4 +1,4 @@
-use crate::components::lang::translatable::RTranslatable;
+use crate::processes::transpiling::translatable::RTranslatable;
 use crate::components::context::context::Context;
 use crate::components::lang::language::Lang;
 use serde::{Serialize, Deserialize};

@@ -2,7 +2,7 @@
 use crate::components::context::graph::TypeSystem;
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::lang::translatable::RTranslatable;
+use crate::processes::transpiling::translatable::RTranslatable;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::r#type::Type;
 use crate::components::context::context::Context;

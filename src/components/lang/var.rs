@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use crate::processes::parsing::elements::is_pascal_case;
 use crate::components::r#type::tchar::Tchar;
-use crate::components::lang::translatable::RTranslatable;
+use crate::processes::transpiling::translatable::RTranslatable;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::context::graph::TypeSystem;
 use crate::components::r#type::function_type::FunctionType;

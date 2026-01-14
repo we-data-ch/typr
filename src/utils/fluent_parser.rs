@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::processes::type_checking::type_checker::typing;
-use crate::components::lang::translatable::RTranslatable;
+use crate::processes::transpiling::translatable::RTranslatable;
 use crate::components::context::graph::TypeSystem;
 use crate::components::context::context::Context;
 use crate::processes::parsing::parser::parse2;
