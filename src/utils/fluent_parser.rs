@@ -1,14 +1,14 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+use crate::components::lang::var::Var;
+use crate::components::context::context::Context;
 use crate::type_checking::type_checker::typing;
 use crate::lang::translatable::RTranslatable;
+use crate::components::r#type::r#type::Type;
+use crate::components::lang::language::Lang;
 use crate::parsing::parser::parse2;
 use crate::graph::TypeSystem;
-use crate::Context;
-use crate::builder;
 use rpds::Vector;
-use crate::Type;
-use crate::Lang;
-use crate::Var;
+use crate::utils::builder;
 
 #[derive(Debug, Clone)]
 pub struct FluentParser {

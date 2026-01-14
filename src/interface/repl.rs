@@ -1,3 +1,4 @@
+use crate::components::context::context::Context;
 use rustyline::error::ReadlineError;
 use rustyline::{Config, Editor};
 use rustyline::highlight::Highlighter;
@@ -6,9 +7,7 @@ use rustyline::validate::Validator;
 use rustyline::completion::Completer;
 use rustyline::Helper;
 use crate::fluent_parser::FluentParser;
-use crate::Context;
 use std::path::PathBuf;
-use crate::Environment;
 use crate::my_io::execute_r_with_path2;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -17,6 +16,9 @@ use std::borrow::Cow;
 use rustyline::highlight::CmdKind;
 use crate::utils::project_management::write_header;
 use crate::utils::project_management::write_to_r_lang;
+use crate::components::context::context::Context;
+use crate::components::context::config::Environment;
+
 
 // Coloration ANSI
 mod colors {

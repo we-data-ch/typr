@@ -1,8 +1,10 @@
+use crate::utils::package_loader::PackageManager;
+use crate::components::r#type::r#type::Type;
 use std::collections::HashSet;
 use std::collections::HashMap;
-use crate::PackageManager;
-use crate::Type;
-use crate::fs;
+use crate::utils::package_loader::PackageManager;
+use crate::components::r#type::r#type::Type;
+use std::fs;
 
 const R_FUNCTIONS: &str = "../configs/src/functions_R.txt";
 const TYPED_R_FUNCTIONS: &str = "../configs/std/std_R.ty";

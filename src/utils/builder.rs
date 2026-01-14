@@ -1,11 +1,13 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::Type;
-use crate::Lang;
+use crate::components::lang::language::Lang;
 use crate::help_data::HelpData;
 use crate::tint::Tint;
 use crate::tchar::Tchar;
 use std::collections::HashSet;
 use crate::r#type::argument_type::ArgumentType;
+use crate::components::r#type::r#type::Type;
+use crate::components::lang::language::Lang;
+use crate::components::lang::language::Lang;
 
 pub fn generic_type() -> Type {
         Type::Generic("T".to_string(), HelpData::default())

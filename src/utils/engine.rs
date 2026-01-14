@@ -1,13 +1,13 @@
+use crate::components::context::config::Environment;
 use crate::metaprogramming::metaprogrammation;
+use crate::components::lang::language::Lang;
 use crate::my_io::get_os_file;
 use nom_locate::LocatedSpan;
 use std::path::PathBuf;
-use crate::Environment;
 use crate::read_file;
 use std::io::Write;
 use std::fs::File;
 use crate::parse;
-use crate::Lang;
 
 pub fn write_std_for_type_checking(output_dir: &PathBuf) {
     let rstd = include_str!("../../configs/std/std_R.ty");
