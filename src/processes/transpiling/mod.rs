@@ -1,21 +1,21 @@
 pub mod translatable;
 
-use crate::components::lang::language::set_related_type_if_variable;
+use crate::components::language::set_related_type_if_variable;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::transpiling::translatable::Translatable;
 use crate::components::r#type::function_type::FunctionType;
-use crate::processes::type_checking::type_checker::typing;
+use crate::processes::type_checking::typing;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::lang::language::format_backtick;
-use crate::components::lang::language::ModulePosition;
-use crate::components::lang::function_lang::Function;
+use crate::components::language::format_backtick;
+use crate::components::language::ModulePosition;
+use crate::components::language::function_lang::Function;
 use crate::components::r#type::array_type::ArrayType;
 use crate::components::context::config::Environment;
-use crate::components::context::context::Context;
-use crate::components::lang::language::Lang;
-use crate::components::r#type::r#type::Type;
-use crate::components::lang::operators::Op;
-use crate::components::lang::var::Var;
+use crate::components::context::Context;
+use crate::components::language::Lang;
+use crate::components::r#type::Type;
+use crate::components::language::operators::Op;
+use crate::components::language::var::Var;
 use translatable::RTranslatable;
 use std::path::PathBuf;
 use std::io::Write;
@@ -457,6 +457,9 @@ impl RTranslatable<(String, Context)> for Lang {
                 ("break".to_string(), cont.clone())
             },
             Lang::Module(name, body, position, config, _) => {
+                let name = if (name == "main") && (config.environment == Environment::Project) {
+                    "a_main"
+                } else { name };
                 let content = body.iter()
                     .map(|lang| lang.to_r(cont).0)
                     .collect::<Vec<_>>().join("\n");

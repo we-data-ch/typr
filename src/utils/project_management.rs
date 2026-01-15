@@ -1,8 +1,8 @@
-use crate::processes::type_checking::type_checker::TypeChecker;
-use crate::processes::type_checking::type_checker::typing;
+use crate::processes::type_checking::TypeChecker;
+use crate::processes::type_checking::typing;
 use crate::utils::engine::write_std_for_type_checking;
 use crate::components::context::config::Environment;
-use crate::components::context::context::Context;
+use crate::components::context::Context;
 use crate::utils::my_io::execute_r_with_path;
 use crate::utils::engine::parse_code;
 use std::process::Command;
@@ -164,7 +164,7 @@ pub fn build_project() {
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
     let content = type_checker.clone().transpile(true);
     write_header(type_checker.get_context(), &dir, Environment::Project);
-    write_to_r_lang(content, &PathBuf::from("R"), "main.R", context.get_environment());
+    write_to_r_lang(content, &PathBuf::from("R"), "d_main.R", context.get_environment());
     document();
     println!("✓ R code successfully generated in the R/ folder");
 }

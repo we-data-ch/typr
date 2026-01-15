@@ -1,4 +1,4 @@
-use crate::components::context::context::Context;
+use crate::components::context::Context;
 use serde::{Serialize, Deserialize};
 use clap::Parser;
 use std::fmt;

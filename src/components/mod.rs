@@ -1,4 +1,4 @@
 pub mod context;
 pub mod error_message;
-pub mod lang;
+pub mod language;
 pub mod r#type;

@@ -5,11 +5,11 @@ use crate::processes::transpiling::translatable::RTranslatable;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::context::graph::TypeSystem;
 use crate::components::r#type::function_type::FunctionType;
-use crate::processes::type_checking::type_checker::typing;
-use crate::components::context::context::Context;
+use crate::processes::type_checking::typing;
+use crate::components::context::Context;
 use crate::utils::builder;
-use crate::components::r#type::r#type::Type;
-use crate::components::lang::language::Lang;
+use crate::components::r#type::Type;
+use crate::components::language::Lang;
 use serde::{Serialize, Deserialize};
 use std::fmt;
 

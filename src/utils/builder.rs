@@ -1,9 +1,9 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::lang::language::Lang;
+use crate::components::language::Lang;
 use crate::components::r#type::tchar::Tchar;
-use crate::components::r#type::r#type::Type;
+use crate::components::r#type::Type;
 use crate::components::r#type::tint::Tint;
 use std::collections::HashSet;
 

@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::components::lang::language::Lang;
-use crate::components::lang::var::Var;
+use crate::components::language::Lang;
+use crate::components::language::var::Var;
 use std::iter::Sum;
 use std::ops::Add;
 use rpds::Vector;

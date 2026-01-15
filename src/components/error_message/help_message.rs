@@ -2,9 +2,9 @@
 use crate::components::error_message::help_data::HelpData;
 use miette::{Diagnostic, NamedSource, SourceSpan, Result};
 use crate::components::context::graph::TypeSystem;
-use crate::components::lang::language::Lang;
-use crate::components::r#type::r#type::Type;
-use crate::components::lang::var::Var;
+use crate::components::language::Lang;
+use crate::components::r#type::Type;
+use crate::components::language::var::Var;
 use miette::SourceCode;
 use thiserror::Error;
 use std::fs;

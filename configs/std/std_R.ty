@@ -9,6 +9,7 @@
 @`&&`: (bool, bool) -> bool;
 @`||`: (bool, bool) -> bool;
 @`+`: (Vec[#M, T], Vec[#M, T]) -> Vec[#M, T];
+@as__character: (Any) -> char;
 @source: (char) -> Empty;
 @reduce: ([#N, T], (T, U) -> T) -> T;
 @sum: ([#N, T]) -> T;

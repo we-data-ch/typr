@@ -1,7 +1,7 @@
 use crate::utils::project_management::write_to_r_lang;
 use crate::components::context::config::Environment;
 use crate::utils::project_management::write_header;
-use crate::components::context::context::Context;
+use crate::components::context::Context;
 use crate::utils::my_io::execute_r_with_path2;
 use crate::utils::fluent_parser::FluentParser;
 use rustyline::highlight::Highlighter;

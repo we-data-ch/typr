@@ -1,6 +1,6 @@
 use crate::processes::parsing::operation_priority::TokenKind;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::r#type::r#type::Type;
+use crate::components::r#type::Type;
 use serde::{Serialize, Deserialize};
 use std::collections::HashSet;
 use std::fmt;

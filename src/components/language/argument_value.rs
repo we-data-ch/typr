@@ -1,6 +1,6 @@
 use crate::processes::transpiling::translatable::RTranslatable;
-use crate::components::context::context::Context;
-use crate::components::lang::language::Lang;
+use crate::components::context::Context;
+use crate::components::language::Lang;
 use serde::{Serialize, Deserialize};
 use std::fmt;
 

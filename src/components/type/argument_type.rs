@@ -1,10 +1,10 @@
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::context::graph::TypeSystem;
-use crate::components::context::context::Context;
-use crate::components::r#type::r#type::Type;
+use crate::components::context::Context;
+use crate::components::r#type::Type;
 use crate::components::r#type::tchar::Tchar;
-use crate::components::lang::var::Var;
+use crate::components::language::var::Var;
 use serde::{Serialize, Deserialize};
 use std::fmt;
 

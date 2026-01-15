@@ -1,9 +1,9 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::components::context::context::Context;
+use crate::components::context::Context;
 use crate::utils::builder;
-use crate::components::r#type::r#type::Type;
-use crate::components::lang::var::Var;
-use crate::components::lang::language::Lang;
+use crate::components::r#type::Type;
+use crate::components::language::var::Var;
+use crate::components::language::Lang;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Typer {

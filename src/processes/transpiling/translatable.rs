@@ -1,6 +1,6 @@
-use crate::components::lang::argument_value::ArgumentValue;
-use crate::components::context::context::Context;
-use crate::components::lang::language::Lang;
+use crate::components::language::argument_value::ArgumentValue;
+use crate::components::context::Context;
+use crate::components::language::Lang;
 use std::ops::Add;
 
 pub trait TranslateAppendable {

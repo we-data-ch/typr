@@ -1,5 +1,5 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::components::r#type::r#type::Type;
+use crate::components::r#type::Type;
 use crate::components::error_message::help_data::HelpData;
 
 #[derive(Debug, PartialEq, Clone)]

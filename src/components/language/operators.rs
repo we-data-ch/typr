@@ -8,10 +8,10 @@ use nom::character::complete::char;
 use nom::bytes::complete::take_until;
 use nom::combinator::recognize;
 use serde::{Serialize, Deserialize};
-use crate::components::r#type::r#type::Type;
+use crate::components::r#type::Type;
 use crate::components::error_message::help_data::HelpData;
 use crate::processes::parsing::operation_priority::TokenKind;
-use crate::components::lang::language::Lang;
+use crate::components::language::Lang;
 use nom::IResult;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
@@ -143,13 +143,6 @@ fn bool_op(s: Span) -> IResult<Span, Span> {
 
 fn get_op(ls: LocatedSpan<&str, String>) -> Op {
     match ls.clone().into_fragment() {
-        "in " => Op::In(ls.into()),
-        "and" => Op::And2(ls.into()),
-        "&&" => Op::And2(ls.into()),
-        "&" => Op::And(ls.into()),
-        "or" => Op::Or2(ls.into()),
-        "||" => Op::Or2(ls.into()),
-        "|" => Op::Or(ls.into()),
         "+" => Op::Add(ls.into()),
         "++" => Op::Add2(ls.into()),
         "-" => Op::Minus(ls.into()),
@@ -175,6 +168,13 @@ fn get_op(ls: LocatedSpan<&str, String>) -> Op {
         ">=" => Op::GreaterOrEqual(ls.into()),
         "<" => Op::LesserThan(ls.into()),
         ">" => Op::GreaterThan(ls.into()),
+        "in " => Op::In(ls.into()),
+        "and" => Op::And2(ls.into()),
+        "&&" => Op::And2(ls.into()),
+        "&" => Op::And(ls.into()),
+        "or" => Op::Or2(ls.into()),
+        "||" => Op::Or2(ls.into()),
+        "|" => Op::Or(ls.into()),
         n => Op::Custom(n.to_string(), ls.into())
     }
 
@@ -198,8 +198,8 @@ pub fn op(s: Span) -> IResult<Span, Op> {
     let res = terminated(
         alt((
             custom_op,
-            bool_op,
             pipe_op,
+            bool_op,
             tag("in "),
             tag("++"),
             tag("+"),
@@ -264,4 +264,3 @@ impl fmt::Display for Op {
         write!(f, "{}", res)       
     }
 }
-

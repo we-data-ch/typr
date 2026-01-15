@@ -2,9 +2,9 @@ use crate::processes::type_checking::unification::type_substitution;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::context::graph::TypeSystem;
-use crate::components::context::context::Context;
-use crate::components::r#type::r#type::Type;
-use crate::components::lang::var::Var;
+use crate::components::context::Context;
+use crate::components::r#type::Type;
+use crate::components::language::var::Var;
 use rpds::Vector;
 
 pub fn reduce_param(

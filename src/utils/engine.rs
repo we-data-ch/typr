@@ -1,7 +1,7 @@
 use crate::components::context::config::Environment;
 use crate::utils::metaprogramming::metaprogrammation;
-use crate::processes::parsing::parser::parse;
-use crate::components::lang::language::Lang;
+use crate::processes::parsing::parse;
+use crate::components::language::Lang;
 use crate::utils::my_io::get_os_file;
 use crate::utils::my_io::read_file;
 use nom_locate::LocatedSpan;

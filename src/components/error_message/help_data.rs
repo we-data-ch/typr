@@ -1,6 +1,6 @@
 use nom_locate::LocatedSpan;
 use serde::{Serialize, Deserialize};
-use crate::components::lang::language::Lang;
+use crate::components::language::Lang;
 use std::fs;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Eq, Clone, Hash, Default)]

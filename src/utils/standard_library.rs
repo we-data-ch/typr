@@ -1,5 +1,5 @@
 use crate::utils::package_loader::PackageManager;
-use crate::components::r#type::r#type::Type;
+use crate::components::r#type::Type;
 use std::collections::HashSet;
 use std::collections::HashMap;
 use std::fs;
@@ -81,7 +81,7 @@ pub fn validate_vectorization(set: HashSet<(i32, Type)>) -> Option<HashSet<(i32,
         }
     }
 
-    if set.iter().max_by(|x, y| x.0.cmp(&y.0)).unwrap().0 > 1 {
+    if set.iter().max_by(|x, y| x.0.cmp(&y.0)).map(|(i, _)| *i).unwrap_or(1) > 1 {
         Some(set)
     } else {
         None

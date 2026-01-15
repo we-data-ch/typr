@@ -5,14 +5,14 @@ use std::collections::HashSet;
 use crate::components::context::graph::TypeSystem;
 use std::iter::Rev;
 use crate::utils::builder;
-use crate::components::context::context::Context;
+use crate::components::context::Context;
 use std::io::Write;
 use std::fs::File;
 use std::io::Read;
 use std::ops::Add;
 use crate::components::context::config::Config;
-use crate::components::r#type::r#type::Type;
-use crate::components::lang::var::Var;
+use crate::components::r#type::Type;
+use crate::components::language::var::Var;
 
 pub fn same_var_type(element1: &(Var, Type), element2: &(Var, Type)) -> bool {
     (element1.0.get_name() == element2.0.get_name()) &&

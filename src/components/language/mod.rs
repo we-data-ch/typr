@@ -1,25 +1,29 @@
-use crate::components::lang::argument_value::ArgumentValue;
+pub mod function_lang;
+pub mod module_lang;
+pub mod operators;
+pub mod var;
+pub mod var_function;
+pub mod argument_value;
+
+use crate::components::language::argument_value::ArgumentValue;
 use crate::processes::parsing::elements::elements;
 use crate::processes::parsing::operation_priority::TokenKind;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::argument_type::ArgumentType;
-use crate::processes::type_checking::type_checker::typing;
+use crate::processes::type_checking::typing;
 use crate::components::error_message::help_data::HelpData;
 use crate::processes::transpiling::translatable::RTranslatable;
 use crate::processes::parsing::lang_token::LangToken;
 use crate::components::context::config::Environment;
-use crate::components::context::context::Context;
+use crate::components::context::Context;
 use crate::components::context::config::Config;
-use crate::components::lang::var::Permission;
-use crate::components::r#type::r#type::Type;
-use crate::components::lang::operators::Op;
-use crate::components::lang::var::Var;
+use crate::components::language::var::Permission;
+use crate::components::r#type::Type;
+use crate::components::language::operators::Op;
+use crate::components::language::var::Var;
 use serde::{Serialize, Deserialize};
 use crate::utils::builder;
 use std::str::FromStr;
-
-
-
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum ModulePosition {

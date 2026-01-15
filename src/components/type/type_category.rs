@@ -1,5 +1,5 @@
-use crate::components::r#type::r#type::Type;
-use crate::components::lang::var::Var;
+use crate::components::r#type::Type;
+use crate::components::language::var::Var;
 use crate::components::error_message::help_data::HelpData;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]

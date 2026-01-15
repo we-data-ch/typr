@@ -1,9 +1,9 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::processes::type_checking::type_checker::execute_r_function;
-use crate::processes::type_checking::type_checker::TypeChecker;
+use crate::processes::type_checking::execute_r_function;
+use crate::processes::type_checking::TypeChecker;
 use crate::components::context::vartype::VarType;
-use crate::components::context::context::Context;
-use crate::components::lang::var::Var;
+use crate::components::context::Context;
+use crate::components::language::var::Var;
 use crate::utils::my_io::get_os_file;
 use crate::utils::my_io::read_file;
 use crate::utils::engine::TypRFile;

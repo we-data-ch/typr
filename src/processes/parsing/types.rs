@@ -8,10 +8,10 @@ use nom::character::complete::multispace0;
 use nom::character::complete::none_of;
 use nom::character::complete::one_of;
 use nom::character::complete::digit1;
-use crate::components::lang::operators::{Op, op};
+use crate::components::language::operators::{Op, op};
 use crate::processes::parsing::elements::variable_exp;
 use crate::processes::parsing::type_token::TypeToken;
-use crate::components::r#type::r#type::Type;
+use crate::components::r#type::Type;
 use nom::combinator::recognize;
 use crate::processes::parsing::elements::variable2;
 use crate::components::error_message::help_data::HelpData;
@@ -29,7 +29,7 @@ use nom::branch::alt;
 use nom::IResult;
 use nom::Parser;
 use crate::utils::builder;
-use crate::components::lang::language::Lang;
+use crate::components::language::Lang;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
