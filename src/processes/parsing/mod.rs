@@ -7,28 +7,30 @@ pub mod types;
 pub mod vector_priority;
 
 use nom::IResult;
-use crate::components::context::config::Config;
-use crate::components::language::Lang;
+use crate::components::error_message::syntax_error::SyntaxError;
+use crate::components::error_message::help_message::ErrorMsg;
 use crate::processes::parsing::elements::parse_elements;
-use nom::character::complete::multispace0;
-use nom::sequence::terminated;
-use nom::bytes::complete::tag;
+use crate::processes::parsing::elements::variable_exp;
 use crate::processes::parsing::elements::variable;
 use crate::processes::parsing::types::type_alias;
-use crate::processes::parsing::types::ltype;
-use crate::components::r#type::Type;
-use crate::components::language::var::Var;
-use nom::combinator::opt;
-use nom::sequence::delimited;
 use crate::processes::parsing::elements::tag_exp;
+use crate::components::context::config::Config;
 use nom::character::complete::not_line_ending;
+use crate::processes::parsing::types::ltype;
+use nom::character::complete::multispace0;
+use crate::components::language::var::Var;
 use nom::character::complete::line_ending;
-use crate::processes::parsing::elements::variable_exp;
-use nom::branch::alt;
+use crate::components::language::Lang;
+use crate::components::r#type::Type;
+use nom::sequence::terminated;
+use nom::bytes::complete::tag;
+use nom::sequence::delimited;
 use nom::sequence::preceded;
-use nom::multi::many0;
-use nom::Parser;
 use nom_locate::LocatedSpan;
+use nom::combinator::opt;
+use nom::multi::many0;
+use nom::branch::alt;
+use nom::Parser;
 use crate::processes::parsing::elements::variable_recognizer;
 use crate::components::error_message::help_data::HelpData;
 use crate::processes::parsing::elements::single_element;
@@ -69,10 +71,13 @@ fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
 fn single_parse(s: Span) -> IResult<Span, Lang> {
     let res = (
         parse_elements,
-        terminated(tag(";"), multispace0) 
+        opt(terminated(tag(";"), multispace0))
     ).parse(s);
     match res {
-        Ok((s, (exp, _))) => Ok((s, exp)),
+        Ok((s, (exp, Some(_)))) => Ok((s, exp)),
+        Ok((_s, (exp, None))) => {
+            None.expect(&SyntaxError::ForgottenSemicolon(exp.into()).display())
+        },
         Err(r) => Err(r)
     }
 }
@@ -514,14 +519,6 @@ pub fn parse(s: Span) -> Lang {
     }
 }
 
-//pub fn parse2(s: Span) -> Result<Lang, String> {
-    //let res = library(s.clone());
-    //match res {
-        //Ok((_, v)) => Ok(v[0].clone()),
-        //Err(_) => Err(format!("Can't parse string {}", s))
-    //}
-//}
-
 pub fn parse2(s: Span) -> Result<Lang, String> {
     let res = base_parse(s.clone());
     match res {
@@ -533,7 +530,14 @@ pub fn parse2(s: Span) -> Result<Lang, String> {
 // main test
 #[cfg(test)]
 mod tesus {
+    use crate::utils::builder;
     use super::*;
+
+    #[test]
+    fn test_semicolon1() {
+        let res = parse("let a <- 5".into());
+        assert_eq!(res, builder::empty_lang());
+    }
 
     #[test]
     fn test_type_exp2() {

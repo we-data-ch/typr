@@ -15,12 +15,12 @@ pub mod argument_type;
 
 use crate::components::error_message::help_message::PrintAndDefault;
 use crate::processes::type_checking::type_comparison::reduce_type;
-use crate::components::error_message::help_message::TypeError;
+use crate::components::error_message::type_error::TypeError;
 use crate::processes::parsing::operation_priority::TokenKind;
-use crate::components::r#type::type_category::TypeCategory;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::type_category::TypeCategory;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::r#type::module_type::ModuleType;
 use crate::processes::parsing::type_token::TypeToken;
@@ -1143,10 +1143,10 @@ impl From<TypeToken> for Type {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::fluent_parser::FluentParser;
+    use crate::processes::type_checking::typing;
+    use crate::processes::parsing::parse;
     use super::*;
-    use crate::parse;
-    use crate::typing;
-    use crate::fluent_parser::FluentParser;
 
     #[test]
     fn test_record_hierarchy0(){

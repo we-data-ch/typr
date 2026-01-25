@@ -4,23 +4,24 @@ pub mod operators;
 pub mod var;
 pub mod var_function;
 pub mod argument_value;
+pub mod array_lang;
 
 use crate::components::language::argument_value::ArgumentValue;
-use crate::processes::parsing::elements::elements;
+use crate::processes::transpiling::translatable::RTranslatable;
 use crate::processes::parsing::operation_priority::TokenKind;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::argument_type::ArgumentType;
-use crate::processes::type_checking::typing;
 use crate::components::error_message::help_data::HelpData;
-use crate::processes::transpiling::translatable::RTranslatable;
 use crate::processes::parsing::lang_token::LangToken;
 use crate::components::context::config::Environment;
-use crate::components::context::Context;
-use crate::components::context::config::Config;
+use crate::processes::parsing::elements::elements;
 use crate::components::language::var::Permission;
-use crate::components::r#type::Type;
+use crate::components::context::config::Config;
 use crate::components::language::operators::Op;
+use crate::processes::type_checking::typing;
 use crate::components::language::var::Var;
+use crate::components::context::Context;
+use crate::components::r#type::Type;
 use serde::{Serialize, Deserialize};
 use crate::utils::builder;
 use std::str::FromStr;
@@ -106,8 +107,6 @@ impl From<LangToken> for  Lang {
    } 
 }
 
-
-
 pub fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
     let oargs = FunctionType::try_from(arg.clone())
         .map(|fn_t| fn_t.get_param_types());
@@ -118,11 +117,10 @@ pub fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
                     .unwrap_or(val.clone()),
         Err(_) => val.clone()
     }
-    
 }
 
+//main
 impl Lang {
-
     pub fn save_in_memory(&self) -> bool {
         match self {
             Lang::Let(_, _, _, _) => true,
@@ -566,6 +564,13 @@ impl Lang {
         match self {
             Lang::Integer(i, _) => *i,
             n => panic!("not implemented for language {}", n.simple_print())
+        }
+    }
+
+    pub fn to_vec(self) -> Vec<Lang> {
+        match self {
+            Lang::Lines(v, _) => v,
+            l => vec![l]
         }
     }
 

@@ -1,10 +1,11 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::language::Lang;
+use crate::components::language::operators::Op;
 use crate::components::r#type::tchar::Tchar;
-use crate::components::r#type::Type;
 use crate::components::r#type::tint::Tint;
+use crate::components::language::Lang;
+use crate::components::r#type::Type;
 use std::collections::HashSet;
 
 pub fn generic_type() -> Type {
@@ -119,4 +120,8 @@ pub fn union_type(types: &[Type]) -> Type {
 
 pub fn unknown_function() -> Type {
     Type::UnknownFunction(HelpData::default())
+}
+
+pub fn operation(operator: Op, left: Lang, right: Lang) -> Lang {
+    Lang::Operator(operator, Box::new(left), Box::new(right), HelpData::default())
 }

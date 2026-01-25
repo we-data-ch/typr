@@ -1,4 +1,4 @@
-use crate::components::error_message::help_message::TypeError;
+use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::utils::standard_library::validate_vectorization;
 use crate::components::context::graph::TypeSystem;

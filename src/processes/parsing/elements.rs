@@ -1,46 +1,46 @@
-use crate::components::r#type::argument_type::ArgumentType;
-use crate::components::error_message::help_message::ErrorMsg;
 use crate::processes::parsing::operation_priority::PriorityTokens;
-use std::process::exit;
-use crate::utils::builder;
-use crate::processes::parsing::types::label;
-use crate::components::language::operators::Op;
-use crate::processes::parsing::base_parse;
-use crate::components::language::operators::op;
-use nom::IResult;
-use crate::components::language::Lang;
-use nom::character::complete::multispace0;
-use nom::bytes::complete::tag;
-use nom::character::complete::alpha1;
+use crate::components::error_message::syntax_error::SyntaxError;
+use crate::components::language::argument_value::ArgumentValue;
 use crate::processes::parsing::vector_priority::VectorPriority;
+use crate::components::error_message::help_message::ErrorMsg;
+use crate::processes::parsing::types::pascal_case_no_space;
+use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::error_message::help_data::HelpData;
 use crate::processes::parsing::lang_token::LangToken;
+use crate::processes::parsing::types::single_type;
+use crate::components::language::operators::Op;
+use crate::components::language::operators::op;
+use crate::processes::parsing::types::if_type;
+use crate::processes::parsing::types::ltype;
+use crate::processes::parsing::types::label;
 use nom::character::complete::alphanumeric1;
-use nom::combinator::opt;
-use nom::character::complete::one_of;
 use nom::character::complete::multispace1;
-use nom::character::complete::digit1;
-use nom::sequence::terminated;
-use nom::branch::alt;
-use nom::sequence::delimited;
-use nom::multi::many0;
-use nom::multi::many1;
-use nom::sequence::preceded;
-use nom::Parser;
-use nom_locate::LocatedSpan;
-use nom::combinator::recognize;
+use crate::processes::parsing::base_parse;
+use nom::character::complete::multispace0;
+use crate::components::language::var::Var;
 use nom::bytes::complete::take_while1;
+use crate::components::language::Lang;
+use nom::character::complete::digit1;
+use nom::character::complete::alpha1;
+use nom::character::complete::one_of;
+use crate::components::r#type::Type;
 use nom::character::complete::char;
 use nom::bytes::complete::escaped;
 use nom::bytes::complete::is_not;
-use crate::components::language::var::Var;
-use crate::components::error_message::help_data::HelpData;
-use crate::processes::parsing::types::single_type;
-use crate::components::r#type::Type;
-use crate::components::error_message::help_message::SyntaxError;
-use crate::processes::parsing::types::ltype;
-use crate::processes::parsing::types::if_type;
-use crate::components::language::argument_value::ArgumentValue;
-use crate::processes::parsing::types::pascal_case_no_space;
+use nom::combinator::recognize;
+use nom::bytes::complete::tag;
+use nom::sequence::terminated;
+use nom::sequence::delimited;
+use nom::sequence::preceded;
+use nom_locate::LocatedSpan;
+use crate::utils::builder;
+use nom::combinator::opt;
+use std::process::exit;
+use nom::multi::many0;
+use nom::multi::many1;
+use nom::branch::alt;
+use nom::IResult;
+use nom::Parser;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -840,8 +840,8 @@ pub fn parse_elements(s: Span) -> IResult<Span, Lang> {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::fluent_parser::FluentParser;
     use super::*;
-    use crate::fluent_parser::FluentParser;
 
     #[test]
     #[should_panic]

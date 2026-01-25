@@ -71,11 +71,11 @@ impl From<Vec<LangToken>> for VectorPriority<LangToken> {
 
 #[cfg(test)]
 mod tests {
+    use crate::components::r#type::type_operator::TypeOperator;
+    use crate::components::r#type::type_category::TypeCategory;
+    use crate::components::r#type::Type;
+    use crate::utils::builder;
     use super::*;
-    use crate::type_operator::TypeOperator;
-    use crate::builder;
-    use crate::Type;
-    use crate::type_category::TypeCategory;
 
     #[test]
     fn test_type_tokens1(){

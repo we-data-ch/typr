@@ -129,9 +129,9 @@ pub fn format2(t: &Type) -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::components::r#type::type_operator::TypeOperator;
+    use crate::utils::builder;
     use super::*;
-    use crate::type_operator::TypeOperator;
-    use crate::builder;
 
     #[test]
     fn test_my_pretty(){

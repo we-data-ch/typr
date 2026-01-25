@@ -21,7 +21,7 @@ use crate::components::language::var::Var;
 use crate::components::context::config::Config;
 use crate::components::context::graph::Graph;
 use crate::components::context::config::Environment;
-use crate::components::error_message::help_message::TypeError;
+use crate::components::error_message::type_error::TypeError;
 use std::iter::Rev;
 use crate::utils::builder;
 use std::ops::Add;

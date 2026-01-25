@@ -146,8 +146,8 @@ impl RTranslatable<(String, Context)> for Box<Lang> {
 
 #[cfg(test)]
 mod tests {
+    use crate::components::error_message::help_data::HelpData;
     use super::*;
-    use crate::help_data::HelpData;
 
     #[test]
     fn test_simple_trans0(){

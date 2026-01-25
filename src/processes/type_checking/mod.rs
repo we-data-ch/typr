@@ -3,27 +3,28 @@ pub mod type_comparison;
 pub mod unification;
 pub mod unification_map;
 
-use crate::components::context::graph::TypeSystem;
-use crate::components::error_message::help_message::ErrorMsg;
-use crate::components::error_message::help_data::HelpData;
-use crate::processes::transpiling::translatable::RTranslatable;
-use crate::components::r#type::argument_type::ArgumentType;
-use crate::components::r#type::Type;
-use crate::components::context::Context;
-use crate::utils::builder;
-use crate::components::language::argument_value::ArgumentValue;
-use crate::components::context::config::TargetLanguage;
-use crate::components::language::Lang;
-use crate::components::r#type::typer::Typer;
-use crate::components::error_message::help_message::TypeError;
 use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::components::language::argument_value::ArgumentValue;
+use crate::processes::transpiling::translatable::RTranslatable;
+use crate::components::error_message::help_message::ErrorMsg;
+use crate::components::error_message::type_error::TypeError;
+use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::context::config::TargetLanguage;
+use crate::components::language::array_lang::ArrayLang;
 use crate::components::context::config::Environment;
+use crate::components::context::graph::TypeSystem;
 use crate::utils::package_loader::PackageManager;
 use crate::components::language::operators::Op;
+use crate::components::r#type::typer::Typer;
 use crate::components::language::var::Var;
+use crate::components::context::Context;
+use crate::components::language::Lang;
+use crate::components::r#type::Type;
 use std::collections::HashSet;
 use nom_locate::LocatedSpan;
+use crate::utils::builder;
 use std::process::Command;
 use std::error::Error;
 use std::fs::File;
@@ -447,7 +448,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 }
             }
         },
-        Lang::Operator(Op::Dollar(_), e1, e2, _) => {
+        Lang::Operator(Op::Dollar(hd), e1, e2, _) => {
             let op = match expr {
                 Lang::Operator(op, _, _, _) => op,
                 _ => panic!("expr n'est pas un opérateur"),
@@ -511,6 +512,18 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 (Type::UnknownFunction(h) , Lang::FunctionApp(exp, args, ret, h2), _ ) => {
                     (Type::UnknownFunction(h), (*expr).clone(), context.clone())
                 }
+                (Type::Array(n, t, h), Lang::Variable(_, _, _, _, _), _) => {
+                    let (typ, lang, cont) = 
+                        typing(context, 
+                            &builder::operation(
+                                Op::Dollar(hd.clone()),
+                                ArrayLang::try_from(e1).unwrap()
+                                    .get_first_argument()
+                                    .expect("The array is of size 0"),
+                                (**e2).clone())
+                               );
+                    (Type::Array(n, Box::new(typ), h.clone()), lang, context.clone())
+                },
                 (typ , Lang::FunctionApp(exp, args, ret, h2), Op::Dot(_)) => {
                     typing(
                         context,
@@ -815,9 +828,10 @@ fn unify_type(ty1: &Type, ty2: &Type) -> Type {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::fluent_parser::FluentParser;
+    use crate::processes::parsing::signature;
+    use crate::processes::parsing::parse;
     use super::*;
-    use crate::parser::signature;
-    use crate::fluent_parser::FluentParser;
 
     #[test]
     #[should_panic]

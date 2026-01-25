@@ -1,8 +1,12 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 
-pub mod help_data;
+pub mod message_template;
 pub mod help_message;
+pub mod syntax_error;
+pub mod type_error;
+pub mod help_data;
 
+use crate::components::error_message::message_template::MsgTemplate;
 use crate::components::language::Lang;
 use crate::components::r#type::Type;
 use std::fmt;
