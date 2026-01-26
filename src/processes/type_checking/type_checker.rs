@@ -39,7 +39,7 @@ impl TypeChecker {
     }
 
     fn typing_helper(self, exp: &Lang) -> Self {
-        let (typ, lang, context) = typing(&self.context, exp);
+        let (typ, lang, context) = typing(&self.context, exp).to_tuple();
         Self {
             context: context,
             code: self.code.push_back(lang),

@@ -8,6 +8,7 @@ pub mod array_lang;
 
 use crate::components::language::argument_value::ArgumentValue;
 use crate::processes::transpiling::translatable::RTranslatable;
+use crate::processes::type_checking::type_context::TypeContext;
 use crate::processes::parsing::operation_priority::TokenKind;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::argument_type::ArgumentType;
@@ -161,7 +162,7 @@ impl Lang {
 
     pub fn extract_types_from_expression(&self, context: &Context) -> Vec<Type> {
         if self.is_value() {
-            vec![typing(context, self).0.clone()]
+            vec![typing(context, self).value.clone()]
         } else {
             match self {
                 Lang::FunctionApp(exp, arg_typs, _, _) => {
@@ -203,7 +204,7 @@ impl Lang {
 
     pub fn infer_var_name(&self, args: &Vec<Lang>, context: &Context) -> Var {
         if args.len() > 0 {
-                        let first = typing(context, &args.iter().nth(0).unwrap().clone()).0;
+                        let first = typing(context, &args.iter().nth(0).unwrap().clone()).value;
                         Var::from_language(self.clone())
                             .unwrap().set_type(first.clone())
                     } else {
@@ -214,7 +215,7 @@ impl Lang {
     pub fn get_related_function(self, args: &Vec<Lang>, context: &Context) 
         -> Option<FunctionType> {
         let var_name = self.infer_var_name(args, context);
-        let fn_ty = typing(context, &var_name.to_language()).0;
+        let fn_ty = typing(context, &var_name.to_language()).value;
         fn_ty.clone().to_function_type()
     }
 
@@ -366,9 +367,8 @@ impl Lang {
         }
     }
 
-    pub fn typing(&self, context: &Context) -> (Type, Lang, Context) {
-        let res = typing(context, self);
-        (res.0.clone(), res.1, res.2)
+    pub fn typing(&self, context: &Context) -> TypeContext {
+        typing(context, self)
     }
 
     pub fn to_js(&self, context: &Context) -> (String, Context) {

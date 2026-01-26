@@ -74,22 +74,22 @@ impl RTranslatable<(String, Context)> for Lang {
     fn to_r(&self, cont: &Context) -> (String, Context) {
         let result = match self {
             Lang::Bool(b, _) => {
-                let (typ, _, _) = typing(cont, self);
+                let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("{} |> {}", b.to_string().to_uppercase(), anotation), cont.clone())
             },
             Lang::Number(n, _) => {
-                let (typ, _, _) = typing(cont, self);
+                let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("{} |> {}", n, anotation), cont.clone())
             },
             Lang::Integer(i, _) => {
-                let (typ, _, _) = typing(cont, self);
+                let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("{}L |> {}", i, anotation), cont.clone())
             },
             Lang::Char(s, _) => {
-                let (typ, _, _) = typing(cont, self);
+                let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("'{}' |> {}", s, anotation), cont.clone())
             },
@@ -127,7 +127,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Operator(Op::Dollar(_), e1, e2, _) => {
                 let e1 = (**e1).clone();
                 let e2 = (**e2).clone();
-                let t1 = typing(cont, &e1).0;
+                let t1 = typing(cont, &e1).value;
                 let val = match (t1.clone(), e2.clone()) {
                     (Type::Array(_, _, _), Lang::Variable(name, _, _, _, _))
                         => format!("vec_apply(get, {}, typed_vec('{}'))", e1.to_r(cont).0, name),
@@ -150,7 +150,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     .add("\n}").into()
             },
             Lang::Function(args, _, body, _) => {
-                let fn_type = FunctionType::try_from(typing(cont, self).0.clone()).unwrap();
+                let fn_type = FunctionType::try_from(typing(cont, self).value.clone()).unwrap();
                 let output_conversion = cont.get_type_anotation(&fn_type.get_return_type());
                 let res = (output_conversion == "")
                     .then_some("".to_string())
@@ -249,7 +249,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::ArrayIndexing(exp, val, _) => {
                 let (exp_str, _) = exp.to_r(cont);
                 let (val_str, _) = val.to_simple_r(cont);
-                let (typ, _, _) = typing(&cont, exp);
+                let (typ, _, _) = typing(&cont, exp).to_tuple();
                 let res = match typ {
                     Type::Array(_, _, _) | Type::Vector(_, _, _) | Type::Sequence(_, _, _)
                         => format!("{}[[{}]]", exp_str, val_str), 
@@ -266,8 +266,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let (r_code, _new_name2) =
                 Function::try_from((**body).clone())
                     .map(|_| {
-                        //let related_type = Var::try_from(expr).unwrap().get_type();
-                        let related_type = typing(cont, expr).0;
+                        let related_type = typing(cont, expr).value;
                         let method = match cont.get_environment() {
                             Environment::Project => 
                                 format!("#' @method {}\n", new_name.replace(".", " ").replace("`", "")),
@@ -296,7 +295,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 (code, new_cont)
             },
             Lang::Array(_v, _h) => {
-                let typ = self.typing(cont).0;
+                let typ = self.typing(cont).value;
 
                 let _dimension = ArrayType::try_from(typ.clone()).unwrap().get_shape()
                     .map(|sha| format!("c({})", sha))
@@ -316,7 +315,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let (body, current_cont) = 
                 Translatable::from(cont.clone())
                     .join_arg_val(args, ",\n ").into();
-               let (typ, _, _) = typing(cont, self);
+               let (typ, _, _) = typing(cont, self).to_tuple();
                let anotation = cont.get_type_anotation(&typ);
                 cont.get_classes(&typ)
                     .map(|_| format!("list({}) |> {}", 
@@ -350,7 +349,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 ("#".to_string() + txt, cont.clone()),
             Lang::Tag(s, t, _) => {
                 let (t_str, new_cont) = t.to_r(cont);
-                let (typ, _, _) = typing(cont, self);
+                let (typ, _, _) = typing(cont, self).to_tuple();
                 let class = cont.get_class(&typ);
                 cont.get_classes(&typ)
                     .map(|res| format!("struct(list('{}', {}), c('Tag', {}, {}))",

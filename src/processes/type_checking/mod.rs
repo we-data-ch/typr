@@ -1,11 +1,12 @@
 pub mod type_comparison;
 pub mod unification_map;
-pub mod unification;
 pub mod type_checker;
-
+pub mod type_context;
+pub mod unification;
 
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::components::language::argument_value::ArgumentValue;
+use crate::processes::type_checking::type_context::TypeContext;
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::r#type::argument_type::ArgumentType;
@@ -27,22 +28,17 @@ use std::process::Command;
 use std::error::Error;
 
 pub fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
-    // Créer un script R temporaire avec la fonction à exécuter
     let r_script = format!("{}\n", function_code);
 
-    // Exécuter la commande Rscript avec le script
     let output = Command::new("Rscript")
-        .arg("-e") // -e permet d'exécuter une expression R directement
+        .arg("-e") 
         .arg(&r_script)
-        .output()?; // Exécute la commande et capture la sortie
+        .output()?;
 
-    // Vérifier si l'exécution a réussi
     if output.status.success() {
-        // Convertir la sortie standard (stdout) en chaîne de caractères
         let stdout = String::from_utf8(output.stdout)?;
         Ok(stdout.trim().to_string())
     } else {
-        // En cas d'erreur, retourner stderr comme erreur
         let stderr = String::from_utf8(output.stderr)?;
         Err(format!("Erreur lors de l'exécution de R: {}", stderr).into())
     }
@@ -57,7 +53,7 @@ fn install_package(name: &str) -> () {
         .expect("failed to execute Rscript");
 }
 
-pub fn eval(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
+pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
     match expr {
         Lang::Let(name, ty, exp, h) => {
             let new_context = context.clone()
@@ -81,11 +77,11 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             let new_context = context.clone()
                 .push_var_type(var.clone(), typ.clone(), &alias_context);
             (builder::unknown_function(), expr.clone(),
-                new_context.push_alias(var.get_name(), typ.to_owned()))
+                new_context.push_alias(var.get_name(), typ.to_owned())).into()
         },
         Lang::Assign(left_expr, right_expr, _h) => {
-            let left_type = typing(&context, left_expr).0;
-            let right_type = typing(&context, right_expr).0;
+            let left_type = typing(&context, left_expr).value;
+            let right_type = typing(&context, right_expr).value;
             let reduced_left_type = reduce_type(context, &left_type);
             let reduced_right_type = reduce_type(context, &right_type);
             if reduced_right_type.is_subtype(&reduced_left_type, context) {
@@ -94,7 +90,7 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 (right_type.clone(), 
                  expr.clone(), 
                  context.clone()
-                    .push_var_type(var, right_type, context))
+                    .push_var_type(var, right_type, context)).into()
             } else { 
                 panic!("The right side and left sides don't match {} <- {}",
                        left_type.pretty(), right_type.pretty())
@@ -107,37 +103,37 @@ pub fn eval(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 package_manager.clone().save();
             }
             let var_type = package_manager.load().unwrap();
-            (builder::unknown_function(), expr.clone(), context.clone().extend_typing_context(var_type))
+            (builder::unknown_function(), expr.clone(), context.clone().extend_typing_context(var_type)).into()
         },
         Lang::ModuleDecl(_name, _h) 
-            => (builder::unknown_function(), expr.clone(), context.clone()),
+            => (builder::unknown_function(), expr.clone(), context.clone()).into(),
         Lang::Signature(var, typ, _h) => {
             if var.is_variable(){
                 let new_var = FunctionType::try_from(typ.clone())
                             .map(|ft| var.clone().set_type(ft.get_first_param().unwrap_or(builder::unknown_function())))
                             .unwrap_or(var.clone());
                 (builder::unknown_function(), expr.clone(),
-                context.clone().replace_or_push_var_type(new_var, typ.to_owned(), context))
+                context.clone().replace_or_push_var_type(new_var, typ.to_owned(), context)).into()
             } else { // is alias
                 (builder::unknown_function(), expr.clone(),
                         context.clone()
-                            .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context))
+                            .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context)).into()
             }
         },
         Lang::TestBlock(body, _) => {
             //Needed to be type checked
             let _ = typing(context, body);
-            (builder::unknown_function(), expr.clone(), context.clone())
+            (builder::unknown_function(), expr.clone(), context.clone()).into()
         },
         Lang::Module(_name, members, _position, _config, h) => {
             let expr = if members.len() > 1 {
                 Lang::Lines(members.iter().cloned().collect(), h.clone())
             } else { members.iter().next().unwrap().clone() }; // TODO: Modules can't be empty
             let new_context = 
-                typing(&Context::default(), &expr).2;
-            (builder::empty_type(), expr.clone(), context.clone() + new_context)
+                typing(&Context::default(), &expr).context;
+            (builder::empty_type(), expr.clone(), context.clone() + new_context).into()
         },
-        _ => (builder::unknown_function(), expr.clone(), context.clone())
+        _ => (builder::unknown_function(), expr.clone(), context.clone()).into()
     }
 }
 
@@ -229,34 +225,6 @@ fn are_homogenous_types(types: &[Type]) -> bool {
     types.windows(2).all(|w| w[0] == w[1])
 }
 
-trait TypeContext {
-    fn with_lang(self, expr: &Lang) -> (Type, Lang, Context);
-    fn get_covariant_type(self, typ: &Type) -> Self;
-    fn add_to_context(self, var: Var) -> Self;
-    fn get_expr(&self) -> Lang;
-}
-
-impl TypeContext for (Type, Lang, Context) {
-    fn with_lang(self, expr: &Lang) -> (Type, Lang, Context) {
-        (self.0, expr.clone(), self.2)
-    }
-
-    fn get_covariant_type(self, typ: &Type) -> Self {
-        let typ = self.0.get_covariant_type(typ, &self.2);
-        (typ, self.1, self.2)
-    }
-
-    fn add_to_context(self, var: Var) -> Self {
-        let (typ, context) = self.0.add_to_context(var, self.2);
-        (typ, self.1, context)
-    }
-
-    fn get_expr(&self) -> Lang {
-        self.1.clone()
-    }
-
-}
-
 trait WithLang2 {
     fn with_lang(self, expr: &Lang, context: &Context) -> (Type, Lang, Context);
 }
@@ -268,32 +236,32 @@ impl WithLang2 for Type {
 }
 
 //main
-pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
+pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
     match expr {
-        Lang::Number(_, h) => (Type::Number(h.clone()), expr.clone(), context.clone()),
+        Lang::Number(_, h) => (Type::Number(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Integer(i, h) 
-            => (builder::integer_type(*i).set_help_data(h.clone()), expr.clone(), context.clone()),
-        Lang::Bool(_, h) => (Type::Boolean(h.clone()), expr.clone(), context.clone()),
+            => (builder::integer_type(*i).set_help_data(h.clone()), expr.clone(), context.clone()).into(),
+        Lang::Bool(_, h) => (Type::Boolean(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Char(s, h) 
-            => (builder::character_type(&s).set_help_data(h.clone()), expr.clone(), context.clone()),
-        Lang::Empty(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()),
+            => (builder::character_type(&s).set_help_data(h.clone()), expr.clone(), context.clone()).into(),
+        Lang::Empty(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Operator(Op::And(_), e1, e2, _) | Lang::Operator(Op::Or(_), e1, e2, _) => {
-            let (typ, new_context) = (typing(context, e1).0.is_boolean() && typing(context, e2).0.is_boolean())
+            let (typ, new_context) = (typing(context, e1).value.is_boolean() && typing(context, e2).value.is_boolean())
                 .then_some((builder::boolean_type(), context.clone()))
                 .expect("Type error");
-            (typ, expr.clone(), new_context)
+            (typ, expr.clone(), new_context).into()
         }
         Lang::Operator(Op::Eq(_), e1, e2, _) 
             | Lang::Operator(Op::LesserOrEqual(_), e1, e2, _) 
             | Lang::Operator(Op::GreaterOrEqual(_), e1, e2, _) 
             | Lang::Operator(Op::GreaterThan(_), e1, e2, _) 
             | Lang::Operator(Op::LesserThan(_), e1, e2, _) => {
-            let t1 = typing(context, e1).0;
-            let t2 = typing(context, e2).0;
+            let t1 = typing(context, e1).value;
+            let t2 = typing(context, e2).value;
             let (typ, new_context) = (t1 == t2)
                 .then_some((builder::boolean_type(), context.clone()))
                 .expect("Type error");
-            (typ, expr.clone(), new_context)
+            (typ, expr.clone(), new_context).into()
         }
         Lang::Operator(Op::Dot(_), e1, e2, _) 
             | Lang::Operator(Op::Pipe(_), e1, e2, _) 
@@ -305,41 +273,41 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                                             ty, h.clone());
                 typing(context, &fun_app)
             } else {
-                let ty2 = typing(context, e2).0.clone().reduce(context);
+                let ty2 = typing(context, e2).value.clone().reduce(context);
                 match (ty2.clone(), *e1.clone()) {
                     (Type::Record(fields, _), Lang::Variable(name, _, _, _, h)) => {
                         let (typ, new_context) = fields.iter()
                             .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                             .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                             .expect(&TypeError::FieldNotFound((name, h), ty2).display());
-                        (typ, expr.clone(), new_context)
+                        (typ, expr.clone(), new_context).into()
                     },
                     (Type::Record(fields, _), Lang::Char(name, _)) => {
                         let (typ, new_context) = fields.iter()
                             .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                             .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                             .expect("Field not found");
-                        (typ, expr.clone(), new_context)
+                        (typ, expr.clone(), new_context).into()
                     },
                     (Type::Tuple(vals, _), Lang::Integer(i, _)) => {
                         let (typ, new_context) = vals.iter()
                             .nth((i-1) as usize)
                             .map(|typ| (typ.clone(), context.clone()))
                             .expect(&format!("no value at the position {}", i));
-                        (typ, expr.clone(), new_context)
+                        (typ, expr.clone(), new_context).into()
                     },
                     (Type::Record(fields1, h), Lang::Record(_, _)) => {
-                        let fields3: HashSet<_> = match e1.typing(context).0 {
+                        let fields3: HashSet<_> = match e1.typing(context).value {
                             Type::Record(fields2, _) => {
                                 fields1.union(&fields2).cloned().collect()
                             },
                             _ => panic!("Typing {} should produce a record type", e1)
                         };
-                        Type::Record(fields3, h.clone()).with_lang(expr, context)
+                        Type::Record(fields3, h.clone()).with_lang(expr, context).into()
                     },
                     (Type::Generic(_, _), Lang::Record(_, _)) => {
-                        builder::intersection_type(&[ty2.clone(), e1.typing(context).0])
-                            .with_lang(expr, context)
+                        builder::intersection_type(&[ty2.clone(), e1.typing(context).value])
+                            .with_lang(expr, context).into()
                     },
                     (a, b) => panic!("Type error we can't combine {} and {:?}", a, b)
                 }
@@ -350,21 +318,21 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 Lang::Operator(op, _, _, _) => op,
                 _ => panic!("expr n'est pas un opérateur"),
             };
-            let ty1 = typing(context, e1).0.clone();
+            let ty1 = typing(context, e1).value.clone();
             match (ty1.reduce(context), *e2.clone(), op) {
                 (Type::Record(fields, _), Lang::Variable(name, _, _, _, _), _) => {
                     let (typ, new_context) = fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect(&format!("Field {} not found", name));
-                        (typ, expr.clone(), new_context)
+                        (typ, expr.clone(), new_context).into()
                 },
                 (Type::Module(fields, _), Lang::Variable(name, _, _, _, _), _) => {
                     let (typ, new_context) = fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect(&format!("Variable {} not found in the module", name));
-                        (typ, expr.clone(), new_context)
+                        (typ, expr.clone(), new_context).into()
                 },
                 (Type::Module(fields, _), Lang::FunctionApp(exp, _, _, _), _) => {
                     let var = Var::from_language(*exp).unwrap();
@@ -373,28 +341,28 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                         .expect(&format!("Field {} not found", var.get_name()))
                         .get_type();
                     let res = FunctionType::try_from(typ).unwrap().get_return_type();
-                    (res, expr.clone(), context.clone())
+                    (res, expr.clone(), context.clone()).into()
                 },
                 (Type::Record(fields, _), Lang::Char(name, _), _) => {
                     let (typ, new_context) = fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect(&format!("Field {} not found", name));
-                        (typ, expr.clone(), new_context)
+                        (typ, expr.clone(), new_context).into()
                 },
                 (Type::Tuple(vals, _), Lang::Integer(i, _), _) => {
                     let (typ, new_context) = vals.iter()
                         .nth((i-1) as usize)
                         .map(|typ| (typ.clone(), context.clone()))
                         .expect(&format!("no value at the position {}", i));
-                        (typ, expr.clone(), new_context)
+                        (typ, expr.clone(), new_context).into()
                 },
                 (Type::Record(fields1, h), Lang::Record(fields2, _), _) => {
                     let at = fields2[0].clone();
                     let fields3 = fields1.iter()
                         .map(replace_fields_type_if_needed(context, at))
                         .collect::<HashSet<_>>();
-                    Type::Record(fields3, h.clone()).with_lang(expr, context)
+                    Type::Record(fields3, h.clone()).with_lang(expr, context).into()
                 },
                 (Type::Record(fields, _), Lang::FunctionApp(exp, _, _, _), _) => {
                     let var = Var::from_language(*exp).unwrap();
@@ -403,11 +371,11 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                         .expect(&format!("Field {} not found", var.get_name()))
                         .get_type();
                     typing(&context.clone()
-                           .push_var_type(var, typ, context), e2).0.clone()
-                           .with_lang(expr, context)
+                           .push_var_type(var, typ, context), e2).value.clone()
+                           .with_lang(expr, context).into()
                 },
                 (Type::UnknownFunction(h) , Lang::FunctionApp(_, _, _, _), _ ) => {
-                    (Type::UnknownFunction(h), (*expr).clone(), context.clone())
+                    (Type::UnknownFunction(h), (*expr).clone(), context.clone()).into()
                 }
                 (Type::Array(n, _, h), Lang::Variable(_, _, _, _, _), _) => {
                     let (typ, lang, _) = 
@@ -418,8 +386,8 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                                     .get_first_argument()
                                     .expect("The array is of size 0"),
                                 (**e2).clone())
-                               );
-                    (Type::Array(n, Box::new(typ), h.clone()), lang, context.clone())
+                               ).to_tuple();
+                    (Type::Array(n, Box::new(typ), h.clone()), lang, context.clone()).into()
                 },
                 (_ , Lang::FunctionApp(exp, args, ret, h2), Op::Dot(_)) => {
                     typing(
@@ -451,36 +419,36 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 .zip(list_of_types.clone().into_iter().map(|typ| typ.reduce(context)))
                 .fold(context.clone(), |cont, (var, typ)| cont.clone().push_var_type(var, typ, &cont));
             let body_type = body.typing(&sub_context);
-            let reduced_body_type = body_type.0.reduce(&sub_context);
+            let reduced_body_type = body_type.value.reduce(&sub_context);
             let reduced_expected_ty = ret_ty.reduce(&context);
             if !reduced_body_type.is_subtype(&reduced_expected_ty, context) {
                 None.expect(
-                    &TypeError::UnmatchingReturnType(ret_ty.clone(), body_type.0).display())
+                    &TypeError::UnmatchingReturnType(ret_ty.clone(), body_type.value).display())
             }
             Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone())
-                .with_lang(expr, &body_type.2)
+                .with_lang(expr, &body_type.context).into()
         }
         Lang::Lines(exprs, _h) => {
             if exprs.len() == 1 {
                 let res = exprs.clone().pop().unwrap();
-                let (typ, langs, _) = typing(context, &res);
+                let (typ, langs, _) = typing(context, &res).to_tuple();
                 (typ.clone(), langs.clone(), 
-                 context.clone().push_var_type(Var::from("_out"), typ.clone(), &context))
+                 context.clone().push_var_type(Var::from("_out"), typ.clone(), &context)).into()
             } else if exprs.len() == 0 {
-                    builder::unknown_function().with_lang(expr, context)
+                    builder::unknown_function().with_lang(expr, context).into()
             } else {
                 let context2 = context.clone();
                 let mut exprs2 = exprs.clone();
                 let exp = exprs2.pop().unwrap();
                 let new_context = exprs.iter()
-                    .fold(context2, |ctx, expr| typing(&ctx, expr).2);
+                    .fold(context2, |ctx, expr| typing(&ctx, expr).context);
                 typing(&new_context, &exp)
             }
         },
         Lang::FunctionApp(fn_var_name, values, t, h) => {
             let var = Var::try_from(fn_var_name.clone()).unwrap();
             let name = var.get_name();
-            let new_values = values.iter().map(|x| typing(context, x).1).collect::<Vec<_>>();
+            let new_values = values.iter().map(|x| typing(context, x).lang).collect::<Vec<_>>();
             let funs = var.get_function_signatures(values, context);
             let (id, typ) = funs.iter()
                 .enumerate()
@@ -498,17 +466,17 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
 
             let (typ, new_context) = typ
                 .tuple(&context.clone());
-                (typ, new_expr, new_context)
+                (typ, new_expr, new_context).into()
         },
         Lang::Tag(name, expr, h) => {
-            let ty = typing(context, expr).0;
+            let ty = typing(context, expr).value;
             Type::Tag(name.clone(), Box::new(ty.clone()), h.clone())
-                .with_lang(expr, context)
+                .with_lang(expr, context).into()
         }
         Lang::If(cond, true_branch, false_branch, _h) => {
-            if typing(context, cond).0.is_boolean() {
-                let true_ty = typing(context, true_branch).0.clone();
-                let false_ty = typing(context, false_branch).0.clone();
+            if typing(context, cond).value.is_boolean() {
+                let true_ty = typing(context, true_branch).value.clone();
+                let false_ty = typing(context, false_branch).value.clone();
                 let set = if let Type::Union(v, _) = false_ty {
                     let mut set = v; set.insert(true_ty);
                     set
@@ -522,10 +490,10 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                     set
                 };
                 if set.len() == 1 {
-                    set.iter().cloned().next().unwrap().with_lang(expr, context)
+                    set.iter().cloned().next().unwrap().with_lang(expr, context).into()
                 } else {
                     Type::Union(set.clone(), HelpData::default())
-                        .with_lang(expr, context)
+                        .with_lang(expr, context).into()
                 }
             } else {
                 panic!("Type error: {:?} isn't a boolean expression", cond);
@@ -533,17 +501,17 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         }
         Lang::Array(exprs, h) => {
             let types = exprs.iter()
-                .map(|expr| typing(context, expr).0)
+                .map(|expr| typing(context, expr).value)
                 .map(|typ| typ.reduce(context))
                 .collect::<Vec<_>>();
             if exprs.is_empty() {
                 let new_type = "[0, Empty]".parse::<Type>()
                     .unwrap().set_help_data(h.clone());
-                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type]))
+                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type])).into()
             } else if are_homogenous_types(&types.iter().map(|x| x.clone()).collect::<Vec<_>>()) {
                 let new_type = format!("[{}, {}]", exprs.len(), types[0].clone().pretty())
                     .parse::<Type>().unwrap().set_help_data(h.clone());
-                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type]))
+                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type])).into()
             } else {
                 let array_type = Type::Tuple(types, HelpData::default());
                 panic!("Type error: The array don't have homogenous types \n {}", 
@@ -551,29 +519,29 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             }
         }
         Lang::Vector(exprs, h) => {
-            let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
+            let types = exprs.iter().map(|expr| typing(context, expr).value).collect::<Vec<_>>();
             if exprs.is_empty() {
                 let new_type = "Vec[0, Any]".parse::<Type>()
                     .unwrap().set_help_data(h.clone());
-                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type]))
+                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type])).into()
             } else if are_homogenous_types(&types.iter().map(|x| x.clone()).collect::<Vec<_>>()) {
                 let new_type = format!("Vec[{}, {}]", exprs.len(), types[0].clone().pretty())
                     .parse::<Type>().unwrap().set_help_data(h.clone());
-                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type]))
+                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type])).into()
             } else {
                 panic!("Type error: The vector don't have homogenous types.");
             }
         },
         Lang::Sequence(exprs, h) => {
-            let types = exprs.iter().map(|expr| typing(context, expr).0).collect::<Vec<_>>();
+            let types = exprs.iter().map(|expr| typing(context, expr).value).collect::<Vec<_>>();
             if exprs.is_empty() {
                 let new_type = "Seq[0, Empty]".parse::<Type>()
                     .unwrap().set_help_data(h.clone());
-                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type]))
+                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type])).into()
             } else if are_homogenous_types(&types.iter().map(|x| x.clone()).collect::<Vec<_>>()) {
                 let new_type = format!("Seq[{}, {}]", exprs.len(), types[0].clone().pretty())
                     .parse::<Type>().unwrap().set_help_data(h.clone());
-                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type]))
+                (new_type.clone(), expr.clone(), context.clone().push_types(&[new_type])).into()
             } else {
                 panic!("Type error: The sequence don't have homogenous types.");
             }
@@ -582,13 +550,13 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             let field_types = fields.iter()
                 .map(|arg_val| {
                     (arg_val.get_argument(),
-                    typing(context, &arg_val.get_value()).0.clone()).into()
+                    typing(context, &arg_val.get_value()).value.clone()).into()
                 }).collect();
                 Type::Record(field_types, h.clone())
-                .with_lang(expr, context)
+                .with_lang(expr, context).into()
         }
         Lang::Match(exp, var, branches, _h) => {
-            let var_ty = reduce_type(context, &typing(context, &**exp).0);
+            let var_ty = reduce_type(context, &typing(context, &**exp).value);
             match var_ty {
                 Type::Union(union_types, h) => {
                     let set = branches.iter().map(|(t, _)| t).cloned().collect::<HashSet<Type>>();
@@ -598,18 +566,18 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                     let types = branches.iter()
                         .map(|(typ, bexp)| {
                             let new_context = context.clone().push_var_type(var.clone(), typ.clone(), context);
-                            typing(&new_context, bexp).0.clone()
+                            typing(&new_context, bexp).value.clone()
                         }).collect::<HashSet<_>>();
                     let output_type = if types.len() == 1 {
                         types.iter().next().unwrap().clone()
                     } else {Type::Union(types, h)};
-                        output_type.with_lang(expr, context)
+                        output_type.with_lang(expr, context).into()
                 },
                 _ => panic!("Type error"),
             }
         }
         Lang::ArrayIndexing(exp, index, _) => {
-            let typ1 = typing(context, exp).0;
+            let typ1 = typing(context, exp).value;
             let args_target = typ1.clone().linearize();
             let args_index = index.get_members_if_array()
                 .expect(&format!("{} is not an array", index.simple_print()))
@@ -621,7 +589,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 .all(|(target, index)| index <= target);
             let typ2 = Type::to_array2(args_index).set_help_data((**exp).clone().into());
             if is_indexable {
-                (typ2, expr.clone(), context.clone())
+                (typ2, expr.clone(), context.clone()).into()
             } else {
                 None.expect(&TypeError::WrongIndexing(typ1, typ2).display())
             }
@@ -631,7 +599,7 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             let var = context.get_true_variable(&old_var);
             context
                 .get_type_from_existing_variable(var)
-                .with_lang(expr, context)
+                .with_lang(expr, context).into()
         },
         Lang::Scope(expr, _) if expr.len() == 1 => {
             typing(context, &expr[0])
@@ -639,14 +607,14 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
         Lang::Scope(expr, h) => typing(context, &Lang::Lines(expr.to_vec(), h.clone())),
         Lang::Tuple(elements, h) => {
             Type::Tuple(elements.iter()
-                .map(|x| typing(context, x).0.clone())
+                .map(|x| typing(context, x).value.clone())
                 .collect(), h.clone())
-                .with_lang(expr, context)
+                .with_lang(expr, context).into()
         },
-        Lang::VecBlock(_, h) => Type::Empty(h.clone()).with_lang(expr, context),
-        Lang::RFunction(_, _, h) => Type::UnknownFunction(h.clone()).with_lang(expr, context),
+        Lang::VecBlock(_, h) => Type::Empty(h.clone()).with_lang(expr, context).into(),
+        Lang::RFunction(_, _, h) => Type::UnknownFunction(h.clone()).with_lang(expr, context).into(),
         Lang::ForLoop(var, iter, body, _h) => {
-            let base_type = typing(context, iter).0.to_array()
+            let base_type = typing(context, iter).value.to_array()
                 .expect(&format!("The iterator is not an array {:?}", iter))
                 .base_type;
             let var = var.clone().set_type(base_type.clone());
@@ -655,23 +623,23 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
                 .set_var(var)
                 .push_var_type()
                 .typing((**body).clone());
-                builder::unknown_function().with_lang(expr, context)
+                builder::unknown_function().with_lang(expr, context).into()
         },
         Lang::Not(exp, h) => {
-            let typ = typing(context, exp).0;
+            let typ = typing(context, exp).value;
             match typ.clone() {
-                Type::Boolean(_) => Type::Boolean(h.clone()).with_lang(expr, context),
+                Type::Boolean(_) => Type::Boolean(h.clone()).with_lang(expr, context).into(),
                 _ => panic!("Use of the '!' to a none boolean expression")
             }
         },
         Lang::JSBlock(body, _, h) => {
             let js_context = Context::default()
                 .set_target_language(TargetLanguage::JS);
-            let _ = typing(&js_context, body).2;
+            let _ = typing(&js_context, body).context;
             //TODO add js subcontext
             let (new_context, id) = (context.clone(), 0);//.add_js_subcontext(js_context);
             let new_expr = Lang::JSBlock(body.clone(), id, h.clone());
-            builder::character_type_default().with_lang(&new_expr, &new_context)
+            builder::character_type_default().with_lang(&new_expr, &new_context).into()
         },
         Lang::Let(..) => {
             eval(context, expr)
@@ -680,27 +648,27 @@ pub fn typing(context: &Context, expr: &Lang) -> (Type, Lang, Context) {
             eval(context, expr)
         },
         Lang::Alias(..) => {
-            eval(context, expr).with_lang(expr)
+            eval(context, expr).with_lang(expr).into()
         },
         Lang::Library(..) => {
-            eval(context, expr).with_lang(expr)
+            eval(context, expr).with_lang(expr).into()
         },
         Lang::ModuleDecl(..) => {
-            eval(context, expr).with_lang(expr)
+            eval(context, expr).with_lang(expr).into()
         },
         Lang::TestBlock(..) => {
-            eval(context, expr).with_lang(expr)
+            eval(context, expr).with_lang(expr).into()
         },
         Lang::Signature(..) => {
-            eval(context, expr).with_lang(expr)
+            eval(context, expr).with_lang(expr).into()
         },
         Lang::Return(exp, _) => {
             typing(context, exp)
         },
         Lang::Module(_, _, _position, _, _) => {
-            eval(context, expr).with_lang(expr)
+            eval(context, expr).with_lang(expr).into()
         },
-        _ => builder::any_type().with_lang(expr, context)
+        _ => builder::any_type().with_lang(expr, context).into()
     }
 }
 
@@ -708,7 +676,7 @@ fn replace_fields_type_if_needed(context: &Context, at: ArgumentValue) -> impl F
     move |arg_typ2| {
         (arg_typ2.get_argument_str() == at.get_argument())
             .then_some(ArgumentType::new(&at.get_argument(),
-                        &typing(context, &at.get_value()).0))
+                        &typing(context, &at.get_value()).value))
             .unwrap_or(arg_typ2.clone())
     }
 }

@@ -142,7 +142,7 @@ impl FluentParser {
     pub fn type_next(self) -> Self {
         match self.clone().next_code() {
             Some((code, rest)) => {
-                let (typ, lang, new_context) =  typing(&self.context, &code);
+                let (typ, lang, new_context) =  typing(&self.context, &code).to_tuple();
                 rest.set_context(new_context)
                     .push_new_code(lang)
                     .set_last_type(typ)
@@ -155,7 +155,7 @@ impl FluentParser {
         let (new_context, new_type) = self.clone().code.iter()
             .fold((self.clone().context, builder::empty_type()), 
                   |(cont, typ), x| {
-                      let (new_type, _, new_cont) = typing(&cont, x);
+                      let (new_type, _, new_cont) = typing(&cont, x).to_tuple();
                       (new_cont, new_type)
                   });
         self.set_context(new_context).set_last_type(new_type)

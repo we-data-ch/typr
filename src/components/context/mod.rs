@@ -428,7 +428,7 @@ impl Context {
     pub fn get_unification_map(&self, values: &[Lang], param_types: &[Type], name: &str) 
         -> Option<UnificationMap> {
         let entered_types = values.iter()
-            .map(|val| typing(self, val).0).collect::<Vec<_>>();
+            .map(|val| typing(self, val).value).collect::<Vec<_>>();
 
         let unification_map = get_unification_map_for_vectorizable_function(entered_types.clone(), name);
         let res = entered_types.iter()
