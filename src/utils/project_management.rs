@@ -1,9 +1,9 @@
-use crate::processes::type_checking::TypeChecker;
-use crate::processes::type_checking::typing;
 use crate::utils::engine::write_std_for_type_checking;
 use crate::components::context::config::Environment;
-use crate::components::context::Context;
+use crate::processes::type_checking::TypeChecker;
 use crate::utils::my_io::execute_r_with_path;
+use crate::processes::type_checking::typing;
+use crate::components::context::Context;
 use crate::utils::engine::parse_code;
 use std::process::Command;
 use std::fs::OpenOptions;
@@ -162,7 +162,7 @@ pub fn build_project() {
     let context = Context::default().set_environment(Environment::Project);
     let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
-    let content = type_checker.clone().transpile(true);
+    let content = type_checker.clone().transpile();
     write_header(type_checker.get_context(), &dir, Environment::Project);
     write_to_r_lang(content, &PathBuf::from("R"), "d_main.R", context.get_environment());
     document();
@@ -177,7 +177,7 @@ pub fn build_file(path: &PathBuf) {
     let context = Context::default();
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    let content = type_checker.clone().transpile(false);
+    let content = type_checker.clone().transpile();
     write_header(type_checker.get_context(), &dir, Environment::StandAlone);
     write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
     println!("✓ Generated R code: {:?}", dir.join(&r_file_name));
@@ -197,7 +197,7 @@ pub fn run_file(path: &PathBuf) {
     let context = Context::default();
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
     let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
-    let content = type_checker.clone().transpile(false);
+    let content = type_checker.clone().transpile();
     write_header(type_checker.get_context(), &dir, Environment::StandAlone);
     write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
     execute_r_with_path(&dir, &r_file_name);
