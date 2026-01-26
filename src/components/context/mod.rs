@@ -2,30 +2,30 @@ pub mod config;
 pub mod vartype;
 pub mod graph;
 
-use crate::processes::type_checking::match_types_to_generic;
-use crate::components::context::unification_map::UnificationMap;
+use crate::processes::type_checking::unification_map::get_unification_map_for_vectorizable_function;
 use crate::processes::type_checking::type_comparison::reduce_type;
-use crate::utils::standard_library::not_in_blacklist;
-use crate::processes::type_checking::typing;
+use crate::components::context::unification_map::UnificationMap;
+use crate::components::error_message::help_message::ErrorMsg;
+use crate::components::error_message::type_error::TypeError;
+use crate::processes::type_checking::match_types_to_generic;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::language::var_function::VarFunction;
-use crate::processes::type_checking::unification_map;
-use crate::components::context::vartype::VarType;
-use crate::components::error_message::help_message::ErrorMsg;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::context::config::TargetLanguage;
-use crate::components::r#type::Type;
-use std::collections::HashSet;
-use crate::components::context::graph::TypeSystem;
-use crate::components::language::Lang;
-use crate::components::language::var::Var;
+use crate::utils::standard_library::not_in_blacklist;
+use crate::processes::type_checking::unification_map;
+use crate::components::context::config::Environment;
+use crate::components::context::vartype::VarType;
 use crate::components::context::config::Config;
 use crate::components::context::graph::Graph;
-use crate::components::context::config::Environment;
-use crate::components::error_message::type_error::TypeError;
-use std::iter::Rev;
+use crate::processes::type_checking::typing;
+use crate::components::language::var::Var;
+use crate::components::language::Lang;
+use crate::components::r#type::Type;
+use std::collections::HashSet;
 use crate::utils::builder;
+use std::iter::Rev;
 use std::ops::Add;
-use crate::processes::type_checking::unification_map::get_unification_map_for_vectorizable_function;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {

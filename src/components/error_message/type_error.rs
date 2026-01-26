@@ -2,7 +2,7 @@ use crate::components::error_message::help_message::SingleBuilder;
 use crate::components::error_message::help_message::DoubleBuilder;
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::context::graph::TypeSystem;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
 use crate::components::r#type::Type;

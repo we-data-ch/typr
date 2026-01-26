@@ -1,16 +1,16 @@
 #![allow(dead_code)]
-use crate::processes::parsing::elements::is_pascal_case;
-use crate::components::r#type::tchar::Tchar;
 use crate::processes::transpiling::translatable::RTranslatable;
-use crate::components::error_message::help_data::HelpData;
-use crate::components::context::graph::TypeSystem;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::error_message::help_data::HelpData;
+use crate::processes::parsing::elements::is_pascal_case;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::typing;
+use crate::components::r#type::tchar::Tchar;
 use crate::components::context::Context;
-use crate::utils::builder;
-use crate::components::r#type::Type;
 use crate::components::language::Lang;
+use crate::components::r#type::Type;
 use serde::{Serialize, Deserialize};
+use crate::utils::builder;
 use std::fmt;
 
 type Name = String;

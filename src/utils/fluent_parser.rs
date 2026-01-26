@@ -1,12 +1,12 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::processes::type_checking::typing;
 use crate::processes::transpiling::translatable::RTranslatable;
-use crate::components::context::graph::TypeSystem;
+use crate::components::r#type::type_system::TypeSystem;
+use crate::processes::type_checking::typing;
+use crate::components::language::var::Var;
 use crate::components::context::Context;
 use crate::processes::parsing::parse2;
-use crate::components::r#type::Type;
 use crate::components::language::Lang;
-use crate::components::language::var::Var;
+use crate::components::r#type::Type;
 use crate::utils::builder;
 use rpds::Vector;
 

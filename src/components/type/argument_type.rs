@@ -1,6 +1,6 @@
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::context::graph::TypeSystem;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::context::Context;
 use crate::components::r#type::Type;
 use crate::components::r#type::tchar::Tchar;

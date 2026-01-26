@@ -12,9 +12,10 @@ pub mod type_operator;
 pub mod type_printer;
 pub mod typer;
 pub mod argument_type;
+pub mod type_system;
 
-use crate::components::error_message::help_message::PrintAndDefault;
 use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::type_error::TypeError;
 use crate::processes::parsing::operation_priority::TokenKind;
 use crate::components::r#type::argument_type::ArgumentType;
@@ -22,16 +23,17 @@ use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_category::TypeCategory;
 use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::module_type::ModuleType;
 use crate::processes::parsing::type_token::TypeToken;
-use crate::components::r#type::type_printer::format2;
+use crate::components::r#type::type_printer::verbose;
 use crate::components::r#type::type_printer::format;
-use crate::components::context::graph::TypeSystem;
-use crate::components::context::Context;
+use crate::components::r#type::type_printer::short;
 use crate::processes::parsing::types::ltype;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
 use crate::components::language::var::Var;
+use crate::components::context::Context;
 use serde::{Serialize, Deserialize};
 use std::collections::HashSet;
 use crate::utils::builder;
@@ -118,6 +120,14 @@ pub enum Type {
 impl TypeSystem for Type {
     fn pretty(&self) -> String {
         format(self)
+    }
+
+    fn simple_pretty(&self) -> String {
+        short(self)
+    }
+
+    fn verbose_pretty(&self) -> String {
+        verbose(self)
     }
 
     fn is_subtype(&self, other: &Type, context: &Context) -> bool {
@@ -235,7 +245,7 @@ impl Type {
         if !annotation.is_empty() {
             reduced_type.is_subtype(&reduced_annotation, context)
                             .then_some(annotation.clone())
-                            .error_message(TypeError::Let(annotation.clone(), self.clone()))
+                            .expect(&TypeError::Let(annotation.clone(), self.clone()).display())
         } else { self.clone() }
     }
 
@@ -493,7 +503,7 @@ impl Type {
 
 
     pub fn pretty2(&self) -> String {
-        format2(self)
+        verbose(self)
     }
 
     pub fn is_tag_or_union(&self) -> bool {

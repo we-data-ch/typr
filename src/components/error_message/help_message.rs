@@ -1,7 +1,7 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::error_message::help_data::HelpData;
 use miette::{Diagnostic, NamedSource, SourceSpan, Result};
-use crate::components::context::graph::TypeSystem;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::error_message::MsgTemplate;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;

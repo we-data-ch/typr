@@ -1,10 +1,11 @@
 pub mod type_comparison;
 pub mod unification_map;
 pub mod unification;
+pub mod type_checker;
+
 
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::components::language::argument_value::ArgumentValue;
-use crate::processes::transpiling::translatable::RTranslatable;
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::r#type::argument_type::ArgumentType;
@@ -12,8 +13,7 @@ use crate::components::r#type::function_type::FunctionType;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::context::config::TargetLanguage;
 use crate::components::language::array_lang::ArrayLang;
-use crate::components::context::config::Environment;
-use crate::components::context::graph::TypeSystem;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::utils::package_loader::PackageManager;
 use crate::components::language::operators::Op;
 use crate::components::r#type::typer::Typer;
@@ -25,70 +25,6 @@ use std::collections::HashSet;
 use crate::utils::builder;
 use std::process::Command;
 use std::error::Error;
-use rpds::Vector;
-
-#[derive(Debug, Clone)]
-pub struct TypeChecker {
-    context: Context,
-    code: Vector<Lang>,
-    types: Vector<Type>,
-    last_type: Type
-}
-
-impl TypeChecker {
-    pub fn new(context: Context) -> Self {
-        Self {
-            context: context,
-            code: Vector::new(),
-            types: Vector::new(),
-            last_type: builder::unknown_function()
-        }
-    }
-
-    pub fn typing(self, exp: &Lang) -> Self {
-        match exp {
-            Lang::Lines(exps, _) => {
-                let type_checker = exps.iter()
-                    .fold(self.clone(), |acc, lang| acc.typing_helper(lang));
-                println!("Typing:\n{}\n", type_checker.last_type.pretty());
-                type_checker
-            },
-            _ => self.clone().typing_helper(exp)
-        }
-    }
-
-    fn typing_helper(self, exp: &Lang) -> Self {
-        let (typ, lang, context) = typing(&self.context, exp);
-        Self {
-            context: context,
-            code: self.code.push_back(lang),
-            types: self.types.push_back(typ.clone()),
-            last_type: typ
-        }
-    }
-
-    pub fn get_context(&self) -> Context {
-        self.context.clone()
-    }
-
-    pub fn transpile(self) -> String {
-        let code = self.code.iter()
-            .zip(self.types.iter())
-            .map(|(lang, _)| lang.to_r(&self.context).0)
-            .collect::<Vec<_>>().join("\n");
-        let import = match self.get_environment() {
-            Environment::Project | Environment::Repl => "",
-            Environment::StandAlone => "source('a_std.R', echo = FALSE)"
-        };
-
-        format!("{}\n\n{}", import, code)
-    }
-
-    fn get_environment(&self) -> Environment {
-        self.context.get_environment()
-    }
-
-}
 
 pub fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
     // Créer un script R temporaire avec la fonction à exécuter

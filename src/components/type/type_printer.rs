@@ -1,11 +1,11 @@
 use crate::components::r#type::type_category::TypeCategory;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::context::graph::TypeSystem;
-use crate::components::r#type::pretty;
-use crate::components::r#type::Type;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
+use crate::components::r#type::pretty;
+use crate::components::r#type::Type;
 
 pub fn format(ty: &Type) -> String {
     match ty {
@@ -13,18 +13,18 @@ pub fn format(ty: &Type) -> String {
             if params.len() == 0 {
                 format!("{}", name)
             } else {
-            let paras = params.iter().map(|typ| format2(typ)).collect::<Vec<_>>();
+            let paras = params.iter().map(|typ| verbose(typ)).collect::<Vec<_>>();
                 format!("{}<{}>", name, paras.join(", "))
             }
         },
         Type::Array(dim, ty, _) => {
-            format!("[{}, {}]", format2(dim), format(ty))
+            format!("[{}, {}]", short(dim), verbose(ty))
         },
         Type::Vector(dim, ty, _) => {
-            format!("Vec[{}, {}]", format2(dim), format(ty))
+            format!("Vec[{}, {}]", short(dim), verbose(ty))
         },
         Type::Sequence(dim, ty, _) => {
-            format!("Seq[{}, {}]", format2(dim), format(ty))
+            format!("Seq[{}, {}]", short(dim), verbose(ty))
         },
         Type::Function(params, ret_ty, _h) => {
             let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();
@@ -38,16 +38,11 @@ pub fn format(ty: &Type) -> String {
             }
         },
         Type::Record(fields, _) => {
-            let formatted_fields = fields.iter().map(|arg_typ| format!("{}: {}", format2(&arg_typ.get_argument()), format(&arg_typ.get_type()))).collect::<Vec<_>>();
+            let formatted_fields = fields.iter().map(|arg_typ| format!("{}: {}", verbose(&arg_typ.get_argument()), format(&arg_typ.get_type()))).collect::<Vec<_>>();
             format!("list{{{}}}", formatted_fields.join(", "))
         }
         Type::Generic(name, _) => name.to_uppercase(),
-        Type::Integer(tint, _) => {
-            match tint {
-                Tint::Val(i) => format!("{}", i),
-                _ => "int".to_string()
-            }
-        },
+        Type::Integer(_, _) => "int".to_string(),
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
         Type::Char(tchar, _) => {
@@ -95,7 +90,17 @@ pub fn format(ty: &Type) -> String {
     }
 }
 
-pub fn format2(t: &Type) -> String {
+pub fn short(t: &Type) -> String {
+    match t {
+        Type::Integer(tint, _) => match tint {
+            Tint::Val(i) => format!("{}", i),
+            _ => "int".to_string()
+        },
+        val => val.pretty()
+    }
+}
+
+pub fn verbose(t: &Type) -> String {
     match t {
         Type::Integer(tint, _) => {
             match tint {

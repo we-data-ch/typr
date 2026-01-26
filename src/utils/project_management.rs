@@ -1,6 +1,6 @@
+use crate::processes::type_checking::type_checker::TypeChecker;
 use crate::utils::engine::write_std_for_type_checking;
 use crate::components::context::config::Environment;
-use crate::processes::type_checking::TypeChecker;
 use crate::utils::my_io::execute_r_with_path;
 use crate::processes::type_checking::typing;
 use crate::components::context::Context;

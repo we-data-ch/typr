@@ -1,9 +1,9 @@
-use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::help_message::ErrorMsg;
+use crate::components::error_message::type_error::TypeError;
 use crate::utils::standard_library::validate_vectorization;
-use crate::components::context::graph::TypeSystem;
-use crate::components::context::Context;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::unification;
+use crate::components::context::Context;
 use crate::components::r#type::Type;
 use std::collections::HashSet;
 use crate::utils::builder;
