@@ -1,35 +1,36 @@
 use crate::processes::parsing::operation_priority::PriorityTokens;
-use crate::components::r#type::argument_type::ArgumentType;
 use crate::processes::parsing::vector_priority::VectorPriority;
-use crate::processes::parsing::elements;
+use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_operator::TypeOperator;
-use nom::character::complete::alphanumeric1;
-use nom::character::complete::multispace0;
-use nom::character::complete::none_of;
-use nom::character::complete::one_of;
-use nom::character::complete::digit1;
-use crate::components::language::operators::{Op, op};
+use crate::components::error_message::help_data::HelpData;
 use crate::processes::parsing::elements::variable_exp;
 use crate::processes::parsing::type_token::TypeToken;
+use crate::components::language::operators::{Op, op};
+use crate::components::r#type::vector_type::VecType;
+use crate::processes::parsing::elements::variable2;
+use crate::components::r#type::tchar::Tchar;
+use nom::character::complete::alphanumeric1;
+use nom::character::complete::multispace0;
+use crate::components::r#type::tint::Tint;
+use crate::processes::parsing::elements;
+use nom::character::complete::none_of;
+use crate::components::language::Lang;
+use nom::character::complete::one_of;
+use nom::character::complete::digit1;
 use crate::components::r#type::Type;
 use nom::combinator::recognize;
-use crate::processes::parsing::elements::variable2;
-use crate::components::error_message::help_data::HelpData;
 use std::collections::HashSet;
 use nom::sequence::terminated;
 use nom::bytes::complete::tag;
 use nom::sequence::delimited;
 use nom_locate::LocatedSpan;
+use crate::utils::builder;
 use nom::combinator::opt;
-use crate::components::r#type::tchar::Tchar;
 use nom::multi::many0;
 use nom::multi::many1;
-use crate::components::r#type::tint::Tint;
 use nom::branch::alt;
 use nom::IResult;
 use nom::Parser;
-use crate::utils::builder;
-use crate::components::language::Lang;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -57,7 +58,6 @@ fn function_type(s: Span) -> IResult<Span, Type> {
         Err(r) => Err(r)
     }
 }
-
 
 fn upper_case_generic(s: Span) -> IResult<Span, String> {
     let res = terminated(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), multispace0).parse(s);
@@ -109,7 +109,8 @@ fn array_type(s: Span) -> IResult<Span, Type> {
                   ).parse(s);
 
     match res {
-        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::Array(Box::new(num), Box::new(typ), start.into()))),
+        Ok((s, (start, num, _, typ, _))) 
+            => Ok((s, Type::Vec(VecType::Array, Box::new(num), Box::new(typ), start.into()))),
         Err(r) => Err(r)
     }
 }
@@ -124,7 +125,8 @@ fn vector_type(s: Span) -> IResult<Span, Type> {
                   ).parse(s);
 
     match res {
-        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::Vector(Box::new(num), Box::new(typ), start.into()))),
+        Ok((s, (start, num, _, typ, _))) 
+            => Ok((s, Type::Vec(VecType::Vector, Box::new(num), Box::new(typ), start.into()))),
         Err(r) => Err(r)
     }
 }

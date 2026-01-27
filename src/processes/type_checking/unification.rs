@@ -82,17 +82,9 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         }
 
         // Array type substitution
-        Type::Array(size, element_type, h) => {
-            Type::Array(
-                Box::new(type_substitution(size, substitutions)),
-                Box::new(type_substitution(element_type, substitutions)),
-                h.clone()
-            )
-        }
-
-        // Vector type substitution
-        Type::Vector(size, element_type, h) => {
-            Type::Vector(
+        Type::Vec(vtype, size, element_type, h) => {
+            Type::Vec(
+                *vtype, 
                 Box::new(type_substitution(size, substitutions)),
                 Box::new(type_substitution(element_type, substitutions)),
                 h.clone()
@@ -208,7 +200,7 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
         }
 
         // Array case
-        (Type::Array(size1, elem1, _), Type::Array(size2, elem2, _)) => {
+        (Type::Vec(_, size1, elem1, _), Type::Vec(_, size2, elem2, _)) => {
             let size_matches = unification_helper(values, size1, size2);
             let elem_matches = unification_helper(values, elem1, elem2);
             let mut combined = size_matches;

@@ -34,9 +34,7 @@ impl TryFrom<Type> for ArrayType {
 
     fn try_from(value: Type) -> Result<Self, Self::Error> {
         match value {
-            Type::Array(t1, t2, h) 
-                => Ok(ArrayType{index: *t1, type_: *t2, help_data: h}),
-            Type::Vector(t1, t2, h) 
+            Type::Vec(vtyp, t1, t2, h) 
                 => Ok(ArrayType{index: *t1, type_: *t2, help_data: h}),
             _ => Err(())
         }

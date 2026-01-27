@@ -13,6 +13,7 @@ pub mod type_printer;
 pub mod typer;
 pub mod argument_type;
 pub mod type_system;
+pub mod vector_type;
 
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::components::error_message::help_message::ErrorMsg;
@@ -28,6 +29,7 @@ use crate::components::r#type::module_type::ModuleType;
 use crate::processes::parsing::type_token::TypeToken;
 use crate::components::r#type::type_printer::verbose;
 use crate::components::r#type::type_printer::format;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::type_printer::short;
 use crate::processes::parsing::types::ltype;
 use crate::components::r#type::tchar::Tchar;
@@ -76,6 +78,7 @@ pub fn pretty(hs: HashSet<ArgumentType>) -> String {
         .collect::<Vec<_>>().join("\n")
 }
 
+
 #[derive(Debug, Clone, Serialize, Deserialize, Eq)]
 pub enum Type {
     Number(HelpData),
@@ -87,7 +90,7 @@ pub enum Type {
     Generic(String, HelpData),
     IndexGen(String, HelpData),
     LabelGen(String, HelpData),
-    Array(Box<Type>, Box<Type>, HelpData),
+    Vec(VecType, Box<Type>, Box<Type>, HelpData),
     Record(HashSet<ArgumentType>, HelpData),
     Module(Vec<ArgumentType>, HelpData),
     Alias(String, Vec<Type>, bool, HelpData), //for opacity
@@ -110,7 +113,6 @@ pub enum Type {
     UnknownFunction(HelpData),
     RClass(HashSet<String>, HelpData),
     Empty(HelpData),
-    Vector(Box<Type>, Box<Type>, HelpData),
     Operator(TypeOperator, Box<Type>, Box<Type>, HelpData),
     Any(HelpData),
     Variable(String, HelpData),
@@ -138,10 +140,7 @@ impl TypeSystem for Type {
                     .any(|x| x.is_subtype(typ, context))
             },
             (_, Type::Any(_)) => true,
-            (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
-                n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
-            },
-            (Type::Vector(n1, t1, _), Type::Vector(n2, t2, _)) => {
+            (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => {
                 n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
             },
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
@@ -308,7 +307,7 @@ impl Type {
                     .collect::<Vec<_>>().join(", ");
                 format!("{{ {} }}", res)
            },
-           Type::Array(_size, body, _) => format!("{}[]", body.to_typescript()),
+           Type::Vec(_, _size, body, _) => format!("{}[]", body.to_typescript()),
            Type::IndexGen(id, _) => id.to_uppercase(),
            Type::Generic(val, _) => val.to_uppercase(), 
            Type::Function(args, ret, _) => {
@@ -342,7 +341,7 @@ impl Type {
                     .collect::<Vec<_>>().join(", ");
                 format!("{{ {} }}", res)
            },
-           Type::Array(_size, body, _) => format!("{}[]", body.to_typescript()),
+           Type::Vec(_, _size, body, _) => format!("{}[]", body.to_typescript()),
            Type::IndexGen(id, _) => id.to_uppercase(),
            Type::Generic(val, _) => val.to_uppercase(), 
            Type::Function(args, ret, _) => {
@@ -374,7 +373,7 @@ impl Type {
                     .iter().flat_map(|typ| typ.extract_generics())
                     .collect::<Vec<_>>()
             }
-            Type::Array(ind, typ, _) => {
+            Type::Vec(_, ind, typ, _) => {
                typ.extract_generics() 
                    .iter()
                    .chain(ind.extract_generics().iter())
@@ -403,8 +402,9 @@ impl Type {
                 => a.index_calculation().mul_index(&b.index_calculation()),
             Type::Div(a, b, _) 
                 => a.index_calculation().div_index(&b.index_calculation()),
-            Type::Array(ind, typ, h) =>
-                Type::Array(
+            Type::Vec(vtype, ind, typ, h) =>
+                Type::Vec(
+                    *vtype, 
                     Box::new(ind.index_calculation()), 
                     Box::new(typ.index_calculation()),
                     h.clone()),
@@ -456,7 +456,7 @@ impl Type {
     }
 
     pub fn get_shape(&self) -> Option<String> {
-        if let Type::Array(i, t, _) = self {
+        if let Type::Vec(_, i, t, _) = self {
             match (*i.clone(), t.get_shape()) {
                 (Type::IndexGen(_, _), _) => Some("dim(===)".to_string()),
                 (Type::Integer(j, _), Some(rest)) => Some(format!("{}, {}", j, rest)),
@@ -544,7 +544,7 @@ impl Type {
     
     pub fn to_category(&self) -> TypeCategory {
         match self {
-            Type::Array(_, _, _) => TypeCategory::Array,
+            Type::Vec(_, _, _, _) => TypeCategory::Array,
             Type::Function(_, _, _) => TypeCategory::Function,
             Type::Record(_, _) => TypeCategory::Record,
             Type::Tuple(_, _) => TypeCategory::Tuple,
@@ -568,7 +568,6 @@ impl Type {
             Type::Minus(_, _, _) => TypeCategory::Template,
             Type::Mul(_, _, _) => TypeCategory::Template,
             Type::Div(_, _, _) => TypeCategory::Template,
-            Type::Vector(_, _, _) => TypeCategory::Vector,
             Type::Intersection(_, _) => TypeCategory::Intersection,
             Type::Module(_, _) => TypeCategory::Module,
             Type::Operator(_, _, _, _) => TypeCategory::Operator,
@@ -617,7 +616,7 @@ impl Type {
             Type::Generic(_, h) => h.clone(),
             Type::IndexGen(_, h) => h.clone(),
             Type::LabelGen(_, h) => h.clone(),
-            Type::Array(_, _, h) => h.clone(),
+            Type::Vec(_, _, _, h) => h.clone(),
             Type::Record(_, h) => h.clone(),
             Type::Module(_, h) => h.clone(),
             Type::Alias(_, _, _, h) => h.clone(),
@@ -640,7 +639,6 @@ impl Type {
             Type::Any(h) => h.clone(),
             Type::RClass(_, h) => h.clone(),
             Type::Union(_, h) => h.clone(),
-            Type::Vector(_, _, h) => h.clone(),
             Type::Intersection(_, h) => h.clone(),
             Type::Operator(_, _, _, h) => h.clone(),
             Type::Variable(_, h) => h.clone(),
@@ -658,7 +656,7 @@ impl Type {
             Type::Generic(a, _) => Type::Generic(a, h2),
             Type::IndexGen(a, _) => Type::IndexGen(a, h2),
             Type::LabelGen(a, _) => Type::LabelGen(a, h2),
-            Type::Array(a1, a2, _) => Type::Array(a1, a2, h2),
+            Type::Vec(vt, a1, a2, _) => Type::Vec(vt, a1, a2, h2),
             Type::Record(a, _) => Type::Record(a, h2),
             Type::Module(a, _) => Type::Module(a, h2),
             Type::Alias(a1, a2, a3, _) => Type::Alias(a1, a2, a3, h2),
@@ -681,7 +679,6 @@ impl Type {
             Type::Any(_) => Type::Any(h2),
             Type::RClass(v, _) => Type::RClass(v, h2),
             Type::Union(v, _) => Type::Union(v, h2),
-            Type::Vector(i, t, _) => Type::Vector(i, t, h2),
             Type::Intersection(i, _) => Type::Intersection(i, h2),
             Type::Operator(op, t1, t2, _) => Type::Operator(op, t1, t2, h2),
             Type::Variable(name, _) => Type::Variable(name, h2),
@@ -697,7 +694,7 @@ impl Type {
 
     pub fn to_array(&self) -> Option<Array> {
         match self {
-            Type::Array(t1, t2, h) 
+            Type::Vec(_, t1, t2, h) 
                 => Some(Array{index: (**t1).clone(), base_type: (**t2).clone(), help_data: h.clone()}),
             _ => None
         }
@@ -706,11 +703,13 @@ impl Type {
     pub fn to_array2(args: Vec<Type>) -> Type {
         let h = HelpData::default();
         if args.len() > 1 {
-            Type::Array(
+            Type::Vec(
+                VecType::Array,
                 Box::new(args[0].clone()), 
                 Box::new(Self::to_array2(args[1..].to_vec())), h)
         } else {
-            Type::Array(
+            Type::Vec(
+                VecType::Array,
                 Box::new(args[0].clone()), 
                 Box::new(builder::integer_type_default()), h)
         }
@@ -800,7 +799,7 @@ impl Type {
 
     pub fn linearize(self) -> Vec<Type> {
         match self {
-            Type::Array(t1, t2, _) 
+            Type::Vec(_, t1, t2, _) 
                 => [*t1].iter().chain((*t2).linearize().iter()).cloned().collect(),
             other => vec![other]
         }
@@ -808,7 +807,7 @@ impl Type {
 
     pub fn is_upperrank_of(&self, other: &Type) -> bool {
         match (self, other) {
-            (Type::Array(_, typ1, _), typ2) => **typ1 == *typ2,
+            (Type::Vec(_, _, typ1, _), typ2) => **typ1 == *typ2,
             _ => false
         }
     }
@@ -827,7 +826,7 @@ impl Type {
 
     pub fn get_size_type(&self) -> (i32, Type) {
         match self {
-            Type::Array(i, t, _) => (i.get_index().unwrap() as i32, (**t).clone()),
+            Type::Vec(_, i, t, _) => (i.get_index().unwrap() as i32, (**t).clone()),
             typ => (1, typ.clone())
         }
     }
@@ -843,7 +842,7 @@ impl Type {
         let reduced_self = self.reduce(context);
         let reduced_other = other.reduce(context);
         match reduced_self {
-            Type::Array(_, t, _) => *t == reduced_other,
+            Type::Vec(_, _, t, _) => *t == reduced_other,
             _ => false
         }
     }
@@ -881,7 +880,7 @@ impl From<Type> for HelpData {
            Type::Integer(_, h) => h,
            Type::Record(_, h) => h,
            Type::Boolean(h) => h,
-           Type::Array(_, _, h) => h,
+           Type::Vec(_, _, _, h) => h,
            Type::Number(h) => h,
            Type::Intersection(_, h) => h,
            Type::Union(_, h) => h,
@@ -905,7 +904,7 @@ impl PartialEq for Type {
             (Type::Generic(_, _), Type::Generic(_, _)) => true,
             (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
             (Type::LabelGen(_, _), Type::LabelGen(_, _)) => true,
-            (Type::Array(a1, b1, _), Type::Array(a2, b2, _)) 
+            (Type::Vec(_, a1, b1, _), Type::Vec(_, a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
             (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) 
@@ -973,11 +972,7 @@ impl PartialOrd for Type {
             (typ1, typ2) if typ1 == typ2 => Some(Ordering::Equal),
             // Array subtyping
             (_, Type::Any(_)) => Some(Ordering::Less),
-            (Type::Array(n1, t1, _), Type::Array(n2, t2, _)) => {
-                (n1.partial_cmp(&*n2).is_some() && t1.partial_cmp(&*t2).is_some())
-                    .then_some(Ordering::Less)
-            },
-            (Type::Vector(n1, t1, _), Type::Vector(n2, t2, _)) => {
+            (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => {
                 (n1.partial_cmp(&*n2).is_some() && t1.partial_cmp(&*t2).is_some())
                     .then_some(Ordering::Less)
             },
@@ -1054,7 +1049,7 @@ impl Hash for Type {
             Type::Generic(_, _) => 6.hash(state),
             Type::IndexGen(_, _) => 7.hash(state),
             Type::LabelGen(_, _) => 8.hash(state),
-            Type::Array(_, _, _) => 9.hash(state),
+            Type::Vec(_, _, _, _) => 9.hash(state),
             Type::Record(_, _) => 10.hash(state),
             Type::Alias(_, _, _, _) => 11.hash(state),
             Type::Tag(_, _, _) => 12.hash(state),
@@ -1076,7 +1071,6 @@ impl Hash for Type {
             Type::UnknownFunction(_) => 30.hash(state),
             Type::RClass(_, _) => 31.hash(state),
             Type::Union(_, _) => 33.hash(state),
-            Type::Vector(_, _, _) => 34.hash(state),
             Type::Intersection(_, _) => 36.hash(state),
             Type::Module(_, _) => 37.hash(state),
             Type::Operator(_, _, _, _) => 38.hash(state),

@@ -1,6 +1,7 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::language::operators::Op;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
@@ -74,12 +75,12 @@ pub fn tuple_type(types: &[Type]) -> Type {
 }
 
 pub fn array_type(i: Type, t: Type) -> Type {
-    Type::Array(Box::new(i), Box::new(t), HelpData::default())
+    Type::Vec(VecType::Array, Box::new(i), Box::new(t), HelpData::default())
 }
 
 pub fn array_type2(i: i32, t: Type) -> Type {
     let i2 = integer_type(i);
-    Type::Array(Box::new(i2), Box::new(t), HelpData::default())
+    Type::Vec(VecType::Array, Box::new(i2), Box::new(t), HelpData::default())
 }
 
 pub fn opaque_type(name: &str) -> Type {

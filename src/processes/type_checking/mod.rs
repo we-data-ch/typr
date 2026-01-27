@@ -161,16 +161,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                     .collect::<Vec<_>>();
                 Some(res)
             }
-            (Type::Array(ind1, typ1, _), Type::Array(ind2, typ2, _)) => {
-               let gen1 = get_gen_type(ind1, ind2);
-               let gen2 = get_gen_type(typ1, typ2);
-                match (gen1, gen2) {
-                    (None, _) | (_, None) => None,
-                    (Some(g1), Some(g2)) 
-                        => Some(g1.iter().chain(g2.iter()).cloned().collect())
-                }
-            },
-            (Type::Vector(ind1, typ1, _), Type::Vector(ind2, typ2, _)) => {
+            (Type::Vec(_, ind1, typ1, _), Type::Vec(_, ind2, typ2, _)) => {
                let gen1 = get_gen_type(ind1, ind2);
                let gen2 = get_gen_type(typ1, typ2);
                 match (gen1, gen2) {
@@ -368,7 +359,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 (Type::UnknownFunction(h) , Lang::FunctionApp(_, _, _, _), _ ) => {
                     (Type::UnknownFunction(h), (*expr).clone(), context.clone()).into()
                 }
-                (Type::Array(n, _, h), Lang::Variable(_, _, _, _, _), _) => {
+                (Type::Vec(vtype, n, _, h), Lang::Variable(_, _, _, _, _), _) => {
                     let (typ, lang, _) = 
                         typing(context, 
                             &builder::operation(
@@ -378,7 +369,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                     .expect("The array is of size 0"),
                                 (**e2).clone())
                                ).to_tuple();
-                    (Type::Array(n, Box::new(typ), h.clone()), lang, context.clone()).into()
+                    (Type::Vec(vtype, n, Box::new(typ), h.clone()), lang, context.clone()).into()
                 },
                 (_ , Lang::FunctionApp(exp, args, ret, h2), Op::Dot(_)) => {
                     typing(

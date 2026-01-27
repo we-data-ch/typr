@@ -1,6 +1,7 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::context::config::TargetLanguage;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::context::config::Config;
 use crate::components::language::var::Var;
 use crate::components::context::Context;
@@ -212,7 +213,7 @@ impl VarType {
             Type::Integer(_, _) => "Integer".to_string(),
             Type::Number(_) => "Number".to_string(),
             Type::Char(_, _) => "Character".to_string(),
-            Type::Vector(_, _, _) => "".to_string(),
+            Type::Vec(vtype, _, _, _) if vtype.is_vector() => "".to_string(),
             Type::Alias(name, _, _, _) => name.to_string(),
             _ => {
                 self.aliases.iter()

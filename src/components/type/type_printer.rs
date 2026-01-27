@@ -17,11 +17,8 @@ pub fn format(ty: &Type) -> String {
                 format!("{}<{}>", name, paras.join(", "))
             }
         },
-        Type::Array(dim, ty, _) => {
-            format!("[{}, {}]", short(dim), verbose(ty))
-        },
-        Type::Vector(dim, ty, _) => {
-            format!("Vec[{}, {}]", short(dim), verbose(ty))
+        Type::Vec(vtype, dim, ty, _) => {
+            format!("{}[{}, {}]", vtype.to_string(), short(dim), verbose(ty))
         },
         Type::Function(params, ret_ty, _h) => {
             let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();
@@ -111,16 +108,12 @@ pub fn verbose(t: &Type) -> String {
             "char".to_string()
         },
         Type::Record(fields, _) => {
-            //"char".to_string()
             let formatted_fields = fields.iter().map(|arg_typ| format!("{}: {}", format(&arg_typ.get_argument()), format(&arg_typ.get_type()))).collect::<Vec<_>>();
             format!("list{{{}}}", formatted_fields.join(", "))
         },
         Type::IndexGen(idgen, _) => format!("#{}", idgen),
-        Type::Array(i, t, _) => {
-            format!("[{}, {}]", i.pretty(), t.pretty2())
-        },
-        Type::Vector(i, t, _) => {
-            format!("Vec[{}, {}]", i.pretty(), t.pretty2())
+        Type::Vec(vtype, i, t, _) => {
+            format!("{}[{}, {}]", vtype.to_string(), i.pretty(), t.pretty2())
         },
         val if val.to_category() == TypeCategory::Template
             => val.pretty(),

@@ -1,21 +1,21 @@
 pub mod translatable;
 
-use crate::components::language::set_related_type_if_variable;
 use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::components::language::set_related_type_if_variable;
 use crate::processes::transpiling::translatable::Translatable;
 use crate::components::r#type::function_type::FunctionType;
-use crate::processes::type_checking::typing;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::language::format_backtick;
-use crate::components::language::ModulePosition;
 use crate::components::language::function_lang::Function;
 use crate::components::r#type::array_type::ArrayType;
 use crate::components::context::config::Environment;
+use crate::components::language::format_backtick;
+use crate::components::language::operators::Op;
+use crate::components::language::ModulePosition;
+use crate::processes::type_checking::typing;
+use crate::components::language::var::Var;
 use crate::components::context::Context;
 use crate::components::language::Lang;
 use crate::components::r#type::Type;
-use crate::components::language::operators::Op;
-use crate::components::language::var::Var;
 use translatable::RTranslatable;
 use std::path::PathBuf;
 use std::io::Write;
@@ -129,8 +129,9 @@ impl RTranslatable<(String, Context)> for Lang {
                 let e2 = (**e2).clone();
                 let t1 = typing(cont, &e1).value;
                 let val = match (t1.clone(), e2.clone()) {
-                    (Type::Array(_, _, _), Lang::Variable(name, _, _, _, _))
-                        => format!("vec_apply(get, {}, typed_vec('{}'))", e1.to_r(cont).0, name),
+                    (Type::Vec(vtype, _, _, _), Lang::Variable(name, _, _, _, _))
+                        if vtype.is_array() =>
+                            format!("vec_apply(get, {}, typed_vec('{}'))", e1.to_r(cont).0, name),
                     (_, Lang::Variable(name, _, _, _, _))
                         => format!("{}${}", e1.to_r(cont).0, name),
                     _ => format!("{}${}", e1.to_r(cont).0, e2.to_r(cont).0),
@@ -251,7 +252,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let (val_str, _) = val.to_simple_r(cont);
                 let (typ, _, _) = typing(&cont, exp).to_tuple();
                 let res = match typ {
-                    Type::Array(_, _, _) | Type::Vector(_, _, _) 
+                    Type::Vec(_, _, _, _)
                         => format!("{}[[{}]]", exp_str, val_str), 
                     _ => "".to_string()
                 };

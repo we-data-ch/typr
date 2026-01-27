@@ -68,13 +68,10 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
             let ret_typ2 = reduce_type_helper(context, ret_typ, memory.clone());
             Type::Function(typs2, Box::new(ret_typ2), h.to_owned())
         },
-        Type::Array(ind, typ, h) => {
-            Type::Array(ind.clone(),
-                    Box::new(reduce_type_helper(context, typ, memory.clone())),
-                    h.clone())
-        },
-        Type::Vector(ind, typ, h) => {
-            Type::Vector(ind.clone(),
+        Type::Vec(vtype, ind, typ, h) => {
+            Type::Vec(
+                    *vtype,
+                    ind.clone(),
                     Box::new(reduce_type_helper(context, typ, memory.clone())),
                     h.clone())
         },
