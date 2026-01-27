@@ -251,7 +251,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let (val_str, _) = val.to_simple_r(cont);
                 let (typ, _, _) = typing(&cont, exp).to_tuple();
                 let res = match typ {
-                    Type::Array(_, _, _) | Type::Vector(_, _, _) | Type::Sequence(_, _, _)
+                    Type::Array(_, _, _) | Type::Vector(_, _, _) 
                         => format!("{}[[{}]]", exp_str, val_str), 
                     _ => "".to_string()
                 };

@@ -23,9 +23,6 @@ pub fn format(ty: &Type) -> String {
         Type::Vector(dim, ty, _) => {
             format!("Vec[{}, {}]", short(dim), verbose(ty))
         },
-        Type::Sequence(dim, ty, _) => {
-            format!("Seq[{}, {}]", short(dim), verbose(ty))
-        },
         Type::Function(params, ret_ty, _h) => {
             let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();
             format!("fn({}) -> {}", formatted_params.join(", "), format(ret_ty))

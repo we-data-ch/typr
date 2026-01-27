@@ -179,15 +179,6 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                         => Some(g1.iter().chain(g2.iter()).cloned().collect())
                 }
             },
-            (Type::Sequence(ind1, typ1, _), Type::Sequence(ind2, typ2, _)) => {
-               let gen1 = get_gen_type(ind1, ind2);
-               let gen2 = get_gen_type(typ1, typ2);
-                match (gen1, gen2) {
-                    (None, _) | (_, None) => None,
-                    (Some(g1), Some(g2)) 
-                        => Some(g1.iter().chain(g2.iter()).cloned().collect())
-                }
-            },
             (Type::Record(v1, _), Type::Record(v2, _)) => {
                    let res = v1.iter() 
                        .zip(v2.iter())

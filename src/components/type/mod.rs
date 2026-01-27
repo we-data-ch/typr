@@ -111,7 +111,6 @@ pub enum Type {
     RClass(HashSet<String>, HelpData),
     Empty(HelpData),
     Vector(Box<Type>, Box<Type>, HelpData),
-    Sequence(Box<Type>, Box<Type>, HelpData),
     Operator(TypeOperator, Box<Type>, Box<Type>, HelpData),
     Any(HelpData),
     Variable(String, HelpData),
@@ -143,9 +142,6 @@ impl TypeSystem for Type {
                 n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
             },
             (Type::Vector(n1, t1, _), Type::Vector(n2, t2, _)) => {
-                n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
-            },
-            (Type::Sequence(n1, t1, _), Type::Sequence(n2, t2, _)) => {
                 n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
             },
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
@@ -573,7 +569,6 @@ impl Type {
             Type::Mul(_, _, _) => TypeCategory::Template,
             Type::Div(_, _, _) => TypeCategory::Template,
             Type::Vector(_, _, _) => TypeCategory::Vector,
-            Type::Sequence(_, _, _) => TypeCategory::Sequence,
             Type::Intersection(_, _) => TypeCategory::Intersection,
             Type::Module(_, _) => TypeCategory::Module,
             Type::Operator(_, _, _, _) => TypeCategory::Operator,
@@ -646,7 +641,6 @@ impl Type {
             Type::RClass(_, h) => h.clone(),
             Type::Union(_, h) => h.clone(),
             Type::Vector(_, _, h) => h.clone(),
-            Type::Sequence(_, _, h) => h.clone(),
             Type::Intersection(_, h) => h.clone(),
             Type::Operator(_, _, _, h) => h.clone(),
             Type::Variable(_, h) => h.clone(),
@@ -688,7 +682,6 @@ impl Type {
             Type::RClass(v, _) => Type::RClass(v, h2),
             Type::Union(v, _) => Type::Union(v, h2),
             Type::Vector(i, t, _) => Type::Vector(i, t, h2),
-            Type::Sequence(i, t, _) => Type::Sequence(i, t, h2),
             Type::Intersection(i, _) => Type::Intersection(i, h2),
             Type::Operator(op, t1, t2, _) => Type::Operator(op, t1, t2, h2),
             Type::Variable(name, _) => Type::Variable(name, h2),
@@ -891,7 +884,6 @@ impl From<Type> for HelpData {
            Type::Array(_, _, h) => h,
            Type::Number(h) => h,
            Type::Intersection(_, h) => h,
-           Type::Sequence(_, _, h) => h,
            Type::Union(_, h) => h,
            Type::Any(h) => h,
            Type::UnknownFunction(h) => h,
@@ -914,10 +906,6 @@ impl PartialEq for Type {
             (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
             (Type::LabelGen(_, _), Type::LabelGen(_, _)) => true,
             (Type::Array(a1, b1, _), Type::Array(a2, b2, _)) 
-                => a1 == a2 && b1 == b2,
-            (Type::Vector(a1, b1, _), Type::Sequence(a2, b2, _)) 
-                => a1 == a2 && b1 == b2,
-            (Type::Sequence(a1, b1, _), Type::Sequence(a2, b2, _)) 
                 => a1 == a2 && b1 == b2,
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
             (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) 
@@ -990,10 +978,6 @@ impl PartialOrd for Type {
                     .then_some(Ordering::Less)
             },
             (Type::Vector(n1, t1, _), Type::Vector(n2, t2, _)) => {
-                (n1.partial_cmp(&*n2).is_some() && t1.partial_cmp(&*t2).is_some())
-                    .then_some(Ordering::Less)
-            },
-            (Type::Sequence(n1, t1, _), Type::Sequence(n2, t2, _)) => {
                 (n1.partial_cmp(&*n2).is_some() && t1.partial_cmp(&*t2).is_some())
                     .then_some(Ordering::Less)
             },
@@ -1093,7 +1077,6 @@ impl Hash for Type {
             Type::RClass(_, _) => 31.hash(state),
             Type::Union(_, _) => 33.hash(state),
             Type::Vector(_, _, _) => 34.hash(state),
-            Type::Sequence(_, _, _) => 35.hash(state),
             Type::Intersection(_, _) => 36.hash(state),
             Type::Module(_, _) => 37.hash(state),
             Type::Operator(_, _, _, _) => 38.hash(state),
@@ -1251,7 +1234,7 @@ mod tests {
             .push_alias("Model".to_string(), interface.clone());
         let let_expression = 
             parse("let a: Model <- 10;".into());
-        let _ = typing(&context, &let_expression).0;
+        let _ = typing(&context, &let_expression).value;
         assert!(true)
         //assert_eq!(int_type.is_subtype(&interface, &context), true);
     }

@@ -78,11 +78,6 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
                     Box::new(reduce_type_helper(context, typ, memory.clone())),
                     h.clone())
         },
-        Type::Sequence(ind, typ, h) => {
-            Type::Sequence(ind.clone(),
-                    Box::new(reduce_type_helper(context, typ, memory.clone())),
-                    h.clone())
-        },
         Type::Operator(TypeOperator::Union, t1, t2, _) => {
             let typ1: Type = (**t1).clone();
             let typ2: Type = (**t2).clone();

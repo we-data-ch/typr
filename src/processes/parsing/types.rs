@@ -445,22 +445,6 @@ fn r_class(s: Span) -> IResult<Span, Type> {
     }
 }
 
-fn sequence_type(s: Span) -> IResult<Span, Type> {
-    let res = (
-            terminated(tag("Seq["), multispace0),
-            index_algebra,
-            terminated(tag(","), multispace0),
-            ltype,
-            terminated(tag("]"), multispace0),
-                  ).parse(s);
-
-    match res {
-        Ok((s, (start, num, _, typ, _))) 
-            => Ok((s, Type::Sequence(Box::new(num), Box::new(typ), start.into()))),
-        Err(r) => Err(r)
-    }
-}
-
 pub fn primitive_types(s: Span) -> IResult<Span, Type> {
     alt((
             number,
@@ -556,7 +540,6 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             unknown_function,
             vector_type,
             record_type,
-            sequence_type,
             parenthese_value,
             any,
             empty,

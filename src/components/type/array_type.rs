@@ -38,8 +38,6 @@ impl TryFrom<Type> for ArrayType {
                 => Ok(ArrayType{index: *t1, type_: *t2, help_data: h}),
             Type::Vector(t1, t2, h) 
                 => Ok(ArrayType{index: *t1, type_: *t2, help_data: h}),
-            Type::Sequence(t1, t2, h) 
-                => Ok(ArrayType{index: *t1, type_: *t2, help_data: h}),
             _ => Err(())
         }
     }
