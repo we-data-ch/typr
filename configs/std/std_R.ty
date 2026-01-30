@@ -15,3 +15,5 @@
 @sum: ([#N, T]) -> T;
 @test_that: (char, Any) -> Empty;
 @expect_true: (bool) -> Empty;
+@expect_false: (T, T) -> Empty;
+@expect_equal: (T, T) -> Empty;

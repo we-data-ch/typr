@@ -1,19 +1,19 @@
 #![allow(dead_code)]
-pub mod array_type;
 pub mod function_type;
-pub mod generic;
-pub mod index;
-pub mod js_types;
-pub mod module_type;
-pub mod tchar;
-pub mod tint;
 pub mod type_category;
 pub mod type_operator;
-pub mod type_printer;
-pub mod typer;
 pub mod argument_type;
+pub mod type_printer;
+pub mod module_type;
 pub mod type_system;
 pub mod vector_type;
+pub mod array_type;
+pub mod js_types;
+pub mod generic;
+pub mod index;
+pub mod tchar;
+pub mod tint;
+pub mod typer;
 
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::components::error_message::help_message::ErrorMsg;

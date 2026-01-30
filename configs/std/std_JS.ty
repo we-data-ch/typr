@@ -3,9 +3,6 @@
 @mul: (T, T) -> T;
 @div: (T, T) -> T;
 @seq: (#M, #N, #O) -> [#N+1-#M/#O, int];
-@append: (Seq[#N, T], T) -> Seq[#N+1, T];
-@modify: (Seq[#N, T], int, T) -> Seq[#N, T];
-@remove: (Seq[#N, T], int) -> Seq[#N-1, T];
 @test_that: (char, Any) -> Empty;
 @expect_equal: (T, T) -> Empty;
 @expect_true: (bool) -> Empty;
