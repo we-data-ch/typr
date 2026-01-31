@@ -45,7 +45,7 @@ pub enum Lang {
     Module(String, Vec<Lang>, ModulePosition, Config, HelpData),
     ModuleDecl(String, HelpData),
     Variable(String, Permission, bool, Type, HelpData),
-    FunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
+    FunctionApp(Box<Lang>, Vec<Lang>, HelpData),
     VecFunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
     MethodCall(Box<Lang>, Vec<Lang>, Type, HelpData),
     ArrayIndexing(Box<Lang>, Box<Lang>, HelpData),
@@ -165,7 +165,7 @@ impl Lang {
             vec![typing(context, self).value.clone()]
         } else {
             match self {
-                Lang::FunctionApp(exp, arg_typs, _, _) => {
+                Lang::FunctionApp(exp, arg_typs, _) => {
                     let typs = exp.extract_types_from_expression(context);
                     let typs2 = arg_typs.iter()
                         .flat_map(|x| x.extract_types_from_expression(context))
@@ -242,7 +242,7 @@ impl Lang {
             Lang::Module(_, _, _, _, h) => h,
             Lang::ModuleDecl(_, h) => h,
             Lang::Variable(_, _, _, _, h) => h,
-            Lang::FunctionApp(_, _, _, h) => h,
+            Lang::FunctionApp(_, _, h) => h,
             Lang::VecFunctionApp(_, _, _, h) => h,
             Lang::MethodCall(_, _, _, h) => h,
             Lang::ArrayIndexing(_, _, h) => h,
@@ -322,7 +322,7 @@ impl Lang {
             Lang::Module(_, _, _, _, _) => "Module".to_string(),
             Lang::ModuleDecl(_, _) => "ModuleDecl".to_string(),
             Lang::Variable(name, _, _, _, _) => format!("Variable({})", name),
-            Lang::FunctionApp(var, _, _, _) => 
+            Lang::FunctionApp(var, _, _) => 
                 format!("FunctionApp({})", Var::from_language(*(var.clone())).unwrap().get_name()),
             Lang::VecFunctionApp(var, _, _, _) => 
                 format!("VecFunctionApp({})", Var::from_language(*(var.clone())).unwrap().get_name()),
@@ -403,7 +403,7 @@ impl Lang {
             Lang::Return(exp, _) => {
                 (format!("return {};", exp.to_js(context).0), context.clone())
             },
-            Lang::FunctionApp(exp, params, _, _) => {
+            Lang::FunctionApp(exp, params, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
                 let res = format!("{}({})", var.get_name().replace("__", "."),
                         params.iter()
@@ -585,7 +585,7 @@ impl From<Lang> for HelpData {
            Lang::Char(_, h) => h,
            Lang::Variable(_, _, _, _, h) => h,
            Lang::Match(_, _, _, h) => h,
-           Lang::FunctionApp(_, _, _, h) => h,
+           Lang::FunctionApp(_, _, h) => h,
            Lang::VecFunctionApp(_, _, _, h) => h,
            Lang::MethodCall(_, _, _, h) => h,
            Lang::Empty(h) => h,

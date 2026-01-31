@@ -22,7 +22,7 @@ impl TypeChecker {
             context: context,
             code: Vector::new(),
             types: Vector::new(),
-            last_type: builder::unknown_function()
+            last_type: builder::unknown_function_type()
         }
     }
 

@@ -33,7 +33,7 @@ impl PackageManager {
     pub fn save(self) -> Self {
         match self.kind {
             Source::NameList => {
-                let unknown_function = builder::unknown_function();
+                let unknown_function = builder::unknown_function_type();
                 let any_type = builder::any_type();
                 let res = self.content.lines()
                     .map(|line| (Var::from_name(line).set_type(any_type.clone()), unknown_function.clone()))
@@ -56,7 +56,7 @@ impl PackageManager {
                 //Remove extra character at the beginning and at the end
                 let function_list = function_list[..(function_list.len()-1)][5..]
                     .to_string().replace("<-", "");
-                let unknown_function = builder::unknown_function();
+                let unknown_function = builder::unknown_function_type();
                 let var_types = function_list.split(";")
                     .map(|name| (Var::from_name(name).set_importability(true), unknown_function.clone()))
                     .collect::<Vec<_>>();

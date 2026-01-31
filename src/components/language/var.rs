@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::processes::transpiling::translatable::RTranslatable;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::error_message::help_data::HelpData;
@@ -60,7 +60,7 @@ impl Var {
             .set_type(Type::Params(params.to_vec(), HelpData::default()))
     }
 
-    pub fn infer_var_related_type(&self, values: &Vec<Lang>, context: &Context) -> Var {
+    pub fn set_var_related_type(&self, values: &Vec<Lang>, context: &Context) -> Var {
         if values.len() > 0 {
             let first_arg = values.iter().nth(0).unwrap().clone();
             let first_param_type = 
@@ -71,7 +71,7 @@ impl Var {
         }
     }
 
-    fn keep_minimals(liste: Vec<Type>, context: &Context) -> Vec<Type> {
+    fn keep_minimal(liste: Vec<Type>, context: &Context) -> Option<Type> {
         let mut mins: Vec<Type> = Vec::new();
         
         for candidat in liste {
@@ -94,22 +94,31 @@ impl Var {
                 mins.push(candidat);
             }
         }
-        mins
+        // get smallest type
+        if mins.iter().any(|x| !x.is_interface()) {
+            mins.iter().cloned().skip_while(|x| x.is_interface()).next()
+        } else {
+            mins.iter().cloned().next()
+        }
     }
 
     pub fn get_related_functions(self, values: &Vec<Lang>, context: &Context) 
-        -> Vec<FunctionType> {
-        let typed_var = self.infer_var_related_type(values, context);
+        -> Option<FunctionType> {
+        let typed_var = self.set_var_related_type(values, context);
         let res = context.get_matching_functions(typed_var.clone()).unwrap();
-        Self::keep_minimals(res, context)
-             .iter()
-             .map(|x| x.to_function_type().unwrap())
-             .collect()
+        Self::keep_minimal(res, context)
+             .and_then(|x| x.to_function_type())
     }
 
-    pub fn get_function_signatures(&self, values: &Vec<Lang>, context: &Context) -> Vec<FunctionType> {
+    pub fn get_vectorizable_related_functions(self, _values: &Vec<Lang>, context: &Context) 
+        -> Option<FunctionType> {
+        todo!();
+    }
+
+    pub fn get_function_signatures(&self, values: &Vec<Lang>, context: &Context) -> Option<FunctionType> {
         self.clone()
             .get_related_functions(values, context)
+            .or_else(|| self.clone().get_vectorizable_related_functions(values, context))
     }
 
     pub fn from_language(l: Lang) -> Option<Var> {
@@ -255,13 +264,13 @@ impl Var {
     pub fn to_alias_lang(self) -> Lang  {
         Lang::Alias(Box::new(self.clone().to_language()),
                 vec![], 
-                builder::unknown_function(),
+                builder::unknown_function_type(),
                 self.get_help_data())
     }
 
     pub fn to_let(self) -> Lang  {
         Lang::Let(Box::new(self.clone().to_language()),
-                builder::unknown_function(),
+                builder::unknown_function_type(),
                 Box::new(builder::empty_lang()),
                 self.get_help_data())
     }

@@ -400,7 +400,7 @@ fn function_application(s: Span) -> IResult<Span, Lang> {
           ).parse(s);
     match res {
         Ok((s, (exp, _, v, _))) 
-            => Ok((s, Lang::FunctionApp(Box::new(exp.clone()), v.clone(), builder::unknown_function(), exp.into()))),
+            => Ok((s, Lang::FunctionApp(Box::new(exp.clone()), v.clone(), exp.into()))),
         Err(r) => Err(r)
     }
 }
@@ -609,13 +609,11 @@ fn create_range(params: &[Lang]) -> Lang {
         Lang::FunctionApp(
            Box::new(Var::from_name("seq").to_language()),
            vec![params[0].clone(), params[1].clone(), Lang::Integer(1, HelpData::default())],
-           builder::unknown_function(),
            params.to_vec().into())
     } else {
         Lang::FunctionApp(
            Box::new(Var::from_name("seq").to_language()),
            vec![params[0].clone(), params[1].clone(), params[2].clone()],
-           builder::unknown_function(),
            params.to_vec().into())
     }
 }

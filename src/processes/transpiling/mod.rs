@@ -112,9 +112,9 @@ impl RTranslatable<(String, Context)> for Lang {
                             .to_r(&at.get_value()).add(" })")
                             .into()
                     }
-                    Lang::FunctionApp(var, v, typ, h) => {
+                    Lang::FunctionApp(var, v, h) => {
                         let v = [e1].iter().chain(v.iter()).cloned().collect();
-                        Lang::FunctionApp(var, v, typ, h).to_r(cont)
+                        Lang::FunctionApp(var, v, h).to_r(cont)
                     }
                     _ => {
                         Translatable::from(cont.clone())
@@ -173,7 +173,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 };
                 ((&name).to_string(), cont.clone())
             },
-            Lang::FunctionApp(exp, vals, _, _) => {
+            Lang::FunctionApp(exp, vals, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
                 let name = var.get_name();
                 let str_vals = vals.iter()

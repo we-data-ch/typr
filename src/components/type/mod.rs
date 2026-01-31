@@ -209,6 +209,13 @@ impl Default for Type {
 
 //main
 impl Type {
+    pub fn is_interface(&self) -> bool {
+        match self {
+            Type::Interface(_, _) => true,
+            _ => false
+        }
+    }
+
     pub fn add_to_context(self, var: Var, context: Context) -> (Type, Context) {
         let cont = context.clone().push_var_type(var.clone().set_type(self.clone()), self.clone(), &context);
         if self.is_function() {
@@ -471,7 +478,7 @@ impl Type {
             Type::Function(args, ret_ty, h) 
                 => Some(FunctionType(args.clone(), (**ret_ty).clone(), h.clone())),
             Type::UnknownFunction(h) 
-                => Some(FunctionType(vec![], builder::unknown_function(), h.clone())),
+                => Some(FunctionType(vec![], builder::unknown_function_type(), h.clone())),
             _ => None
         }
     }
@@ -736,7 +743,7 @@ impl Type {
         match self {
             Type::Interface(_, _) => self.clone(),
             Type::Function(_, _, _) 
-                => builder::interface_type(&[("_", builder::unknown_function())]),
+                => builder::interface_type(&[("_", builder::unknown_function_type())]),
             typ => {
                 let function_signatures = context.get_functions_from_type(typ)
                     .iter().cloned()
@@ -1104,7 +1111,7 @@ impl FromStr for Type {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let val = ltype(s.into())
-            .map(|x| x.1).unwrap_or(builder::unknown_function());
+            .map(|x| x.1).unwrap_or(builder::unknown_function_type());
         Ok(val)
     }
 
@@ -1113,7 +1120,7 @@ impl FromStr for Type {
 impl From<TokenKind> for  Type {
    fn from(val: TokenKind) -> Self {
         match val {
-            TokenKind::Empty => builder::unknown_function(),
+            TokenKind::Empty => builder::unknown_function_type(),
             _ => builder::any_type()
         }
    } 
@@ -1123,7 +1130,7 @@ impl From<TypeToken> for Type {
    fn from(val: TypeToken) -> Self {
        match val {
            TypeToken::Expression(typ) => typ,
-           _ => builder::unknown_function()
+           _ => builder::unknown_function_type()
        }
    } 
 }
@@ -1248,7 +1255,7 @@ mod tests {
     #[test]
     fn test_function_subtype_of_unknown_function() {
         let fun = builder::function_type(&[], builder::empty_type());
-        let u_fun = builder::unknown_function();
+        let u_fun = builder::unknown_function_type();
         let context = Context::empty();
         assert!(fun.is_subtype(&u_fun, &context));
     }

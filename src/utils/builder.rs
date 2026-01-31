@@ -119,7 +119,7 @@ pub fn union_type(types: &[Type]) -> Type {
     Type::Union(type_set, HelpData::default())
 }
 
-pub fn unknown_function() -> Type {
+pub fn unknown_function_type() -> Type {
     Type::UnknownFunction(HelpData::default())
 }
 
