@@ -1,11 +1,15 @@
+pub mod signature_expression;
+pub mod function_application;
 pub mod type_comparison;
 pub mod unification_map;
+pub mod let_expression;
 pub mod type_checker;
 pub mod type_context;
 pub mod unification;
-pub mod function_application;
 
 use crate::processes::type_checking::function_application::function_application;
+use crate::processes::type_checking::signature_expression::signature_expression;
+use crate::processes::type_checking::let_expression::let_expression;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::components::language::argument_value::ArgumentValue;
 use crate::processes::type_checking::type_context::TypeContext;
@@ -58,18 +62,7 @@ fn install_package(name: &str) -> () {
 pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
     match expr {
         Lang::Let(name, ty, exp, h) => {
-            let new_context = context.clone()
-                .push_types(&exp.extract_types_from_expression(context));
-
-            let res = exp.typing(&new_context)
-                .get_covariant_type(ty)
-                .add_to_context(Var::try_from(name).unwrap());
-            let new_expr = Lang::Let(
-                name.clone(), 
-                ty.clone(), 
-                Box::new(res.get_expr()),
-                h.clone());
-            res.with_lang(&new_expr)
+            let_expression(context, name, ty, exp, h)
         },
         Lang::Alias(exp, params, typ, h) => {
             let var = Var::try_from(exp).unwrap()
@@ -110,17 +103,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
         Lang::ModuleDecl(_name, _h) 
             => (builder::unknown_function_type(), expr.clone(), context.clone()).into(),
         Lang::Signature(var, typ, _h) => {
-            if var.is_variable(){
-                let new_var = FunctionType::try_from(typ.clone())
-                            .map(|ft| var.clone().set_type(ft.get_first_param().unwrap_or(builder::unknown_function_type())))
-                            .unwrap_or(var.clone());
-                (builder::unknown_function_type(), expr.clone(),
-                context.clone().replace_or_push_var_type(new_var, typ.to_owned(), context)).into()
-            } else { // is alias
-                (builder::unknown_function_type(), expr.clone(),
-                        context.clone()
-                            .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context)).into()
-            }
+            signature_expression(context, expr, var, typ)
         },
         Lang::TestBlock(body, _) => {
             //Needed to be type checked
@@ -259,7 +242,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             } else {
                 let ty2 = typing(context, e2).value.clone().reduce(context);
                 match (ty2.clone(), *e1.clone()) {
-                    (Type::Record(fields, _), Lang::Variable(name, _, _, _, h)) => {
+                    (Type::Record(fields, _), Lang::Variable(name, _, _, h)) => {
                         let (typ, new_context) = fields.iter()
                             .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                             .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
@@ -304,14 +287,14 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             };
             let ty1 = typing(context, e1).value.clone();
             match (ty1.reduce(context), *e2.clone(), op) {
-                (Type::Record(fields, _), Lang::Variable(name, _, _, _, _), _) => {
+                (Type::Record(fields, _), Lang::Variable(name, _, _, _), _) => {
                     let (typ, new_context) = fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
                         .expect(&format!("Field {} not found", name));
                         (typ, expr.clone(), new_context).into()
                 },
-                (Type::Module(fields, _), Lang::Variable(name, _, _, _, _), _) => {
+                (Type::Module(fields, _), Lang::Variable(name, _, _, _), _) => {
                     let (typ, new_context) = fields.iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
                         .map(|arg_typ| (arg_typ.1.clone(), context.clone()))
@@ -361,7 +344,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 (Type::UnknownFunction(h) , Lang::FunctionApp(_, _, _), _ ) => {
                     (Type::UnknownFunction(h), (*expr).clone(), context.clone()).into()
                 }
-                (Type::Vec(vtype, n, _, h), Lang::Variable(_, _, _, _, _), _) => {
+                (Type::Vec(vtype, n, _, h), Lang::Variable(_, _, _, _), _) => {
                     let (typ, lang, _) = 
                         typing(context, 
                             &builder::operation(
@@ -557,7 +540,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 None.expect(&TypeError::WrongIndexing(typ1, typ2).display())
             }
         },
-        Lang::Variable(_, _, _, _, _) => {
+        Lang::Variable(_, _, _, _) => {
             let old_var = Var::try_from(expr.clone()).unwrap();
             let var = context.get_true_variable(&old_var);
             context

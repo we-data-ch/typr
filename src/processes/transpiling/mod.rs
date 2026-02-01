@@ -98,7 +98,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let e1 = (**e1).clone();
                 let e2 = (**e2).clone();
                 match e2.clone() {
-                    Lang::Variable(_, _, _, _, _) => {
+                    Lang::Variable(_, _, _, _) => {
                         Translatable::from(cont.clone())
                             .to_r(&e2)
                             .add("[['").to_r(&e1).add("']]").into()
@@ -129,10 +129,10 @@ impl RTranslatable<(String, Context)> for Lang {
                 let e2 = (**e2).clone();
                 let t1 = typing(cont, &e1).value;
                 let val = match (t1.clone(), e2.clone()) {
-                    (Type::Vec(vtype, _, _, _), Lang::Variable(name, _, _, _, _))
+                    (Type::Vec(vtype, _, _, _), Lang::Variable(name, _, _, _))
                         if vtype.is_array() =>
                             format!("vec_apply(get, {}, typed_vec('{}'))", e1.to_r(cont).0, name),
-                    (_, Lang::Variable(name, _, _, _, _))
+                    (_, Lang::Variable(name, _, _, _))
                         => format!("{}${}", e1.to_r(cont).0, name),
                     _ => format!("{}${}", e1.to_r(cont).0, e2.to_r(cont).0),
                     //_ => panic!("Dollar operation not yet implemented for {:?}", e2)
@@ -163,7 +163,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         cont.get_type_anotation(&fn_type.into())),
                 cont.clone())
             },
-            Lang::Variable(_, _, _, _, _) => {
+            Lang::Variable(_, _, _, _) => {
                 //Here we only keep the variable name, the path and the type
                 let var = Var::from_language(self.clone()).unwrap();
                 let name = if var.contains("__") {

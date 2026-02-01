@@ -53,16 +53,16 @@ fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
     match res {
         Ok((s, Lang::Tag(name, val, _h)))
             => {
-                if let Lang::Variable(name2, perm, mutopa, typ, h) = *val {
+                if let Lang::Variable(name2, mutopa, typ, h) = *val {
                     Ok((s, 
-                        (vec![Lang::Variable(name2.to_string(), perm, mutopa, typ, h.clone())],
+                        (vec![Lang::Variable(name2.to_string(), mutopa, typ, h.clone())],
                         Some(name.to_string()))))
                 } else {
                     Ok((s, (vec![], Some(name.to_string()))))
                 }
             } ,
-        Ok((s, Lang::Variable(name, perm, mutopa, typ, h)))
-            => Ok((s, (vec![Lang::Variable(name, perm, mutopa, typ, h.clone())], None))),
+        Ok((s, Lang::Variable(name, mutopa, typ, h)))
+            => Ok((s, (vec![Lang::Variable(name, mutopa, typ, h.clone())], None))),
         Err(r) => Err(r),
         _ => todo!()
     }
@@ -147,7 +147,6 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         => {
                         let vari = Var::from_language(var.deref().clone())
                             .unwrap()
-                            .set_permission(true)
                             .to_language();
                         Lang::Let(Box::new(vari),
                                     typ.clone(),
@@ -198,7 +197,7 @@ fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
         Ok((s, (None, Lang::Alias(var, params, typ, h)))) 
             => {
                 let vari = Var::from_language(var.deref().clone())
-                    .unwrap().set_permission(false)
+                    .unwrap()
                     .to_language();
                 Ok((s, vec![Lang::Alias(
                             Box::new(vari),
@@ -250,7 +249,6 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             => {
                 let vari = Var::from_language(var.deref().clone())
                     .unwrap()
-                    .set_permission(false)
                     .set_opacity(true)
                     .to_language();
                 Ok((s, vec![Lang::Alias(
@@ -413,7 +411,7 @@ fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (at, (name, h), _col, typ, _))) 
             => {
-                let var2 = Var::from_name(&name).set_help_data(h).set_type(typ.clone()).set_permission(false);
+                let var2 = Var::from_name(&name).set_help_data(h).set_type(typ.clone());
                 Ok((s, vec![Lang::Signature(var2, typ, at.into())]))
             },
         Err(r) => Err(r)

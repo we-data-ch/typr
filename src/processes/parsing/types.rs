@@ -143,7 +143,7 @@ fn embedded_ltype(s: Span) -> IResult<Span, Type> {
 fn simple_label(s: Span) -> IResult<Span, Type> {
     let res = variable2(s);
     match res.clone() {
-        Ok((s, Lang::Variable(name, _, _, _, h))) 
+        Ok((s, Lang::Variable(name, _, _, h))) 
             => Ok((s, Type::Char(name.to_owned().into(), h.clone()))),
         Ok((_s, _)) 
             => panic!("Error: {:?} shouldn't be something different from a variable", res),

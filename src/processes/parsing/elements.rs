@@ -645,8 +645,8 @@ fn function_application2(s: Span) -> IResult<Span, Lang> {
 fn dot_variable(s: Span) -> IResult<Span, Lang> {
     let res = preceded(tag("."), variable2).parse(s);
     match res {
-        Ok((s, Lang::Variable(n, a, b, c, d))) 
-            => Ok((s, Lang::Variable(format!(".{}", n), a, b, c, d))),
+        Ok((s, Lang::Variable(n, b, c, d))) 
+            => Ok((s, Lang::Variable(format!(".{}", n), b, c, d))),
         Ok((_s, _)) => todo!(),
         Err(r) => Err(r)
     }

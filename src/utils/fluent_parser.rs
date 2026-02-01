@@ -72,7 +72,7 @@ impl FluentParser {
         }
     }
 
-    // FluentParser can parse step by step
+    /// Go from raw_code (String) to code (Lang)
     pub fn parse_next(self) -> Self {
         match self.clone().next_raw_code() {
             Some((line, rest)) => {
@@ -178,6 +178,10 @@ impl FluentParser {
 
     pub fn view_logs(&self) -> String {
         self.logs.iter().cloned().collect::<Vec<_>>().join("\n")
+    }
+
+    pub fn get_code(self) -> Vector<Lang> {
+        self.code
     }
 
     pub fn get_log(&self, id: i32) -> String {
@@ -290,7 +294,6 @@ impl FluentParser {
 
 }
 
-
 use std::fmt;
 impl fmt::Display for FluentParser {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -307,9 +310,6 @@ impl fmt::Display for FluentParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // should be able to parse a line
-    // should log an error if line parsing go wrong
-    // should get the type of a loaded variable
 
     #[test]
     fn test_fluent_parser0(){
@@ -333,9 +333,8 @@ mod tests {
     fn test_fluent_transpiler1(){
         let fp = FluentParser::new()
             .push("8")
-            .run()
-            ;
-        assert_eq!(fp.next_r_code().unwrap().0, "8L")
+            .run();
+        assert_eq!(fp.next_r_code().unwrap().0, "8L |> Integer()")
     }
 
 }

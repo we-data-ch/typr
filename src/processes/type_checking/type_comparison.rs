@@ -48,7 +48,7 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
             match (is_opaque, is_in_memory(name, &memory)) {
                 (true, _) | (_, true) => type_.clone(),
                 (false, _) => {
-                    let var = Var::from_type(type_.clone()).unwrap().set_permission(false);
+                    let var = Var::from_type(type_.clone()).unwrap();
                     context.get_matching_alias_signature(&var)
                         .map(|(aliased_type, generics)| 
                              reduce_alias(aliased_type, &generics, concret_types, name, memory, context))

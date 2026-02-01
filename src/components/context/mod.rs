@@ -105,8 +105,8 @@ impl Context {
 
     pub fn get_type_from_variable(&self, var: &Var) -> Result<Type, String> {
         let res = self.variables().flat_map(|(var2, typ)| {
-            let Var(name1, _, bo1, typ1, _h1) = var;
-            let Var(name2, _, bo2, typ2, _h2) = var2;
+            let Var(name1, bo1, typ1, _h1) = var;
+            let Var(name2, bo2, typ2, _h2) = var2;
             let conditions = (name1 == name2) &&
                 (bo1 == bo2) && typ1.is_subtype(typ2, self);
             if conditions { Some(typ.clone()) } else { None }
@@ -127,19 +127,18 @@ impl Context {
 
     pub fn get_type_from_aliases(&self, var: &Var) -> Option<Type> {
         self.aliases().flat_map(|(var2, type_)| {
-            let Var(name1, perm1, bo1, typ1, _h1) = var;
-            let Var(name2, perm2, bo2, typ2, _h2) = var2;
+            let Var(name1, bo1, typ1, _h1) = var;
+            let Var(name2, bo2, typ2, _h2) = var2;
             let conditions = (name1 == name2) &&
-                (perm1 == perm2) &&
                 (bo1 == bo2) && typ1.is_subtype(typ2, self);
             if conditions { Some(type_.clone()) } else { None }
         }).next()
     }
 
     fn is_matching_alias(&self, var1: &Var, var2: &Var) -> bool {
-        let Var(name1, perm1, _bo1, _, _h1) = var1;
-        let Var(name2, perm2, _bo2, _, _h2) = var2;
-        (name1 == name2) && (perm1 == perm2)
+        let Var(name1, _bo1, _, _h1) = var1;
+        let Var(name2, _bo2, _, _h2) = var2;
+        name1 == name2
     }
 
     pub fn get_matching_alias_signature(&self, var: &Var) -> Option<(Type, Vec<Type>)> {
@@ -305,7 +304,6 @@ impl Context {
         let res = self.typing_context.variables()
             .filter(|(_, typ)| typ.is_function())
             .filter(|(var, _)| not_in_blacklist(&var.get_name()))
-            .filter(|(var, _)| var.is_public())
             .filter(|(var, _)| !var.get_type().is_any())
             .collect::<HashSet<_>>();
         res.iter()

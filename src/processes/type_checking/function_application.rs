@@ -47,3 +47,29 @@ pub fn function_application(context: &Context, fn_var_name: &Box<Lang>, values: 
         _ => apply_from_expression(context, fn_var_name, values, h)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::fluent_parser::FluentParser;
+    use crate::utils::builder;
+
+    #[test]
+    fn test_vectorization0(){
+       let res = FluentParser::new()
+           .push("@a: int;").run()
+           .push("a").type_next()
+           .get_last_type();
+       assert_eq!(res, builder::integer_type_default());
+    }
+
+    #[test]
+    fn test_vectorization1(){
+       let res = FluentParser::new()
+           .push("@f1: (int) -> int;").run()
+           .push("f1(5)").type_next()
+           .get_last_type();
+       assert_eq!(res, builder::integer_type_default());
+    }
+
+}

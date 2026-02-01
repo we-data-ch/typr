@@ -16,7 +16,6 @@ use crate::components::error_message::help_data::HelpData;
 use crate::processes::parsing::lang_token::LangToken;
 use crate::components::context::config::Environment;
 use crate::processes::parsing::elements::elements;
-use crate::components::language::var::Permission;
 use crate::components::context::config::Config;
 use crate::components::language::operators::Op;
 use crate::processes::type_checking::typing;
@@ -44,7 +43,7 @@ pub enum Lang {
     Function(Vec<ArgumentType>, Type, Box<Lang>, HelpData),
     Module(String, Vec<Lang>, ModulePosition, Config, HelpData),
     ModuleDecl(String, HelpData),
-    Variable(String, Permission, bool, Type, HelpData),
+    Variable(String, bool, Type, HelpData),
     FunctionApp(Box<Lang>, Vec<Lang>, HelpData),
     VecFunctionApp(Box<Lang>, Vec<Lang>, HelpData),
     MethodCall(Box<Lang>, Vec<Lang>, Type, HelpData),
@@ -93,7 +92,7 @@ impl Default for Lang {
 
 impl From<Var> for Lang {
    fn from(val: Var) -> Self {
-       Lang::Variable(val.0, val.1, val.2, val.3, val.4)
+       Lang::Variable(val.0, val.1, val.2, val.3)
    } 
 }
 
@@ -140,8 +139,8 @@ impl Lang {
 
     fn set_type_if_variable(&self, typ: &Type) -> Lang {
         match self {
-            Lang::Variable(name, perm, spec, _, h) 
-                => Lang::Variable(name.clone(), perm.clone(), spec.clone(), typ.clone(), h.clone()),
+            Lang::Variable(name, spec, _, h) 
+                => Lang::Variable(name.clone(), spec.clone(), typ.clone(), h.clone()),
             _ => self.clone()
         }
     }
@@ -220,9 +219,9 @@ impl Lang {
     }
 
     pub fn lang_substitution(&self, sub_var: &Lang, var: &Lang, context: &Context) -> String {
-        if let Lang::Variable(name, _, _, _, _) = var {
+        if let Lang::Variable(name, _, _, _) = var {
             let res = match self {
-                Lang::Variable(_, _, _, _, h) if self == sub_var 
+                Lang::Variable(_, _, _, h) if self == sub_var 
                     => Lang::Exp(format!("{}[[2]]", name.to_string()), h.clone()),
                 lang => lang.clone()
             };
@@ -241,7 +240,7 @@ impl Lang {
             Lang::Function(_, _, _, h) => h,
             Lang::Module(_, _, _, _, h) => h,
             Lang::ModuleDecl(_, h) => h,
-            Lang::Variable(_, _, _, _, h) => h,
+            Lang::Variable(_, _, _, h) => h,
             Lang::FunctionApp(_, _, h) => h,
             Lang::VecFunctionApp(_, _, h) => h,
             Lang::MethodCall(_, _, _, h) => h,
@@ -321,7 +320,7 @@ impl Lang {
             Lang::Function(_, _, _, _) => "Function".to_string(),
             Lang::Module(_, _, _, _, _) => "Module".to_string(),
             Lang::ModuleDecl(_, _) => "ModuleDecl".to_string(),
-            Lang::Variable(name, _, _, _, _) => format!("Variable({})", name),
+            Lang::Variable(name, _, _, _) => format!("Variable({})", name),
             Lang::FunctionApp(var, _, _) => 
                 format!("FunctionApp({})", Var::from_language(*(var.clone())).unwrap().get_name()),
             Lang::VecFunctionApp(var, _, _) => 
@@ -495,7 +494,7 @@ impl Lang {
 
     pub fn to_module_helper(self, name: &str) -> Lang{
         match self.clone() {
-            Lang::Variable(_, _, _, _, h) => {
+            Lang::Variable(_, _, _, h) => {
                 Lang::Operator(Op::Dollar(h.clone()), 
                                Box::new(Var::from_name(name).to_language()),
                                Box::new(self), h)
@@ -583,7 +582,7 @@ impl From<Lang> for HelpData {
            Lang::Integer(_, h) => h,
            Lang::Bool(_, h) => h,
            Lang::Char(_, h) => h,
-           Lang::Variable(_, _, _, _, h) => h,
+           Lang::Variable(_, _, _, h) => h,
            Lang::Match(_, _, _, h) => h,
            Lang::FunctionApp(_, _, h) => h,
            Lang::VecFunctionApp(_, _, h) => h,
@@ -636,7 +635,7 @@ use std::fmt;
 impl fmt::Display for Lang {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
-            Lang::Variable(name, _permision, _bo, typ, _h) 
+            Lang::Variable(name, _bo, typ, _h) 
                 => format!("{} -> {}", name, typ),
             _ => format!("{:?}", self)
         };
@@ -647,7 +646,6 @@ impl fmt::Display for Lang {
 pub fn format_backtick(s: String) -> String {
     "`".to_string() + &s.replace("`", "") + "`"
 }
-
 
 #[derive(Debug)]
 pub struct ErrorStruct;
