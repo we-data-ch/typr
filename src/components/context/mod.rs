@@ -18,7 +18,6 @@ use crate::components::context::config::Environment;
 use crate::components::context::vartype::VarType;
 use crate::components::context::config::Config;
 use crate::components::context::graph::Graph;
-use crate::processes::type_checking::typing;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
 use crate::components::r#type::Type;

@@ -569,7 +569,7 @@ fn single_type_token(s: Span) -> IResult<Span,TypeToken> {
 #[cfg(test)]
 mod tests {
     use crate::components::r#type::type_category::TypeCategory;
-    use crate::components::context::graph::TypeSystem;
+    use crate::components::r#type::type_system::TypeSystem;
     use crate::components::context::Context;
     use crate::utils::builder;
     use super::*;
