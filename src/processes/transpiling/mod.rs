@@ -209,7 +209,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         }).unwrap_or((format!("{}({})", exp_str, args), current_cont))
                 }
             },
-            Lang::VecFunctionApp(exp, vals, _, _) => {
+            Lang::VecFunctionApp(exp, vals, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
                 let name = var.get_name();
                 let str_vals = vals.iter()

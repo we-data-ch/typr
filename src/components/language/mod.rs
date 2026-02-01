@@ -46,7 +46,7 @@ pub enum Lang {
     ModuleDecl(String, HelpData),
     Variable(String, Permission, bool, Type, HelpData),
     FunctionApp(Box<Lang>, Vec<Lang>, HelpData),
-    VecFunctionApp(Box<Lang>, Vec<Lang>, Type, HelpData),
+    VecFunctionApp(Box<Lang>, Vec<Lang>, HelpData),
     MethodCall(Box<Lang>, Vec<Lang>, Type, HelpData),
     ArrayIndexing(Box<Lang>, Box<Lang>, HelpData),
     Let(Box<Lang>, Type, Box<Lang>, HelpData),
@@ -243,7 +243,7 @@ impl Lang {
             Lang::ModuleDecl(_, h) => h,
             Lang::Variable(_, _, _, _, h) => h,
             Lang::FunctionApp(_, _, h) => h,
-            Lang::VecFunctionApp(_, _, _, h) => h,
+            Lang::VecFunctionApp(_, _, h) => h,
             Lang::MethodCall(_, _, _, h) => h,
             Lang::ArrayIndexing(_, _, h) => h,
             Lang::Let(_, _, _, h) => h,
@@ -324,7 +324,7 @@ impl Lang {
             Lang::Variable(name, _, _, _, _) => format!("Variable({})", name),
             Lang::FunctionApp(var, _, _) => 
                 format!("FunctionApp({})", Var::from_language(*(var.clone())).unwrap().get_name()),
-            Lang::VecFunctionApp(var, _, _, _) => 
+            Lang::VecFunctionApp(var, _, _) => 
                 format!("VecFunctionApp({})", Var::from_language(*(var.clone())).unwrap().get_name()),
             Lang::MethodCall(var, _, _, _) => 
                 format!("MethodCall({})", Var::from_language(*(var.clone())).unwrap().get_name()),
@@ -586,7 +586,7 @@ impl From<Lang> for HelpData {
            Lang::Variable(_, _, _, _, h) => h,
            Lang::Match(_, _, _, h) => h,
            Lang::FunctionApp(_, _, h) => h,
-           Lang::VecFunctionApp(_, _, _, h) => h,
+           Lang::VecFunctionApp(_, _, h) => h,
            Lang::MethodCall(_, _, _, h) => h,
            Lang::Empty(h) => h,
            Lang::Array(_, h) => h,

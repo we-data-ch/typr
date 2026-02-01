@@ -1,41 +1,72 @@
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::processes::type_checking::unification_map::UnificationMap;
-use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::r#type::Type;
+use crate::components::context::Context;
 use crate::components::language::Lang;
+use crate::components::r#type::Type;
 use crate::utils::builder;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FunctionType(pub Vec<Type>, pub Type, pub HelpData);
+pub struct FunctionType {
+    arguments: Vec<Type>,
+    return_type: Type,
+    infered_return_type: Type,
+    help_data: HelpData
+}
 
 //main
 impl FunctionType {
-    pub fn infer_return_type(self, values: &[Lang], context: &Context, name: &str) -> Option<Type> {
+
+    pub fn new(arguments: Vec<Type>, return_type: Type, help_data: HelpData) -> Self {
+        Self {
+            return_type,
+            help_data,
+            arguments,
+            infered_return_type: builder::empty_type()
+        }
+    }
+
+    pub fn is_vectorized(&self) -> bool {
+        todo!();
+    }
+
+    pub fn infer_return_type(self, types: Vec<Type>, context: &Context, name: &str) -> Self {
         let param_types = self.get_param_types();
         let unification_map = context
-                .get_unification_map(values, &param_types, name)
+                .get_unification_map(types, &param_types, name)
                 .unwrap_or(UnificationMap::new(vec![]));
         let (new_return_type, _new_context) = unification_map
                 .apply_unification_type(context, &self.get_return_type());
-        new_return_type.is_reduced().then(|| new_return_type)
+        let final_return_type = new_return_type.is_reduced().then(|| new_return_type);
+        self.set_infered_return_type(final_return_type.unwrap())
+    }
+
+    pub fn set_infered_return_type(self, ret_typ: Type) -> Self {
+        Self {
+            infered_return_type: ret_typ,
+            ..self
+        }
     }
 
     pub fn get_param_types(&self) -> Vec<Type> {
-        self.0.clone()
+        self.arguments.clone()
     }
 
     pub fn get_return_type(&self) -> Type {
-        self.get_help_data();
-        self.1.clone()
+        self.return_type.clone()
+    }
+
+    pub fn get_infered_return_type(&self) -> Type {
+        self.infered_return_type.clone()
     }
 
     pub fn get_help_data(&self) -> HelpData {
-        self.2.clone()
+        self.help_data.clone()
     }
 
     pub fn is_r_function(&self) -> bool {
-        (self.0 == vec![]) &&
-        (self.1 == builder::unknown_function_type())
+        (self.arguments == vec![]) &&
+        (self.return_type == builder::unknown_function_type())
     }
 
     pub fn get_first_param(&self) -> Option<Type> {
@@ -46,15 +77,24 @@ impl FunctionType {
     }
 
     pub fn set_help_data(self, h: HelpData) -> Self {
-        FunctionType(self.0, self.1, h)
+        Self {
+            help_data: h,
+            ..self
+        }
     }
 
     pub fn set_params(self, params: Vec<Type>) -> Self {
-        FunctionType(params, self.1, self.2)
+        Self {
+            arguments: params,
+            ..self
+        }
     }
 
     pub fn set_return_type(self, ret_typ: Type) -> Self {
-        FunctionType(self.0, ret_typ, self.2)
+        Self {
+            return_type: ret_typ,
+            ..self
+        }
     }
 
 }
@@ -64,7 +104,7 @@ impl TryFrom<Type> for FunctionType {
 
     fn try_from(value: Type) -> Result<Self, Self::Error> {
         match value {
-        Type::Function(args, ret, h) => Ok(FunctionType(args, *ret, h)),
+        Type::Function(args, ret, h) => Ok(FunctionType::new(args, *ret, h)),
         Type::UnknownFunction(h)  => Ok(FunctionType::default().set_help_data(h.clone())),
         _ => Err(format!("{} is a type not convertible to FunctionType", value)) 
         }
@@ -73,7 +113,7 @@ impl TryFrom<Type> for FunctionType {
 
 impl Default for FunctionType {
     fn default() -> FunctionType {
-        FunctionType(vec![], builder::unknown_function_type(), HelpData::default())
+        FunctionType::new(vec![], builder::unknown_function_type(), HelpData::default())
     }
 }
 

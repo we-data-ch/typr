@@ -60,12 +60,10 @@ impl Var {
             .set_type(Type::Params(params.to_vec(), HelpData::default()))
     }
 
-    pub fn set_var_related_type(&self, values: &Vec<Lang>, context: &Context) -> Var {
-        if values.len() > 0 {
-            let first_arg = values.iter().nth(0).unwrap().clone();
-            let first_param_type = 
-                typing(context, &first_arg).value;
-            self.clone().set_type(first_param_type.clone())
+    pub fn set_var_related_type(&self, types: &Vec<Type>, context: &Context) -> Var {
+        if types.len() > 0 {
+            let first_arg = types.iter().nth(0).unwrap().clone();
+            self.clone().set_type(first_arg.clone())
         } else {
             self.clone()
         }
@@ -102,23 +100,23 @@ impl Var {
         }
     }
 
-    pub fn get_related_functions(self, values: &Vec<Lang>, context: &Context) 
+    pub fn get_related_functions(self, types: &Vec<Type>, context: &Context) 
         -> Option<FunctionType> {
-        let typed_var = self.set_var_related_type(values, context);
+        let typed_var = self.set_var_related_type(types, context);
         let res = context.get_matching_functions(typed_var.clone()).unwrap();
         Self::keep_minimal(res, context)
              .and_then(|x| x.to_function_type())
     }
 
-    pub fn get_vectorizable_related_functions(self, _values: &Vec<Lang>, context: &Context) 
+    pub fn get_vectorizable_related_functions(self, _types: &Vec<Type>, context: &Context) 
         -> Option<FunctionType> {
         todo!();
     }
 
-    pub fn get_function_signatures(&self, values: &Vec<Lang>, context: &Context) -> Option<FunctionType> {
+    pub fn get_function_signatures(&self, types: &Vec<Type>, context: &Context) -> Option<FunctionType> {
         self.clone()
-            .get_related_functions(values, context)
-            .or_else(|| self.clone().get_vectorizable_related_functions(values, context))
+            .get_related_functions(types, context)
+            .or_else(|| self.clone().get_vectorizable_related_functions(types, context))
     }
 
     pub fn from_language(l: Lang) -> Option<Var> {

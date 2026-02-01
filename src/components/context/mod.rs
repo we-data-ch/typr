@@ -425,17 +425,18 @@ impl Context {
     }
 
 
-    pub fn get_unification_map(&self, values: &[Lang], param_types: &[Type], name: &str) 
+    pub fn get_unification_map(&self, entered_types: Vec<Type>, param_types: &[Type], name: &str) 
         -> Option<UnificationMap> {
-        let entered_types = values.iter()
-            .map(|val| typing(self, val).value).collect::<Vec<_>>();
 
-        let unification_map = get_unification_map_for_vectorizable_function(entered_types.clone(), name);
+        let unification_map = 
+            get_unification_map_for_vectorizable_function(entered_types.to_vec(), name);
+
         let res = entered_types.iter()
             .zip(param_types.iter())
             .flat_map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
             .flatten()
             .collect::<Vec<_>>();
+
         match (unification_map, res.len() > 0) {
             (Some(um), true) => Some(um.append(UnificationMap::new(res))),
             (None, true) => Some(UnificationMap::new(res)),

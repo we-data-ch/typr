@@ -3,6 +3,7 @@ use crate::processes::type_checking::Type;
 use crate::processes::type_checking::Lang;
 use crate::processes::type_checking::Var;
 
+#[derive(Debug, Clone)]
 pub struct TypeContext {
     pub value: Type,
     pub lang: Lang,

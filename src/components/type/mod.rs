@@ -476,9 +476,9 @@ impl Type {
     pub fn to_function_type(&self) -> Option<FunctionType> {
         match self {
             Type::Function(args, ret_ty, h) 
-                => Some(FunctionType(args.clone(), (**ret_ty).clone(), h.clone())),
+                => Some(FunctionType::new(args.clone(), (**ret_ty).clone(), h.clone())),
             Type::UnknownFunction(h) 
-                => Some(FunctionType(vec![], builder::unknown_function_type(), h.clone())),
+                => Some(FunctionType::new(vec![], builder::unknown_function_type(), h.clone())),
             _ => None
         }
     }
