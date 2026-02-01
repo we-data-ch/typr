@@ -699,6 +699,10 @@ impl Type {
         }
     }
 
+    pub fn lift(self) -> Type {
+        builder::array_type(builder::empty_type(), self)
+    }
+
     pub fn to_array(&self) -> Option<Array> {
         match self {
             Type::Vec(_, t1, t2, h) 

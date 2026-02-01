@@ -8,10 +8,6 @@ use crate::processes::type_checking::Var;
 use crate::processes::type_checking::typing;
 use crate::components::r#type::function_type::FunctionType;
 
-//get function signature 
-//get parameters signature
-// do unification and get return type
-
 pub fn apply_from_variable(var: Var, context: &Context, parameters: &Vec<Lang>, h: &HelpData) -> TypeContext {
     let (expanded_parameters, types) = 
         get_expanded_parameters_with_their_types(context, parameters);

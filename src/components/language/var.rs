@@ -100,23 +100,27 @@ impl Var {
         }
     }
 
-    pub fn get_related_functions(self, types: &Vec<Type>, context: &Context) 
+    pub fn get_related_functions(self, context: &Context) 
         -> Option<FunctionType> {
-        let typed_var = self.set_var_related_type(types, context);
-        let res = context.get_matching_functions(typed_var.clone()).unwrap();
+        let res = context.get_matching_functions(self).unwrap();
         Self::keep_minimal(res, context)
              .and_then(|x| x.to_function_type())
     }
 
-    pub fn get_vectorizable_related_functions(self, _types: &Vec<Type>, context: &Context) 
+    pub fn get_vectorizable_related_functions(self, context: &Context) 
         -> Option<FunctionType> {
-        todo!();
+        let var = self.clone().set_type_raw(self.get_type().lift());
+        let res = context.get_matching_functions(var).unwrap();
+        Self::keep_minimal(res, context)
+             .and_then(|x| x.to_function_type())
     }
 
-    pub fn get_function_signatures(&self, types: &Vec<Type>, context: &Context) -> Option<FunctionType> {
-        self.clone()
-            .get_related_functions(types, context)
-            .or_else(|| self.clone().get_vectorizable_related_functions(types, context))
+    pub fn get_function_signatures(&self, types: &Vec<Type>, context: &Context) 
+        -> Option<FunctionType> {
+        let typed_var = self.set_var_related_type(types, context);
+        typed_var.clone()
+            .get_related_functions(context)
+            .or_else(|| typed_var.get_vectorizable_related_functions(context))
     }
 
     pub fn from_language(l: Lang) -> Option<Var> {

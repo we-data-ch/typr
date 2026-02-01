@@ -4,6 +4,7 @@ use crate::components::error_message::help_data::HelpData;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::language::operators::Op;
 use crate::components::r#type::tchar::Tchar;
+use crate::components::language::var::Var;
 use crate::components::r#type::tint::Tint;
 use crate::components::language::Lang;
 use crate::components::r#type::Type;
@@ -125,4 +126,8 @@ pub fn unknown_function_type() -> Type {
 
 pub fn operation(operator: Op, left: Lang, right: Lang) -> Lang {
     Lang::Operator(operator, Box::new(left), Box::new(right), HelpData::default())
+}
+
+pub fn let_var(name: &str, typ: Type) -> (Var, Type) {
+    (Var::from(name).set_type(typ.clone()), typ)
 }
