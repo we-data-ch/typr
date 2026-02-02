@@ -1,6 +1,12 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::components::language::Lang;
+#![allow(
+    dead_code,
+    unused_variables,
+    unused_imports,
+    unreachable_code,
+    unused_assignments
+)]
 use crate::components::language::HelpData;
+use crate::components::language::Lang;
 
 pub struct ArrayLang(Vec<Lang>, HelpData);
 
@@ -20,7 +26,7 @@ impl TryFrom<Lang> for ArrayLang {
     fn try_from(value: Lang) -> Result<Self, Self::Error> {
         match value {
             Lang::Array(arr, h) => Ok(ArrayLang(arr, h)),
-            _ => Err(format!("{} can't be an array", value.simple_print()))
+            _ => Err(format!("{} can't be an array", value.simple_print())),
         }
     }
 }
@@ -31,7 +37,7 @@ impl TryFrom<&Box<Lang>> for ArrayLang {
     fn try_from(value: &Box<Lang>) -> Result<Self, Self::Error> {
         match (**value).clone() {
             Lang::Array(arr, h) => Ok(ArrayLang(arr, h)),
-            _ => Err(format!("{} can't be an array", value.simple_print()))
+            _ => Err(format!("{} can't be an array", value.simple_print())),
         }
     }
 }

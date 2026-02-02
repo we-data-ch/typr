@@ -1,9 +1,15 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::components::language::Lang;
+#![allow(
+    dead_code,
+    unused_variables,
+    unused_imports,
+    unreachable_code,
+    unused_assignments
+)]
 use crate::components::language::var::Var;
+use crate::components::language::Lang;
+use rpds::Vector;
 use std::iter::Sum;
 use std::ops::Add;
-use rpds::Vector;
 
 #[derive(Debug, Clone)]
 pub struct VarFunction(Vector<(Var, Lang)>);
@@ -19,12 +25,11 @@ impl TryFrom<Lang> for VarFunction {
 
     fn try_from(value: Lang) -> Result<Self, Self::Error> {
         match value {
-            Lang::Let(var, _, body, _) if body.is_function() 
-                => {
-                    let var = Var::try_from(var).unwrap();
-                    Ok(VarFunction(Vector::new().push_back((var, *body))))
-                },
-            _ => Err("It's not a function declaration".to_string())
+            Lang::Let(var, _, body, _) if body.is_function() => {
+                let var = Var::try_from(var).unwrap();
+                Ok(VarFunction(Vector::new().push_back((var, *body))))
+            }
+            _ => Err("It's not a function declaration".to_string()),
         }
     }
 }
@@ -44,7 +49,7 @@ impl Add for VarFunction {
 }
 
 impl Sum for VarFunction {
-    fn sum<I: Iterator<Item = VarFunction>>(iter: I) ->  Self {
+    fn sum<I: Iterator<Item = VarFunction>>(iter: I) -> Self {
         iter.reduce(|x, y| x + y).unwrap_or_default()
     }
 }

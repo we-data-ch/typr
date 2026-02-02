@@ -12,7 +12,7 @@ pub fn apply_from_variable(var: Var, context: &Context, parameters: &Vec<Lang>, 
     let (expanded_parameters, types) = 
         get_expanded_parameters_with_their_types(context, parameters);
 
-    let fun_typ = var.get_function_signatures(&types, context)
+    let fun_typ = var.get_function_signature(&types, context)
         .map(|x| x.infer_return_type(types, context, &var.get_name()))
         .unwrap();
 

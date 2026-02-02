@@ -1,18 +1,18 @@
-use nom::bytes::complete::tag;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::language::Lang;
+use crate::components::r#type::Type;
+use crate::processes::parsing::operation_priority::TokenKind;
 use nom::branch::alt;
+use nom::bytes::complete::tag;
+use nom::bytes::complete::take_until;
+use nom::character::complete::char;
 use nom::character::complete::multispace0;
+use nom::combinator::recognize;
 use nom::sequence::terminated;
+use nom::IResult;
 use nom::Parser;
 use nom_locate::LocatedSpan;
-use nom::character::complete::char;
-use nom::bytes::complete::take_until;
-use nom::combinator::recognize;
-use serde::{Serialize, Deserialize};
-use crate::components::r#type::Type;
-use crate::components::error_message::help_data::HelpData;
-use crate::processes::parsing::operation_priority::TokenKind;
-use crate::components::language::Lang;
-use nom::IResult;
+use serde::{Deserialize, Serialize};
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -53,11 +53,10 @@ pub enum Op {
 }
 
 impl Op {
-
     pub fn to_type(&self) -> Option<Type> {
         match self {
             Op::In(h) => Some(Type::In(h.clone())),
-            _ => None
+            _ => None,
         }
     }
 
@@ -67,20 +66,33 @@ impl Op {
 
     pub fn get_binding_power(&self) -> i32 {
         match self {
-            Op::Dot(_) | Op::Dot2(_) | Op::Pipe(_) | Op::Pipe2(_) |
-            Op::Dollar(_) | Op::Dollar2(_) | Op::In(_)
-                => 4,
-            Op::Mul(_) | Op::Mul2(_) | Op::Div(_) | Op::Div2(_) |
-            Op::Modulo(_) | Op::Modulo2(_) | Op::At(_) | Op::At2(_)
-                => 3,
-            Op::Add(_) | Op::Add2(_) | Op::Minus(_) | Op::Minus2(_)
-                => 2,
-            _ => 1
+            Op::Dot(_)
+            | Op::Dot2(_)
+            | Op::Pipe(_)
+            | Op::Pipe2(_)
+            | Op::Dollar(_)
+            | Op::Dollar2(_)
+            | Op::In(_) => 4,
+            Op::Mul(_)
+            | Op::Mul2(_)
+            | Op::Div(_)
+            | Op::Div2(_)
+            | Op::Modulo(_)
+            | Op::Modulo2(_)
+            | Op::At(_)
+            | Op::At2(_) => 3,
+            Op::Add(_) | Op::Add2(_) | Op::Minus(_) | Op::Minus2(_) => 2,
+            _ => 1,
         }
     }
 
     pub fn combine(self, left: Lang, right: Lang) -> Lang {
-        Lang::Operator(self, Box::new(left.clone()), Box::new(right), left.get_help_data())
+        Lang::Operator(
+            self,
+            Box::new(left.clone()),
+            Box::new(right),
+            left.get_help_data(),
+        )
     }
 
     pub fn get_help_data(&self) -> HelpData {
@@ -121,7 +133,6 @@ impl Op {
     }
 }
 
-
 fn bool_op(s: Span) -> IResult<Span, Span> {
     terminated(
         alt((
@@ -138,7 +149,10 @@ fn bool_op(s: Span) -> IResult<Span, Span> {
             tag("||"),
             tag("|"),
             tag("="),
-            )), multispace0).parse(s)
+        )),
+        multispace0,
+    )
+    .parse(s)
 }
 
 fn get_op(ls: LocatedSpan<&str, String>) -> Op {
@@ -175,23 +189,24 @@ fn get_op(ls: LocatedSpan<&str, String>) -> Op {
         "or" => Op::Or2(ls.into()),
         "||" => Op::Or2(ls.into()),
         "|" => Op::Or(ls.into()),
-        n => Op::Custom(n.to_string(), ls.into())
+        n => Op::Custom(n.to_string(), ls.into()),
     }
-
 }
 
-pub fn custom_op(s: Span) -> IResult<Span,Span> {
+pub fn custom_op(s: Span) -> IResult<Span, Span> {
     recognize((char('%'), take_until("%"), char('%'))).parse(s)
 }
 
 fn pipe_op(s: Span) -> IResult<Span, Span> {
-        alt(( 
-            tag("|>>"),
-            tag("|>"),
-            tag(".."),
-            tag("."),
-            tag("$$"),
-            tag("$"))).parse(s)
+    alt((
+        tag("|>>"),
+        tag("|>"),
+        tag(".."),
+        tag("."),
+        tag("$$"),
+        tag("$"),
+    ))
+    .parse(s)
 }
 
 pub fn op(s: Span) -> IResult<Span, Op> {
@@ -213,8 +228,10 @@ pub fn op(s: Span) -> IResult<Span, Op> {
             tag("/"),
             tag("%%"),
             tag("%"),
-            )),
-        multispace0).parse(s);
+        )),
+        multispace0,
+    )
+    .parse(s);
     match res {
         Ok((s, ls)) => Ok((s, get_op(ls))),
         Err(r) => Err(r),
@@ -253,7 +270,10 @@ pub fn get_string(op: &Op) -> String {
         Op::Eq(_) => "==".to_string(),
         Op::Eq2(_) => "=".to_string(),
         Op::NotEq(_) => "!=".to_string(),
-        n => {dbg!(n); todo!()}
+        n => {
+            dbg!(n);
+            todo!()
+        }
     }
 }
 
@@ -261,6 +281,6 @@ use std::fmt;
 impl fmt::Display for Op {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = get_string(self);
-        write!(f, "{}", res)       
+        write!(f, "{}", res)
     }
 }

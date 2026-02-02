@@ -1,9 +1,15 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::components::error_message::help_data::HelpData;
-use crate::components::language::ModulePosition;
-use crate::components::context::Context;
+#![allow(
+    dead_code,
+    unused_variables,
+    unused_imports,
+    unreachable_code,
+    unused_assignments
+)]
 use crate::components::context::config::Config;
+use crate::components::context::Context;
+use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
+use crate::components::language::ModulePosition;
 use crate::components::r#type::Type;
 
 pub struct ModuleLang {
@@ -11,22 +17,23 @@ pub struct ModuleLang {
     members: Vec<Lang>,
     position: ModulePosition,
     config: Config,
-    help_data: HelpData
+    help_data: HelpData,
 }
 
 impl ModuleLang {
     pub fn to_record(self, type_module: &Type, context: &Context) -> Lang {
-        let new_args = self.members.iter()
+        let new_args = self
+            .members
+            .iter()
             .flat_map(|arg| arg.clone().to_arg_value(type_module, context))
-            .flatten().collect::<Vec<_>>();
+            .flatten()
+            .collect::<Vec<_>>();
         Lang::Record(new_args, self.get_help_data())
     }
 
     pub fn get_help_data(&self) -> HelpData {
         self.help_data.clone()
     }
-
-
 }
 
 impl TryFrom<Lang> for ModuleLang {
@@ -34,14 +41,17 @@ impl TryFrom<Lang> for ModuleLang {
 
     fn try_from(value: Lang) -> Result<Self, Self::Error> {
         match value {
-            Lang::Module(name, args, position, config, h) 
-                => Ok(ModuleLang { 
-                        name: name,
-                        members: args,
-                        position: position,
-                        config: config,
-                        help_data: h }),
-            _ => Err(format!("{} can't be converted to struct ModuleLang", value.simple_print()))
+            Lang::Module(name, args, position, config, h) => Ok(ModuleLang {
+                name: name,
+                members: args,
+                position: position,
+                config: config,
+                help_data: h,
+            }),
+            _ => Err(format!(
+                "{} can't be converted to struct ModuleLang",
+                value.simple_print()
+            )),
         }
     }
 }

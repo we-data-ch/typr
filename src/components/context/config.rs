@@ -1,6 +1,6 @@
 use crate::components::context::Context;
-use serde::{Serialize, Deserialize};
 use clap::Parser;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Debug, Parser, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -20,16 +20,16 @@ impl fmt::Display for Environment {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             Environment::Project => "R/",
-            Environment::StandAlone | Environment::Repl => ""
+            Environment::StandAlone | Environment::Repl => "",
         };
-        write!(f, "{}", res)       
+        write!(f, "{}", res)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Copy, Serialize, Deserialize)]
 pub enum TargetLanguage {
     R,
-    JS
+    JS,
 }
 
 impl Default for TargetLanguage {
@@ -41,15 +41,14 @@ impl Default for TargetLanguage {
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum FileType {
     Main,
-    Module
+    Module,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
-   pub environment: Environment,
-   pub file_type: FileType,
-   pub target_language: TargetLanguage,
+    pub environment: Environment,
+    pub file_type: FileType,
+    pub target_language: TargetLanguage,
 }
 
 //main
@@ -93,4 +92,3 @@ impl Default for Config {
         }
     }
 }
-

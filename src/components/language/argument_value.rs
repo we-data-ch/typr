@@ -1,7 +1,7 @@
-use crate::processes::transpiling::translatable::RTranslatable;
 use crate::components::context::Context;
 use crate::components::language::Lang;
-use serde::{Serialize, Deserialize};
+use crate::processes::transpiling::translatable::RTranslatable;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -20,7 +20,7 @@ impl ArgumentValue {
 impl fmt::Display for ArgumentValue {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let cont = Context::default();
-        write!(f, "[var('{}'),{}]", self.0, self.1.to_r(&cont).0)       
+        write!(f, "[var('{}'),{}]", self.0, self.1.to_r(&cont).0)
     }
 }
 
@@ -28,6 +28,4 @@ impl RTranslatable<String> for ArgumentValue {
     fn to_r(&self, cont: &Context) -> String {
         format!("{} = {}", self.0, self.1.to_r(cont).0)
     }
-
 }
-

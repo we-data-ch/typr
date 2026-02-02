@@ -30,7 +30,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_signature_expression0(){
+    fn test_signature_expression0() {
        let res = FluentParser::new() 
            .push("@a: int;").run()
            .push("a").run()
@@ -39,18 +39,82 @@ mod tests {
     }
 
     #[test]
-    fn test_signature_expression1(){
+    fn test_signature_expression_is_parsing() {
        let res = FluentParser::new() 
-           .push("@a: int;").parse_next()
-           .get_code();
-
+           .check_parsing("@a: int;");
        let res = res.first().unwrap();
-
        let integer = builder::integer_type_default();
        let var = Var::from_name("a").set_type(integer.clone());
+       assert_eq!(res, 
+                  &Lang::Signature(var, integer, HelpData::default()));
+    }
 
-       //assert_eq!(res, 
-                  //&Lang::Signature(var, integer, HelpData::default()));
+    #[test]
+    fn test_signature_expression_is_type_checking() {
+       let res = FluentParser::new() 
+           .check_typing("@a: int;");
+       let integer = builder::integer_type_default();
+       assert_eq!(res, integer);
+    }
+
+    #[test]
+    fn test_signature_expression_is_transpiling() {
+       let res = FluentParser::new() 
+           .check_transpiling("@a: int;");
+       assert_eq!(res.first().unwrap(), "");
+    }
+
+    #[test]
+    fn test_signature_expression_context() {
+        let res = FluentParser::new()
+            .push("@a: int;").run()
+            .display_context();
+        println!("{}", res);
+        assert!(true)
+    }
+
+    #[test]
+    fn test_signature_expression_saved() {
+        let res = FluentParser::new()
+            .push("@a: int;").run()
+            .check_typing("a");
+        assert_eq!(res, builder::integer_type_default())
+    }
+
+    #[test]
+    fn test_signature_expression() {
+        let res = FluentParser::new()
+            .push("@a: int;").run()
+            .check_typing("a");
+        assert_eq!(res, builder::integer_type_default())
+    }
+
+    #[test]
+    fn test_signature_function1() {
+        let res = FluentParser::new()
+            .push("@f: (int) -> int;").run()
+            .check_typing("f");
+        let integer = builder::integer_type_default();
+        assert_eq!(res, builder::function_type(&[integer.clone()], integer))
+    }
+
+    #[test]
+    fn test_signature_function2() {
+        let res = FluentParser::new()
+            .push("@f: (int) -> bool;").run()
+            .check_typing("f");
+        let integer = builder::integer_type_default();
+        let boolean = builder::boolean_type();
+        assert_eq!(res, builder::function_type(&[integer.clone()], boolean))
+    }
+
+    #[test]
+    fn test_signature_function_application1() {
+        let res = FluentParser::new()
+            .push("@f: (int) -> bool;").run()
+            .check_typing("f(3)");
+        let boolean = builder::boolean_type();
+        assert_eq!(res, boolean)
     }
 
 }

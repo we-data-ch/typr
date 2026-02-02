@@ -138,7 +138,7 @@ impl FluentParser {
         }
     }
 
-    // Type the next parser code
+    /// Typing from code (Lang) to new code (Lang)
     pub fn type_next(self) -> Self {
         match self.clone().next_code() {
             Some((code, rest)) => {
@@ -161,6 +161,7 @@ impl FluentParser {
         self.set_context(new_context).set_last_type(new_type)
     }
 
+    /// Parsing from raw code (String) to new code (Lang)
     pub fn parse_type_next(self) -> Self {
         self.parse_next()
             .type_next()
@@ -182,6 +183,14 @@ impl FluentParser {
 
     pub fn get_code(self) -> Vector<Lang> {
         self.code
+    }
+
+    pub fn get_new_code(self) -> Vector<Lang> {
+        self.new_code
+    }
+
+    pub fn get_r_code(self) -> Vector<String> {
+        self.r_code
     }
 
     pub fn get_log(&self, id: i32) -> String {
@@ -262,6 +271,8 @@ impl FluentParser {
         }
     }
 
+    /// from raw code (String) to r code (String)
+    /// Do the same as .run() methode
     pub fn parse_type_transpile_next(self) -> Self {
         self
             .parse_next()
@@ -269,6 +280,8 @@ impl FluentParser {
             .transpile_next()
     }
 
+    /// from raw code (String) to r code (String)
+    /// Call parse_type_transpile_next
     pub fn run(self) -> Self {
         self.parse_type_transpile_next()
     }
@@ -291,6 +304,29 @@ impl FluentParser {
     pub fn display_context(&self) -> String {
         self.context.display_typing_context()
     }
+
+    pub fn get_context(self) -> Context {
+        self.context
+    }
+
+    pub fn check_parsing(self, s: &str) -> Vector<Lang> {
+        self.push(s)
+            .parse_next()
+            .get_code()
+    }
+
+    pub fn check_typing(self, s: &str) -> Type {
+        self.push(s)
+            .parse_type_next()
+            .get_last_type()
+    }
+
+    pub fn check_transpiling(self, s: &str) -> Vector<String> {
+        self.push(s)
+            .parse_type_transpile_next()
+            .get_r_code()
+    }
+
 
 }
 

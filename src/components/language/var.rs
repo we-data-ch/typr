@@ -1,16 +1,22 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::processes::transpiling::translatable::RTranslatable;
-use crate::components::r#type::function_type::FunctionType;
-use crate::components::error_message::help_data::HelpData;
-use crate::processes::parsing::elements::is_pascal_case;
-use crate::components::r#type::type_system::TypeSystem;
-use crate::processes::type_checking::typing;
-use crate::components::r#type::tchar::Tchar;
+#![allow(
+    dead_code,
+    unused_variables,
+    unused_imports,
+    unreachable_code,
+    unused_assignments
+)]
 use crate::components::context::Context;
+use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
+use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::tchar::Tchar;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
-use serde::{Serialize, Deserialize};
+use crate::processes::parsing::elements::is_pascal_case;
+use crate::processes::transpiling::translatable::RTranslatable;
+use crate::processes::type_checking::typing;
 use crate::utils::builder;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 type Name = String;
@@ -19,32 +25,46 @@ type IsPackageOpaque = bool;
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Eq, Hash)]
 pub enum Permission {
     Private,
-    Public
+    Public,
 }
 
 impl fmt::Display for Permission {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Permission::Private => write!(f, "private"),
-            Permission::Public => write!(f, "public")
+            Permission::Public => write!(f, "public"),
         }
     }
 }
 
 impl From<Permission> for bool {
-   fn from(val: Permission) -> Self {
-       match val {
-           Permission::Public => true,
-           _ => false
-       }
-   } 
+    fn from(val: Permission) -> Self {
+        match val {
+            Permission::Public => true,
+            _ => false,
+        }
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash)]
-pub struct Var(pub Name, pub IsPackageOpaque, pub Type, pub HelpData);
+#[derive(Debug, Clone, Serialize, Deserialize, Hash)]
+pub struct Var {
+    pub name: Name,
+    pub is_opaque: IsPackageOpaque,
+    pub related_type: Type,
+    pub help_data: HelpData,
+}
+
+impl PartialEq for Var {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.is_opaque == other.is_opaque
+            && self.related_type == other.related_type
+    }
+}
+
+impl Eq for Var {}
 
 impl Var {
-
     pub fn add_backticks_if_percent(self) -> Self {
         let s = self.get_name();
         let res = if s.starts_with('%') && s.ends_with('%') {
@@ -53,11 +73,10 @@ impl Var {
             s.to_string()
         };
         self.set_name(&res)
-    } 
+    }
 
     pub fn alias(name: &str, params: &[Type]) -> Self {
-        Var::from(name)
-            .set_type(Type::Params(params.to_vec(), HelpData::default()))
+        Var::from(name).set_type(Type::Params(params.to_vec(), HelpData::default()))
     }
 
     pub fn set_var_related_type(&self, types: &Vec<Type>, context: &Context) -> Var {
@@ -71,20 +90,20 @@ impl Var {
 
     fn keep_minimal(liste: Vec<Type>, context: &Context) -> Option<Type> {
         let mut mins: Vec<Type> = Vec::new();
-        
+
         for candidat in liste {
             let mut keep_candidat = true;
             let mut indices_to_delete = Vec::new();
-            
+
             for (i, existant) in mins.iter().enumerate() {
                 if candidat.is_subtype(existant, context) {
                     indices_to_delete.push(i);
                 } else if existant.is_subtype(&candidat, context) {
                     keep_candidat = false;
                     break;
-                } 
+                }
             }
-            
+
             if keep_candidat {
                 for &i in indices_to_delete.iter().rev() {
                     mins.remove(i);
@@ -100,69 +119,81 @@ impl Var {
         }
     }
 
-    pub fn get_related_functions(self, context: &Context) 
-        -> Option<FunctionType> {
+    pub fn get_related_functions(self, context: &Context) -> Option<FunctionType> {
         let res = context.get_matching_functions(self).unwrap();
-        Self::keep_minimal(res, context)
-             .and_then(|x| x.to_function_type())
+        Self::keep_minimal(res, context).and_then(|x| x.to_function_type())
     }
 
-    pub fn get_vectorizable_related_functions(self, context: &Context) 
-        -> Option<FunctionType> {
+    pub fn get_vectorizable_related_functions(self, context: &Context) -> Option<FunctionType> {
         let var = self.clone().set_type_raw(self.get_type().lift());
         let res = context.get_matching_functions(var).unwrap();
-        Self::keep_minimal(res, context)
-             .and_then(|x| x.to_function_type())
+        Self::keep_minimal(res, context).and_then(|x| x.to_function_type())
     }
 
-    pub fn get_function_signatures(&self, types: &Vec<Type>, context: &Context) 
-        -> Option<FunctionType> {
+    pub fn get_function_signatures(
+        &self,
+        types: &Vec<Type>,
+        context: &Context,
+    ) -> Option<FunctionType> {
         let typed_var = self.set_var_related_type(types, context);
-        typed_var.clone()
+        typed_var
+            .clone()
             .get_related_functions(context)
             .or_else(|| typed_var.get_vectorizable_related_functions(context))
     }
 
     pub fn from_language(l: Lang) -> Option<Var> {
         match l {
-            Lang::Variable(name, muta, typ, h) 
-                => Some(Var(name, muta, typ, h)),
-            _ => None
+            Lang::Variable(name, muta, typ, h) => Some(Var {
+                name,
+                is_opaque: muta,
+                related_type: typ,
+                help_data: h,
+            }),
+            _ => None,
         }
     }
 
     pub fn from_type(t: Type) -> Option<Var> {
         match t {
             Type::Alias(name, concret_types, opacity, h) => {
-                    let var = Var::from_name(&name)
-                        .set_type(Type::Params(concret_types.to_vec(), concret_types.clone().into()))
-                        .set_help_data(h)
-                        .set_opacity(opacity);
-                    Some(var)
-            },
-            Type::Char(val, h) => {
-                let var = Var::from_name(&val.get_val())
-                    .set_help_data(h);
+                let var = Var::from_name(&name)
+                    .set_type(Type::Params(
+                        concret_types.to_vec(),
+                        concret_types.clone().into(),
+                    ))
+                    .set_help_data(h)
+                    .set_opacity(opacity);
                 Some(var)
             }
-            _ => None
+            Type::Char(val, h) => {
+                let var = Var::from_name(&val.get_val()).set_help_data(h);
+                Some(var)
+            }
+            _ => None,
         }
     }
 
     pub fn from_name(name: &str) -> Self {
-        Var(
-            name.to_string(),
-            false,
-            builder::empty_type(),
-            HelpData::default())
+        Var {
+            name: name.to_string(),
+            is_opaque: false,
+            related_type: builder::empty_type(),
+            help_data: HelpData::default(),
+        }
     }
 
     pub fn to_language(self) -> Lang {
-        Lang::Variable(self.0, self.1, self.2, self.3)
+        Lang::Variable(self.name, self.is_opaque, self.related_type, self.help_data)
     }
 
     pub fn set_name(self, s: &str) -> Var {
-       Var(s.to_string(), self.1, self.2, self.3)
+        Var {
+            name: s.to_string(),
+            is_opaque: self.is_opaque,
+            related_type: self.related_type,
+            help_data: self.help_data,
+        }
     }
 
     pub fn set_type(self, typ: Type) -> Var {
@@ -170,51 +201,71 @@ impl Var {
             Type::Function(params, _, h) => {
                 if params.len() >= 1 {
                     params[0].clone()
-                } else { Type::Any(h) }
-            },
-            _ => typ
+                } else {
+                    Type::Any(h)
+                }
+            }
+            _ => typ,
         };
-        Var(self.0, self.1, typ, self.3)
+        Var {
+            name: self.name,
+            is_opaque: self.is_opaque,
+            related_type: typ,
+            help_data: self.help_data,
+        }
     }
 
     pub fn set_type_raw(self, typ: Type) -> Var {
-        Var(self.0, self.1, typ, self.3)
+        Var {
+            name: self.name,
+            is_opaque: self.is_opaque,
+            related_type: typ,
+            help_data: self.help_data,
+        }
     }
 
-
     pub fn set_opacity(self, opa: bool) -> Var {
-        Var(self.0, opa, self.2, self.3)
+        Var {
+            name: self.name,
+            is_opaque: opa,
+            related_type: self.related_type,
+            help_data: self.help_data,
+        }
     }
 
     pub fn get_name(&self) -> String {
-        self.0.to_string()
+        self.name.to_string()
     }
 
     pub fn get_type(&self) -> Type {
-        self.2.clone()
+        self.related_type.clone()
     }
 
     pub fn get_help_data(&self) -> HelpData {
-        self.3.clone()
+        self.help_data.clone()
     }
 
     pub fn match_with(&self, var: &Var, context: &Context) -> bool {
-        (self.get_name() == var.get_name()) &&
-        self.get_type().is_subtype(&var.get_type(), context)
+        (self.get_name() == var.get_name()) && self.get_type().is_subtype(&var.get_type(), context)
     }
 
     pub fn set_help_data(self, h: HelpData) -> Var {
-        Var(self.0, self.1, self.2, h)
+        Var {
+            name: self.name,
+            is_opaque: self.is_opaque,
+            related_type: self.related_type,
+            help_data: h,
+        }
     }
 
     pub fn is_imported(&self) -> bool {
-        self.is_variable() && self.1.clone()
+        self.is_variable() && self.is_opaque.clone()
     }
 
     pub fn is_alias(&self) -> bool {
         match self.get_type() {
             Type::Params(_, _) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -223,29 +274,38 @@ impl Var {
     }
 
     pub fn is_opaque(&self) -> bool {
-        self.is_alias() && self.1
+        self.is_alias() && self.is_opaque
     }
 
     pub fn get_opacity(&self) -> bool {
-        self.1
+        self.is_opaque
     }
 
-    pub fn to_alias_type(self) -> Type  {
-        Type::Alias(self.get_name(), vec![], self.get_opacity(), self.get_help_data()) 
+    pub fn to_alias_type(self) -> Type {
+        Type::Alias(
+            self.get_name(),
+            vec![],
+            self.get_opacity(),
+            self.get_help_data(),
+        )
     }
 
-    pub fn to_alias_lang(self) -> Lang  {
-        Lang::Alias(Box::new(self.clone().to_language()),
-                vec![], 
-                builder::unknown_function_type(),
-                self.get_help_data())
+    pub fn to_alias_lang(self) -> Lang {
+        Lang::Alias(
+            Box::new(self.clone().to_language()),
+            vec![],
+            builder::unknown_function_type(),
+            self.get_help_data(),
+        )
     }
 
-    pub fn to_let(self) -> Lang  {
-        Lang::Let(Box::new(self.clone().to_language()),
-                builder::unknown_function_type(),
-                Box::new(builder::empty_lang()),
-                self.get_help_data())
+    pub fn to_let(self) -> Lang {
+        Lang::Let(
+            Box::new(self.clone().to_language()),
+            builder::unknown_function_type(),
+            Box::new(builder::empty_lang()),
+            self.get_help_data(),
+        )
     }
 
     pub fn contains(&self, s: &str) -> bool {
@@ -261,13 +321,17 @@ impl Var {
         if !self.get_name().contains(".") {
             let type_str = match self.get_type() {
                 Type::Empty(_) | Type::Any(_) => "".to_string(),
-                ty => ".".to_string() + &cont.get_class(&ty).replace("'", "")
+                ty => ".".to_string() + &cont.get_class(&ty).replace("'", ""),
             };
             let new_name = if self.contains("`") {
                 "`".to_string() + &self.get_name().replace("`", "") + &type_str + "`"
-            } else { self.get_name() + &type_str };
+            } else {
+                self.get_name() + &type_str
+            };
             self.set_name(&new_name)
-        } else { self }
+        } else {
+            self
+        }
     }
 
     pub fn get_digit(&self, s: &str) -> i8 {
@@ -285,19 +349,24 @@ impl Var {
 
 impl fmt::Display for Var {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}<{}>", self.0, self.2)       
+        write!(f, "{}<{}>", self.name, self.related_type)
     }
 }
 
 impl Default for Var {
     fn default() -> Self {
-        Var("".to_string(), false, Type::Empty(HelpData::default()), HelpData::default())
+        Var {
+            name: "".to_string(),
+            is_opaque: false,
+            related_type: Type::Empty(HelpData::default()),
+            help_data: HelpData::default(),
+        }
     }
 }
 
 impl RTranslatable<String> for Var {
     fn to_r(&self, _: &Context) -> String {
-        format!("{}", self.0)
+        format!("{}", self.name)
     }
 }
 
@@ -306,9 +375,13 @@ impl TryFrom<Lang> for Var {
 
     fn try_from(value: Lang) -> Result<Self, Self::Error> {
         match value {
-            Lang::Variable(name, muta, typ, h) 
-                => Ok(Var(name, muta, typ, h)),
-            _ => Err(())
+            Lang::Variable(name, muta, typ, h) => Ok(Var {
+                name,
+                is_opaque: muta,
+                related_type: typ,
+                help_data: h,
+            }),
+            _ => Err(()),
         }
     }
 }
@@ -330,37 +403,35 @@ impl TryFrom<&Box<Lang>> for Var {
 }
 
 impl From<&str> for Var {
-   fn from(val: &str) -> Self {
-        Var(
-            val.to_string(),
-            false,
-            Type::Empty(HelpData::default()),
-            HelpData::default())
-   } 
+    fn from(val: &str) -> Self {
+        Var {
+            name: val.to_string(),
+            is_opaque: false,
+            related_type: Type::Empty(HelpData::default()),
+            help_data: HelpData::default(),
+        }
+    }
 }
 
 impl TryFrom<Type> for Var {
     type Error = String;
 
     fn try_from(value: Type) -> Result<Self, Self::Error> {
-       match value {
-           Type::Char(tchar, h) => {
-                match tchar {
-                    Tchar::Val(name) => {
-                        let var = if is_pascal_case(&name) {
-                            Var::from_name(&name)
-                                .set_help_data(h)
-                                .set_type(builder::params_type())
-                        } else {
-                            Var::from_name(&name)
-                                .set_help_data(h)
-                        };
-                        Ok(var)
-                    },
-                    _ => todo!()
+        match value {
+            Type::Char(tchar, h) => match tchar {
+                Tchar::Val(name) => {
+                    let var = if is_pascal_case(&name) {
+                        Var::from_name(&name)
+                            .set_help_data(h)
+                            .set_type(builder::params_type())
+                    } else {
+                        Var::from_name(&name).set_help_data(h)
+                    };
+                    Ok(var)
                 }
-           },
-           _ => Err("From type to Var, not possible".to_string())
-       }
+                _ => todo!(),
+            },
+            _ => Err("From type to Var, not possible".to_string()),
+        }
     }
 }
