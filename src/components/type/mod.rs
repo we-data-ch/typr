@@ -699,8 +699,11 @@ impl Type {
         }
     }
 
-    pub fn lift(self) -> Type {
-        builder::array_type(builder::empty_type(), self)
+    pub fn unlift(self) -> Type {
+        match self {
+            Type::Vec(_, _, t, _) => (*t).clone(),
+            a => a.clone()
+        }
     }
 
     pub fn to_array(&self) -> Option<Array> {

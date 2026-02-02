@@ -117,4 +117,13 @@ mod tests {
         assert_eq!(res, boolean)
     }
 
+    #[test]
+    fn test_signature_vectorized_function_application1() {
+        let res = FluentParser::new()
+            .push("@f: (int) -> bool;").run()
+            .check_typing("f([1, 2, 3])");
+        let boolean = builder::boolean_type();
+        assert_eq!(res, boolean)
+    }
+
 }

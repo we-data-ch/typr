@@ -11,7 +11,8 @@ pub struct FunctionType {
     arguments: Vec<Type>,
     return_type: Type,
     infered_return_type: Type,
-    help_data: HelpData
+    help_data: HelpData,
+    vectorized: bool
 }
 
 //main
@@ -22,12 +23,20 @@ impl FunctionType {
             return_type,
             help_data,
             arguments,
+            vectorized: false,
             infered_return_type: builder::empty_type()
         }
     }
 
+    pub fn set_vectorized(self) -> Self {
+        Self {
+            vectorized: true,
+            ..self
+        }
+    }
+
     pub fn is_vectorized(&self) -> bool {
-        todo!();
+        self.vectorized
     }
 
     pub fn infer_return_type(self, types: Vec<Type>, context: &Context, name: &str) -> Self {
