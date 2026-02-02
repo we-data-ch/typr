@@ -130,7 +130,7 @@ impl Var {
         Self::keep_minimal(res, context).and_then(|x| x.to_function_type())
     }
 
-    pub fn get_function_signatures(
+    pub fn get_function_signature(
         &self,
         types: &Vec<Type>,
         context: &Context,
