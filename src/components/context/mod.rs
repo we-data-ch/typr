@@ -390,8 +390,8 @@ impl Context {
         .1
     }
 
-    pub fn get_matching_functions(&self, var1: Var) -> Result<Vec<Type>, String> {
-        let res = self
+    pub fn get_matching_typed_functions(&self, var1: Var) -> Vec<Type> {
+        self
             .typing_context
             .variables()
             .filter(|(var2, typ)| {
@@ -403,22 +403,30 @@ impl Context {
                         || reduced_type1.is_upperrank_of(&reduced_type2))
             })
             .map(|(_, typ)| typ.clone())
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+    }
+
+    pub fn get_matching_untyped_functions(&self, var: Var) -> Result<Vec<Type>, String> {
+        let name1 = var.get_name();
+        let std_lib = self.typing_context.standard_library();
+        let res = std_lib
+            .iter()
+            .find(|(var2, _)| var2.get_name() == name1)
+            .map(|(_, typ)| typ);
+        match res {
+            Some(val) => Ok(vec![val.clone()]),
+            _ => Err(format!(
+                "Can't find var {} in the context:\n {}",
+                var.to_string(),
+                self.display_typing_context()
+            ))
+        }
+    }
+
+    pub fn get_matching_functions(&self, var: Var) -> Result<Vec<Type>, String> {
+        let res = self.get_matching_typed_functions(var.clone());
         if res.len() == 0 {
-            let name1 = var1.get_name();
-            let std_lib = self.typing_context.standard_library();
-            let res = std_lib
-                .iter()
-                .find(|(var2, _)| var2.get_name() == name1)
-                .map(|(_, typ)| typ);
-            match res {
-                Some(val) => Ok(vec![val.clone()]),
-                _ => Err(format!(
-                    "Can't find var {} in the context:\n {}",
-                    var1.to_string(),
-                    self.display_typing_context()
-                )),
-            }
+            self.get_matching_untyped_functions(var)
         } else {
             Ok(res)
         }
@@ -499,12 +507,11 @@ impl Context {
 
     pub fn get_unification_map(
         &self,
-        entered_types: Vec<Type>,
+        entered_types: &[Type],
         param_types: &[Type],
-        name: &str,
     ) -> Option<UnificationMap> {
         let unification_map =
-            get_unification_map_for_vectorizable_function(entered_types.to_vec(), name);
+            get_unification_map_for_vectorizable_function(entered_types.to_vec());
 
         let res = entered_types
             .iter()
@@ -578,6 +585,13 @@ impl Context {
         self.variables()
             .cloned()
             .filter(|(var, typ2)| typ2.is_function() && &var.get_type() == typ)
+            .collect()
+    }
+
+    pub fn get_functions_from_name(&self, name: &str) -> Vec<(Var, Type)> {
+        self.variables()
+            .cloned()
+            .filter(|(var, typ2)| typ2.is_function() && &var.get_name() == name)
             .collect()
     }
 

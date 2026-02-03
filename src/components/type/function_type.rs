@@ -39,15 +39,16 @@ impl FunctionType {
         self.vectorized
     }
 
-    pub fn infer_return_type(self, types: Vec<Type>, context: &Context, name: &str) -> Self {
+    pub fn infer_return_type(self, types: &[Type], context: &Context) -> Option<Self> {
         let param_types = self.get_param_types();
         let unification_map = context
-                .get_unification_map(types, &param_types, name)
+                .get_unification_map(types, &param_types)
                 .unwrap_or(UnificationMap::new(vec![]));
         let (new_return_type, _new_context) = unification_map
                 .apply_unification_type(context, &self.get_return_type());
         let final_return_type = new_return_type.is_reduced().then(|| new_return_type);
-        self.set_infered_return_type(final_return_type.unwrap())
+        self.set_infered_return_type(final_return_type.unwrap());
+        todo!();
     }
 
     pub fn set_infered_return_type(self, ret_typ: Type) -> Self {

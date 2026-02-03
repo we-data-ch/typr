@@ -8,11 +8,18 @@ use crate::processes::type_checking::Lang;
 use crate::processes::type_checking::Type;
 use crate::processes::type_checking::Var;
 
+fn infer_return_type(functions: &[FunctionType], types: &[Type], context: &Context) 
+    -> Option<FunctionType> {
+        functions.iter()
+            .flat_map(|x| x.clone().infer_return_type(types, context))
+            .next()
+}
+
 pub fn apply_from_variable(var: Var, context: &Context, parameters: &Vec<Lang>, h: &HelpData) -> TypeContext {
     let (expanded_parameters, types) = 
         get_expanded_parameters_with_their_types(context, parameters);
-    let fun_typ = var.get_function_signature(&types, context)
-        .map(|x| x.infer_return_type(types, context, &var.get_name()))
+    let fun_typ = Some(var.get_functions_from_name(context))
+        .and_then(|functions| infer_return_type(&functions, &types, context))
         .unwrap();
     let new_expr = build_function_lang(h, expanded_parameters, &fun_typ, var.to_language());
     (fun_typ.get_infered_return_type(), new_expr, context.clone()).into()

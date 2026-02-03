@@ -120,25 +120,11 @@ impl Var {
         }
     }
 
-    pub fn get_related_functions(self, context: &Context) -> Option<FunctionType> {
-        let res = context.get_matching_functions(self).unwrap();
-        Self::keep_minimal(res, context).and_then(|x| x.to_function_type())
-    }
-
-    pub fn get_vectorizable_related_functions(self, context: &Context, types: &[Type]) -> Option<FunctionType> {
-        is_vectorizable(types);
-        let var = self.clone().set_type_raw(self.get_type().unlift());
-        let res = context.get_matching_functions(var).unwrap();
-        Self::keep_minimal(res, context)
-            .and_then(|x| x.to_function_type())
-            .map(|x| x.set_vectorized())
-    }
-
-    pub fn get_function_signature(&self, types: &Vec<Type>, context: &Context) -> Option<FunctionType> {
-        let typed_var = self.set_var_related_type(types, context);
-        typed_var.clone()
-            .get_related_functions(context)
-            .or_else(|| typed_var.get_vectorizable_related_functions(context, types))
+    pub fn get_functions_from_name(&self, context: &Context) -> Vec<FunctionType> {
+        context.get_functions_from_name(&self.get_name())
+            .iter()
+            .flat_map(|(_, typ)| typ.clone().to_function_type())
+            .collect()
     }
 
     pub fn from_language(l: Lang) -> Option<Var> {
@@ -347,7 +333,7 @@ impl Var {
 }
 
 fn is_vectorizable(entered_types: &[Type]) -> bool {
-    get_unification_map_for_vectorizable_function(entered_types.to_vec(), "").is_some()
+    get_unification_map_for_vectorizable_function(entered_types.to_vec()).is_some()
 }
 
 impl fmt::Display for Var {

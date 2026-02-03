@@ -113,7 +113,7 @@ impl Default for UnificationMap {
     }
 }
 
-pub fn get_unification_map_for_vectorizable_function(types: Vec<Type>, _name: &str) -> Option<UnificationMap> {
+pub fn get_unification_map_for_vectorizable_function(types: Vec<Type>) -> Option<UnificationMap> {
     let unique_types = types.iter()
         .map(|x| x.get_size_type())
         .collect::<HashSet<_>>();
