@@ -5,7 +5,6 @@
     unreachable_code,
     unused_assignments
 )]
-use crate::processes::type_checking::unification_map::get_unification_map_for_vectorizable_function;
 use crate::processes::transpiling::translatable::RTranslatable;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
@@ -330,10 +329,6 @@ impl Var {
     pub fn exist(&self, context: &Context) -> Option<Self> {
         context.variable_exist(self.clone())
     }
-}
-
-fn is_vectorizable(entered_types: &[Type]) -> bool {
-    get_unification_map_for_vectorizable_function(entered_types.to_vec()).is_some()
 }
 
 impl fmt::Display for Var {

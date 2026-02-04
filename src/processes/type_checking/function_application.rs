@@ -61,19 +61,12 @@ mod tests {
     #[test]
     fn test_vectorization0(){
        let res = FluentParser::new()
-           .push("@a: int;").run()
-           .push("a").type_next()
-           .get_last_type();
-       assert_eq!(res, builder::integer_type_default());
-    }
-
-    #[test]
-    fn test_vectorization1(){
-       let res = FluentParser::new()
            .push("@f1: (int) -> int;").run()
-           .push("f1(5)").type_next()
-           .get_last_type();
-       assert_eq!(res, builder::integer_type_default());
+           .check_typing("f1([1, 2])");
+       let fun_typ = builder::array_type(
+           builder::integer_type(2),
+           builder::integer_type_default());
+       assert_eq!(res, fun_typ);
     }
 
 }
