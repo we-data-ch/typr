@@ -86,7 +86,11 @@ impl FunctionType {
     }
 
     fn lift(self, index: i32) -> Self {
-        todo!();
+        Self {
+            arguments: self.arguments.iter().map(|typ| typ.clone().lift(index)).collect(),
+            return_type: self.return_type.lift(index),
+            ..self
+        }
     }
 
     fn apply_unification_to_return_type(
@@ -96,15 +100,10 @@ impl FunctionType {
     ) -> FunctionType {
         let fun_typ = um.get_vectorization()
             .map_or(self.clone(), |index| self.lift(index));
-        let (new_return_type, _new_context) =
-            um.apply_unification_type(context, &fun_typ.get_return_type());
+        let new_return_type =
+            um.apply_unification_type(context, &fun_typ.get_return_type()).0;
         let final_return_type = new_return_type.is_reduced().then(|| new_return_type);
-        let result = fun_typ.set_infered_return_type(final_return_type.unwrap());
-        if um.is_vectorized() {
-            result.set_vectorized()
-        } else {
-            result
-        }
+        fun_typ.set_infered_return_type(final_return_type.unwrap())
     }
 
     pub fn set_infered_return_type(self, ret_typ: Type) -> Self {

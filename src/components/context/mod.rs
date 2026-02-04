@@ -513,11 +513,17 @@ impl Context {
         let res = entered_types
             .iter()
             .zip(param_types.iter())
-            .flat_map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
-            .flatten()
-            .collect::<Vec<_>>();
+            .map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
+            .collect::<Option<Vec<_>>>();
 
-        Some(UnificationMap::new(res))
+        let val = res
+            .map(|vec| vec.iter().cloned().flatten().collect::<Vec<_>>())
+            .map(|vec|UnificationMap::new(vec));
+
+        val
+        //dbg!(&entered_types);
+        //dbg!(&param_types);
+        //dbg!(val)
     }
 
     fn s3_type_definition(&self, var: &Var, typ: &Type) -> String {

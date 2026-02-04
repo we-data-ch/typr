@@ -171,7 +171,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                     get_gen_type(typ1, typ2)
                 }
             (t1, t2) if t1 == t2 => Some(vec![]),
-            _ => Some(vec![])
+            _ => None
         }
 }
 
@@ -180,12 +180,12 @@ pub fn match_types_to_generic(ctx: &Context, type1: &Type, type2: &Type)
     -> Option<Vec<(Type, Type)>> {
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
-    let res = get_gen_type(&type1, &type2)
-        .expect(&TypeError::GenericPatternMatch(type2, type1).display());
-    let unif_map = res.iter()
-        .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
-        .collect::<Vec<_>>();
-    Some(unif_map)
+    get_gen_type(&type1, &type2)
+        .map(|vec|
+            vec.iter()
+            .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
+            .collect::<Vec<_>>()
+        )
 }
 
 fn are_homogenous_types(types: &[Type]) -> bool {
