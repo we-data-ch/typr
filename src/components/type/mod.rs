@@ -210,6 +210,24 @@ impl Default for Type {
 //main
 impl Type {
 
+    pub fn lift(self, max_index: i32) -> Type {
+        match self.clone() {
+            Type::Vec(_, i, _, _) if i.equal(max_index) => self,
+            Type::Vec(v, _, t, h) => Type::Vec(
+                v.clone(),
+                Box::new(builder::integer_type(max_index)),
+                t.clone(),
+                h.clone(),
+            ),
+            t => Type::Vec(
+                VecType::Array,
+                Box::new(builder::integer_type(max_index)),
+                Box::new(t.clone()),
+                t.get_help_data(),
+            ),
+        }
+    }
+
     pub fn equal(&self, i: i32) -> bool {
         match self {
             Type::Integer(t, _) => t.equal(i),

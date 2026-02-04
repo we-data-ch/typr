@@ -24,6 +24,13 @@ pub struct FunctionType {
     vectorized: bool,
 }
 
+fn lift(max_index: i32, types: &[Type]) -> Vec<Type> {
+    types
+        .iter()
+        .map(|typ| typ.clone().lift(max_index))
+        .collect()
+}
+
 //main
 impl FunctionType {
     pub fn new(arguments: Vec<Type>, return_type: Type, help_data: HelpData) -> Self {
@@ -47,26 +54,6 @@ impl FunctionType {
         self.vectorized
     }
 
-    fn lift(max_index: i32, types: &[Type]) -> Vec<Type> {
-        types
-            .iter()
-            .map(|typ| match typ {
-                Type::Vec(v, i, t, h) if i.equal(max_index) => typ.clone(),
-                Type::Vec(v, i, t, h) => Type::Vec(
-                    v.clone(),
-                    Box::new(builder::integer_type(max_index)),
-                    t.clone(),
-                    h.clone(),
-                ),
-                t => Type::Vec(
-                    VecType::Array,
-                    Box::new(builder::integer_type(max_index)),
-                    Box::new(t.clone()),
-                    t.get_help_data(),
-                ),
-            })
-            .collect()
-    }
 
     fn lift_and_unification(
         context: &Context,
@@ -83,8 +70,8 @@ impl FunctionType {
             .and_then(|max_index| {
                 context
                     .get_unification_map(
-                        &Self::lift(max_index, types),
-                        &Self::lift(max_index, param_types),
+                        &lift(max_index, types),
+                        &lift(max_index, param_types),
                     )
                     .map(|um| um.set_vectorized(max_index))
             })
@@ -98,15 +85,21 @@ impl FunctionType {
             .map(|um| self.apply_unification_to_return_type(context, um))
     }
 
+    fn lift(self, index: i32) -> Self {
+        todo!();
+    }
+
     fn apply_unification_to_return_type(
         self,
         context: &Context,
         um: UnificationMap,
     ) -> FunctionType {
+        let fun_typ = um.get_vectorization()
+            .map_or(self.clone(), |index| self.lift(index));
         let (new_return_type, _new_context) =
-            um.apply_unification_type(context, &self.get_return_type());
+            um.apply_unification_type(context, &fun_typ.get_return_type());
         let final_return_type = new_return_type.is_reduced().then(|| new_return_type);
-        let result = self.set_infered_return_type(final_return_type.unwrap());
+        let result = fun_typ.set_infered_return_type(final_return_type.unwrap());
         if um.is_vectorized() {
             result.set_vectorized()
         } else {
