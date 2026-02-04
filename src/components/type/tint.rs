@@ -12,6 +12,13 @@ pub enum Tint {
 }
 
 impl Tint {
+    pub fn equal(&self, i: i32) -> bool {
+        match self {
+            Tint::Val(j) => i == *j,
+            _ => false
+        }
+    }
+
     pub fn gen_of(&self, other: &Tint) -> bool {
         match (self, other) {
             (Tint::Unknown, _) => true,

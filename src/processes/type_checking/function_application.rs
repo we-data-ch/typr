@@ -20,7 +20,7 @@ pub fn apply_from_variable(var: Var, context: &Context, parameters: &Vec<Lang>, 
         get_expanded_parameters_with_their_types(context, parameters);
     let fun_typ = Some(var.get_functions_from_name(context))
         .and_then(|functions| infer_return_type(&functions, &types, context))
-        .unwrap();
+        .unwrap(); // Todo: write an error message here
     let new_expr = build_function_lang(h, expanded_parameters, &fun_typ, var.to_language());
     (fun_typ.get_infered_return_type(), new_expr, context.clone()).into()
 }

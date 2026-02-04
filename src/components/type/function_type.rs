@@ -1,9 +1,13 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+use crate::processes::type_checking::unification_map::get_unification_map_for_vectorizable_function;
 use crate::processes::type_checking::unification_map::UnificationMap;
+use crate::utils::standard_library::validate_vectorization;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::context::Context;
+use crate::components::r#type::VecType;
 use crate::components::language::Lang;
 use crate::components::r#type::Type;
+use std::collections::HashSet;
 use crate::utils::builder;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,16 +43,49 @@ impl FunctionType {
         self.vectorized
     }
 
+    fn lift(max_index: i32, types: &[Type]) -> Vec<Type> {
+        types.iter()
+            .map(|typ| match typ {
+                Type::Vec(v, i, t, h) if i.equal(max_index) 
+                    => typ.clone(),
+                Type::Vec(v, i, t, h) 
+                    => Type::Vec(
+                        v.clone(), 
+                        Box::new(builder::integer_type(max_index)),
+                        t.clone(), h.clone()),
+                t => Type::Vec(
+                    VecType::Array, 
+                    Box::new(builder::integer_type(max_index)),
+                    Box::new(t.clone()), t.get_help_data())
+            }).collect()
+    }
+
+    fn lift_and_unification(context: &Context, types: &[Type], param_types: &[Type]) 
+        -> Option<UnificationMap> {
+        let unique_types = types.iter()
+            .map(|x| x.get_size_type())
+            .collect::<HashSet<_>>();
+        let max_index = validate_vectorization(unique_types)
+            .and_then(|hash| hash.iter().cloned().max_by_key(|x| x.0))
+            .map(|(index, _)| index)
+            .unwrap();
+        context
+            .get_unification_map(&Self::lift(max_index, types), &Self::lift(max_index, param_types))
+    }
+
     pub fn infer_return_type(self, types: &[Type], context: &Context) -> Option<Self> {
         let param_types = self.get_param_types();
-        let unification_map = context
-                .get_unification_map(types, &param_types)
-                .unwrap_or(UnificationMap::new(vec![]));
-        let (new_return_type, _new_context) = unification_map
+        context
+            .get_unification_map(types, &param_types)
+            .or(Self::lift_and_unification(context, types, &param_types))
+            .map(|um| self.apply_unification_to_return_type(context, um))
+    }
+
+    fn apply_unification_to_return_type(self, context: &Context, um: UnificationMap) -> FunctionType {
+        let (new_return_type, _new_context) = um
                 .apply_unification_type(context, &self.get_return_type());
         let final_return_type = new_return_type.is_reduced().then(|| new_return_type);
-        self.set_infered_return_type(final_return_type.unwrap());
-        todo!();
+        self.set_infered_return_type(final_return_type.unwrap())
     }
 
     pub fn set_infered_return_type(self, ret_typ: Type) -> Self {

@@ -17,8 +17,8 @@ pub mod typer;
 
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::components::error_message::help_message::ErrorMsg;
-use crate::components::error_message::type_error::TypeError;
 use crate::processes::parsing::operation_priority::TokenKind;
+use crate::components::error_message::type_error::TypeError;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::function_type::FunctionType;
@@ -209,6 +209,13 @@ impl Default for Type {
 
 //main
 impl Type {
+
+    pub fn equal(&self, i: i32) -> bool {
+        match self {
+            Type::Integer(t, _) => t.equal(i),
+            _ => false
+        }
+    }
     pub fn is_interface(&self) -> bool {
         match self {
             Type::Interface(_, _) => true,

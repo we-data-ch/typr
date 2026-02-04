@@ -19,7 +19,7 @@ use crate::components::r#type::Type;
 use crate::processes::type_checking::match_types_to_generic;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::unification_map;
-use crate::processes::type_checking::unification_map::get_unification_map_for_vectorizable_function;
+//use crate::processes::type_checking::unification_map::get_unification_map_for_vectorizable_function;
 use crate::utils::builder;
 use crate::utils::standard_library::not_in_blacklist;
 use std::collections::HashSet;
@@ -510,9 +510,6 @@ impl Context {
         entered_types: &[Type],
         param_types: &[Type],
     ) -> Option<UnificationMap> {
-        let unification_map =
-            get_unification_map_for_vectorizable_function(entered_types.to_vec());
-
         let res = entered_types
             .iter()
             .zip(param_types.iter())
@@ -520,12 +517,7 @@ impl Context {
             .flatten()
             .collect::<Vec<_>>();
 
-        match (unification_map, res.len() > 0) {
-            (Some(um), true) => Some(um.append(UnificationMap::new(res))),
-            (None, true) => Some(UnificationMap::new(res)),
-            (Some(um), false) => Some(um),
-            (None, false) => None,
-        }
+        Some(UnificationMap::new(res))
     }
 
     fn s3_type_definition(&self, var: &Var, typ: &Type) -> String {
