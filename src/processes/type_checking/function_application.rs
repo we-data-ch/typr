@@ -69,4 +69,15 @@ mod tests {
        assert_eq!(res, fun_typ);
     }
 
+    #[test]
+    fn test_vectorization1(){
+       let res = FluentParser::new()
+           .push("@f2: (int, int) -> int;").run()
+           .check_typing("f2(3, [1, 2])");
+       let fun_typ = builder::array_type(
+           builder::integer_type(2),
+           builder::integer_type_default());
+       assert_eq!(res, fun_typ);
+    }
+
 }
