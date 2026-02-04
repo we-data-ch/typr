@@ -89,6 +89,7 @@ impl FunctionType {
         Self {
             arguments: self.arguments.iter().map(|typ| typ.clone().lift(index)).collect(),
             return_type: self.return_type.lift(index),
+            vectorized: true,
             ..self
         }
     }
