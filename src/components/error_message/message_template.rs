@@ -1,14 +1,14 @@
-use thiserror::Error;
 use miette::Diagnostic;
+use miette::NamedSource;
 use miette::SourceCode;
 use miette::SourceSpan;
-use miette::NamedSource;
+use thiserror::Error;
 
 #[derive(Error, Debug, Diagnostic)]
 pub enum MsgTemplate<S: SourceCode + 'static + std::fmt::Debug> {
     #[error("Type error: {text}")]
     Single {
-        text: String, 
+        text: String,
         #[label("{pos_text}")]
         pos: SourceSpan,
         pos_text: String,
@@ -19,7 +19,7 @@ pub enum MsgTemplate<S: SourceCode + 'static + std::fmt::Debug> {
     },
     #[error("Type error: {text}")]
     Double {
-        text: String, 
+        text: String,
 
         #[label("{pos_text1}")]
         pos1: SourceSpan,
@@ -35,5 +35,5 @@ pub enum MsgTemplate<S: SourceCode + 'static + std::fmt::Debug> {
 
         #[help]
         help: Option<String>,
-    }
+    },
 }

@@ -6,24 +6,25 @@ pub mod operators;
 pub mod var;
 pub mod var_function;
 
-use crate::components::context::config::Config;
-use crate::components::context::config::Environment;
-use crate::components::context::Context;
-use crate::components::error_message::help_data::HelpData;
 use crate::components::language::argument_value::ArgumentValue;
-use crate::components::language::operators::Op;
-use crate::components::language::var::Var;
-use crate::components::r#type::argument_type::ArgumentType;
-use crate::components::r#type::function_type::FunctionType;
-use crate::components::r#type::Type;
-use crate::processes::parsing::elements::elements;
-use crate::processes::parsing::lang_token::LangToken;
-use crate::processes::parsing::operation_priority::TokenKind;
 use crate::processes::transpiling::translatable::RTranslatable;
 use crate::processes::type_checking::type_context::TypeContext;
+use crate::processes::parsing::operation_priority::TokenKind;
+use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::function_type::FunctionType;
+use crate::components::error_message::locatable::Locatable;
+use crate::components::error_message::help_data::HelpData;
+use crate::processes::parsing::lang_token::LangToken;
+use crate::components::context::config::Environment;
+use crate::processes::parsing::elements::elements;
+use crate::components::language::operators::Op;
+use crate::components::context::config::Config;
 use crate::processes::type_checking::typing;
-use crate::utils::builder;
+use crate::components::language::var::Var;
+use crate::components::context::Context;
+use crate::components::r#type::Type;
 use serde::{Deserialize, Serialize};
+use crate::utils::builder;
 use std::str::FromStr;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -167,6 +168,12 @@ impl Eq for Lang {}
 impl Default for Lang {
     fn default() -> Lang {
         builder::empty_lang()
+    }
+}
+
+impl Locatable for Lang {
+    fn get_help_data(&self) -> HelpData {
+        Lang::get_help_data(self)
     }
 }
 

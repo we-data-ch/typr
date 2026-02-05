@@ -1,23 +1,23 @@
 use nom_locate::LocatedSpan;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub enum Tchar {
     Val(String),
-    Unknown
+    Unknown,
 }
 
 impl Tchar {
     pub fn gen_of(&self, other: &Self) -> bool {
         match (self, other) {
             (Tchar::Unknown, _) => true,
-            _ => false
+            _ => false,
         }
     }
     pub fn get_val(&self) -> String {
         match self {
             Tchar::Val(s) => s.clone(),
-            _ => "Unkown".to_string()
+            _ => "Unkown".to_string(),
         }
     }
 }
@@ -25,19 +25,19 @@ impl Tchar {
 use std::fmt;
 impl fmt::Display for Tchar {
     fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)       
+        write!(f, "{:?}", self)
     }
 }
 
-impl From<String> for  Tchar {
-   fn from(val: String) -> Self {
-       Tchar::Val(val.clone()) 
-   } 
+impl From<String> for Tchar {
+    fn from(val: String) -> Self {
+        Tchar::Val(val.clone())
+    }
 }
 
 impl From<LocatedSpan<&str, String>> for Tchar {
-   fn from(val: LocatedSpan<&str, String>) -> Self {
+    fn from(val: LocatedSpan<&str, String>) -> Self {
         let res: String = (*val).into();
         Tchar::Val(res)
-   } 
+    }
 }

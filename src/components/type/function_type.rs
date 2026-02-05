@@ -5,15 +5,15 @@
     unreachable_code,
     unused_assignments
 )]
-use crate::processes::type_checking::unification_map::UnificationMap;
-use crate::utils::standard_library::validate_vectorization;
-use crate::components::error_message::help_data::HelpData;
 use crate::components::context::Context;
-use crate::components::r#type::VecType;
+use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
 use crate::components::r#type::Type;
-use std::collections::HashSet;
+use crate::components::r#type::VecType;
+use crate::processes::type_checking::unification_map::UnificationMap;
 use crate::utils::builder;
+use crate::utils::standard_library::validate_vectorization;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionType {
@@ -24,7 +24,7 @@ pub struct FunctionType {
     vectorized: bool,
 }
 
-fn lift(max_index: i32, types: &[Type]) -> Vec<Type> {
+fn lift(max_index: (VecType, i32), types: &[Type]) -> Vec<Type> {
     types
         .iter()
         .map(|typ| typ.clone().lift(max_index))
@@ -54,7 +54,6 @@ impl FunctionType {
         self.vectorized
     }
 
-
     fn lift_and_unification(
         context: &Context,
         types: &[Type],
@@ -66,14 +65,11 @@ impl FunctionType {
             .collect::<HashSet<_>>();
         validate_vectorization(unique_types)
             .and_then(|hash| hash.iter().cloned().max_by_key(|x| x.0))
-            .map(|(index, _)| index)
+            .map(|(index, vectyp, _)| (vectyp, index))
             .and_then(|max_index| {
                 context
-                    .get_unification_map(
-                        &lift(max_index, types),
-                        &lift(max_index, param_types),
-                    )
-                    .map(|um| um.set_vectorized(max_index))
+                    .get_unification_map(&lift(max_index, types), &lift(max_index, param_types))
+                    .map(|um| um.set_vectorized(max_index.0, max_index.1))
             })
     }
 
@@ -85,9 +81,13 @@ impl FunctionType {
             .map(|um| self.apply_unification_to_return_type(context, um))
     }
 
-    fn lift(self, index: i32) -> Self {
+    fn lift(self, index: (VecType, i32)) -> Self {
         Self {
-            arguments: self.arguments.iter().map(|typ| typ.clone().lift(index)).collect(),
+            arguments: self
+                .arguments
+                .iter()
+                .map(|typ| typ.clone().lift(index))
+                .collect(),
             return_type: self.return_type.lift(index),
             vectorized: true,
             ..self
@@ -99,12 +99,15 @@ impl FunctionType {
         context: &Context,
         um: UnificationMap,
     ) -> FunctionType {
-        let fun_typ = um.get_vectorization()
-            .map_or(self.clone(), |index| self.lift(index));
-        let new_return_type =
-            um.apply_unification_type(context, &fun_typ.get_return_type()).0;
-        let final_return_type = new_return_type.is_reduced().then(|| new_return_type);
-        fun_typ.set_infered_return_type(final_return_type.unwrap())
+        let fun_typ = um
+            .get_vectorization()
+            .map_or(self.clone(), |(vec_type, index)| {
+                self.lift((vec_type, index))
+            });
+        let new_return_type = um
+            .apply_unification_type(context, &fun_typ.get_return_type())
+            .0;
+        fun_typ.set_infered_return_type(new_return_type)
     }
 
     pub fn set_infered_return_type(self, ret_typ: Type) -> Self {

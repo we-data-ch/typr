@@ -1,7 +1,9 @@
 use crate::processes::type_checking::unification::type_substitution;
+use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::processes::type_checking::TypeError;
 use crate::components::language::var::Var;
 use crate::components::context::Context;
 use crate::components::r#type::Type;
@@ -52,8 +54,7 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
                     context.get_matching_alias_signature(&var)
                         .map(|(aliased_type, generics)| 
                              reduce_alias(aliased_type, &generics, concret_types, name, memory, context))
-                        .expect(&format!("The alias {} wasn't found in the context\n{}",
-                                type_, context.display_typing_context()))
+                        .expect(&TypeError::AliasNotFound(type_.clone()).display())
                 }
             }
         },

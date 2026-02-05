@@ -1,11 +1,12 @@
+use crate::components::context::Context;
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::r#type::type_system::TypeSystem;
-use crate::processes::type_checking::unification;
-use crate::components::context::Context;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
-use std::collections::HashSet;
+use crate::processes::type_checking::unification;
 use crate::utils::builder;
+use std::collections::HashSet;
 use std::fmt;
 
 #[derive(Debug)]
@@ -40,7 +41,7 @@ impl SafeHashMap {
 #[derive(Debug)]
 pub struct UnificationMap {
     pub mapping: Vec<(Type, Type)>,
-    pub vectorized: Option<i32>,
+    pub vectorized: Option<(VecType, i32)>,
 }
 
 impl UnificationMap {
@@ -55,9 +56,9 @@ impl UnificationMap {
         }
     }
 
-    pub fn set_vectorized(self, index: i32) -> Self {
+    pub fn set_vectorized(self, vec_type: VecType, index: i32) -> Self {
         Self {
-            vectorized: Some(index),
+            vectorized: Some((vec_type, index)),
             ..self
         }
     }
@@ -66,7 +67,7 @@ impl UnificationMap {
         self.vectorized.is_some()
     }
 
-    pub fn get_vectorization(&self) -> Option<i32> {
+    pub fn get_vectorization(&self) -> Option<(VecType, i32)> {
         self.vectorized
     }
 

@@ -1,4 +1,10 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+#![allow(
+    dead_code,
+    unused_variables,
+    unused_imports,
+    unreachable_code,
+    unused_assignments
+)]
 use crate::components::r#type::Type;
 use crate::utils::builder;
 

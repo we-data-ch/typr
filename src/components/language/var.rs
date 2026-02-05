@@ -5,16 +5,17 @@
     unreachable_code,
     unused_assignments
 )]
-use crate::processes::transpiling::translatable::RTranslatable;
+use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
+use crate::components::error_message::locatable::Locatable;
 use crate::components::language::Lang;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use crate::processes::parsing::elements::is_pascal_case;
+use crate::processes::transpiling::translatable::RTranslatable;
 use crate::processes::type_checking::typing;
-use crate::components::context::Context;
 use crate::utils::builder;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -63,6 +64,12 @@ impl PartialEq for Var {
 }
 
 impl Eq for Var {}
+
+impl Locatable for Var {
+    fn get_help_data(&self) -> HelpData {
+        self.help_data.clone()
+    }
+}
 
 impl Var {
     pub fn add_backticks_if_percent(self) -> Self {
@@ -120,7 +127,8 @@ impl Var {
     }
 
     pub fn get_functions_from_name(&self, context: &Context) -> Vec<FunctionType> {
-        context.get_functions_from_name(&self.get_name())
+        context
+            .get_functions_from_name(&self.get_name())
             .iter()
             .flat_map(|(_, typ)| typ.clone().to_function_type())
             .collect()

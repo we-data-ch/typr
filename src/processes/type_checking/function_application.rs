@@ -1,6 +1,8 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::r#type::function_type::FunctionType;
 use crate::processes::type_checking::TypeContext;
+use crate::processes::type_checking::TypeError;
 use crate::processes::type_checking::HelpData;
 use crate::processes::type_checking::Context;
 use crate::processes::type_checking::typing;
@@ -18,9 +20,10 @@ fn infer_return_type(functions: &[FunctionType], types: &[Type], context: &Conte
 pub fn apply_from_variable(var: Var, context: &Context, parameters: &Vec<Lang>, h: &HelpData) -> TypeContext {
     let (expanded_parameters, types) = 
         get_expanded_parameters_with_their_types(context, parameters);
-    let fun_typ = Some(var.get_functions_from_name(context))
-        .and_then(|functions| infer_return_type(&functions, &types, context))
-        .unwrap(); // Todo: write an error message here
+    let fun_typ = infer_return_type(
+                &var.get_functions_from_name(context),
+                &types, context)
+                .unwrap_or_else(|| panic!("{}", TypeError::FunctionNotFound(var.clone()).display()));
     let new_expr = build_function_lang(h, expanded_parameters, &fun_typ, var.to_language());
     (fun_typ.get_infered_return_type(), new_expr, context.clone()).into()
 }
@@ -78,6 +81,14 @@ mod tests {
            builder::integer_type(2),
            builder::integer_type_default());
        assert_eq!(res, fun_typ);
+    }
+
+    #[test]
+    fn test_litteral_type1() {
+        let res = FluentParser::new()
+            .push("@f3: (char) -> bool;").run()
+            .check_typing("f3(\"hello\")");
+        assert_eq!(res, builder::character_type("hello"));
     }
 
 }

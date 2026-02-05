@@ -1,16 +1,22 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+#![allow(
+    dead_code,
+    unused_variables,
+    unused_imports,
+    unreachable_code,
+    unused_assignments
+)]
 use crate::components::error_message::help_data::HelpData;
-use miette::{Diagnostic, NamedSource, SourceSpan, Result};
-use crate::components::r#type::type_system::TypeSystem;
 use crate::components::error_message::MsgTemplate;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use miette::SourceCode;
-use thiserror::Error;
+use miette::{Diagnostic, NamedSource, Result, SourceSpan};
 use std::fs;
+use thiserror::Error;
 
-pub trait ErrorMsg { 
+pub trait ErrorMsg {
     fn display(self) -> String;
 }
 
@@ -25,7 +31,7 @@ impl<T: Default> PrintAndDefault<T> for Option<T> {
     }
 }
 
-impl<T: Default, E> PrintAndDefault<T> for Result<T, E> 
+impl<T: Default, E> PrintAndDefault<T> for Result<T, E>
 where
     E: std::fmt::Debug,
 {
@@ -34,7 +40,6 @@ where
         self.unwrap_or_default()
     }
 }
-
 
 // Builder pour Single
 #[derive(Debug)]
@@ -86,6 +91,12 @@ impl<S: SourceCode + 'static + std::fmt::Debug> SingleBuilder<S> {
             help: self.help,
         };
         Err(res.into())
+    }
+}
+
+impl From<(String, String)> for SingleBuilder<String> {
+    fn from((file_name, text): (String, String)) -> Self {
+        Self::new(file_name, text)
     }
 }
 

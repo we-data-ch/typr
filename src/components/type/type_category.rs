@@ -1,6 +1,6 @@
-use crate::components::r#type::Type;
-use crate::components::language::var::Var;
 use crate::components::error_message::help_data::HelpData;
+use crate::components::language::var::Var;
+use crate::components::r#type::Type;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum TypeCategory {
@@ -34,10 +34,8 @@ pub enum TypeCategory {
 
 impl TypeCategory {
     pub fn to_variable(self) -> Var {
-        Var::from_name(&format!("{}", self))
-            .set_type(Type::Params(vec![], HelpData::default()))
+        Var::from_name(&format!("{}", self)).set_type(Type::Params(vec![], HelpData::default()))
     }
-
 }
 
 use std::fmt;
@@ -71,7 +69,6 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Intersection => "Intersection",
             TypeCategory::Module => "Module",
         };
-        write!(f, "{}", res)       
+        write!(f, "{}", res)
     }
 }
-
