@@ -86,9 +86,9 @@ mod tests {
     #[test]
     fn test_litteral_type1() {
         let res = FluentParser::new()
-            .push("@f3: (char) -> bool;").run()
+            .push("@f3: (\"hello\") -> bool;").run()
             .check_typing("f3(\"hello\")");
-        assert_eq!(res, builder::character_type("hello"));
+        assert_eq!(res, builder::boolean_type());
     }
 
 }

@@ -1332,4 +1332,17 @@ mod tests {
         println!("fp: {}", fp);
         assert!(true);
     }
+
+    #[test]
+    fn test_litteral_subtyping1() {
+        assert!(builder::character_type("hello")
+                .is_subtype(&builder::character_type_default(), &Context::empty()));
+    }
+
+    #[test]
+    fn test_litteral_subtyping2() {
+        assert!(builder::character_type("hello")
+                .is_subtype(&builder::character_type("hello"), &Context::empty()));
+    }
+
 }

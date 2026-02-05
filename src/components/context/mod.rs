@@ -521,9 +521,6 @@ impl Context {
             .map(|vec|UnificationMap::new(vec));
 
         val
-        //dbg!(&entered_types);
-        //dbg!(&param_types);
-        //dbg!(val)
     }
 
     fn s3_type_definition(&self, var: &Var, typ: &Type) -> String {
