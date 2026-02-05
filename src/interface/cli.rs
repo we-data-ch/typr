@@ -61,7 +61,8 @@ enum Commands {
     Cran,
     Std,
     Clean,
-    Repl
+    Repl,
+    Lsp,
 }
 
 #[derive(Subcommand, Debug)]
@@ -127,6 +128,10 @@ pub fn start() {
         },
         Some(Commands::Clean) => {
             clean()
+        },
+        Some(Commands::Lsp) => {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(crate::interface::lsp::run_lsp());
         },
         Some(Commands::Repl) => {
             repl::start()

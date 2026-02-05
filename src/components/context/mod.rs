@@ -518,9 +518,9 @@ impl Context {
 
         let val = res
             .map(|vec| vec.iter().cloned().flatten().collect::<Vec<_>>())
-            .map(|vec|UnificationMap::new(vec));
+            .map(|vec| UnificationMap::new(vec));
 
-        val
+       val
     }
 
     fn s3_type_definition(&self, var: &Var, typ: &Type) -> String {

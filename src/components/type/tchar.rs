@@ -8,6 +8,14 @@ pub enum Tchar {
 }
 
 impl Tchar {
+    pub fn is_subtype(&self, other: &Self) -> bool {
+        match (self, other) {
+            (_, Tchar::Unknown) => true,
+            (Tchar::Val(val1), Tchar::Val(val2)) => val1 == val2,
+            _ => false,
+        }
+    }
+
     pub fn gen_of(&self, other: &Self) -> bool {
         match (self, other) {
             (Tchar::Unknown, _) => true,

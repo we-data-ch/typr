@@ -1,7 +1,7 @@
-use crate::components::r#type::argument_type::ArgumentType;
-use crate::processes::type_checking::type_comparison;
 use crate::components::context::Context;
+use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::Type;
+use crate::processes::type_checking::type_comparison;
 use std::collections::HashSet;
 
 pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
@@ -12,8 +12,9 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     match type_ {
         // Generic type substitution
         Type::Generic(_, _) => {
-            if let Some((_, replacement)) = substitutions.iter()
-                .find(|(gen_name, _)| gen_name == type_) {
+            if let Some((_, replacement)) =
+                substitutions.iter().find(|(gen_name, _)| gen_name == type_)
+            {
                 replacement.clone()
             } else {
                 type_.clone()
@@ -22,8 +23,10 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
 
         // Index generic substitution
         Type::IndexGen(name, h) => {
-            if let Some((_, replacement)) = substitutions.iter()
-                .find(|(idx_name, _)| idx_name == &Type::IndexGen(name.clone(), h.clone())) {
+            if let Some((_, replacement)) = substitutions
+                .iter()
+                .find(|(idx_name, _)| idx_name == &Type::IndexGen(name.clone(), h.clone()))
+            {
                 replacement.clone()
             } else {
                 type_.clone()
@@ -32,8 +35,10 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
 
         // Label generic substitution
         Type::LabelGen(name, h) => {
-            if let Some((_, replacement)) = substitutions.iter()
-                .find(|(idx_name, _)| idx_name == &Type::LabelGen(name.clone(), h.clone())) {
+            if let Some((_, replacement)) = substitutions
+                .iter()
+                .find(|(idx_name, _)| idx_name == &Type::LabelGen(name.clone(), h.clone()))
+            {
                 replacement.clone()
             } else {
                 type_.clone()
@@ -46,8 +51,8 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
-                (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1+i2, h),
-                _ => Type::Add(Box::new(v1), Box::new(v2), h.clone())
+                (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 + i2, h),
+                _ => Type::Add(Box::new(v1), Box::new(v2), h.clone()),
             }
         }
 
@@ -56,8 +61,8 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
-                (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1-i2, h),
-                _ => Type::Minus(Box::new(v1), Box::new(v2), h.clone())
+                (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 - i2, h),
+                _ => Type::Minus(Box::new(v1), Box::new(v2), h.clone()),
             }
         }
 
@@ -66,8 +71,8 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
-                (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1*i2, h),
-                _ => Type::Mul(Box::new(v1), Box::new(v2), h.clone())
+                (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 * i2, h),
+                _ => Type::Mul(Box::new(v1), Box::new(v2), h.clone()),
             }
         }
 
@@ -76,89 +81,89 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(h), Type::Number(_)) => Type::Number(h),
-                (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1/i2, h),
-                _ => Type::Div(Box::new(v1), Box::new(v2), h.clone())
+                (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 / i2, h),
+                _ => Type::Div(Box::new(v1), Box::new(v2), h.clone()),
             }
         }
 
         // Array type substitution
-        Type::Vec(vtype, size, element_type, h) => {
-            Type::Vec(
-                *vtype, 
-                Box::new(type_substitution(size, substitutions)),
-                Box::new(type_substitution(element_type, substitutions)),
-                h.clone()
-            )
-        }
+        Type::Vec(vtype, size, element_type, h) => Type::Vec(
+            *vtype,
+            Box::new(type_substitution(size, substitutions)),
+            Box::new(type_substitution(element_type, substitutions)),
+            h.clone(),
+        ),
 
         // Record type substitution
-        Type::Record(fields, h) => {
-            Type::Record(
-                fields.iter()
-                    .map(|arg_type| {
-                        ArgumentType(
-                            arg_type.0.clone(),
-                            type_substitution(&arg_type.1, substitutions),
-                            arg_type.2)
-                    })
-                    .collect(), h.clone()
-            )
-        }
+        Type::Record(fields, h) => Type::Record(
+            fields
+                .iter()
+                .map(|arg_type| {
+                    ArgumentType(
+                        arg_type.0.clone(),
+                        type_substitution(&arg_type.1, substitutions),
+                        arg_type.2,
+                    )
+                })
+                .collect(),
+            h.clone(),
+        ),
 
         // Function type substitution
-        Type::Function(params, return_type, h) => {
-            Type::Function(
-                params.iter()
-                    .map(|param| type_substitution(param, substitutions))
-                    .collect(),
-                Box::new(type_substitution(return_type, substitutions)),
-                h.clone()
-            )
-        }
+        Type::Function(params, return_type, h) => Type::Function(
+            params
+                .iter()
+                .map(|param| type_substitution(param, substitutions))
+                .collect(),
+            Box::new(type_substitution(return_type, substitutions)),
+            h.clone(),
+        ),
 
         // Alias type substitution
-        Type::Alias(name, params, opacity, h) => {
-            Type::Alias(
-                name.clone(),
-                params.iter()
-                    .map(|param| type_substitution(param, substitutions))
-                    .collect(),
-                opacity.clone(),
-                h.clone()
-            )
-        }
+        Type::Alias(name, params, opacity, h) => Type::Alias(
+            name.clone(),
+            params
+                .iter()
+                .map(|param| type_substitution(param, substitutions))
+                .collect(),
+            opacity.clone(),
+            h.clone(),
+        ),
 
         // Tag type substitution
-        Type::Tag(name, inner_type, h) => {
-            Type::Tag(
-                name.clone(),
-                Box::new(type_substitution(inner_type, substitutions)),
-                h.clone()
-            )
-        }
+        Type::Tag(name, inner_type, h) => Type::Tag(
+            name.clone(),
+            Box::new(type_substitution(inner_type, substitutions)),
+            h.clone(),
+        ),
         // Default case: return the type unchanged
-        _ => type_.clone()
+        _ => type_.clone(),
     }
 }
 
 fn match_wildcard(fields: &HashSet<ArgumentType>, arg_type: ArgumentType) -> Vec<(Type, Type)> {
-    let (labels, types) = fields.iter()
-        .fold((vec![], vec![]),
-        |(mut lbl, mut typ), el| {
+    let (labels, types) = fields
+        .iter()
+        .fold((vec![], vec![]), |(mut lbl, mut typ), el| {
             lbl.push(el.get_argument());
             typ.push(el.get_type());
             (lbl, typ)
         });
     vec![
-        (arg_type.get_argument(), Type::Tuple(labels.clone(), labels.into())),
-        (arg_type.get_type(), Type::Tuple(types.clone(), types.into()))
+        (
+            arg_type.get_argument(),
+            Type::Tuple(labels.clone(), labels.into()),
+        ),
+        (
+            arg_type.get_type(),
+            Type::Tuple(types.clone(), types.into()),
+        ),
     ]
 }
 
 // Add these new functions to the previous implementation
 
-fn unification_helper(values: &[Type], type1: &Type, type2: &Type
-) -> Vec<(Type, Type)> {
+fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Vec<(Type, Type)> {
     match (type1, type2) {
         // Direct equality case
         (t1, t2) if t1 == t2 => vec![],
@@ -173,12 +178,19 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
 
         // label generic case with label
         (Type::Char(s, h), Type::LabelGen(g, h2)) | (Type::LabelGen(g, h2), Type::Char(s, h)) => {
-            vec![(Type::LabelGen(g.clone(), h2.clone()), Type::Char(s.clone(), h.clone()))]
+            vec![(
+                Type::LabelGen(g.clone(), h2.clone()),
+                Type::Char(s.clone(), h.clone()),
+            )]
         }
 
         // Index generic case with number
-        (Type::Integer(i, h), Type::IndexGen(g, h2)) | (Type::IndexGen(g, h2), Type::Integer(i, h)) => {
-            vec![(Type::IndexGen(g.clone(), h2.clone()), Type::Integer(*i, h.clone()))]
+        (Type::Integer(i, h), Type::IndexGen(g, h2))
+        | (Type::IndexGen(g, h2), Type::Integer(i, h)) => {
+            vec![(
+                Type::IndexGen(g.clone(), h2.clone()),
+                Type::Integer(*i, h.clone()),
+            )]
         }
 
         // Function case
@@ -218,7 +230,7 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
             if let Some((intersection1, intersection2)) = record_intersection(fields1, fields2) {
                 let types1: Vec<_> = intersection1.iter().map(|arg| &arg.1).collect();
                 let types2: Vec<_> = intersection2.iter().map(|arg| &arg.1).collect();
-                
+
                 let mut all_matches = vec![];
                 for (t1, t2) in types1.iter().zip(types2.iter()) {
                     let matches = unification_helper(values, t1, t2);
@@ -226,14 +238,14 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type
                 }
                 all_matches
             } else if let Some(arg_type) = type2.get_type_pattern() {
-               match_wildcard(fields1, arg_type)
+                match_wildcard(fields1, arg_type)
             } else {
                 vec![]
             }
         }
 
         // Default case - types are not unifiable
-        _ => vec![]
+        _ => vec![],
     }
 }
 
@@ -258,19 +270,19 @@ fn merge_substitutions(existing: &mut Vec<(Type, Type)>, new: Vec<(Type, Type)>)
 
 pub fn record_intersection(
     record1: &HashSet<ArgumentType>,
-    record2: &HashSet<ArgumentType>
+    record2: &HashSet<ArgumentType>,
 ) -> Option<(Vec<ArgumentType>, Vec<ArgumentType>)> {
     // Get labels (left elements) from both records
-    let labels1: Vec<String> = record1.iter()
-        .map(|arg| arg.get_argument_str().clone())  // Assuming ArgumentType has a label field
-        .collect();
-    
-    let labels2: Vec<String> = record2.iter()
-        .map(|arg| arg.get_argument_str())
+    let labels1: Vec<String> = record1
+        .iter()
+        .map(|arg| arg.get_argument_str().clone()) // Assuming ArgumentType has a label field
         .collect();
 
+    let labels2: Vec<String> = record2.iter().map(|arg| arg.get_argument_str()).collect();
+
     // Find intersection of labels
-    let common_labels: Vec<String> = labels1.iter()
+    let common_labels: Vec<String> = labels1
+        .iter()
         .filter(|label| labels2.contains(label))
         .cloned()
         .collect();
@@ -280,12 +292,16 @@ pub fn record_intersection(
     let mut values2 = Vec::new();
 
     for label in &common_labels {
-        if let Some(value1) = record1.iter()
+        if let Some(value1) = record1
+            .iter()
             .find(|arg| arg.get_argument_str() == *label)
-            .cloned() {
-            if let Some(value2) = record2.iter()
+            .cloned()
+        {
+            if let Some(value2) = record2
+                .iter()
                 .find(|arg| arg.get_argument_str() == *label)
-                .cloned() {
+                .cloned()
+            {
                 values1.push(value1);
                 values2.push(value2);
             }
@@ -293,12 +309,14 @@ pub fn record_intersection(
     }
 
     // Merge labels with their respective values
-    let intersection1 = common_labels.iter()
+    let intersection1 = common_labels
+        .iter()
         .zip(values1.into_iter())
         .map(|(_label, value)| value)
         .collect();
 
-    let intersection2 = common_labels.iter()
+    let intersection2 = common_labels
+        .iter()
         .zip(values2.into_iter())
         .map(|(_label, value)| value)
         .collect();

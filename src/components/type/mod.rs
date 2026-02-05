@@ -13,6 +13,7 @@ pub mod type_operator;
 pub mod type_printer;
 pub mod type_system;
 pub mod typer;
+pub mod union_type;
 pub mod vector_type;
 
 use crate::components::context::Context;
@@ -102,7 +103,6 @@ pub enum Type {
     Module(Vec<ArgumentType>, HelpData),
     Alias(String, Vec<Type>, bool, HelpData), //for opacity
     Tag(String, Box<Type>, HelpData),
-    Union(HashSet<Type>, HelpData),
     Intersection(HashSet<Type>, HelpData),
     Interface(HashSet<ArgumentType>, HelpData),
     Params(Vec<Type>, HelpData),
@@ -187,9 +187,9 @@ impl TypeSystem for Type {
                 Type::Operator(TypeOperator::Union, _tp1, _tp2, _),
             ) => true, //TODO: Fix this
             (typ, Type::Operator(TypeOperator::Union, t1, t2, _)) => {
-                typ.is_subtype(&t1, context) || typ.is_subtype(t2, context)
+                typ.is_subtype(t1, context) || typ.is_subtype(t2, context)
             }
-            (Type::Char(_, _), Type::Char(_, _)) => true,
+            (Type::Char(t1, _), Type::Char(t2, _)) => t1.is_subtype(t2),
             (Type::Integer(_, _), Type::Integer(_, _)) => true,
             (Type::Tuple(types1, _), Type::Tuple(types2, _)) => types1
                 .iter()
@@ -626,13 +626,13 @@ impl Type {
             Type::Empty(_) => TypeCategory::Empty,
             Type::RClass(_, _) => TypeCategory::RClass,
             Type::UnknownFunction(_) => TypeCategory::RFunction,
-            Type::Union(_, _) => TypeCategory::Union,
             Type::Add(_, _, _) => TypeCategory::Template,
             Type::Minus(_, _, _) => TypeCategory::Template,
             Type::Mul(_, _, _) => TypeCategory::Template,
             Type::Div(_, _, _) => TypeCategory::Template,
             Type::Intersection(_, _) => TypeCategory::Intersection,
             Type::Module(_, _) => TypeCategory::Module,
+            Type::Operator(TypeOperator::Union, _, _, _) => TypeCategory::Union,
             Type::Operator(_, _, _, _) => TypeCategory::Operator,
             _ => {
                 println!("{:?} return Rest", self);
@@ -699,7 +699,6 @@ impl Type {
             Type::Empty(h) => h.clone(),
             Type::Any(h) => h.clone(),
             Type::RClass(_, h) => h.clone(),
-            Type::Union(_, h) => h.clone(),
             Type::Intersection(_, h) => h.clone(),
             Type::Operator(_, _, _, h) => h.clone(),
             Type::Variable(_, h) => h.clone(),
@@ -739,7 +738,6 @@ impl Type {
             Type::Empty(_) => Type::Empty(h2),
             Type::Any(_) => Type::Any(h2),
             Type::RClass(v, _) => Type::RClass(v, h2),
-            Type::Union(v, _) => Type::Union(v, h2),
             Type::Intersection(i, _) => Type::Intersection(i, h2),
             Type::Operator(op, t1, t2, _) => Type::Operator(op, t1, t2, h2),
             Type::Variable(name, _) => Type::Variable(name, h2),
@@ -966,7 +964,6 @@ impl From<Type> for HelpData {
             Type::Vec(_, _, _, h) => h,
             Type::Number(h) => h,
             Type::Intersection(_, h) => h,
-            Type::Union(_, h) => h,
             Type::Any(h) => h,
             Type::UnknownFunction(h) => h,
             e => panic!("The type element {:?} is not yet implemented", e),
@@ -1013,12 +1010,15 @@ impl PartialEq for Type {
             (Type::RClass(el1, _), Type::RClass(el2, _)) => {
                 el1.difference(&el2).collect::<Vec<_>>().len() == 0
             }
-            (Type::Union(s1, _), Type::Union(s2, _)) => s1 == s2,
             (Type::Intersection(s1, _), Type::Intersection(s2, _)) => s1 == s2,
             (Type::Variable(s1, _), Type::Variable(s2, _)) => s1 == s2,
             (Type::UnknownFunction(_), Type::UnknownFunction(_)) => true,
             (Type::UnknownFunction(_), Type::Empty(_)) => true,
             (Type::Empty(_), Type::UnknownFunction(_)) => true,
+            (
+                Type::Operator(TypeOperator::Union, _, _, _),
+                Type::Operator(TypeOperator::Union, _, _, _),
+            ) => true, //Todo: refactor this with a UnionType struct
             _ => false,
         }
     }
@@ -1091,8 +1091,6 @@ impl PartialOrd for Type {
             (Type::RClass(set1, _), Type::RClass(set2, _)) => {
                 set1.is_subset(&set2).then_some(Ordering::Less)
             }
-            (Type::Union(s1, _), Type::Union(s2, _)) => s1.is_subset(&s2).then_some(Ordering::Less),
-            (typ, Type::Union(s2, _)) => s2.contains(&typ).then_some(Ordering::Less),
             (Type::Char(_, _), Type::Char(_, _)) => Some(Ordering::Less),
             (Type::Integer(_, _), Type::Integer(_, _)) => Some(Ordering::Less),
             (Type::Tuple(types1, _), Type::Tuple(types2, _)) => types1
@@ -1143,7 +1141,6 @@ impl Hash for Type {
             Type::Any(_) => 28.hash(state),
             Type::UnknownFunction(_) => 30.hash(state),
             Type::RClass(_, _) => 31.hash(state),
-            Type::Union(_, _) => 33.hash(state),
             Type::Intersection(_, _) => 36.hash(state),
             Type::Module(_, _) => 37.hash(state),
             Type::Operator(_, _, _, _) => 38.hash(state),
@@ -1336,13 +1333,33 @@ mod tests {
     #[test]
     fn test_litteral_subtyping1() {
         assert!(builder::character_type("hello")
-                .is_subtype(&builder::character_type_default(), &Context::empty()));
+            .is_subtype(&builder::character_type_default(), &Context::empty()));
     }
 
     #[test]
     fn test_litteral_subtyping2() {
         assert!(builder::character_type("hello")
-                .is_subtype(&builder::character_type("hello"), &Context::empty()));
+            .is_subtype(&builder::character_type("hello"), &Context::empty()));
     }
 
+    #[test]
+    fn test_litteral_union_subtyping1() {
+        let my_union = builder::union_type(&[
+            builder::character_type("html"),
+            builder::character_type("h1"),
+        ]);
+        assert!(builder::character_type("h1").is_subtype(&my_union, &Context::empty()));
+    }
+
+    #[test]
+    fn test_litteral_union_subtyping2() {
+        let my_union = "\"html\" | \"h1\"".parse::<Type>().unwrap();
+        assert!(builder::character_type("h1").is_subtype(&my_union, &Context::empty()));
+    }
+
+    #[test]
+    fn test_litteral_subtyping3() {
+        assert!(!builder::character_type("html")
+            .is_subtype(&builder::character_type("h1"), &Context::empty()));
+    }
 }

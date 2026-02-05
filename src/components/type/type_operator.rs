@@ -71,7 +71,17 @@ impl From<TokenKind> for TypeOperator {
 impl TypeOperator {
     pub fn build_type(self, types: HashSet<Type>, help_data: HelpData) -> Type {
         match self {
-            TypeOperator::Union => Type::Union(types, help_data),
+            TypeOperator::Union => types
+                .into_iter()
+                .reduce(|acc, t| {
+                    Type::Operator(
+                        TypeOperator::Union,
+                        Box::new(acc),
+                        Box::new(t),
+                        help_data.clone(),
+                    )
+                })
+                .unwrap_or(Type::Empty(help_data)),
             TypeOperator::Intersection => Type::Intersection(types, help_data),
             _ => panic!("We can't combine types with the empty type operator"),
         }

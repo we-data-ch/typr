@@ -1,13 +1,13 @@
 use crate::processes::type_checking::Context;
-use crate::processes::type_checking::Type;
 use crate::processes::type_checking::Lang;
+use crate::processes::type_checking::Type;
 use crate::processes::type_checking::Var;
 
 #[derive(Debug, Clone)]
 pub struct TypeContext {
     pub value: Type,
     pub lang: Lang,
-    pub context: Context
+    pub context: Context,
 }
 
 impl TypeContext {
@@ -34,12 +34,12 @@ impl TypeContext {
     }
 }
 
-impl From<(Type, Lang, Context)> for  TypeContext {
-   fn from(val: (Type, Lang, Context)) -> Self {
-       Self {
-           value: val.0,
-           lang: val.1,
-           context: val.2
-       }
-   } 
+impl From<(Type, Lang, Context)> for TypeContext {
+    fn from(val: (Type, Lang, Context)) -> Self {
+        Self {
+            value: val.0,
+            lang: val.1,
+            context: val.2,
+        }
+    }
 }

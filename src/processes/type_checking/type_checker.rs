@@ -1,10 +1,10 @@
-use crate::processes::transpiling::translatable::RTranslatable;
-use crate::components::r#type::type_system::TypeSystem;
 use crate::components::context::config::Environment;
-use crate::processes::type_checking::typing;
 use crate::components::context::Context;
 use crate::components::language::Lang;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
+use crate::processes::transpiling::translatable::RTranslatable;
+use crate::processes::type_checking::typing;
 use crate::utils::builder;
 use rpds::Vector;
 
@@ -13,7 +13,7 @@ pub struct TypeChecker {
     context: Context,
     code: Vector<Lang>,
     types: Vector<Type>,
-    last_type: Type
+    last_type: Type,
 }
 
 impl TypeChecker {
@@ -22,19 +22,20 @@ impl TypeChecker {
             context: context,
             code: Vector::new(),
             types: Vector::new(),
-            last_type: builder::unknown_function_type()
+            last_type: builder::unknown_function_type(),
         }
     }
 
     pub fn typing(self, exp: &Lang) -> Self {
         match exp {
             Lang::Lines(exps, _) => {
-                let type_checker = exps.iter()
+                let type_checker = exps
+                    .iter()
                     .fold(self.clone(), |acc, lang| acc.typing_helper(lang));
                 println!("Typing:\n{}\n", type_checker.last_type.pretty());
                 type_checker
-            },
-            _ => self.clone().typing_helper(exp)
+            }
+            _ => self.clone().typing_helper(exp),
         }
     }
 
@@ -44,7 +45,7 @@ impl TypeChecker {
             context: context,
             code: self.code.push_back(lang),
             types: self.types.push_back(typ.clone()),
-            last_type: typ
+            last_type: typ,
         }
     }
 
@@ -53,13 +54,16 @@ impl TypeChecker {
     }
 
     pub fn transpile(self) -> String {
-        let code = self.code.iter()
+        let code = self
+            .code
+            .iter()
             .zip(self.types.iter())
             .map(|(lang, _)| lang.to_r(&self.context).0)
-            .collect::<Vec<_>>().join("\n");
+            .collect::<Vec<_>>()
+            .join("\n");
         let import = match self.get_environment() {
             Environment::Project | Environment::Repl => "",
-            Environment::StandAlone => "source('a_std.R', echo = FALSE)"
+            Environment::StandAlone => "source('a_std.R', echo = FALSE)",
         };
 
         format!("{}\n\n{}", import, code)
@@ -68,5 +72,4 @@ impl TypeChecker {
     fn get_environment(&self) -> Environment {
         self.context.get_environment()
     }
-
 }
