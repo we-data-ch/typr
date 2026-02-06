@@ -1,8 +1,8 @@
 //! LSP server for TypR.
 //!
-//! Currently exposes a **Hover** provider: hovering over an identifier or
-//! literal shows its inferred type, syntax-highlighted in Markdown using
-//! the same semantic colour categories as the REPL.
+//! Currently exposes:
+//!   - **Hover** provider: shows inferred types with Markdown syntax highlighting
+//!   - **Completion** provider: context-aware autocompletion for variables, functions, and type aliases
 //!
 //! Launch with `typr lsp`.  The server communicates over stdin/stdout using
 //! the standard LSP JSON-RPC protocol.
@@ -31,6 +31,11 @@ impl LanguageServer for Backend {
                     TextDocumentSyncKind::FULL,
                 )),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                completion_provider: Some(CompletionOptions {
+                    trigger_characters: Some(vec![".".into(), "$".into(), ">".into()]),
+                    resolve_provider: None,
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             ..Default::default()
@@ -93,6 +98,33 @@ impl LanguageServer for Backend {
                 range: Some(hover_info.range),
             })),
             None => Ok(None),
+        }
+    }
+
+    // ── completion ──────────────────────────────────────────────────────────
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        let uri = params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+
+        let docs = self.documents.read().await;
+        let content = match docs.get(&uri) {
+            Some(c) => c,
+            None => return Ok(None),
+        };
+
+        // Offload parsing + typing to a blocking thread (same strategy as hover).
+        let content_owned = content.clone();
+        let items = tokio::task::spawn_blocking(move || {
+            parser::get_completions_at(&content_owned, position.line, position.character)
+        })
+        .await
+        .ok()
+        .unwrap_or_default();
+
+        if items.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(CompletionResponse::Array(items)))
         }
     }
 }
