@@ -10,12 +10,12 @@
 //!      the same semantic categories as the REPL highlighter in `repl.rs`.
 
 use crate::components::context::Context;
+use crate::components::language::var::Var;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use crate::processes::parsing::parse;
 use crate::processes::type_checking::typing;
 use nom_locate::LocatedSpan;
-use crate::components::language::var::Var;
 use tower_lsp::lsp_types::{Position, Range};
 
 type Span<'a> = LocatedSpan<&'a str, String>;
@@ -67,9 +67,9 @@ pub fn find_type_at(content: &str, line: u32, character: u32) -> Option<HoverInf
     let highlighted = highlight_type(&typ.pretty());
     let markdown = format!(
         "**`{}`** : {}\n\n```\n{}\n```",
-        word,                          // variable name in bold code
-        highlighted,                   // inline Markdown-highlighted type
-        typ.pretty()                   // plain code-block fallback (always readable)
+        word,         // variable name in bold code
+        highlighted,  // inline Markdown-highlighted type
+        typ.pretty()  // plain code-block fallback (always readable)
     );
 
     Some(HoverInfo {
@@ -196,7 +196,10 @@ pub fn highlight_type(type_str: &str) -> String {
         let ch = chars[i];
 
         // ── generic prefixes: #identifier  or  %identifier ──────────────
-        if (ch == '#' || ch == '%') && i + 1 < len && (chars[i + 1].is_alphanumeric() || chars[i + 1] == '_') {
+        if (ch == '#' || ch == '%')
+            && i + 1 < len
+            && (chars[i + 1].is_alphanumeric() || chars[i + 1] == '_')
+        {
             let start = i;
             i += 1; // skip # or %
             while i < len && (chars[i].is_alphanumeric() || chars[i] == '_') {
@@ -299,9 +302,7 @@ fn colorize_word(word: &str) -> String {
 fn is_generic_name(word: &str) -> bool {
     let mut chars = word.chars();
     match chars.next() {
-        Some(c) if c.is_ascii_uppercase() => {
-            chars.all(|c| c.is_ascii_digit())
-        }
+        Some(c) if c.is_ascii_uppercase() => chars.all(|c| c.is_ascii_digit()),
         _ => false,
     }
 }
@@ -322,20 +323,26 @@ use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind};
 ///   - `$` (dollar): record/list fields
 ///   - `.` (dot): module members, record fields, or applicable functions (hybrid)
 pub fn get_completions_at(content: &str, line: u32, character: u32) -> Vec<CompletionItem> {
-    // 1. Parse + type-check the whole document.
-    let span: Span = LocatedSpan::new_extra(content, String::new());
-    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
-
-    let context = Context::default();
-    let final_context = match ast {
-        Ok(ast) => {
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast)))
-            {
-                Ok(tc) => tc.context,
+    // 1. Parse + type-check the document WITHOUT the cursor line to avoid incomplete code
+    let final_context = match parse_document_without_cursor_line(content, line) {
+        Some(ctx) => ctx,
+        None => {
+            // Fallback: try parsing the whole document anyway
+            let span: Span = LocatedSpan::new_extra(content, String::new());
+            let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
+            let context = Context::default();
+            match ast {
+                Ok(ast) => {
+                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        typing(&context, &ast)
+                    })) {
+                        Ok(tc) => tc.context,
+                        Err(_) => return get_fallback_completions(),
+                    }
+                }
                 Err(_) => return get_fallback_completions(),
             }
         }
-        Err(_) => return get_fallback_completions(),
     };
 
     // 2. Extract the line prefix up to the cursor.
@@ -353,6 +360,31 @@ pub fn get_completions_at(content: &str, line: u32, character: u32) -> Vec<Compl
         CompletionCtx::DotAccess(expr) => get_dot_completions(&final_context, &expr),
         CompletionCtx::Expression => get_expression_completions(&final_context),
     }
+}
+
+/// Parse the document excluding the line containing the cursor.
+/// This avoids parsing incomplete code that would cause panics.
+fn parse_document_without_cursor_line(content: &str, cursor_line: u32) -> Option<Context> {
+    let lines: Vec<&str> = content.lines().collect();
+
+    // Build document without cursor line
+    let mut filtered_lines = Vec::new();
+    for (idx, line) in lines.iter().enumerate() {
+        if idx != cursor_line as usize {
+            filtered_lines.push(*line);
+        }
+    }
+
+    let filtered_content = filtered_lines.join("\n");
+    let span: Span = LocatedSpan::new_extra(&filtered_content, String::new());
+
+    // Parse and type-check
+    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span))).ok()?;
+    let context = Context::default();
+    let type_context =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast))).ok()?;
+
+    Some(type_context.context)
 }
 
 // ── Context detection ──────────────────────────────────────────────────────
@@ -385,34 +417,44 @@ fn extract_line_prefix(content: &str, line: u32, character: u32) -> String {
 fn detect_completion_context(prefix: &str) -> CompletionCtx {
     let trimmed = prefix.trim_end();
 
-    // Pipe operator: "expr |>"
+    // Pipe operator: "expr |>" (must check BEFORE checking '>' alone)
     if trimmed.ends_with("|>") {
         let before_pipe = trimmed[..trimmed.len() - 2].trim();
         return CompletionCtx::Pipe(extract_expression_before(before_pipe));
     }
 
     // Record field access via $: "record$"
+    // Note: we check for $ at the end (just typed) OR just before cursor
     if let Some(dollar_pos) = trimmed.rfind('$') {
-        let before_dollar = trimmed[..dollar_pos].trim();
-        if !before_dollar.is_empty() {
-            return CompletionCtx::RecordField(before_dollar.to_string());
+        // Only trigger if $ is at the end or followed by whitespace
+        let after_dollar = &trimmed[dollar_pos + 1..];
+        if after_dollar.is_empty() || after_dollar.chars().all(|c| c.is_whitespace()) {
+            let before_dollar = trimmed[..dollar_pos].trim();
+            if !before_dollar.is_empty() {
+                return CompletionCtx::RecordField(before_dollar.to_string());
+            }
         }
     }
 
     // Dot access - could be module or record field or function application
     if let Some(dot_pos) = trimmed.rfind('.') {
-        let before_dot = trimmed[..dot_pos].trim();
-        if !before_dot.is_empty() {
-            // Check if it looks like a module name (starts with uppercase)
-            if before_dot
-                .chars()
-                .next()
-                .map_or(false, |c| c.is_uppercase())
-            {
-                return CompletionCtx::Module(before_dot.to_string());
-            } else {
-                // It's either a record field or a function chain
-                return CompletionCtx::DotAccess(before_dot.to_string());
+        // Only trigger if . is at the end or followed by whitespace
+        let after_dot = &trimmed[dot_pos + 1..];
+        if after_dot.is_empty() || after_dot.chars().all(|c| c.is_whitespace()) {
+            let before_dot = trimmed[..dot_pos].trim();
+            if !before_dot.is_empty() {
+                // Check if it looks like a module name (starts with uppercase)
+                // We check the last token in case of chained access
+                if before_dot
+                    .split(|c: char| !c.is_alphanumeric() && c != '_')
+                    .last()
+                    .and_then(|s| s.chars().next())
+                    .map_or(false, |c| c.is_uppercase())
+                {
+                    return CompletionCtx::Module(before_dot.to_string());
+                } else {
+                    return CompletionCtx::DotAccess(before_dot.to_string());
+                }
             }
         }
     }
@@ -438,12 +480,12 @@ fn detect_completion_context(prefix: &str) -> CompletionCtx {
 /// Looks backward for word boundaries, operators, or delimiters.
 fn extract_expression_before(s: &str) -> String {
     let trimmed = s.trim_end();
-    
+
     // Find the start of the last expression by scanning backwards
     // Stop at operators, semicolons, or opening delimiters
     let mut depth = 0;
     let mut start = trimmed.len();
-    
+
     for (i, ch) in trimmed.char_indices().rev() {
         match ch {
             ')' | ']' | '}' => depth += 1,
@@ -461,7 +503,7 @@ fn extract_expression_before(s: &str) -> String {
             _ => {}
         }
     }
-    
+
     trimmed[start..].trim().to_string()
 }
 
@@ -494,11 +536,7 @@ fn get_type_completions(context: &Context) -> Vec<CompletionItem> {
     // User-defined type aliases
     for (var, typ) in context.aliases() {
         if var.is_alias() {
-            items.push(var_to_completion_item(
-                var,
-                typ,
-                CompletionItemKind::CLASS,
-            ));
+            items.push(var_to_completion_item(var, typ, CompletionItemKind::CLASS));
         }
     }
 
@@ -764,5 +802,92 @@ fn var_to_completion_item(var: &Var, typ: &Type, kind: CompletionItemKind) -> Co
         kind: Some(kind),
         detail: Some(typ.pretty()),
         ..Default::default()
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ── TESTS ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_completion_context_pipe() {
+        let prefix = "mylist |>";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::Pipe(_)));
+    }
+
+    #[test]
+    fn test_detect_completion_context_pipe_with_space() {
+        let prefix = "mylist |> ";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::Pipe(_)));
+    }
+
+    #[test]
+    fn test_detect_completion_context_record_field() {
+        let prefix = "myrecord$";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::RecordField(_)));
+    }
+
+    #[test]
+    fn test_detect_completion_context_record_field_with_space() {
+        let prefix = "myrecord$ ";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::RecordField(_)));
+    }
+
+    #[test]
+    fn test_detect_completion_context_dot_module() {
+        let prefix = "MyModule.";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::Module(_)));
+    }
+
+    #[test]
+    fn test_detect_completion_context_dot_record() {
+        let prefix = "myvar.";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::DotAccess(_)));
+    }
+
+    #[test]
+    fn test_detect_completion_context_dot_with_space() {
+        let prefix = "myvar. ";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::DotAccess(_)));
+    }
+
+    #[test]
+    fn test_detect_completion_context_type_annotation() {
+        let prefix = "let x: ";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::Type));
+    }
+
+    #[test]
+    fn test_detect_completion_context_expression() {
+        let prefix = "let x = ";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::Expression));
+    }
+
+    #[test]
+    fn test_extract_expression_before() {
+        // Test with semicolon separator (common in R-like syntax)
+        assert_eq!(extract_expression_before("a; b; c"), "c");
+        // Test with comma separator (function arguments)
+        assert_eq!(extract_expression_before("x, y, z"), "z");
+    }
+
+    #[test]
+    fn test_extract_line_prefix() {
+        let content = "line1\nline2\nline3";
+        assert_eq!(extract_line_prefix(content, 1, 3), "lin");
+        assert_eq!(extract_line_prefix(content, 1, 5), "line2");
     }
 }
