@@ -175,39 +175,28 @@ impl RTranslatable<(String, Context)> for Lang {
             },
             Lang::FunctionApp(exp, vals, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
-                let name = var.get_name();
-                let str_vals = vals.iter()
-                                .map(|x| x.to_r(cont).0)
-                                .collect::<Vec<_>>().join(", ");
-                if cont.is_an_untyped_function(&name) {
-                    let name = name.replace("__", ".");
-                    let new_name = if &name[0..1] == "%" {
-                        format!("`{}`", name)
-                    } else { name.to_string() };
-                    let s = format!("{}({})", new_name, str_vals); 
-                    (s, cont.clone())
-                } else {
-                    let (exp_str, cont1) = exp.to_r(cont);
-                    let fn_t =  FunctionType::try_from(cont1.get_type_from_variable(&var)
-                                    .expect(&format!("variable {} don't have a related type", var)))
-                                    .unwrap();
-                    let new_args = fn_t.get_param_types().into_iter()
-                            .map(|arg| reduce_type(&cont1, &arg))
-                            .collect::<Vec<_>>();
-                    let new_vals = vals.into_iter().zip(new_args.iter())
-                        .map(set_related_type_if_variable)
+
+                let (exp_str, cont1) = exp.to_r(cont);
+                let fn_t =  FunctionType::try_from(cont1.get_type_from_variable(&var)
+                                .expect(&format!("variable {} don't have a related type", var)))
+                                .map(|ft| ft.adjust_nb_parameters(vals.len()))
+                                .unwrap();
+                let new_args = fn_t.get_param_types().into_iter()
+                        .map(|arg| reduce_type(&cont1, &arg))
                         .collect::<Vec<_>>();
-                    let (args, current_cont) = Translatable::from(cont1)
-                            .join(&new_vals, ", ").into();
-                    Var::from_language(*exp.clone())
-                        .map(|var| {
-                            let name = var.get_name();
-                            let new_name = if &name[0..1] == "%" {
-                                format!("`{}`", name.replace("__", "."))
-                            } else { name.replace("__", ".") };
-                            (format!("{}({})", new_name, args), current_cont.clone())
-                        }).unwrap_or((format!("{}({})", exp_str, args), current_cont))
-                }
+                let new_vals = vals.into_iter().zip(new_args.iter())
+                    .map(set_related_type_if_variable)
+                    .collect::<Vec<_>>();
+                let (args, current_cont) = Translatable::from(cont1)
+                        .join(&new_vals, ", ").into();
+                Var::from_language(*exp.clone())
+                    .map(|var| {
+                        let name = var.get_name();
+                        let new_name = if &name[0..1] == "%" {
+                            format!("`{}`", name.replace("__", "."))
+                        } else { name.replace("__", ".") };
+                        (format!("{}({})", new_name, args), current_cont.clone())
+                    }).unwrap_or((format!("{}({})", exp_str, args), current_cont))
             },
             Lang::VecFunctionApp(exp, vals, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
@@ -285,11 +274,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     }).unwrap_or((format!("{} <- {}", new_name, body_str), new_name));
                 let code = if !ttype.is_empty() {
                     let anotation = new_cont.get_type_anotation(ttype);
-                    if anotation == "Generic()" || anotation == "" {
-                        format!("{}\n", r_code)
-                    } else {
-                        format!("{} |> \n\t{} #let type\n", r_code, anotation)
-                    }
+                    format!("{}\n", r_code)
                 } else {
                     r_code + "\n"
                 };

@@ -7,13 +7,13 @@
 )]
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::r#type::function_type::FunctionType;
-use crate::processes::type_checking::typing;
-use crate::processes::type_checking::Context;
-use crate::processes::type_checking::HelpData;
-use crate::processes::type_checking::Lang;
-use crate::processes::type_checking::Type;
 use crate::processes::type_checking::TypeContext;
 use crate::processes::type_checking::TypeError;
+use crate::processes::type_checking::HelpData;
+use crate::processes::type_checking::Context;
+use crate::processes::type_checking::typing;
+use crate::processes::type_checking::Lang;
+use crate::processes::type_checking::Type;
 use crate::processes::type_checking::Var;
 
 fn infer_return_type(

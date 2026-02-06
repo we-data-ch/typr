@@ -43,6 +43,19 @@ impl FunctionType {
         }
     }
 
+    pub fn adjust_nb_parameters(self, nb: usize) -> Self {
+        let arguments = if self.arguments.len() == nb {
+            self.arguments
+        } else {
+            (0..nb).map(|_| builder::any_type()).collect::<Vec<Type>>()
+        };
+
+        Self {
+            arguments,
+            ..self
+        }
+    }
+
     pub fn set_vectorized(self) -> Self {
         Self {
             vectorized: true,

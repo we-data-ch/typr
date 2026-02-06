@@ -123,6 +123,6 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
                 _ => panic!("Function not yet implemented for unalowed patterns"),
             }
         }
-        _ => type_.clone(),
+        t => t.clone(),
     }
 }
