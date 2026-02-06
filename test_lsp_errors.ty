@@ -1,0 +1,10 @@
+// Test file with intentional errors for LSP diagnostics
+
+// Error 1: Type mismatch
+let x: int <- "hello";
+
+// Error 2: Undefined variable
+let y <- unknown_variable;
+
+// Valid code (should not produce errors)
+let z: int <- 42;
