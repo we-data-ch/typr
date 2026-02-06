@@ -213,6 +213,7 @@ impl VarType {
             Type::Char(_, _) => "character".to_string(),
             Type::Boolean(_) => "logical".to_string(),
             Type::Number(_) => "numeric".to_string(),
+            Type::Any(_) => "Any".to_string(),
             _ => self
                 .aliases
                 .iter()

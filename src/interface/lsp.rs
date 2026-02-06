@@ -212,10 +212,9 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
         file_name
     };
     
-    // Write content to a temporary location so the error system can read it
-    // This is necessary because the error formatting system uses fs::read_to_string
-    // to get file content for displaying errors with context.
-    let _ = std::fs::write(path, content);
+    // Note: We don't write to disk here to avoid triggering file change warnings in editors.
+    // The error system should work with in-memory content provided by the LSP.
+    // let _ = std::fs::write(path, content);
     
     // 1. Attempt parsing
     // Pass the file path (not URI) so HelpData can store it for error messages
