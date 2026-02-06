@@ -267,7 +267,7 @@ impl Context {
     }
 
     pub fn get_class(&self, t: &Type) -> String {
-        self.typing_context.get_class(t)
+        self.typing_context.get_class(&t.reduce(self))
     }
 
     pub fn get_class_unquoted(&self, t: &Type) -> String {

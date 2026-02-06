@@ -35,7 +35,7 @@ impl ErrorMsg for TypeError {
                     .expect(&format!("Function {} not defined in this scope", var.get_name()));
                 SingleBuilder::new(file_name, text)
                     .pos((var.get_help_data().get_offset(), 0))
-                    .text(format!("Function {} not defined in this scope.", var.get_name()))
+                    .text(format!("Function {}<{}> not defined in this scope.", var.get_name(), var.get_type().pretty()))
                     .pos_text("Not defined in this scope")
                     .build()
             },
