@@ -345,8 +345,9 @@ pub fn get_completions_at(content: &str, line: u32, character: u32) -> Vec<Compl
         }
     };
 
-    // 2. Extract the line prefix up to the cursor.
-    let prefix = extract_line_prefix(content, line, character);
+    // 2. Extract multi-line prefix up to the cursor (like rust-analyzer).
+    // This handles cases where triggers are on new lines with whitespace.
+    let prefix = extract_multiline_prefix(content, line, character);
 
     // 3. Detect the completion context.
     let ctx = detect_completion_context(&prefix);
@@ -405,13 +406,44 @@ enum CompletionCtx {
     Expression,
 }
 
-fn extract_line_prefix(content: &str, line: u32, character: u32) -> String {
-    content
-        .lines()
-        .nth(line as usize)
-        .and_then(|l| l.get(..character as usize))
-        .unwrap_or("")
-        .to_string()
+/// Extract a multi-line prefix context (like rust-analyzer).
+/// This includes previous lines to handle cases where the trigger is on a new line.
+///
+/// Example:
+/// ```
+/// mylist
+///   .█
+/// ```
+/// Should extract "mylist\n  ." to properly detect the completion context.
+fn extract_multiline_prefix(content: &str, line: u32, character: u32) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let current_line_idx = line as usize;
+
+    if current_line_idx >= lines.len() {
+        return String::new();
+    }
+
+    // Get current line up to cursor
+    let current_line_part = lines[current_line_idx]
+        .get(..character as usize)
+        .unwrap_or("");
+
+    // Look back up to 10 lines to find context
+    // This handles cases like:
+    //   myvar
+    //     .field
+    let lookback_lines = 10;
+    let start_line = current_line_idx.saturating_sub(lookback_lines);
+
+    // Collect lines from start_line to current (inclusive)
+    let mut context_lines = Vec::new();
+    for i in start_line..current_line_idx {
+        context_lines.push(lines[i]);
+    }
+    context_lines.push(current_line_part);
+
+    // Join with newlines to preserve structure
+    context_lines.join("\n")
 }
 
 fn detect_completion_context(prefix: &str) -> CompletionCtx {
@@ -426,34 +458,33 @@ fn detect_completion_context(prefix: &str) -> CompletionCtx {
     // Record field access via $: "record$"
     // Note: we check for $ at the end (just typed) OR just before cursor
     if let Some(dollar_pos) = trimmed.rfind('$') {
-        // Only trigger if $ is at the end or followed by whitespace
+        // Only trigger if $ is at the end or followed by whitespace (including newlines)
         let after_dollar = &trimmed[dollar_pos + 1..];
         if after_dollar.is_empty() || after_dollar.chars().all(|c| c.is_whitespace()) {
-            let before_dollar = trimmed[..dollar_pos].trim();
+            let before_dollar = trimmed[..dollar_pos].trim_end();
             if !before_dollar.is_empty() {
-                return CompletionCtx::RecordField(before_dollar.to_string());
+                // Extract the last expression before $ (handling multiline)
+                let expr = extract_last_expression(before_dollar);
+                return CompletionCtx::RecordField(expr);
             }
         }
     }
 
     // Dot access - could be module or record field or function application
     if let Some(dot_pos) = trimmed.rfind('.') {
-        // Only trigger if . is at the end or followed by whitespace
+        // Only trigger if . is at the end or followed by whitespace (including newlines)
         let after_dot = &trimmed[dot_pos + 1..];
         if after_dot.is_empty() || after_dot.chars().all(|c| c.is_whitespace()) {
-            let before_dot = trimmed[..dot_pos].trim();
+            let before_dot = trimmed[..dot_pos].trim_end();
             if !before_dot.is_empty() {
+                // Extract the last expression before . (handling multiline)
+                let expr = extract_last_expression(before_dot);
+
                 // Check if it looks like a module name (starts with uppercase)
-                // We check the last token in case of chained access
-                if before_dot
-                    .split(|c: char| !c.is_alphanumeric() && c != '_')
-                    .last()
-                    .and_then(|s| s.chars().next())
-                    .map_or(false, |c| c.is_uppercase())
-                {
-                    return CompletionCtx::Module(before_dot.to_string());
+                if expr.chars().next().map_or(false, |c| c.is_uppercase()) {
+                    return CompletionCtx::Module(expr);
                 } else {
-                    return CompletionCtx::DotAccess(before_dot.to_string());
+                    return CompletionCtx::DotAccess(expr);
                 }
             }
         }
@@ -474,6 +505,96 @@ fn detect_completion_context(prefix: &str) -> CompletionCtx {
 
     // Default: expression (runtime values)
     CompletionCtx::Expression
+}
+
+/// Extract the last expression from a multi-line context.
+/// This handles cases like:
+/// ```
+/// myvar
+///   .
+/// ```
+/// Should extract "myvar" even with newlines/whitespace.
+///
+/// Also handles complex expressions like:
+/// - `calculate(x).process()` → extracts the whole chain
+/// - `list(a = 1, b = 2)` → extracts the whole literal
+/// - `x[0].field` → extracts the whole accessor chain
+fn extract_last_expression(s: &str) -> String {
+    let trimmed = s.trim_end();
+
+    // Split by statement terminators (;, newline when starting a new statement)
+    // For simplicity, we split by ; and newlines, then take the last non-empty part
+    let parts: Vec<&str> = trimmed
+        .split(|c| c == ';' || c == '\n')
+        .filter(|p| !p.trim().is_empty())
+        .collect();
+
+    let last_statement = parts.last().unwrap_or(&"").trim();
+
+    if last_statement.is_empty() {
+        return String::new();
+    }
+
+    // Now extract the last complete expression from this statement
+    // We want to capture function calls, field access, indexing, etc.
+    // Strategy: scan backwards and track depth of (), [], {}
+    // Stop only at statement-level operators when at depth 0
+    let mut depth_paren = 0;
+    let mut depth_bracket = 0;
+    let mut depth_brace = 0;
+    let mut start = 0;
+
+    for (i, ch) in last_statement.char_indices().rev() {
+        match ch {
+            ')' => depth_paren += 1,
+            '(' => {
+                depth_paren -= 1;
+                if depth_paren < 0 {
+                    // Unmatched opening paren - start here
+                    start = i + 1;
+                    break;
+                }
+            }
+            ']' => depth_bracket += 1,
+            '[' => {
+                depth_bracket -= 1;
+                if depth_bracket < 0 {
+                    // Unmatched opening bracket - start here
+                    start = i + 1;
+                    break;
+                }
+            }
+            '}' => depth_brace += 1,
+            '{' => {
+                depth_brace -= 1;
+                if depth_brace < 0 {
+                    // Unmatched opening brace - start here
+                    start = i + 1;
+                    break;
+                }
+            }
+            // Only stop at these operators when at depth 0 (not inside any parens/brackets)
+            // Don't stop at '=' inside function calls like `list(a = 1)`
+            ',' if depth_paren == 0 && depth_bracket == 0 && depth_brace == 0 => {
+                // Comma at top level - start after it
+                start = i + 1;
+                break;
+            }
+            // Assignment and comparison operators - but only at top level
+            '<' | '>' if depth_paren == 0 && depth_bracket == 0 && depth_brace == 0 => {
+                // Check if it's <- (assignment) or just comparison
+                if i > 0 && last_statement.as_bytes().get(i - 1) == Some(&b'-') {
+                    // It's part of <-, skip
+                    continue;
+                }
+                start = i + 1;
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    last_statement[start..].trim().to_string()
 }
 
 /// Extract the expression before a trigger (simple heuristic).
@@ -515,7 +636,7 @@ fn get_type_completions(context: &Context) -> Vec<CompletionItem> {
 
     let mut items = Vec::new();
 
-    // Primitive types
+    // Primitive types (keywords in the language, like TypeScript)
     let primitives = [
         ("int", builder::integer_type_default()),
         ("num", builder::number_type()),
@@ -527,25 +648,29 @@ fn get_type_completions(context: &Context) -> Vec<CompletionItem> {
     for (name, typ) in &primitives {
         items.push(CompletionItem {
             label: name.to_string(),
-            kind: Some(CompletionItemKind::CLASS),
+            kind: Some(CompletionItemKind::KEYWORD),
             detail: Some(typ.pretty()),
             ..Default::default()
         });
     }
 
-    // User-defined type aliases
+    // User-defined type aliases (interfaces/type contracts)
     for (var, typ) in context.aliases() {
         if var.is_alias() {
-            items.push(var_to_completion_item(var, typ, CompletionItemKind::CLASS));
+            items.push(var_to_completion_item(
+                var,
+                typ,
+                CompletionItemKind::INTERFACE,
+            ));
         }
     }
 
-    // Module-exported type aliases
+    // Module-exported type aliases (interfaces/type contracts)
     for (var, typ) in context.module_aliases() {
         items.push(var_to_completion_item(
             &var,
             &typ,
-            CompletionItemKind::CLASS,
+            CompletionItemKind::INTERFACE,
         ));
     }
 
@@ -574,8 +699,13 @@ fn get_module_completions(context: &Context, module_name: &str) -> Vec<Completio
         items.push(var_to_completion_item(var, typ, kind));
     }
 
+    // Module type aliases (interfaces/type contracts)
     for (var, typ) in module_ctx.aliases() {
-        items.push(var_to_completion_item(var, typ, CompletionItemKind::CLASS));
+        items.push(var_to_completion_item(
+            var,
+            typ,
+            CompletionItemKind::INTERFACE,
+        ));
     }
 
     items
@@ -732,6 +862,7 @@ fn get_expression_completions(context: &Context) -> Vec<CompletionItem> {
 }
 
 /// Fallback completions when parsing or type-checking fails.
+/// Returns primitive types as they are language keywords.
 fn get_fallback_completions() -> Vec<CompletionItem> {
     use crate::utils::builder;
 
@@ -748,7 +879,7 @@ fn get_fallback_completions() -> Vec<CompletionItem> {
     for (name, typ) in &primitives {
         items.push(CompletionItem {
             label: name.to_string(),
-            kind: Some(CompletionItemKind::CLASS),
+            kind: Some(CompletionItemKind::KEYWORD),
             detail: Some(typ.pretty()),
             ..Default::default()
         });
@@ -761,16 +892,24 @@ fn get_fallback_completions() -> Vec<CompletionItem> {
 
 /// Attempt to infer the type of an expression string.
 ///
-/// This is a best-effort heuristic:
-///   - If expr is a known variable name, return its type from context
-///   - If expr is a literal, return its literal type
-///   - Otherwise, return Any
+/// This supports complex expressions like rust-analyzer:
+///   - Simple variables: `myvar`
+///   - Function calls: `calculate(x)`
+///   - Field access: `record.field`
+///   - Chaining: `x.process().result`
+///   - Literals: `42`, `"hello"`, `list(a = 1)`
+///
+/// Strategy: parse and type-check the expression in the current context
 fn infer_expression_type(context: &Context, expr: &str) -> Type {
     use crate::utils::builder;
 
     let trimmed = expr.trim();
 
-    // Try to parse as a variable name
+    if trimmed.is_empty() {
+        return builder::any_type();
+    }
+
+    // First, try the simple case: a known variable name
     let types = context.get_types_from_name(trimmed);
     if !types.is_empty() {
         return types.last().unwrap().clone();
@@ -781,8 +920,37 @@ fn infer_expression_type(context: &Context, expr: &str) -> Type {
         return typ;
     }
 
-    // Default: Any
-    builder::any_type()
+    // For complex expressions (function calls, field access, etc.),
+    // we need to parse and type-check the expression
+    // Strategy: parse the expression as a standalone statement and infer its type
+    let result = parse_and_infer_expression_type(context, trimmed);
+
+    result.unwrap_or_else(|| builder::any_type())
+}
+
+/// Parse and type-check an expression to infer its type.
+/// This handles complex expressions like:
+/// - `calculate(x)` → type of calculate's return value
+/// - `list(a = 1, b = 2)` → {a: int, b: int}
+/// - `myvar.field` → type of field
+fn parse_and_infer_expression_type(context: &Context, expr: &str) -> Option<Type> {
+    // Wrap the expression in a minimal parseable statement
+    // We'll try to parse it as: `__temp <- expr`
+    let wrapped = format!("__temp <- {}", expr);
+    let span: Span = LocatedSpan::new_extra(&wrapped, String::new());
+
+    // Try to parse
+    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span))).ok()?;
+
+    // Try to type-check
+    let type_result =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(context, &ast))).ok()?;
+
+    // Get the type of __temp (which is the type of our expression)
+    let inferred_context = type_result.context;
+    let types = inferred_context.get_types_from_name("__temp");
+
+    types.last().cloned()
 }
 
 /// Extract the first parameter type from a function type.
@@ -863,8 +1031,49 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_completion_context_dot_multiline() {
+        let prefix = "myvar\n  .";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::DotAccess(_)));
+        if let CompletionCtx::DotAccess(expr) = ctx {
+            assert_eq!(expr, "myvar");
+        }
+    }
+
+    #[test]
+    fn test_detect_completion_context_dollar_multiline() {
+        let prefix = "myrecord\n  $";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::RecordField(_)));
+        if let CompletionCtx::RecordField(expr) = ctx {
+            assert_eq!(expr, "myrecord");
+        }
+    }
+
+    #[test]
+    fn test_detect_completion_context_pipe_multiline() {
+        let prefix = "mylist\n  |>";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::Pipe(_)));
+    }
+
+    #[test]
     fn test_detect_completion_context_type_annotation() {
         let prefix = "let x: ";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::Type));
+    }
+
+    #[test]
+    fn test_detect_completion_context_type_annotation_just_colon() {
+        let prefix = "let x:";
+        let ctx = detect_completion_context(prefix);
+        assert!(matches!(ctx, CompletionCtx::Type));
+    }
+
+    #[test]
+    fn test_detect_completion_context_function_param_type() {
+        let prefix = "fn foo(a:";
         let ctx = detect_completion_context(prefix);
         assert!(matches!(ctx, CompletionCtx::Type));
     }
@@ -885,9 +1094,63 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_line_prefix() {
+    fn test_extract_last_expression() {
+        // Simple identifier
+        assert_eq!(extract_last_expression("myvar"), "myvar");
+
+        // With trailing whitespace
+        assert_eq!(extract_last_expression("myvar  "), "myvar");
+
+        // With newlines
+        assert_eq!(extract_last_expression("myvar\n  "), "myvar");
+
+        // After semicolon
+        assert_eq!(extract_last_expression("a; b; myvar"), "myvar");
+
+        // Complex expression with multiple lines
+        assert_eq!(extract_last_expression("let x = foo\nmyvar"), "myvar");
+
+        // Function calls (NEW - like rust-analyzer)
+        assert_eq!(extract_last_expression("calculate(x)"), "calculate(x)");
+
+        // Function with multiple args
+        assert_eq!(extract_last_expression("foo(a, b, c)"), "foo(a, b, c)");
+
+        // Nested function calls
+        assert_eq!(
+            extract_last_expression("outer(inner(x))"),
+            "outer(inner(x))"
+        );
+
+        // Field access chain
+        assert_eq!(
+            extract_last_expression("x.field.subfield"),
+            "x.field.subfield"
+        );
+
+        // Function call with field access
+        assert_eq!(
+            extract_last_expression("calculate(x).result"),
+            "calculate(x).result"
+        );
+
+        // List literal
+        assert_eq!(
+            extract_last_expression("list(a = 1, b = 2)"),
+            "list(a = 1, b = 2)"
+        );
+
+        // Full function call (not after comma, the whole thing)
+        assert_eq!(extract_last_expression("foo(a, bar(x))"), "foo(a, bar(x))");
+    }
+
+    #[test]
+    fn test_extract_multiline_prefix() {
         let content = "line1\nline2\nline3";
-        assert_eq!(extract_line_prefix(content, 1, 3), "lin");
-        assert_eq!(extract_line_prefix(content, 1, 5), "line2");
+        // Extract from line 2 (0-indexed), position 3
+        let result = extract_multiline_prefix(content, 2, 3);
+        assert!(result.contains("line1"));
+        assert!(result.contains("line2"));
+        assert!(result.ends_with("lin"));
     }
 }

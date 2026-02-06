@@ -3,6 +3,7 @@
 //! Currently exposes:
 //!   - **Hover** provider: shows inferred types with Markdown syntax highlighting
 //!   - **Completion** provider: context-aware autocompletion for variables, functions, and type aliases
+//!     - Trigger characters: `.`, `$`, `>` (for `|>`), `:` (for type annotations)
 //!
 //! Launch with `typr lsp`.  The server communicates over stdin/stdout using
 //! the standard LSP JSON-RPC protocol.
@@ -32,7 +33,7 @@ impl LanguageServer for Backend {
                 )),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(vec![".".into(), "$".into(), ">".into()]),
+                    trigger_characters: Some(vec![".".into(), "$".into(), ">".into(), ":".into()]),
                     resolve_provider: None,
                     ..Default::default()
                 }),
