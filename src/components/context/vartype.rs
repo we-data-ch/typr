@@ -219,7 +219,11 @@ impl VarType {
                 .iter()
                 .find(|(_, typ)| typ == t)
                 .map(|(var, _)| var.get_name())
-                .expect(&format!("{} has no class equivalent:\n {:?}", t.pretty(), self.aliases)),
+                .expect(&format!(
+                    "{} has no class equivalent:\n {:?}",
+                    t.pretty(),
+                    self.aliases
+                )),
         };
         "'".to_string() + &res + "'"
     }

@@ -1,12 +1,10 @@
 use crate::components::context::Context;
-use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::language::var::Var;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use crate::processes::type_checking::unification::type_substitution;
-use crate::processes::type_checking::TypeError;
 use rpds::Vector;
 
 pub fn reduce_param(
@@ -56,24 +54,29 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
                 .collect(),
             h.clone(),
         ),
-        Type::Alias(name, concret_types, is_opaque, _h) => {
+        Type::Alias(name, concret_types, is_opaque, h) => {
             match (is_opaque, is_in_memory(name, &memory)) {
                 (true, _) | (_, true) => type_.clone(),
                 (false, _) => {
-                    let var = Var::from_type(type_.clone()).unwrap();
-                    context
-                        .get_matching_alias_signature(&var)
-                        .map(|(aliased_type, generics)| {
-                            reduce_alias(
-                                aliased_type,
-                                &generics,
-                                concret_types,
-                                name,
-                                memory,
-                                context,
-                            )
-                        })
-                        .expect(&TypeError::AliasNotFound(type_.clone()).display())
+                    match Var::from_type(type_.clone()) {
+                        Some(var) => {
+                            context
+                                .get_matching_alias_signature(&var)
+                                .map(|(aliased_type, generics)| {
+                                    reduce_alias(
+                                        aliased_type,
+                                        &generics,
+                                        concret_types,
+                                        name,
+                                        memory,
+                                        context,
+                                    )
+                                })
+                                // Return Any type instead of panicking if alias not found
+                                .unwrap_or_else(|| Type::Any(h.clone()))
+                        }
+                        None => Type::Any(h.clone()),
+                    }
                 }
             }
         }
@@ -108,19 +111,19 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
                 type_.clone()
             }
         }
-        Type::Operator(TypeOperator::Access, t1, t2, _) => {
-            let t1 = (**t1).clone();
-            let t2 = (**t2).clone();
-            match (t1, t2) {
+        Type::Operator(TypeOperator::Access, t1, t2, h) => {
+            let t1_inner = (**t1).clone();
+            let t2_inner = (**t2).clone();
+            match (t1_inner, t2_inner) {
                 (Type::Variable(module_name, _), Type::Alias(alias_name, _args, _opaque, _)) => {
-                    let module_type = context
+                    context
                         .get_type_from_variable(&Var::from_name(&module_name))
-                        .unwrap()
-                        .to_module_type()
-                        .unwrap();
-                    module_type.get_type_from_name(&alias_name).unwrap()
+                        .ok()
+                        .and_then(|t| t.to_module_type().ok())
+                        .and_then(|module_type| module_type.get_type_from_name(&alias_name).ok())
+                        .unwrap_or_else(|| Type::Any(h.clone()))
                 }
-                _ => panic!("Function not yet implemented for unalowed patterns"),
+                _ => Type::Any(h.clone()),
             }
         }
         t => t.clone(),

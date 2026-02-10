@@ -50,10 +50,7 @@ impl FunctionType {
             (0..nb).map(|_| builder::any_type()).collect::<Vec<Type>>()
         };
 
-        Self {
-            arguments,
-            ..self
-        }
+        Self { arguments, ..self }
     }
 
     pub fn set_vectorized(self) -> Self {

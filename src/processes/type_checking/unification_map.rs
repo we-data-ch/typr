@@ -1,6 +1,4 @@
 use crate::components::context::Context;
-use crate::components::error_message::help_message::ErrorMsg;
-use crate::components::error_message::type_error::TypeError;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
@@ -25,8 +23,10 @@ impl SafeHashMap {
                 self.map.push((key, value.generalize()))
             }
             Some((_ke, va)) => {
+                // Instead of panicking, just skip conflicting insertions
+                // The error will be collected at a higher level
                 if !(va.exact_equality(&value)) {
-                    None.expect(&TypeError::Param(va.to_owned(), value).display())
+                    // Silently ignore conflicting types - the error is handled elsewhere
                 }
             }
             None => self.map.push((key, value)),

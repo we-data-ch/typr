@@ -1,16 +1,22 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+#![allow(
+    dead_code,
+    unused_variables,
+    unused_imports,
+    unreachable_code,
+    unused_assignments
+)]
+use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::type_error::TypeError;
-use crate::components::error_message::help_data::HelpData;
-use std::fmt::Display;
 use std::fmt::Debug;
+use std::fmt::Display;
 
 #[derive(Debug, Default)]
 pub enum TokenKind {
     Operator,
     Expression,
     #[default]
-    Empty
+    Empty,
 }
 
 pub trait PriorityToken: ToString + Default + Clone + From<TokenKind> + Debug + Display {
@@ -21,7 +27,7 @@ pub trait PriorityToken: ToString + Default + Clone + From<TokenKind> + Debug + 
     fn is_operator(&self) -> bool {
         match self.get_token_type() {
             TokenKind::Operator => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -31,7 +37,6 @@ pub trait PriorityToken: ToString + Default + Clone + From<TokenKind> + Debug + 
 }
 
 pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
-
     fn get_first(&mut self) -> Option<T>;
     fn peak_first(&self) -> Option<T>;
     fn len(&self) -> usize;
@@ -41,27 +46,24 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
     fn get_operator(&mut self) -> Result<T, String> {
         match self.get_first() {
             Some(n) if n.is_operator() => Ok(n),
-            Some(m) if m.is_expression() 
-                => Err(format!("{} is not an operator", m.to_string())),
-            _ => Err("The collection is empty".to_string())
+            Some(m) if m.is_expression() => Err(format!("{} is not an operator", m.to_string())),
+            _ => Err("The collection is empty".to_string()),
         }
     }
 
     fn peak_operator(&self) -> Result<T, String> {
         match self.peak_first() {
             Some(n) if n.is_operator() => Ok(n),
-            Some(m) if m.is_expression() 
-                => Err(format!("{} is not an operator", m.to_string())),
-            _ => Err("The collection is empty".to_string())
+            Some(m) if m.is_expression() => Err(format!("{} is not an operator", m.to_string())),
+            _ => Err("The collection is empty".to_string()),
         }
     }
 
     fn get_expression(&mut self) -> Result<T, String> {
         match self.get_first() {
             Some(n) if n.is_expression() => Ok(n),
-            Some(m) if m.is_operator() 
-                => Err(format!("{} is not an expression", m.to_string())),
-            _ => Err("The collection is empty".to_string())
+            Some(m) if m.is_operator() => Err(format!("{} is not an expression", m.to_string())),
+            _ => Err("The collection is empty".to_string()),
         }
     }
 
@@ -80,7 +82,8 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
         //println!("--------------------");
         //println!("binding_power: {}", binding_power);
         //println!("{}", self.display_state());
-        let mut left = self.get_expression()
+        let mut left = self
+            .get_expression()
             .expect(&TypeError::WrongExpression(self.get_initial_expression()).display());
         //println!("left: {}", left);
         loop {
@@ -88,19 +91,19 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
                 Ok(op) => {
                     //println!("Peaked operator: {}", op);
                     op
-                },
+                }
                 Err(_) => {
                     //println!("Peaked operator: None");
                     //println!("No more symbol. Going back.");
                     //println!("--------------------");
-                    break
-                },
+                    break;
+                }
             };
             if op.get_binding_power() <= binding_power {
                 //println!("{} is less important. return {}", op, left);
                 //println!("--------------------");
                 break;
-            } 
+            }
             //else { println!("{} is more important. Go with next", op); }
             let op = self.get_operator().unwrap();
             let right = self.run_helper(op.get_binding_power());
@@ -110,6 +113,4 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
         }
         left
     }
-
 }
-

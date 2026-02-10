@@ -12,6 +12,7 @@ pub mod locatable;
 pub mod message_template;
 pub mod syntax_error;
 pub mod type_error;
+pub mod typr_error;
 
 use crate::components::error_message::message_template::MsgTemplate;
 use crate::components::language::Lang;

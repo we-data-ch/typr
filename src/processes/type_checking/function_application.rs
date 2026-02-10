@@ -6,15 +6,17 @@
     unused_assignments
 )]
 use crate::components::error_message::help_message::ErrorMsg;
+use crate::components::error_message::typr_error::TypRError;
 use crate::components::r#type::function_type::FunctionType;
-use crate::processes::type_checking::TypeContext;
-use crate::processes::type_checking::TypeError;
-use crate::processes::type_checking::HelpData;
-use crate::processes::type_checking::Context;
 use crate::processes::type_checking::typing;
+use crate::processes::type_checking::Context;
+use crate::processes::type_checking::HelpData;
 use crate::processes::type_checking::Lang;
 use crate::processes::type_checking::Type;
+use crate::processes::type_checking::TypeContext;
+use crate::processes::type_checking::TypeError;
 use crate::processes::type_checking::Var;
+use crate::utils::builder;
 
 fn infer_return_type(
     functions: &[FunctionType],
@@ -33,22 +35,33 @@ pub fn apply_from_variable(
     parameters: &Vec<Lang>,
     h: &HelpData,
 ) -> TypeContext {
-    let (expanded_parameters, types) =
+    let (expanded_parameters, types, param_errors) =
         get_expanded_parameters_with_their_types(context, parameters);
-    let fun_typ = infer_return_type(&var.get_functions_from_name(context), &types, context)
-        .unwrap_or_else(|| panic!("{}", TypeError::FunctionNotFound(var.clone()).display()));
-    let new_expr = build_function_lang(h, expanded_parameters, &fun_typ, var.to_language());
-    (fun_typ.get_infered_return_type(), new_expr, context.clone()).into()
+
+    match infer_return_type(&var.get_functions_from_name(context), &types, context) {
+        Some(fun_typ) => {
+            let new_expr = build_function_lang(h, expanded_parameters, &fun_typ, var.to_language());
+            TypeContext::new(fun_typ.get_infered_return_type(), new_expr, context.clone())
+                .with_errors(param_errors)
+        }
+        None => {
+            let mut errors = param_errors;
+            errors.push(TypRError::Type(TypeError::FunctionNotFound(var.clone())));
+            TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
+                .with_errors(errors)
+        }
+    }
 }
 
 fn get_expanded_parameters_with_their_types(
     context: &Context,
     values: &Vec<Lang>,
-) -> (Vec<Lang>, Vec<Type>) {
-    let typing_contexts = values
+) -> (Vec<Lang>, Vec<Type>, Vec<TypRError>) {
+    let typing_contexts: Vec<_> = values.iter().map(|x| typing(context, x)).collect();
+    let errors: Vec<TypRError> = typing_contexts
         .iter()
-        .map(|x| typing(context, x))
-        .collect::<Vec<_>>();
+        .flat_map(|tc| tc.errors.clone())
+        .collect();
     let types = typing_contexts
         .iter()
         .cloned()
@@ -59,7 +72,7 @@ fn get_expanded_parameters_with_their_types(
         .cloned()
         .map(|x| x.lang)
         .collect::<Vec<_>>();
-    (new_values, types)
+    (new_values, types, errors)
 }
 
 fn build_function_lang(
@@ -82,7 +95,13 @@ pub fn apply_from_expression(
     values: &Vec<Lang>,
     h: &HelpData,
 ) -> TypeContext {
-    todo!();
+    // Collect errors from parameters but return Any type
+    let (_expanded_parameters, _types, param_errors) =
+        get_expanded_parameters_with_their_types(context, values);
+    let mut errors = param_errors;
+    errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
+    TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
+        .with_errors(errors)
 }
 
 pub fn function_application(
@@ -160,5 +179,4 @@ mod tests {
             .check_transpiling("f3(\"h1\")");
         assert!(true);
     }
-
 }

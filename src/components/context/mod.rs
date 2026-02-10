@@ -8,8 +8,6 @@ use crate::components::context::config::TargetLanguage;
 use crate::components::context::graph::Graph;
 use crate::components::context::unification_map::UnificationMap;
 use crate::components::context::vartype::VarType;
-use crate::components::error_message::help_message::ErrorMsg;
-use crate::components::error_message::type_error::TypeError;
 use crate::components::language::var::Var;
 use crate::components::language::var_function::VarFunction;
 use crate::components::language::Lang;
@@ -231,7 +229,8 @@ impl Context {
                 .variables()
                 .find(|(v, _)| var.match_with(v, self))
                 .map(|(_, ty)| ty)
-                .expect(&TypeError::UndefinedVariable(var.to_language()).display())
+                // Return Any type instead of panicking if variable not found
+                .unwrap_or(&Type::Any(var.get_help_data()))
                 .clone()
         }
     }
@@ -244,17 +243,16 @@ impl Context {
             .map(|(v, _)| v);
         match res {
             Some(vari) => vari.clone(),
-            _ => self
-                .is_an_untyped_function(&var.get_name())
-                .then(|| {
+            _ => {
+                // Return the variable with UnknownFunction type if it's a standard function
+                // Otherwise return with Any type to allow error collection
+                if self.is_an_untyped_function(&var.get_name()) {
                     var.clone()
                         .set_type(Type::UnknownFunction(var.get_help_data()))
-                })
-                .expect(&format!(
-                    "The variable {} was not found:\n {}",
-                    var,
-                    self.display_typing_context()
-                )),
+                } else {
+                    var.clone().set_type(Type::Any(var.get_help_data()))
+                }
+            }
         }
     }
 
@@ -391,8 +389,7 @@ impl Context {
     }
 
     pub fn get_matching_typed_functions(&self, var1: Var) -> Vec<Type> {
-        self
-            .typing_context
+        self.typing_context
             .variables()
             .filter(|(var2, typ)| {
                 let reduced_type1 = var1.get_type().reduce(self);
@@ -419,7 +416,7 @@ impl Context {
                 "Can't find var {} in the context:\n {}",
                 var.to_string(),
                 self.display_typing_context()
-            ))
+            )),
         }
     }
 
@@ -520,7 +517,7 @@ impl Context {
             .map(|vec| vec.iter().cloned().flatten().collect::<Vec<_>>())
             .map(|vec| UnificationMap::new(vec));
 
-       val
+        val
     }
 
     fn s3_type_definition(&self, var: &Var, typ: &Type) -> String {

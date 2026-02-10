@@ -1,15 +1,16 @@
-use crate::components::error_message::help_message::SingleBuilder;
+use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::help_message::DoubleBuilder;
 use crate::components::error_message::help_message::ErrorMsg;
+use crate::components::error_message::help_message::SingleBuilder;
 use crate::components::error_message::locatable::Locatable;
-use crate::components::error_message::help_data::HelpData;
-use crate::components::r#type::type_system::TypeSystem;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use miette::Result;
 use std::fs;
 
+#[derive(Debug, Clone)]
 pub enum TypeError {
     Let(Type, Type),
     Param(Type, Type),
@@ -31,23 +32,30 @@ impl ErrorMsg for TypeError {
     fn display(self) -> String {
         let msg: Result<()> = match self {
             TypeError::FunctionNotFound(var) => {
-                let (file_name, text) = var.get_file_name_and_text()
-                    .expect(&format!("Function {} not defined in this scope", var.get_name()));
+                let (file_name, text) = var.get_file_name_and_text().expect(&format!(
+                    "Function {} not defined in this scope",
+                    var.get_name()
+                ));
                 SingleBuilder::new(file_name, text)
                     .pos((var.get_help_data().get_offset(), 0))
-                    .text(format!("Function {}<{}> not defined in this scope.", var.get_name(), var.get_type().pretty()))
+                    .text(format!(
+                        "Function {}<{}> not defined in this scope.",
+                        var.get_name(),
+                        var.get_type().pretty()
+                    ))
                     .pos_text("Not defined in this scope")
                     .build()
-            },
+            }
             TypeError::AliasNotFound(typ) => {
-                let (file_name, text) = typ.get_file_name_and_text()
+                let (file_name, text) = typ
+                    .get_file_name_and_text()
                     .unwrap_or(("".to_string(), "".to_string()));
                 SingleBuilder::new(file_name, text)
                     .pos((typ.get_help_data().get_offset(), 0))
                     .text(format!("Alias {} not defined in this scope.", typ.pretty()))
                     .pos_text("Not defined in this scope")
                     .build()
-            },
+            }
             TypeError::Let(t1, t2) => {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();

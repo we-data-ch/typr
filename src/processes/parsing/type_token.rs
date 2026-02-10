@@ -1,8 +1,8 @@
+use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::r#type::Type;
 use crate::processes::parsing::operation_priority::PriorityToken;
 use crate::processes::parsing::operation_priority::TokenKind;
-use crate::components::r#type::type_operator::TypeOperator;
-use crate::components::error_message::help_data::HelpData;
-use crate::components::r#type::Type;
 use std::fmt;
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -10,25 +10,25 @@ pub enum TypeToken {
     Operator(TypeOperator),
     Expression(Type),
     #[default]
-    EmptyOperator
+    EmptyOperator,
 }
 
 impl From<Type> for TypeToken {
-   fn from(val: Type) -> Self {
-       TypeToken::Expression(val)
-   } 
+    fn from(val: Type) -> Self {
+        TypeToken::Expression(val)
+    }
 }
 
 impl From<TypeOperator> for TypeToken {
-   fn from(val: TypeOperator) -> Self {
-       TypeToken::Operator(val)
-   } 
+    fn from(val: TypeOperator) -> Self {
+        TypeToken::Operator(val)
+    }
 }
 
 impl From<TokenKind> for TypeToken {
-   fn from(_: TokenKind) -> Self {
+    fn from(_: TokenKind) -> Self {
         TypeToken::EmptyOperator
-   } 
+    }
 }
 
 impl fmt::Display for TypeToken {
@@ -36,9 +36,9 @@ impl fmt::Display for TypeToken {
         let res = match self {
             TypeToken::Expression(exp) => format!("{}", exp),
             TypeToken::Operator(exp) => format!("{}", exp),
-            _ => "?".to_string()
+            _ => "?".to_string(),
         };
-        write!(f, "{}", res)       
+        write!(f, "{}", res)
     }
 }
 
@@ -47,7 +47,7 @@ impl TypeToken {
         match self {
             TypeToken::Expression(exp) => exp.get_help_data(),
             TypeToken::Operator(_) => HelpData::default(),
-            TypeToken::EmptyOperator => HelpData::default()
+            TypeToken::EmptyOperator => HelpData::default(),
         }
     }
 }
@@ -57,7 +57,7 @@ impl PriorityToken for TypeToken {
         match self {
             TypeToken::Operator(op) => op.get_token_type(),
             TypeToken::Expression(exp) => exp.get_token_type(),
-            TypeToken::EmptyOperator => TokenKind::Operator
+            TypeToken::EmptyOperator => TokenKind::Operator,
         }
     }
 
@@ -65,21 +65,21 @@ impl PriorityToken for TypeToken {
         match self {
             TypeToken::Operator(op) => op.get_binding_power(),
             TypeToken::Expression(exp) => exp.get_binding_power(),
-            TypeToken::EmptyOperator => -1
+            TypeToken::EmptyOperator => -1,
         }
     }
 
     fn combine(self, left: TypeToken, right: TypeToken) -> Self {
         match (self.clone(), left.clone(), right.clone()) {
-            (TypeToken::Operator(TypeOperator::Arrow),
-            TypeToken::Expression(Type::Tuple(v, h)), 
-            TypeToken::Expression(exp2))  
-                => TypeToken::Expression(Type::Function(v, Box::new(exp2), h)),
-            (TypeToken::Operator(op), TypeToken::Expression(exp1), TypeToken::Expression(exp2)) 
-                => TypeToken::Expression(op.combine(exp1, exp2)),
-            _ => panic!("Should be (op exp1 exp2) not ({} {} {})", self, left, right)
+            (
+                TypeToken::Operator(TypeOperator::Arrow),
+                TypeToken::Expression(Type::Tuple(v, h)),
+                TypeToken::Expression(exp2),
+            ) => TypeToken::Expression(Type::Function(v, Box::new(exp2), h)),
+            (TypeToken::Operator(op), TypeToken::Expression(exp1), TypeToken::Expression(exp2)) => {
+                TypeToken::Expression(op.combine(exp1, exp2))
+            }
+            _ => panic!("Should be (op exp1 exp2) not ({} {} {})", self, left, right),
         }
     }
-
-
 }

@@ -6,25 +6,26 @@ pub mod operators;
 pub mod var;
 pub mod var_function;
 
+use crate::components::context::config::Config;
+use crate::components::context::config::Environment;
+use crate::components::context::Context;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::error_message::locatable::Locatable;
+use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::language::argument_value::ArgumentValue;
-use crate::processes::transpiling::translatable::RTranslatable;
-use crate::processes::type_checking::type_context::TypeContext;
-use crate::processes::parsing::operation_priority::TokenKind;
+use crate::components::language::operators::Op;
+use crate::components::language::var::Var;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
-use crate::components::error_message::locatable::Locatable;
-use crate::components::error_message::help_data::HelpData;
-use crate::processes::parsing::lang_token::LangToken;
-use crate::components::context::config::Environment;
-use crate::processes::parsing::elements::elements;
-use crate::components::language::operators::Op;
-use crate::components::context::config::Config;
-use crate::processes::type_checking::typing;
-use crate::components::language::var::Var;
-use crate::components::context::Context;
 use crate::components::r#type::Type;
-use serde::{Deserialize, Serialize};
+use crate::processes::parsing::elements::elements;
+use crate::processes::parsing::lang_token::LangToken;
+use crate::processes::parsing::operation_priority::TokenKind;
+use crate::processes::transpiling::translatable::RTranslatable;
+use crate::processes::type_checking::type_context::TypeContext;
+use crate::processes::type_checking::typing;
 use crate::utils::builder;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -83,6 +84,7 @@ pub enum Lang {
     WhileLoop(Box<Lang>, Box<Lang>, HelpData),
     Break(HelpData),
     Operator(Op, Box<Lang>, Box<Lang>, HelpData),
+    SyntaxErr(Box<Lang>, SyntaxError),
 }
 
 impl PartialEq for Lang {
@@ -158,6 +160,7 @@ impl PartialEq for Lang {
             (Lang::Operator(a1, a2, a3, _), Lang::Operator(b1, b2, b3, _)) => {
                 a1 == b1 && a2 == b2 && a3 == b3
             }
+            (Lang::SyntaxErr(a, _), Lang::SyntaxErr(b, _)) => a == b,
             _ => false,
         }
     }
@@ -382,6 +385,7 @@ impl Lang {
             Lang::WhileLoop(_, _, h) => h,
             Lang::Break(h) => h,
             Lang::Operator(_, _, _, h) => h,
+            Lang::SyntaxErr(inner, _) => return inner.get_help_data(),
         }
         .clone()
     }
@@ -475,6 +479,7 @@ impl Lang {
             Lang::WhileLoop(_, _, _) => "WhileLoop".to_string(),
             Lang::Break(_) => "Break".to_string(),
             Lang::Operator(_, _, _, _) => "Operator".to_string(),
+            Lang::SyntaxErr(_, _) => "SyntaxErr".to_string(),
         }
     }
 
@@ -776,6 +781,7 @@ impl From<Lang> for HelpData {
             Lang::WhileLoop(_, _, h) => h,
             Lang::Break(h) => h,
             Lang::Operator(_, _, _, h) => h,
+            Lang::SyntaxErr(inner, _) => return (*inner).clone().into(),
         }
         .clone()
     }

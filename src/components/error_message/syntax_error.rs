@@ -3,8 +3,10 @@ use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::help_message::SingleBuilder;
 use crate::components::r#type::Type;
 use miette::Result;
+use serde::{Deserialize, Serialize};
 use std::fs;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SyntaxError {
     FunctionWithoutType(HelpData),
     FunctionWithoutReturnType(HelpData),

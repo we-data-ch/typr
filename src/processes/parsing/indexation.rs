@@ -1,4 +1,11 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+#![allow(
+    dead_code,
+    unused_variables,
+    unused_imports,
+    unreachable_code,
+    unused_assignments
+)]
+use nom::Parser;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -8,28 +15,27 @@ use nom::{
     sequence::{delimited, pair, preceded},
     IResult,
 };
-use nom::Parser;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RIndex {
     /// Indexation simple: x[5]
     Single(i32),
-    
+
     /// Indexation multiple: x[c(1, 3, 5)]
     Multiple(Vec<i32>),
-    
+
     /// Séquence: x[1:10]
     Range { start: i32, end: i32 },
-    
+
     /// Indexation négative: x[-2]
     Negative(i32),
-    
+
     /// Exclusion multiple: x[-c(1, 3)]
     NegativeMultiple(Vec<i32>),
-    
+
     /// Tous les éléments: x[]
     All,
-    
+
     /// Indexation logique simulée: x[TRUE] ou x[FALSE]
     Logical(bool),
 }
@@ -40,31 +46,31 @@ fn parse_integer(s: &str) -> IResult<&str, i32> {
 
     match res {
         Ok((s, int)) => Ok((s, int.parse::<i32>().unwrap())),
-        Err(r) => Err(r)
+        Err(r) => Err(r),
     }
 }
 
 /// Parse un nombre positif
 fn parse_positive_integer(s: &str) -> IResult<&str, i32> {
     match digit1.parse(s) {
-        Ok((s, int)) 
-            => Ok((s, int.parse::<i32>().unwrap())),
-        Err(r) => Err(r)
+        Ok((s, int)) => Ok((s, int.parse::<i32>().unwrap())),
+        Err(r) => Err(r),
     }
 }
 
 /// Parse une séquence: 1:10
 fn parse_range(s: &str) -> IResult<&str, RIndex> {
-        let res = (
-            parse_integer,
-            delimited(multispace0, char(':'), multispace0),
-            parse_integer,
-        ).parse(s);
+    let res = (
+        parse_integer,
+        delimited(multispace0, char(':'), multispace0),
+        parse_integer,
+    )
+        .parse(s);
 
-        match res {
-            Ok((s, (start, _, end))) => Ok((s, RIndex::Range { start, end })),
-            Err(r) => Err(r)
-        }
+    match res {
+        Ok((s, (start, _, end))) => Ok((s, RIndex::Range { start, end })),
+        Err(r) => Err(r),
+    }
 }
 
 /// Parse un vecteur avec c(): c(1, 2, 3)
@@ -76,7 +82,8 @@ fn parse_c_vector(input: &str) -> IResult<&str, Vec<i32>> {
             parse_integer,
         ),
         (multispace0, char(')')),
-    ).parse(input)
+    )
+    .parse(input)
 }
 
 /// Parse un vecteur négatif: -c(1, 2, 3)
@@ -84,7 +91,8 @@ fn parse_negative_vector(input: &str) -> IResult<&str, RIndex> {
     map(
         preceded(char('-'), parse_c_vector),
         RIndex::NegativeMultiple,
-    ).parse(input)
+    )
+    .parse(input)
 }
 
 /// Parse un vecteur positif: c(1, 2, 3)
@@ -97,7 +105,8 @@ fn parse_negative_single(input: &str) -> IResult<&str, RIndex> {
     map(
         preceded(char('-'), parse_positive_integer),
         RIndex::Negative,
-    ).parse(input)
+    )
+    .parse(input)
 }
 
 /// Parse un index positif simple: 5
@@ -110,7 +119,8 @@ fn parse_logical(input: &str) -> IResult<&str, RIndex> {
     alt((
         map(tag("TRUE"), |_| RIndex::Logical(true)),
         map(tag("FALSE"), |_| RIndex::Logical(false)),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 /// Parse tous les éléments (crochets vides)
@@ -128,7 +138,8 @@ fn parse_bracket_content(input: &str) -> IResult<&str, RIndex> {
         parse_negative_single,
         parse_positive_single,
         parse_all,
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 /// Parse une indexation complète: x[...]
@@ -137,7 +148,8 @@ pub fn parse_r_index(input: &str) -> IResult<&str, RIndex> {
         char('['),
         delimited(multispace0, parse_bracket_content, multispace0),
         char(']'),
-    ).parse(input)
+    )
+    .parse(input)
 }
 
 #[cfg(test)]

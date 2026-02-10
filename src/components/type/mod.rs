@@ -18,9 +18,7 @@ pub mod vector_type;
 
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::locatable::Locatable;
-use crate::components::error_message::type_error::TypeError;
 use crate::components::language::var::Var;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
@@ -280,10 +278,12 @@ impl Type {
         let reduced_annotation = annotation.reduce(context);
         let reduced_type = self.reduce(context);
         if !annotation.is_empty() {
-            reduced_type
-                .is_subtype(&reduced_annotation, context)
-                .then_some(annotation.clone())
-                .expect(&TypeError::Let(annotation.clone(), self.clone()).display())
+            if reduced_type.is_subtype(&reduced_annotation, context) {
+                annotation.clone()
+            } else {
+                // Return Any type instead of panicking - the error will be collected at typing level
+                Type::Any(self.get_help_data())
+            }
         } else {
             self.clone()
         }
