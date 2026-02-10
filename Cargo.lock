@@ -1454,6 +1454,7 @@ dependencies = [
  "bincode",
  "clap",
  "extendr-api",
+ "lsp-types",
  "miette",
  "nom",
  "nom_locate",

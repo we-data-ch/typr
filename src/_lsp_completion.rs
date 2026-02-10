@@ -1,1 +1,0 @@
-/home/fabrice/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lsp-types-0.94.1/src/completion.rs
