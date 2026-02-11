@@ -42,8 +42,8 @@ pub fn find_type_at(content: &str, line: u32, character: u32) -> Option<HoverInf
 
     // 2. Parse the whole document.
     let span: Span = LocatedSpan::new_extra(content, String::new());
-    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
-    let ast = ast.ok()?;
+    let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
+    let ast = parse_result.ok()?.ast;
 
     // 3. Type-check the whole document to build the context.
     let context = Context::default();
@@ -329,10 +329,12 @@ pub fn get_completions_at(content: &str, line: u32, character: u32) -> Vec<Compl
         None => {
             // Fallback: try parsing the whole document anyway
             let span: Span = LocatedSpan::new_extra(content, String::new());
-            let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
+            let parse_result =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
             let context = Context::default();
-            match ast {
-                Ok(ast) => {
+            match parse_result {
+                Ok(result) => {
+                    let ast = result.ast;
                     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         typing(&context, &ast)
                     })) {
@@ -380,7 +382,9 @@ fn parse_document_without_cursor_line(content: &str, cursor_line: u32) -> Option
     let span: Span = LocatedSpan::new_extra(&filtered_content, String::new());
 
     // Parse and type-check
-    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span))).ok()?;
+    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)))
+        .ok()?
+        .ast;
     let context = Context::default();
     let type_context =
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast))).ok()?;
@@ -940,7 +944,9 @@ fn parse_and_infer_expression_type(context: &Context, expr: &str) -> Option<Type
     let span: Span = LocatedSpan::new_extra(&wrapped, String::new());
 
     // Try to parse
-    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span))).ok()?;
+    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)))
+        .ok()?
+        .ast;
 
     // Try to type-check
     let type_result =

@@ -1290,7 +1290,7 @@ mod tests {
             .clone()
             .push_var_type(var, fn_type, &ctx)
             .push_alias("Model".to_string(), interface.clone());
-        let let_expression = parse("let a: Model <- 10;".into());
+        let let_expression = parse("let a: Model <- 10;".into()).ast;
         let _ = typing(&context, &let_expression).value;
         assert!(true)
         //assert_eq!(int_type.is_subtype(&interface, &context), true);

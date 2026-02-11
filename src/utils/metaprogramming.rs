@@ -1,38 +1,42 @@
 use crate::components::context::config::Environment;
 use crate::components::language::Lang;
-use crate::utils::my_io::read_file_from_name;
 use crate::processes::parsing::parse;
 use crate::utils::my_io::get_os_file;
+use crate::utils::my_io::read_file_from_name;
 use nom_locate::LocatedSpan;
 
 fn import_file_module_code(line: &Lang, environment: Environment) -> Lang {
     match line {
         Lang::ModuleImport(name, _h) => {
             let file = get_os_file(&format!("{}.ty", name));
-            metaprogrammation(
-                parse(LocatedSpan::new_extra(&read_file_from_name(&name, environment), file))
-                .to_module(name, environment),
-                environment)
+            let parse_result = parse(LocatedSpan::new_extra(
+                &read_file_from_name(&name, environment),
+                file,
+            ));
+            // TODO: propagate errors from imported modules
+            metaprogrammation(parse_result.ast.to_module(name, environment), environment)
         }
-        n => n.clone()
+        n => n.clone(),
     }
 }
 
 fn import_file_modules_code(adt: Lang, environment: Environment) -> Lang {
     match adt {
         Lang::Module(name, lines, position, config, h) => {
-            let new_lines = lines.iter()
+            let new_lines = lines
+                .iter()
                 .map(|x| import_file_module_code(x, environment))
                 .collect::<Vec<_>>();
             Lang::Module(name, new_lines, position, config, h)
         }
         Lang::Lines(lines, h) => {
-            let new_lines = lines.iter()
+            let new_lines = lines
+                .iter()
                 .map(|x| import_file_module_code(x, environment))
                 .collect::<Vec<_>>();
             Lang::Lines(new_lines, h)
-        },
-        s =>  s 
+        }
+        s => s,
     }
 }
 

@@ -222,7 +222,21 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
     let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
     
     let ast = match parse_result {
-        Ok(ast) => ast,
+        Ok(result) => {
+            // Collect syntax errors from the parsed AST
+            use crate::components::error_message::help_message::ErrorMsg;
+            for syntax_error in &result.errors {
+                let msg = syntax_error.clone().display();
+                diagnostics.push(Diagnostic {
+                    range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+                    severity: Some(DiagnosticSeverity::WARNING),
+                    message: msg,
+                    source: Some("typr".to_string()),
+                    ..Default::default()
+                });
+            }
+            result.ast
+        }
         Err(panic_info) => {
             // Extract diagnostic from the panic
             if let Some(diagnostic) = extract_diagnostic_from_panic(&panic_info, content) {
