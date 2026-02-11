@@ -255,17 +255,35 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
         }
     };
     
-    // 2. Attempt type checking
+    // 2. Attempt type checking with error collection
     let context = Context::default();
     let typing_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        typing(&context, &ast)
+        crate::processes::type_checking::typing_with_errors(&context, &ast)
     }));
     
     match typing_result {
-        Ok(_) => {
-            // No type checking errors - code is valid!
+        Ok(result) => {
+            // Collect type errors from the typing result
+            use crate::components::error_message::help_message::ErrorMsg;
+            use crate::components::error_message::typr_error::TypRError;
+            
+            for error in result.get_errors() {
+                let msg = error.clone().display();
+                let severity = match error {
+                    TypRError::Type(_) => DiagnosticSeverity::ERROR,
+                    TypRError::Syntax(_) => DiagnosticSeverity::WARNING,
+                };
+                diagnostics.push(Diagnostic {
+                    range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+                    severity: Some(severity),
+                    message: clean_error_message(&msg),
+                    source: Some("typr".to_string()),
+                    ..Default::default()
+                });
+            }
         }
         Err(panic_info) => {
+            // Fallback for unexpected panics during type checking
             if let Some(diagnostic) = extract_diagnostic_from_panic(&panic_info, content) {
                 diagnostics.push(diagnostic);
             } else {

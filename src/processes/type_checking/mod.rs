@@ -10,6 +10,7 @@ pub mod unification_map;
 use crate::components::context::config::TargetLanguage;
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
+use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::argument_value::ArgumentValue;
@@ -33,6 +34,80 @@ use crate::utils::package_loader::PackageManager;
 use std::collections::HashSet;
 use std::error::Error;
 use std::process::Command;
+
+/// Result of type checking, containing the type context and collected errors
+#[derive(Debug, Clone)]
+pub struct TypingResult {
+    /// The type context with the inferred type, transformed Lang, and updated context
+    pub type_context: TypeContext,
+    /// All type errors collected during type checking
+    pub errors: Vec<TypRError>,
+}
+
+impl TypingResult {
+    /// Create a new TypingResult from a TypeContext
+    pub fn new(tc: TypeContext) -> Self {
+        let errors = tc.errors.clone();
+        TypingResult {
+            type_context: tc,
+            errors,
+        }
+    }
+
+    /// Check if type checking produced any errors
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    /// Get the inferred type
+    pub fn get_type(&self) -> &Type {
+        &self.type_context.value
+    }
+
+    /// Get the transformed Lang expression
+    pub fn get_lang(&self) -> &Lang {
+        &self.type_context.lang
+    }
+
+    /// Get the updated context
+    pub fn get_context(&self) -> &Context {
+        &self.type_context.context
+    }
+
+    /// Get all errors
+    pub fn get_errors(&self) -> &Vec<TypRError> {
+        &self.errors
+    }
+
+    /// Display all errors as formatted strings
+    pub fn display_errors(&self) -> Vec<String> {
+        self.errors.iter().map(|e| e.clone().display()).collect()
+    }
+}
+
+impl From<TypeContext> for TypingResult {
+    fn from(tc: TypeContext) -> Self {
+        TypingResult::new(tc)
+    }
+}
+
+/// Perform type checking and return a TypingResult with all collected errors
+///
+/// This function performs type checking on the given expression and collects
+/// all type errors instead of panicking. The caller can then handle the errors
+/// appropriately (e.g., display all errors, continue with partial results).
+///
+/// # Arguments
+/// * `context` - The typing context with known variables and types
+/// * `expr` - The expression to type check
+///
+/// # Returns
+/// A `TypingResult` containing the inferred type (or `Any` if errors occurred)
+/// and all collected type errors.
+pub fn typing_with_errors(context: &Context, expr: &Lang) -> TypingResult {
+    let tc = typing(context, expr);
+    TypingResult::new(tc)
+}
 
 pub fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
     let r_script = format!("{}\n", function_code);
@@ -80,27 +155,34 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             )
                 .into()
         }
-        Lang::Assign(left_expr, right_expr, _h) => {
-            let left_type = typing(&context, left_expr).value;
-            let right_type = typing(&context, right_expr).value;
+        Lang::Assign(left_expr, right_expr, h) => {
+            let left_tc = typing(&context, left_expr);
+            let right_tc = typing(&context, right_expr);
+            let mut errors = left_tc.errors.clone();
+            errors.extend(right_tc.errors.clone());
+
+            let left_type = left_tc.value;
+            let right_type = right_tc.value;
             let reduced_left_type = reduce_type(context, &left_type);
             let reduced_right_type = reduce_type(context, &right_type);
+
             if reduced_right_type.is_subtype(&reduced_left_type, context) {
                 let var = Var::from_language((**left_expr).clone())
                     .unwrap()
                     .set_type(right_type.clone());
-                (
+                TypeContext::new(
                     right_type.clone(),
                     expr.clone(),
                     context.clone().push_var_type(var, right_type, context),
                 )
-                    .into()
+                .with_errors(errors)
             } else {
-                panic!(
-                    "The right side and left sides don't match {} <- {}",
-                    left_type.pretty(),
-                    right_type.pretty()
-                )
+                errors.push(TypRError::Type(TypeError::Let(
+                    left_type.clone().set_help_data(h.clone()),
+                    right_type.clone(),
+                )));
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                    .with_errors(errors)
             }
         }
         Lang::Library(name, _h) => {
@@ -126,27 +208,27 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Signature(var, typ, _h) => signature_expression(context, expr, var, typ),
         Lang::TestBlock(body, _) => {
             //Needed to be type checked
-            let _ = typing(context, body);
-            (
+            let tc = typing(context, body);
+            TypeContext::new(
                 builder::unknown_function_type(),
                 expr.clone(),
                 context.clone(),
             )
-                .into()
+            .with_errors(tc.errors)
         }
         Lang::Module(_name, members, _position, _config, h) => {
-            let expr = if members.len() > 1 {
+            let module_expr = if members.len() > 1 {
                 Lang::Lines(members.iter().cloned().collect(), h.clone())
             } else {
                 members.iter().next().unwrap().clone()
             }; // TODO: Modules can't be empty
-            let new_context = typing(&Context::default(), &expr).context;
-            (
+            let tc = typing(&Context::default(), &module_expr);
+            TypeContext::new(
                 builder::empty_type(),
                 expr.clone(),
-                context.clone() + new_context,
+                context.clone() + tc.context,
             )
-                .into()
+            .with_errors(tc.errors)
         }
         _ => (
             builder::unknown_function_type(),
@@ -1120,11 +1202,20 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic]
     fn test_function_application_unknown_function() {
+        // Test that calling an unknown function collects an error instead of panicking
         let res = "typr(true)".parse::<Lang>().unwrap();
         let context = Context::default();
-        typing(&context, &res);
+        let result = typing_with_errors(&context, &res);
+
+        // Should have collected an error for the unknown function
+        assert!(
+            result.has_errors(),
+            "Expected an error for unknown function 'typr'"
+        );
+
+        // The inferred type should be Any when the function is not found
+        assert_eq!(result.get_type().clone(), builder::any_type());
     }
 
     #[test]
