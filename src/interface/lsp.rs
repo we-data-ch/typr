@@ -12,7 +12,6 @@
 use super::parser;
 use crate::components::context::Context;
 use crate::processes::parsing::parse;
-use crate::processes::type_checking::typing;
 use nom_locate::LocatedSpan;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -224,11 +223,21 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
     let ast = match parse_result {
         Ok(result) => {
             // Collect syntax errors from the parsed AST
-            use crate::components::error_message::help_message::ErrorMsg;
             for syntax_error in &result.errors {
-                let msg = syntax_error.clone().display();
+                // Use simple_message() for LSP - it doesn't require file access
+                let msg = syntax_error.simple_message();
+                // Extract position from SyntaxError's HelpData
+                let range = if let Some(help_data) = syntax_error.get_help_data() {
+                    let offset = help_data.get_offset();
+                    let pos = offset_to_position(offset, content);
+                    // Create a range that spans a reasonable portion of the error
+                    let end_col = find_token_end(content, offset, pos);
+                    Range::new(pos, Position::new(pos.line, end_col))
+                } else {
+                    Range::new(Position::new(0, 0), Position::new(0, 1))
+                };
                 diagnostics.push(Diagnostic {
-                    range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+                    range,
                     severity: Some(DiagnosticSeverity::WARNING),
                     message: msg,
                     source: Some("typr".to_string()),
@@ -264,19 +273,29 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
     match typing_result {
         Ok(result) => {
             // Collect type errors from the typing result
-            use crate::components::error_message::help_message::ErrorMsg;
             use crate::components::error_message::typr_error::TypRError;
             
             for error in result.get_errors() {
-                let msg = error.clone().display();
+                // Use simple_message() for LSP - it doesn't require file access
+                let msg = error.simple_message();
                 let severity = match error {
                     TypRError::Type(_) => DiagnosticSeverity::ERROR,
                     TypRError::Syntax(_) => DiagnosticSeverity::WARNING,
                 };
+                // Extract position from TypRError's HelpData
+                let range = if let Some(help_data) = error.get_help_data() {
+                    let offset = help_data.get_offset();
+                    let pos = offset_to_position(offset, content);
+                    // Try to find a reasonable end position (end of token or line)
+                    let end_col = find_token_end(content, offset, pos);
+                    Range::new(pos, Position::new(pos.line, end_col))
+                } else {
+                    Range::new(Position::new(0, 0), Position::new(0, 1))
+                };
                 diagnostics.push(Diagnostic {
-                    range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+                    range,
                     severity: Some(severity),
-                    message: clean_error_message(&msg),
+                    message: msg,
                     source: Some("typr".to_string()),
                     ..Default::default()
                 });
@@ -504,7 +523,6 @@ fn extract_error_length(message: &str, content: &str, line: u32) -> u32 {
 }
 
 /// Convert a character offset to a Position (line, column).
-#[allow(dead_code)]
 fn offset_to_position(offset: usize, content: &str) -> Position {
     let mut line = 0u32;
     let mut col = 0u32;
@@ -522,6 +540,30 @@ fn offset_to_position(offset: usize, content: &str) -> Position {
     }
     
     Position::new(line, col)
+}
+
+/// Find the end column of a token starting at the given offset.
+/// This helps create a more accurate range for the diagnostic.
+fn find_token_end(content: &str, offset: usize, start_pos: Position) -> u32 {
+    let bytes = content.as_bytes();
+    let mut end_offset = offset;
+    
+    // Skip until we find a token boundary (whitespace, punctuation, or end of line)
+    while end_offset < bytes.len() {
+        let ch = bytes[end_offset] as char;
+        if ch.is_whitespace() || ch == ';' || ch == ',' || ch == ')' || ch == ']' || ch == '}' {
+            break;
+        }
+        end_offset += 1;
+    }
+    
+    // Calculate the end column
+    let token_len = (end_offset - offset) as u32;
+    if token_len == 0 {
+        start_pos.character + 1
+    } else {
+        start_pos.character + token_len
+    }
 }
 
 /// Start the LSP server.  Blocks until the client disconnects.
@@ -638,13 +680,16 @@ Err(  × Type error: Function `+` not defined in this scope.
 
     #[test]
     fn test_check_type_error() {
-        // Type mismatch: int expected, string given
-        let code = "let x: int <- \"hello\";";
+        // Type error: trying to use + with incompatible types
+        let code = "1 + true;";
         let diagnostics = check_code_and_extract_errors(code, "test.ty");
         // Should produce at least one diagnostic
         assert!(!diagnostics.is_empty());
         if let Some(diag) = diagnostics.first() {
             assert_eq!(diag.severity, Some(DiagnosticSeverity::ERROR));
+            // Verify that the error position is extracted correctly
+            // The error should be at position 0 (start of "1")
+            assert_eq!(diag.range.start.line, 0);
         }
     }
 
@@ -658,13 +703,28 @@ Err(  × Type error: Function `+` not defined in this scope.
         assert!(!diagnostics.is_empty());
         
         if let Some(diag) = diagnostics.first() {
-            // NOTE: In tests, TypeError::display() may call .expect() if get_file_name_and_text()
-            // returns None (when the file doesn't exist on disk), which bypasses the miette
-            // formatting and only returns the plain message.
-            // In real LSP usage with actual files open in the editor, the file content is
-            // available in HelpData and the full miette format with position info is included.
             assert_eq!(diag.severity, Some(DiagnosticSeverity::ERROR));
             assert!(!diag.message.is_empty());
+            // The error "1 + true" is on line 4 (0-indexed: line 3)
+            // Verify that the position is correctly extracted from HelpData
+            assert_eq!(diag.range.start.line, 3, "Error should be on line 4 (0-indexed: 3)");
+        }
+    }
+
+    #[test]
+    fn test_error_position_extraction() {
+        // Test that error positions are correctly extracted
+        // Using "1 + true" which produces a FunctionNotFound error
+        let code = "let x <- 1;\nlet y <- 2;\n1 + true;";
+        let diagnostics = check_code_and_extract_errors(code, "test.ty");
+        
+        assert!(!diagnostics.is_empty());
+        
+        if let Some(diag) = diagnostics.first() {
+            // The error "1 + true" is on line 3 (0-indexed: 2)
+            assert_eq!(diag.range.start.line, 2, "Error should be on line 3 (0-indexed: 2)");
+            // The error starts at column 0 (start of "1")
+            assert_eq!(diag.range.start.character, 0);
         }
     }
 }

@@ -162,6 +162,8 @@ pub fn build_project() {
     let context = Context::default().set_environment(Environment::Project);
     let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
+
+
     let content = type_checker.clone().transpile();
     write_header(type_checker.get_context(), &dir, Environment::Project);
     write_to_r_lang(content, &PathBuf::from("R"), "d_main.R", context.get_environment());

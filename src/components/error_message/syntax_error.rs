@@ -13,6 +13,32 @@ pub enum SyntaxError {
     ForgottenSemicolon(HelpData),
 }
 
+impl SyntaxError {
+    /// Get the HelpData containing position information for this error.
+    pub fn get_help_data(&self) -> Option<HelpData> {
+        match self {
+            SyntaxError::FunctionWithoutType(h) => Some(h.clone()),
+            SyntaxError::FunctionWithoutReturnType(h) => Some(h.clone()),
+            SyntaxError::ForgottenSemicolon(h) => Some(h.clone()),
+        }
+    }
+
+    /// Get a simple error message without file access (for LSP use).
+    pub fn simple_message(&self) -> String {
+        match self {
+            SyntaxError::FunctionWithoutType(_) => {
+                "Function parameter is missing a type annotation".to_string()
+            }
+            SyntaxError::FunctionWithoutReturnType(_) => {
+                "Function is missing a return type annotation after ':'".to_string()
+            }
+            SyntaxError::ForgottenSemicolon(_) => {
+                "Missing semicolon at the end of the statement".to_string()
+            }
+        }
+    }
+}
+
 impl ErrorMsg for SyntaxError {
     fn display(self) -> String {
         let msg: Result<()> = match self {

@@ -72,6 +72,13 @@ impl Locatable for Var {
 }
 
 impl Var {
+    pub fn set_type_from_params(self, params: &[Lang], context: &Context) -> Self {
+        let typ = (params.len() > 0)
+            .then(|| typing(context, &params[0]).value)
+            .unwrap_or_default();
+        self.set_type(typ)
+    }
+
     pub fn add_backticks_if_percent(self) -> Self {
         let s = self.get_name();
         let res = if s.starts_with('%') && s.ends_with('%') {

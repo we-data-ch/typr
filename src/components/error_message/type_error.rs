@@ -27,6 +27,90 @@ pub enum TypeError {
     FunctionNotFound(Var),
 }
 
+impl TypeError {
+    /// Get the primary HelpData containing position information for this error.
+    pub fn get_help_data(&self) -> Option<HelpData> {
+        match self {
+            TypeError::Let(t1, _) => Some(t1.get_help_data()),
+            TypeError::Param(t1, _) => Some(t1.get_help_data()),
+            TypeError::UndefinedFunction(var) => Some(var.get_help_data()),
+            TypeError::UndefinedVariable(lang) => Some(lang.get_help_data()),
+            TypeError::UnmatchingReturnType(t1, _) => Some(t1.get_help_data()),
+            TypeError::ImmutableVariable(var, _) => Some(var.get_help_data()),
+            TypeError::PrivateVariable(var, _) => Some(var.get_help_data()),
+            TypeError::GenericPatternMatch(t1, _) => Some(t1.get_help_data()),
+            TypeError::FieldNotFound((_, h), _) => Some(h.clone()),
+            TypeError::WrongExpression(h) => Some(h.clone()),
+            TypeError::WrongIndexing(t1, _) => Some(t1.get_help_data()),
+            TypeError::AliasNotFound(typ) => Some(typ.get_help_data()),
+            TypeError::FunctionNotFound(var) => Some(var.get_help_data()),
+        }
+    }
+
+    /// Get a simple error message without file access (for LSP use).
+    pub fn simple_message(&self) -> String {
+        match self {
+            TypeError::Let(t1, t2) => {
+                format!(
+                    "Type mismatch: expected {}, got {}",
+                    t1.pretty(),
+                    t2.pretty()
+                )
+            }
+            TypeError::Param(t1, t2) => {
+                format!(
+                    "Parameter type mismatch: expected {}, got {}",
+                    t1.pretty(),
+                    t2.pretty()
+                )
+            }
+            TypeError::UndefinedFunction(var) => {
+                format!("Undefined function: {}", var.get_name())
+            }
+            TypeError::UndefinedVariable(lang) => {
+                if let Some(var) = Var::from_language(lang.clone()) {
+                    format!("Undefined variable: {}", var.get_name())
+                } else {
+                    "Undefined variable".to_string()
+                }
+            }
+            TypeError::UnmatchingReturnType(t1, t2) => {
+                format!(
+                    "Return type mismatch: expected {}, got {}",
+                    t1.pretty(),
+                    t2.pretty()
+                )
+            }
+            TypeError::ImmutableVariable(var, _) => {
+                format!("Cannot assign to immutable variable: {}", var.get_name())
+            }
+            TypeError::PrivateVariable(var, _) => {
+                format!("Cannot access private variable: {}", var.get_name())
+            }
+            TypeError::GenericPatternMatch(t1, t2) => {
+                format!("Cannot pattern match {} => {}", t1.pretty(), t2.pretty())
+            }
+            TypeError::FieldNotFound((name, _), typ) => {
+                format!("Field '{}' not found on type {}", name, typ.pretty())
+            }
+            TypeError::WrongExpression(_) => "Type error in expression".to_string(),
+            TypeError::WrongIndexing(t1, t2) => {
+                format!("Cannot index {} with {}", t1.pretty(), t2.pretty())
+            }
+            TypeError::AliasNotFound(typ) => {
+                format!("Type alias not found: {}", typ.pretty())
+            }
+            TypeError::FunctionNotFound(var) => {
+                format!(
+                    "Function '{}' not defined for type {}",
+                    var.get_name(),
+                    var.get_type().pretty()
+                )
+            }
+        }
+    }
+}
+
 // main
 impl ErrorMsg for TypeError {
     fn display(self) -> String {

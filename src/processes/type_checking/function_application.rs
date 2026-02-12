@@ -8,13 +8,13 @@
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::r#type::function_type::FunctionType;
-use crate::processes::type_checking::typing;
-use crate::processes::type_checking::Context;
-use crate::processes::type_checking::HelpData;
-use crate::processes::type_checking::Lang;
-use crate::processes::type_checking::Type;
 use crate::processes::type_checking::TypeContext;
 use crate::processes::type_checking::TypeError;
+use crate::processes::type_checking::HelpData;
+use crate::processes::type_checking::Context;
+use crate::processes::type_checking::typing;
+use crate::processes::type_checking::Lang;
+use crate::processes::type_checking::Type;
 use crate::processes::type_checking::Var;
 use crate::utils::builder;
 
@@ -46,7 +46,7 @@ pub fn apply_from_variable(
         }
         None => {
             let mut errors = param_errors;
-            errors.push(TypRError::Type(TypeError::FunctionNotFound(var.clone())));
+            errors.push(TypRError::Type(TypeError::FunctionNotFound(var.clone().set_type_from_params(parameters, context))));
             TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
                 .with_errors(errors)
         }

@@ -19,6 +19,30 @@ impl TypRError {
     pub fn syntax_error(err: SyntaxError) -> Self {
         TypRError::Syntax(err)
     }
+
+    pub fn display(self) -> String {
+        match self {
+            TypRError::Type(te) => te.display(),
+            TypRError::Syntax(se) => se.display(),
+        }
+    }
+
+    /// Get the HelpData containing position information for this error.
+    /// Returns the primary error location (first position in case of double-location errors).
+    pub fn get_help_data(&self) -> Option<crate::components::error_message::help_data::HelpData> {
+        match self {
+            TypRError::Type(te) => te.get_help_data(),
+            TypRError::Syntax(se) => se.get_help_data(),
+        }
+    }
+
+    /// Get a simple error message without file access (for LSP use).
+    pub fn simple_message(&self) -> String {
+        match self {
+            TypRError::Type(te) => te.simple_message(),
+            TypRError::Syntax(se) => se.simple_message(),
+        }
+    }
 }
 
 impl ErrorMsg for TypRError {

@@ -608,7 +608,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     )
                     .with_errors(errors)
                 }
-                (Type::Record(fields, _), Lang::FunctionApp(exp, _, _), _) => {
+                (Type::Record(fields, _), Lang::FunctionApp(exp, params, _), _) => {
                     match Var::from_language(*exp.clone()) {
                         Some(var) => {
                             match fields
@@ -626,7 +626,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                         .with_errors(errors)
                                 }
                                 None => {
-                                    errors.push(TypRError::Type(TypeError::FunctionNotFound(var)));
+                                    errors.push(
+                                        TypRError::Type(
+                                            TypeError::FunctionNotFound(
+                                                var.set_type_from_params(&params, context))));
                                     TypeContext::new(
                                         builder::any_type(),
                                         expr.clone(),
