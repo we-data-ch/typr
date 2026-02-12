@@ -29,6 +29,13 @@ pub struct HoverInfo {
     pub range: Range,
 }
 
+/// A resolved definition result: the location where a symbol is defined.
+#[derive(Debug, Clone)]
+pub struct DefinitionInfo {
+    /// The source range where the symbol is defined.
+    pub range: Range,
+}
+
 // ── public entry-point ─────────────────────────────────────────────────────
 
 /// Main entry-point called by the LSP hover handler.
@@ -76,6 +83,79 @@ pub fn find_type_at(content: &str, line: u32, character: u32) -> Option<HoverInf
         type_display: markdown,
         range: word_range,
     })
+}
+
+// ── definition lookup ──────────────────────────────────────────────────────
+
+/// Main entry-point called by the LSP goto_definition handler.
+///
+/// Finds the definition location of the identifier under the cursor.
+/// Returns `None` when:
+///   - the cursor is not on an identifier, or
+///   - parsing or type-checking fails, or
+///   - the identifier is not found in the context (e.g., built-in or undefined).
+pub fn find_definition_at(content: &str, line: u32, character: u32) -> Option<DefinitionInfo> {
+    // 1. Extract the word under the cursor.
+    let (word, _word_range) = extract_word_at(content, line, character)?;
+
+    // 2. Parse the whole document.
+    let span: Span = LocatedSpan::new_extra(content, String::new());
+    let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
+    let ast = parse_result.ok()?.ast;
+
+    // 3. Type-check the whole document to build the context.
+    let context = Context::default();
+    let type_context =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast)));
+    let type_context = type_context.ok()?;
+    let final_context = type_context.context;
+
+    // 4. Look up the variable in the context to find its definition.
+    // We need to find the Var that matches this name and get its HelpData.
+    let definition_var = final_context
+        .variables()
+        .find(|(var, _)| var.get_name() == word)
+        .map(|(var, _)| var.clone());
+
+    // Also check aliases if not found in variables
+    let definition_var = definition_var.or_else(|| {
+        final_context
+            .aliases()
+            .find(|(var, _)| var.get_name() == word)
+            .map(|(var, _)| var.clone())
+    });
+
+    let var = definition_var?;
+    let help_data = var.get_help_data();
+    let offset = help_data.get_offset();
+
+    // 5. Convert offset to Position.
+    let pos = offset_to_position(offset, content);
+    let end_col = pos.character + word.len() as u32;
+
+    Some(DefinitionInfo {
+        range: Range::new(pos, Position::new(pos.line, end_col)),
+    })
+}
+
+/// Convert a character offset to a Position (line, column).
+fn offset_to_position(offset: usize, content: &str) -> Position {
+    let mut line = 0u32;
+    let mut col = 0u32;
+
+    for (i, ch) in content.chars().enumerate() {
+        if i >= offset {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            col = 0;
+        } else {
+            col += 1;
+        }
+    }
+
+    Position::new(line, col)
 }
 
 // ── word extraction ────────────────────────────────────────────────────────
@@ -1158,5 +1238,91 @@ mod tests {
         assert!(result.contains("line1"));
         assert!(result.contains("line2"));
         assert!(result.ends_with("lin"));
+    }
+
+    // ── Go to definition tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_offset_to_position_start() {
+        let content = "let x <- 42;";
+        let pos = offset_to_position(0, content);
+        assert_eq!(pos.line, 0);
+        assert_eq!(pos.character, 0);
+    }
+
+    #[test]
+    fn test_offset_to_position_same_line() {
+        let content = "let x <- 42;";
+        let pos = offset_to_position(4, content);
+        assert_eq!(pos.line, 0);
+        assert_eq!(pos.character, 4);
+    }
+
+    #[test]
+    fn test_offset_to_position_multiline() {
+        let content = "let x <- 1;\nlet y <- 2;";
+        // Position of 'y' (after newline: 12 chars + 4 = offset 16)
+        let pos = offset_to_position(16, content);
+        assert_eq!(pos.line, 1);
+        assert_eq!(pos.character, 4);
+    }
+
+    #[test]
+    fn test_find_definition_simple_variable() {
+        let code = "let myVar <- 42;\nmyVar;";
+        // Try to find definition of 'myVar' on line 1, col 0
+        let result = find_definition_at(code, 1, 0);
+
+        assert!(result.is_some());
+        if let Some(def_info) = result {
+            // The definition should point to line 0 (where 'let myVar' is)
+            assert_eq!(def_info.range.start.line, 0);
+        }
+    }
+
+    #[test]
+    fn test_find_definition_function() {
+        let code = "let add <- fn(a: int, b: int): int { a + b };\nadd(1, 2);";
+        // Try to find definition of 'add' on line 1
+        let result = find_definition_at(code, 1, 0);
+
+        assert!(result.is_some());
+        if let Some(def_info) = result {
+            // The definition should point to line 0
+            assert_eq!(def_info.range.start.line, 0);
+        }
+    }
+
+    #[test]
+    fn test_find_definition_type_alias() {
+        let code = "type MyInt <- int;\nlet x: MyInt <- 42;";
+        // Try to find definition of 'MyInt' on line 1
+        let result = find_definition_at(code, 1, 7);
+
+        assert!(result.is_some());
+        if let Some(def_info) = result {
+            // The definition should point to line 0
+            assert_eq!(def_info.range.start.line, 0);
+        }
+    }
+
+    #[test]
+    fn test_find_definition_undefined() {
+        let code = "let x <- undefined_var;";
+        // Try to find definition of 'undefined_var' which doesn't exist
+        let result = find_definition_at(code, 0, 9);
+
+        // Should return None because 'undefined_var' is not defined
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_find_definition_literal() {
+        let code = "let x <- 42;";
+        // Try to find definition of '42' (a literal)
+        let result = find_definition_at(code, 0, 9);
+
+        // Literals don't have definitions
+        assert!(result.is_none());
     }
 }

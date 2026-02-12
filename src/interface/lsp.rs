@@ -5,6 +5,8 @@
 //!   - **Completion** provider: context-aware autocompletion for variables, functions, and type aliases
 //!     - Trigger characters: `.`, `$`, `>` (for `|>`), `:` (for type annotations)
 //!   - **Diagnostics** provider: real-time error checking for syntax and type errors
+//!   - **Go to Definition** provider: jump to symbol definitions (variables, functions, type aliases)
+//!   - **Workspace Symbol** provider: search for symbols across all open documents
 //!
 //! Launch with `typr lsp`.  The server communicates over stdin/stdout using
 //! the standard LSP JSON-RPC protocol.
@@ -48,6 +50,8 @@ impl LanguageServer for Backend {
                         ..Default::default()
                     }
                 )),
+                workspace_symbol_provider: Some(OneOf::Left(true)),
+                definition_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -153,6 +157,77 @@ impl LanguageServer for Backend {
             Ok(None)
         } else {
             Ok(Some(CompletionResponse::Array(items)))
+        }
+    }
+
+    // ── workspace/symbol ─────────────────────────────────────────────────────
+    async fn symbol(
+        &self,
+        params: WorkspaceSymbolParams,
+    ) -> Result<Option<Vec<SymbolInformation>>> {
+        let query = params.query.to_lowercase();
+        let docs = self.documents.read().await;
+        
+        let mut all_symbols = Vec::new();
+        
+        for (uri, content) in docs.iter() {
+            let content_owned = content.clone();
+            let uri_owned = uri.clone();
+            
+            // Offload parsing to a blocking thread
+            let symbols = tokio::task::spawn_blocking(move || {
+                get_workspace_symbols(&content_owned, &uri_owned)
+            })
+            .await
+            .ok()
+            .unwrap_or_default();
+            
+            all_symbols.extend(symbols);
+        }
+        
+        // Filter symbols by query (case-insensitive substring match)
+        if !query.is_empty() {
+            all_symbols.retain(|sym| sym.name.to_lowercase().contains(&query));
+        }
+        
+        if all_symbols.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(all_symbols))
+        }
+    }
+
+    // ── textDocument/definition ───────────────────────────────────────────────
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> Result<Option<GotoDefinitionResponse>> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+
+        let docs = self.documents.read().await;
+        let content = match docs.get(&uri) {
+            Some(c) => c,
+            None => return Ok(None),
+        };
+
+        // Offload parsing + typing to a blocking thread so we don't stall
+        // the LSP event loop.
+        let content_owned = content.clone();
+        let uri_owned = uri.clone();
+        let info = tokio::task::spawn_blocking(move || {
+            parser::find_definition_at(&content_owned, position.line, position.character)
+        })
+        .await
+        .ok()
+        .flatten();
+
+        match info {
+            Some(def_info) => Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                uri: uri_owned,
+                range: def_info.range,
+            }))),
+            None => Ok(None),
         }
     }
 }
@@ -566,6 +641,176 @@ fn find_token_end(content: &str, offset: usize, start_pos: Position) -> u32 {
     }
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// ── WORKSPACE SYMBOLS ─────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+
+use crate::components::language::Lang;
+use crate::components::language::var::Var;
+
+/// Get all symbols from a document for workspace/symbol support.
+///
+/// This parses the document and extracts all top-level symbols including:
+///   - Let bindings (variables and functions)
+///   - Type aliases
+///   - Modules
+///   - Signatures
+#[allow(deprecated)]
+fn get_workspace_symbols(content: &str, file_uri: &Url) -> Vec<SymbolInformation> {
+    let mut symbols = Vec::new();
+    
+    // Parse the document
+    let span: Span = LocatedSpan::new_extra(content, file_uri.path().to_string());
+    let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
+    
+    let ast = match parse_result {
+        Ok(result) => result.ast,
+        Err(_) => return symbols, // If parsing fails, return empty symbols
+    };
+    
+    // Collect symbols from the AST
+    collect_symbols_from_ast(&ast, content, file_uri, None, &mut symbols);
+    
+    symbols
+}
+
+/// Recursively collect symbols from an AST node.
+///
+/// This traverses the AST and extracts symbol information for:
+///   - `Let` bindings: variables and functions
+///   - `Alias`: type aliases
+///   - `Module`: module definitions
+///   - `Signature`: type signatures
+///   - `Lines` and `Scope`: recursively process children
+#[allow(deprecated)]
+fn collect_symbols_from_ast(
+    lang: &Lang,
+    content: &str,
+    file_uri: &Url,
+    container_name: Option<String>,
+    symbols: &mut Vec<SymbolInformation>,
+) {
+    match lang {
+        Lang::Lines(statements, _) => {
+            for stmt in statements {
+                collect_symbols_from_ast(stmt, content, file_uri, container_name.clone(), symbols);
+            }
+        }
+        
+        Lang::Scope(statements, _) => {
+            for stmt in statements {
+                collect_symbols_from_ast(stmt, content, file_uri, container_name.clone(), symbols);
+            }
+        }
+        
+        Lang::Let(var_lang, typ, body, _) => {
+            if let Ok(var) = Var::try_from(var_lang) {
+                let name = var.get_name();
+                let help_data = var.get_help_data();
+                let offset = help_data.get_offset();
+                let pos = offset_to_position(offset, content);
+                let end_col = find_token_end(content, offset, pos);
+                
+                // Determine symbol kind based on type annotation or body
+                // Check both the annotated type and the body to determine if it's a function
+                let kind = if typ.is_function() || body.is_function() {
+                    SymbolKind::FUNCTION
+                } else {
+                    SymbolKind::VARIABLE
+                };
+                
+                symbols.push(SymbolInformation {
+                    name: name.clone(),
+                    kind,
+                    location: Location {
+                        uri: file_uri.clone(),
+                        range: Range::new(pos, Position::new(pos.line, end_col)),
+                    },
+                    deprecated: None,
+                    container_name: container_name.clone(),
+                    tags: None,
+                });
+                
+                // Recursively check body for nested declarations (e.g., functions defined inside let)
+                collect_symbols_from_ast(body, content, file_uri, Some(name), symbols);
+            }
+        }
+        
+        Lang::Alias(var_lang, _params, _typ, _) => {
+            if let Ok(var) = Var::try_from(var_lang) {
+                let name = var.get_name();
+                let help_data = var.get_help_data();
+                let offset = help_data.get_offset();
+                let pos = offset_to_position(offset, content);
+                let end_col = find_token_end(content, offset, pos);
+                
+                symbols.push(SymbolInformation {
+                    name,
+                    kind: SymbolKind::TYPE_PARAMETER,
+                    location: Location {
+                        uri: file_uri.clone(),
+                        range: Range::new(pos, Position::new(pos.line, end_col)),
+                    },
+                    deprecated: None,
+                    container_name: container_name.clone(),
+                    tags: None,
+                });
+            }
+        }
+        
+        Lang::Module(name, members, _, _, help_data) => {
+            let offset = help_data.get_offset();
+            let pos = offset_to_position(offset, content);
+            let end_col = pos.character + name.len() as u32;
+            
+            symbols.push(SymbolInformation {
+                name: name.clone(),
+                kind: SymbolKind::MODULE,
+                location: Location {
+                    uri: file_uri.clone(),
+                    range: Range::new(pos, Position::new(pos.line, end_col)),
+                },
+                deprecated: None,
+                container_name: container_name.clone(),
+                tags: None,
+            });
+            
+            // Recursively process module members
+            for member in members {
+                collect_symbols_from_ast(member, content, file_uri, Some(name.clone()), symbols);
+            }
+        }
+        
+        Lang::Signature(var, _typ, _) => {
+            let name = var.get_name();
+            let help_data = var.get_help_data();
+            let offset = help_data.get_offset();
+            let pos = offset_to_position(offset, content);
+            let end_col = find_token_end(content, offset, pos);
+            
+            symbols.push(SymbolInformation {
+                name,
+                kind: SymbolKind::FUNCTION,
+                location: Location {
+                    uri: file_uri.clone(),
+                    range: Range::new(pos, Position::new(pos.line, end_col)),
+                },
+                deprecated: None,
+                container_name: container_name.clone(),
+                tags: None,
+            });
+        }
+        
+        Lang::Function(_, _, body, _) => {
+            // Check for nested declarations in function body
+            collect_symbols_from_ast(body, content, file_uri, container_name, symbols);
+        }
+        
+        // Other variants don't define workspace-level symbols
+        _ => {}
+    }
+}
+
 /// Start the LSP server.  Blocks until the client disconnects.
 ///
 /// This is an `async` function meant to be driven by a `tokio` runtime
@@ -726,5 +971,74 @@ Err(  × Type error: Function `+` not defined in this scope.
             // The error starts at column 0 (start of "1")
             assert_eq!(diag.range.start.character, 0);
         }
+    }
+
+    // ── workspace/symbol tests ───────────────────────────────────────────────
+
+    #[test]
+    fn test_workspace_symbols_let_binding() {
+        let code = "let myVariable <- 42;";
+        let uri = Url::parse("file:///test.ty").unwrap();
+        let symbols = get_workspace_symbols(code, &uri);
+        
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "myVariable");
+        assert_eq!(symbols[0].kind, SymbolKind::VARIABLE);
+    }
+
+    #[test]
+    fn test_workspace_symbols_function() {
+        let code = "let add <- fn(a: int, b: int): int { a + b };";
+        let uri = Url::parse("file:///test.ty").unwrap();
+        let symbols = get_workspace_symbols(code, &uri);
+        
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "add");
+        assert_eq!(symbols[0].kind, SymbolKind::FUNCTION);
+    }
+
+    #[test]
+    fn test_workspace_symbols_type_alias() {
+        let code = "type MyInt <- int;";
+        let uri = Url::parse("file:///test.ty").unwrap();
+        let symbols = get_workspace_symbols(code, &uri);
+        
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "MyInt");
+        assert_eq!(symbols[0].kind, SymbolKind::TYPE_PARAMETER);
+    }
+
+    #[test]
+    fn test_workspace_symbols_multiple() {
+        let code = "let x <- 1;\nlet y <- 2;\ntype MyType <- int;";
+        let uri = Url::parse("file:///test.ty").unwrap();
+        let symbols = get_workspace_symbols(code, &uri);
+        
+        assert_eq!(symbols.len(), 3);
+        
+        let names: Vec<&str> = symbols.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"x"));
+        assert!(names.contains(&"y"));
+        assert!(names.contains(&"MyType"));
+    }
+
+    #[test]
+    fn test_workspace_symbols_empty() {
+        let code = "42;";  // Just an expression, no symbols defined
+        let uri = Url::parse("file:///test.ty").unwrap();
+        let symbols = get_workspace_symbols(code, &uri);
+        
+        assert!(symbols.is_empty());
+    }
+
+    #[test]
+    fn test_workspace_symbols_invalid_syntax() {
+        let code = "let x <- ";  // Incomplete code
+        let uri = Url::parse("file:///test.ty").unwrap();
+        let symbols = get_workspace_symbols(code, &uri);
+        
+        // Should not panic, may return empty or partial results
+        // Just verify it doesn't crash
+        let _ = symbols;
     }
 }
