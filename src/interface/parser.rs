@@ -11,6 +11,7 @@
 
 use crate::components::context::Context;
 use crate::components::language::var::Var;
+use crate::components::language::Lang;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use crate::processes::parsing::parse;
@@ -461,15 +462,36 @@ fn parse_document_without_cursor_line(content: &str, cursor_line: u32) -> Option
     let filtered_content = filtered_lines.join("\n");
     let span: Span = LocatedSpan::new_extra(&filtered_content, String::new());
 
-    // Parse and type-check
-    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)))
-        .ok()?
-        .ast;
-    let context = Context::default();
-    let type_context =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast))).ok()?;
+    // Parse the document
+    let parse_result =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span))).ok()?;
+    let ast = parse_result.ast;
 
-    Some(type_context.context)
+    // Use Context::default() to start with the standard library
+    let context = Context::default();
+
+    // For proper context propagation, we need to type each statement sequentially
+    // so that earlier definitions are available in later expressions.
+    // The standard typing() for Lang::Lines doesn't properly propagate context
+    // for single statements, so we manually iterate.
+    let final_context = if let Lang::Lines(exprs, _) = &ast {
+        let mut ctx = context.clone();
+        for expr in exprs {
+            if let Ok(tc) =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&ctx, expr)))
+            {
+                ctx = tc.context;
+            }
+        }
+        ctx
+    } else {
+        // Fallback for non-Lines AST
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast)))
+            .ok()?
+            .context
+    };
+
+    Some(final_context)
 }
 
 // ── Context detection ──────────────────────────────────────────────────────
@@ -864,6 +886,9 @@ fn get_record_field_completions(context: &Context, expr: &str) -> Vec<Completion
 fn get_dot_completions(context: &Context, expr: &str) -> Vec<CompletionItem> {
     let mut items = Vec::new();
 
+    #[cfg(test)]
+    eprintln!("DEBUG get_dot_completions: expr = {:?}", expr);
+
     let expr_type = infer_expression_type(context, expr);
 
     // 1. If it's a record, show fields
@@ -879,6 +904,7 @@ fn get_dot_completions(context: &Context, expr: &str) -> Vec<CompletionItem> {
     }
 
     // 2. Show applicable functions (same logic as pipe)
+    // Functions whose first parameter type matches the expression type
     let all_functions: Vec<_> = context
         .get_all_generic_functions()
         .into_iter()
@@ -1017,26 +1043,178 @@ fn infer_expression_type(context: &Context, expr: &str) -> Type {
 /// - `calculate(x)` → type of calculate's return value
 /// - `list(a = 1, b = 2)` → {a: int, b: int}
 /// - `myvar.field` → type of field
+/// - `func(x).method()` → method-style chained calls
 fn parse_and_infer_expression_type(context: &Context, expr: &str) -> Option<Type> {
+    // First, try to handle method-style dot notation (e.g., `expr.func()`)
+    // by converting it to standard function calls
+    let normalized_expr = normalize_dot_calls(context, expr);
+
     // Wrap the expression in a minimal parseable statement
-    // We'll try to parse it as: `__temp <- expr`
-    let wrapped = format!("__temp <- {}", expr);
-    let span: Span = LocatedSpan::new_extra(&wrapped, String::new());
+    // We'll try to parse it as: `__temp <- expr;`
+    // Adding semicolon ensures proper statement termination
+    let wrapped = format!("__temp <- {};", normalized_expr);
+    let span: Span = LocatedSpan::new_extra(&wrapped, "<lsp-inference>".to_string());
 
     // Try to parse
     let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)))
         .ok()?
         .ast;
 
-    // Try to type-check
-    let type_result =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(context, &ast))).ok()?;
+    // Try to type-check using typing_with_errors to avoid panics
+    let type_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        crate::processes::type_checking::typing_with_errors(context, &ast)
+    }))
+    .ok()?;
 
-    // Get the type of __temp (which is the type of our expression)
-    let inferred_context = type_result.context;
-    let types = inferred_context.get_types_from_name("__temp");
+    // The type of the expression is the value type from the TypeContext
+    // (the result of typing the assignment `__temp <- expr`)
+    Some(type_result.type_context.value.clone())
+}
 
-    types.last().cloned()
+/// Normalize method-style dot calls to standard function calls.
+///
+/// Converts expressions like:
+/// - `x.incr()` → `incr(x)`
+/// - `x.incr().incr()` → `incr(incr(x))`
+/// - `incr(1).incr()` → `incr(incr(1))`
+///
+/// This allows the type system to correctly infer the type of chained method calls.
+fn normalize_dot_calls(context: &Context, expr: &str) -> String {
+    let trimmed = expr.trim();
+
+    // Pattern: something.identifier() or something.identifier
+    // We need to find the rightmost dot that's followed by an identifier
+
+    // Strategy: scan from right to left to find `.identifier(` or `.identifier` at the end
+    // This handles nested cases like `a.b().c()` by processing from right to left
+
+    let mut result = trimmed.to_string();
+    let mut changed = true;
+
+    // Keep transforming until no more changes (handles nested chains)
+    while changed {
+        changed = false;
+        if let Some(transformed) = try_normalize_rightmost_dot_call(context, &result) {
+            result = transformed;
+            changed = true;
+        }
+    }
+
+    result
+}
+
+/// Try to normalize the rightmost method-style dot call in an expression.
+/// Returns Some(transformed) if a transformation was made, None otherwise.
+fn try_normalize_rightmost_dot_call(context: &Context, expr: &str) -> Option<String> {
+    // Find the rightmost dot that's followed by an identifier (potential method call)
+    // We need to handle parentheses properly: `a.b(x).c()` → rightmost is `.c()`
+
+    let chars: Vec<char> = expr.chars().collect();
+    let len = chars.len();
+
+    // Scan backwards to find the rightmost dot that could be a method call
+    let mut paren_depth = 0;
+    let mut bracket_depth = 0;
+    let mut i = len;
+
+    while i > 0 {
+        i -= 1;
+        match chars[i] {
+            ')' => paren_depth += 1,
+            '(' => {
+                if paren_depth > 0 {
+                    paren_depth -= 1;
+                }
+            }
+            ']' => bracket_depth += 1,
+            '[' => {
+                if bracket_depth > 0 {
+                    bracket_depth -= 1;
+                }
+            }
+            '.' if paren_depth == 0 && bracket_depth == 0 => {
+                // Found a dot at the top level, check if it's followed by an identifier
+                if i + 1 < len && (chars[i + 1].is_alphabetic() || chars[i + 1] == '_') {
+                    // Extract the method name
+                    let mut method_end = i + 1;
+                    while method_end < len
+                        && (chars[method_end].is_alphanumeric() || chars[method_end] == '_')
+                    {
+                        method_end += 1;
+                    }
+                    let method_name: String = chars[i + 1..method_end].iter().collect();
+
+                    // Check if this is a known function in the context
+                    let types = context.get_types_from_name(&method_name);
+                    let is_known_function = types.iter().any(|t| t.is_function());
+
+                    // Also check standard library
+                    let is_std_function = context
+                        .typing_context
+                        .standard_library()
+                        .iter()
+                        .any(|(v, t)| v.get_name() == method_name && t.is_function());
+
+                    if is_known_function || is_std_function {
+                        // This is a method-style call, transform it
+                        let receiver: String = chars[..i].iter().collect();
+                        let after_method: String = chars[method_end..].iter().collect();
+
+                        // Check if there are arguments: `.method(args)` vs `.method`
+                        if after_method.starts_with('(') {
+                            // Find matching closing paren
+                            let after_chars: Vec<char> = after_method.chars().collect();
+                            let mut depth = 0;
+                            let mut close_idx = 0;
+                            for (j, &c) in after_chars.iter().enumerate() {
+                                match c {
+                                    '(' => depth += 1,
+                                    ')' => {
+                                        depth -= 1;
+                                        if depth == 0 {
+                                            close_idx = j;
+                                            break;
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            // Extract arguments (everything between parens, excluding the parens)
+                            let args_content: String = after_chars[1..close_idx].iter().collect();
+                            let rest: String = after_chars[close_idx + 1..].iter().collect();
+
+                            // Transform: `receiver.method(args)rest` → `method(receiver, args)rest`
+                            // or if no args: `receiver.method()rest` → `method(receiver)rest`
+                            if args_content.trim().is_empty() {
+                                return Some(format!(
+                                    "{}({}){}",
+                                    method_name,
+                                    receiver.trim(),
+                                    rest
+                                ));
+                            } else {
+                                return Some(format!(
+                                    "{}({}, {}){}",
+                                    method_name,
+                                    receiver.trim(),
+                                    args_content.trim(),
+                                    rest
+                                ));
+                            }
+                        } else {
+                            // No parentheses, it's a field access or method without call
+                            // Don't transform - it could be a record field
+                            return None;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    None
 }
 
 /// Extract the first parameter type from a function type.
@@ -1324,5 +1502,71 @@ mod tests {
 
         // Literals don't have definitions
         assert!(result.is_none());
+    }
+
+    // ── Completion with function chaining tests ────────────────────────────────
+
+    #[test]
+    fn test_dot_completion_with_function_call() {
+        // Define a function incr: (int) -> int
+        // Then test that incr(1). suggests incr again
+        let code = "let incr <- fn(x: int): int { x + 1 };\nincr(1).";
+        let completions = get_completions_at(code, 1, 8);
+
+        // Should find incr as a completion because incr(1) returns int
+        // and incr takes int as first parameter
+        let has_incr = completions.iter().any(|item| item.label == "incr");
+        assert!(
+            has_incr,
+            "Expected 'incr' in completions, got: {:?}",
+            completions.iter().map(|c| &c.label).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_dot_completion_with_chained_calls() {
+        // Test incr(1).incr(). should suggest incr
+        let code = "let incr <- fn(x: int): int { x + 1 };\nincr(1).incr().";
+        let completions = get_completions_at(code, 1, 15);
+
+        let has_incr = completions.iter().any(|item| item.label == "incr");
+        assert!(
+            has_incr,
+            "Expected 'incr' in completions for chained call, got: {:?}",
+            completions.iter().map(|c| &c.label).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_infer_expression_type_function_call() {
+        use crate::utils::fluent_parser::FluentParser;
+
+        // Use FluentParser to properly set up the context with user-defined function
+        let parser = FluentParser::new()
+            .push("let incr <- fn(x: int): int { x + 1 };")
+            .run();
+
+        let final_context = parser.get_context();
+
+        // Verify incr is in the context
+        let incr_types = final_context.get_types_from_name("incr");
+        assert!(!incr_types.is_empty(), "incr should be in the context");
+
+        // Test that infer_expression_type correctly infers incr(1) as int
+        let expr_type = infer_expression_type(&final_context, "incr(1)");
+
+        assert!(
+            matches!(expr_type, Type::Integer(_, _)),
+            "Expected Integer type for incr(1), got: {:?}",
+            expr_type.pretty()
+        );
+    }
+
+    #[test]
+    fn test_extract_last_expression_with_method_chain() {
+        // Test that function chains are extracted correctly
+        assert_eq!(extract_last_expression("incr(1)"), "incr(1)");
+        assert_eq!(extract_last_expression("incr(1).incr()"), "incr(1).incr()");
+        assert_eq!(extract_last_expression("a.b().c()"), "a.b().c()");
     }
 }
