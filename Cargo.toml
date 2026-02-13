@@ -26,4 +26,5 @@ anyhow = "1.0.100"
 lsp-types = "0.94"
 tower-lsp = "0.20"
 tokio = { version = "1", features = ["full"] }
+indexmap = { version = "2.13.0", features = ["serde"] }
 

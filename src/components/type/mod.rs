@@ -296,7 +296,7 @@ impl Type {
                 sol.push((**ret).clone());
                 sol.push(self.clone());
                 sol
-            }
+            },
             Type::Module(argtypes, _) => {
                 let mut sol = argtypes
                     .iter()
@@ -304,7 +304,7 @@ impl Type {
                     .collect::<Vec<_>>();
                 sol.push(self.clone());
                 sol
-            }
+            },
             typ => vec![typ.clone()],
         }
     }
@@ -317,7 +317,7 @@ impl Type {
         }
     }
 
-    pub fn replace_function_types(self: Type, t1: Type, t2: Type) -> Type {
+    pub fn replace_function_types(self, t1: Type, t2: Type) -> Type {
         match self {
             Type::Function(args, ret, h) => {
                 let new_args = args

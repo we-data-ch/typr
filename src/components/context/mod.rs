@@ -174,12 +174,15 @@ impl Context {
         self.typing_context.aliases()
     }
 
+
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
-        let types = typ.reduce(context).extract_types();
+        let reduced_type = typ.reduce(context);
+        let types = reduced_type.extract_types();
         let var_type = self
             .typing_context
             .clone()
             .push_var_type(&[(lang.clone(), typ.clone())])
+            .push_if_interface(reduced_type, typ, context)
             .push_types(&types);
         let new_subtypes = self.subtypes.add_types(&types, context);
         Context {

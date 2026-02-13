@@ -13,8 +13,8 @@ use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::utils::builder;
+use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
@@ -27,10 +27,10 @@ pub fn same_var_type(element1: &(Var, Type), element2: &(Var, Type)) -> bool {
 }
 
 pub fn merge_variables(
-    set1: HashSet<(Var, Type)>,
-    set2: HashSet<(Var, Type)>,
-) -> HashSet<(Var, Type)> {
-    let mut result = HashSet::new();
+    set1: IndexSet<(Var, Type)>,
+    set2: IndexSet<(Var, Type)>,
+) -> IndexSet<(Var, Type)> {
+    let mut result = IndexSet::new();
 
     for elem2 in &set2 {
         let mut replaced = false;
@@ -68,9 +68,9 @@ pub fn merge_variables(
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VarType {
-    pub variables: HashSet<(Var, Type)>,
-    pub aliases: HashSet<(Var, Type)>,
-    pub std: HashSet<(Var, Type)>,
+    pub variables: IndexSet<(Var, Type)>,
+    pub aliases: IndexSet<(Var, Type)>,
+    pub std: IndexSet<(Var, Type)>,
 }
 
 //main
@@ -78,12 +78,26 @@ impl VarType {
     pub fn new() -> VarType {
         let var = Var::from("Generic").set_type(builder::params_type());
         let typ = builder::generic_type();
-        let mut aliases = HashSet::new();
+        let mut aliases = IndexSet::new();
         aliases.insert((var, typ));
         VarType {
-            variables: HashSet::new(),
+            variables: IndexSet::new(),
             aliases,
-            std: HashSet::new(),
+            std: IndexSet::new(),
+        }
+    }
+
+    pub fn push_if_interface(self, typ: Type, alias: Type, context: &Context) -> VarType {
+        match typ {
+            Type::Interface(args, _) => {
+                args.iter()
+                    .map(|arg_typ| (
+                            arg_typ.clone().to_var(context),
+                            arg_typ.get_type()
+                            .replace_function_types(builder::self_generic_type(), alias.clone())))
+                    .fold(self, |acc, x| acc.push_var_type(&[x]))
+            },
+            _ => self
         }
     }
 
@@ -103,7 +117,7 @@ impl VarType {
         self.aliases.iter().collect::<Vec<_>>().into_iter().rev()
     }
 
-    pub fn get_types(&self) -> HashSet<Type> {
+    pub fn get_types(&self) -> IndexSet<Type> {
         self.variables
             .iter()
             .chain(self.aliases.iter())
@@ -161,28 +175,28 @@ impl VarType {
 
     pub fn separate_variables_aliases(
         val: Vec<(Var, Type)>,
-    ) -> (HashSet<(Var, Type)>, HashSet<(Var, Type)>) {
+    ) -> (IndexSet<(Var, Type)>, IndexSet<(Var, Type)>) {
         let variables = val
             .iter()
             .filter(|(var, _)| var.is_variable())
             .cloned()
-            .collect::<HashSet<(Var, Type)>>();
+            .collect::<IndexSet<(Var, Type)>>();
         let aliases = val
             .iter()
             .filter(|(var, _)| var.is_alias())
             .cloned()
-            .collect::<HashSet<(Var, Type)>>();
+            .collect::<IndexSet<(Var, Type)>>();
         (variables, aliases)
     }
 
-    fn push_variables(self, vt: HashSet<(Var, Type)>) -> Self {
+    fn push_variables(self, vt: IndexSet<(Var, Type)>) -> Self {
         VarType {
             variables: self.variables.union(&vt).cloned().collect(),
             ..self
         }
     }
 
-    fn replace_or_push_variables(self, vt: HashSet<(Var, Type)>) -> Self {
+    fn replace_or_push_variables(self, vt: IndexSet<(Var, Type)>) -> Self {
         let res = merge_variables(self.variables, vt);
         VarType {
             variables: res,
@@ -191,7 +205,7 @@ impl VarType {
     }
 
     fn push_aliases(self, vt: &[(Var, Type)]) -> Self {
-        let vt_set: HashSet<(Var, Type)> = vt.iter().cloned().collect();
+        let vt_set: IndexSet<(Var, Type)> = vt.iter().cloned().collect();
         VarType {
             aliases: self.aliases.union(&vt_set).cloned().collect(),
             ..self
@@ -199,7 +213,7 @@ impl VarType {
     }
 
     fn replace_aliases(self, vt: &[(Var, Type)]) -> Self {
-        let vt_set: HashSet<(Var, Type)> = vt.iter().cloned().collect();
+        let vt_set: IndexSet<(Var, Type)> = vt.iter().cloned().collect();
         let res = merge_variables(self.variables.clone(), vt_set);
         VarType {
             aliases: res,
@@ -385,7 +399,7 @@ impl VarType {
     }
 
     pub fn set_default_var_types(self) -> Self {
-        let mut vars = HashSet::new();
+        let mut vars = IndexSet::new();
         vars.insert((Var::from("add"), "(T, T) -> T".parse::<Type>().unwrap()));
         vars.insert((Var::from("minus"), "(T, T) -> T".parse::<Type>().unwrap()));
         vars.insert((Var::from("mul"), "(T, T) -> T".parse::<Type>().unwrap()));
@@ -398,7 +412,7 @@ impl VarType {
     }
 
     pub fn set_js_var_types(self) -> Self {
-        let mut vars = HashSet::new();
+        let mut vars = IndexSet::new();
         vars.insert((Var::alias("Document", &[]), builder::opaque_type("Doc")));
         self.set_default_var_types().push_variables(vars)
     }
@@ -485,7 +499,7 @@ impl From<Vec<(Var, Type)>> for VarType {
         VarType {
             variables,
             aliases,
-            std: HashSet::new(),
+            std: IndexSet::new(),
         }
     }
 }
