@@ -737,6 +737,7 @@ fn extract_expression_before(s: &str) -> String {
 // ── Completion generators ──────────────────────────────────────────────────
 
 /// Completions for type annotation contexts.
+/// Adds a leading space so "let x:" becomes "let x: int"
 fn get_type_completions(context: &Context) -> Vec<CompletionItem> {
     use crate::utils::builder;
 
@@ -754,6 +755,7 @@ fn get_type_completions(context: &Context) -> Vec<CompletionItem> {
     for (name, typ) in &primitives {
         items.push(CompletionItem {
             label: name.to_string(),
+            insert_text: Some(format!(" {}", name)),
             kind: Some(CompletionItemKind::KEYWORD),
             detail: Some(typ.pretty()),
             ..Default::default()
@@ -763,21 +765,25 @@ fn get_type_completions(context: &Context) -> Vec<CompletionItem> {
     // User-defined type aliases (interfaces/type contracts)
     for (var, typ) in context.aliases() {
         if var.is_alias() {
-            items.push(var_to_completion_item(
-                var,
-                typ,
-                CompletionItemKind::INTERFACE,
-            ));
+            items.push(CompletionItem {
+                label: var.get_name(),
+                insert_text: Some(format!(" {}", var.get_name())),
+                kind: Some(CompletionItemKind::INTERFACE),
+                detail: Some(typ.pretty()),
+                ..Default::default()
+            });
         }
     }
 
     // Module-exported type aliases (interfaces/type contracts)
     for (var, typ) in context.module_aliases() {
-        items.push(var_to_completion_item(
-            &var,
-            &typ,
-            CompletionItemKind::INTERFACE,
-        ));
+        items.push(CompletionItem {
+            label: var.get_name(),
+            insert_text: Some(format!(" {}", var.get_name())),
+            kind: Some(CompletionItemKind::INTERFACE),
+            detail: Some(typ.pretty()),
+            ..Default::default()
+        });
     }
 
     items
@@ -845,11 +851,14 @@ fn get_pipe_completions(context: &Context, expr: &str) -> Vec<CompletionItem> {
         // Check if this function can accept expr_type as first parameter
         if let Some(first_param_type) = get_first_parameter_type(&typ) {
             if expr_type.is_subtype(&first_param_type, context) {
-                items.push(var_to_completion_item(
-                    &var,
-                    &typ,
-                    CompletionItemKind::FUNCTION,
-                ));
+                // For pipe completions, add a leading space so "expr |>" becomes "expr |> func"
+                items.push(CompletionItem {
+                    label: var.get_name(),
+                    insert_text: Some(format!(" {}", var.get_name())),
+                    kind: Some(CompletionItemKind::FUNCTION),
+                    detail: Some(typ.pretty()),
+                    ..Default::default()
+                });
             }
         }
     }

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 pub mod function_application;
 pub mod let_expression;
 pub mod signature_expression;
@@ -7,33 +8,32 @@ pub mod type_context;
 pub mod unification;
 pub mod unification_map;
 
-use crate::components::context::config::TargetLanguage;
-use crate::components::context::Context;
-use crate::components::error_message::help_data::HelpData;
-use crate::components::error_message::help_message::ErrorMsg;
+use crate::processes::type_checking::function_application::function_application;
+use crate::processes::type_checking::signature_expression::signature_expression;
+use crate::processes::type_checking::let_expression::let_expression;
+use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::processes::type_checking::type_context::TypeContext;
+use crate::components::language::argument_value::ArgumentValue;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
-use crate::components::language::argument_value::ArgumentValue;
-use crate::components::language::array_lang::ArrayLang;
-use crate::components::language::operators::Op;
-use crate::components::language::var::Var;
-use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::context::config::TargetLanguage;
+use crate::components::language::array_lang::ArrayLang;
 use crate::components::r#type::type_system::TypeSystem;
-use crate::components::r#type::typer::Typer;
-use crate::components::r#type::Type;
-use crate::processes::type_checking::function_application::function_application;
-use crate::processes::type_checking::let_expression::let_expression;
-use crate::processes::type_checking::signature_expression::signature_expression;
-use crate::processes::type_checking::type_comparison::reduce_type;
-use crate::processes::type_checking::type_context::TypeContext;
-use crate::utils::builder;
 use crate::utils::package_loader::PackageManager;
+use crate::components::language::operators::Op;
+use crate::components::r#type::typer::Typer;
+use crate::components::language::var::Var;
+use crate::components::context::Context;
+use crate::components::language::Lang;
+use crate::components::r#type::Type;
 use std::collections::HashSet;
-use std::error::Error;
+use crate::utils::builder;
 use std::process::Command;
+use std::error::Error;
 
 /// Result of type checking, containing the type context and collected errors
 #[derive(Debug, Clone)]
