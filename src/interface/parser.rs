@@ -9,6 +9,7 @@
 //!   4. Renders the type string with Markdown syntax highlighting, using
 //!      the same semantic categories as the REPL highlighter in `repl.rs`.
 
+use crate::components::context::config::Environment;
 use crate::components::context::Context;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
@@ -16,7 +17,9 @@ use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use crate::processes::parsing::parse;
 use crate::processes::type_checking::typing;
+use crate::utils::metaprogramming::metaprogrammation;
 use nom_locate::LocatedSpan;
+use std::path::Path;
 use tower_lsp::lsp_types::{Position, Range};
 
 type Span<'a> = LocatedSpan<&'a str, String>;
@@ -35,6 +38,8 @@ pub struct HoverInfo {
 pub struct DefinitionInfo {
     /// The source range where the symbol is defined.
     pub range: Range,
+    /// The file path where the symbol is defined (None if same file or unknown).
+    pub file_path: Option<String>,
 }
 
 // ── public entry-point ─────────────────────────────────────────────────────
@@ -88,6 +93,25 @@ pub fn find_type_at(content: &str, line: u32, character: u32) -> Option<HoverInf
 
 // ── definition lookup ──────────────────────────────────────────────────────
 
+/// Detect the environment (Project or StandAlone) by looking for DESCRIPTION
+/// and NAMESPACE files in parent directories.
+fn detect_environment(file_path: &str) -> Environment {
+    let path = Path::new(file_path);
+    let mut dir = path.parent();
+
+    // Walk up the directory tree to find DESCRIPTION and NAMESPACE
+    while let Some(d) = dir {
+        let description = d.join("DESCRIPTION");
+        let namespace = d.join("NAMESPACE");
+        if description.exists() && namespace.exists() {
+            return Environment::Project;
+        }
+        dir = d.parent();
+    }
+
+    Environment::StandAlone
+}
+
 /// Main entry-point called by the LSP goto_definition handler.
 ///
 /// Finds the definition location of the identifier under the cursor.
@@ -95,23 +119,37 @@ pub fn find_type_at(content: &str, line: u32, character: u32) -> Option<HoverInf
 ///   - the cursor is not on an identifier, or
 ///   - parsing or type-checking fails, or
 ///   - the identifier is not found in the context (e.g., built-in or undefined).
-pub fn find_definition_at(content: &str, line: u32, character: u32) -> Option<DefinitionInfo> {
+///
+/// The `file_path` parameter is used to:
+///   - Store the correct file name in HelpData for local definitions
+///   - Detect the environment (Project vs StandAlone) for module imports
+///   - Resolve cross-file definitions
+pub fn find_definition_at(
+    content: &str,
+    line: u32,
+    character: u32,
+    file_path: &str,
+) -> Option<DefinitionInfo> {
     // 1. Extract the word under the cursor.
     let (word, _word_range) = extract_word_at(content, line, character)?;
 
-    // 2. Parse the whole document.
-    let span: Span = LocatedSpan::new_extra(content, String::new());
+    // 2. Parse the whole document with the file path.
+    let span: Span = LocatedSpan::new_extra(content, file_path.to_string());
     let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
     let ast = parse_result.ok()?.ast;
 
-    // 3. Type-check the whole document to build the context.
+    // 3. Detect environment and apply metaprogramming to resolve module imports.
+    let environment = detect_environment(file_path);
+    let ast = metaprogrammation(ast, environment);
+
+    // 4. Type-check the whole document to build the context.
     let context = Context::default();
     let type_context =
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast)));
     let type_context = type_context.ok()?;
     let final_context = type_context.context;
 
-    // 4. Look up the variable in the context to find its definition.
+    // 5. Look up the variable in the context to find its definition.
     // We need to find the Var that matches this name and get its HelpData.
     let definition_var = final_context
         .variables()
@@ -129,13 +167,31 @@ pub fn find_definition_at(content: &str, line: u32, character: u32) -> Option<De
     let var = definition_var?;
     let help_data = var.get_help_data();
     let offset = help_data.get_offset();
+    let definition_file = help_data.get_file_name();
 
-    // 5. Convert offset to Position.
-    let pos = offset_to_position(offset, content);
+    // 6. Determine if the definition is in a different file.
+    let (source_content, file_path_result) =
+        if definition_file.is_empty() || definition_file == file_path {
+            // Definition is in the current file
+            (content.to_string(), None)
+        } else {
+            // Definition is in a different file - read its content
+            match std::fs::read_to_string(&definition_file) {
+                Ok(external_content) => (external_content, Some(definition_file)),
+                Err(_) => {
+                    // If we can't read the file, fall back to current file
+                    (content.to_string(), None)
+                }
+            }
+        };
+
+    // 7. Convert offset to Position using the correct file content.
+    let pos = offset_to_position(offset, &source_content);
     let end_col = pos.character + word.len() as u32;
 
     Some(DefinitionInfo {
         range: Range::new(pos, Position::new(pos.line, end_col)),
+        file_path: file_path_result,
     })
 }
 
@@ -1458,12 +1514,15 @@ mod tests {
     fn test_find_definition_simple_variable() {
         let code = "let myVar <- 42;\nmyVar;";
         // Try to find definition of 'myVar' on line 1, col 0
-        let result = find_definition_at(code, 1, 0);
+        // Use empty file_path for tests (no cross-file resolution needed)
+        let result = find_definition_at(code, 1, 0, "");
 
         assert!(result.is_some());
         if let Some(def_info) = result {
             // The definition should point to line 0 (where 'let myVar' is)
             assert_eq!(def_info.range.start.line, 0);
+            // file_path should be None for same-file definitions
+            assert!(def_info.file_path.is_none());
         }
     }
 
@@ -1471,12 +1530,13 @@ mod tests {
     fn test_find_definition_function() {
         let code = "let add <- fn(a: int, b: int): int { a + b };\nadd(1, 2);";
         // Try to find definition of 'add' on line 1
-        let result = find_definition_at(code, 1, 0);
+        let result = find_definition_at(code, 1, 0, "");
 
         assert!(result.is_some());
         if let Some(def_info) = result {
             // The definition should point to line 0
             assert_eq!(def_info.range.start.line, 0);
+            assert!(def_info.file_path.is_none());
         }
     }
 
@@ -1484,12 +1544,13 @@ mod tests {
     fn test_find_definition_type_alias() {
         let code = "type MyInt <- int;\nlet x: MyInt <- 42;";
         // Try to find definition of 'MyInt' on line 1
-        let result = find_definition_at(code, 1, 7);
+        let result = find_definition_at(code, 1, 7, "");
 
         assert!(result.is_some());
         if let Some(def_info) = result {
             // The definition should point to line 0
             assert_eq!(def_info.range.start.line, 0);
+            assert!(def_info.file_path.is_none());
         }
     }
 
@@ -1497,7 +1558,7 @@ mod tests {
     fn test_find_definition_undefined() {
         let code = "let x <- undefined_var;";
         // Try to find definition of 'undefined_var' which doesn't exist
-        let result = find_definition_at(code, 0, 9);
+        let result = find_definition_at(code, 0, 9, "");
 
         // Should return None because 'undefined_var' is not defined
         assert!(result.is_none());
@@ -1507,7 +1568,7 @@ mod tests {
     fn test_find_definition_literal() {
         let code = "let x <- 42;";
         // Try to find definition of '42' (a literal)
-        let result = find_definition_at(code, 0, 9);
+        let result = find_definition_at(code, 0, 9, "");
 
         // Literals don't have definitions
         assert!(result.is_none());

@@ -211,22 +211,42 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
 
+        // Extract the file path from the URI for cross-file definition lookup.
+        let file_path = uri
+            .to_file_path()
+            .ok()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
         // Offload parsing + typing to a blocking thread so we don't stall
         // the LSP event loop.
         let content_owned = content.clone();
         let uri_owned = uri.clone();
+        let file_path_owned = file_path.clone();
         let info = tokio::task::spawn_blocking(move || {
-            parser::find_definition_at(&content_owned, position.line, position.character)
+            parser::find_definition_at(
+                &content_owned,
+                position.line,
+                position.character,
+                &file_path_owned,
+            )
         })
         .await
         .ok()
         .flatten();
 
         match info {
-            Some(def_info) => Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                uri: uri_owned,
-                range: def_info.range,
-            }))),
+            Some(def_info) => {
+                // Use the definition's file path if available, otherwise use current file
+                let target_uri = match &def_info.file_path {
+                    Some(path) => Url::from_file_path(path).unwrap_or(uri_owned),
+                    None => uri_owned,
+                };
+                Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                    uri: target_uri,
+                    range: def_info.range,
+                })))
+            }
             None => Ok(None),
         }
     }
