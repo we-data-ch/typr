@@ -362,8 +362,14 @@ impl VarType {
             .expect("Variable not found")
             .clone();
 
-        let mut new_variables = self.variables.clone();
-        new_variables.remove(&old_var);
+        // `IndexSet::remove` is deprecated because it disrupts set order.
+        // Use a filter/collect to remove the old variable while preserving order.
+        let mut new_variables = self
+            .variables
+            .iter()
+            .cloned()
+            .filter(|x| x != &old_var)
+            .collect::<indexmap::IndexSet<(Var, Type)>>();
         new_variables.insert((var.clone(), var.get_type()));
 
         Self {
