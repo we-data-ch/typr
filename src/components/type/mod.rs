@@ -15,35 +15,37 @@ pub mod type_system;
 pub mod typer;
 pub mod union_type;
 pub mod vector_type;
+pub mod alias_type;
 
-use crate::components::context::Context;
-use crate::components::error_message::help_data::HelpData;
+use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::processes::parsing::operation_priority::TokenKind;
 use crate::components::error_message::locatable::Locatable;
-use crate::components::language::var::Var;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
-use crate::components::r#type::module_type::ModuleType;
-use crate::components::r#type::tchar::Tchar;
-use crate::components::r#type::tint::Tint;
 use crate::components::r#type::type_category::TypeCategory;
 use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::module_type::ModuleType;
+use crate::components::r#type::type_system::TypeSystem;
+use crate::processes::parsing::type_token::TypeToken;
+use crate::components::r#type::type_printer::verbose;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::type_printer::format;
 use crate::components::r#type::type_printer::short;
-use crate::components::r#type::type_printer::verbose;
-use crate::components::r#type::type_system::TypeSystem;
-use crate::components::r#type::vector_type::VecType;
-use crate::processes::parsing::operation_priority::TokenKind;
-use crate::processes::parsing::type_token::TypeToken;
+use crate::components::r#type::alias_type::Alias;
+use crate::components::r#type::tchar::Tchar;
 use crate::processes::parsing::types::ltype;
-use crate::processes::type_checking::type_comparison::reduce_type;
-use crate::utils::builder;
+use crate::components::language::var::Var;
+use crate::components::r#type::tint::Tint;
+use crate::components::context::Context;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::fmt;
-use std::hash::Hash;
+use crate::utils::builder;
+use std::cmp::Ordering;
 use std::hash::Hasher;
 use std::str::FromStr;
+use std::hash::Hash;
+use std::fmt;
 
 pub fn generate_arg(num: usize) -> String {
     match num {
@@ -136,14 +138,36 @@ impl TypeSystem for Type {
         verbose(self)
     }
 
-    fn is_subtype(&self, other: &Type, context: &Context) -> bool {
+    fn is_subtype(&self, other: &Type, context: &Context) -> (bool, Option<Context>) {
+        // Vérifier le cache
+        if let Some(cached) = context.subtypes.check_subtype_cache(self, other) {
+            return (cached, None);
+        }
+
+        // Calculer le résultat
+        let result = self.is_subtype_raw(other, context);
+
+        // Mettre à jour le cache et retourner
+        let new_subtypes =
+            context
+                .subtypes
+                .clone()
+                .cache_subtype(self.clone(), other.clone(), result);
+        let new_context = context.clone().with_subtypes(new_subtypes);
+
+        (result, Some(new_context))
+    }
+
+    fn is_subtype_raw(&self, other: &Type, context: &Context) -> bool {
         match (self, other) {
             (Type::Empty(_), _) => true,
             (typ1, typ2) if typ1 == typ2 => true,
-            (Type::Intersection(types, _), typ) => types.iter().any(|x| x.is_subtype(typ, context)),
+            (Type::Intersection(types, _), typ) => {
+                types.iter().any(|x| x.is_subtype_raw(typ, context))
+            }
             (_, Type::Any(_)) => true,
             (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => {
-                n1.is_subtype(&*n2, context) && t1.is_subtype(&*t2, context)
+                n1.is_subtype_raw(&*n2, context) && t1.is_subtype_raw(&*t2, context)
             }
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
                 args1.len() == args2.len()
@@ -164,7 +188,7 @@ impl TypeSystem for Type {
             // Record subtyping
             (Type::Record(r1, _), Type::Record(r2, _)) => r1 == r2 || r1.is_superset(r2),
             (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
-                (name1 == name2) && body1.is_subtype(&*body2, context)
+                (name1 == name2) && body1.is_subtype_raw(&*body2, context)
             }
             // Generic subtyping
             (_, Type::Generic(_, _)) => true,
@@ -177,7 +201,7 @@ impl TypeSystem for Type {
                     && p1
                         .iter()
                         .zip(p2.iter())
-                        .all(|(t1, t2)| t1.is_subtype(t2, context))
+                        .all(|(t1, t2)| t1.is_subtype_raw(t2, context))
             }
             (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(&set2),
             (
@@ -185,16 +209,16 @@ impl TypeSystem for Type {
                 Type::Operator(TypeOperator::Union, _tp1, _tp2, _),
             ) => true, //TODO: Fix this
             (typ, Type::Operator(TypeOperator::Union, t1, t2, _)) => {
-                typ.is_subtype(t1, context) || typ.is_subtype(t2, context)
+                typ.is_subtype_raw(t1, context) || typ.is_subtype_raw(t2, context)
             }
             (Type::Char(t1, _), Type::Char(t2, _)) => t1.is_subtype(t2),
             (Type::Integer(_, _), Type::Integer(_, _)) => true,
             (Type::Tuple(types1, _), Type::Tuple(types2, _)) => types1
                 .iter()
                 .zip(types2.iter())
-                .all(|(typ1, typ2)| typ1.is_subtype(typ2, context)),
+                .all(|(typ1, typ2)| typ1.is_subtype_raw(typ2, context)),
             (typ, Type::Operator(TypeOperator::Intersection, t1, t2, _)) => {
-                typ.is_subtype(t1, context) && typ.is_subtype(t2, context)
+                typ.is_subtype_raw(t1, context) && typ.is_subtype_raw(t2, context)
             }
             _ => false,
         }
@@ -215,6 +239,20 @@ impl Locatable for Type {
 
 //main
 impl Type {
+    pub fn is_alias(&self) -> bool {
+        match self {
+            Type::Alias(_, _, _, _) => true,
+            _ => false
+        }
+    }
+
+    pub fn to_alias(self, context: &Context) -> Option<Alias> {
+        match self {
+            Type::Alias(name, params, opacity, hd) => Some(Alias::new(name, params, opacity, hd)),
+            _ => None
+        }
+    }
+
     pub fn lift(self, max_index: (VecType, i32)) -> Type {
         match self.clone() {
             Type::Vec(_, i, _, _) if i.equal(max_index.1) => self,
@@ -278,7 +316,7 @@ impl Type {
         let reduced_annotation = annotation.reduce(context);
         let reduced_type = self.reduce(context);
         if !annotation.is_empty() {
-            if reduced_type.is_subtype(&reduced_annotation, context) {
+            if reduced_type.is_subtype(&reduced_annotation, context).0 {
                 annotation.clone()
             } else {
                 // Return Any type instead of panicking - the error will be collected at typing level
@@ -296,7 +334,7 @@ impl Type {
                 sol.push((**ret).clone());
                 sol.push(self.clone());
                 sol
-            },
+            }
             Type::Module(argtypes, _) => {
                 let mut sol = argtypes
                     .iter()
@@ -305,6 +343,7 @@ impl Type {
                 sol.push(self.clone());
                 sol
             },
+            Type::Interface(_, _) => vec![], // there is a special push for this
             typ => vec![typ.clone()],
         }
     }
@@ -1206,7 +1245,7 @@ mod tests {
     fn test_record_hierarchy0() {
         let name = builder::record_type(&[("name".to_string(), builder::character_type_default())]);
         let age = builder::record_type(&[("age".to_string(), builder::integer_type_default())]);
-        assert!(name.is_subtype(&age, &Context::default()));
+        assert!(name.is_subtype(&age, &Context::default()).0);
     }
 
     #[test]
@@ -1229,13 +1268,13 @@ mod tests {
             ("name".to_string(), builder::character_type_default()),
             ("age".to_string(), builder::integer_type_default()),
         ]);
-        assert_eq!(person.is_subtype(&name, &Context::default()), true);
+        assert_eq!(person.is_subtype(&name, &Context::default()).0, true);
     }
 
     #[test]
     fn test_type_subtyping1() {
         let t1 = builder::number_type();
-        assert_eq!(t1.is_subtype(&t1, &Context::default()), true);
+        assert_eq!(t1.is_subtype(&t1, &Context::default()).0, true);
     }
 
     #[test]
@@ -1250,7 +1289,7 @@ mod tests {
         let s1 = "Seq[0, Empty]".parse::<Type>().unwrap();
         let s2 = "Seq[0, int]".parse::<Type>().unwrap();
         assert!(
-            s1.is_subtype(&s2, &Context::default()),
+            s1.is_subtype(&s2, &Context::default()).0,
             "An Empty sequence should be subtype of an empty sequence of a defined type."
         );
     }
@@ -1270,7 +1309,7 @@ mod tests {
         let ctx = Context::default();
         let context = ctx.clone().push_var_type(var, fn_type, &ctx);
 
-        assert_eq!(int_type.is_subtype(&interface, &context), true);
+        assert_eq!(int_type.is_subtype(&interface, &context).0, true);
     }
 
     #[test]
@@ -1312,7 +1351,7 @@ mod tests {
         let fun = builder::function_type(&[], builder::empty_type());
         let u_fun = builder::unknown_function_type();
         let context = Context::empty();
-        assert!(fun.is_subtype(&u_fun, &context));
+        assert!(fun.is_subtype(&u_fun, &context).0);
     }
 
     #[test]
@@ -1332,14 +1371,20 @@ mod tests {
 
     #[test]
     fn test_litteral_subtyping1() {
-        assert!(builder::character_type("hello")
-            .is_subtype(&builder::character_type_default(), &Context::empty()));
+        assert!(
+            builder::character_type("hello")
+                .is_subtype(&builder::character_type_default(), &Context::empty())
+                .0
+        );
     }
 
     #[test]
     fn test_litteral_subtyping2() {
-        assert!(builder::character_type("hello")
-            .is_subtype(&builder::character_type("hello"), &Context::empty()));
+        assert!(
+            builder::character_type("hello")
+                .is_subtype(&builder::character_type("hello"), &Context::empty())
+                .0
+        );
     }
 
     #[test]
@@ -1348,18 +1393,29 @@ mod tests {
             builder::character_type("html"),
             builder::character_type("h1"),
         ]);
-        assert!(builder::character_type("h1").is_subtype(&my_union, &Context::empty()));
+        assert!(
+            builder::character_type("h1")
+                .is_subtype(&my_union, &Context::empty())
+                .0
+        );
     }
 
     #[test]
     fn test_litteral_union_subtyping2() {
         let my_union = "\"html\" | \"h1\"".parse::<Type>().unwrap();
-        assert!(builder::character_type("h1").is_subtype(&my_union, &Context::empty()));
+        assert!(
+            builder::character_type("h1")
+                .is_subtype(&my_union, &Context::empty())
+                .0
+        );
     }
 
     #[test]
     fn test_litteral_subtyping3() {
-        assert!(!builder::character_type("html")
-            .is_subtype(&builder::character_type("h1"), &Context::empty()));
+        assert!(
+            !builder::character_type("html")
+                .is_subtype(&builder::character_type("h1"), &Context::empty())
+                .0
+        );
     }
 }

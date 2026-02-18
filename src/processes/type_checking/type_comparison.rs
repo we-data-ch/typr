@@ -103,9 +103,9 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
         Type::Operator(TypeOperator::Union, t1, t2, _) => {
             let typ1: Type = (**t1).clone();
             let typ2: Type = (**t2).clone();
-            if typ1.is_subtype(&typ2, context) {
+            if typ1.is_subtype(&typ2, context).0 {
                 typ1
-            } else if typ2.is_subtype(&typ1, context) {
+            } else if typ2.is_subtype(&typ1, context).0 {
                 typ2
             } else {
                 type_.clone()

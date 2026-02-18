@@ -64,7 +64,7 @@ impl TypeContext {
         let actual_type = self.value.reduce(&self.context);
         
         if !typ.is_empty() {
-             if actual_type.is_subtype(&expected_type, &self.context) {
+             if actual_type.is_subtype(&expected_type, &self.context).0 {
                  self.value = typ.clone();
              } else {
                  self.errors.push(TypRError::Type(TypeError::Let(

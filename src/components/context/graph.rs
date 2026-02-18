@@ -1,5 +1,6 @@
 use crate::components::context::Context;
 use crate::components::r#type::type_system::TypeSystem;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::ops::Add;
@@ -8,6 +9,7 @@ use std::ops::Add;
 pub struct Graph<T: TypeSystem> {
     memory: HashSet<T>,
     root: Node<T>,
+    subtype_cache: HashMap<(T, T), bool>,
 }
 
 impl<T: TypeSystem> Graph<T> {
@@ -15,6 +17,22 @@ impl<T: TypeSystem> Graph<T> {
         Graph {
             memory: HashSet::new(),
             root: Node::new(),
+            subtype_cache: HashMap::new(),
+        }
+    }
+
+    /// Vérifie si le résultat de sous-typage est en cache
+    pub fn check_subtype_cache(&self, t1: &T, t2: &T) -> Option<bool> {
+        self.subtype_cache.get(&(t1.clone(), t2.clone())).copied()
+    }
+
+    /// Enregistre un résultat de sous-typage dans le cache
+    pub fn cache_subtype(self, t1: T, t2: T, result: bool) -> Self {
+        let mut new_cache = self.subtype_cache.clone();
+        new_cache.insert((t1, t2), result);
+        Graph {
+            subtype_cache: new_cache,
+            ..self
         }
     }
 
@@ -32,6 +50,7 @@ impl<T: TypeSystem> Graph<T> {
             Graph {
                 memory: new_memory,
                 root: new_root,
+                subtype_cache: self.subtype_cache,
             }
         }
     }
@@ -48,6 +67,7 @@ impl<T: TypeSystem> Graph<T> {
                     .cloned()
                     .collect(),
                 root: self.root.add_type_trace(typ, context),
+                subtype_cache: self.subtype_cache,
             }
         }
     }
@@ -195,7 +215,7 @@ impl<T: TypeSystem> Node<T> {
     }
 
     fn switch_if_reverse_subtype(self, typ: T, context: &Context) -> Self {
-        if self.value.is_subtype(&typ, context) {
+        if self.value.is_subtype_raw(&typ, context) {
             Node {
                 value: typ,
                 subtypes: vec![Node::from(self.value).set_subtypes(self.subtypes)],
@@ -206,7 +226,7 @@ impl<T: TypeSystem> Node<T> {
     }
 
     fn switch_if_reverse_subtype_trace(self, typ: T, context: &Context) -> Self {
-        if self.value.is_subtype(&typ, context) {
+        if self.value.is_subtype_raw(&typ, context) {
             println!(
                 "{} is a subtype of the entry {}",
                 self.value.pretty(),
@@ -230,7 +250,10 @@ impl<T: TypeSystem> Node<T> {
         if self.value == typ {
             self
         } else {
-            match (typ.is_subtype(&self.value, context), self.subtypes.len()) {
+            match (
+                typ.is_subtype_raw(&self.value, context),
+                self.subtypes.len(),
+            ) {
                 (true, 0) => self.add_subtype(typ),
                 (true, _) => self.propagate(typ, context),
                 _ => self.switch_if_reverse_subtype(typ, context),
@@ -239,7 +262,10 @@ impl<T: TypeSystem> Node<T> {
     }
 
     pub fn add_type_trace(self, typ: T, context: &Context) -> Self {
-        match (typ.is_subtype(&self.value, context), self.subtypes.len()) {
+        match (
+            typ.is_subtype_raw(&self.value, context),
+            self.subtypes.len(),
+        ) {
             (true, 0) => {
                 println!(
                     "{} is a subtype of the leaf {}",
@@ -263,7 +289,7 @@ impl<T: TypeSystem> Node<T> {
     pub fn get_supertypes(&self, target_type: &T, context: &Context) -> Vec<T> {
         if target_type == &self.value {
             vec![]
-        } else if target_type.is_subtype(&self.value, context) {
+        } else if target_type.is_subtype_raw(&self.value, context) {
             self.subtypes
                 .iter()
                 .flat_map(|x| x.get_supertypes(target_type, context))
@@ -278,7 +304,7 @@ impl<T: TypeSystem> Node<T> {
         if target_type == &self.value {
             println!("found the root of {} we backtrack", target_type.pretty());
             vec![]
-        } else if target_type.is_subtype(&self.value, context) {
+        } else if target_type.is_subtype_raw(&self.value, context) {
             println!(
                 "{} is subtype of {} we check the subtypes",
                 target_type.pretty(),
@@ -335,10 +361,17 @@ impl<T: TypeSystem> Add for Graph<T> {
 
     fn add(self, other: Self) -> Self {
         let context = Context::default(); // Or apply a parameter if necessary
-        other
+        let merged = other
             .memory
             .iter()
             .cloned()
-            .fold(self, |acc, typ| acc.add_type(typ, &context))
+            .fold(self.clone(), |acc, typ| acc.add_type(typ, &context));
+        // Fusionner les caches de sous-typage
+        let mut new_cache = self.subtype_cache;
+        new_cache.extend(other.subtype_cache);
+        Graph {
+            subtype_cache: new_cache,
+            ..merged
+        }
     }
 }

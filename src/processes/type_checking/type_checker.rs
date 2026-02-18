@@ -1,11 +1,11 @@
-use crate::processes::transpiling::translatable::RTranslatable;
-use crate::components::r#type::type_system::TypeSystem;
 use crate::components::context::config::Environment;
-use crate::processes::type_checking::TypRError;
-use crate::processes::type_checking::typing;
 use crate::components::context::Context;
 use crate::components::language::Lang;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
+use crate::processes::transpiling::translatable::RTranslatable;
+use crate::processes::type_checking::typing;
+use crate::processes::type_checking::TypRError;
 use crate::utils::builder;
 use rpds::Vector;
 
@@ -15,7 +15,7 @@ pub struct TypeChecker {
     code: Vector<Lang>,
     types: Vector<Type>,
     last_type: Type,
-    errors: Vec<TypRError>
+    errors: Vec<TypRError>,
 }
 
 impl TypeChecker {
@@ -25,7 +25,7 @@ impl TypeChecker {
             code: Vector::new(),
             types: Vector::new(),
             last_type: builder::unknown_function_type(),
-            errors: vec![]
+            errors: vec![],
         }
     }
 
@@ -34,7 +34,8 @@ impl TypeChecker {
     }
 
     pub fn show_errors(&self) {
-        self.errors.iter()
+        self.errors
+            .iter()
             .for_each(|error| println!("{}", error.clone().display()))
     }
 
@@ -49,7 +50,10 @@ impl TypeChecker {
             }
             _ => self.clone().typing_helper(exp),
         };
-        res.has_errors().then(|| {res.show_errors(); panic!("");});
+        res.has_errors().then(|| {
+            res.show_errors();
+            panic!("");
+        });
         res
     }
 
@@ -60,7 +64,7 @@ impl TypeChecker {
             code: self.code.push_back(lang),
             types: self.types.push_back(typ.clone()),
             last_type: typ,
-            errors: self.errors.iter().chain(errors.iter()).cloned().collect()
+            errors: self.errors.iter().chain(errors.iter()).cloned().collect(),
         }
     }
 

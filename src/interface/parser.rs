@@ -906,7 +906,7 @@ fn get_pipe_completions(context: &Context, expr: &str) -> Vec<CompletionItem> {
     for (var, typ) in all_functions {
         // Check if this function can accept expr_type as first parameter
         if let Some(first_param_type) = get_first_parameter_type(&typ) {
-            if expr_type.is_subtype(&first_param_type, context) {
+            if expr_type.is_subtype(&first_param_type, context).0 {
                 // For pipe completions, add a leading space so "expr |>" becomes "expr |> func"
                 items.push(CompletionItem {
                     label: var.get_name(),
@@ -985,7 +985,7 @@ fn get_dot_completions(context: &Context, expr: &str) -> Vec<CompletionItem> {
 
     for (var, typ) in all_functions {
         if let Some(first_param_type) = get_first_parameter_type(&typ) {
-            if expr_type.is_subtype(&first_param_type, context) {
+            if expr_type.is_subtype(&first_param_type, context).0 {
                 items.push(var_to_completion_item(
                     &var,
                     &typ,
