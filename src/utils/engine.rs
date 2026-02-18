@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::components::context::config::Environment;
 use crate::components::context::Context;
 use crate::components::error_message::syntax_error::SyntaxError;
@@ -7,7 +9,7 @@ use crate::components::r#type::Type;
 use crate::processes::parsing::parse;
 use crate::processes::parsing::ParseResult;
 use crate::processes::type_checking::typing_with_errors;
-use crate::processes::type_checking::TypingResult;
+// `TypingResult` import removed — not used in this module
 use crate::utils::metaprogramming::metaprogrammation;
 use crate::utils::my_io::get_os_file;
 use crate::utils::my_io::read_file;

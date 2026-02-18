@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod elements;
 pub mod indexation;
 pub mod lang_token;
@@ -908,7 +910,6 @@ pub fn parse2(s: Span) -> Result<Lang, String> {
 #[cfg(test)]
 mod tesus {
     use super::*;
-    use crate::utils::builder;
 
     #[test]
     fn test_semicolon1() {

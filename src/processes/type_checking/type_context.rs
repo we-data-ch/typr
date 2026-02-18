@@ -1,6 +1,9 @@
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::error_message::type_error::TypeError;
+<<<<<<< fix/let-typeerror
+=======
 use crate::components::r#type::type_system::TypeSystem;
+>>>>>>> main
 use crate::processes::type_checking::Context;
 use crate::processes::type_checking::Lang;
 use crate::processes::type_checking::Type;
@@ -59,6 +62,20 @@ impl TypeContext {
         }
     }
 
+<<<<<<< fix/let-typeerror
+    pub fn get_covariant_type(self, typ: &Type) -> Self {
+        let new_type = self.value.get_covariant_type(typ, &self.context);
+        let mut errors = self.errors;
+        // If the covariant check failed, the returned type is Any — record a TypeError::Let
+        if let crate::components::r#type::Type::Any(_) = new_type {
+            errors.push(TypRError::type_error(TypeError::Let(typ.clone(), self.value.clone())));
+        }
+        Self {
+            value: new_type,
+            lang: self.lang,
+            context: self.context,
+            errors,
+=======
     pub fn get_covariant_type(mut self, typ: &Type) -> Self {
         let expected_type = typ.reduce(&self.context);
         let actual_type = self.value.reduce(&self.context);
@@ -73,6 +90,7 @@ impl TypeContext {
                  )));
                  self.value = builder::any_type();
              }
+>>>>>>> main
         }
         self
     }
