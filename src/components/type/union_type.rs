@@ -66,7 +66,7 @@ impl UnionType {
         other.types.iter().all(|other_member| {
             self.types
                 .iter()
-                .any(|self_member| other_member.is_subtype(self_member, context))
+                .any(|self_member| other_member.is_subtype(self_member, context).0)
         })
     }
 

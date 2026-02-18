@@ -110,9 +110,9 @@ impl Var {
             let mut indices_to_delete = Vec::new();
 
             for (i, existant) in mins.iter().enumerate() {
-                if candidat.is_subtype(existant, context) {
+                if candidat.is_subtype(existant, context).0 {
                     indices_to_delete.push(i);
-                } else if existant.is_subtype(&candidat, context) {
+                } else if existant.is_subtype(&candidat, context).0 {
                     keep_candidat = false;
                     break;
                 }
@@ -245,7 +245,8 @@ impl Var {
     }
 
     pub fn match_with(&self, var: &Var, context: &Context) -> bool {
-        (self.get_name() == var.get_name()) && self.get_type().is_subtype(&var.get_type(), context)
+        (self.get_name() == var.get_name())
+            && self.get_type().is_subtype(&var.get_type(), context).0
     }
 
     pub fn set_help_data(self, h: HelpData) -> Var {

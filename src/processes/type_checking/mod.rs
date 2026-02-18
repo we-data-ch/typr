@@ -1,4 +1,10 @@
-#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+#![allow(
+    dead_code,
+    unused_variables,
+    unused_imports,
+    unreachable_code,
+    unused_assignments
+)]
 pub mod function_application;
 pub mod let_expression;
 pub mod signature_expression;
@@ -8,32 +14,32 @@ pub mod type_context;
 pub mod unification;
 pub mod unification_map;
 
-use crate::processes::type_checking::function_application::function_application;
-use crate::processes::type_checking::signature_expression::signature_expression;
-use crate::processes::type_checking::let_expression::let_expression;
-use crate::processes::type_checking::type_comparison::reduce_type;
-use crate::processes::type_checking::type_context::TypeContext;
-use crate::components::language::argument_value::ArgumentValue;
+use crate::components::context::config::TargetLanguage;
+use crate::components::context::Context;
+use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
+use crate::components::language::argument_value::ArgumentValue;
+use crate::components::language::array_lang::ArrayLang;
+use crate::components::language::operators::Op;
+use crate::components::language::var::Var;
+use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_operator::TypeOperator;
-use crate::components::error_message::help_data::HelpData;
-use crate::components::context::config::TargetLanguage;
-use crate::components::language::array_lang::ArrayLang;
 use crate::components::r#type::type_system::TypeSystem;
-use crate::utils::package_loader::PackageManager;
-use crate::components::language::operators::Op;
 use crate::components::r#type::typer::Typer;
-use crate::components::language::var::Var;
-use crate::components::context::Context;
-use crate::components::language::Lang;
 use crate::components::r#type::Type;
-use std::collections::HashSet;
+use crate::processes::type_checking::function_application::function_application;
+use crate::processes::type_checking::let_expression::let_expression;
+use crate::processes::type_checking::signature_expression::signature_expression;
+use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::processes::type_checking::type_context::TypeContext;
 use crate::utils::builder;
-use std::process::Command;
+use crate::utils::package_loader::PackageManager;
+use std::collections::HashSet;
 use std::error::Error;
+use std::process::Command;
 
 /// Result of type checking, containing the type context and collected errors
 #[derive(Debug, Clone)]
@@ -166,7 +172,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let reduced_left_type = reduce_type(context, &left_type);
             let reduced_right_type = reduce_type(context, &right_type);
 
-            if reduced_right_type.is_subtype(&reduced_left_type, context) {
+            if reduced_right_type.is_subtype(&reduced_left_type, context).0 {
                 let var = Var::from_language((**left_expr).clone())
                     .unwrap()
                     .set_type(right_type.clone());
@@ -282,7 +288,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
             Some(res)
         }
         (Type::Tag(_name1, typ1, _h1), Type::Tag(_name2, typ2, _h2)) => get_gen_type(typ1, typ2),
-        (t1, t2) if t1.is_subtype(t2, &Context::empty()) => Some(vec![]),
+        (t1, t2) if t1.is_subtype(t2, &Context::empty()).0 => Some(vec![]),
         _ => None,
     }
 }
@@ -626,10 +632,9 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                         .with_errors(errors)
                                 }
                                 None => {
-                                    errors.push(
-                                        TypRError::Type(
-                                            TypeError::FunctionNotFound(
-                                                var.set_type_from_params(&params, context))));
+                                    errors.push(TypRError::Type(TypeError::FunctionNotFound(
+                                        var.set_type_from_params(&params, context),
+                                    )));
                                     TypeContext::new(
                                         builder::any_type(),
                                         expr.clone(),
@@ -746,7 +751,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let mut errors = body_type.errors.clone();
             let reduced_body_type = body_type.value.clone().reduce(&sub_context);
             let reduced_expected_ty = ret_ty.reduce(&context);
-            if !reduced_body_type.is_subtype(&reduced_expected_ty, context) {
+            if !reduced_body_type
+                .is_subtype(&reduced_expected_ty, context)
+                .0
+            {
                 errors.push(TypRError::Type(TypeError::UnmatchingReturnType(
                     ret_ty.clone(),
                     body_type.value.clone(),

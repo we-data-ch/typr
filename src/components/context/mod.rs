@@ -9,8 +9,6 @@ use crate::components::language::var_function::VarFunction;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::context::config::TargetLanguage;
 use crate::components::r#type::type_system::TypeSystem;
-use crate::utils::standard_library::not_in_blacklist;
-use crate::processes::type_checking::unification_map;
 use crate::components::context::config::Environment;
 use crate::components::context::vartype::VarType;
 use crate::components::context::config::Config;
@@ -18,10 +16,13 @@ use crate::components::context::graph::Graph;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
 use crate::components::r#type::Type;
-use std::collections::HashSet;
+use crate::processes::type_checking::unification_map;
 use crate::utils::builder;
+use crate::utils::standard_library::not_in_blacklist;
+use std::collections::HashSet;
 use std::iter::Rev;
 use std::ops::Add;
+use tap::Pipe;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
@@ -84,6 +85,11 @@ impl Context {
         }
     }
 
+    /// Retourne un nouveau Context avec le Graph de sous-typage mis à jour
+    pub fn with_subtypes(self, subtypes: Graph<Type>) -> Self {
+        Self { subtypes, ..self }
+    }
+
     pub fn get_members(&self) -> Vec<(Var, Type)> {
         self.typing_context
             .variables()
@@ -106,14 +112,14 @@ impl Context {
             .flat_map(|(var2, typ)| {
                 let conditions = (var.name == var2.name)
                     && (var.is_opaque == var2.is_opaque)
-                    && var.related_type.is_subtype(&var2.related_type, self);
+                    && var.related_type.is_subtype(&var2.related_type, self).0;
                 if conditions {
                     Some(typ.clone())
                 } else {
                     None
                 }
             })
-            .reduce(|acc, x| if x.is_subtype(&acc, self) { x } else { acc });
+            .reduce(|acc, x| if x.is_subtype(&acc, self).0 { x } else { acc });
         match res {
             Some(typ) => Ok(typ),
             _ => Err(format!(
@@ -136,7 +142,7 @@ impl Context {
             .flat_map(|(var2, type_)| {
                 let conditions = (var.name == var2.name)
                     && (var.is_opaque == var2.is_opaque)
-                    && var.related_type.is_subtype(&var2.related_type, self);
+                    && var.related_type.is_subtype(&var2.related_type, self).0;
                 if conditions {
                     Some(type_.clone())
                 } else {
@@ -174,15 +180,15 @@ impl Context {
         self.typing_context.aliases()
     }
 
-
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let reduced_type = typ.reduce(context);
         let types = reduced_type.extract_types();
         let var_type = self
             .typing_context
             .clone()
-            .push_var_type(&[(lang.clone(), typ.clone())])
-            .push_if_interface(reduced_type, typ, context)
+            .pipe(|vt| (reduced_type.is_interface() && lang.is_variable())
+                  .then(|| vt.clone().push_interface(lang.clone(), reduced_type, typ.clone(), context))
+                  .unwrap_or(vt.push_var_type(&[(lang.clone(), typ.clone())])))
             .push_types(&types);
         let new_subtypes = self.subtypes.add_types(&types, context);
         Context {
@@ -345,7 +351,7 @@ impl Context {
                 let reduced_type2 = var2.get_type().reduce(self);
                 var1.get_name() == var2.get_name()
                     && typ.is_function()
-                    && reduced_type1.is_subtype(&reduced_type2, self)
+                    && reduced_type1.is_subtype(&reduced_type2, self).0
             })
             .cloned()
             .collect()
@@ -370,7 +376,7 @@ impl Context {
             let reduced_type2 = var2.get_type().reduce(self);
             var1.get_name() == var2.get_name()
                 && typ.is_function()
-                && (reduced_type1.is_subtype(&reduced_type2, self)
+                && (reduced_type1.is_subtype(&reduced_type2, self).0
                     || reduced_type1.is_upperrank_of(&reduced_type2))
         });
         if res.is_none() {
@@ -398,7 +404,7 @@ impl Context {
                 let reduced_type2 = var2.get_type().reduce(self);
                 var1.get_name() == var2.get_name()
                     && typ.is_function()
-                    && (reduced_type1.is_subtype(&reduced_type2, self)
+                    && (reduced_type1.is_subtype(&reduced_type2, self).0
                         || reduced_type1.is_upperrank_of(&reduced_type2))
             })
             .map(|(_, typ)| typ.clone())

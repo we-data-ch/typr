@@ -1,9 +1,14 @@
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::error_message::type_error::TypeError;
+<<<<<<< fix/let-typeerror
+=======
+use crate::components::r#type::type_system::TypeSystem;
+>>>>>>> main
 use crate::processes::type_checking::Context;
 use crate::processes::type_checking::Lang;
 use crate::processes::type_checking::Type;
 use crate::processes::type_checking::Var;
+use crate::utils::builder;
 
 #[derive(Debug, Clone)]
 pub struct TypeContext {
@@ -57,6 +62,7 @@ impl TypeContext {
         }
     }
 
+<<<<<<< fix/let-typeerror
     pub fn get_covariant_type(self, typ: &Type) -> Self {
         let new_type = self.value.get_covariant_type(typ, &self.context);
         let mut errors = self.errors;
@@ -69,7 +75,24 @@ impl TypeContext {
             lang: self.lang,
             context: self.context,
             errors,
+=======
+    pub fn get_covariant_type(mut self, typ: &Type) -> Self {
+        let expected_type = typ.reduce(&self.context);
+        let actual_type = self.value.reduce(&self.context);
+        
+        if !typ.is_empty() {
+             if actual_type.is_subtype(&expected_type, &self.context).0 {
+                 self.value = typ.clone();
+             } else {
+                 self.errors.push(TypRError::Type(TypeError::Let(
+                     expected_type.clone().set_help_data(typ.get_help_data()),
+                     actual_type.clone().set_help_data(self.value.get_help_data()),
+                 )));
+                 self.value = builder::any_type();
+             }
+>>>>>>> main
         }
+        self
     }
 
     pub fn add_to_context(self, var: Var) -> Self {

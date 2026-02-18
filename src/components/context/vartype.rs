@@ -5,20 +5,23 @@
     unreachable_code,
     unused_assignments
 )]
-use crate::components::context::config::Config;
 use crate::components::context::config::TargetLanguage;
-use crate::components::context::Context;
-use crate::components::language::var::Var;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::processes::parsing::type_token::TypeToken;
 use crate::components::r#type::vector_type::VecType;
+use crate::components::r#type::alias_type::Alias;
+use crate::components::context::config::Config;
+use crate::components::language::var::Var;
+use crate::components::context::Context;
+use crate::components::language::Lang;
 use crate::components::r#type::Type;
+use serde::{Deserialize, Serialize};
 use crate::utils::builder;
 use indexmap::IndexSet;
-use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::Read;
 use std::io::Write;
 use std::iter::Rev;
+use std::fs::File;
+use std::io::Read;
 use std::ops::Add;
 
 pub fn same_var_type(element1: &(Var, Type), element2: &(Var, Type)) -> bool {
@@ -87,17 +90,28 @@ impl VarType {
         }
     }
 
-    pub fn push_if_interface(self, typ: Type, alias: Type, context: &Context) -> VarType {
+    pub fn push_interface(self, var: Var, typ: Type, original_type: Type, context: &Context) -> VarType {
         match typ {
             Type::Interface(args, _) => {
-                args.iter()
-                    .map(|arg_typ| (
+                let alias = original_type.clone()
+                    .to_alias(context)
+                    .unwrap_or(Alias::default())
+                    .set_opacity(false)
+                    .to_type();
+                args
+                    .iter()
+                    .map(|arg_typ| {
+                        (
                             arg_typ.clone().to_var(context),
-                            arg_typ.get_type()
-                            .replace_function_types(builder::self_generic_type(), alias.clone())))
+                            arg_typ
+                                .get_type()
+                                .replace_function_types(builder::self_generic_type(), alias.clone()),
+                        )
+                    })
                     .fold(self, |acc, x| acc.push_var_type(&[x]))
+                    .push_var_type(&[(var, alias)])
             },
-            _ => self
+            _ => self,
         }
     }
 
