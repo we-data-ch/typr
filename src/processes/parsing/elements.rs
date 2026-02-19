@@ -332,7 +332,7 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
             exit(1)
         }
         Ok((_s, (_, _, _args, _, None, Some(typ), _exp))) => {
-            println!(
+            eprintln!(
                 "The type '{}' should be preceded by a ':' :\n 'fn(...): {}'",
                 typ.clone(),
                 typ.clone()
@@ -462,7 +462,7 @@ fn record(s: Span) -> IResult<Span, Lang> {
             if args.len() == 0 {
                 panic!("Error: the scope shouldn't be empty")
             } else {
-                println!("{}", _s);
+                eprintln!("{}", _s);
                 panic!("You forgot to put a record identifier before the bracket: ':{{...}}'");
             }
         }

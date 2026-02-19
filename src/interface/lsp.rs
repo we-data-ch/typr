@@ -4,7 +4,8 @@
 //!   - **Hover** provider: shows inferred types with Markdown syntax highlighting
 //!   - **Completion** provider: context-aware autocompletion for variables, functions, and type aliases
 //!     - Trigger characters: `.`, `$`, `>` (for `|>`), `:` (for type annotations)
-//!   - **Diagnostics** provider: real-time error checking for syntax and type errors
+//!   - **Diagnostics** (push model): real-time error checking via `textDocument/publishDiagnostics`
+//!     - Diagnostics are published on `didOpen` and `didChange` events
 //!   - **Go to Definition** provider: jump to symbol definitions (variables, functions, type aliases)
 //!   - **Workspace Symbol** provider: search for symbols across all open documents
 //!
@@ -45,11 +46,9 @@ impl LanguageServer for Backend {
                     resolve_provider: None,
                     ..Default::default()
                 }),
-                diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
-                    DiagnosticOptions {
-                        ..Default::default()
-                    }
-                )),
+                // Note: We use the push model for diagnostics (publish_diagnostics in did_open/did_change)
+                // rather than the pull model (textDocument/diagnostic) which requires tower-lsp 0.21+
+                // or custom method registration.
                 workspace_symbol_provider: Some(OneOf::Left(true)),
                 definition_provider: Some(OneOf::Left(true)),
                 ..Default::default()

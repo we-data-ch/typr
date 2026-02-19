@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+pub mod alias_type;
 pub mod argument_type;
 pub mod array_type;
 pub mod function_type;
@@ -15,37 +16,36 @@ pub mod type_system;
 pub mod typer;
 pub mod union_type;
 pub mod vector_type;
-pub mod alias_type;
 
-use crate::processes::type_checking::type_comparison::reduce_type;
-use crate::processes::parsing::operation_priority::TokenKind;
+use crate::components::context::Context;
+use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::locatable::Locatable;
+use crate::components::language::var::Var;
+use crate::components::r#type::alias_type::Alias;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::module_type::ModuleType;
+use crate::components::r#type::tchar::Tchar;
+use crate::components::r#type::tint::Tint;
 use crate::components::r#type::type_category::TypeCategory;
 use crate::components::r#type::type_operator::TypeOperator;
-use crate::components::error_message::help_data::HelpData;
-use crate::components::r#type::module_type::ModuleType;
-use crate::components::r#type::type_system::TypeSystem;
-use crate::processes::parsing::type_token::TypeToken;
-use crate::components::r#type::type_printer::verbose;
-use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::type_printer::format;
 use crate::components::r#type::type_printer::short;
-use crate::components::r#type::alias_type::Alias;
-use crate::components::r#type::tchar::Tchar;
+use crate::components::r#type::type_printer::verbose;
+use crate::components::r#type::type_system::TypeSystem;
+use crate::components::r#type::vector_type::VecType;
+use crate::processes::parsing::operation_priority::TokenKind;
+use crate::processes::parsing::type_token::TypeToken;
 use crate::processes::parsing::types::ltype;
-use crate::components::language::var::Var;
-use crate::components::r#type::tint::Tint;
-use crate::components::context::Context;
-use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::utils::builder;
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use std::collections::HashSet;
+use std::fmt;
+use std::hash::Hash;
 use std::hash::Hasher;
 use std::str::FromStr;
-use std::hash::Hash;
-use std::fmt;
 
 pub fn generate_arg(num: usize) -> String {
     match num {
@@ -242,14 +242,14 @@ impl Type {
     pub fn is_alias(&self) -> bool {
         match self {
             Type::Alias(_, _, _, _) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn to_alias(self, context: &Context) -> Option<Alias> {
         match self {
             Type::Alias(name, params, opacity, hd) => Some(Alias::new(name, params, opacity, hd)),
-            _ => None
+            _ => None,
         }
     }
 
@@ -342,7 +342,7 @@ impl Type {
                     .collect::<Vec<_>>();
                 sol.push(self.clone());
                 sol
-            },
+            }
             Type::Interface(_, _) => vec![], // there is a special push for this
             typ => vec![typ.clone()],
         }
@@ -674,7 +674,7 @@ impl Type {
             Type::Operator(TypeOperator::Union, _, _, _) => TypeCategory::Union,
             Type::Operator(_, _, _, _) => TypeCategory::Operator,
             _ => {
-                println!("{:?} return Rest", self);
+                eprintln!("{:?} return Rest", self);
                 TypeCategory::Rest
             }
         }

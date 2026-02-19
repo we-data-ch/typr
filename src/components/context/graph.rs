@@ -84,7 +84,7 @@ impl<T: TypeSystem> Graph<T> {
     }
 
     pub fn print_hierarchy(&self) {
-        println!("{}", self.get_hierarchy());
+        eprintln!("{}", self.get_hierarchy());
     }
 
     pub fn get_supertypes(&self, typ: &T, context: &Context) -> Vec<T> {
@@ -167,14 +167,14 @@ impl<T: TypeSystem> Node<T> {
                 .collect(),
         };
         if graph == self {
-            println!(
+            eprintln!(
                 "add {} to one of the children of {}",
                 typ.pretty(),
                 self.value.pretty()
             );
             self.add_subtype(typ)
         } else {
-            println!(
+            eprintln!(
                 "{} is not a subtype of {}'s subtypes: {}",
                 typ.pretty(),
                 self.value.pretty(),
@@ -227,7 +227,7 @@ impl<T: TypeSystem> Node<T> {
 
     fn switch_if_reverse_subtype_trace(self, typ: T, context: &Context) -> Self {
         if self.value.is_subtype_raw(&typ, context) {
-            println!(
+            eprintln!(
                 "{} is a subtype of the entry {}",
                 self.value.pretty(),
                 typ.pretty()
@@ -237,7 +237,7 @@ impl<T: TypeSystem> Node<T> {
                 subtypes: vec![Node::from(self.value).set_subtypes(self.subtypes)],
             }
         } else {
-            println!(
+            eprintln!(
                 "{} is not a subtype of {} abort this branch",
                 typ.pretty(),
                 self.value.pretty()
@@ -267,7 +267,7 @@ impl<T: TypeSystem> Node<T> {
             self.subtypes.len(),
         ) {
             (true, 0) => {
-                println!(
+                eprintln!(
                     "{} is a subtype of the leaf {}",
                     typ.pretty(),
                     self.value.pretty()
@@ -275,7 +275,7 @@ impl<T: TypeSystem> Node<T> {
                 self.add_subtype(typ)
             }
             (true, _) => {
-                println!(
+                eprintln!(
                     "{} is a subtype of the node {}",
                     typ.pretty(),
                     self.value.pretty()
@@ -302,10 +302,10 @@ impl<T: TypeSystem> Node<T> {
 
     pub fn get_supertypes_trace(&self, target_type: &T, context: &Context) -> Vec<T> {
         if target_type == &self.value {
-            println!("found the root of {} we backtrack", target_type.pretty());
+            eprintln!("found the root of {} we backtrack", target_type.pretty());
             vec![]
         } else if target_type.is_subtype_raw(&self.value, context) {
-            println!(
+            eprintln!(
                 "{} is subtype of {} we check the subtypes",
                 target_type.pretty(),
                 self.value.pretty()
@@ -316,7 +316,7 @@ impl<T: TypeSystem> Node<T> {
                 .chain([self.value.clone()].iter().cloned())
                 .collect::<Vec<T>>()
         } else {
-            println!(
+            eprintln!(
                 "{} is not subtype of {} ABORT this branch",
                 target_type.pretty(),
                 self.value.pretty()

@@ -1,22 +1,22 @@
-use clap::{Parser, Subcommand};
-use std::path::PathBuf;
 use crate::interface::repl;
-use crate::utils::standard_library::standard_library;
-use crate::utils::project_management::run_file;
-use crate::utils::project_management::new;
-use crate::utils::project_management::check_file;
-use crate::utils::project_management::check_project;
 use crate::utils::project_management::build_file;
 use crate::utils::project_management::build_project;
-use crate::utils::project_management::run_project;
-use crate::utils::project_management::test;
+use crate::utils::project_management::check_file;
+use crate::utils::project_management::check_project;
+use crate::utils::project_management::clean;
+use crate::utils::project_management::cran;
+use crate::utils::project_management::document;
+use crate::utils::project_management::load;
+use crate::utils::project_management::new;
 use crate::utils::project_management::pkg_install;
 use crate::utils::project_management::pkg_uninstall;
-use crate::utils::project_management::document;
+use crate::utils::project_management::run_file;
+use crate::utils::project_management::run_project;
+use crate::utils::project_management::test;
 use crate::utils::project_management::use_package;
-use crate::utils::project_management::load;
-use crate::utils::project_management::cran;
-use crate::utils::project_management::clean;
+use crate::utils::standard_library::standard_library;
+use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -81,65 +81,44 @@ pub fn start() {
     }
 
     match cli.command {
-        Some(Commands::New { name }) => {
-            new(&name)
+        Some(Commands::New { name }) => new(&name),
+        Some(Commands::Check { file }) => match file {
+            Some(path) => check_file(&path),
+            _ => check_project(),
         },
-        Some(Commands::Check { file }) => {
-            match file {
-                Some(path) => check_file(&path),
-                _ => check_project(),
-            }
+        Some(Commands::Build { file }) => match file {
+            Some(path) => build_file(&path),
+            _ => build_project(),
         },
-        Some(Commands::Build { file }) => {
-            match file {
-                Some(path) => build_file(&path),
-                _ => build_project(),
-            }
+        Some(Commands::Run { file }) => match file {
+            Some(path) => run_file(&path),
+            _ => run_project(),
         },
-        Some(Commands::Run { file }) => {
-            match file {
-                Some(path) => run_file(&path),
-                _ => run_project(),
-            }
+        Some(Commands::Test) => test(),
+        Some(Commands::Pkg { pkg_command }) => match pkg_command {
+            PkgCommands::Install => pkg_install(),
+            PkgCommands::Uninstall => pkg_uninstall(),
         },
-        Some(Commands::Test) => {
-            test()
-        },
-        Some(Commands::Pkg { pkg_command }) => {
-            match pkg_command {
-                PkgCommands::Install => pkg_install(),
-                PkgCommands::Uninstall => pkg_uninstall(),
-            }
-        },
-        Some(Commands::Document) => {
-            document()
-        },
-        Some(Commands::Use { package_name }) => {
-            use_package(&package_name)
-        },
-        Some(Commands::Load) => {
-            load()
-        },
-        Some(Commands::Cran) => {
-            cran()
-        },
-        Some(Commands::Std) => {
-            standard_library()
-        },
-        Some(Commands::Clean) => {
-            clean()
-        },
+        Some(Commands::Document) => document(),
+        Some(Commands::Use { package_name }) => use_package(&package_name),
+        Some(Commands::Load) => load(),
+        Some(Commands::Cran) => cran(),
+        Some(Commands::Std) => standard_library(),
+        Some(Commands::Clean) => clean(),
         Some(Commands::Lsp) => {
-            let rt = tokio::runtime::Runtime::new().unwrap();
+            // Use a larger stack size (8MB) to avoid stack overflow
+            // during deep recursive parsing/type-checking operations
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .thread_stack_size(8 * 1024 * 1024)
+                .enable_all()
+                .build()
+                .unwrap();
             rt.block_on(crate::interface::lsp::run_lsp());
-        },
-        Some(Commands::Repl) => {
-            repl::start()
-        },
+        }
+        Some(Commands::Repl) => repl::start(),
         _ => {
             println!("Please specify a subcommand or file to execute");
             std::process::exit(1);
         }
     }
 }
-

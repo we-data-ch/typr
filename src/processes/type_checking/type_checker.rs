@@ -36,7 +36,7 @@ impl TypeChecker {
     pub fn show_errors(&self) {
         self.errors
             .iter()
-            .for_each(|error| println!("{}", error.clone().display()))
+            .for_each(|error| eprintln!("{}", error.clone().display()))
     }
 
     pub fn typing(self, exp: &Lang) -> Self {
@@ -45,7 +45,7 @@ impl TypeChecker {
                 let type_checker = exps
                     .iter()
                     .fold(self.clone(), |acc, lang| acc.typing_helper(lang));
-                println!("Typing:\n{}\n", type_checker.last_type.pretty());
+                eprintln!("Typing:\n{}\n", type_checker.last_type.pretty());
                 type_checker
             }
             _ => self.clone().typing_helper(exp),

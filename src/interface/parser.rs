@@ -1639,4 +1639,76 @@ mod tests {
         assert_eq!(extract_last_expression("incr(1).incr()"), "incr(1).incr()");
         assert_eq!(extract_last_expression("a.b().c()"), "a.b().c()");
     }
+
+    #[test]
+    fn test_dollar_completion_with_list_variable() {
+        // Test that mylist$ provides completions when mylist is a record/list with named fields
+        let code = "let mylist <- list(a = 1, b = 2);\nmylist$";
+        let completions = get_completions_at(code, 1, 7);
+
+        eprintln!(
+            "Completions for mylist$: {:?}",
+            completions.iter().map(|c| &c.label).collect::<Vec<_>>()
+        );
+
+        // Should find 'a' and 'b' as field completions
+        let has_a = completions.iter().any(|item| item.label == "a");
+        let has_b = completions.iter().any(|item| item.label == "b");
+        assert!(
+            has_a && has_b,
+            "Expected 'a' and 'b' in completions, got: {:?}",
+            completions.iter().map(|c| &c.label).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_dollar_completion_with_inline_list_literal() {
+        // Test that list(a = 1, b = 2)$ provides completions
+        let code = "list(a = 1, b = 2)$";
+        let completions = get_completions_at(code, 0, 19);
+
+        eprintln!(
+            "Completions for list(a=1,b=2)$: {:?}",
+            completions.iter().map(|c| &c.label).collect::<Vec<_>>()
+        );
+
+        let has_a = completions.iter().any(|item| item.label == "a");
+        let has_b = completions.iter().any(|item| item.label == "b");
+        assert!(
+            has_a && has_b,
+            "Expected 'a' and 'b' in completions for list literal, got: {:?}",
+            completions.iter().map(|c| &c.label).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_infer_expression_type_list_variable() {
+        use crate::utils::fluent_parser::FluentParser;
+
+        // Set up context with a list variable
+        let parser = FluentParser::new()
+            .push("let mylist <- list(a = 1, b = 2);")
+            .run();
+
+        let final_context = parser.get_context();
+
+        // Verify mylist is in the context
+        let mylist_types = final_context.get_types_from_name("mylist");
+        eprintln!(
+            "mylist types: {:?}",
+            mylist_types.iter().map(|t| t.pretty()).collect::<Vec<_>>()
+        );
+        assert!(!mylist_types.is_empty(), "mylist should be in the context");
+
+        // Check what type mylist has
+        let mylist_type = mylist_types.last().unwrap();
+        eprintln!("mylist type: {:?}", mylist_type.pretty());
+
+        // Verify it's a Record type
+        assert!(
+            matches!(mylist_type, Type::Record(_, _)),
+            "Expected Record type for mylist, got: {:?}",
+            mylist_type.pretty()
+        );
+    }
 }
