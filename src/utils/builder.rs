@@ -6,17 +6,18 @@
     unused_assignments
 )]
 
-use crate::components::r#type::type_operator::TypeOperator;
-use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::r#type::vector_type::VecType;
 use crate::components::language::operators::Op;
-use crate::components::r#type::tchar::Tchar;
-use crate::components::r#type::tint::Tint;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
+use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::tchar::Tchar;
+use crate::components::r#type::tint::Tint;
+use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub fn generic_type() -> Type {
     Type::Generic("T".to_string(), HelpData::default())
@@ -163,4 +164,20 @@ pub fn operation(operator: Op, left: Lang, right: Lang) -> Lang {
 
 pub fn let_var(name: &str, typ: Type) -> (Var, Type) {
     (Var::from(name).set_type(typ.clone()), typ)
+}
+
+/// Crée un type générique à partir du nom d'une interface
+/// Exemple: interface_generic_type("Addable") -> Type::Generic("T_Addable", ...)
+pub fn interface_generic_type(interface_name: &str) -> Type {
+    Type::Generic(format!("T_{}", interface_name), HelpData::default())
+}
+
+/// Compteur global pour les interfaces anonymes
+static ANON_INTERFACE_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+/// Génère un nom unique pour une interface anonyme
+/// Exemple: "Interface0", "Interface1", etc.
+pub fn anonymous_interface_name() -> String {
+    let id = ANON_INTERFACE_COUNTER.fetch_add(1, Ordering::SeqCst);
+    format!("Interface{}", id)
 }

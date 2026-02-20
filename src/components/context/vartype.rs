@@ -122,6 +122,44 @@ impl VarType {
         }
     }
 
+    /// Pousse une interface dans le contexte en utilisant un générique spécifique
+    /// au lieu de créer un alias. Utilisé pour la création de génériques à la volée
+    /// lors du typage des paramètres de fonction.
+    ///
+    /// # Arguments
+    /// * `var` - La variable à ajouter
+    /// * `typ` - Le type réduit (Interface)
+    /// * `generic_type` - Le générique à utiliser (ex: T_Addable)
+    /// * `context` - Le contexte de typage
+    pub fn push_interface_with_generic(
+        self,
+        var: Var,
+        typ: Type,
+        generic_type: Type,
+        context: &Context,
+    ) -> VarType {
+        match typ {
+            Type::Interface(args, _) => {
+                // Ajouter les signatures de l'interface dans le contexte
+                // en remplaçant Self par le générique
+                args.iter()
+                    .map(|arg_typ| {
+                        (
+                            arg_typ.clone().to_var(context),
+                            arg_typ.get_type().replace_function_types(
+                                builder::self_generic_type(),
+                                generic_type.clone(),
+                            ),
+                        )
+                    })
+                    .fold(self, |acc, x| acc.push_var_type(&[x]))
+                    // Ajouter la variable avec le type générique
+                    .push_var_type(&[(var, generic_type)])
+            }
+            _ => self,
+        }
+    }
+
     pub fn from_config(config: Config) -> VarType {
         let vartype = VarType::new();
         match config.target_language {

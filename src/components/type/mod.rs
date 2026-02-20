@@ -284,6 +284,16 @@ impl Type {
         }
     }
 
+    /// Retourne le nom de l'interface si c'est un alias vers une interface
+    /// Pour les interfaces anonymes (inline), retourne None
+    pub fn get_interface_name(&self) -> Option<String> {
+        match self {
+            Type::Alias(name, _, _, _) => Some(name.clone()),
+            Type::Interface(_, _) => None, // Interface anonyme
+            _ => None,
+        }
+    }
+
     pub fn add_to_context(self, var: Var, context: Context) -> (Type, Context) {
         let cont = context.clone().push_var_type(
             var.clone().set_type(self.clone()),
@@ -367,6 +377,57 @@ impl Type {
                 Type::Function(new_args, Box::new(new_ret), h)
             }
             _ => self,
+        }
+    }
+
+    /// Remplace les types selon un mapping donné (récursivement)
+    pub fn replace_types(&self, mapping: &std::collections::HashMap<Type, Type>) -> Type {
+        // Si le type lui-même est dans le mapping, le remplacer directement
+        if let Some(replacement) = mapping.get(self) {
+            return replacement.clone();
+        }
+
+        // Sinon, appliquer récursivement sur les sous-types
+        match self {
+            Type::Function(args, ret, h) => {
+                let new_args = args
+                    .iter()
+                    .map(|typ| typ.replace_types(mapping))
+                    .collect::<Vec<_>>();
+                let new_ret = ret.replace_types(mapping);
+                Type::Function(new_args, Box::new(new_ret), h.clone())
+            }
+            Type::Vec(vt, idx, typ, h) => {
+                let new_idx = idx.replace_types(mapping);
+                let new_typ = typ.replace_types(mapping);
+                Type::Vec(vt.clone(), Box::new(new_idx), Box::new(new_typ), h.clone())
+            }
+            Type::Record(fields, h) => {
+                let new_fields = fields
+                    .iter()
+                    .map(|arg_typ| arg_typ.replace_types(mapping))
+                    .collect();
+                Type::Record(new_fields, h.clone())
+            }
+            Type::Tuple(types, h) => {
+                let new_types = types.iter().map(|typ| typ.replace_types(mapping)).collect();
+                Type::Tuple(new_types, h.clone())
+            }
+            Type::Tag(name, typ, h) => {
+                let new_typ = typ.replace_types(mapping);
+                Type::Tag(name.clone(), Box::new(new_typ), h.clone())
+            }
+            Type::Operator(op, t1, t2, h) => {
+                let new_t1 = t1.replace_types(mapping);
+                let new_t2 = t2.replace_types(mapping);
+                Type::Operator(op.clone(), Box::new(new_t1), Box::new(new_t2), h.clone())
+            }
+            Type::Intersection(types, h) => {
+                let new_types = types.iter().map(|typ| typ.replace_types(mapping)).collect();
+                Type::Intersection(new_types, h.clone())
+            }
+            // Pour les types atomiques, retourner tel quel
+            _ => self.clone(),
         }
     }
 
@@ -673,10 +734,7 @@ impl Type {
             Type::Module(_, _) => TypeCategory::Module,
             Type::Operator(TypeOperator::Union, _, _, _) => TypeCategory::Union,
             Type::Operator(_, _, _, _) => TypeCategory::Operator,
-            _ => {
-                eprintln!("{:?} return Rest", self);
-                TypeCategory::Rest
-            }
+            _ => TypeCategory::Rest,
         }
     }
 

@@ -37,6 +37,7 @@ use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::type_context::TypeContext;
 use crate::utils::builder;
 use crate::utils::package_loader::PackageManager;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::error::Error;
 use std::process::Command;
@@ -246,27 +247,42 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
 }
 
 fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
+    get_gen_type_with_context(type1, type2, &Context::empty())
+}
+
+fn get_gen_type_with_context(
+    type1: &Type,
+    type2: &Type,
+    context: &Context,
+) -> Option<Vec<(Type, Type)>> {
     match (type1, type2) {
         (_, Type::Any(_)) => Some(vec![]),
         (Type::Integer(i, _), Type::Integer(j, _)) => (j.gen_of(i) || i == j).then(|| vec![]),
         (Type::Char(c, _), Type::Char(d, _)) => (d.gen_of(c) || d == c).then(|| vec![]),
-        (_, Type::Generic(_, _))
-        | (_, Type::IndexGen(_, _))
-        | (_, Type::LabelGen(_, _))
-        | (_, Type::Interface(_, _)) => Some(vec![(type1.clone(), type2.clone())]),
+        (_, Type::Generic(_, _)) | (_, Type::IndexGen(_, _)) | (_, Type::LabelGen(_, _)) => {
+            Some(vec![(type1.clone(), type2.clone())])
+        }
+        // Pour les interfaces, vérifier que type1 implémente l'interface
+        (_, Type::Interface(_, _)) => {
+            if type1.is_subtype(type2, context).0 {
+                Some(vec![(type1.clone(), type2.clone())])
+            } else {
+                None
+            }
+        }
         (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
             let res = args1
                 .iter()
                 .zip(args2.iter())
                 .chain([(&(**ret_typ1), &(**ret_typ2))].iter().cloned())
-                .flat_map(|(typ1, typ2)| get_gen_type(typ1, typ2))
+                .flat_map(|(typ1, typ2)| get_gen_type_with_context(typ1, typ2, context))
                 .flat_map(|x| x)
                 .collect::<Vec<_>>();
             Some(res)
         }
         (Type::Vec(_, ind1, typ1, _), Type::Vec(_, ind2, typ2, _)) => {
-            let gen1 = get_gen_type(ind1, ind2);
-            let gen2 = get_gen_type(typ1, typ2);
+            let gen1 = get_gen_type_with_context(ind1, ind2, context);
+            let gen2 = get_gen_type_with_context(typ1, typ2, context);
             match (gen1, gen2) {
                 (None, _) | (_, None) => None,
                 (Some(g1), Some(g2)) => Some(g1.iter().chain(g2.iter()).cloned().collect()),
@@ -277,9 +293,15 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                 .iter()
                 .zip(v2.iter())
                 .flat_map(|(argt1, argt2)| {
-                    let gen1 = get_gen_type(&argt1.get_argument(), &argt2.get_argument())
-                        .unwrap_or(vec![]);
-                    let gen2 = get_gen_type(&argt1.get_type(), &argt2.get_type()).unwrap_or(vec![]);
+                    let gen1 = get_gen_type_with_context(
+                        &argt1.get_argument(),
+                        &argt2.get_argument(),
+                        context,
+                    )
+                    .unwrap_or(vec![]);
+                    let gen2 =
+                        get_gen_type_with_context(&argt1.get_type(), &argt2.get_type(), context)
+                            .unwrap_or(vec![]);
                     gen1.iter().chain(gen2.iter()).cloned().collect::<Vec<_>>()
                 })
                 .collect::<HashSet<_>>()
@@ -287,8 +309,10 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                 .collect::<Vec<_>>();
             Some(res)
         }
-        (Type::Tag(_name1, typ1, _h1), Type::Tag(_name2, typ2, _h2)) => get_gen_type(typ1, typ2),
-        (t1, t2) if t1.is_subtype(t2, &Context::empty()).0 => Some(vec![]),
+        (Type::Tag(_name1, typ1, _h1), Type::Tag(_name2, typ2, _h2)) => {
+            get_gen_type_with_context(typ1, typ2, context)
+        }
+        (t1, t2) if t1.is_subtype(t2, context).0 => Some(vec![]),
         _ => None,
     }
 }
@@ -301,7 +325,7 @@ pub fn match_types_to_generic(
 ) -> Option<Vec<(Type, Type)>> {
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
-    get_gen_type(&type1, &type2).map(|vec| {
+    get_gen_type_with_context(&type1, &type2, ctx).map(|vec| {
         vec.iter()
             .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
             .collect::<Vec<_>>()
@@ -735,23 +759,72 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .iter()
                 .map(ArgumentType::get_type)
                 .collect::<Vec<_>>();
+
+            // Créer le mapping interface -> générique pour la cohérence
+            // entre les paramètres et le type de retour
+            let mut interface_mapping: HashMap<Type, (String, Type)> = HashMap::new();
+
+            // Pré-collecter le type de retour s'il est une interface
+            let reduced_ret_ty = ret_ty.reduce(context);
+            if reduced_ret_ty.is_interface() {
+                // Utiliser ret_ty (non réduit) pour obtenir le nom de l'alias
+                let name = ret_ty
+                    .get_interface_name()
+                    .unwrap_or_else(builder::anonymous_interface_name);
+                let gen = builder::opaque_type(&name);
+                interface_mapping.insert(reduced_ret_ty.clone(), (name, gen));
+            }
+
+            // Pré-collecter tous les paramètres qui sont des interfaces
+            for arg_typ in params.iter() {
+                let original_type = arg_typ.get_type();
+                let reduced_type = original_type.reduce(context);
+
+                if reduced_type.is_interface() && !interface_mapping.contains_key(&reduced_type) {
+                    // Utiliser original_type (non réduit) pour obtenir le nom de l'alias
+                    let name = original_type
+                        .get_interface_name()
+                        .unwrap_or_else(builder::anonymous_interface_name);
+                    let gen = builder::opaque_type(&name);
+                    interface_mapping.insert(reduced_type, (name, gen));
+                }
+            }
+
+            // Créer le sous-contexte avec le mapping pour les interfaces
             let sub_context = params
                 .into_iter()
-                .map(|arg_typ| arg_typ.clone().to_var(context))
-                .zip(
-                    list_of_types
-                        .clone()
-                        .into_iter()
-                        .map(|typ| typ.reduce(context)),
-                )
+                .map(|arg_typ| (arg_typ.clone().to_var(context), arg_typ.get_type()))
                 .fold(context.clone(), |cont, (var, typ)| {
-                    cont.clone().push_var_type(var, typ, &cont)
+                    let reduced_type = typ.reduce(context);
+
+                    if reduced_type.is_interface() && var.is_variable() {
+                        cont.clone().push_var_type_with_interface_mapping(
+                            var,
+                            reduced_type,
+                            &interface_mapping,
+                            &cont,
+                        )
+                    } else {
+                        cont.clone().push_var_type(var, reduced_type, &cont)
+                    }
                 });
+
             let body_type = body.typing(&sub_context);
             let mut errors = body_type.errors.clone();
             let reduced_body_type = body_type.value.clone().reduce(&sub_context);
             let reduced_expected_ty = ret_ty.reduce(&context);
-            if !reduced_body_type
+
+            // Créer le mapping inverse: Opaque -> Interface originale
+            let opaque_to_interface: HashMap<Type, Type> = interface_mapping
+                .iter()
+                .map(|(interface, (_, opaque))| (opaque.clone(), interface.clone()))
+                .collect();
+
+            // Remplacer les types Opaque par les interfaces originales dans body_type
+            let body_type_with_interfaces = reduced_body_type.replace_types(&opaque_to_interface);
+
+            // Pour la comparaison du type de retour, utiliser l'interface originale
+            if !body_type_with_interfaces
                 .is_subtype(&reduced_expected_ty, context)
                 .0
             {
@@ -760,8 +833,14 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     body_type.value.clone(),
                 )));
             }
+
+            // Construire le type de fonction final avec les types originaux (interfaces)
+            // pour l'affichage - pas besoin de remplacer par Opaque ici
+            let final_param_types = list_of_types.clone();
+            let final_ret_type = ret_ty.clone();
+
             TypeContext::new(
-                Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone()),
+                Type::Function(final_param_types, Box::new(final_ret_type), h.clone()),
                 expr.clone(),
                 body_type.context,
             )
@@ -1312,5 +1391,93 @@ mod tests {
             .get_last_type();
         println!("{}", typ.pretty());
         assert!(true);
+    }
+
+    #[test]
+    fn test_function_with_interface_parameter() {
+        // Test that a function with an interface parameter creates a generic type
+        // fn(a: Addable): Addable should create (T_Addable) -> T_Addable
+        let fp = FluentParser::new()
+            .set_context(Context::default())
+            // Define an interface Addable with an 'add' method using the interface keyword
+            .push("type Addable = interface { add: (Self) -> Self };")
+            .parse_type_next()
+            // Define a function that takes an Addable parameter
+            .push("let double <- fn(a: Addable): Addable { a.add(a) };")
+            .parse_type_next();
+
+        let typ = fp.get_last_type();
+        println!("Function type: {}", typ.pretty());
+
+        // The function should have a generic parameter type
+        match typ {
+            Type::Function(params, ret, _) => {
+                // Parameter should be a generic T_Addable
+                assert_eq!(params.len(), 1);
+                match &params[0] {
+                    Type::Generic(name, _) => {
+                        assert!(
+                            name.starts_with("T_"),
+                            "Generic name should start with T_, got: {}",
+                            name
+                        );
+                    }
+                    other => panic!("Expected Generic type for parameter, got: {:?}", other),
+                }
+                // Return type should be the same generic T_Addable
+                match ret.as_ref() {
+                    Type::Generic(name, _) => {
+                        assert!(
+                            name.starts_with("T_"),
+                            "Generic name should start with T_, got: {}",
+                            name
+                        );
+                    }
+                    other => panic!("Expected Generic type for return, got: {:?}", other),
+                }
+            }
+            other => panic!("Expected Function type, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_function_with_same_interface_multiple_params() {
+        // Test that multiple parameters with the same interface use the same generic
+        let fp = FluentParser::new()
+            .set_context(Context::default())
+            .push("type Addable = interface { add: (Self) -> Self };")
+            .parse_type_next()
+            .push("let combine <- fn(a: Addable, b: Addable): Addable { a.add(b) };")
+            .parse_type_next();
+
+        let typ = fp.get_last_type();
+        println!("Function type: {}", typ.pretty());
+
+        match typ {
+            Type::Function(params, ret, _) => {
+                assert_eq!(params.len(), 2);
+                // Both parameters should have the same generic name
+                let name1 = match &params[0] {
+                    Type::Generic(name, _) => name.clone(),
+                    other => panic!("Expected Generic for first param, got: {:?}", other),
+                };
+                let name2 = match &params[1] {
+                    Type::Generic(name, _) => name.clone(),
+                    other => panic!("Expected Generic for second param, got: {:?}", other),
+                };
+                assert_eq!(name1, name2, "Both params should use the same generic");
+
+                // Return type should also be the same generic
+                let ret_name = match ret.as_ref() {
+                    Type::Generic(name, _) => name.clone(),
+                    other => panic!("Expected Generic for return, got: {:?}", other),
+                };
+                assert_eq!(
+                    name1, ret_name,
+                    "Return type should use the same generic as params"
+                );
+            }
+            other => panic!("Expected Function type, got: {:?}", other),
+        }
     }
 }

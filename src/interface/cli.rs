@@ -1,4 +1,3 @@
-use crate::interface::repl;
 use crate::utils::project_management::build_file;
 use crate::utils::project_management::build_project;
 use crate::utils::project_management::check_file;
@@ -16,6 +15,7 @@ use crate::utils::project_management::test;
 use crate::utils::project_management::use_package;
 use crate::utils::standard_library::standard_library;
 use clap::{Parser, Subcommand};
+use crate::interface::repl;
 use std::path::PathBuf;
 
 #[derive(Parser)]

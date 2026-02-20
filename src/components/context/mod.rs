@@ -2,23 +2,24 @@ pub mod config;
 pub mod graph;
 pub mod vartype;
 
-use crate::processes::type_checking::type_comparison::reduce_type;
-use crate::components::context::unification_map::UnificationMap;
-use crate::processes::type_checking::match_types_to_generic;
-use crate::components::language::var_function::VarFunction;
-use crate::components::r#type::argument_type::ArgumentType;
-use crate::components::context::config::TargetLanguage;
-use crate::components::r#type::type_system::TypeSystem;
-use crate::components::context::config::Environment;
-use crate::components::context::vartype::VarType;
 use crate::components::context::config::Config;
+use crate::components::context::config::Environment;
+use crate::components::context::config::TargetLanguage;
 use crate::components::context::graph::Graph;
+use crate::components::context::unification_map::UnificationMap;
+use crate::components::context::vartype::VarType;
 use crate::components::language::var::Var;
+use crate::components::language::var_function::VarFunction;
 use crate::components::language::Lang;
+use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
+use crate::processes::type_checking::match_types_to_generic;
+use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::unification_map;
 use crate::utils::builder;
 use crate::utils::standard_library::not_in_blacklist;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::iter::Rev;
 use std::ops::Add;
@@ -186,15 +187,124 @@ impl Context {
         let var_type = self
             .typing_context
             .clone()
-            .pipe(|vt| (reduced_type.is_interface() && lang.is_variable())
-                  .then(|| vt.clone().push_interface(lang.clone(), reduced_type, typ.clone(), context))
-                  .unwrap_or(vt.push_var_type(&[(lang.clone(), typ.clone())])))
+            .pipe(|vt| {
+                (reduced_type.is_interface() && lang.is_variable())
+                    .then(|| {
+                        vt.clone()
+                            .push_interface(lang.clone(), reduced_type, typ.clone(), context)
+                    })
+                    .unwrap_or(vt.push_var_type(&[(lang.clone(), typ.clone())]))
+            })
             .push_types(&types);
         let new_subtypes = self.subtypes.add_types(&types, context);
         Context {
             typing_context: var_type,
             subtypes: new_subtypes,
             ..self
+        }
+    }
+
+    /// Pousse une variable dont le type est une interface, en utilisant un mapping
+    /// interface -> générique pour la cohérence entre les paramètres d'une fonction.
+    ///
+    /// Cette méthode est utilisée lors du typage des paramètres de fonction pour:
+    /// 1. Créer un générique unique pour chaque interface distincte
+    /// 2. Réutiliser le même générique si l'interface apparaît plusieurs fois
+    /// 3. Ajouter les signatures de l'interface au contexte
+    ///
+    /// # Arguments
+    /// * `var` - La variable à ajouter
+    /// * `original_type` - Le type avant réduction (peut être un Alias)
+    /// * `reduced_type` - Le type après réduction (Interface)
+    /// * `interface_mapping` - Mapping interface -> (nom, générique) pour la cohérence
+    /// * `context` - Le contexte de typage
+    pub fn push_var_type_for_interface(
+        self,
+        var: Var,
+        original_type: Type,
+        reduced_type: Type,
+        interface_mapping: &mut HashMap<Type, (String, Type)>,
+        context: &Context,
+    ) -> Context {
+        if !reduced_type.is_interface() {
+            return self.push_var_type(var, reduced_type, context);
+        }
+
+        // Récupérer ou créer le générique pour cette interface
+        let (_interface_name, generic_type) = interface_mapping
+            .entry(reduced_type.clone())
+            .or_insert_with(|| {
+                let name = original_type
+                    .get_interface_name()
+                    .unwrap_or_else(builder::anonymous_interface_name);
+                let gen = builder::interface_generic_type(&name);
+                (name, gen)
+            })
+            .clone();
+
+        // Utiliser push_interface_with_generic pour ajouter les signatures
+        let types = reduced_type.extract_types();
+        let var_type = self
+            .typing_context
+            .clone()
+            .push_interface_with_generic(var.clone(), reduced_type.clone(), generic_type, context)
+            .push_types(&types);
+
+        let new_subtypes = self.subtypes.add_types(&types, context);
+
+        Context {
+            typing_context: var_type,
+            subtypes: new_subtypes,
+            ..self
+        }
+    }
+
+    /// Pousse une variable dont le type est une interface, en utilisant un mapping
+    /// déjà rempli (lecture seule). Utilisée dans le fold du typage de fonction.
+    ///
+    /// # Arguments
+    /// * `var` - La variable à ajouter
+    /// * `reduced_type` - Le type après réduction (Interface)
+    /// * `interface_mapping` - Mapping interface -> (nom, générique) en lecture seule
+    /// * `context` - Le contexte de typage
+    pub fn push_var_type_with_interface_mapping(
+        self,
+        var: Var,
+        reduced_type: Type,
+        interface_mapping: &HashMap<Type, (String, Type)>,
+        context: &Context,
+    ) -> Context {
+        if !reduced_type.is_interface() {
+            return self.push_var_type(var, reduced_type, context);
+        }
+
+        // Récupérer le générique du mapping (doit exister car pré-rempli)
+        match interface_mapping.get(&reduced_type) {
+            Some((_, generic_type)) => {
+                let types = reduced_type.extract_types();
+                let var_type = self
+                    .typing_context
+                    .clone()
+                    .push_interface_with_generic(
+                        var.clone(),
+                        reduced_type.clone(),
+                        generic_type.clone(),
+                        context,
+                    )
+                    .push_types(&types);
+
+                let new_subtypes = self.subtypes.add_types(&types, context);
+
+                Context {
+                    typing_context: var_type,
+                    subtypes: new_subtypes,
+                    ..self
+                }
+            }
+            None => {
+                // Fallback si pas dans le mapping (ne devrait pas arriver)
+                self.push_var_type(var, reduced_type, context)
+            }
         }
     }
 

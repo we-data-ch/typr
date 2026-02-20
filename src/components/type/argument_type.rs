@@ -77,6 +77,15 @@ impl ArgumentType {
         format!("{} = {}", self.0.pretty2(), self.1.pretty())
     }
 
+    /// Remplace les types selon un mapping donné
+    pub fn replace_types(&self, mapping: &std::collections::HashMap<Type, Type>) -> ArgumentType {
+        ArgumentType(
+            self.0.replace_types(mapping),
+            self.1.replace_types(mapping),
+            self.2,
+        )
+    }
+
     pub fn pretties<T>(args: &T) -> String
     where
         T: IntoIterator<Item = Self> + Clone,

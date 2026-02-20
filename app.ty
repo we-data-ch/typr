@@ -1,0 +1,9 @@
+type Addable <- interface {
+	`+`: (Self, Self) -> Self
+};
+
+let double <- fn(a: Addable): Addable {
+	a + a
+};
+
+double(5);
