@@ -7,6 +7,25 @@ members = [
     "crates/typr-wasm",
 ]
 
+[package]
+name = "typr"
+description = "A typed superset of R - transpiler and type checker"
+keywords = ["R", "type-checker", "language", "transpiler"]
+categories = ["compilers", "development-tools"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "typr"
+path = "src/main.rs"
+
+[dependencies]
+typr-cli.workspace = true
+
 [workspace.package]
 version = "0.4.19"
 edition = "2021"
@@ -39,3 +58,9 @@ extendr-api = "0.8.1"
 typr-core = { path = "crates/typr-core" }
 typr-cli = { path = "crates/typr-cli" }
 typr-wasm = { path = "crates/typr-wasm" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
