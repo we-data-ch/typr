@@ -1,0 +1,36 @@
+[package]
+name = "typr-core"
+description = "Core type checking and transpilation logic for TypR - a typed superset of R"
+keywords = ["R", "type-checker", "language", "transpiler", "wasm"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+nom.workspace = true
+nom_locate.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+miette.workspace = true
+rpds.workspace = true
+indexmap.workspace = true
+tap.workspace = true
+rand.workspace = true
+anyhow.workspace = true
+bincode = "1.3"
+
+# For WASM random number generation (getrandom 0.4 uses wasm_js feature)
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.4", features = ["wasm_js"] }
+
+[features]
+default = []
+# Enable this feature for WASM builds - disables file system operations
+wasm = []
