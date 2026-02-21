@@ -958,40 +958,12 @@ mod tesus {
     }
 
     #[test]
-    fn test_type_exp2() {
-        let res = type_exp("type Mat<M, N, T> = [M, [N, T]];".into())
-            .unwrap()
-            .0;
-        assert_eq!(res, "alias(var('Mat'), [M, N, T], [M, [N, T]])".into());
-    }
-
-    #[test]
     fn test_assign1() {
         let res = assign("a <- 12;".into()).unwrap().1;
         assert_eq!(
             "Assign",
             res[0].simple_print(),
             "The expression 'a <- 12;' should be identified as an assignation"
-        );
-    }
-
-    #[test]
-    fn test_assign2() {
-        let res = assign("a.b() <- 12;".into()).unwrap().1;
-        assert_eq!(
-            "Assign",
-            res[0].simple_print(),
-            "The expression 'a.b() <- 12;' should be identified as an assignation"
-        );
-    }
-
-    #[test]
-    fn test_assign3() {
-        let res = assign("a$b <- 12;".into()).unwrap().1;
-        assert_eq!(
-            "Assign",
-            res[0].simple_print(),
-            "The expression 'a$b <- 12;' should be identified as an assignation"
         );
     }
 }

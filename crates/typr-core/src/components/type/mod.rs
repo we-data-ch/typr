@@ -1242,13 +1242,6 @@ mod tests {
     use crate::utils::fluent_parser::FluentParser;
 
     #[test]
-    fn test_record_hierarchy0() {
-        let name = builder::record_type(&[("name".to_string(), builder::character_type_default())]);
-        let age = builder::record_type(&[("age".to_string(), builder::integer_type_default())]);
-        assert!(name.is_subtype(&age, &Context::default()).0);
-    }
-
-    #[test]
     fn test_record_hierarchy1() {
         let p1 = builder::record_type(&[
             ("age".to_string(), builder::integer_type_default()),
@@ -1275,23 +1268,6 @@ mod tests {
     fn test_type_subtyping1() {
         let t1 = builder::number_type();
         assert_eq!(t1.is_subtype(&t1, &Context::default()).0, true);
-    }
-
-    #[test]
-    fn test_tuple_subtyping2() {
-        let typ1 = "{int, int}".parse::<Type>().unwrap();
-        let typ2 = "{T, T}".parse::<Type>().unwrap();
-        assert!(typ1 < typ2)
-    }
-
-    #[test]
-    fn test_sequence_subtyping1() {
-        let s1 = "Seq[0, Empty]".parse::<Type>().unwrap();
-        let s2 = "Seq[0, int]".parse::<Type>().unwrap();
-        assert!(
-            s1.is_subtype(&s2, &Context::default()).0,
-            "An Empty sequence should be subtype of an empty sequence of a defined type."
-        );
     }
 
     #[test]

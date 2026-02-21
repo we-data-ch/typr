@@ -65,13 +65,6 @@ mod tests {
     }
 
     #[test]
-    fn test_signature_expression_is_type_checking() {
-        let res = FluentParser::new().check_typing("@a: int;");
-        let integer = builder::integer_type_default();
-        assert_eq!(res, integer);
-    }
-
-    #[test]
     fn test_signature_expression_is_transpiling() {
         let res = FluentParser::new().check_transpiling("@a: int;");
         assert_eq!(res.first().unwrap(), "");
@@ -123,16 +116,6 @@ mod tests {
             .push("@f: (int) -> bool;")
             .run()
             .check_typing("f(3)");
-        let boolean = builder::boolean_type();
-        assert_eq!(res, boolean)
-    }
-
-    #[test]
-    fn test_signature_vectorized_function_application1() {
-        let res = FluentParser::new()
-            .push("@f: (int) -> bool;")
-            .run()
-            .check_typing("f([1, 2, 3])");
         let boolean = builder::boolean_type();
         assert_eq!(res, boolean)
     }

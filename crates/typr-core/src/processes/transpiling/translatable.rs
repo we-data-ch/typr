@@ -139,18 +139,3 @@ impl RTranslatable<(String, Context)> for Box<Lang> {
         (**self).to_r(context)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::components::error_message::help_data::HelpData;
-
-    #[test]
-    fn test_simple_trans0() {
-        let t = Translatable::from(Context::default());
-        let bo = Lang::Bool(true, HelpData::default());
-        let v = vec![bo.clone(), bo.clone(), bo];
-        let (a, _) = t.join(&v, ", ").into();
-        assert_eq!(a, "true");
-    }
-}

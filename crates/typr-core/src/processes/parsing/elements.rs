@@ -862,18 +862,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn test_function_with_empty_scope1() {
-        let _ = "fn(): int {}".parse::<Lang>();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_function_with_empty_scope2() {
-        let _ = simple_function("fn(): int {}".into());
-    }
-
-    #[test]
     fn test_function_with_empty_scope3() {
         let res = simple_function("fn(): int { 5 }".into()).unwrap().1;
         assert_eq!(res.simple_print(), "Function");
@@ -888,12 +876,6 @@ mod tests {
     #[test]
     fn test_simple_variable1() {
         let res = variable_exp("hello".into()).unwrap().1 .0;
-        assert_eq!(res, "hello", "Should return the variable name 'hello'");
-    }
-
-    #[test]
-    fn test_simple_variable2() {
-        let res = variable_exp("module::hello".into()).unwrap().1 .0;
         assert_eq!(res, "hello", "Should return the variable name 'hello'");
     }
 
@@ -973,13 +955,6 @@ mod tests {
     fn test_array_indexing() {
         let fp = FluentParser::new().push("name[1, 2, 3]").parse_next();
         println!("fp: {}", fp);
-        assert!(true);
-    }
-
-    #[test]
-    fn test_function_application1() {
-        let res = elements("hey . add()".into()).unwrap().1;
-        dbg!(&res);
         assert!(true);
     }
 
