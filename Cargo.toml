@@ -26,6 +26,9 @@ path = "src/main.rs"
 [dependencies]
 typr-cli.workspace = true
 
+[dev-dependencies]
+typr-core.workspace = true
+
 [workspace.package]
 version = "0.4.19"
 edition = "2021"
