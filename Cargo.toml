@@ -10,28 +10,5 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-# Use typr-core for pure logic
-typr-core.workspace = true
-
-# Pure dependencies (also used by core)
-nom.workspace = true
-nom_locate.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
-miette.workspace = true
-rpds.workspace = true
-indexmap.workspace = true
-tap.workspace = true
-rand.workspace = true
-anyhow.workspace = true
-
-# CLI/System dependencies
-clap.workspace = true
-tokio.workspace = true
-tower-lsp.workspace = true
-lsp-types.workspace = true
-rustyline.workspace = true
-syntect.workspace = true
-bincode.workspace = true
-extendr-api.workspace = true
+# Use typr-cli for all CLI functionality
+typr-cli.workspace = true
