@@ -1,9 +1,8 @@
-mod components;
-mod processes;
-mod interface;
-mod utils;
-use crate::interface::cli;
+//! TypR main executable
+//!
+//! This is a thin wrapper around typr-cli.
+//! All CLI functionality is provided by the typr-cli crate.
 
 fn main() {
-    cli::start()
+    typr_cli::start()
 }

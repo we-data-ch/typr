@@ -1,0 +1,14 @@
+# System execution ----------
+
+@system2: (command: char, args: [#N, char], stdout: char, stderr: char, stdin: char) -> char;
+
+type System2 = { command: char, args: [#N, char], stdout: char, stderr: char, stdin: char};
+
+let bsystem2 <- fn(command: char): System2 {
+	:{ command: command, args: [""], stdout: "", stderr: "", stdin: ""}
+};
+
+let exec <- fn(s: System2): char {
+	system2(s.command, s.args, s.stdout, s.stderr, s.stdin)
+};
+# --------------------------------

@@ -1,0 +1,19 @@
+@print: (c: char) -> T;
+
+@seq: (a: #I, b: #J, c: #K) -> [#J-#I/#K+1, int];
+
+@append: (a: [#M, T], e: T) -> [#M+1, T];
+
+@mul: (a: int, b: int) -> int;
+
+@mul: (a: num, b: num) -> num;
+
+@map: (a: [#N, T], f: (T) -> U) -> [#N, U];
+
+@dot: (m: [#M, [#P, int]], n: [#P, [#N, int]]) -> [#M, [#N, int]];
+
+@t: (m: [#M, [#N, T]]) -> [#N, [#M, T]];
+
+@add: (a: num, b: num) -> num;
+
+@add: (a: int, b: int) -> int;
