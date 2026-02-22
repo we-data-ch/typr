@@ -20,10 +20,16 @@ sed -i $"/^\\[workspace\\.package\\]/,/^\\[/ s/^version = .*/version = \"($versi
 # Save new version number
 open $data_file | update release_version { $in + 1 } | to toml | save -f $data_file
 
-# --- 2. Publish to crates.io ---
+# --- 2. Publish to crates.io (in dependency order) ---
 git add .
 git commit -m $"bump version to ($version_string)"
-cargo publish --allow-dirty
+
+# typr-core first (no internal deps), then typr-cli (depends on typr-core), then typr (depends on typr-cli)
+cargo publish --allow-dirty -p typr-core
+sleep 30sec  # wait for crates.io to index typr-core
+cargo publish --allow-dirty -p typr-cli
+sleep 30sec  # wait for crates.io to index typr-cli
+cargo publish --allow-dirty -p typr
 
 # --- 3. Docker ---
 cd ../docker
