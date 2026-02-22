@@ -2,7 +2,7 @@
 name = "typr-core"
 description = "Core type checking and transpilation logic for TypR - a typed superset of R"
 keywords = ["R", "type-checker", "language", "transpiler", "wasm"]
-readme = "README.md"
+readme = "../../README.md"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

@@ -2,7 +2,7 @@
 name = "typr-wasm"
 description = "WebAssembly bindings for TypR - compile and type-check TypR code in the browser"
 keywords = ["R", "type-checker", "wasm", "webassembly", "playground"]
-readme = "README.md"
+readme = "../../README.md"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
