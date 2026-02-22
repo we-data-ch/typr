@@ -14,7 +14,8 @@ let data_file = "configs/src/data.toml"
 let new_version = (open $data_file | get release_version | $in + 1)
 let version_string = $"0.4.($new_version)"
 let updated_line = $"version = \"($version_string)\""
-sed -i $"3c\\($updated_line)" Cargo.toml
+# Update version in [workspace.package] section (matches the line: version = "x.y.z")
+sed -i $"/^\\[workspace\\.package\\]/,/^\\[/ s/^version = .*/version = \"($version_string)\"/" Cargo.toml
 
 # Save new version number
 open $data_file | update release_version { $in + 1 } | to toml | save -f $data_file
