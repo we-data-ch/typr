@@ -23,7 +23,7 @@ open $data_file | update release_version { $in + 1 } | to toml | save -f $data_f
 # --- 2. Publish to crates.io ---
 git add .
 git commit -m $"bump version to ($version_string)"
-cargo publish
+cargo publish --allow-dirty
 
 # --- 3. Docker ---
 cd ../docker
