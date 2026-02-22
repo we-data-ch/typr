@@ -1556,7 +1556,7 @@ checksum = "ef8f7726da4807b58ea5c96fdc122f80702030edc33b35aff9190a51148ccc85"
 
 [[package]]
 name = "typr"
-version = "0.4.24"
+version = "0.4.25"
 dependencies = [
  "typr-cli",
  "typr-core",
@@ -1564,7 +1564,7 @@ dependencies = [
 
 [[package]]
 name = "typr-cli"
-version = "0.4.24"
+version = "0.4.25"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1589,7 +1589,7 @@ dependencies = [
 
 [[package]]
 name = "typr-core"
-version = "0.4.24"
+version = "0.4.25"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1608,7 +1608,7 @@ dependencies = [
 
 [[package]]
 name = "typr-wasm"
-version = "0.4.24"
+version = "0.4.25"
 dependencies = [
  "serde",
  "serde-wasm-bindgen",
