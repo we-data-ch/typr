@@ -26,3 +26,9 @@ features = ["console"]
 [profile.release]
 opt-level = "s"
 lto = true
+
+# wasm-pack: skip wasm-opt to avoid bulk-memory compatibility issues
+# with older wasm-opt versions bundled in wasm-pack.
+# Rust already optimizes well with opt-level="s" and lto=true.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

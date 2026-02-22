@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
+version = "0.4.20"
     ".",
     "crates/typr-core",
     "crates/typr-cli",
