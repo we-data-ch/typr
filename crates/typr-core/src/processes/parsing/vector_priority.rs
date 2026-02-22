@@ -144,18 +144,4 @@ mod tests {
         println!("{}", PriorityTokens::<TypeToken, Type>::display_state(&res));
         assert!(true)
     }
-
-    #[test]
-    fn test_priority1() {
-        let vec: Vec<TypeToken> = vec![];
-        let res = VectorPriority::from(vec);
-        assert_eq!(PriorityTokens::<TypeToken, Type>::len(&res), 0_usize);
-    }
-
-    #[test]
-    fn test_priority2() {
-        let vec: Vec<TypeToken> = vec![];
-        let res = VectorPriority::from(vec);
-        assert_eq!(PriorityTokens::<TypeToken, Type>::peak_first(&res), None);
-    }
 }

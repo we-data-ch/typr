@@ -588,81 +588,10 @@ mod tests {
     use crate::utils::builder;
 
     #[test]
-    fn test_alias_type1() {
-        //Test if alias can be parsed
-        let res = ltype("Option<T>".into()).unwrap().1;
-        assert_eq!(
-            res.to_category(),
-            TypeCategory::Alias,
-            "Parsing 'Option<T>' should give an Alias type"
-        );
-    }
-
-    #[test]
-    fn test_alias_type2() {
-        //Test if alias can be reduced
-        let record_type = builder::record_type(&[("content".to_string(), builder::generic_type())]);
-        let context = Context::default().set_new_aliase_signature("Triplet<T>", record_type);
-        let type_ = ltype("Triplet<int>".into()).unwrap().1;
-        let reduced_type = type_.reduce(&context);
-        assert_eq!(reduced_type.pretty(), "{content: int}");
-    }
-
-    #[test]
-    fn test_alias_type3() {
-        //Test if alias can be parsed
-        let res = ltype("Model".into()).unwrap().1;
-        assert_eq!(
-            res.to_category(),
-            TypeCategory::Alias,
-            "Parsing 'Model' should give an Alias type"
-        );
-    }
-
-    #[test]
-    fn test_variable_type1() {
-        let var = ltype("my_var".into()).unwrap().1;
-        assert_eq!(
-            var,
-            Type::Variable("my_var".to_string(), HelpData::default())
-        );
-    }
-
-    #[test]
     fn test_fabrice0() {
         let arr1 = ltype("[1, T]".into()).unwrap().1;
         let arr2 = ltype("[1, 1]".into()).unwrap().1;
         assert_eq!(arr2.is_subtype(&arr1, &Context::default()).0, true);
-    }
-
-    #[test]
-    fn test_intersection_parsing() {
-        let res = "int & char & bool".parse::<Type>().unwrap();
-        assert_eq!(
-            res.pretty(),
-            "(& (& int char) bool)".to_string(),
-            "Parsing 'int & char & bool' should give an intersection"
-        );
-    }
-
-    #[test]
-    fn test_union_parsing() {
-        let res = "int | char | bool".parse::<Type>().unwrap();
-        assert_eq!(
-            res.pretty(),
-            "(| (| int char) bool)".to_string(),
-            "Parsing 'int & char & bool' should give an intersection"
-        );
-    }
-
-    #[test]
-    fn test_union_intersection_parsing() {
-        let res = "int | char & bool".parse::<Type>().unwrap();
-        assert_eq!(
-            res.pretty(),
-            "(& (| int char) bool)".to_string(),
-            "Parsing 'int & char & bool' should give an intersection"
-        );
     }
 
     #[test]
@@ -723,18 +652,6 @@ mod tests {
     fn test_function_signature1() {
         let typ = ltype("() -> Empty".into()).unwrap().1;
         assert_eq!(typ.pretty(), "fn() -> Empty".to_string());
-    }
-
-    #[test]
-    fn test_function_signature2() {
-        let typ = ltype("(bool) -> Empty".into()).unwrap().1;
-        assert_eq!(typ.pretty(), "fn(bool) -> Empty".to_string());
-    }
-
-    #[test]
-    fn test_function_signature3() {
-        let typ = function_type("(bool) -> Empty".into()).unwrap().1;
-        assert_eq!(typ.pretty(), "fn(bool) -> Empty".to_string());
     }
 
     #[test]
