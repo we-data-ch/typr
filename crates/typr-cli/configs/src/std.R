@@ -324,22 +324,22 @@ get.any <- function(a, name) {
 }
 
 print.Integer <- function(i) {
-	cat(unclass(i))
+	cat(unclass(i), fill = TRUE)
 	invisible(i)
 }
 
 print.Character <- function(c) {
-	cat(unclass(c))
+	cat(unclass(c), fill = TRUE)
 	invisible(c)
 }
 
 print.Boolean <- function(b) {
-	cat(unclass(b))
+	cat(unclass(b), fill = TRUE)
 	invisible(b)
 }
 
 print.Number <- function(n) {
-	cat(unclass(n))
+	cat(unclass(n), fill = TRUE)
 	invisible(n)
 }
 
