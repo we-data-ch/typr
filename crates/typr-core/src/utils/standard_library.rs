@@ -99,14 +99,13 @@ pub fn not_in_blacklist(name: &str) -> bool {
 pub fn validate_vectorization(
     set: HashSet<(i32, VecType, Type)>,
 ) -> Option<HashSet<(i32, VecType, Type)>> {
-    // Check there is only one type of Vector
-    if set
+    // Check there is only one type of Vector (ignoring Unknown, which represents scalars)
+    let concrete_vec_types: HashSet<_> = set
         .iter()
         .map(|(_, vectyp, _)| vectyp)
-        .collect::<HashSet<_>>()
-        .len()
-        == 1
-    {
+        .filter(|v| **v != VecType::Unknown)
+        .collect();
+    if concrete_vec_types.len() <= 1 {
         let mut number_by_type: HashMap<Type, HashSet<i32>> = HashMap::new();
 
         for (num, _, typ) in &set {

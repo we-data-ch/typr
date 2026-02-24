@@ -17,4 +17,16 @@ pub trait TypeSystem: PartialOrd + Debug + Eq + Hash + Clone + Default {
     fn prettys(v: &[Self]) -> String {
         "[".to_string() + &v.iter().map(|x| x.pretty()).collect::<Vec<_>>().join(", ") + "]"
     }
+
+    fn reduce(&self, context: &Context) -> Self;
+
+    fn reduce_tuple(&self, context: &Context) -> (Self, Self) {
+        (self.clone(), self.reduce(context))
+    }
+
+    fn reduce_and_subtype(&self, other: &Self, context: &Context) -> (bool, Option<Context>) {
+        let reduced_self = self.reduce(context);
+        let reduced_other = other.reduce(context);
+        reduced_self.is_subtype(&reduced_other, context)
+    }
 }

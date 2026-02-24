@@ -138,6 +138,10 @@ impl TypeSystem for Type {
         verbose(self)
     }
 
+    fn reduce(&self, context: &Context) -> Type {
+        reduce_type(context, self)
+    }
+
     fn is_subtype(&self, other: &Type, context: &Context) -> (bool, Option<Context>) {
         // Vérifier le cache
         if let Some(cached) = context.subtypes.check_subtype_cache(self, other) {
@@ -689,9 +693,6 @@ impl Type {
         }
     }
 
-    pub fn reduce(&self, context: &Context) -> Type {
-        reduce_type(context, self)
-    }
 
     fn get_type_shape(&self) -> usize {
         match self {
@@ -944,6 +945,9 @@ impl Type {
         !self.has_generic() && !self.has_operation()
     }
 
+    /// Help knowing the rank of a parameter according to it's vectorial property
+    /// int -> rank: 1, vector type: any, Type int
+    /// [3, T] -> rank: 3, vector type: Array, Type T
     pub fn get_size_type(&self) -> (i32, VecType, Type) {
         match self {
             Type::Vec(v, i, t, _) => (i.get_index().unwrap() as i32, v.clone(), (**t).clone()),

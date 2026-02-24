@@ -756,28 +756,15 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let sub_context = params
                 .into_iter()
                 .map(|arg_typ| arg_typ.clone().to_var(context))
-                .zip(
-                    list_of_types
-                        .clone()
-                        .into_iter()
-                        .map(|typ| typ.reduce(context)),
-                )
+                .zip(list_of_types.clone())
                 .fold(context.clone(), |cont, (var, typ)| {
-                    cont.clone().push_var_type(var, typ, &cont)
+                    cont.clone().push_var_type(var, typ.reduce(context), &cont)
                 });
             let body_type = body.typing(&sub_context);
             let mut errors = body_type.errors.clone();
-            let reduced_body_type = body_type.value.clone().reduce(&sub_context);
-            let reduced_expected_ty = ret_ty.reduce(&context);
-            if !reduced_body_type
-                .is_subtype(&reduced_expected_ty, context)
-                .0
-            {
-                errors.push(TypRError::Type(TypeError::UnmatchingReturnType(
-                    ret_ty.clone(),
-                    body_type.value.clone(),
-                )));
-            }
+            (!body_type.value.reduce_and_subtype(&ret_ty, &sub_context).0)
+                .then(|| 
+                    errors.push(builder::unmatching_return_type(ret_ty, &body_type.value)));
             TypeContext::new(
                 Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone()),
                 expr.clone(),

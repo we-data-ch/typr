@@ -45,11 +45,25 @@ pub fn compile(source: &str) -> Result<CompileResult, JsValue> {
         .parse("main.ty")
         .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
 
-    // Type check and get context
-    let type_checker = TypeChecker::new(compiler.get_context()).typing(&ast);
+    // Type check without panicking on errors
+    let type_checker = TypeChecker::new(compiler.get_context()).typing_no_panic(&ast);
+
+    // Collect type errors
+    let has_errors = type_checker.has_errors();
+    let errors = if has_errors {
+        type_checker
+            .get_errors()
+            .iter()
+            .map(|e| e.clone().display())
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    } else {
+        String::new()
+    };
+
     let context = type_checker.get_context();
 
-    // Get the transpiled main code
+    // Get the transpiled main code (proceeds even with type errors)
     let main_code = type_checker.transpile();
 
     // Get type annotations (defines Character, Integer, Number, Boolean, etc.)
@@ -105,6 +119,8 @@ pub fn compile(source: &str) -> Result<CompileResult, JsValue> {
         r_code: final_code,
         type_annotations,
         generic_functions,
+        has_errors,
+        errors,
     })
 }
 
@@ -134,9 +150,9 @@ pub fn type_check(source: &str) -> Result<TypeCheckResult, JsValue> {
         errors: result
             .get_errors()
             .iter()
-            .map(|e| format!("{:?}", e))
+            .map(|e| e.clone().display())
             .collect::<Vec<_>>()
-            .join("\n---\n"),
+            .join("\n\n"),
     })
 }
 
@@ -190,7 +206,22 @@ pub fn compile_multiple(files_json: &str) -> Result<CompileResult, JsValue> {
         .parse("main.ty")
         .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
 
-    let type_checker = TypeChecker::new(compiler.get_context()).typing(&ast);
+    // Type check without panicking on errors
+    let type_checker = TypeChecker::new(compiler.get_context()).typing_no_panic(&ast);
+
+    // Collect type errors
+    let has_errors = type_checker.has_errors();
+    let errors = if has_errors {
+        type_checker
+            .get_errors()
+            .iter()
+            .map(|e| e.clone().display())
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    } else {
+        String::new()
+    };
+
     let context = type_checker.get_context();
     let main_code = type_checker.transpile();
     let type_annotations = context.get_type_anotations();
@@ -227,6 +258,8 @@ pub fn compile_multiple(files_json: &str) -> Result<CompileResult, JsValue> {
         r_code: final_code,
         type_annotations,
         generic_functions,
+        has_errors,
+        errors,
     })
 }
 
@@ -239,6 +272,11 @@ pub struct CompileResult {
     pub type_annotations: String,
     #[wasm_bindgen(getter_with_clone)]
     pub generic_functions: String,
+    /// Whether type errors were found during compilation
+    pub has_errors: bool,
+    /// Formatted error messages (empty string if no errors)
+    #[wasm_bindgen(getter_with_clone)]
+    pub errors: String,
 }
 
 /// Result of type checking

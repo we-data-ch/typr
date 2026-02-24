@@ -33,6 +33,10 @@ impl TypeChecker {
         self.errors.len() > 0
     }
 
+    pub fn get_errors(&self) -> &Vec<TypRError> {
+        &self.errors
+    }
+
     pub fn show_errors(&self) {
         self.errors
             .iter()
@@ -55,6 +59,21 @@ impl TypeChecker {
             panic!("");
         });
         res
+    }
+
+    /// Type check without panicking on errors.
+    /// Errors are collected and can be retrieved via `get_errors()`.
+    /// The transpilation can still proceed even if there are type errors.
+    pub fn typing_no_panic(self, exp: &Lang) -> Self {
+        match exp {
+            Lang::Lines(exps, _) => {
+                let type_checker = exps
+                    .iter()
+                    .fold(self.clone(), |acc, lang| acc.typing_helper(lang));
+                type_checker
+            }
+            _ => self.clone().typing_helper(exp),
+        }
     }
 
     fn typing_helper(self, exp: &Lang) -> Self {
