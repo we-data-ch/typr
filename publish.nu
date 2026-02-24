@@ -36,6 +36,10 @@ cd ../docker
 nu deploy.nu
 cd ../app
 
+# --- 4. Playground ---
+bash deploy.nu
+nu set_version.nu $version_string 
+
 # --- 4. Commit, tag and push to trigger GitHub Actions release ---
 git add .
 git commit -m $"release v($version_string)" --allow-empty
