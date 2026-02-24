@@ -36,17 +36,13 @@ cd ../docker
 nu deploy.nu
 cd ../app
 
-# --- 4. Playground ---
-bash deploy.nu
-nu set_version.nu $version_string 
-
-# --- 4. Commit, tag and push to trigger GitHub Actions release ---
+# --- 3. Commit, tag and push to trigger GitHub Actions release ---
 git add .
 git commit -m $"release v($version_string)" --allow-empty
 
 let tag_name = $"v($version_string)"
 git tag $tag_name
-git push origin main
-git push origin $tag_name
+git push -f origin main
+git push -f origin $tag_name
 
 print $"Published v($version_string) — GitHub Actions will build the release artifacts."
