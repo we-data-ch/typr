@@ -13,7 +13,9 @@ pub mod type_comparison;
 pub mod type_context;
 pub mod unification;
 pub mod unification_map;
+pub mod function;
 
+use crate::processes::type_checking::function::function;
 use crate::components::context::config::TargetLanguage;
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
@@ -749,28 +751,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             typing(context, &fun_app)
         }
         Lang::Function(params, ret_ty, body, h) => {
-            let list_of_types = params
-                .iter()
-                .map(ArgumentType::get_type)
-                .collect::<Vec<_>>();
-            let sub_context = params
-                .into_iter()
-                .map(|arg_typ| arg_typ.clone().to_var(context))
-                .zip(list_of_types.clone())
-                .fold(context.clone(), |cont, (var, typ)| {
-                    cont.clone().push_var_type(var, typ.reduce(context), &cont)
-                });
-            let body_type = body.typing(&sub_context);
-            let mut errors = body_type.errors.clone();
-            (!body_type.value.reduce_and_subtype(&ret_ty, &sub_context).0)
-                .then(|| 
-                    errors.push(builder::unmatching_return_type(ret_ty, &body_type.value)));
-            TypeContext::new(
-                Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone()),
-                expr.clone(),
-                body_type.context,
-            )
-            .with_errors(errors)
+            function(context, expr, params, ret_ty, body, h)
         }
         Lang::Lines(exprs, _h) => {
             if exprs.len() == 1 {
@@ -1180,6 +1161,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         _ => builder::any_type().with_lang(expr, context).into(),
     }
 }
+
 
 /// Flatten a nested `Type::Operator(Union, ...)` tree into a flat `HashSet<Type>`.
 fn flatten_operator_union(typ: &Type) -> HashSet<Type> {

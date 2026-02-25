@@ -365,7 +365,7 @@ impl Type {
             Type::Function(args, ret, h) => {
                 let new_args = args
                     .iter()
-                    .map(|typ| if *typ == t1 { t2.clone() } else { t1.clone() })
+                    .map(|typ| if *typ == t1 { t2.clone() } else { typ.clone() })
                     .collect::<Vec<_>>();
                 let new_ret = if *ret == t1 { t2 } else { *ret };
                 Type::Function(new_args, Box::new(new_ret), h)
@@ -692,7 +692,6 @@ impl Type {
             t => t,
         }
     }
-
 
     fn get_type_shape(&self) -> usize {
         match self {

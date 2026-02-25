@@ -44,14 +44,17 @@ pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environ
         .map(|(var, _)| var.get_name())
         .filter(|x| !x.contains("<-"))
         .map(|fn_name| {
+            let export = if environment.is_project() { "#' @export\n" } else { "" }.to_string();
             format!(
-                "#' @export\n{} <- function(x, ...) UseMethod('{}', x)",
+                "{}{} <- function(x, ...) UseMethod('{}', x)",
+                export,
                 fn_name,
                 fn_name.replace("`", "")
             )
         })
         .collect::<Vec<_>>()
         .join("\n");
+
     let mut app = match environment {
         Environment::Repl => OpenOptions::new()
             .append(true)
@@ -65,6 +68,7 @@ pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environ
         ),
     }
     .unwrap();
+
     app.write_all((generic_functions + "\n").as_bytes())
         .unwrap();
 }

@@ -12,6 +12,14 @@ pub enum Environment {
 }
 
 impl Environment {
+
+    pub fn is_project(&self) -> bool {
+        match self {
+            Environment::Project => true,
+            _ => false
+        }
+    }
+
     pub fn to_base_path(self) -> String {
         self.to_string()
     }
