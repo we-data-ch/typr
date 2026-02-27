@@ -1,46 +1,46 @@
-use crate::components::error_message::help_data::HelpData;
-use crate::components::error_message::help_message::ErrorMsg;
+use crate::processes::parsing::operation_priority::PriorityTokens;
 use crate::components::error_message::syntax_error::SyntaxError;
+use crate::processes::parsing::vector_priority::VectorPriority;
 use crate::components::language::argument_value::ArgumentValue;
+use crate::components::error_message::help_message::ErrorMsg;
+use crate::processes::parsing::types::pascal_case_no_space;
+use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::error_message::help_data::HelpData;
+use crate::processes::parsing::lang_token::LangToken;
+use crate::processes::parsing::types::single_type;
 use crate::components::language::operators::op;
 use crate::components::language::operators::Op;
-use crate::components::language::var::Var;
-use crate::components::language::Lang;
-use crate::components::r#type::argument_type::ArgumentType;
-use crate::components::r#type::Type;
-use crate::processes::parsing::base_parse;
-use crate::processes::parsing::lang_token::LangToken;
-use crate::processes::parsing::operation_priority::PriorityTokens;
 use crate::processes::parsing::types::if_type;
 use crate::processes::parsing::types::label;
 use crate::processes::parsing::types::ltype;
-use crate::processes::parsing::types::pascal_case_no_space;
-use crate::processes::parsing::types::single_type;
-use crate::processes::parsing::vector_priority::VectorPriority;
-use crate::utils::builder;
-use nom::branch::alt;
-use nom::bytes::complete::escaped;
-use nom::bytes::complete::is_not;
-use nom::bytes::complete::tag;
-use nom::bytes::complete::take_while1;
-use nom::character::complete::alpha1;
 use nom::character::complete::alphanumeric1;
-use nom::character::complete::char;
-use nom::character::complete::digit1;
+use crate::components::language::var::Var;
 use nom::character::complete::multispace0;
 use nom::character::complete::multispace1;
+use crate::processes::parsing::base_parse;
+use nom::bytes::complete::take_while1;
+use crate::components::language::Lang;
+use nom::character::complete::alpha1;
+use nom::character::complete::digit1;
 use nom::character::complete::one_of;
-use nom::combinator::opt;
+use crate::components::r#type::Type;
+use nom::character::complete::char;
+use nom::bytes::complete::escaped;
+use nom::bytes::complete::is_not;
 use nom::combinator::recognize;
-use nom::multi::many0;
-use nom::multi::many1;
+use nom::bytes::complete::tag;
+use nom::sequence::terminated;
 use nom::sequence::delimited;
 use nom::sequence::preceded;
-use nom::sequence::terminated;
+use nom_locate::LocatedSpan;
+use crate::utils::builder;
+use nom::combinator::opt;
+use std::process::exit;
+use nom::multi::many0;
+use nom::multi::many1;
+use nom::branch::alt;
 use nom::IResult;
 use nom::Parser;
-use nom_locate::LocatedSpan;
-use std::process::exit;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -457,7 +457,7 @@ fn record(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (Some(start), _, args, _))) => Ok((s, Lang::Record(args.clone(), start.into()))),
+        Ok((s, (Some(start), _, args, _))) => Ok((s, Lang::List(args.clone(), start.into()))),
         Ok((_s, (None, _ob, args, _))) => {
             if args.len() == 0 {
                 panic!("Error: the scope shouldn't be empty")

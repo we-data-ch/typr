@@ -186,7 +186,7 @@ fn collect_syntax_errors_recursive(lang: &Lang, errors: &mut Vec<SyntaxError>) {
         Lang::JSBlock(inner, _, _) => {
             collect_syntax_errors_recursive(inner, errors);
         }
-        Lang::Record(args, _) => {
+        Lang::List(args, _) => {
             for arg in args {
                 collect_syntax_errors_recursive(&arg.1, errors);
             }

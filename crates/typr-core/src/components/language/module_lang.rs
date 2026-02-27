@@ -28,7 +28,7 @@ impl ModuleLang {
             .flat_map(|arg| arg.clone().to_arg_value(type_module, context))
             .flatten()
             .collect::<Vec<_>>();
-        Lang::Record(new_args, self.get_help_data())
+        Lang::List(new_args, self.get_help_data())
     }
 
     pub fn get_help_data(&self) -> HelpData {

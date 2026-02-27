@@ -1,21 +1,21 @@
 pub mod translatable;
 
-use crate::components::context::config::Environment;
-use crate::components::context::Context;
-use crate::components::error_message::help_data::HelpData;
-use crate::components::language::format_backtick;
-use crate::components::language::function_lang::Function;
-use crate::components::language::operators::Op;
-use crate::components::language::set_related_type_if_variable;
-use crate::components::language::var::Var;
-use crate::components::language::Lang;
-use crate::components::language::ModulePosition;
-use crate::components::r#type::array_type::ArrayType;
-use crate::components::r#type::function_type::FunctionType;
-use crate::components::r#type::Type;
-use crate::processes::transpiling::translatable::Translatable;
 use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::processes::transpiling::translatable::Translatable;
+use crate::components::language::set_related_type_if_variable;
+use crate::components::r#type::function_type::FunctionType;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::language::function_lang::Function;
+use crate::components::r#type::array_type::ArrayType;
+use crate::components::context::config::Environment;
+use crate::components::language::format_backtick;
+use crate::components::language::ModulePosition;
+use crate::components::language::operators::Op;
 use crate::processes::type_checking::typing;
+use crate::components::language::var::Var;
+use crate::components::context::Context;
+use crate::components::language::Lang;
+use crate::components::r#type::Type;
 use translatable::RTranslatable;
 
 #[cfg(not(feature = "wasm"))]
@@ -183,7 +183,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         .to_r(&e1)
                         .add("']]")
                         .into(),
-                    Lang::Record(fields, _) => {
+                    Lang::List(fields, _) => {
                         let at = fields[0].clone();
                         Translatable::from(cont.clone())
                             .add("within(")
@@ -428,7 +428,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     cont.to_owned(),
                 )
             }
-            Lang::Record(args, _) => {
+            Lang::List(args, _) => {
                 let (body, current_cont) = Translatable::from(cont.clone())
                     .join_arg_val(args, ",\n ")
                     .into();
@@ -472,21 +472,11 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Tag(s, t, _) => {
                 let (t_str, new_cont) = t.to_r(cont);
                 let (typ, _, _) = typing(cont, self).to_tuple();
-                let class = cont.get_class(&typ);
-                cont.get_classes(&typ)
-                    .map(|res| {
-                        format!(
-                            "struct(list('{}', {}), c('Tag', {}, {}))",
-                            s, t_str, class, res
-                        )
-                    })
-                    .unwrap_or(format!(
-                        "struct(list('{}', {}), c('Tag', {}))",
-                        s, t_str, class
-                    ))
-                    .to_some()
-                    .map(|s| (s, new_cont))
-                    .unwrap()
+                let anotation = cont.get_type_anotation(&typ);
+                (format!(
+                    "list('{}', body = {}) |> {}",
+                    s, t_str, anotation
+                ), new_cont)
             }
             Lang::Empty(_) => ("NA".to_string(), cont.clone()),
             Lang::ModuleDecl(name, _) => (format!("{} <- new.env()", name), cont.clone()),

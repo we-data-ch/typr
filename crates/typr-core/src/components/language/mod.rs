@@ -53,7 +53,7 @@ pub enum Lang {
     Let(Box<Lang>, Type, Box<Lang>, HelpData),
     Alias(Box<Lang>, Vec<Type>, Type, HelpData),
     Array(Vec<Lang>, HelpData),
-    Record(Vec<ArgumentValue>, HelpData),
+    List(Vec<ArgumentValue>, HelpData),
     Tag(String, Box<Lang>, HelpData),
     If(Box<Lang>, Box<Lang>, Box<Lang>, HelpData),
     Match(Box<Lang>, Var, Vec<(Type, Box<Lang>)>, HelpData),
@@ -123,7 +123,7 @@ impl PartialEq for Lang {
                 a1 == b1 && a2 == b2 && a3 == b3
             }
             (Lang::Array(a, _), Lang::Array(b, _)) => a == b,
-            (Lang::Record(a, _), Lang::Record(b, _)) => a == b,
+            (Lang::List(a, _), Lang::List(b, _)) => a == b,
             (Lang::Tag(a1, a2, _), Lang::Tag(b1, b2, _)) => a1 == b1 && a2 == b2,
             (Lang::If(a1, a2, a3, _), Lang::If(b1, b2, b3, _)) => a1 == b1 && a2 == b2 && a3 == b3,
             (Lang::Match(a1, a2, a3, _), Lang::Match(b1, b2, b3, _)) => {
@@ -343,7 +343,7 @@ impl Lang {
             Lang::ArrayIndexing(_, _, h) => h,
             Lang::Let(_, _, _, h) => h,
             Lang::Array(_, h) => h,
-            Lang::Record(_, h) => h,
+            Lang::List(_, h) => h,
             Lang::Alias(_, _, _, h) => h,
             Lang::Tag(_, _, h) => h,
             Lang::If(_, _, _, h) => h,
@@ -434,7 +434,7 @@ impl Lang {
                 Var::from_language((**var).clone()).unwrap().get_name()
             ),
             Lang::Array(_, _) => "Array".to_string(),
-            Lang::Record(_, _) => "Record".to_string(),
+            Lang::List(_, _) => "Record".to_string(),
             Lang::Alias(_, _, _, _) => "Alias".to_string(),
             Lang::Tag(_, _, _) => "Tag".to_string(),
             Lang::If(_, _, _, _) => "If".to_string(),
@@ -567,7 +567,7 @@ impl Lang {
                     + "]";
                 (res, context.clone())
             }
-            Lang::Record(arg_vals, _) => {
+            Lang::List(arg_vals, _) => {
                 let res = "{".to_string()
                     + &arg_vals
                         .iter()
@@ -730,7 +730,7 @@ impl From<Lang> for HelpData {
             Lang::MethodCall(_, _, _, h) => h,
             Lang::Empty(h) => h,
             Lang::Array(_, h) => h,
-            Lang::Record(_, h) => h,
+            Lang::List(_, h) => h,
             Lang::Scope(_, h) => h,
             Lang::Let(_, _, _, h) => h,
             Lang::Alias(_, _, _, h) => h,

@@ -6,39 +6,39 @@
     unused_assignments
 )]
 pub mod function_application;
-pub mod let_expression;
 pub mod signature_expression;
-pub mod type_checker;
+pub mod unification_map;
 pub mod type_comparison;
+pub mod let_expression;
+pub mod type_checker;
 pub mod type_context;
 pub mod unification;
-pub mod unification_map;
 pub mod function;
 
-use crate::processes::type_checking::function::function;
-use crate::components::context::config::TargetLanguage;
-use crate::components::context::Context;
-use crate::components::error_message::help_data::HelpData;
+use crate::processes::type_checking::function_application::function_application;
+use crate::processes::type_checking::signature_expression::signature_expression;
+use crate::processes::type_checking::let_expression::let_expression;
+use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::components::language::argument_value::ArgumentValue;
+use crate::processes::type_checking::type_context::TypeContext;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
-use crate::components::language::argument_value::ArgumentValue;
-use crate::components::language::array_lang::ArrayLang;
-use crate::components::language::operators::Op;
-use crate::components::language::var::Var;
-use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::error_message::help_data::HelpData;
+use crate::processes::type_checking::function::function;
+use crate::components::context::config::TargetLanguage;
+use crate::components::language::array_lang::ArrayLang;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::components::language::operators::Op;
 use crate::components::r#type::typer::Typer;
+use crate::components::language::var::Var;
+use crate::components::context::Context;
+use crate::components::language::Lang;
 use crate::components::r#type::Type;
-use crate::processes::type_checking::function_application::function_application;
-use crate::processes::type_checking::let_expression::let_expression;
-use crate::processes::type_checking::signature_expression::signature_expression;
-use crate::processes::type_checking::type_comparison::reduce_type;
-use crate::processes::type_checking::type_context::TypeContext;
-use crate::utils::builder;
 use std::collections::HashSet;
+use crate::utils::builder;
 use std::error::Error;
 
 #[cfg(not(feature = "wasm"))]
@@ -466,7 +466,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                             }
                         }
                     }
-                    (Type::Record(fields1, h), Lang::Record(_, _)) => {
+                    (Type::Record(fields1, h), Lang::List(_, _)) => {
                         let tc1 = e1.typing(context);
                         errors.extend(tc1.errors.clone());
                         let fields3: HashSet<_> = match tc1.value {
@@ -485,7 +485,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         )
                         .with_errors(errors)
                     }
-                    (Type::Generic(_, _), Lang::Record(_, _)) => {
+                    (Type::Generic(_, _), Lang::List(_, _)) => {
                         let tc1 = e1.typing(context);
                         errors.extend(tc1.errors.clone());
                         TypeContext::new(
@@ -621,7 +621,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         }
                     }
                 }
-                (Type::Record(fields1, h), Lang::Record(fields2, _), _) => {
+                (Type::Record(fields1, h), Lang::List(fields2, _), _) => {
                     let at = fields2[0].clone();
                     let fields3 = fields1
                         .iter()
@@ -796,7 +796,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             TypeContext::new(
                 Type::Tag(name.clone(), Box::new(tc.value.clone()), h.clone()),
                 expr.clone(),
-                context.clone(),
+                tc.context,
             )
             .with_errors(tc.errors)
         }
@@ -961,7 +961,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .with_errors(errors)
             }
         }
-        Lang::Record(fields, h) => {
+        Lang::List(fields, h) => {
             let type_contexts: Vec<_> = fields
                 .iter()
                 .map(|arg_val| typing(context, &arg_val.get_value()))
