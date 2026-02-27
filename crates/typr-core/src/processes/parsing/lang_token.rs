@@ -42,7 +42,7 @@ impl From<TokenKind> for LangToken {
 }
 
 impl fmt::Display for LangToken {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             LangToken::Expression(exp) => format!("{}", exp),
             LangToken::Operator(exp) => format!("{}", exp),

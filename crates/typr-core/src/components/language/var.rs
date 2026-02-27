@@ -30,7 +30,7 @@ pub enum Permission {
 }
 
 impl fmt::Display for Permission {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Permission::Private => write!(f, "private"),
             Permission::Public => write!(f, "public"),
@@ -40,14 +40,11 @@ impl fmt::Display for Permission {
 
 impl From<Permission> for bool {
     fn from(val: Permission) -> Self {
-        match val {
-            Permission::Public => true,
-            _ => false,
-        }
+        matches!(val, Permission::Public)
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Var {
     pub name: Name,
     pub is_opaque: IsPackageOpaque,
@@ -65,6 +62,14 @@ impl PartialEq for Var {
 
 impl Eq for Var {}
 
+impl std::hash::Hash for Var {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.is_opaque.hash(state);
+        self.related_type.hash(state);
+    }
+}
+
 impl Locatable for Var {
     fn get_help_data(&self) -> HelpData {
         self.help_data.clone()
@@ -73,9 +78,11 @@ impl Locatable for Var {
 
 impl Var {
     pub fn set_type_from_params(self, params: &[Lang], context: &Context) -> Self {
-        let typ = (params.len() > 0)
-            .then(|| typing(context, &params[0]).value)
-            .unwrap_or_default();
+        let typ = if !params.is_empty() {
+            typing(context, &params[0]).value
+        } else {
+            Default::default()
+        };
         self.set_type(typ)
     }
 
@@ -93,9 +100,8 @@ impl Var {
         Var::from(name).set_type(Type::Params(params.to_vec(), HelpData::default()))
     }
 
-    pub fn set_var_related_type(&self, types: &Vec<Type>, context: &Context) -> Var {
-        if types.len() > 0 {
-            let first_arg = types.iter().nth(0).unwrap().clone();
+    pub fn set_var_related_type(&self, types: &[Type], context: &Context) -> Var {
+        if let Some(first_arg) = types.first() {
             self.clone().set_type(first_arg.clone())
         } else {
             self.clone()
@@ -127,9 +133,9 @@ impl Var {
         }
         // get smallest type
         if mins.iter().any(|x| !x.is_interface()) {
-            mins.iter().cloned().skip_while(|x| x.is_interface()).next()
+            mins.iter().find(|x| !x.is_interface()).cloned()
         } else {
-            mins.iter().cloned().next()
+            mins.first().cloned()
         }
     }
 
@@ -198,7 +204,7 @@ impl Var {
     pub fn set_type(self, typ: Type) -> Var {
         let typ = match typ {
             Type::Function(params, _, h) => {
-                if params.len() >= 1 {
+                if !params.is_empty() {
                     params[0].clone()
                 } else {
                     Type::Any(h)
@@ -259,14 +265,11 @@ impl Var {
     }
 
     pub fn is_imported(&self) -> bool {
-        self.is_variable() && self.is_opaque.clone()
+        self.is_variable() && self.is_opaque
     }
 
     pub fn is_alias(&self) -> bool {
-        match self.get_type() {
-            Type::Params(_, _) => true,
-            _ => false,
-        }
+        matches!(self.get_type(), Type::Params(_, _))
     }
 
     pub fn is_variable(&self) -> bool {
@@ -303,7 +306,7 @@ impl Var {
         Lang::Let(
             Box::new(self.clone().to_language()),
             builder::unknown_function_type(),
-            Box::new(builder::empty_lang()),
+            Box::default(),
             self.get_help_data(),
         )
     }
@@ -348,7 +351,7 @@ impl Var {
 }
 
 impl fmt::Display for Var {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}<{}>", self.name, self.related_type)
     }
 }
@@ -366,7 +369,7 @@ impl Default for Var {
 
 impl RTranslatable<String> for Var {
     fn to_r(&self, _: &Context) -> String {
-        format!("{}", self.name)
+        self.name.to_string()
     }
 }
 

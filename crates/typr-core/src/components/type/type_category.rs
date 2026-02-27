@@ -40,7 +40,7 @@ impl TypeCategory {
 
 use std::fmt;
 impl fmt::Display for TypeCategory {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             TypeCategory::Array => "Array",
             TypeCategory::Operator => "Operator",

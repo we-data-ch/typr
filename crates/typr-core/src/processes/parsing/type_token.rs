@@ -32,7 +32,7 @@ impl From<TokenKind> for TypeToken {
 }
 
 impl fmt::Display for TypeToken {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             TypeToken::Expression(exp) => format!("{}", exp),
             TypeToken::Operator(exp) => format!("{}", exp),

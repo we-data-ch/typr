@@ -8,8 +8,25 @@ use crate::processes::type_checking::type_comparison::reduce_type;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq)] // 3 argument is for the embedding
+#[derive(Debug, Clone, Serialize, Deserialize, Eq)] // 3 argument is for the embedding
 pub struct ArgumentType(pub Type, pub Type, pub bool);
+
+impl PartialEq for ArgumentType {
+    fn eq(&self, other: &Self) -> bool {
+        (match (self.0.clone(), other.0.clone()) {
+            (Type::Char(a, _b), Type::Char(c, _d)) => a == c,
+            _ => false,
+        }) && (self.1 == other.1)
+    }
+}
+
+impl std::hash::Hash for ArgumentType {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+        self.1.hash(state);
+        self.2.hash(state);
+    }
+}
 
 impl ArgumentType {
     pub fn to_r(&self) -> String {
@@ -90,7 +107,7 @@ impl ArgumentType {
 }
 
 impl fmt::Display for ArgumentType {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: {}", self.0, self.1)
     }
 }
@@ -118,14 +135,5 @@ impl From<(Var, Type)> for ArgumentType {
             val.1,
             false,
         )
-    }
-}
-
-impl PartialEq for ArgumentType {
-    fn eq(&self, other: &Self) -> bool {
-        (match (self.0.clone(), other.0.clone()) {
-            (Type::Char(a, _b), Type::Char(c, _d)) => a == c,
-            _ => false,
-        }) && (self.1 == other.1)
     }
 }

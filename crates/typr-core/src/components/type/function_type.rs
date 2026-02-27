@@ -151,7 +151,7 @@ impl FunctionType {
 
     pub fn get_first_param(&self) -> Option<Type> {
         let params = self.get_param_types();
-        if params.len() > 0 {
+        if !params.is_empty() {
             Some(params[0].clone())
         } else {
             None

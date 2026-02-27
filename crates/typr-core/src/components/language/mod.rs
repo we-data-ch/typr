@@ -200,9 +200,8 @@ pub fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
     let oargs = FunctionType::try_from(arg.clone()).map(|fn_t| fn_t.get_param_types());
 
     match oargs {
-        Ok(args) => (args.len() > 0)
-            .then_some(val.set_type_if_variable(&args[0]))
-            .unwrap_or(val.clone()),
+        Ok(args) if !args.is_empty() => val.set_type_if_variable(&args[0]),
+        Ok(_) => val.clone(),
         Err(_) => val.clone(),
     }
 }
@@ -210,11 +209,7 @@ pub fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
 //main
 impl Lang {
     pub fn save_in_memory(&self) -> bool {
-        match self {
-            Lang::Let(_, _, _, _) => true,
-            Lang::Assign(_, _, _) => true,
-            _ => false,
-        }
+        matches!(self, Lang::Let(_, _, _, _) | Lang::Assign(_, _, _))
     }
 
     pub fn to_module(self, name: &str, environment: Environment) -> Self {
@@ -233,7 +228,7 @@ impl Lang {
     fn set_type_if_variable(&self, typ: &Type) -> Lang {
         match self {
             Lang::Variable(name, spec, _, h) => {
-                Lang::Variable(name.clone(), spec.clone(), typ.clone(), h.clone())
+                Lang::Variable(name.clone(), *spec, typ.clone(), h.clone())
             }
             _ => self.clone(),
         }
@@ -243,11 +238,11 @@ impl Lang {
         match self {
             Lang::Let(var, ty, _, _) => Some(ArgumentType::new(
                 &Var::from_language((**var).clone()).unwrap().get_name(),
-                &ty,
+                ty,
             )),
             Lang::Alias(var, _types, ty, _) => Some(ArgumentType::new(
                 &Var::from_language((**var).clone()).unwrap().get_name(),
-                &ty,
+                ty,
             )),
             _ => None,
         }
@@ -272,22 +267,21 @@ impl Lang {
     }
 
     pub fn is_value(&self) -> bool {
-        match self {
-            Lang::Number(_, _) | Lang::Integer(_, _) | Lang::Bool(_, _) | Lang::Char(_, _) => true,
-            Lang::Array(_, _) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Lang::Number(_, _)
+                | Lang::Integer(_, _)
+                | Lang::Bool(_, _)
+                | Lang::Char(_, _)
+                | Lang::Array(_, _)
+        )
     }
 
     pub fn is_undefined(&self) -> bool {
-        if let Lang::Function(_, _, body, _h) = self.clone() {
+        if let Lang::Function(_, _, body, _h) = self {
             if let Lang::Scope(v, _) = *body.clone() {
                 let ele = v.first().unwrap();
-                if let Lang::Empty(_) = ele {
-                    true
-                } else {
-                    false
-                }
+                matches!(ele, Lang::Empty(_))
             } else {
                 false
             }
@@ -297,16 +291,12 @@ impl Lang {
     }
 
     pub fn is_function(&self) -> bool {
-        match self {
-            Lang::Function(_, _, _, _) => true,
-            Lang::RFunction(_, _, _) => true,
-            _ => false,
-        }
+        matches!(self, Lang::Function(_, _, _, _) | Lang::RFunction(_, _, _))
     }
 
-    pub fn infer_var_name(&self, args: &Vec<Lang>, context: &Context) -> Var {
-        if args.len() > 0 {
-            let first = typing(context, &args.iter().nth(0).unwrap().clone()).value;
+    pub fn infer_var_name(&self, args: &[Lang], context: &Context) -> Var {
+        if let Some(first) = args.first() {
+            let first = typing(context, first).value;
             Var::from_language(self.clone())
                 .unwrap()
                 .set_type(first.clone())
@@ -315,7 +305,7 @@ impl Lang {
         }
     }
 
-    pub fn get_related_function(self, args: &Vec<Lang>, context: &Context) -> Option<FunctionType> {
+    pub fn get_related_function(self, args: &[Lang], context: &Context) -> Option<FunctionType> {
         let var_name = self.infer_var_name(args, context);
         let fn_ty = typing(context, &var_name.to_language()).value;
         fn_ty.clone().to_function_type()
@@ -325,7 +315,7 @@ impl Lang {
         if let Lang::Variable(name, _, _, _) = var {
             let res = match self {
                 Lang::Variable(_, _, _, h) if self == sub_var => {
-                    Lang::Exp(format!("{}[[2]]", name.to_string()), h.clone())
+                    Lang::Exp(format!("{}[[2]]", name), h.clone())
                 }
                 lang => lang.clone(),
             };
@@ -403,17 +393,14 @@ impl Lang {
     }
 
     pub fn is_r_function(&self) -> bool {
-        match self {
-            Lang::RFunction(_, _, _) => true,
-            _ => false,
-        }
+        matches!(self, Lang::RFunction(_, _, _))
     }
 
     pub fn nb_params(&self) -> usize {
         self.simple_print();
         match self {
             Lang::Function(params, _, _, _) => params.len(),
-            _ => 0 as usize,
+            _ => 0_usize,
         }
     }
 
@@ -490,7 +477,7 @@ impl Lang {
     pub fn to_js(&self, context: &Context) -> (String, Context) {
         match self {
             Lang::Char(val, _) => (format!("\\'{}\\'", val), context.clone()),
-            Lang::Bool(b, _) => (format!("{}", b.to_string().to_uppercase()), context.clone()),
+            Lang::Bool(b, _) => (b.to_string().to_uppercase(), context.clone()),
             Lang::Number(n, _) => (format!("{}", n), context.clone()),
             Lang::Integer(i, _) => (format!("{}", i), context.clone()),
             Lang::Let(var, _, body, _) => (
@@ -596,12 +583,7 @@ impl Lang {
             }
             Lang::Lambda(body, _) => (format!("x => {}", body.to_js(context).0), context.clone()),
             Lang::Operator(op, e1, e2, _) => (
-                format!(
-                    "{} {} {}",
-                    e1.to_js(context).0,
-                    op.to_string(),
-                    e2.to_js(context).0
-                ),
+                format!("{} {} {}", e1.to_js(context).0, op, e2.to_js(context).0),
                 context.clone(),
             ),
             _ => self.to_r(context),
@@ -722,6 +704,10 @@ impl Lang {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn to_vec(self) -> Vec<Lang> {
         match self {
             Lang::Lines(v, _) => v,
@@ -789,7 +775,7 @@ impl From<Lang> for HelpData {
 
 use std::fmt;
 impl fmt::Display for Lang {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             Lang::Variable(name, _bo, typ, _h) => format!("{} -> {}", name, typ),
             _ => format!("{:?}", self),
@@ -809,9 +795,7 @@ impl FromStr for Lang {
     type Err = ErrorStruct;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let val = elements(s.into())
-            .map(|x| x.1)
-            .unwrap_or(builder::empty_lang());
+        let val = elements(s.into()).map(|x| x.1).unwrap_or_default();
         Ok(val)
     }
 }

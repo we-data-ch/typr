@@ -10,7 +10,7 @@ pub enum VecType {
 }
 
 impl fmt::Display for VecType {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             VecType::Vector => "Vec",
             VecType::Array => "",

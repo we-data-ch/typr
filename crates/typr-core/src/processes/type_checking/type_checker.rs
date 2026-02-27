@@ -21,7 +21,7 @@ pub struct TypeChecker {
 impl TypeChecker {
     pub fn new(context: Context) -> Self {
         Self {
-            context: context,
+            context,
             code: Vector::new(),
             types: Vector::new(),
             last_type: builder::unknown_function_type(),
@@ -79,7 +79,7 @@ impl TypeChecker {
     fn typing_helper(self, exp: &Lang) -> Self {
         let (typ, lang, context, errors) = typing(&self.context, exp).to_tuple_with_errors();
         Self {
-            context: context,
+            context,
             code: self.code.push_back(lang),
             types: self.types.push_back(typ.clone()),
             last_type: typ,

@@ -318,7 +318,7 @@ impl FluentParser {
 
 use std::fmt;
 impl fmt::Display for FluentParser {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = format!(
             "raw_code: {}\ncode: {}\nnew_code: {}\nr_code: {}\nlast_type: {}",
             self.raw_code

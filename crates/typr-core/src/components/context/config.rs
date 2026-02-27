@@ -12,12 +12,8 @@ pub enum Environment {
 }
 
 impl Environment {
-
     pub fn is_project(&self) -> bool {
-        match self {
-            Environment::Project => true,
-            _ => false
-        }
+        matches!(self, Environment::Project)
     }
 
     pub fn to_base_path(self) -> String {
@@ -34,15 +30,12 @@ impl Environment {
 
     /// Check if external files should be inlined
     pub fn should_inline_files(self) -> bool {
-        match self {
-            Environment::Wasm => true,
-            _ => false,
-        }
+        matches!(self, Environment::Wasm)
     }
 }
 
 impl fmt::Display for Environment {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             Environment::Project => "R/",
             Environment::StandAlone | Environment::Repl | Environment::Wasm => "",
@@ -51,21 +44,17 @@ impl fmt::Display for Environment {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Default)]
 pub enum TargetLanguage {
     R,
+    #[default]
     JS,
 }
 
-impl Default for TargetLanguage {
-    fn default() -> Self {
-        TargetLanguage::R
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Default)]
 pub enum FileType {
     Main,
+    #[default]
     Module,
 }
 

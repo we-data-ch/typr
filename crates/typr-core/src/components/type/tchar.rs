@@ -32,7 +32,7 @@ impl Tchar {
 
 use std::fmt;
 impl fmt::Display for Tchar {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }

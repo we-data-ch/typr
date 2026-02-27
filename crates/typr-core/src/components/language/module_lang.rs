@@ -42,10 +42,10 @@ impl TryFrom<Lang> for ModuleLang {
     fn try_from(value: Lang) -> Result<Self, Self::Error> {
         match value {
             Lang::Module(name, args, position, config, h) => Ok(ModuleLang {
-                name: name,
+                name,
                 members: args,
-                position: position,
-                config: config,
+                position,
+                config,
                 help_data: h,
             }),
             _ => Err(format!(

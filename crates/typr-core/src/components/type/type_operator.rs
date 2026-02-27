@@ -46,7 +46,7 @@ impl TypeOperator {
 }
 
 impl fmt::Display for TypeOperator {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             TypeOperator::Arrow => "->",
             TypeOperator::Union => "|",

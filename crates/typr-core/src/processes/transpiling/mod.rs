@@ -314,7 +314,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     } else {
                         name.to_string()
                     };
-                    let s = format!("{}({})", new_name, str_vals);
+                    let s = format!("vec_apply({}, {})", new_name, str_vals);
                     (s, cont.clone())
                 } else {
                     let (exp_str, cont1) = exp.to_r(cont);

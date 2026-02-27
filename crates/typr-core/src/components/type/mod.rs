@@ -224,6 +224,23 @@ impl TypeSystem for Type {
             (typ, Type::Operator(TypeOperator::Intersection, t1, t2, _)) => {
                 typ.is_subtype_raw(t1, context) && typ.is_subtype_raw(t2, context)
             }
+            // Reduce non-opaque aliases before comparing
+            (_, Type::Alias(_, _, false, _)) => {
+                let reduced = other.reduce(context);
+                if reduced != *other {
+                    self.is_subtype_raw(&reduced, context)
+                } else {
+                    false
+                }
+            }
+            (Type::Alias(_, _, false, _), _) => {
+                let reduced = self.reduce(context);
+                if reduced != *self {
+                    reduced.is_subtype_raw(other, context)
+                } else {
+                    false
+                }
+            }
             _ => false,
         }
     }
@@ -1067,7 +1084,7 @@ impl PartialEq for Type {
 }
 
 impl fmt::Display for Type {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Type::Function(p, r, h) => {
                 write!(f, "({}) -> {}", Type::Params(p.clone(), h.clone()), r)

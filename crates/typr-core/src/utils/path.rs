@@ -40,7 +40,7 @@ impl Add<Path> for Path {
 
 use std::fmt;
 impl fmt::Display for Path {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.0 == "" {
             write!(f, "{}", self.0)
         } else {

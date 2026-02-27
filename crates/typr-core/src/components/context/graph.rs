@@ -12,6 +12,12 @@ pub struct Graph<T: TypeSystem> {
     subtype_cache: HashMap<(T, T), bool>,
 }
 
+impl<T: TypeSystem> Default for Graph<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: TypeSystem> Graph<T> {
     pub fn new() -> Self {
         Graph {
@@ -77,10 +83,7 @@ impl<T: TypeSystem> Graph<T> {
     }
 
     pub fn get_type_list(&self) -> String {
-        format!(
-            "{}",
-            T::prettys(&self.memory.iter().cloned().collect::<Vec<_>>())
-        )
+        T::prettys(&self.memory.iter().cloned().collect::<Vec<_>>())
     }
 
     pub fn print_hierarchy(&self) {
@@ -128,6 +131,12 @@ impl<T: TypeSystem> From<T> for Node<T> {
             value: val,
             subtypes: vec![],
         }
+    }
+}
+
+impl<T: TypeSystem> Default for Node<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -189,7 +198,7 @@ impl<T: TypeSystem> Node<T> {
             + &self
                 .subtypes
                 .iter()
-                .map(|typ| format!("{}", typ.value.pretty()))
+                .map(|typ| typ.value.pretty().to_string())
                 .collect::<Vec<_>>()
                 .join(",")
             + "]"
@@ -330,11 +339,7 @@ impl<T: TypeSystem> Node<T> {
     }
 
     fn tabulation_from_level(level: i32) -> String {
-        (0..level)
-            .into_iter()
-            .map(|_| "  ")
-            .collect::<Vec<_>>()
-            .join("")
+        (0..level).map(|_| "  ").collect::<Vec<_>>().join("")
     }
 
     pub fn get_hierarchy_helper(&self, level: i32) -> String {
@@ -351,7 +356,7 @@ impl<T: TypeSystem> Node<T> {
 
 use std::fmt;
 impl<T: TypeSystem> fmt::Display for Node<T> {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.get_hierarchy())
     }
 }

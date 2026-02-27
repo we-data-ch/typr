@@ -12,7 +12,7 @@ pub struct ArrayLang(Vec<Lang>, HelpData);
 
 impl ArrayLang {
     pub fn get_first_argument(&self) -> Option<Lang> {
-        if self.0.len() > 0 {
+        if !self.0.is_empty() {
             Some(self.0[0].clone())
         } else {
             None

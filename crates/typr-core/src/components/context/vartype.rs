@@ -106,7 +106,7 @@ impl VarType {
                 let alias = original_type
                     .clone()
                     .to_alias(context)
-                    .unwrap_or(Alias::default())
+                    .unwrap_or_default()
                     .set_opacity(false)
                     .to_type();
                 args.iter()
@@ -180,16 +180,16 @@ impl VarType {
     }
 
     pub fn exists(&self, typ: &Type) -> bool {
-        self.aliases.iter().find(|(_, typ2)| typ == typ2).is_some() || typ.is_primitive()
+        self.aliases.iter().any(|(_, typ2)| typ == typ2) || typ.is_primitive()
     }
 
     fn push_type_if_not_exists(self, typ: Type) -> Self {
-        (!self.exists(&typ))
-            .then_some(
-                self.clone()
-                    .push_alias_increment((typ.to_category().to_variable(), typ)),
-            )
-            .unwrap_or(self)
+        if !self.exists(&typ) {
+            self.clone()
+                .push_alias_increment((typ.to_category().to_variable(), typ))
+        } else {
+            self
+        }
     }
 
     pub fn push_types(self, types: &[Type]) -> Self {
@@ -258,11 +258,13 @@ impl VarType {
                 .iter()
                 .find(|(_, typ)| typ == t)
                 .map(|(var, _)| var.get_name())
-                .expect(&format!(
-                    "{} has no class equivalent:\n {:?}",
-                    t.pretty(),
-                    self.aliases
-                )),
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{} has no class equivalent:\n {:?}",
+                        t.pretty(),
+                        self.aliases
+                    )
+                }),
         };
         "'".to_string() + &res + "'"
     }
@@ -321,18 +323,19 @@ impl VarType {
             .iter()
             .find(|(var, _)| var.get_name() == class)
             .map(|(_, typ)| typ)
-            .expect(&format!(
-                "{} isn't an existing Alias name (don't know where it come from)",
-                class
-            ))
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} isn't an existing Alias name (don't know where it come from)",
+                    class
+                )
+            })
             .clone()
     }
 
     fn in_aliases(&self, alias_name: &str) -> bool {
         self.aliases
             .iter()
-            .find(|(var, _)| var.get_name() == alias_name)
-            .is_some()
+            .any(|(var, _)| var.get_name() == alias_name)
     }
 
     pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
@@ -392,8 +395,8 @@ impl VarType {
         let mut new_variables = self
             .variables
             .iter()
+            .filter(|&x| x != &old_var)
             .cloned()
-            .filter(|x| x != &old_var)
             .collect::<indexmap::IndexSet<(Var, Type)>>();
         new_variables.insert((var.clone(), var.get_type()));
 
@@ -409,8 +412,7 @@ impl VarType {
             .filter(|(var, _)| var.get_name() == name)
             .filter(|(var, typ)| !(var.get_type().is_any() && typ.is_unknown_function()))
             .collect::<Vec<_>>()
-            .len()
-            > 0
+            .is_empty()
     }
 
     pub fn remove_vars(self, vars: &[Var]) -> Self {

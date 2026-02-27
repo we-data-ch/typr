@@ -25,7 +25,7 @@ pub enum ErrorMessage {
 }
 
 impl fmt::Display for ErrorMessage {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             ErrorMessage::UnificationMatch(args, param_types) => format!(
                 "The given values don't match:\nexpected:{:?}\nrecieved: {:?}",

@@ -72,10 +72,7 @@ impl Context {
     }
 
     pub fn set_config(self, config: Config) -> Self {
-        Self {
-            config: config,
-            ..self
-        }
+        Self { config, ..self }
     }
 
     pub fn set_as_module_context(self) -> Context {
@@ -162,12 +159,10 @@ impl Context {
             .map(|(var2, target_type)| {
                 if var2.is_opaque() {
                     (var2.clone().to_alias_type(), vec![])
+                } else if let Type::Params(types, _) = var2.get_type() {
+                    (target_type.clone(), types.clone())
                 } else {
-                    if let Type::Params(types, _) = var2.get_type() {
-                        (target_type.clone(), types.clone())
-                    } else {
-                        panic!("The related type is not Params([...])");
-                    }
+                    panic!("The related type is not Params([...])");
                 }
             })
     }
@@ -187,12 +182,12 @@ impl Context {
             .typing_context
             .clone()
             .pipe(|vt| {
-                (reduced_type.is_interface() && lang.is_variable())
-                    .then(|| {
-                        vt.clone()
-                            .push_interface(lang.clone(), reduced_type, typ.clone(), context)
-                    })
-                    .unwrap_or(vt.push_var_type(&[(lang.clone(), typ.clone())]))
+                if reduced_type.is_interface() && lang.is_variable() {
+                    vt.clone()
+                        .push_interface(lang.clone(), reduced_type, typ.clone(), context)
+                } else {
+                    vt.push_var_type(&[(lang.clone(), typ.clone())])
+                }
             })
             .push_types(&types);
         let new_subtypes = self.subtypes.add_types(&types, context);
@@ -311,10 +306,18 @@ impl Context {
             .filter(|(_, typ)| typ.clone().to_module_type().is_err())
             .map(|(var, typ)| (typ, var.get_name()))
             .map(|(typ, name)| {
+                let name0 = if ["Integer", "Character", "Boolean", "Number"]
+                    .iter()
+                    .any(|x| name == *x)
+                {
+                    format!("'{}', ", name)
+                } else {
+                    Default::default()
+                };
                 format!(
-                    "{} <- function(x) x |> struct(c('{}', {}, {}))",
+                    "{} <- function(x) x |> struct(c({}{}, {}))",
                     name,
-                    name,
+                    name0,
                     self.get_class(&typ),
                     self.get_classes(&typ).unwrap()
                 )
@@ -341,7 +344,7 @@ impl Context {
             .map(|typ| self.get_class(typ))
             .collect::<Vec<_>>()
             .join(", ");
-        if res == "" {
+        if res.is_empty() {
             Some("'None'".to_string())
         } else {
             Some(res)
@@ -384,21 +387,23 @@ impl Context {
                 && (reduced_type1.is_subtype(&reduced_type2, self).0
                     || reduced_type1.is_upperrank_of(&reduced_type2))
         });
-        if res.is_none() {
+        if let Some(res) = res {
+            res.1.clone()
+        } else {
             self.typing_context
                 .standard_library()
                 .iter()
                 .find(|(var2, _)| var2.get_name() == var1.get_name())
-                .expect(&format!(
-                    "Can't find var {} in the context:\n {}",
-                    var1.to_string(),
-                    self.display_typing_context()
-                ))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Can't find var {} in the context:\n {}",
+                        var1,
+                        self.display_typing_context()
+                    )
+                })
+                .1
                 .clone()
-        } else {
-            res.unwrap().clone()
         }
-        .1
     }
 
     pub fn get_matching_typed_functions(&self, var1: Var) -> Vec<Type> {
@@ -427,7 +432,7 @@ impl Context {
             Some(val) => Ok(vec![val.clone()]),
             _ => Err(format!(
                 "Can't find var {} in the context:\n {}",
-                var.to_string(),
+                var,
                 self.display_typing_context()
             )),
         }
@@ -435,7 +440,7 @@ impl Context {
 
     pub fn get_matching_functions(&self, var: Var) -> Result<Vec<Type>, String> {
         let res = self.get_matching_typed_functions(var.clone());
-        if res.len() == 0 {
+        if res.is_empty() {
             self.get_matching_untyped_functions(var)
         } else {
             Ok(res)
@@ -452,7 +457,7 @@ impl Context {
             .map(|arg_typ| reduce_type(self, &arg_typ.get_type()).for_var())
             .map(|typ| match typ.to_owned() {
                 Type::Function(typs, _, _) => {
-                    if typs.len() > 0 {
+                    if !typs.is_empty() {
                         typs[0].clone()
                     } else {
                         typ
@@ -462,8 +467,8 @@ impl Context {
             })
             .collect::<Vec<_>>();
         params
-            .into_iter()
-            .zip(param_types.clone().into_iter())
+            .iter()
+            .zip(param_types.clone())
             .map(|(arg_typ, par_typ)| {
                 (
                     Var::from_name(&arg_typ.get_argument_str())
@@ -487,7 +492,7 @@ impl Context {
         let res = self
             .variables()
             .chain(self.aliases())
-            .map(|(var, typ)| format!("{} ==> {}", var.to_string(), typ.to_string()))
+            .map(|(var, typ)| format!("{} ==> {}", var, typ))
             .collect::<Vec<_>>()
             .join("\n");
         format!("CONTEXT:\n{}", res)
@@ -527,8 +532,8 @@ impl Context {
             .collect::<Option<Vec<_>>>();
 
         let val = res
-            .map(|vec| vec.iter().cloned().flatten().collect::<Vec<_>>())
-            .map(|vec| UnificationMap::new(vec));
+            .map(|vec| vec.iter().flatten().cloned().collect::<Vec<_>>())
+            .map(UnificationMap::new);
 
         val
     }
@@ -588,15 +593,15 @@ impl Context {
 
     pub fn get_functions_from_type(&self, typ: &Type) -> Vec<(Var, Type)> {
         self.variables()
+            .filter(|&(var, typ2)| typ2.is_function() && var.get_type() == *typ)
             .cloned()
-            .filter(|(var, typ2)| typ2.is_function() && &var.get_type() == typ)
             .collect()
     }
 
     pub fn get_functions_from_name(&self, name: &str) -> Vec<(Var, Type)> {
         self.variables()
+            .filter(|&(var, typ2)| typ2.is_function() && var.get_name() == name)
             .cloned()
-            .filter(|(var, typ2)| typ2.is_function() && &var.get_name() == name)
             .collect()
     }
 

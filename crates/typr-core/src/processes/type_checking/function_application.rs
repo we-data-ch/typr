@@ -424,4 +424,48 @@ mod tests {
             .check_typing("1 - 1");
         assert_eq!(res, builder::integer_type_default());
     }
+
+    // =====================================================================
+    // Transpilation tests for vectorization
+    // =====================================================================
+
+    // --- Transpilation: scalar * array should produce vec_apply ---
+    #[test]
+    fn test_transpile_vec_apply_mul_scalar_array() {
+        let fp = FluentParser::new()
+            .push("@`*`: (int, int) -> int;")
+            .run()
+            .push("2 * [1, 2, 3]")
+            .parse_next()
+            .type_next()
+            .transpile_next();
+        let r_code = fp.get_r_code();
+        let code = r_code.iter().last().unwrap().clone();
+        assert!(
+            code.contains("vec_apply"),
+            "Expected vec_apply in transpiled code, got: {}",
+            code
+        );
+    }
+
+    // --- Transpilation: let a1 <- [1,2,3]; 2*a1+3 should use vec_apply ---
+    #[test]
+    fn test_transpile_vec_apply_let_then_operator() {
+        let fp = FluentParser::new()
+            .push("@`*`: (int, int) -> int;")
+            .run()
+            .push("@`+`: (int, int) -> int;")
+            .run()
+            .push("let a1 <- [1, 2, 3];")
+            .parse_type_transpile_next()
+            .push("2*a1+3")
+            .parse_type_transpile_next();
+        let r_codes: Vec<_> = fp.get_r_code().iter().cloned().collect();
+        let last_code = r_codes.last().unwrap();
+        assert!(
+            last_code.contains("vec_apply"),
+            "Expected vec_apply in transpiled code for 2*a1+3, got: {}",
+            last_code
+        );
+    }
 }

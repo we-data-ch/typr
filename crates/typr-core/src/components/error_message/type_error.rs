@@ -120,10 +120,9 @@ impl ErrorMsg for TypeError {
     fn display(self) -> String {
         let msg: Result<()> = match self {
             TypeError::FunctionNotFound(var) => {
-                let (file_name, text) = var.get_file_name_and_text().expect(&format!(
-                    "Function {} not defined in this scope",
-                    var.get_name()
-                ));
+                let (file_name, text) = var.get_file_name_and_text().unwrap_or_else(|| {
+                    panic!("Function {} not defined in this scope", var.get_name())
+                });
                 SingleBuilder::new(file_name, text)
                     .pos((var.get_help_data().get_offset(), 0))
                     .text(format!(
@@ -244,14 +243,18 @@ impl ErrorMsg for TypeError {
                 let var = var.clone().set_type(var.get_type().generalize());
                 let help_data1 = var_assign.get_help_data();
                 let help_data2 = var.get_help_data();
-                let (file_name1, text1) = help_data1.get_file_data().expect(&format!(
-                    "The file name of {:?} for {} doesn't exist",
-                    help_data1, var_assign
-                ));
-                let (file_name2, text2) = help_data2.get_file_data().expect(&format!(
-                    "The file name of {:?} for {} doesn't exist",
-                    help_data2, var
-                ));
+                let (file_name1, text1) = help_data1.get_file_data().unwrap_or_else(|| {
+                    panic!(
+                        "The file name of {:?} for {} doesn't exist",
+                        help_data1, var_assign
+                    )
+                });
+                let (file_name2, text2) = help_data2.get_file_data().unwrap_or_else(|| {
+                    panic!(
+                        "The file name of {:?} for {} doesn't exist",
+                        help_data2, var
+                    )
+                });
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
@@ -265,14 +268,18 @@ impl ErrorMsg for TypeError {
                 let var = var.clone().set_type(var.get_type().generalize());
                 let help_data1 = var_used.get_help_data();
                 let help_data2 = var.get_help_data();
-                let (file_name1, text1) = help_data1.get_file_data().expect(&format!(
-                    "The file name of {:?} for {} doesn't exist",
-                    help_data1, var_used
-                ));
-                let (file_name2, text2) = help_data2.get_file_data().expect(&format!(
-                    "The file name of {:?} for {} doesn't exist",
-                    help_data2, var
-                ));
+                let (file_name1, text1) = help_data1.get_file_data().unwrap_or_else(|| {
+                    panic!(
+                        "The file name of {:?} for {} doesn't exist",
+                        help_data1, var_used
+                    )
+                });
+                let (file_name2, text2) = help_data2.get_file_data().unwrap_or_else(|| {
+                    panic!(
+                        "The file name of {:?} for {} doesn't exist",
+                        help_data2, var
+                    )
+                });
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))

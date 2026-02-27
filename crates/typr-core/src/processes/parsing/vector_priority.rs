@@ -45,7 +45,7 @@ impl<T: PriorityToken, E: From<T> + Default> PriorityTokens<T, E> for VectorPrio
 
 use std::fmt;
 impl<T: PriorityToken> fmt::Display for VectorPriority<T> {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let txt = self
             .body
             .iter()

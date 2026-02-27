@@ -18,7 +18,7 @@ impl ArgumentValue {
 }
 
 impl fmt::Display for ArgumentValue {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let cont = Context::default();
         write!(f, "[var('{}'),{}]", self.0, self.1.to_r(&cont).0)
     }

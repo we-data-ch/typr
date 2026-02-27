@@ -279,7 +279,7 @@ pub fn get_string(op: &Op) -> String {
 
 use std::fmt;
 impl fmt::Display for Op {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = get_string(self);
         write!(f, "{}", res)
     }

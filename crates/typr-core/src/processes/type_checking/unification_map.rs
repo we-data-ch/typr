@@ -132,7 +132,7 @@ impl From<HashSet<(i32, Type)>> for UnificationMap {
 }
 
 impl fmt::Display for UnificationMap {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = self
             .mapping
             .iter()

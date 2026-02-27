@@ -35,7 +35,7 @@ impl Tint {
 }
 
 impl fmt::Display for Tint {
-    fn fmt(self: &Self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Tint::Val(i) => write!(f, "{}", i),
             _ => write!(f, "{}", "int"),
