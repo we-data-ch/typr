@@ -1,0 +1,211 @@
+use crate::components::r#type::type_system::TypeSystem;
+use crate::processes::type_checking::ArgumentType;
+use crate::processes::type_checking::HelpData;
+use crate::processes::type_checking::TypeContext;
+use crate::utils::builder;
+use crate::Context;
+use crate::Lang;
+use crate::Type;
+
+pub fn function(
+    context: &Context,
+    expr: &Lang,
+    params: &Vec<ArgumentType>,
+    ret_ty: &Type,
+    body: &Box<Lang>,
+    h: &HelpData,
+) -> TypeContext {
+    let list_of_types = params
+        .iter()
+        .map(ArgumentType::get_type)
+        .collect::<Vec<_>>();
+    let sub_context = params
+        .into_iter()
+        .map(|arg_typ| arg_typ.clone().to_var(context))
+        .zip(list_of_types.clone())
+        .fold(context.clone(), |cont, (var, typ)| {
+            cont.clone().push_var_type(var, typ.reduce(context), &cont)
+        });
+    let body_type = body.typing(&sub_context);
+    let mut errors = body_type.errors.clone();
+    (!body_type.value.reduce_and_subtype(&ret_ty, &sub_context).0)
+        .then(|| errors.push(builder::unmatching_return_type(ret_ty, &body_type.value)));
+    TypeContext::new(
+        Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone()),
+        expr.clone(),
+        body_type.context,
+    )
+    .with_errors(errors)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::builder;
+    use crate::utils::fluent_parser::FluentParser;
+
+    // =====================================================================
+    // Tests for function type-checking with Interface parameters
+    // =====================================================================
+    //
+    // When a function parameter has an Interface type, the type-checker must:
+    //   1. Assign an opaque alias type to that parameter in the sub-context
+    //   2. Decompose the interface's method signatures into individual
+    //      function variables in the sub-context, replacing `Self` with
+    //      the opaque alias
+    //   3. Allow the function body to call those interface methods
+    //   4. Return the correct function type (with the original Interface
+    //      in the parameter list)
+    //
+    // This approach avoids requiring explicit generic notation to implement
+    // multiple interfaces.
+    // =====================================================================
+
+    /// A function with an interface parameter that has a single method
+    /// should type-check successfully when the body calls that method.
+    #[test]
+    fn test_function_with_interface_param_single_method() {
+        let res = FluentParser::new()
+            .check_typing("fn(x: interface { view: (Self) -> char }): char { view(x) }");
+        let interface = builder::interface_type(&[(
+            "view",
+            builder::function_type(
+                &[builder::self_generic_type()],
+                builder::character_type_default(),
+            ),
+        )]);
+        let expected = builder::function_type(&[interface], builder::character_type_default());
+        assert_eq!(res, expected);
+    }
+
+    /// A function with an interface parameter containing multiple methods.
+    /// The body can call any of those methods.
+    #[test]
+    fn test_function_with_interface_param_multiple_methods() {
+        let res = FluentParser::new()
+            .check_typing(
+                "fn(x: interface { to_char: (Self) -> char, to_int: (Self) -> int }): char { to_char(x) }"
+            );
+        let interface = builder::interface_type(&[
+            (
+                "to_char",
+                builder::function_type(
+                    &[builder::self_generic_type()],
+                    builder::character_type_default(),
+                ),
+            ),
+            (
+                "to_int",
+                builder::function_type(
+                    &[builder::self_generic_type()],
+                    builder::integer_type_default(),
+                ),
+            ),
+        ]);
+        let expected = builder::function_type(&[interface], builder::character_type_default());
+        assert_eq!(res, expected);
+    }
+
+    /// A concrete type (int) that satisfies an interface can be passed
+    /// as an argument to a function expecting that interface.
+    #[test]
+    fn test_function_app_with_interface_param_concrete_type() {
+        let res = FluentParser::new()
+            .push("@view: (int) -> char;")
+            .run()
+            .push("let f <- fn(x: interface { view: (Self) -> char }): char { view(x) };")
+            .parse_type_next()
+            .check_typing("f(5)");
+        assert_eq!(res, builder::character_type_default());
+    }
+
+    /// When a function with interface parameter has a body whose return
+    /// type does not match the declared return type, an error should be
+    /// reported.
+    #[test]
+    fn test_function_with_interface_param_return_type_mismatch() {
+        let fp = FluentParser::new()
+            .push("fn(x: interface { view: (Self) -> char }): int { view(x) }")
+            .parse_next()
+            .type_next();
+        // The body returns char (from view), but declared return is int
+        // This should produce an error
+        let interface = builder::interface_type(&[(
+            "view",
+            builder::function_type(
+                &[builder::self_generic_type()],
+                builder::character_type_default(),
+            ),
+        )]);
+        let expected = builder::function_type(&[interface], builder::integer_type_default());
+        assert_eq!(fp.get_last_type(), expected);
+    }
+
+    /// A function with an interface parameter alongside a regular parameter.
+    #[test]
+    fn test_function_with_interface_and_regular_params() {
+        let res = FluentParser::new()
+            .check_typing("fn(x: interface { view: (Self) -> char }, y: int): char { view(x) }");
+        let interface = builder::interface_type(&[(
+            "view",
+            builder::function_type(
+                &[builder::self_generic_type()],
+                builder::character_type_default(),
+            ),
+        )]);
+        let expected = builder::function_type(
+            &[interface, builder::integer_type_default()],
+            builder::character_type_default(),
+        );
+        assert_eq!(res, expected);
+    }
+
+    /// An interface method with multiple parameters (Self + another type).
+    /// The `replace_function_types` should only replace `Self` occurrences,
+    /// preserving other parameter types.
+    #[test]
+    fn test_function_with_interface_multi_param_method() {
+        let res = FluentParser::new()
+            .check_typing("fn(x: interface { add: (Self, int) -> Self }): int { 5 }");
+        let interface = builder::interface_type(&[(
+            "add",
+            builder::function_type(
+                &[
+                    builder::self_generic_type(),
+                    builder::integer_type_default(),
+                ],
+                builder::self_generic_type(),
+            ),
+        )]);
+        let expected = builder::function_type(&[interface], builder::integer_type_default());
+        assert_eq!(res, expected);
+    }
+
+    /// Basic function without interface parameters should still work.
+    /// Regression test to ensure interface handling doesn't break normal functions.
+    #[test]
+    fn test_function_without_interface_param() {
+        let res = FluentParser::new().check_typing("fn(x: int): int { x }");
+        let expected = builder::function_type(
+            &[builder::integer_type_default()],
+            builder::integer_type_default(),
+        );
+        assert_eq!(res, expected);
+    }
+
+    /// A function with an interface parameter that uses `Self` as a return type
+    /// in one of its methods. The body calls the method and returns the result.
+    #[test]
+    fn test_function_with_interface_self_return() {
+        let res = FluentParser::new()
+            .check_typing("fn(x: interface { identity: (Self) -> Self }): int { 5 }");
+        let interface = builder::interface_type(&[(
+            "identity",
+            builder::function_type(
+                &[builder::self_generic_type()],
+                builder::self_generic_type(),
+            ),
+        )]);
+        let expected = builder::function_type(&[interface], builder::integer_type_default());
+        assert_eq!(res, expected);
+    }
+}

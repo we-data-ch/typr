@@ -1,0 +1,26 @@
+# File System management ----------
+
+@getwd: () -> char;
+
+@setwd: (path: char) -> char;
+
+@dir: () -> [#N, char];
+
+@list__files: () -> [#N, char];
+
+@file__exists: (file: char) -> bool;
+
+@file__create: (file: char) -> bool;
+
+@file__remove: (file: char) -> bool;
+
+@file__rename: (old: char, new: char) -> bool;
+
+@file__copy: (source: char, dest: char) -> bool;
+
+@dir__create: (source: char, dest: char) -> bool;
+
+@unlink: (target: char) -> bool;
+
+
+# --------------------------------

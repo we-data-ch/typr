@@ -1,10 +1,11 @@
-pub mod components;
-pub mod processes;
-pub mod utils;
-pub mod interface;
+//! # TypR
+//!
+//! A typed superset of R with static type checking and transpilation to R.
+//!
+//! This crate re-exports everything from `typr-cli` which provides
+//! the CLI interface, REPL, and LSP server.
+//!
+//! For core types and compilation API, see `typr-core`.
 
-// Re-export commonly used items for integration tests and external users
-pub use crate::components::*;
-pub use crate::processes::*;
-pub use crate::utils::*;
-pub use crate::interface::*;
+// Re-export everything from typr-cli
+pub use typr_cli::*;

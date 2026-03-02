@@ -1,0 +1,101 @@
+@nchar: (a: char) -> int;
+
+let len <- fn(a: char): int;
+	nchar(a)
+};
+
+@sys__info: () -> char;
+
+@sys__getenv: () -> [#N, char];
+
+@sys__setenv: (var: char, val: char) -> [#N, char];
+
+@sys__time: () -> char;
+
+@sys__date: () -> char;
+
+@sys__sleep: (n: int) -> .None;
+
+@sys__which: (n: char) -> char;
+
+@sys__timezone: () -> char;
+
+@sys__setlocale: () -> .None;
+
+@as__character: (a: A) -> char;
+
+@as__numeric: (a: A) -> num;
+
+@as__integer: (a: A) -> int;
+
+@as__logical: (a: A) -> int;
+
+@map: (a: [#N, T], f: (T) -> U) -> [#N, U];
+
+@rev: (a: [#N, T]) -> [#N, T];
+
+@mean: (a: [#N, T]) -> T;
+
+@sd: (a: [#N, T]) -> T;
+
+@min: (a: [#N, T]) -> T;
+
+@max: (a: [#N, T]) -> T;
+
+@add: (a: int, b: int) -> int;
+
+@add: (a: num, b: num) -> num;
+
+@minus: (a: int, b: int) -> int;
+
+@minus: (a: num, b: num) -> num;
+
+@mul: (a: int, b: int) -> int;
+
+@mul: (a: num, b: num) -> num;
+
+@div: (a: int, b: int) -> int;
+
+@div: (a: num, b: num) -> num;
+
+@plot: (a: [#N, num], b: [#N, num], type: char) -> .None;
+
+@get: (a: {}, b: char) -> T;
+
+@print: (a: char) -> .None;
+
+@seq: (a: #I, b: #J, c: #K) -> [#J-#I/#K, int];
+
+@substr: (a: char, b: int, e: int) -> char;
+
+@sub: (a: char, b: char, c: char) -> char;
+
+let replace <- (s: char, old: char, new: char) -> char;
+	sub(old, new, s)
+};
+
+@gsub: (a: char, b: char, c: char) -> char;
+
+let replace_all <- fn(s: char, old: char, new: char): char;
+	gsub(old, new, s)
+};
+
+@strsplit: (s: char, d: char) -> [#N, char];
+
+let split <- fn(s: char, d: char): [#N, char];
+	strsplit(s, d)
+};
+
+@join: (a: [#N, char], s: char) -> char;
+
+@tolower: (a: char) -> char;
+
+@toupper: (a: char) -> char;
+
+@startsWith: (a: char, b: char) -> bool;
+
+@endsWith: (a: char, b: char) -> bool;
+
+@grepl: (a: char, b: char) -> bool;
+
+@contains: (a: char, b: char) -> bool;
