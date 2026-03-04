@@ -542,6 +542,25 @@ fn unknown_function(s: Span) -> IResult<Span, Type> {
     }
 }
 
+fn tag_type(s: Span) -> IResult<Span, Type> {
+    let res = (
+        tag("."),
+        pascal_case_no_space,
+        opt((tag("("), ltype, tag(")"))),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (dot, (name, _), Some(body)))) => {
+            Ok((s, Type::Tag(name, Box::new(body.1), dot.into())))
+        }
+        Ok((s, (dot, (name, h), None))) => {
+            let empty = builder::empty_type().set_help_data(h);
+            Ok((s, Type::Tag(name, Box::new(empty), dot.into())))
+        }
+        Err(r) => Err(r),
+    }
+}
+
 // main
 pub fn single_type(s: Span) -> IResult<Span, Type> {
     terminated(
@@ -553,6 +572,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             vector_type,
             record_type,
             parenthese_value,
+            tag_type,
             any,
             empty,
             interface,

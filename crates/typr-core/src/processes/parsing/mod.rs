@@ -125,9 +125,10 @@ fn collect_syntax_errors_recursive(lang: &Lang, errors: &mut Vec<SyntaxError>) {
             collect_syntax_errors_recursive(then_branch, errors);
             collect_syntax_errors_recursive(else_branch, errors);
         }
-        Lang::Match(expr, _, cases, _) => {
+        Lang::Match(expr, cases, _) => {
             collect_syntax_errors_recursive(expr, errors);
-            for (_, case_body) in cases {
+            for (pattern, case_body) in cases {
+                collect_syntax_errors_recursive(pattern, errors);
                 collect_syntax_errors_recursive(case_body, errors);
             }
         }
@@ -212,7 +213,8 @@ fn collect_syntax_errors_recursive(lang: &Lang, errors: &mut Vec<SyntaxError>) {
         | Lang::Signature(_, _, _)
         | Lang::Empty(_)
         | Lang::Break(_)
-        | Lang::ModuleDecl(_, _) => {}
+        | Lang::ModuleDecl(_, _)
+        | Lang::TypePattern(_, _, _) => {}
     }
 }
 
@@ -254,17 +256,17 @@ fn clean_syntax_errors(lang: &Lang) -> Lang {
             Box::new(clean_syntax_errors(else_b)),
             h.clone(),
         ),
-        Lang::Match(expr, var, cases, h) => {
+        Lang::Match(expr, cases, h) => {
             let clean_cases = cases
                 .iter()
-                .map(|(ty, body)| (ty.clone(), Box::new(clean_syntax_errors(body))))
+                .map(|(pattern, body)| {
+                    (
+                        clean_syntax_errors(pattern),
+                        Box::new(clean_syntax_errors(body)),
+                    )
+                })
                 .collect();
-            Lang::Match(
-                Box::new(clean_syntax_errors(expr)),
-                var.clone(),
-                clean_cases,
-                h.clone(),
-            )
+            Lang::Match(Box::new(clean_syntax_errors(expr)), clean_cases, h.clone())
         }
         Lang::FunctionApp(func, args, h) => Lang::FunctionApp(
             Box::new(clean_syntax_errors(func)),

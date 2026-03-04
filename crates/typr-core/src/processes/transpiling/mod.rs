@@ -1,22 +1,23 @@
 pub mod translatable;
 
-use crate::processes::type_checking::type_comparison::reduce_type;
-use crate::processes::transpiling::translatable::Translatable;
-use crate::components::language::set_related_type_if_variable;
-use crate::components::r#type::function_type::FunctionType;
-use crate::components::error_message::help_data::HelpData;
-use crate::components::language::function_lang::Function;
-use crate::components::r#type::array_type::ArrayType;
 use crate::components::context::config::Environment;
-use crate::components::language::format_backtick;
-use crate::components::language::ModulePosition;
-use crate::components::language::operators::Op;
-use crate::processes::type_checking::typing;
-use crate::components::language::var::Var;
 use crate::components::context::Context;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::language::format_backtick;
+use crate::components::language::function_lang::Function;
+use crate::components::language::operators::Op;
+use crate::components::language::set_related_type_if_variable;
+use crate::components::language::var::Var;
 use crate::components::language::Lang;
+use crate::components::language::ModulePosition;
+use crate::components::r#type::array_type::ArrayType;
+use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::Type;
+use crate::processes::transpiling::translatable::Translatable;
+use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::processes::type_checking::typing;
 use translatable::RTranslatable;
+use crate::components::r#type::argument_type::ArgumentType;
 
 #[cfg(not(feature = "wasm"))]
 use std::fs::File;
@@ -112,39 +113,135 @@ impl<T: Clone> AndIf for T {
 
 const JS_HEADER: &str = "";
 
-fn condition_to_if(var: &Var, typ: &Type, context: &Context) -> String {
-    format!(
-        "any(class({}) == c({}))",
-        var.get_name(),
-        context.get_class(typ)
-    )
-}
-
-fn to_if_statement(
-    var: Var,
+fn to_pattern_match_statement(
     exp: Lang,
-    branches: &[(Type, Box<Lang>)],
+    branches: &[(Lang, Box<Lang>)],
     context: &Context,
 ) -> String {
+    let match_var = "match_val__";
     let res = branches
         .iter()
-        .map(|(typ, body)| (condition_to_if(&var, typ, context), body))
         .enumerate()
-        .map(|(id, (cond, body))| {
-            if id == 0 {
-                format!("if ({}) {{ \n {} \n }}", cond, body.to_r(context).0)
+        .map(|(id, (pattern, body))| {
+            let (cond, bindings) = pattern_to_condition(pattern, match_var, context);
+            let body_str = body.to_r(context).0;
+            let body_with_bindings = if bindings.is_empty() {
+                body_str
             } else {
-                format!("else if ({}) {{ \n {} \n }}", cond, body.to_r(context).0)
+                format!("{}\n{}", bindings, body_str)
+            };
+            if cond == "TRUE" {
+                // wildcard pattern: always matches
+                if id == 0 {
+                    format!("{{\n{}\n}}", body_with_bindings)
+                } else {
+                    format!("else {{\n{}\n}}", body_with_bindings)
+                }
+            } else if id == 0 {
+                format!("if ({}) {{\n{}\n}}", cond, body_with_bindings)
+            } else {
+                format!("else if ({}) {{\n{}\n}}", cond, body_with_bindings)
             }
         })
         .collect::<Vec<_>>()
         .join(" ");
-    format!(
-        "{{\n {} <- {} \n {}\n}}",
-        var.get_name(),
-        exp.to_r(context).0,
-        res
-    )
+    format!("{{\n{} <- {}\n{}\n}}", match_var, exp.to_r(context).0, res)
+}
+
+/// Map a Type to its corresponding R type-check function name.
+fn type_to_r_check(typ: &Type) -> Option<&'static str> {
+    match typ {
+        Type::Integer(_, _) => Some("is.integer"),
+        Type::Boolean(_) => Some("is.logical"),
+        Type::Number(_) => Some("is.numeric"),
+        Type::Char(_, _) => Some("is.character"),
+        _ => None,
+    }
+}
+
+fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> (String, String) {
+    match pattern {
+        // Tag with a binding variable: .Some(a)
+        Lang::Tag(name, inner, _) => {
+            let cond = format!("{}[[1]] == '{}'", match_var, name);
+            match inner.as_ref() {
+                Lang::Variable(var_name, _, _, _) => {
+                    let binding = format!("{} <- {}[[\"body\"]]", var_name, match_var);
+                    (cond, binding)
+                }
+                Lang::Empty(_) => (cond, String::new()),
+                _ => (cond, String::new()),
+            }
+        }
+        // Type pattern: x as int
+        Lang::TypePattern(var_name, typ, _) => {
+            let check_fn = type_to_r_check(typ).unwrap_or("is.logical");
+            let cond = format!("{}({})", check_fn, match_var);
+            let binding = format!("{} <- {}", var_name, match_var);
+            (cond, binding)
+        }
+        // Tuple pattern: :{a, b, c}
+        Lang::Tuple(elements, _) => {
+            let cond = format!(
+                "inherits({}, 'Tuple') && length({}) == {}",
+                match_var,
+                match_var,
+                elements.len()
+            );
+            let bindings: Vec<String> = elements
+                .iter()
+                .enumerate()
+                .filter_map(|(i, elem)| {
+                    if let Lang::Variable(var_name, _, _, _) = elem {
+                        if var_name == "_" {
+                            None
+                        } else {
+                            Some(format!("{} <- {}[[{}]]", var_name, match_var, i + 1))
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            (cond, bindings.join("\n"))
+        }
+        // List/record pattern: :{nom: n, age: a}
+        Lang::List(fields, _) => {
+            let conditions: Vec<String> = fields
+                .iter()
+                .map(|arg_val| format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument()))
+                .collect();
+            let cond = if conditions.is_empty() {
+                "is.list(".to_string() + match_var + ")"
+            } else {
+                format!("is.list({}) && {}", match_var, conditions.join(" && "))
+            };
+            let bindings: Vec<String> = fields
+                .iter()
+                .filter_map(|arg_val| {
+                    if let Lang::Variable(var_name, _, _, _) = &arg_val.get_value() {
+                        Some(format!(
+                            "{} <- {}[[\"{}\"]]",
+                            var_name,
+                            match_var,
+                            arg_val.get_argument()
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            (cond, bindings.join("\n"))
+        }
+        // Wildcard: _
+        Lang::Variable(name, _, _, _) if name == "_" => ("TRUE".to_string(), String::new()),
+        // Other variable: bind the whole value
+        Lang::Variable(name, _, _, _) => {
+            let binding = format!("{} <- {}", name, match_var);
+            ("TRUE".to_string(), binding)
+        }
+        _ => ("TRUE".to_string(), String::new()),
+    }
 }
 
 impl RTranslatable<(String, Context)> for Lang {
@@ -236,17 +333,29 @@ impl RTranslatable<(String, Context)> for Lang {
                 .join(exps, "\n")
                 .add("\n}")
                 .into(),
-            Lang::Function(args, _, body, _) => {
+            Lang::Function(params, _, body, _) => {
                 let fn_type = FunctionType::try_from(typing(cont, self).value.clone()).unwrap();
                 let output_conversion = cont.get_type_anotation(&fn_type.get_return_type());
+
+                let list_of_types = params
+                    .iter()
+                    .map(ArgumentType::get_type)
+                    .collect::<Vec<_>>();
+                let sub_context = params
+                    .into_iter()
+                    .map(|arg_typ| arg_typ.clone().to_var(cont))
+                    .zip(list_of_types.clone())
+                    .fold(cont.clone(), |context: Context, (var, typ)| {
+                        context.clone().push_var_type(var, typ, &context)
+                    });
                 let res = (output_conversion == "")
                     .then_some("".to_string())
                     .unwrap_or(" |> ".to_owned() + &output_conversion);
                 (
                     format!(
                         "(function({}) {}{}) |> {}",
-                        args.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
-                        body.to_r(cont).0,
+                        params.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
+                        body.to_r(&sub_context).0,
                         res,
                         cont.get_type_anotation(&fn_type.into())
                     ),
@@ -473,10 +582,10 @@ impl RTranslatable<(String, Context)> for Lang {
                 let (t_str, new_cont) = t.to_r(cont);
                 let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
-                (format!(
-                    "list('{}', body = {}) |> {}",
-                    s, t_str, anotation
-                ), new_cont)
+                (
+                    format!("list('{}', body = {}) |> {}", s, t_str, anotation),
+                    new_cont,
+                )
             }
             Lang::Empty(_) => ("NA".to_string(), cont.clone()),
             Lang::ModuleDecl(name, _) => (format!("{} <- new.env()", name), cont.clone()),
@@ -491,8 +600,8 @@ impl RTranslatable<(String, Context)> for Lang {
             ),
             Lang::VecBlock(bloc, _) => (bloc.to_string(), cont.clone()),
             Lang::Library(name, _) => (format!("library({})", name), cont.clone()),
-            Lang::Match(exp, var, branches, _) => (
-                to_if_statement(var.clone(), (**exp).clone(), branches, cont),
+            Lang::Match(exp, branches, _) => (
+                to_pattern_match_statement((**exp).clone(), branches, cont),
                 cont.clone(),
             ),
             Lang::Exp(exp, _) => (exp.clone(), cont.clone()),

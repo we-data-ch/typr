@@ -24,7 +24,7 @@ pub fn function(
         .map(|arg_typ| arg_typ.clone().to_var(context))
         .zip(list_of_types.clone())
         .fold(context.clone(), |cont, (var, typ)| {
-            cont.clone().push_var_type(var, typ.reduce(context), &cont)
+            cont.clone().push_var_type(var, typ, &cont)
         });
     let body_type = body.typing(&sub_context);
     let mut errors = body_type.errors.clone();
@@ -33,15 +33,17 @@ pub fn function(
     TypeContext::new(
         Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone()),
         expr.clone(),
-        body_type.context,
+        context.clone(),
     )
     .with_errors(errors)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::components::error_message::help_data::HelpData;
     use crate::utils::builder;
     use crate::utils::fluent_parser::FluentParser;
+    use crate::Type;
 
     // =====================================================================
     // Tests for function type-checking with Interface parameters
@@ -207,5 +209,68 @@ mod tests {
         )]);
         let expected = builder::function_type(&[interface], builder::integer_type_default());
         assert_eq!(res, expected);
+    }
+
+    /// Test that an inline interface with an operator method (`+`) can be
+    /// used in the function body via the operator syntax (a + a).
+    #[test]
+    fn test_function_with_inline_interface_operator_in_body() {
+        let fp = FluentParser::new()
+            .push("fn(a: interface { `+`: (Self, Self) -> Self }): int { a + a }")
+            .parse_next()
+            .type_next();
+        let interface = builder::interface_type(&[(
+            "`+`",
+            builder::function_type(
+                &[builder::self_generic_type(), builder::self_generic_type()],
+                builder::self_generic_type(),
+            ),
+        )]);
+        let expected = builder::function_type(&[interface], builder::integer_type_default());
+        assert_eq!(fp.get_last_type(), expected);
+    }
+
+    /// Reproduction of the user bug: a named interface type alias with an
+    /// operator method, used as both parameter and return type.
+    /// When using a named alias like `type Addable <- interface {...}`,
+    /// the function type preserves the alias name in its signature.
+    /// The body `a + a` should type-check without errors.
+    #[test]
+    fn test_function_with_named_interface_operator() {
+        let fp = FluentParser::new()
+            .push("type Addable <- interface { `+`: (Self, Self) -> Self };")
+            .run()
+            .push("fn(a: Addable): Addable { a + a }")
+            .parse_next()
+            .type_next();
+        // With a named alias, the function type uses Alias("Addable") not the expanded Interface
+        let addable = Type::Alias("Addable".to_string(), vec![], false, HelpData::default());
+        let expected = builder::function_type(&[addable.clone()], addable);
+        assert_eq!(fp.get_last_type(), expected);
+    }
+
+    /// The named interface operator test should produce no type errors.
+    /// This verifies the actual user-reported bug is fixed (the body
+    /// `a + a` should not produce "Found: any" error).
+    #[test]
+    fn test_function_with_named_interface_operator_no_errors() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        // First, parse and type-check the type alias
+        let code1 =
+            parse2("type Addable <- interface { `+`: (Self, Self) -> Self };".into()).unwrap();
+        let tc = TypeChecker::new(Context::empty()).typing_no_panic(&code1);
+
+        // Then parse and type-check the function
+        let code2 = parse2("let double <- fn(a: Addable): Addable { a + a };".into()).unwrap();
+        let tc2 = tc.typing_no_panic(&code2);
+
+        assert!(
+            !tc2.has_errors(),
+            "Expected no type errors, but got: {:?}",
+            tc2.get_errors()
+        );
     }
 }

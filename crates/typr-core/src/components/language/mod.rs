@@ -1,31 +1,31 @@
 pub mod argument_value;
-pub mod array_lang;
 pub mod function_lang;
+pub mod var_function;
 pub mod module_lang;
+pub mod array_lang;
 pub mod operators;
 pub mod var;
-pub mod var_function;
 
-use crate::components::context::config::Config;
-use crate::components::context::config::Environment;
-use crate::components::context::Context;
-use crate::components::error_message::help_data::HelpData;
-use crate::components::error_message::locatable::Locatable;
 use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::language::argument_value::ArgumentValue;
-use crate::components::language::operators::Op;
-use crate::components::language::var::Var;
-use crate::components::r#type::argument_type::ArgumentType;
-use crate::components::r#type::function_type::FunctionType;
-use crate::components::r#type::Type;
-use crate::processes::parsing::elements::elements;
-use crate::processes::parsing::lang_token::LangToken;
-use crate::processes::parsing::operation_priority::TokenKind;
 use crate::processes::transpiling::translatable::RTranslatable;
 use crate::processes::type_checking::type_context::TypeContext;
+use crate::processes::parsing::operation_priority::TokenKind;
+use crate::components::error_message::locatable::Locatable;
+use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::function_type::FunctionType;
+use crate::components::error_message::help_data::HelpData;
+use crate::processes::parsing::lang_token::LangToken;
+use crate::components::context::config::Environment;
+use crate::processes::parsing::elements::elements;
+use crate::components::language::operators::Op;
+use crate::components::context::config::Config;
 use crate::processes::type_checking::typing;
-use crate::utils::builder;
+use crate::components::language::var::Var;
+use crate::components::context::Context;
 use serde::{Deserialize, Serialize};
+use crate::components::r#type::Type;
+use crate::utils::builder;
 use std::str::FromStr;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -56,7 +56,7 @@ pub enum Lang {
     List(Vec<ArgumentValue>, HelpData),
     Tag(String, Box<Lang>, HelpData),
     If(Box<Lang>, Box<Lang>, Box<Lang>, HelpData),
-    Match(Box<Lang>, Var, Vec<(Type, Box<Lang>)>, HelpData),
+    Match(Box<Lang>, Vec<(Lang, Box<Lang>)>, HelpData),
     Tuple(Vec<Lang>, HelpData),
     Lines(Vec<Lang>, HelpData),
     Assign(Box<Lang>, Box<Lang>, HelpData),
@@ -84,6 +84,9 @@ pub enum Lang {
     WhileLoop(Box<Lang>, Box<Lang>, HelpData),
     Break(HelpData),
     Operator(Op, Box<Lang>, Box<Lang>, HelpData),
+    /// Pattern matching on primitive types: `x as int => ...`
+    /// TypePattern(variable_name, matched_type, help_data)
+    TypePattern(String, Type, HelpData),
     SyntaxErr(Box<Lang>, SyntaxError),
 }
 
@@ -126,9 +129,7 @@ impl PartialEq for Lang {
             (Lang::List(a, _), Lang::List(b, _)) => a == b,
             (Lang::Tag(a1, a2, _), Lang::Tag(b1, b2, _)) => a1 == b1 && a2 == b2,
             (Lang::If(a1, a2, a3, _), Lang::If(b1, b2, b3, _)) => a1 == b1 && a2 == b2 && a3 == b3,
-            (Lang::Match(a1, a2, a3, _), Lang::Match(b1, b2, b3, _)) => {
-                a1 == b1 && a2 == b2 && a3 == b3
-            }
+            (Lang::Match(a1, a2, _), Lang::Match(b1, b2, _)) => a1 == b1 && a2 == b2,
             (Lang::Tuple(a, _), Lang::Tuple(b, _)) => a == b,
             (Lang::Lines(a, _), Lang::Lines(b, _)) => a == b,
             (Lang::Assign(a1, a2, _), Lang::Assign(b1, b2, _)) => a1 == b1 && a2 == b2,
@@ -161,6 +162,7 @@ impl PartialEq for Lang {
                 a1 == b1 && a2 == b2 && a3 == b3
             }
             (Lang::SyntaxErr(a, _), Lang::SyntaxErr(b, _)) => a == b,
+            (Lang::TypePattern(a1, a2, _), Lang::TypePattern(b1, b2, _)) => a1 == b1 && a2 == b2,
             _ => false,
         }
     }
@@ -347,7 +349,7 @@ impl Lang {
             Lang::Alias(_, _, _, h) => h,
             Lang::Tag(_, _, h) => h,
             Lang::If(_, _, _, h) => h,
-            Lang::Match(_, _, _, h) => h,
+            Lang::Match(_, _, h) => h,
             Lang::Tuple(_, h) => h,
             Lang::Lines(_, h) => h,
             Lang::Assign(_, _, h) => h,
@@ -375,6 +377,7 @@ impl Lang {
             Lang::WhileLoop(_, _, h) => h,
             Lang::Break(h) => h,
             Lang::Operator(_, _, _, h) => h,
+            Lang::TypePattern(_, _, h) => h,
             Lang::SyntaxErr(inner, _) => return inner.get_help_data(),
         }
         .clone()
@@ -438,7 +441,7 @@ impl Lang {
             Lang::Alias(_, _, _, _) => "Alias".to_string(),
             Lang::Tag(_, _, _) => "Tag".to_string(),
             Lang::If(_, _, _, _) => "If".to_string(),
-            Lang::Match(_, _, _, _) => "Match".to_string(),
+            Lang::Match(_, _, _) => "Match".to_string(),
             Lang::Tuple(_, _) => "Tuple".to_string(),
             Lang::Lines(_, _) => "Sequence".to_string(),
             Lang::Assign(_, _, _) => "Assign".to_string(),
@@ -466,6 +469,9 @@ impl Lang {
             Lang::WhileLoop(_, _, _) => "WhileLoop".to_string(),
             Lang::Break(_) => "Break".to_string(),
             Lang::Operator(_, _, _, _) => "Operator".to_string(),
+            Lang::TypePattern(name, typ, _) => {
+                format!("TypePattern({} as {})", name, typ.pretty2())
+            }
             Lang::SyntaxErr(_, _) => "SyntaxErr".to_string(),
         }
     }
@@ -724,7 +730,7 @@ impl From<Lang> for HelpData {
             Lang::Bool(_, h) => h,
             Lang::Char(_, h) => h,
             Lang::Variable(_, _, _, h) => h,
-            Lang::Match(_, _, _, h) => h,
+            Lang::Match(_, _, h) => h,
             Lang::FunctionApp(_, _, h) => h,
             Lang::VecFunctionApp(_, _, h) => h,
             Lang::MethodCall(_, _, _, h) => h,
@@ -767,6 +773,7 @@ impl From<Lang> for HelpData {
             Lang::WhileLoop(_, _, h) => h,
             Lang::Break(h) => h,
             Lang::Operator(_, _, _, h) => h,
+            Lang::TypePattern(_, _, h) => h,
             Lang::SyntaxErr(inner, _) => return (*inner).clone().into(),
         }
         .clone()

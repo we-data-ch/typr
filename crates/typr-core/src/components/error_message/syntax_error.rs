@@ -10,6 +10,7 @@ pub enum SyntaxError {
     FunctionWithoutType(HelpData),
     FunctionWithoutReturnType(HelpData),
     ForgottenSemicolon(HelpData),
+    MissingListPrefix(HelpData),
 }
 
 impl SyntaxError {
@@ -19,6 +20,7 @@ impl SyntaxError {
             SyntaxError::FunctionWithoutType(h) => Some(h.clone()),
             SyntaxError::FunctionWithoutReturnType(h) => Some(h.clone()),
             SyntaxError::ForgottenSemicolon(h) => Some(h.clone()),
+            SyntaxError::MissingListPrefix(h) => Some(h.clone()),
         }
     }
 
@@ -33,6 +35,9 @@ impl SyntaxError {
             }
             SyntaxError::ForgottenSemicolon(_) => {
                 "Missing semicolon at the end of the statement".to_string()
+            }
+            SyntaxError::MissingListPrefix(_) => {
+                "Missing list prefix ('list' or ':') before the braces".to_string()
             }
         }
     }
@@ -68,6 +73,15 @@ impl ErrorMsg for SyntaxError {
                     .text("You forgot a semicolon at the end of your statement")
                     .pos_text("Here")
                     .help("Just add a ';'")
+                    .build()
+            }
+            SyntaxError::MissingListPrefix(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text("You forgot to add a list prefix ('list' or ':') before the braces")
+                    .pos_text("Here")
+                    .help("Add 'list' or ':' before the braces, e.g. 'list {1, 2, 3}' or ': {1, 2, 3}'")
                     .build()
             }
         };

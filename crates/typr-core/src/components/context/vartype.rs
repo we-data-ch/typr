@@ -5,19 +5,19 @@
     unreachable_code,
     unused_assignments
 )]
-use crate::components::context::config::TargetLanguage;
-use crate::components::r#type::type_system::TypeSystem;
-use crate::processes::parsing::type_token::TypeToken;
-use crate::components::r#type::vector_type::VecType;
-use crate::components::r#type::alias_type::Alias;
 use crate::components::context::config::Config;
-use crate::components::language::var::Var;
+use crate::components::context::config::TargetLanguage;
 use crate::components::context::Context;
+use crate::components::language::var::Var;
 use crate::components::language::Lang;
-use serde::{Deserialize, Serialize};
+use crate::components::r#type::alias_type::Alias;
+use crate::components::r#type::type_system::TypeSystem;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
+use crate::processes::parsing::type_token::TypeToken;
 use crate::utils::builder;
 use indexmap::IndexSet;
+use serde::{Deserialize, Serialize};
 use std::iter::Rev;
 use std::ops::Add;
 
@@ -106,9 +106,8 @@ impl VarType {
                 let alias = original_type
                     .clone()
                     .to_alias(context)
-                    .unwrap_or_default()
-                    .set_opacity(false)
-                    .to_type();
+                    .map(|a| a.to_type())
+                    .unwrap_or_else(|| Alias::default().set_opacity(true).to_type());
                 args.iter()
                     .map(|arg_typ| {
                         (

@@ -1,46 +1,47 @@
-use crate::processes::parsing::operation_priority::PriorityTokens;
-use crate::components::error_message::syntax_error::SyntaxError;
-use crate::processes::parsing::vector_priority::VectorPriority;
-use crate::components::language::argument_value::ArgumentValue;
-use crate::components::error_message::help_message::ErrorMsg;
-use crate::processes::parsing::types::pascal_case_no_space;
-use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::error_message::help_data::HelpData;
-use crate::processes::parsing::lang_token::LangToken;
-use crate::processes::parsing::types::single_type;
+use crate::components::error_message::help_message::ErrorMsg;
+use crate::components::error_message::syntax_error::SyntaxError;
+use crate::components::language::argument_value::ArgumentValue;
 use crate::components::language::operators::op;
 use crate::components::language::operators::Op;
+use crate::components::language::var::Var;
+use crate::components::language::Lang;
+use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::Type;
+use crate::processes::parsing::base_parse;
+use crate::processes::parsing::lang_token::LangToken;
+use crate::processes::parsing::operation_priority::PriorityTokens;
 use crate::processes::parsing::types::if_type;
 use crate::processes::parsing::types::label;
 use crate::processes::parsing::types::ltype;
-use nom::character::complete::alphanumeric1;
-use crate::components::language::var::Var;
-use nom::character::complete::multispace0;
-use nom::character::complete::multispace1;
-use crate::processes::parsing::base_parse;
-use nom::bytes::complete::take_while1;
-use crate::components::language::Lang;
-use nom::character::complete::alpha1;
-use nom::character::complete::digit1;
-use nom::character::complete::one_of;
-use crate::components::r#type::Type;
-use nom::character::complete::char;
+use crate::processes::parsing::types::pascal_case_no_space;
+use crate::processes::parsing::types::primitive_types;
+
+use crate::processes::parsing::vector_priority::VectorPriority;
+use crate::utils::builder;
+use nom::branch::alt;
 use nom::bytes::complete::escaped;
 use nom::bytes::complete::is_not;
-use nom::combinator::recognize;
 use nom::bytes::complete::tag;
-use nom::sequence::terminated;
-use nom::sequence::delimited;
-use nom::sequence::preceded;
-use nom_locate::LocatedSpan;
-use crate::utils::builder;
+use nom::bytes::complete::take_while1;
+use nom::character::complete::alpha1;
+use nom::character::complete::alphanumeric1;
+use nom::character::complete::char;
+use nom::character::complete::digit1;
+use nom::character::complete::multispace0;
+use nom::character::complete::multispace1;
+use nom::character::complete::one_of;
 use nom::combinator::opt;
-use std::process::exit;
+use nom::combinator::recognize;
 use nom::multi::many0;
 use nom::multi::many1;
-use nom::branch::alt;
+use nom::sequence::delimited;
+use nom::sequence::preceded;
+use nom::sequence::terminated;
 use nom::IResult;
 use nom::Parser;
+use nom_locate::LocatedSpan;
+use std::process::exit;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
@@ -555,36 +556,112 @@ fn if_exp(s: Span) -> IResult<Span, Lang> {
     }
 }
 
-fn branch(s: Span) -> IResult<Span, (Type, Box<Lang>)> {
+/// Parse a tag pattern with a variable binding in parentheses: `.Some(a)`
+fn tag_pattern_with_var(s: Span) -> IResult<Span, Lang> {
     let res = (
-        terminated(single_type, multispace0),
+        tag("."),
+        pascal_case,
+        delimited(
+            terminated(tag("("), multispace0),
+            variable2,
+            terminated(tag(")"), multispace0),
+        ),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (dot, (n, _h), var))) => Ok((s, Lang::Tag(n, Box::new(var), dot.into()))),
+        Err(r) => Err(r),
+    }
+}
+
+/// Parse a tag pattern without binding: `.None`
+fn tag_pattern_no_var(s: Span) -> IResult<Span, Lang> {
+    let res = (tag("."), pascal_case).parse(s);
+    match res {
+        Ok((s, (dot, (n, _h)))) => Ok((
+            s,
+            Lang::Tag(n, Box::new(Lang::Empty(dot.clone().into())), dot.into()),
+        )),
+        Err(r) => Err(r),
+    }
+}
+
+/// Parse a wildcard pattern: `_`
+fn wildcard_pattern(s: Span) -> IResult<Span, Lang> {
+    let res = terminated(tag("_"), multispace0).parse(s);
+    match res {
+        Ok((s, underscore)) => Ok((
+            s,
+            Lang::Variable(
+                "_".to_string(),
+                false,
+                builder::empty_type(),
+                underscore.into(),
+            ),
+        )),
+        Err(r) => Err(r),
+    }
+}
+
+/// Parse a type pattern with a variable binding: `x as int`, `y as bool`, etc.
+fn type_pattern(s: Span) -> IResult<Span, Lang> {
+    let res = (
+        terminated(variable_exp, multispace0),
+        terminated(tag("as"), multispace1),
+        terminated(primitive_types, multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, ((name, h), _as, typ))) => Ok((s, Lang::TypePattern(name, typ, h))),
+        Err(r) => Err(r),
+    }
+}
+
+/// Parse a match pattern: `.Some(a)`, `.None`, `x as int`, `:{nom: n}`, `:{a, b}`, `_`, or a variable
+fn match_pattern(s: Span) -> IResult<Span, Lang> {
+    terminated(
+        alt((
+            tag_pattern_with_var,
+            tag_pattern_no_var,
+            record,
+            tuple_exp,
+            type_pattern,
+            wildcard_pattern,
+            variable2,
+        )),
+        multispace0,
+    )
+    .parse(s)
+}
+
+/// Parse a pattern branch: `pattern => expression,`
+fn pattern_branch(s: Span) -> IResult<Span, (Lang, Box<Lang>)> {
+    let res = (
+        terminated(match_pattern, multispace0),
         terminated(tag("=>"), multispace0),
         terminated(parse_elements, multispace0),
         opt(terminated(tag(","), multispace0)),
     )
         .parse(s);
     match res {
-        Ok((s, (typ, _arr, lang, _vir))) => Ok((s, (typ, Box::new(lang)))),
+        Ok((s, (pat, _arr, lang, _vir))) => Ok((s, (pat, Box::new(lang)))),
         Err(r) => Err(r),
     }
 }
 
+/// Parse a match expression with pattern matching:
+/// `match expr { .Some(a) => a, .None => 0, _ => default }`
 fn match_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
-        terminated(tag("match"), multispace0),
-        alt((variable2, elements)),
-        terminated(tag("as"), multispace0),
-        variable2,
+        terminated(tag("match"), multispace1),
+        terminated(alt((scope, variable2)), multispace0),
         terminated(tag("{"), multispace0),
-        many1(branch),
+        many1(pattern_branch),
         terminated(tag("}"), multispace0),
     )
         .parse(s);
     match res {
-        Ok((s, (_m, exp, _as, var, _o, bs, _c))) => Ok((
-            s,
-            Lang::Match(Box::new(exp), Var::try_from(var).unwrap(), bs, _m.into()),
-        )),
+        Ok((s, (_m, exp, _o, bs, _c))) => Ok((s, Lang::Match(Box::new(exp), bs, _m.into()))),
         Err(r) => Err(r),
     }
 }
@@ -997,5 +1074,410 @@ mod tests {
         let res = chars("''".into()).unwrap().1;
         dbg!(&res);
         assert!(true);
+    }
+
+    // ==================== Match Pattern Tests ====================
+
+    #[test]
+    fn test_match_pattern_tag_with_binding() {
+        let input = "match x { .Some(a) => a, .None => 0 }";
+        let res = match_exp(input.into()).unwrap().1;
+        dbg!(&res);
+        assert_eq!(res.simple_print(), "Match");
+    }
+
+    #[test]
+    fn test_match_pattern_with_wildcard() {
+        let input = "match x { .Some(a) => a, _ => 0 }";
+        let res = match_exp(input.into()).unwrap().1;
+        dbg!(&res);
+        assert_eq!(res.simple_print(), "Match");
+    }
+
+    #[test]
+    fn test_match_pattern_tag_without_binding() {
+        let input = "match x { .None => 7 }";
+        let res = match_exp(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+    }
+
+    #[test]
+    fn test_match_pattern_multiple_branches() {
+        let input = "match value { .Some(a) => a + 1, .None => 0, _ => 9 }";
+        let res = match_exp(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+        // Verify we have 3 branches
+        if let Lang::Match(_, branches, _) = &res {
+            assert_eq!(branches.len(), 3, "Should have 3 branches");
+        } else {
+            panic!("Expected Match variant");
+        }
+    }
+
+    #[test]
+    fn test_match_pattern_via_single_element() {
+        let input = "match x { .Some(a) => a, .None => 0 } ";
+        let res = single_element(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+    }
+
+    #[test]
+    fn test_match_pattern_branch_tag_with_var() {
+        let input = ".Some(a) => a + 1, ";
+        let res = pattern_branch(input.into()).unwrap().1;
+        let (pattern, _body) = res;
+        assert_eq!(pattern.simple_print(), "Tag");
+    }
+
+    #[test]
+    fn test_match_pattern_branch_wildcard() {
+        let input = "_ => 42 ";
+        let res = pattern_branch(input.into()).unwrap().1;
+        let (pattern, _body) = res;
+        assert_eq!(pattern.simple_print(), "Variable(_)");
+    }
+
+    #[test]
+    fn test_match_pattern_branch_tag_no_binding() {
+        let input = ".None => 7, ";
+        let res = pattern_branch(input.into()).unwrap().1;
+        let (pattern, body) = res;
+        assert_eq!(pattern.simple_print(), "Tag");
+        assert_eq!(body.simple_print(), "Integer");
+    }
+
+    #[test]
+    fn test_wildcard_pattern() {
+        let input = "_ ";
+        let res = wildcard_pattern(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Variable(_)");
+    }
+
+    #[test]
+    fn test_tag_pattern_with_var() {
+        let input = ".Some(a)";
+        let res = tag_pattern_with_var(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Tag");
+        if let Lang::Tag(name, inner, _) = &res {
+            assert_eq!(name, "Some");
+            assert_eq!(inner.simple_print(), "Variable(a)");
+        } else {
+            panic!("Expected Tag variant");
+        }
+    }
+
+    #[test]
+    fn test_tag_pattern_no_var() {
+        let input = ".None ";
+        let res = tag_pattern_no_var(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Tag");
+        if let Lang::Tag(name, inner, _) = &res {
+            assert_eq!(name, "None");
+            assert_eq!(inner.simple_print(), "Empty");
+        } else {
+            panic!("Expected Tag variant");
+        }
+    }
+
+    #[test]
+    fn test_match_pattern_multiline() {
+        let input = "match result {
+            .Some(value) => value + 1,
+            .None => 0,
+            _ => 99
+        } ";
+        let res = match_exp(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+        if let Lang::Match(_, branches, _) = &res {
+            assert_eq!(branches.len(), 3);
+        } else {
+            panic!("Expected Match variant");
+        }
+    }
+
+    // ==================== Type Pattern Tests ====================
+
+    #[test]
+    fn test_type_pattern_int() {
+        let input = "x as int ";
+        let res = type_pattern(input.into()).unwrap().1;
+        assert!(
+            res.simple_print().starts_with("TypePattern"),
+            "Should parse 'x as int' as TypePattern"
+        );
+        if let Lang::TypePattern(name, _, _) = &res {
+            assert_eq!(name, "x");
+        } else {
+            panic!("Expected TypePattern variant");
+        }
+    }
+
+    #[test]
+    fn test_type_pattern_bool() {
+        let input = "y as bool ";
+        let res = type_pattern(input.into()).unwrap().1;
+        if let Lang::TypePattern(name, _, _) = &res {
+            assert_eq!(name, "y");
+        } else {
+            panic!("Expected TypePattern variant");
+        }
+    }
+
+    #[test]
+    fn test_type_pattern_num() {
+        let input = "val as num ";
+        let res = type_pattern(input.into()).unwrap().1;
+        if let Lang::TypePattern(name, _, _) = &res {
+            assert_eq!(name, "val");
+        } else {
+            panic!("Expected TypePattern variant");
+        }
+    }
+
+    #[test]
+    fn test_type_pattern_char() {
+        let input = "s as char ";
+        let res = type_pattern(input.into()).unwrap().1;
+        if let Lang::TypePattern(name, _, _) = &res {
+            assert_eq!(name, "s");
+        } else {
+            panic!("Expected TypePattern variant");
+        }
+    }
+
+    #[test]
+    fn test_match_with_type_patterns() {
+        let input = "match x { y as int => y + 1, z as bool => 0 } ";
+        let res = match_exp(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+        if let Lang::Match(_, branches, _) = &res {
+            assert_eq!(branches.len(), 2, "Should have 2 branches");
+            assert!(
+                branches[0].0.simple_print().starts_with("TypePattern"),
+                "First branch should be a TypePattern"
+            );
+            assert!(
+                branches[1].0.simple_print().starts_with("TypePattern"),
+                "Second branch should be a TypePattern"
+            );
+        } else {
+            panic!("Expected Match variant");
+        }
+    }
+
+    #[test]
+    fn test_match_mixed_tag_and_type_patterns() {
+        let input = "match value {
+            .Some(a) => a,
+            x as int => x + 1,
+            _ => 0
+        } ";
+        let res = match_exp(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+        if let Lang::Match(_, branches, _) = &res {
+            assert_eq!(branches.len(), 3, "Should have 3 branches");
+            assert_eq!(branches[0].0.simple_print(), "Tag");
+            assert!(branches[1].0.simple_print().starts_with("TypePattern"));
+            assert_eq!(branches[2].0.simple_print(), "Variable(_)");
+        } else {
+            panic!("Expected Match variant");
+        }
+    }
+
+    #[test]
+    fn test_type_pattern_in_match_pattern() {
+        let input = "x as int ";
+        let res = match_pattern(input.into()).unwrap().1;
+        assert!(
+            res.simple_print().starts_with("TypePattern"),
+            "match_pattern should accept type patterns"
+        );
+    }
+
+    // ==================== List/Record Pattern Tests ====================
+
+    #[test]
+    fn test_record_pattern_colon_syntax() {
+        let input = ":{nom: n, age: a} ";
+        let res = match_pattern(input.into()).unwrap().1;
+        assert_eq!(
+            res.simple_print(),
+            "Record",
+            "Should parse record pattern as Record"
+        );
+        if let Lang::List(fields, _) = &res {
+            assert_eq!(fields.len(), 2);
+            assert_eq!(fields[0].get_argument(), "nom");
+            assert_eq!(fields[1].get_argument(), "age");
+        } else {
+            panic!("Expected List variant");
+        }
+    }
+
+    #[test]
+    fn test_record_pattern_list_syntax() {
+        let input = "list(nom = n, age = a) ";
+        let res = match_pattern(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Record");
+        if let Lang::List(fields, _) = &res {
+            assert_eq!(fields.len(), 2);
+            assert_eq!(fields[0].get_argument(), "nom");
+            assert_eq!(fields[1].get_argument(), "age");
+        } else {
+            panic!("Expected List variant");
+        }
+    }
+
+    #[test]
+    fn test_match_with_record_pattern() {
+        let input = "match x { :{nom: n, age: a} => a, _ => 0 } ";
+        let res = match_exp(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+        if let Lang::Match(_, branches, _) = &res {
+            assert_eq!(branches.len(), 2, "Should have 2 branches");
+            assert_eq!(
+                branches[0].0.simple_print(),
+                "Record",
+                "First branch should be a Record pattern"
+            );
+            assert_eq!(branches[1].0.simple_print(), "Variable(_)");
+        } else {
+            panic!("Expected Match variant");
+        }
+    }
+
+    #[test]
+    fn test_match_with_list_pattern() {
+        let input = "match x { list(nom = n, age = a) => a, _ => 0 } ";
+        let res = match_exp(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+        if let Lang::Match(_, branches, _) = &res {
+            assert_eq!(branches.len(), 2);
+            assert_eq!(branches[0].0.simple_print(), "Record");
+        } else {
+            panic!("Expected Match variant");
+        }
+    }
+
+    #[test]
+    fn test_match_mixed_record_tag_type_patterns() {
+        let input = "match value {
+            .Some(a) => a,
+            :{nom: n, age: a} => a,
+            x as int => x + 1,
+            _ => 0
+        } ";
+        let res = match_exp(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+        if let Lang::Match(_, branches, _) = &res {
+            assert_eq!(branches.len(), 4);
+            assert_eq!(branches[0].0.simple_print(), "Tag");
+            assert_eq!(branches[1].0.simple_print(), "Record");
+            assert!(branches[2].0.simple_print().starts_with("TypePattern"));
+            assert_eq!(branches[3].0.simple_print(), "Variable(_)");
+        } else {
+            panic!("Expected Match variant");
+        }
+    }
+
+    #[test]
+    fn test_record_pattern_single_field() {
+        let input = ":{nom: n} ";
+        let res = match_pattern(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Record");
+        if let Lang::List(fields, _) = &res {
+            assert_eq!(fields.len(), 1);
+            assert_eq!(fields[0].get_argument(), "nom");
+        } else {
+            panic!("Expected List variant");
+        }
+    }
+
+    // ==================== Tuple Pattern Tests ====================
+
+    #[test]
+    fn test_tuple_pattern_colon_syntax() {
+        let input = ":{a, b, c} ";
+        let res = match_pattern(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Tuple");
+        if let Lang::Tuple(elements, _) = &res {
+            assert_eq!(elements.len(), 3);
+        } else {
+            panic!("Expected Tuple variant");
+        }
+    }
+
+    #[test]
+    fn test_tuple_pattern_list_syntax() {
+        let input = "list(a, b, c) ";
+        let res = match_pattern(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Tuple");
+        if let Lang::Tuple(elements, _) = &res {
+            assert_eq!(elements.len(), 3);
+        } else {
+            panic!("Expected Tuple variant");
+        }
+    }
+
+    #[test]
+    fn test_tuple_pattern_two_elements() {
+        let input = ":{x, y} ";
+        let res = match_pattern(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Tuple");
+        if let Lang::Tuple(elements, _) = &res {
+            assert_eq!(elements.len(), 2);
+        } else {
+            panic!("Expected Tuple variant");
+        }
+    }
+
+    #[test]
+    fn test_match_with_tuple_pattern() {
+        let input = "match x { :{a, b, c} => a + c, _ => 0 } ";
+        let res = match_exp(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+        if let Lang::Match(_, branches, _) = &res {
+            assert_eq!(branches.len(), 2);
+            assert_eq!(branches[0].0.simple_print(), "Tuple");
+            assert_eq!(branches[1].0.simple_print(), "Variable(_)");
+        } else {
+            panic!("Expected Match variant");
+        }
+    }
+
+    #[test]
+    fn test_match_with_list_tuple_pattern() {
+        let input = "match x { list(a, b, c) => a + c, _ => 0 } ";
+        let res = match_exp(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+        if let Lang::Match(_, branches, _) = &res {
+            assert_eq!(branches.len(), 2);
+            assert_eq!(branches[0].0.simple_print(), "Tuple");
+        } else {
+            panic!("Expected Match variant");
+        }
+    }
+
+    #[test]
+    fn test_match_mixed_all_pattern_types() {
+        let input = "match value {
+            .Some(a) => a,
+            :{nom: n, age: a} => a,
+            :{x, y} => x + y,
+            z as int => z + 1,
+            _ => 0
+        } ";
+        let res = match_exp(input.into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Match");
+        if let Lang::Match(_, branches, _) = &res {
+            assert_eq!(branches.len(), 5);
+            assert_eq!(branches[0].0.simple_print(), "Tag");
+            assert_eq!(branches[1].0.simple_print(), "Record");
+            assert_eq!(branches[2].0.simple_print(), "Tuple");
+            assert!(branches[3].0.simple_print().starts_with("TypePattern"));
+            assert_eq!(branches[4].0.simple_print(), "Variable(_)");
+        } else {
+            panic!("Expected Match variant");
+        }
     }
 }

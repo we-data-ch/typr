@@ -5,40 +5,40 @@
     unreachable_code,
     unused_assignments
 )]
+pub mod function;
 pub mod function_application;
-pub mod signature_expression;
-pub mod unification_map;
-pub mod type_comparison;
 pub mod let_expression;
+pub mod signature_expression;
 pub mod type_checker;
+pub mod type_comparison;
 pub mod type_context;
 pub mod unification;
-pub mod function;
+pub mod unification_map;
 
-use crate::processes::type_checking::function_application::function_application;
-use crate::processes::type_checking::signature_expression::signature_expression;
-use crate::processes::type_checking::let_expression::let_expression;
-use crate::processes::type_checking::type_comparison::reduce_type;
-use crate::components::language::argument_value::ArgumentValue;
-use crate::processes::type_checking::type_context::TypeContext;
+use crate::components::context::config::TargetLanguage;
+use crate::components::context::Context;
+use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
+use crate::components::language::argument_value::ArgumentValue;
+use crate::components::language::array_lang::ArrayLang;
+use crate::components::language::operators::Op;
+use crate::components::language::var::Var;
+use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_operator::TypeOperator;
-use crate::components::error_message::help_data::HelpData;
-use crate::processes::type_checking::function::function;
-use crate::components::context::config::TargetLanguage;
-use crate::components::language::array_lang::ArrayLang;
 use crate::components::r#type::type_system::TypeSystem;
-use crate::components::language::operators::Op;
 use crate::components::r#type::typer::Typer;
-use crate::components::language::var::Var;
-use crate::components::context::Context;
-use crate::components::language::Lang;
 use crate::components::r#type::Type;
-use std::collections::HashSet;
+use crate::processes::type_checking::function::function;
+use crate::processes::type_checking::function_application::function_application;
+use crate::processes::type_checking::let_expression::let_expression;
+use crate::processes::type_checking::signature_expression::signature_expression;
+use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::processes::type_checking::type_context::TypeContext;
 use crate::utils::builder;
+use std::collections::HashSet;
 use std::error::Error;
 
 #[cfg(not(feature = "wasm"))]
@@ -750,9 +750,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             );
             typing(context, &fun_app)
         }
-        Lang::Function(params, ret_ty, body, h) => {
-            function(context, expr, params, ret_ty, body, h)
-        }
+        Lang::Function(params, ret_ty, body, h) => function(context, expr, params, ret_ty, body, h),
         Lang::Lines(exprs, _h) => {
             if exprs.len() == 1 {
                 let res = exprs.clone().pop().unwrap();
@@ -982,52 +980,98 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             )
             .with_errors(errors)
         }
-        Lang::Match(match_exp, var, branches, _h) => {
+        Lang::Match(match_exp, branches, _h) => {
             let match_tc = typing(context, &**match_exp);
             let mut errors = match_tc.errors.clone();
-            let var_ty = reduce_type(context, &match_tc.value);
+            let match_type = match_tc.value.clone().reduce(context);
 
-            match var_ty {
-                typ if matches!(&typ, Type::Operator(TypeOperator::Union, _, _, _)) => {
-                    let union_types = flatten_operator_union(&typ);
-                    let set = branches
-                        .iter()
-                        .map(|(t, _)| t)
-                        .cloned()
-                        .collect::<HashSet<Type>>();
-                    if union_types != set {
-                        errors.push(TypRError::Type(TypeError::WrongExpression(
-                            match_exp.get_help_data(),
-                        )));
-                    }
-                    let branch_tcs: Vec<_> = branches
-                        .iter()
-                        .map(|(typ, bexp)| {
-                            let new_context =
-                                context
-                                    .clone()
-                                    .push_var_type(var.clone(), typ.clone(), context);
-                            typing(&new_context, bexp)
-                        })
-                        .collect();
-                    errors.extend(branch_tcs.iter().flat_map(|tc| tc.errors.clone()));
-                    let types: Vec<_> = branch_tcs.iter().map(|tc| tc.value.clone()).collect();
-
-                    let output_type = if types.len() == 1 {
-                        types[0].clone()
-                    } else {
-                        builder::union_type(&types)
+            let branch_tcs: Vec<_> = branches
+                .iter()
+                .map(|(pattern, bexp)| {
+                    // For tag patterns with bindings, we extract the inner type
+                    let new_context = match pattern {
+                        Lang::Tag(tag_name, inner, _) => {
+                            match inner.as_ref() {
+                                Lang::Variable(var_name, _, _, _) => {
+                                    // Bind the variable to the inner type of the tag
+                                    let var = Var::from_name(var_name);
+                                    context
+                                        .clone()
+                                        .push_var_type(var, builder::any_type(), context)
+                                }
+                                _ => context.clone(),
+                            }
+                        }
+                        // For type patterns `x as int`, bind variable to that type
+                        Lang::TypePattern(var_name, typ, _) => {
+                            let var = Var::from_name(var_name);
+                            context.clone().push_var_type(var, typ.clone(), context)
+                        }
+                        // For tuple patterns `:{a, b, c}`, bind each variable by position
+                        Lang::Tuple(elements, _) => {
+                            let tuple_types = match &match_type {
+                                Type::Tuple(types, _) => Some(types.clone()),
+                                _ => None,
+                            };
+                            elements
+                                .iter()
+                                .enumerate()
+                                .fold(context.clone(), |ctx, (i, elem)| {
+                                    if let Lang::Variable(var_name, _, _, _) = elem {
+                                        if var_name == "_" {
+                                            return ctx;
+                                        }
+                                        let elem_type = tuple_types
+                                            .as_ref()
+                                            .and_then(|types| types.get(i).cloned())
+                                            .unwrap_or_else(|| builder::any_type());
+                                        let var = Var::from_name(var_name);
+                                        ctx.push_var_type(var, elem_type, context)
+                                    } else {
+                                        ctx
+                                    }
+                                })
+                        }
+                        // For list/record patterns `:{nom: n, age: a}`, bind each variable
+                        Lang::List(fields, _) => {
+                            // Extract record field types from the matched expression if available
+                            let record_fields = match &match_type {
+                                Type::Record(field_types, _) => Some(field_types.clone()),
+                                _ => None,
+                            };
+                            fields.iter().fold(context.clone(), |ctx, arg_val| {
+                                if let Lang::Variable(var_name, _, _, _) = &arg_val.get_value() {
+                                    let field_type = record_fields
+                                        .as_ref()
+                                        .and_then(|fields| {
+                                            fields.iter().find(|at| {
+                                                at.get_argument_str() == arg_val.get_argument()
+                                            })
+                                        })
+                                        .map(|at| at.get_type())
+                                        .unwrap_or_else(|| builder::any_type());
+                                    let var = Var::from_name(var_name);
+                                    ctx.push_var_type(var, field_type, context)
+                                } else {
+                                    ctx
+                                }
+                            })
+                        }
+                        _ => context.clone(),
                     };
-                    TypeContext::new(output_type, expr.clone(), context.clone()).with_errors(errors)
-                }
-                _ => {
-                    errors.push(TypRError::Type(TypeError::WrongExpression(
-                        match_exp.get_help_data(),
-                    )));
-                    TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                        .with_errors(errors)
-                }
-            }
+                    typing(&new_context, bexp)
+                })
+                .collect();
+
+            errors.extend(branch_tcs.iter().flat_map(|tc| tc.errors.clone()));
+            let types: Vec<_> = branch_tcs.iter().map(|tc| tc.value.clone()).collect();
+
+            let output_type = if types.len() == 1 {
+                types[0].clone()
+            } else {
+                builder::union_type(&types)
+            };
+            TypeContext::new(output_type, expr.clone(), context.clone()).with_errors(errors)
         }
         Lang::ArrayIndexing(arr_exp, index, h) => {
             let tc = typing(context, arr_exp);
@@ -1161,7 +1205,6 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         _ => builder::any_type().with_lang(expr, context).into(),
     }
 }
-
 
 /// Flatten a nested `Type::Operator(Union, ...)` tree into a flat `HashSet<Type>`.
 fn flatten_operator_union(typ: &Type) -> HashSet<Type> {
