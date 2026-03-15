@@ -4,7 +4,6 @@
 
 mod cli;
 mod engine;
-mod fs_provider;
 mod io;
 mod lsp;
 mod lsp_parser;

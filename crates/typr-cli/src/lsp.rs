@@ -517,7 +517,6 @@ fn extract_error_length(message: &str, content: &str, line: u32) -> u32 {
     if let Some(_col) = marker_col {
         if let Some(content_line) = content.lines().nth(line as usize) {
             return content_line
-                .trim()
                 .split_whitespace()
                 .next()
                 .map(|s| s.len() as u32)

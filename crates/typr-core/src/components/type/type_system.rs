@@ -4,8 +4,6 @@ use std::hash::Hash;
 
 pub trait TypeSystem: PartialOrd + Debug + Eq + Hash + Clone + Default {
     fn pretty(&self) -> String;
-    fn simple_pretty(&self) -> String;
-    fn verbose_pretty(&self) -> String;
 
     /// Vérifie le sous-typage avec mémoization.
     /// Retourne (résultat, Option<Context mis à jour si le cache a été modifié>)
@@ -19,10 +17,6 @@ pub trait TypeSystem: PartialOrd + Debug + Eq + Hash + Clone + Default {
     }
 
     fn reduce(&self, context: &Context) -> Self;
-
-    fn reduce_tuple(&self, context: &Context) -> (Self, Self) {
-        (self.clone(), self.reduce(context))
-    }
 
     fn reduce_and_subtype(&self, other: &Self, context: &Context) -> (bool, Option<Context>) {
         let reduced_self = self.reduce(context);

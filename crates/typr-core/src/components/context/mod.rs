@@ -2,24 +2,24 @@ pub mod config;
 pub mod graph;
 pub mod vartype;
 
-use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::components::context::config::Config;
+use crate::components::context::config::Environment;
+use crate::components::context::config::TargetLanguage;
+use crate::components::context::graph::Graph;
 use crate::components::context::unification_map::UnificationMap;
-use crate::processes::type_checking::match_types_to_generic;
+use crate::components::context::vartype::VarType;
+use crate::components::language::var::Var;
 use crate::components::language::var_function::VarFunction;
+use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_system::TypeSystem;
-use crate::components::context::config::TargetLanguage;
-use crate::processes::type_checking::unification_map;
-use crate::utils::standard_library::not_in_blacklist;
-use crate::components::context::config::Environment;
-use crate::components::context::vartype::VarType;
-use crate::components::context::config::Config;
-use crate::components::context::graph::Graph;
-use crate::components::language::var::Var;
-use crate::components::language::Lang;
 use crate::components::r#type::Type;
-use std::collections::HashSet;
+use crate::processes::type_checking::match_types_to_generic;
+use crate::processes::type_checking::type_comparison::reduce_type;
+use crate::processes::type_checking::unification_map;
 use crate::utils::builder;
+use crate::utils::standard_library::not_in_blacklist;
+use std::collections::HashSet;
 use std::iter::Rev;
 use std::ops::Add;
 use tap::Pipe;
@@ -93,10 +93,6 @@ impl Context {
             .chain(self.aliases())
             .cloned()
             .collect::<Vec<_>>()
-    }
-
-    pub fn print_hierarchy(&self) {
-        self.subtypes.print_hierarchy();
     }
 
     pub fn variable_exist(&self, var: Var) -> Option<Var> {

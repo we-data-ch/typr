@@ -182,7 +182,7 @@ impl RHighlighter {
             }
 
             // Handle numbers
-            if ch.is_numeric() || (ch == '.' && chars.peek().map_or(false, |c| c.is_numeric())) {
+            if ch.is_numeric() || (ch == '.' && chars.peek().is_some_and(|c| c.is_numeric())) {
                 if !current_word.is_empty() {
                     result.push_str(&Self::colorize_word(&current_word));
                     current_word.clear();
@@ -485,8 +485,8 @@ impl TypRExecutor {
         write_header(context, &dir, Environment::Repl);
         write_to_r_lang(r_code.to_string(), &dir, r_file_name, Environment::Repl);
         println!("{}{}{}", colors::NUMBER, r_type, colors::RESET);
-        let res = execute_r_with_path2(&dir, r_file_name);
-        res
+
+        execute_r_with_path2(&dir, r_file_name)
     }
 
     fn execute(self, cmd: &str) -> Result<(Self, ExecutionResult), String> {

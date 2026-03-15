@@ -61,49 +61,13 @@ impl<T: TypeSystem> Graph<T> {
         }
     }
 
-    pub fn add_type_trace(self, typ: T, context: &Context) -> Self {
-        if self.memory.contains(&typ) {
-            self
-        } else {
-            Graph {
-                memory: self
-                    .memory
-                    .iter()
-                    .chain([typ.clone()].iter())
-                    .cloned()
-                    .collect(),
-                root: self.root.add_type_trace(typ, context),
-                subtype_cache: self.subtype_cache,
-            }
-        }
-    }
-
     pub fn get_hierarchy(&self) -> String {
         self.root.get_hierarchy()
-    }
-
-    pub fn get_type_list(&self) -> String {
-        T::prettys(&self.memory.iter().cloned().collect::<Vec<_>>())
-    }
-
-    pub fn print_hierarchy(&self) {
-        eprintln!("{}", self.get_hierarchy());
     }
 
     pub fn get_supertypes(&self, typ: &T, context: &Context) -> Vec<T> {
         self.root
             .get_supertypes(typ, context)
-            .iter()
-            .cloned()
-            .collect::<HashSet<_>>()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-    }
-
-    pub fn get_supertypes_trace(&self, typ: &T, context: &Context) -> Vec<T> {
-        self.root
-            .get_supertypes_trace(typ, context)
             .iter()
             .cloned()
             .collect::<HashSet<_>>()
@@ -165,45 +129,6 @@ impl<T: TypeSystem> Node<T> {
         }
     }
 
-    pub fn propagate_trace(self, typ: T, context: &Context) -> Self {
-        let graph = Node {
-            value: self.value.clone(),
-            subtypes: self
-                .subtypes
-                .iter()
-                .cloned()
-                .map(|x| x.add_type(typ.clone(), context))
-                .collect(),
-        };
-        if graph == self {
-            eprintln!(
-                "add {} to one of the children of {}",
-                typ.pretty(),
-                self.value.pretty()
-            );
-            self.add_subtype(typ)
-        } else {
-            eprintln!(
-                "{} is not a subtype of {}'s subtypes: {}",
-                typ.pretty(),
-                self.value.pretty(),
-                self.show_subtypes()
-            );
-            graph
-        }
-    }
-
-    pub fn show_subtypes(&self) -> String {
-        "[".to_string()
-            + &self
-                .subtypes
-                .iter()
-                .map(|typ| typ.value.pretty().to_string())
-                .collect::<Vec<_>>()
-                .join(",")
-            + "]"
-    }
-
     pub fn add_subtype(self, typ: T) -> Self {
         Node {
             value: self.value,
@@ -234,27 +159,6 @@ impl<T: TypeSystem> Node<T> {
         }
     }
 
-    fn switch_if_reverse_subtype_trace(self, typ: T, context: &Context) -> Self {
-        if self.value.is_subtype_raw(&typ, context) {
-            eprintln!(
-                "{} is a subtype of the entry {}",
-                self.value.pretty(),
-                typ.pretty()
-            );
-            Node {
-                value: typ,
-                subtypes: vec![Node::from(self.value).set_subtypes(self.subtypes)],
-            }
-        } else {
-            eprintln!(
-                "{} is not a subtype of {} abort this branch",
-                typ.pretty(),
-                self.value.pretty()
-            );
-            self
-        }
-    }
-
     pub fn add_type(self, typ: T, context: &Context) -> Self {
         if self.value == typ {
             self
@@ -270,31 +174,6 @@ impl<T: TypeSystem> Node<T> {
         }
     }
 
-    pub fn add_type_trace(self, typ: T, context: &Context) -> Self {
-        match (
-            typ.is_subtype_raw(&self.value, context),
-            self.subtypes.len(),
-        ) {
-            (true, 0) => {
-                eprintln!(
-                    "{} is a subtype of the leaf {}",
-                    typ.pretty(),
-                    self.value.pretty()
-                );
-                self.add_subtype(typ)
-            }
-            (true, _) => {
-                eprintln!(
-                    "{} is a subtype of the node {}",
-                    typ.pretty(),
-                    self.value.pretty()
-                );
-                self.propagate_trace(typ, context)
-            }
-            _ => self.switch_if_reverse_subtype_trace(typ, context),
-        }
-    }
-
     pub fn get_supertypes(&self, target_type: &T, context: &Context) -> Vec<T> {
         if target_type == &self.value {
             vec![]
@@ -305,31 +184,6 @@ impl<T: TypeSystem> Node<T> {
                 .chain([self.value.clone()].iter().cloned())
                 .collect::<Vec<T>>()
         } else {
-            vec![]
-        }
-    }
-
-    pub fn get_supertypes_trace(&self, target_type: &T, context: &Context) -> Vec<T> {
-        if target_type == &self.value {
-            eprintln!("found the root of {} we backtrack", target_type.pretty());
-            vec![]
-        } else if target_type.is_subtype_raw(&self.value, context) {
-            eprintln!(
-                "{} is subtype of {} we check the subtypes",
-                target_type.pretty(),
-                self.value.pretty()
-            );
-            self.subtypes
-                .iter()
-                .flat_map(|x| x.get_supertypes_trace(target_type, context))
-                .chain([self.value.clone()].iter().cloned())
-                .collect::<Vec<T>>()
-        } else {
-            eprintln!(
-                "{} is not subtype of {} ABORT this branch",
-                target_type.pretty(),
-                self.value.pretty()
-            );
             vec![]
         }
     }

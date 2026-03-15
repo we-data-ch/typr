@@ -15,7 +15,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use typr_core::components::context::config::Environment;
 use typr_core::components::context::Context;
-use typr_core::components::error_message::syntax_error::SyntaxError;
 use typr_core::components::error_message::typr_error::TypRError;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::Type;
@@ -36,10 +35,7 @@ pub struct TypRFile<'a> {
 
 impl<'a> TypRFile<'a> {
     pub fn new(content: &'a str, name: String) -> TypRFile<'a> {
-        TypRFile {
-            content: content,
-            name: name,
-        }
+        TypRFile { content, name }
     }
 
     /// Parse and return the full ParseResult with AST and collected errors
@@ -53,36 +49,14 @@ impl<'a> TypRFile<'a> {
     }
 }
 
-/// Result of parsing a code file, containing the AST and any syntax errors
-pub struct ParseCodeResult {
-    pub ast: Lang,
-    pub errors: Vec<SyntaxError>,
-}
-
-impl ParseCodeResult {
-    pub fn has_errors(&self) -> bool {
-        !self.errors.is_empty()
-    }
-}
-
-/// Parse code and return the AST along with any syntax errors collected
-pub fn parse_code_with_errors(path: &PathBuf, environment: Environment) -> ParseCodeResult {
+/// Parse code and return the AST
+pub fn parse_code(path: &PathBuf, environment: Environment) -> Lang {
     let file = get_os_file(path.to_str().unwrap());
-    let file_content = read_file(path).expect(&format!("Path {:?} not found", path));
+    let file_content = read_file(path).unwrap_or_else(|| panic!("Path {:?} not found", path));
     let base_file = TypRFile::new(&file_content, file);
 
     let parse_result = base_file.parse_with_errors();
-    let ast = metaprogrammation(parse_result.ast, environment);
-
-    ParseCodeResult {
-        ast,
-        errors: parse_result.errors,
-    }
-}
-
-/// Parse code and return the AST (legacy behavior, ignores syntax errors)
-pub fn parse_code(path: &PathBuf, environment: Environment) -> Lang {
-    parse_code_with_errors(path, environment).ast
+    metaprogrammation(parse_result.ast, environment)
 }
 
 /// Complete result of compiling a TypR file (parsing + type checking)
@@ -103,17 +77,6 @@ impl CompileResult {
         !self.errors.is_empty()
     }
 
-    /// Get only syntax errors
-    pub fn syntax_errors(&self) -> Vec<&SyntaxError> {
-        self.errors
-            .iter()
-            .filter_map(|e| match e {
-                TypRError::Syntax(s) => Some(s),
-                _ => None,
-            })
-            .collect()
-    }
-
     /// Get only type errors
     pub fn type_errors(&self) -> Vec<&typr_core::components::error_message::type_error::TypeError> {
         self.errors
@@ -123,40 +86,6 @@ impl CompileResult {
                 _ => None,
             })
             .collect()
-    }
-}
-
-/// Parse and type-check code, returning all errors collected
-///
-/// This is the main entry point for compiling TypR code with error collection.
-pub fn compile_code_with_errors(path: &PathBuf, environment: Environment) -> CompileResult {
-    let file = get_os_file(path.to_str().unwrap());
-    let file_content = read_file(path).expect(&format!("Path {:?} not found", path));
-    let base_file = TypRFile::new(&file_content, file);
-
-    // Parse with error collection
-    let parse_result = base_file.parse_with_errors();
-    let ast = metaprogrammation(parse_result.ast, environment);
-
-    // Convert syntax errors to TypRErrors
-    let mut all_errors: Vec<TypRError> = parse_result
-        .errors
-        .into_iter()
-        .map(TypRError::Syntax)
-        .collect();
-
-    // Type check with error collection
-    let context = Context::default();
-    let typing_result = typing_with_errors(&context, &ast);
-
-    // Collect type errors
-    all_errors.extend(typing_result.errors);
-
-    CompileResult {
-        ast: typing_result.type_context.lang,
-        inferred_type: typing_result.type_context.value,
-        context: typing_result.type_context.context,
-        errors: all_errors,
     }
 }
 

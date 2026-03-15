@@ -10,6 +10,7 @@ use crate::components::language::set_related_type_if_variable;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
 use crate::components::language::ModulePosition;
+use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::array_type::ArrayType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::Type;
@@ -17,7 +18,6 @@ use crate::processes::transpiling::translatable::Translatable;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
 use translatable::RTranslatable;
-use crate::components::r#type::argument_type::ArgumentType;
 
 #[cfg(not(feature = "wasm"))]
 use std::fs::File;
@@ -354,7 +354,11 @@ impl RTranslatable<(String, Context)> for Lang {
                 (
                     format!(
                         "(function({}) {}{}) |> {}",
-                        params.iter().map(|x| x.to_r()).collect::<Vec<_>>().join(", "),
+                        params
+                            .iter()
+                            .map(|x| x.to_r())
+                            .collect::<Vec<_>>()
+                            .join(", "),
                         body.to_r(&sub_context).0,
                         res,
                         cont.get_type_anotation(&fn_type.into())

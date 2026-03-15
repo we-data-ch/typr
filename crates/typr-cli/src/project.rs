@@ -20,13 +20,12 @@ use typr_core::components::context::Context;
 use typr_core::processes::type_checking::type_checker::TypeChecker;
 use typr_core::typing;
 
-pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environment) -> () {
+pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environment) {
     let type_anotations = context.get_type_anotations();
     let mut app = match environment {
         Environment::Repl => OpenOptions::new()
             .append(true)
             .create(true)
-            .write(true)
             .open(output_dir.join(".repl.R")),
         _ => OpenOptions::new().create(true).write(true).open(
             output_dir
@@ -44,7 +43,12 @@ pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environ
         .map(|(var, _)| var.get_name())
         .filter(|x| !x.contains("<-"))
         .map(|fn_name| {
-            let export = if environment.is_project() { "#' @export\n" } else { "" }.to_string();
+            let export = if environment.is_project() {
+                "#' @export\n"
+            } else {
+                ""
+            }
+            .to_string();
             format!(
                 "{}{} <- function(x, ...) UseMethod('{}', x)",
                 export,
@@ -59,7 +63,6 @@ pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environ
         Environment::Repl => OpenOptions::new()
             .append(true)
             .create(true)
-            .write(true)
             .open(output_dir.join(".repl.R")),
         _ => OpenOptions::new().create(true).write(true).open(
             output_dir
@@ -78,7 +81,7 @@ pub fn write_to_r_lang(
     output_dir: &PathBuf,
     file_name: &str,
     environment: Environment,
-) -> () {
+) {
     let rstd = include_str!("../configs/src/std.R");
     let std_path = output_dir.join("a_std.R");
     let mut rstd_file = File::create(std_path).unwrap();
@@ -86,11 +89,7 @@ pub fn write_to_r_lang(
 
     let app_path = output_dir.join(file_name);
     let mut app = match environment {
-        Environment::Repl => OpenOptions::new()
-            .append(true)
-            .write(true)
-            .create(true)
-            .open(app_path),
+        Environment::Repl => OpenOptions::new().append(true).create(true).open(app_path),
         _ => File::create(app_path),
     }
     .unwrap();
@@ -460,7 +459,7 @@ pub fn document() {
                 println!("Documentation successfully generated!");
 
                 if !output.stdout.is_empty() {
-                    println!("")
+                    println!()
                 }
             } else {
                 eprintln!("Error while generating documentation");
@@ -585,10 +584,8 @@ pub fn clean() {
             let path = entry.path();
             if let Some(file_name) = path.file_name() {
                 if let Some(str_name) = file_name.to_str() {
-                    if str_name.starts_with(".") {
-                        if path.is_file() {
-                            let _ = fs::remove_file(&path);
-                        }
+                    if str_name.starts_with(".") && path.is_file() {
+                        let _ = fs::remove_file(&path);
                     }
                 }
             }

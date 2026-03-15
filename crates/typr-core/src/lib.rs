@@ -13,8 +13,6 @@
 //! for all I/O operations:
 //!
 //! - [`SourceProvider`]: Provides source code content (replaces `std::fs::read_to_string`)
-//! - [`OutputHandler`]: Handles transpilation output (replaces file writes)
-//! - [`PackageChecker`]: Checks/installs R packages (replaces `Command` execution)
 //!
 //! ## Usage
 //!
@@ -25,7 +23,7 @@
 //! sources.add_source("main.ty", "let x: Number = 42;");
 //!
 //! let compiler = Compiler::new(sources);
-//! let result = compiler.compile("main.ty")?;
+//! let result = compiler.transpile(&compiler.parse("main.ty")?);
 //! println!("R code: {}", result.r_code);
 //! ```
 
@@ -78,14 +76,6 @@ impl<S: SourceProvider> Compiler<S> {
         }
     }
 
-    /// Create a compiler with a custom context
-    pub fn with_context(source_provider: S, context: Context) -> Self {
-        Self {
-            source_provider,
-            context,
-        }
-    }
-
     /// Get the current context
     pub fn get_context(&self) -> Context {
         self.context.clone()
@@ -125,37 +115,6 @@ impl<S: SourceProvider> Compiler<S> {
                 .collect(),
         }
     }
-
-    /// Full compilation: parse, type check, and transpile
-    pub fn compile(&self, filename: &str) -> Result<CompileOutput, CompileError> {
-        let ast = self.parse(filename)?;
-        let typing_result = self.type_check(&ast);
-
-        if typing_result.has_errors() {
-            return Err(CompileError::TypeErrors(typing_result.get_errors().clone()));
-        }
-
-        let transpile_result = self.transpile(&ast);
-
-        Ok(CompileOutput {
-            ast,
-            r_code: transpile_result.r_code,
-            type_annotations: transpile_result.type_annotations,
-            generic_functions: transpile_result.generic_functions,
-        })
-    }
-
-    /// Get completions at a position (for LSP support)
-    pub fn get_completions(&self, _source: &str, _position: usize) -> Vec<String> {
-        // TODO: Implement completion logic
-        vec![]
-    }
-
-    /// Get hover information at a position (for LSP support)
-    pub fn get_hover(&self, _source: &str, _position: usize) -> Option<String> {
-        // TODO: Implement hover logic
-        None
-    }
 }
 
 /// Result of transpilation
@@ -166,20 +125,10 @@ pub struct TranspileResult {
     pub generic_functions: Vec<String>,
 }
 
-/// Full compilation output
-#[derive(Debug, Clone)]
-pub struct CompileOutput {
-    pub ast: Lang,
-    pub r_code: String,
-    pub type_annotations: String,
-    pub generic_functions: Vec<String>,
-}
-
 /// Compilation errors
 #[derive(Debug, Clone)]
 pub enum CompileError {
     FileNotFound(String),
-    ParseError(String),
     TypeErrors(Vec<TypRError>),
 }
 
@@ -187,7 +136,6 @@ impl std::fmt::Display for CompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CompileError::FileNotFound(name) => write!(f, "File not found: {}", name),
-            CompileError::ParseError(msg) => write!(f, "Parse error: {}", msg),
             CompileError::TypeErrors(errors) => {
                 write!(f, "Type errors:\n")?;
                 for err in errors {

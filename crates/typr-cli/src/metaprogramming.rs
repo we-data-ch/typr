@@ -13,7 +13,7 @@ fn import_file_module_code(line: &Lang, environment: Environment) -> Lang {
         Lang::ModuleImport(name, _h) => {
             let file = get_os_file(&format!("{}.ty", name));
             let parse_result = parse(LocatedSpan::new_extra(
-                &read_file_from_name(&name, environment),
+                &read_file_from_name(name, environment),
                 file,
             ));
             // TODO: propagate errors from imported modules

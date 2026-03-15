@@ -6,19 +6,19 @@
     unused_assignments
 )]
 
-use crate::components::error_message::type_error::TypeError;
-use crate::components::r#type::argument_type::ArgumentType;
-use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::error_message::help_data::HelpData;
-use crate::components::r#type::vector_type::VecType;
+use crate::components::error_message::type_error::TypeError;
 use crate::components::language::operators::Op;
-use crate::components::r#type::tchar::Tchar;
-use crate::components::r#type::tint::Tint;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
+use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::tchar::Tchar;
+use crate::components::r#type::tint::Tint;
+use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
-use std::collections::HashSet;
 use crate::TypRError;
+use std::collections::HashSet;
 
 pub fn generic_type() -> Type {
     Type::Generic("T".to_string(), HelpData::default())
@@ -168,8 +168,5 @@ pub fn let_var(name: &str, typ: Type) -> (Var, Type) {
 }
 
 pub fn unmatching_return_type(typ1: &Type, typ2: &Type) -> TypRError {
-    TypRError::Type(TypeError::UnmatchingReturnType(
-        typ1.clone(),
-        typ2.clone(),
-    ))
+    TypRError::Type(TypeError::UnmatchingReturnType(typ1.clone(), typ2.clone()))
 }

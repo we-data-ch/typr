@@ -29,7 +29,6 @@ use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
-use crate::components::r#type::typer::Typer;
 use crate::components::r#type::Type;
 use crate::processes::type_checking::function::function;
 use crate::processes::type_checking::function_application::function_application;
@@ -1142,11 +1141,6 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 Some(arr) => {
                     let base_type = arr.base_type;
                     let var = var.clone().set_type(base_type.clone());
-                    let _typer_result = Typer::from(context.clone())
-                        .set_type(base_type)
-                        .set_var(var)
-                        .push_var_type()
-                        .typing((**body).clone());
                     TypeContext::new(
                         builder::unknown_function_type(),
                         expr.clone(),

@@ -4,7 +4,6 @@
 
 pub mod builder;
 pub mod fluent_parser;
-pub mod path;
 pub mod standard_library;
 
 // Re-export commonly used items

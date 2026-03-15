@@ -380,7 +380,7 @@ fn colorize_word(word: &str) -> String {
         format!("**{}**", word)
     } else if is_generic_name(word) {
         format!("*{}*", word)
-    } else if word.chars().next().map_or(false, |c| c.is_uppercase()) {
+    } else if word.chars().next().is_some_and(|c| c.is_uppercase()) {
         format!("**{}**", word)
     } else {
         word.to_string()
@@ -543,7 +543,7 @@ fn detect_completion_context(prefix: &str) -> CompletionCtx {
             if !before_dot.is_empty() {
                 let expr = extract_last_expression(before_dot);
 
-                if expr.chars().next().map_or(false, |c| c.is_uppercase()) {
+                if expr.chars().next().is_some_and(|c| c.is_uppercase()) {
                     return CompletionCtx::Module(expr);
                 } else {
                     return CompletionCtx::DotAccess(expr);
@@ -570,7 +570,7 @@ fn extract_last_expression(s: &str) -> String {
     let trimmed = s.trim_end();
 
     let parts: Vec<&str> = trimmed
-        .split(|c| c == ';' || c == '\n')
+        .split([';', '\n'])
         .filter(|p| !p.trim().is_empty())
         .collect();
 
@@ -909,7 +909,7 @@ fn infer_expression_type(context: &Context, expr: &str) -> Type {
 
     let result = parse_and_infer_expression_type(context, trimmed);
 
-    result.unwrap_or_else(|| builder::any_type())
+    result.unwrap_or_else(builder::any_type)
 }
 
 fn parse_and_infer_expression_type(context: &Context, expr: &str) -> Option<Type> {
