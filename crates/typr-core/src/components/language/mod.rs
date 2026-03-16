@@ -88,6 +88,7 @@ pub enum Lang {
     /// TypePattern(variable_name, matched_type, help_data)
     TypePattern(String, Type, HelpData),
     Null(HelpData),
+    NA(HelpData),
     SyntaxErr(Box<Lang>, SyntaxError),
 }
 
@@ -165,6 +166,7 @@ impl PartialEq for Lang {
             (Lang::SyntaxErr(a, _), Lang::SyntaxErr(b, _)) => a == b,
             (Lang::TypePattern(a1, a2, _), Lang::TypePattern(b1, b2, _)) => a1 == b1 && a2 == b2,
             (Lang::Null(_), Lang::Null(_)) => true,
+            (Lang::NA(_), Lang::NA(_)) => true,
             _ => false,
         }
     }
@@ -382,6 +384,7 @@ impl Lang {
             Lang::Operator(_, _, _, h) => h,
             Lang::TypePattern(_, _, h) => h,
             Lang::Null(h) => h,
+            Lang::NA(h) => h,
             Lang::SyntaxErr(inner, _) => return inner.get_help_data(),
         }
         .clone()
@@ -477,6 +480,7 @@ impl Lang {
                 format!("TypePattern({} as {})", name, typ.pretty2())
             }
             Lang::Null(_) => "Null".to_string(),
+            Lang::NA(_) => "NA".to_string(),
             Lang::SyntaxErr(_, _) => "SyntaxErr".to_string(),
         }
     }
@@ -489,6 +493,7 @@ impl Lang {
         match self {
             Lang::Char(val, _) => (format!("\\'{}\\'", val), context.clone()),
             Lang::Null(_) => ("null".to_string(), context.clone()),
+            Lang::NA(_) => ("NA".to_string(), context.clone()),
             Lang::Bool(b, _) => (b.to_string().to_uppercase(), context.clone()),
             Lang::Number(n, _) => (format!("{}", n), context.clone()),
             Lang::Integer(i, _) => (format!("{}", i), context.clone()),
@@ -781,6 +786,7 @@ impl From<Lang> for HelpData {
             Lang::Operator(_, _, _, h) => h,
             Lang::TypePattern(_, _, h) => h,
             Lang::Null(h) => h,
+            Lang::NA(h) => h,
             Lang::SyntaxErr(inner, _) => return (*inner).clone().into(),
         }
         .clone()

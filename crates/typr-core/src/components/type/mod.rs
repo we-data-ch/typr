@@ -121,6 +121,7 @@ pub enum Type {
     Any(HelpData),
     Variable(String, HelpData),
     Null(HelpData),
+    NA(HelpData),
 }
 
 impl TypeSystem for Type {
@@ -322,7 +323,8 @@ impl Type {
             | Type::Number(_)
             | Type::Integer(_, _)
             | Type::Char(_, _)
-            | Type::Null(_) => true,
+            | Type::Null(_)
+            | Type::NA(_) => true,
             _ => false,
         }
     }
@@ -425,6 +427,7 @@ impl Type {
                 format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript())
             }
             Type::Null(_) => "null".to_string(),
+            Type::NA(_) => "NA".to_string(),
             Type::Any(_) => "null".to_string(),
             Type::Empty(_) => "null".to_string(),
             Type::Add(_, _, _) => "T".to_string(),
@@ -465,6 +468,7 @@ impl Type {
                 format!("{{ _type: '{}',  _body: {} }}", name, typ.to_typescript())
             }
             Type::Null(_) => "null".to_string(),
+            Type::NA(_) => "NA".to_string(),
             Type::Any(_) => "null".to_string(),
             Type::Empty(_) => "null".to_string(),
             Type::Add(_, _, _) => "T".to_string(),
@@ -689,6 +693,7 @@ impl Type {
             Type::Intersection(_, _) => TypeCategory::Intersection,
             Type::Module(_, _) => TypeCategory::Module,
             Type::Null(_) => TypeCategory::Null,
+            Type::NA(_) => TypeCategory::Null,
             Type::Operator(TypeOperator::Union, _, _, _) => TypeCategory::Union,
             Type::Operator(_, _, _, _) => TypeCategory::Operator,
             _ => {
@@ -756,6 +761,7 @@ impl Type {
             Type::Operator(_, _, _, h) => h.clone(),
             Type::Variable(_, h) => h.clone(),
             Type::Null(h) => h.clone(),
+            Type::NA(h) => h.clone(),
         }
     }
 
@@ -796,6 +802,7 @@ impl Type {
             Type::Operator(op, t1, t2, _) => Type::Operator(op, t1, t2, h2),
             Type::Variable(name, _) => Type::Variable(name, h2),
             Type::Null(_) => Type::Null(h2),
+            Type::NA(_) => Type::NA(h2),
         }
     }
 
@@ -1025,6 +1032,7 @@ impl From<Type> for HelpData {
             Type::Any(h) => h,
             Type::UnknownFunction(h) => h,
             Type::Null(h) => h,
+            Type::NA(h) => h,
             e => panic!("The type element {:?} is not yet implemented", e),
         }
         .clone()
@@ -1072,6 +1080,7 @@ impl PartialEq for Type {
             (Type::Intersection(s1, _), Type::Intersection(s2, _)) => s1 == s2,
             (Type::Variable(s1, _), Type::Variable(s2, _)) => s1 == s2,
             (Type::Null(_), Type::Null(_)) => true,
+            (Type::NA(_), Type::NA(_)) => true,
             (Type::UnknownFunction(_), Type::UnknownFunction(_)) => true,
             (Type::UnknownFunction(_), Type::Empty(_)) => true,
             (Type::Empty(_), Type::UnknownFunction(_)) => true,
@@ -1206,6 +1215,7 @@ impl Hash for Type {
             Type::Operator(_, _, _, _) => 38.hash(state),
             Type::Variable(_, _) => 39.hash(state),
             Type::Null(_) => 40.hash(state),
+            Type::NA(_) => 41.hash(state),
         }
     }
 }

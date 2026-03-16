@@ -683,6 +683,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 cont.clone(),
             ),
             Lang::Break(_) => ("break".to_string(), cont.clone()),
+            Lang::NA(_) => ("NA".to_string(), cont.clone()),
             Lang::Module(name, body, position, config, _) => {
                 let name = if (name == "main") && (config.environment == Environment::Project) {
                     "a_main"

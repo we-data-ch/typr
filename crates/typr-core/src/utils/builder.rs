@@ -171,6 +171,10 @@ pub fn null_type() -> Type {
     Type::Null(HelpData::default())
 }
 
+pub fn na_type() -> Type {
+    Type::NA(HelpData::default())
+}
+
 pub fn null_lang() -> Lang {
     Lang::Null(HelpData::default())
 }

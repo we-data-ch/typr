@@ -221,6 +221,14 @@ fn null_type(s: Span) -> IResult<Span, Type> {
     }
 }
 
+fn na_type(s: Span) -> IResult<Span, Type> {
+    let res = terminated(tag("na"), multispace0).parse(s);
+    match res {
+        Ok((s, n)) => Ok((s, Type::NA(n.into()))),
+        Err(r) => Err(r),
+    }
+}
+
 fn ltype_parameter(s: Span) -> IResult<Span, Type> {
     alt((terminated(terminated(ltype, tag(",")), multispace0), ltype)).parse(s)
 }
@@ -467,7 +475,7 @@ fn r_class(s: Span) -> IResult<Span, Type> {
 }
 
 pub fn primitive_types(s: Span) -> IResult<Span, Type> {
-    alt((number, integer, boolean, null_type, chars)).parse(s)
+    alt((number, integer, boolean, null_type, na_type, chars)).parse(s)
 }
 
 fn type_operator(s: Span) -> IResult<Span, TypeToken> {

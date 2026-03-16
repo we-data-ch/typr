@@ -105,6 +105,18 @@ fn null_value(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+fn na_value(s: Span) -> IResult<Span, Lang> {
+    let res = alt((
+        terminated(tag("NA"), multispace0),
+        terminated(tag("na"), multispace0),
+    ))
+    .parse(s);
+    match res {
+        Ok((s, n)) => Ok((s, Lang::NA(n.into()))),
+        Err(r) => Err(r),
+    }
+}
+
 fn boolean(s: Span) -> IResult<Span, Lang> {
     let res = alt((
         terminated(tag("true"), multispace0),
@@ -843,7 +855,7 @@ fn js_block(s: Span) -> IResult<Span, Lang> {
 }
 
 fn primitive(s: Span) -> IResult<Span, Lang> {
-    alt((null_value, boolean, number, integer, chars)).parse(s)
+    alt((null_value, na_value, boolean, number, integer, chars)).parse(s)
 }
 
 pub fn return_exp(s: Span) -> IResult<Span, Lang> {
