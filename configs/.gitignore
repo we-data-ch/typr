@@ -1,6 +1,0 @@
-r#"^.*\.Rproj$
-^\.Rproj\.user$
-^TypR$
-^\.git$
-^\.gitignore$
-"#
