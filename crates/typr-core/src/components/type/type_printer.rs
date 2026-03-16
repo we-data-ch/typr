@@ -54,6 +54,7 @@ pub fn format(ty: &Type) -> String {
             Tchar::Val(c) => format!("{}", c),
             _ => "char".to_string(),
         },
+        Type::Null(_) => "null".to_string(),
         Type::Empty(_) => "Empty".to_string(),
         Type::Any(_) => "any".to_string(),
         Type::IndexGen(i, _) => format!("#{}", i),
@@ -119,6 +120,7 @@ pub fn verbose(t: &Type) -> String {
         },
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
+        Type::Null(_) => "null".to_string(),
         Type::Char(_tchar, _) => "char".to_string(),
         Type::Record(fields, _) => {
             let formatted_fields = fields

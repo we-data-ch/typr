@@ -358,6 +358,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             context.clone(),
         )
             .into(),
+        Lang::Null(h) => (Type::Null(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Empty(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Operator(Op::And(_), e1, e2, _) | Lang::Operator(Op::Or(_), e1, e2, _) => {
             let tc1 = typing(context, e1);

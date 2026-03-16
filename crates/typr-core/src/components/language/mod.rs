@@ -87,6 +87,7 @@ pub enum Lang {
     /// Pattern matching on primitive types: `x as int => ...`
     /// TypePattern(variable_name, matched_type, help_data)
     TypePattern(String, Type, HelpData),
+    Null(HelpData),
     SyntaxErr(Box<Lang>, SyntaxError),
 }
 
@@ -163,6 +164,7 @@ impl PartialEq for Lang {
             }
             (Lang::SyntaxErr(a, _), Lang::SyntaxErr(b, _)) => a == b,
             (Lang::TypePattern(a1, a2, _), Lang::TypePattern(b1, b2, _)) => a1 == b1 && a2 == b2,
+            (Lang::Null(_), Lang::Null(_)) => true,
             _ => false,
         }
     }
@@ -275,6 +277,7 @@ impl Lang {
                 | Lang::Integer(_, _)
                 | Lang::Bool(_, _)
                 | Lang::Char(_, _)
+                | Lang::Null(_)
                 | Lang::Array(_, _)
         )
     }
@@ -378,6 +381,7 @@ impl Lang {
             Lang::Break(h) => h,
             Lang::Operator(_, _, _, h) => h,
             Lang::TypePattern(_, _, h) => h,
+            Lang::Null(h) => h,
             Lang::SyntaxErr(inner, _) => return inner.get_help_data(),
         }
         .clone()
@@ -472,6 +476,7 @@ impl Lang {
             Lang::TypePattern(name, typ, _) => {
                 format!("TypePattern({} as {})", name, typ.pretty2())
             }
+            Lang::Null(_) => "Null".to_string(),
             Lang::SyntaxErr(_, _) => "SyntaxErr".to_string(),
         }
     }
@@ -483,6 +488,7 @@ impl Lang {
     pub fn to_js(&self, context: &Context) -> (String, Context) {
         match self {
             Lang::Char(val, _) => (format!("\\'{}\\'", val), context.clone()),
+            Lang::Null(_) => ("null".to_string(), context.clone()),
             Lang::Bool(b, _) => (b.to_string().to_uppercase(), context.clone()),
             Lang::Number(n, _) => (format!("{}", n), context.clone()),
             Lang::Integer(i, _) => (format!("{}", i), context.clone()),
@@ -774,6 +780,7 @@ impl From<Lang> for HelpData {
             Lang::Break(h) => h,
             Lang::Operator(_, _, _, h) => h,
             Lang::TypePattern(_, _, h) => h,
+            Lang::Null(h) => h,
             Lang::SyntaxErr(inner, _) => return (*inner).clone().into(),
         }
         .clone()

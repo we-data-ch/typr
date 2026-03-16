@@ -202,6 +202,7 @@ fn collect_syntax_errors_recursive(lang: &Lang, errors: &mut Vec<SyntaxError>) {
         | Lang::Integer(_, _)
         | Lang::Bool(_, _)
         | Lang::Char(_, _)
+        | Lang::Null(_)
         | Lang::Variable(_, _, _, _)
         | Lang::Comment(_, _)
         | Lang::ModuleImport(_, _)

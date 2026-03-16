@@ -167,6 +167,14 @@ pub fn let_var(name: &str, typ: Type) -> (Var, Type) {
     (Var::from(name).set_type(typ.clone()), typ)
 }
 
+pub fn null_type() -> Type {
+    Type::Null(HelpData::default())
+}
+
+pub fn null_lang() -> Lang {
+    Lang::Null(HelpData::default())
+}
+
 pub fn unmatching_return_type(typ1: &Type, typ2: &Type) -> TypRError {
     TypRError::Type(TypeError::UnmatchingReturnType(typ1.clone(), typ2.clone()))
 }

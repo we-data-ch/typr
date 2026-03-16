@@ -93,6 +93,18 @@ fn get_value(l: LocatedSpan<&str, String>) -> Lang {
     }
 }
 
+fn null_value(s: Span) -> IResult<Span, Lang> {
+    let res = alt((
+        terminated(tag("NULL"), multispace0),
+        terminated(tag("null"), multispace0),
+    ))
+    .parse(s);
+    match res {
+        Ok((s, n)) => Ok((s, Lang::Null(n.into()))),
+        Err(r) => Err(r),
+    }
+}
+
 fn boolean(s: Span) -> IResult<Span, Lang> {
     let res = alt((
         terminated(tag("true"), multispace0),
@@ -744,6 +756,7 @@ fn element_operator2(s: Span) -> IResult<Span, (Lang, Op)> {
         opt(op),
         alt((
             function_application2,
+            null_value,
             number,
             integer,
             chars,
@@ -830,7 +843,7 @@ fn js_block(s: Span) -> IResult<Span, Lang> {
 }
 
 fn primitive(s: Span) -> IResult<Span, Lang> {
-    alt((boolean, number, integer, chars)).parse(s)
+    alt((null_value, boolean, number, integer, chars)).parse(s)
 }
 
 pub fn return_exp(s: Span) -> IResult<Span, Lang> {
@@ -1074,6 +1087,48 @@ mod tests {
         let res = chars("''".into()).unwrap().1;
         dbg!(&res);
         assert!(true);
+    }
+
+    // ==================== Null Tests ====================
+
+    #[test]
+    fn test_null_value_lowercase() {
+        let res = null_value("null ".into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Null");
+    }
+
+    #[test]
+    fn test_null_value_uppercase() {
+        let res = null_value("NULL ".into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Null");
+    }
+
+    #[test]
+    fn test_null_via_primitive() {
+        let res = primitive("null ".into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Null");
+    }
+
+    #[test]
+    fn test_null_via_single_element() {
+        let res = single_element("null ".into()).unwrap().1;
+        assert_eq!(res.simple_print(), "Null");
+    }
+
+    #[test]
+    fn test_null_parse_lang() {
+        let res = "null".parse::<Lang>().unwrap();
+        assert_eq!(res.simple_print(), "Null");
+    }
+
+    #[test]
+    fn test_null_type_check() {
+        let fp = FluentParser::new()
+            .push("let x: null <- null;")
+            .parse_type_next()
+            .push("x")
+            .parse_next();
+        assert_eq!(fp.get_last_type(), crate::utils::builder::null_type());
     }
 
     // ==================== Match Pattern Tests ====================

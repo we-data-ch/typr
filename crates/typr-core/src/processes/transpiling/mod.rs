@@ -155,6 +155,7 @@ fn type_to_r_check(typ: &Type) -> Option<&'static str> {
         Type::Boolean(_) => Some("is.logical"),
         Type::Number(_) => Some("is.numeric"),
         Type::Char(_, _) => Some("is.character"),
+        Type::Null(_) => Some("is.null"),
         _ => None,
     }
 }
@@ -591,6 +592,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     new_cont,
                 )
             }
+            Lang::Null(_) => ("NULL".to_string(), cont.clone()),
             Lang::Empty(_) => ("NA".to_string(), cont.clone()),
             Lang::ModuleDecl(name, _) => (format!("{} <- new.env()", name), cont.clone()),
             Lang::Lines(exps, _) => Translatable::from(cont.clone()).join(exps, "\n").into(),

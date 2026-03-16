@@ -30,6 +30,7 @@ pub enum TypeCategory {
     Intersection,
     Module,
     Operator,
+    Null,
 }
 
 impl TypeCategory {
@@ -68,6 +69,7 @@ impl fmt::Display for TypeCategory {
             TypeCategory::Rest => "Rest",
             TypeCategory::Intersection => "Intersection",
             TypeCategory::Module => "Module",
+            TypeCategory::Null => "NULL",
         };
         write!(f, "{}", res)
     }
