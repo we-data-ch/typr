@@ -93,6 +93,19 @@ impl FunctionType {
             .map(|um| self.apply_unification_to_return_type(context, um))
     }
 
+    pub fn infer_return_type_direct(self, types: &[Type], context: &Context) -> Option<Self> {
+        let param_types = self.get_param_types();
+        context
+            .get_unification_map(types, &param_types)
+            .map(|um| self.apply_unification_to_return_type(context, um))
+    }
+
+    pub fn infer_return_type_vectorized(self, types: &[Type], context: &Context) -> Option<Self> {
+        let param_types = self.get_param_types();
+        Self::lift_and_unification(context, types, &param_types)
+            .map(|um| self.apply_unification_to_return_type(context, um))
+    }
+
     fn lift(self, index: (VecType, i32)) -> Self {
         Self {
             arguments: self

@@ -24,6 +24,7 @@ indexmap.workspace = true
 tap.workspace = true
 rand.workspace = true
 anyhow.workspace = true
+countmap.workspace = true
 bincode = "1.3"
 
 # For WASM random number generation (getrandom 0.4 uses wasm_js feature)

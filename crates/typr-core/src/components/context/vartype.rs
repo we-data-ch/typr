@@ -11,11 +11,13 @@ use crate::components::context::Context;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
 use crate::components::r#type::alias_type::Alias;
+use crate::components::r#type::type_category::TypeCategory;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::processes::parsing::type_token::TypeToken;
 use crate::utils::builder;
+use countmap::CountMap;
 use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 use std::iter::Rev;
@@ -73,11 +75,19 @@ pub fn merge_variables(
     result
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VarType {
     pub variables: IndexSet<(Var, Type)>,
     pub aliases: IndexSet<(Var, Type)>,
     pub std: IndexSet<(Var, Type)>,
+    #[serde(skip)]
+    pub alias_counter: CountMap<TypeCategory, usize>,
+}
+
+impl PartialEq for VarType {
+    fn eq(&self, other: &Self) -> bool {
+        self.variables == other.variables && self.aliases == other.aliases && self.std == other.std
+    }
 }
 
 //main
@@ -91,6 +101,7 @@ impl VarType {
             variables: IndexSet::new(),
             aliases,
             std: IndexSet::new(),
+            alias_counter: CountMap::new(),
         }
     }
 
@@ -161,19 +172,24 @@ impl VarType {
         self.replace_or_push_variables(var).push_aliases(&ali)
     }
 
-    pub fn push_alias_increment(self, vt: (Var, Type)) -> Self {
-        let name = vt.0.get_name();
-        match &name[..] {
-            "Generic" | "character" | "integer" | "Alias" | "Any" | "Rfunction" => self.clone(),
+    pub fn push_alias_increment(self, vt: (TypeCategory, Type)) -> Self {
+        let (category, typ) = vt;
+        match category {
+            TypeCategory::Generic
+            | TypeCategory::Char
+            | TypeCategory::Integer
+            | TypeCategory::Alias
+            | TypeCategory::Any
+            | TypeCategory::RFunction => self,
             _ => {
-                let var = self
-                    .aliases
-                    .iter()
-                    .find(|(var, _)| var.contains(&name))
-                    .map(|(var, _)| var.get_digit(&name) + 1)
-                    .map(|x| vt.0.clone().add_digit(x))
-                    .unwrap_or(vt.0.add_digit(0));
-                self.push_aliases(&[(var, vt.1)])
+                let count = self.alias_counter.get_count(&category).unwrap_or(0);
+                let name = format!("{}{}", category, count);
+                let var = Var::from_name(&name).set_type(builder::params_type());
+                let mut new_counter = self.alias_counter.clone();
+                new_counter.insert_or_increment(category);
+                let mut result = self;
+                result.alias_counter = new_counter;
+                result.push_aliases(&[(var, typ)])
             }
         }
     }
@@ -184,8 +200,7 @@ impl VarType {
 
     fn push_type_if_not_exists(self, typ: Type) -> Self {
         if !self.exists(&typ) {
-            self.clone()
-                .push_alias_increment((typ.to_category().to_variable(), typ))
+            self.clone().push_alias_increment((typ.to_category(), typ))
         } else {
             self
         }
@@ -566,6 +581,7 @@ impl From<Vec<(Var, Type)>> for VarType {
             variables,
             aliases,
             std: IndexSet::new(),
+            alias_counter: CountMap::new(),
         }
     }
 }
@@ -574,10 +590,24 @@ impl Add for VarType {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
+        use std::collections::hash_map::Entry;
+        use std::collections::HashMap;
+
+        let mut counter: HashMap<TypeCategory, usize> = self.alias_counter.into_iter().collect();
+        for (cat, count) in other.alias_counter.into_iter() {
+            match counter.entry(cat) {
+                Entry::Occupied(mut e) => *e.get_mut() += count,
+                Entry::Vacant(e) => {
+                    e.insert(count);
+                }
+            }
+        }
+        let alias_counter: CountMap<TypeCategory, usize> = counter.into_iter().collect();
         Self {
             variables: self.variables.union(&other.variables).cloned().collect(),
             aliases: self.aliases.union(&other.aliases).cloned().collect(),
             std: self.std.union(&other.std).cloned().collect(),
+            alias_counter,
         }
     }
 }

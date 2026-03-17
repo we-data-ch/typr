@@ -18,14 +18,46 @@ use crate::processes::type_checking::TypeError;
 use crate::processes::type_checking::Var;
 use crate::utils::builder;
 
-fn infer_return_type(
-    functions: &[FunctionType],
+fn build_success(
+    var: &Var,
+    fun_typ: &FunctionType,
+    expanded_parameters: Vec<Lang>,
+    param_errors: Vec<TypRError>,
+    context: &Context,
+    h: &HelpData,
+) -> TypeContext {
+    let new_expr = build_function_lang(h, expanded_parameters, fun_typ, var.clone().to_language());
+    TypeContext::new(fun_typ.get_infered_return_type(), new_expr, context.clone())
+        .with_errors(param_errors)
+}
+
+fn filter_by_first_param(signatures: &[FunctionType], first_arg_type: &Type) -> Vec<FunctionType> {
+    signatures
+        .iter()
+        .filter(|sig| sig.get_first_param().as_ref() == Some(first_arg_type))
+        .cloned()
+        .collect()
+}
+
+fn try_direct_match(
+    candidates: &[FunctionType],
     types: &[Type],
     context: &Context,
 ) -> Option<FunctionType> {
-    functions
+    candidates
         .iter()
-        .flat_map(|x| x.clone().infer_return_type(types, context))
+        .flat_map(|x| x.clone().infer_return_type_direct(types, context))
+        .next()
+}
+
+fn try_vectorized_match(
+    candidates: &[FunctionType],
+    types: &[Type],
+    context: &Context,
+) -> Option<FunctionType> {
+    candidates
+        .iter()
+        .flat_map(|x| x.clone().infer_return_type_vectorized(types, context))
         .next()
 }
 
@@ -38,21 +70,66 @@ pub fn apply_from_variable(
     let (expanded_parameters, types, param_errors) =
         get_expanded_parameters_with_their_types(context, parameters);
 
-    match infer_return_type(&var.get_functions_from_name(context), &types, context) {
-        Some(fun_typ) => {
-            let new_expr = build_function_lang(h, expanded_parameters, &fun_typ, var.to_language());
-            TypeContext::new(fun_typ.get_infered_return_type(), new_expr, context.clone())
-                .with_errors(param_errors)
-        }
-        None => {
-            let mut errors = param_errors;
-            errors.push(TypRError::Type(TypeError::FunctionNotFound(
-                var.clone().set_type_from_params(parameters, context),
-            )));
-            TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
-                .with_errors(errors)
+    let all_signatures = var.get_functions_from_name(context);
+
+    // === FILTRAGE 1 : Égalité stricte du 1er param, puis match complet (unification) ===
+    if let Some(first_arg_type) = types.first() {
+        let candidates = filter_by_first_param(&all_signatures, first_arg_type);
+        if !candidates.is_empty() {
+            if let Some(fun_typ) = try_direct_match(&candidates, &types, context) {
+                return build_success(
+                    &var,
+                    &fun_typ,
+                    expanded_parameters,
+                    param_errors,
+                    context,
+                    h,
+                );
+            }
         }
     }
+
+    // === FILTRAGE 2 : Super-types du 1er arg, un par un du plus proche ===
+    if let Some(first_arg_type) = types.first() {
+        let super_types = context
+            .subtypes
+            .get_ordered_supertypes(first_arg_type, context);
+        for super_type in &super_types {
+            let candidates = filter_by_first_param(&all_signatures, super_type);
+            if !candidates.is_empty() {
+                if let Some(fun_typ) = try_direct_match(&candidates, &types, context) {
+                    return build_success(
+                        &var,
+                        &fun_typ,
+                        expanded_parameters,
+                        param_errors,
+                        context,
+                        h,
+                    );
+                }
+            }
+        }
+    }
+
+    // === FILTRAGE 3 : Vectorisation ===
+    if let Some(fun_typ) = try_vectorized_match(&all_signatures, &types, context) {
+        return build_success(
+            &var,
+            &fun_typ,
+            expanded_parameters,
+            param_errors,
+            context,
+            h,
+        );
+    }
+
+    // === ERREUR : aucun filtrage n'a marché ===
+    let mut errors = param_errors;
+    errors.push(TypRError::Type(TypeError::FunctionNotFound(
+        var.clone().set_type_from_params(parameters, context),
+    )));
+    TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
+        .with_errors(errors)
 }
 
 fn get_expanded_parameters_with_their_types(

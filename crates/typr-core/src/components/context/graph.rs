@@ -1,11 +1,14 @@
 use crate::components::context::Context;
 use crate::components::r#type::type_system::TypeSystem;
+use serde::Deserialize;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::ops::Add;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound = "T: Serialize + for<'a> Deserialize<'a>")]
 pub struct Graph<T: TypeSystem> {
     memory: HashSet<T>,
     root: Node<T>,
@@ -76,6 +79,18 @@ impl<T: TypeSystem> Graph<T> {
             .collect::<Vec<_>>()
     }
 
+    pub fn get_ordered_supertypes(&self, typ: &T, context: &Context) -> Vec<T> {
+        let raw = self.root.get_supertypes(typ, context);
+        let mut seen = HashSet::new();
+        let mut result = Vec::new();
+        for item in raw {
+            if seen.insert(item.clone()) {
+                result.push(item);
+            }
+        }
+        result
+    }
+
     pub fn add_types(self, typs: &[T], context: &Context) -> Self {
         typs.iter()
             .cloned()
@@ -83,7 +98,8 @@ impl<T: TypeSystem> Graph<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound = "T: Serialize + for<'a> Deserialize<'a>")]
 pub struct Node<T: TypeSystem> {
     value: T,
     subtypes: Vec<Node<T>>,

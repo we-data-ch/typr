@@ -48,6 +48,7 @@ indexmap = { version = "2.13.0", features = ["serde"] }
 tap = "1.0.1"
 rand = "0.10.0"
 anyhow = "1.0.100"
+countmap = "0.2"
 
 clap = { version = "4.5", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }

@@ -296,9 +296,19 @@ pub fn run_file(path: &PathBuf) {
         .unwrap()
         .replace(".ty", ".R");
     let content = type_checker.clone().transpile();
-    write_header(type_checker.get_context(), &dir, Environment::StandAlone);
+    let final_context = type_checker.get_context();
+    write_context_json(&final_context, &dir);
+    write_header(final_context, &dir, Environment::StandAlone);
     write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
     execute_r_with_path(&dir, &r_file_name);
+}
+
+fn write_context_json(context: &Context, output_dir: &PathBuf) {
+    let json = serde_json::to_string_pretty(context).expect("Failed to serialize context to JSON");
+    let path = output_dir.join("context.json");
+    let mut file = File::create(&path).expect("Failed to create context.json");
+    file.write_all(json.as_bytes())
+        .expect("Failed to write context.json");
 }
 
 pub fn test() {

@@ -19,12 +19,14 @@ use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::unification_map;
 use crate::utils::builder;
 use crate::utils::standard_library::not_in_blacklist;
+use serde::Deserialize;
+use serde::Serialize;
 use std::collections::HashSet;
 use std::iter::Rev;
 use std::ops::Add;
 use tap::Pipe;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Context {
     pub typing_context: VarType,
     pub subtypes: Graph<Type>,
