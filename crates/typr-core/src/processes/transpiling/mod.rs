@@ -13,6 +13,7 @@ use crate::components::language::ModulePosition;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::array_type::ArrayType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::processes::transpiling::translatable::Translatable;
 use crate::processes::type_checking::type_comparison::reduce_type;
@@ -275,12 +276,20 @@ impl RTranslatable<(String, Context)> for Lang {
                 let e1 = (**e1).clone();
                 let e2 = (**e2).clone();
                 match e2.clone() {
-                    Lang::Variable(_, _, _, _) => Translatable::from(cont.clone())
-                        .to_r(&e2)
-                        .add("[['")
-                        .to_r(&e1)
-                        .add("']]")
-                        .into(),
+                    Lang::Variable(_, _, _, _) => match e1 {
+                        Lang::Integer(_, _) => Translatable::from(cont.clone())
+                            .to_r(&e2)
+                            .add("[[")
+                            .to_r(&e1)
+                            .add("]]")
+                            .into(),
+                        _ => Translatable::from(cont.clone())
+                            .to_r(&e2)
+                            .add("[['")
+                            .to_r(&e1)
+                            .add("']]")
+                            .into(),
+                    },
                     Lang::List(fields, _) => {
                         let at = fields[0].clone();
                         Translatable::from(cont.clone())
@@ -315,9 +324,14 @@ impl RTranslatable<(String, Context)> for Lang {
                     {
                         format!("vec_apply(get, {}, typed_vec('{}'))", e1.to_r(cont).0, name)
                     }
+                    (Type::Vec(vtype, _, _, _), Lang::Variable(name, _, _, _))
+                        if matches!(vtype, VecType::S3) =>
+                    {
+                        let name_str = name.replace("__", ".");
+                        format!("get({}, '{}')", e1.to_r(cont).0, name_str)
+                    }
                     (_, Lang::Variable(name, _, _, _)) => format!("{}${}", e1.to_r(cont).0, name),
                     _ => format!("{}${}", e1.to_r(cont).0, e2.to_r(cont).0),
-                    //_ => panic!("Dollar operation not yet implemented for {:?}", e2)
                 };
                 (val, cont.clone())
             }
@@ -520,7 +534,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Array(_v, _h) => {
                 let typ = self.typing(cont).value;
 
-                let _dimension = ArrayType::try_from(typ.clone())
+                let dimension = ArrayType::try_from(typ.clone())
                     .unwrap()
                     .get_shape()
                     .map(|sha| format!("c({})", sha))
@@ -533,8 +547,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     .collect::<Vec<_>>()
                     .join(", ")
                     .and_if(|lin_array| lin_array != "")
-                    //.map(|lin_array| format!("concat({}, dim = {})", lin_array, dimension))
-                    .map(|lin_array| format!("typed_vec({})", lin_array))
+                    .map(|lin_array| format!("typed_vec({}, dim = {})", lin_array, dimension))
                     .unwrap_or("logical(0)".to_string());
 
                 (
@@ -600,10 +613,23 @@ impl RTranslatable<(String, Context)> for Lang {
                 .add("return ")
                 .to_r(exp)
                 .into(),
-            Lang::Lambda(bloc, _) => (
-                format!("function(x) {{ {} }}", bloc.to_r(cont).0),
-                cont.clone(),
-            ),
+            Lang::Lambda(params, bloc, _) => {
+                let param_names: Vec<String> = params
+                    .iter()
+                    .map(|p| match p {
+                        Lang::Variable(name, _, _, _) => name.clone(),
+                        _ => "x".to_string(),
+                    })
+                    .collect();
+                (
+                    format!(
+                        "function({}) {{ {} }}",
+                        param_names.join(", "),
+                        bloc.to_r(cont).0
+                    ),
+                    cont.clone(),
+                )
+            }
             Lang::VecBlock(bloc, _) => (bloc.to_string(), cont.clone()),
             Lang::Library(name, _) => (format!("library({})", name), cont.clone()),
             Lang::Match(exp, branches, _) => (

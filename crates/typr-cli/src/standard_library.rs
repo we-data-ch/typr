@@ -324,11 +324,7 @@ fn build_typed_vartype(ty_sources: &[(&str, &str)]) -> VarType {
 
 /// All paths where binary files should be written (relative to the app root).
 fn bin_output_paths() -> Vec<PathBuf> {
-    vec![
-        PathBuf::from("crates/typr-core/configs/bin"),
-        PathBuf::from("crates/typr-cli/configs/bin"),
-        PathBuf::from("configs/bin"),
-    ]
+    vec![PathBuf::from("crates/typr-core/configs/bin")]
 }
 
 /// Save a VarType to a .bin file in all output directories.

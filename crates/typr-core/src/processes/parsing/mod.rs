@@ -24,6 +24,7 @@ use crate::processes::parsing::elements::return_exp;
 use crate::processes::parsing::elements::scope;
 use crate::processes::parsing::elements::single_element;
 use crate::processes::parsing::elements::tag_exp;
+use crate::processes::parsing::elements::tuple_exp;
 use crate::processes::parsing::elements::variable;
 use crate::processes::parsing::elements::variable2;
 use crate::processes::parsing::elements::variable_exp;
@@ -163,11 +164,11 @@ fn collect_syntax_errors_recursive(lang: &Lang, errors: &mut Vec<SyntaxError>) {
         Lang::Tag(_, inner, _) => {
             collect_syntax_errors_recursive(inner, errors);
         }
-        Lang::Return(inner, _)
-        | Lang::Lambda(inner, _)
-        | Lang::Not(inner, _)
-        | Lang::TestBlock(inner, _) => {
+        Lang::Return(inner, _) | Lang::Not(inner, _) | Lang::TestBlock(inner, _) => {
             collect_syntax_errors_recursive(inner, errors);
+        }
+        Lang::Lambda(_, body, _) => {
+            collect_syntax_errors_recursive(body, errors);
         }
         Lang::ForLoop(_, iter, body, _) => {
             collect_syntax_errors_recursive(iter, errors);
@@ -313,7 +314,11 @@ fn clean_syntax_errors(lang: &Lang) -> Lang {
             h.clone(),
         ),
         Lang::Return(inner, h) => Lang::Return(Box::new(clean_syntax_errors(inner)), h.clone()),
-        Lang::Lambda(inner, h) => Lang::Lambda(Box::new(clean_syntax_errors(inner)), h.clone()),
+        Lang::Lambda(params, body, h) => Lang::Lambda(
+            params.into_iter().map(clean_syntax_errors).collect(),
+            Box::new(clean_syntax_errors(&*body)),
+            h.clone(),
+        ),
         Lang::Not(inner, h) => Lang::Not(Box::new(clean_syntax_errors(inner)), h.clone()),
         Lang::TestBlock(inner, h) => {
             Lang::TestBlock(Box::new(clean_syntax_errors(inner)), h.clone())
@@ -460,6 +465,56 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 ))
             }
         }
+        Err(r) => Err(r),
+    }
+}
+
+fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+        terminated(tag("let"), multispace0),
+        tuple_exp,
+        opt(preceded(terminated(tag(":"), multispace0), ltype)),
+        equality_operator,
+        single_parse,
+    )
+        .parse(s);
+    match res {
+        Ok((s, (_let, Lang::Tuple(elements, _th), typ, _eq, body))) => {
+            let tmp_name = "__tuple_tmp__";
+            let tmp_var = Var::from_name(tmp_name).to_language();
+
+            // First: let __tuple_tmp__ <- body;
+            let tmp_let = Lang::Let(
+                Box::new(tmp_var.clone()),
+                typ.unwrap_or(Type::Empty(HelpData::default())),
+                Box::new(body),
+                _let.into(),
+            );
+
+            // Then: let a <- 1.__tuple_tmp__; let b <- 2.__tuple_tmp__; ...
+            let mut result = vec![tmp_let];
+            for (i, elem) in elements.iter().enumerate() {
+                if let Lang::Variable(name, _, _, _) = elem {
+                    if name == "_" {
+                        continue; // skip wildcard
+                    }
+                }
+                result.push(Lang::Let(
+                    Box::new(elem.clone()),
+                    Type::Empty(HelpData::default()),
+                    Box::new(Lang::Operator(
+                        Op::Dot(HelpData::default()),
+                        Box::new(Lang::Integer((i + 1) as i32, HelpData::default())),
+                        Box::new(tmp_var.clone()),
+                        HelpData::default(),
+                    )),
+                    HelpData::default(),
+                ));
+            }
+
+            Ok((s, result))
+        }
+        Ok(_) => unreachable!("tuple_exp always returns Lang::Tuple"),
         Err(r) => Err(r),
     }
 }
@@ -863,6 +918,7 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
             comment,
             type_exp,
             opaque_exp,
+            let_tuple_exp,
             let_exp,
             module,
             assign,
@@ -968,6 +1024,188 @@ mod tesus {
             "Assign",
             res[0].simple_print(),
             "The expression 'a <- 12;' should be identified as an assignation"
+        );
+    }
+
+    // ==================== Let Tuple Destructuring Tests ====================
+
+    #[test]
+    fn test_let_tuple_basic() {
+        let res = let_tuple_exp("let :{a, b, c} <- :{1, 2, 3};".into())
+            .unwrap()
+            .1;
+        // Should produce 4 Let statements: 1 tmp + 3 bindings
+        assert_eq!(
+            res.len(),
+            4,
+            "Should produce 4 Let statements (1 tmp + 3 bindings)"
+        );
+        for item in &res {
+            assert!(
+                item.simple_print().starts_with("let"),
+                "Each item should be a Let, got: {}",
+                item.simple_print()
+            );
+        }
+    }
+
+    #[test]
+    fn test_let_tuple_tmp_variable() {
+        let res = let_tuple_exp("let :{a, b} <- :{1, 2};".into()).unwrap().1;
+        // First Let should bind __tuple_tmp__
+        if let Lang::Let(var, _, _, _) = &res[0] {
+            if let Lang::Variable(name, _, _, _) = var.as_ref() {
+                assert_eq!(name, "__tuple_tmp__");
+            } else {
+                panic!("Expected Variable in first Let");
+            }
+        } else {
+            panic!("Expected Let");
+        }
+    }
+
+    #[test]
+    fn test_let_tuple_bindings() {
+        let res = let_tuple_exp("let :{x, y} <- :{10, 20};".into()).unwrap().1;
+        // Second Let should bind 'x' using Dot access
+        if let Lang::Let(var, _, body, _) = &res[1] {
+            if let Lang::Variable(name, _, _, _) = var.as_ref() {
+                assert_eq!(name, "x");
+            } else {
+                panic!("Expected Variable 'x'");
+            }
+            assert_eq!(
+                body.simple_print(),
+                "Operator",
+                "Body should be a Dot operator"
+            );
+        } else {
+            panic!("Expected Let");
+        }
+        // Third Let should bind 'y'
+        if let Lang::Let(var, _, _, _) = &res[2] {
+            if let Lang::Variable(name, _, _, _) = var.as_ref() {
+                assert_eq!(name, "y");
+            } else {
+                panic!("Expected Variable 'y'");
+            }
+        } else {
+            panic!("Expected Let");
+        }
+    }
+
+    #[test]
+    fn test_let_tuple_wildcard() {
+        let res = let_tuple_exp("let :{a, _, c} <- :{1, 2, 3};".into())
+            .unwrap()
+            .1;
+        // Should produce 3 Let statements: 1 tmp + 2 bindings (wildcard skipped)
+        assert_eq!(
+            res.len(),
+            3,
+            "Should produce 3 Let statements (wildcard skipped)"
+        );
+        // Second Let should bind 'a'
+        if let Lang::Let(var, _, _, _) = &res[1] {
+            if let Lang::Variable(name, _, _, _) = var.as_ref() {
+                assert_eq!(name, "a");
+            } else {
+                panic!("Expected Variable 'a'");
+            }
+        } else {
+            panic!("Expected Let");
+        }
+        // Third Let should bind 'c'
+        if let Lang::Let(var, _, _, _) = &res[2] {
+            if let Lang::Variable(name, _, _, _) = var.as_ref() {
+                assert_eq!(name, "c");
+            } else {
+                panic!("Expected Variable 'c'");
+            }
+        } else {
+            panic!("Expected Let");
+        }
+    }
+
+    #[test]
+    fn test_let_tuple_in_full_parse() {
+        let res = parse("let :{a, b, c} <- :{1, 2, 3};".into());
+        assert!(
+            !res.has_errors(),
+            "Let tuple destructuring should parse without errors"
+        );
+    }
+
+    #[test]
+    fn test_let_tuple_with_equals() {
+        let res = let_tuple_exp("let :{a, b} = :{1, 2};".into()).unwrap().1;
+        assert_eq!(res.len(), 3, "Should work with '=' operator too");
+    }
+
+    #[test]
+    fn test_let_tuple_type_check() {
+        use crate::components::context::Context;
+        use crate::processes::type_checking::typing;
+        use crate::utils::builder;
+
+        let ast = parse("let :{a, b, c} <- :{1, 2, 3};".into()).ast;
+        let context = Context::empty();
+        let tc = typing(&context, &ast);
+
+        // After type-checking, 'a', 'b', 'c' should be in the context as integers
+        let ty_a = tc
+            .context
+            .get_type_from_existing_variable(crate::components::language::var::Var::from_name("a"));
+        let ty_b = tc
+            .context
+            .get_type_from_existing_variable(crate::components::language::var::Var::from_name("b"));
+        let ty_c = tc
+            .context
+            .get_type_from_existing_variable(crate::components::language::var::Var::from_name("c"));
+
+        assert_eq!(
+            ty_a,
+            builder::integer_type(1),
+            "Variable 'a' should be Integer(1)"
+        );
+        assert_eq!(
+            ty_b,
+            builder::integer_type(2),
+            "Variable 'b' should be Integer(2)"
+        );
+        assert_eq!(
+            ty_c,
+            builder::integer_type(3),
+            "Variable 'c' should be Integer(3)"
+        );
+    }
+
+    #[test]
+    fn test_let_tuple_type_check_mixed_types() {
+        use crate::components::context::Context;
+        use crate::processes::type_checking::typing;
+        use crate::utils::builder;
+
+        let ast = parse("let :{x, y} <- :{1, 'hello'};".into()).ast;
+        let context = Context::empty();
+        let tc = typing(&context, &ast);
+
+        let ty_x = tc
+            .context
+            .get_type_from_existing_variable(crate::components::language::var::Var::from_name("x"));
+        let ty_y = tc
+            .context
+            .get_type_from_existing_variable(crate::components::language::var::Var::from_name("y"));
+
+        assert_eq!(
+            ty_x,
+            builder::integer_type(1),
+            "Variable 'x' should be Integer(1)"
+        );
+        assert_eq!(
+            ty_y,
+            builder::character_type("hello"),
+            "Variable 'y' should be Character('hello')"
         );
     }
 }

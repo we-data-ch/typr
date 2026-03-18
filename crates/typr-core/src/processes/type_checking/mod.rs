@@ -1197,6 +1197,30 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Signature(..) => eval(context, expr).with_lang(expr).into(),
         Lang::Return(exp, _) => typing(context, exp),
         Lang::Module(_, _, _position, _, _) => eval(context, expr).with_lang(expr).into(),
+        Lang::Lambda(params, body, h) => {
+            let fresh_param_types: Vec<Type> = params
+                .iter()
+                .enumerate()
+                .map(|(i, _)| Type::Generic(format!("T{}", i), HelpData::default()))
+                .collect();
+            let sub_context = params.iter().zip(fresh_param_types.iter()).fold(
+                context.clone(),
+                |ctx, (param, typ)| {
+                    let var = Var::from_language(param.clone()).unwrap();
+                    ctx.clone().push_var_type(var, typ.clone(), &ctx)
+                },
+            );
+            let body_tc = typing(&sub_context, body);
+            let func_type = Type::Function(
+                fresh_param_types,
+                Box::new(body_tc.value.clone()),
+                h.clone(),
+            );
+            // Don't propagate errors from the initial lambda typing:
+            // the body will be re-typed after specialization in apply_from_variable
+            // with concrete types substituted for the fresh type variables.
+            TypeContext::new(func_type, expr.clone(), context.clone())
+        }
         _ => builder::any_type().with_lang(expr, context).into(),
     }
 }

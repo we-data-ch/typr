@@ -7,6 +7,7 @@
 )]
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::typr_error::TypRError;
+use crate::components::language::set_related_type_if_variable;
 use crate::components::r#type::function_type::FunctionType;
 use crate::processes::type_checking::typing;
 use crate::processes::type_checking::Context;
@@ -22,11 +23,17 @@ fn build_success(
     var: &Var,
     fun_typ: &FunctionType,
     expanded_parameters: Vec<Lang>,
+    arg_types: &[Type],
     param_errors: Vec<TypRError>,
     context: &Context,
     h: &HelpData,
 ) -> TypeContext {
-    let new_expr = build_function_lang(h, expanded_parameters, fun_typ, var.clone().to_language());
+    let updated_parameters: Vec<Lang> = expanded_parameters
+        .iter()
+        .zip(arg_types.iter())
+        .map(set_related_type_if_variable)
+        .collect();
+    let new_expr = build_function_lang(h, updated_parameters, fun_typ, var.clone().to_language());
     TypeContext::new(fun_typ.get_infered_return_type(), new_expr, context.clone())
         .with_errors(param_errors)
 }
@@ -61,6 +68,283 @@ fn try_vectorized_match(
         .next()
 }
 
+fn get_generic_params_from_type(typ: &Type) -> Vec<(String, Type)> {
+    match typ {
+        Type::Function(params, ret, _) => {
+            let mut result = Vec::new();
+            for (i, param) in params.iter().enumerate() {
+                if let Type::Generic(name, _) = param {
+                    result.push((name.clone(), param.clone()));
+                }
+            }
+            if let Type::Generic(name, _) = ret.as_ref() {
+                result.push((name.clone(), ret.as_ref().clone()));
+            }
+            result
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn build_substitution_map(
+    lambda_types: &[(Type, Type)],
+) -> std::collections::HashMap<String, Type> {
+    let mut subs = std::collections::HashMap::new();
+    for (fresh_type, concrete_type) in lambda_types {
+        if let Type::Generic(name, _) = fresh_type {
+            if !matches!(concrete_type, Type::Generic(_, _)) {
+                subs.insert(name.clone(), concrete_type.clone());
+            }
+        }
+    }
+    subs
+}
+
+fn substitute_type(typ: &Type, subs: &std::collections::HashMap<String, Type>) -> Type {
+    match typ {
+        Type::Generic(name, h) => subs.get(name).cloned().unwrap_or_else(|| typ.clone()),
+        Type::Function(params, ret, h) => Type::Function(
+            params.iter().map(|p| substitute_type(p, subs)).collect(),
+            Box::new(substitute_type(ret, subs)),
+            h.clone(),
+        ),
+        _ => typ.clone(),
+    }
+}
+
+fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String, Type>) -> Lang {
+    match lang {
+        Lang::Variable(name, mutable_, _, h) => {
+            if let Some(new_type) = subs.get(name) {
+                Lang::Variable(name.clone(), *mutable_, new_type.clone(), h.clone())
+            } else {
+                lang.clone()
+            }
+        }
+        Lang::Lambda(params, body, h) => {
+            let new_params: Vec<Lang> = params
+                .iter()
+                .map(|p| {
+                    if let Lang::Variable(name, mutable_, _, h2) = p {
+                        if let Some(new_type) = subs.get(name) {
+                            Lang::Variable(name.clone(), *mutable_, new_type.clone(), h2.clone())
+                        } else {
+                            p.clone()
+                        }
+                    } else {
+                        p.clone()
+                    }
+                })
+                .collect();
+            let new_body = substitute_type_in_lang(body, subs);
+            Lang::Lambda(new_params, Box::new(new_body), h.clone())
+        }
+        Lang::Function(args, ret, body, h) => {
+            let new_ret = substitute_type(ret, subs);
+            let new_body = substitute_type_in_lang(body, subs);
+            Lang::Function(args.clone(), new_ret, Box::new(new_body), h.clone())
+        }
+        Lang::FunctionApp(func, args, h) => Lang::FunctionApp(
+            Box::new(substitute_type_in_lang(func, subs)),
+            args.iter()
+                .map(|a| substitute_type_in_lang(a, subs))
+                .collect(),
+            h.clone(),
+        ),
+        Lang::VecFunctionApp(func, args, h) => Lang::VecFunctionApp(
+            Box::new(substitute_type_in_lang(func, subs)),
+            args.iter()
+                .map(|a| substitute_type_in_lang(a, subs))
+                .collect(),
+            h.clone(),
+        ),
+        Lang::Operator(op, e1, e2, h) => Lang::Operator(
+            op.clone(),
+            Box::new(substitute_type_in_lang(e1, subs)),
+            Box::new(substitute_type_in_lang(e2, subs)),
+            h.clone(),
+        ),
+        Lang::Return(exp, h) => {
+            Lang::Return(Box::new(substitute_type_in_lang(exp, subs)), h.clone())
+        }
+        Lang::Let(name, typ, val, h) => Lang::Let(
+            name.clone(),
+            substitute_type(typ, subs),
+            Box::new(substitute_type_in_lang(val, subs)),
+            h.clone(),
+        ),
+        Lang::If(cond, then, else_, h) => Lang::If(
+            Box::new(substitute_type_in_lang(cond, subs)),
+            Box::new(substitute_type_in_lang(then, subs)),
+            Box::new(substitute_type_in_lang(else_, subs)),
+            h.clone(),
+        ),
+        Lang::Not(exp, h) => Lang::Not(Box::new(substitute_type_in_lang(exp, subs)), h.clone()),
+        Lang::Scope(exprs, h) => Lang::Scope(
+            exprs
+                .iter()
+                .map(|e| substitute_type_in_lang(e, subs))
+                .collect(),
+            h.clone(),
+        ),
+        Lang::Lines(exprs, h) => Lang::Lines(
+            exprs
+                .iter()
+                .map(|e| substitute_type_in_lang(e, subs))
+                .collect(),
+            h.clone(),
+        ),
+        Lang::Assign(target, value, h) => Lang::Assign(
+            Box::new(substitute_type_in_lang(target, subs)),
+            Box::new(substitute_type_in_lang(value, subs)),
+            h.clone(),
+        ),
+        Lang::ForLoop(var, iter, body, h) => Lang::ForLoop(
+            var.clone(),
+            Box::new(substitute_type_in_lang(iter, subs)),
+            Box::new(substitute_type_in_lang(body, subs)),
+            h.clone(),
+        ),
+        Lang::WhileLoop(cond, body, h) => Lang::WhileLoop(
+            Box::new(substitute_type_in_lang(cond, subs)),
+            Box::new(substitute_type_in_lang(body, subs)),
+            h.clone(),
+        ),
+        Lang::Match(exp, branches, h) => Lang::Match(
+            Box::new(substitute_type_in_lang(exp, subs)),
+            branches
+                .iter()
+                .map(|(pat, exp)| (pat.clone(), Box::new(substitute_type_in_lang(exp, subs))))
+                .collect(),
+            h.clone(),
+        ),
+        Lang::Array(elems, h) => Lang::Array(
+            elems
+                .iter()
+                .map(|e| substitute_type_in_lang(e, subs))
+                .collect(),
+            h.clone(),
+        ),
+        Lang::Vector(elems, h) => Lang::Vector(
+            elems
+                .iter()
+                .map(|e| substitute_type_in_lang(e, subs))
+                .collect(),
+            h.clone(),
+        ),
+        Lang::Tuple(elems, h) => Lang::Tuple(
+            elems
+                .iter()
+                .map(|e| substitute_type_in_lang(e, subs))
+                .collect(),
+            h.clone(),
+        ),
+        Lang::ArrayIndexing(arr, idx, h) => Lang::ArrayIndexing(
+            Box::new(substitute_type_in_lang(arr, subs)),
+            Box::new(substitute_type_in_lang(idx, subs)),
+            h.clone(),
+        ),
+        Lang::Tag(name, inner, h) => Lang::Tag(
+            name.clone(),
+            Box::new(substitute_type_in_lang(inner, subs)),
+            h.clone(),
+        ),
+        Lang::List(fields, h) => Lang::List(fields.clone(), h.clone()),
+        Lang::Module(name, exprs, pos, config, h) => Lang::Module(
+            name.clone(),
+            exprs
+                .iter()
+                .map(|e| substitute_type_in_lang(e, subs))
+                .collect(),
+            pos.clone(),
+            config.clone(),
+            h.clone(),
+        ),
+        Lang::ModuleDecl(name, h) => lang.clone(),
+        Lang::Union(left, right, h) => Lang::Union(
+            Box::new(substitute_type_in_lang(left, subs)),
+            Box::new(substitute_type_in_lang(right, subs)),
+            h.clone(),
+        ),
+        Lang::JSBlock(body, id, h) => Lang::JSBlock(
+            Box::new(substitute_type_in_lang(body, subs)),
+            *id,
+            h.clone(),
+        ),
+        Lang::VecBlock(_, h) => lang.clone(),
+        Lang::RFunction(_, _, h) => lang.clone(),
+        Lang::Alias(_, _, _, h) => lang.clone(),
+        Lang::Signature(_, _, h) => lang.clone(),
+        Lang::Library(_, h) => lang.clone(),
+        Lang::TypePattern(_, _, h) => lang.clone(),
+        Lang::TestBlock(_, h) => lang.clone(),
+        Lang::Exp(_, h) => lang.clone(),
+        Lang::Break(h) => Lang::Break(h.clone()),
+        Lang::Empty(h) => Lang::Empty(h.clone()),
+        Lang::Number(_, h) => lang.clone(),
+        Lang::Integer(_, h) => lang.clone(),
+        Lang::Bool(_, h) => lang.clone(),
+        Lang::Char(_, h) => lang.clone(),
+        Lang::Null(h) => lang.clone(),
+        Lang::NA(h) => lang.clone(),
+        Lang::SyntaxErr(_, _) => lang.clone(),
+        Lang::Comment(_, h) => lang.clone(),
+        Lang::ModuleImport(_, h) => lang.clone(),
+        Lang::Import(_, h) => lang.clone(),
+        Lang::GenFunc(_, _, h) => lang.clone(),
+        Lang::Test(_, h) => lang.clone(),
+        Lang::KeyValue(_, _, h) => lang.clone(),
+        Lang::Sequence(_, h) => lang.clone(),
+        Lang::MethodCall(_, _, _, h) => lang.clone(),
+        Lang::Use(_, _, h) => lang.clone(),
+    }
+}
+
+fn specialize_lambda(
+    lambda_lang: &Lang,
+    lambda_type: &Type,
+    expected_type: &Type,
+    context: &Context,
+) -> (Lang, Type) {
+    if let (
+        Type::Function(expected_params, expected_ret, _),
+        Type::Function(lambda_params, lambda_ret, _),
+    ) = (expected_type, lambda_type)
+    {
+        let mut substitutions: std::collections::HashMap<String, Type> =
+            std::collections::HashMap::new();
+
+        for (lambda_param, expected_param) in lambda_params.iter().zip(expected_params.iter()) {
+            if let Type::Generic(name, _) = lambda_param {
+                if !matches!(expected_param, Type::Generic(_, _)) {
+                    substitutions.insert(name.clone(), expected_param.clone());
+                }
+            }
+        }
+
+        if let Type::Generic(name, _) = lambda_ret.as_ref() {
+            if !matches!(expected_ret.as_ref(), Type::Generic(_, _)) {
+                substitutions.insert(name.clone(), expected_ret.as_ref().clone());
+            }
+        }
+
+        if substitutions.is_empty() {
+            return (lambda_lang.clone(), lambda_type.clone());
+        }
+
+        let specialized_lang = substitute_type_in_lang(lambda_lang, &substitutions);
+        let new_type = Type::Function(
+            expected_params.clone(),
+            expected_ret.clone(),
+            lambda_type.get_help_data().clone(),
+        );
+
+        let specialized_tc = typing(context, &specialized_lang);
+        return (specialized_tc.lang, specialized_tc.value);
+    }
+    (lambda_lang.clone(), lambda_type.clone())
+}
+
 pub fn apply_from_variable(
     var: Var,
     context: &Context,
@@ -77,10 +361,13 @@ pub fn apply_from_variable(
         let candidates = filter_by_first_param(&all_signatures, first_arg_type);
         if !candidates.is_empty() {
             if let Some(fun_typ) = try_direct_match(&candidates, &types, context) {
+                let (final_params, final_types) =
+                    specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
                 return build_success(
                     &var,
                     &fun_typ,
-                    expanded_parameters,
+                    final_params,
+                    &final_types,
                     param_errors,
                     context,
                     h,
@@ -98,10 +385,13 @@ pub fn apply_from_variable(
             let candidates = filter_by_first_param(&all_signatures, super_type);
             if !candidates.is_empty() {
                 if let Some(fun_typ) = try_direct_match(&candidates, &types, context) {
+                    let (final_params, final_types) =
+                        specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
                     return build_success(
                         &var,
                         &fun_typ,
-                        expanded_parameters,
+                        final_params,
+                        &final_types,
                         param_errors,
                         context,
                         h,
@@ -113,10 +403,13 @@ pub fn apply_from_variable(
 
     // === FILTRAGE 3 : Vectorisation ===
     if let Some(fun_typ) = try_vectorized_match(&all_signatures, &types, context) {
+        let (final_params, final_types) =
+            specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
         return build_success(
             &var,
             &fun_typ,
-            expanded_parameters,
+            final_params,
+            &final_types,
             param_errors,
             context,
             h,
@@ -130,6 +423,30 @@ pub fn apply_from_variable(
     )));
     TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
         .with_errors(errors)
+}
+
+fn specialize_lambdas(
+    context: &Context,
+    params: &[Lang],
+    types: &[Type],
+    fun_typ: &FunctionType,
+) -> (Vec<Lang>, Vec<Type>) {
+    let mut new_params: Vec<Lang> = params.to_vec();
+    let mut new_types: Vec<Type> = types.to_vec();
+    let fun_params = fun_typ.get_param_types();
+
+    for (i, (param, param_type)) in params.iter().zip(types.iter()).enumerate() {
+        if let Lang::Lambda(_, _, _) = param {
+            if let Some(expected_type) = fun_params.get(i) {
+                let (specialized_lang, specialized_type) =
+                    specialize_lambda(param, param_type, expected_type, context);
+                new_params[i] = specialized_lang;
+                new_types[i] = specialized_type;
+            }
+        }
+    }
+
+    (new_params, new_types)
 }
 
 fn get_expanded_parameters_with_their_types(
@@ -542,6 +859,72 @@ mod tests {
         assert!(
             last_code.contains("vec_apply"),
             "Expected vec_apply in transpiled code for 2*a1+3, got: {}",
+            last_code
+        );
+    }
+
+    // =====================================================================
+    // Generic function variable dispatch tests
+    // =====================================================================
+
+    /// When a function variable (e.g. `incr`) is passed as argument to a
+    /// generic higher-order function (e.g. `apply`), the transpiled R code
+    /// must resolve the function name to the concrete type dispatch
+    /// (e.g. `incr.int`) instead of `incr.Generic`.
+    #[test]
+    fn test_generic_function_variable_transpiles_without_generic() {
+        let fp = FluentParser::new()
+            .push("let apply <- fn(a: T, f: (T) -> U): U { f(a) };")
+            .run()
+            .push("let incr <- fn(i: int): int { i + 1 };")
+            .run()
+            .push("apply(4, incr)")
+            .parse_type_transpile_next();
+        let r_codes: Vec<_> = fp.get_r_code().iter().cloned().collect();
+        let last_code = r_codes.last().unwrap();
+        assert!(
+            !last_code.contains("Generic"),
+            "Expected no 'Generic' in transpiled code, got: {}",
+            last_code
+        );
+    }
+
+    /// Test that anonymous lambdas can be passed as arguments to
+    /// higher-order functions. The lambda `\(n) n + 1` should have type
+    /// `(T) -> U` where T is inferred from the first argument and U from the body.
+    #[test]
+    fn test_lambda_as_higher_order_function_argument() {
+        let fp = FluentParser::new()
+            .push("@`+`: (int, int) -> int;")
+            .run()
+            .push("let single_map <- fn(a: T, f: (T) -> U): U { f(a) };")
+            .run()
+            .push("single_map(3, \\(n) n + 1)")
+            .parse_type_transpile_next();
+        let r_codes: Vec<_> = fp.get_r_code().iter().cloned().collect();
+        let last_code = r_codes.last().unwrap();
+        assert!(
+            !last_code.contains("Generic"),
+            "Expected no 'Generic' in transpiled code, got: {}",
+            last_code
+        );
+    }
+
+    /// Test that a lambda returning a different type than its input works correctly.
+    #[test]
+    fn test_lambda_with_different_input_output_types() {
+        let fp = FluentParser::new()
+            .push("@to_string: (int) -> char;")
+            .run()
+            .push("let transform <- fn(a: T, f: (T) -> U): U { f(a) };")
+            .run()
+            .push("transform(42, \\(x) to_string(x))")
+            .parse_type_transpile_next();
+        let r_codes: Vec<_> = fp.get_r_code().iter().cloned().collect();
+        let last_code = r_codes.last().unwrap();
+        assert!(
+            !last_code.contains("Generic"),
+            "Expected no 'Generic' in transpiled code, got: {}",
             last_code
         );
     }

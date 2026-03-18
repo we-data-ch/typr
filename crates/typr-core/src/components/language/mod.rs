@@ -67,7 +67,7 @@ pub enum Lang {
     Test(Vec<Lang>, HelpData),
     Return(Box<Lang>, HelpData),
     VecBlock(String, HelpData),
-    Lambda(Box<Lang>, HelpData),
+    Lambda(Vec<Lang>, Box<Lang>, HelpData),
     Library(String, HelpData),
     Exp(String, HelpData),
     Signature(Var, Type, HelpData),
@@ -142,7 +142,7 @@ impl PartialEq for Lang {
             (Lang::Test(a, _), Lang::Test(b, _)) => a == b,
             (Lang::Return(a, _), Lang::Return(b, _)) => a == b,
             (Lang::VecBlock(a, _), Lang::VecBlock(b, _)) => a == b,
-            (Lang::Lambda(a, _), Lang::Lambda(b, _)) => a == b,
+            (Lang::Lambda(a, _, _), Lang::Lambda(b, _, _)) => a == b,
             (Lang::Library(a, _), Lang::Library(b, _)) => a == b,
             (Lang::Exp(a, _), Lang::Exp(b, _)) => a == b,
             (Lang::Signature(a1, a2, _), Lang::Signature(b1, b2, _)) => a1 == b1 && a2 == b2,
@@ -233,8 +233,17 @@ impl Lang {
 
     fn set_type_if_variable(&self, typ: &Type) -> Lang {
         match self {
-            Lang::Variable(name, spec, _, h) => {
-                Lang::Variable(name.clone(), *spec, typ.clone(), h.clone())
+            Lang::Variable(name, spec, existing_type, h) => {
+                // Don't overwrite a concrete related_type with a generic one.
+                // This preserves types resolved during type-checking (e.g. when
+                // a function variable like `incr: (int)->int` is passed to a
+                // generic higher-order function like `apply: (T,(T)->U)->U`).
+                let new_type = if typ.is_generic() && !existing_type.is_empty() {
+                    existing_type.clone()
+                } else {
+                    typ.clone()
+                };
+                Lang::Variable(name.clone(), *spec, new_type, h.clone())
             }
             _ => self.clone(),
         }
@@ -365,7 +374,7 @@ impl Lang {
             Lang::Test(_, h) => h,
             Lang::Return(_, h) => h,
             Lang::VecBlock(_, h) => h,
-            Lang::Lambda(_, h) => h,
+            Lang::Lambda(_, _, h) => h,
             Lang::Library(_, h) => h,
             Lang::Exp(_, h) => h,
             Lang::Empty(h) => h,
@@ -459,7 +468,7 @@ impl Lang {
             Lang::Test(_, _) => "Test".to_string(),
             Lang::Return(_, _) => "Return".to_string(),
             Lang::VecBlock(_, _) => "VecBloc".to_string(),
-            Lang::Lambda(_, _) => "Lambda".to_string(),
+            Lang::Lambda(..) => "Lambda".to_string(),
             Lang::Library(_, _) => "Library".to_string(),
             Lang::Exp(_, _) => "Exp".to_string(),
             Lang::Empty(_) => "Empty".to_string(),
@@ -598,7 +607,24 @@ impl Lang {
                     + "}";
                 (res, context.clone())
             }
-            Lang::Lambda(body, _) => (format!("x => {}", body.to_js(context).0), context.clone()),
+            Lang::Lambda(params, body, _) => {
+                let param_names: Vec<String> = params
+                    .iter()
+                    .map(|p| match p {
+                        Lang::Variable(name, _, _, _) => name.clone(),
+                        _ => "x".to_string(),
+                    })
+                    .collect();
+                let params_str = if param_names.len() == 1 {
+                    param_names[0].clone()
+                } else {
+                    format!("({})", param_names.join(", "))
+                };
+                (
+                    format!("{} => {}", params_str, body.to_js(context).0),
+                    context.clone(),
+                )
+            }
             Lang::Operator(op, e1, e2, _) => (
                 format!("{} {} {}", e1.to_js(context).0, op, e2.to_js(context).0),
                 context.clone(),
@@ -751,7 +777,7 @@ impl From<Lang> for HelpData {
             Lang::Scope(_, h) => h,
             Lang::Let(_, _, _, h) => h,
             Lang::Alias(_, _, _, h) => h,
-            Lang::Lambda(_, h) => h,
+            Lang::Lambda(_, _, h) => h,
             Lang::Function(_, _, _, h) => h,
             Lang::VecBlock(_, h) => h,
             Lang::If(_, _, _, h) => h,

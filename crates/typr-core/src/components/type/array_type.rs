@@ -6,6 +6,7 @@
     unused_assignments
 )]
 use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 
 pub struct ArrayType {
@@ -22,11 +23,11 @@ impl ArrayType {
             .map(|arr_t| {
                 arr_t
                     .get_shape()
-                    .map(|arr| self.index.pretty2() + ", " + &arr)
+                    .map(|arr| self.index.pretty3() + ", " + &arr)
             })
             .unwrap_or(
-                (!self.index.is_generic()) //only return None if is a generic
-                    .then_some(self.index.pretty2()),
+                (!self.index.is_generic()) //onl3y return None if is a generic
+                    .then_some(self.index.pretty3()),
             )
     }
 

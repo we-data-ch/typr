@@ -86,22 +86,12 @@ pub fn tuple_type(types: &[Type]) -> Type {
 }
 
 pub fn array_type(i: Type, t: Type) -> Type {
-    Type::Vec(
-        VecType::Array,
-        Box::new(i),
-        Box::new(t),
-        HelpData::default(),
-    )
+    Type::Vec(VecType::S3, Box::new(i), Box::new(t), HelpData::default())
 }
 
 pub fn array_type2(i: i32, t: Type) -> Type {
     let i2 = integer_type(i);
-    Type::Vec(
-        VecType::Array,
-        Box::new(i2),
-        Box::new(t),
-        HelpData::default(),
-    )
+    Type::Vec(VecType::S3, Box::new(i2), Box::new(t), HelpData::default())
 }
 
 pub fn opaque_type(name: &str) -> Type {

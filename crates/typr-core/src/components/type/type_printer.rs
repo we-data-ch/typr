@@ -144,6 +144,20 @@ pub fn verbose(t: &Type) -> String {
     }
 }
 
+pub fn litteral(t: &Type) -> String {
+    match t {
+        Type::Integer(tint, _) => match tint {
+            Tint::Val(i) => format!("{}", i),
+            _ => "int".to_string(),
+        },
+        Type::Char(tchar, _) => match tchar {
+            Tchar::Val(c) => format!("'{}'", c),
+            _ => "char".to_string(),
+        },
+        val => val.pretty2(), //val => panic!("{:?} doesn't have a second format", val)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -22,7 +22,7 @@ use typr_core::{Compiler, InMemorySourceProvider};
 use wasm_bindgen::prelude::*;
 
 /// Standard library R code (embedded at compile time)
-const STD_R: &str = include_str!("../../typr-core/configs/src/std.R");
+const STD_R: &str = include_str!("../../typr-cli/configs/src/std.R");
 
 /// Compile TypR source code to R
 ///

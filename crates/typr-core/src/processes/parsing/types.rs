@@ -99,12 +99,63 @@ fn simple_index(s: Span) -> IResult<Span, Type> {
 }
 
 fn index(s: Span) -> IResult<Span, Type> {
-    alt((index_generic, simple_index)).parse(s)
+    alt((index_generic, simple_index, any)).parse(s)
+}
+
+fn array_type_full(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(tag("["), multispace0),
+        index_algebra,
+        terminated(tag(","), multispace0),
+        ltype,
+        terminated(tag("]"), multispace0),
+    )
+        .parse(s);
+
+    match res {
+        Ok((s, (start, num, _, typ, _))) => Ok((
+            s,
+            Type::Vec(VecType::S3, Box::new(num), Box::new(typ), start.into()),
+        )),
+        Err(r) => Err(r),
+    }
+}
+
+fn array_type_short(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(tag("["), multispace0),
+        single_type,
+        terminated(tag("]"), multispace0),
+    )
+        .parse(s);
+
+    match res {
+        Ok((s, (start, typ, _))) => Ok((
+            s,
+            Type::Vec(
+                VecType::S3,
+                Box::new(Type::Any(start.clone().into())),
+                Box::new(typ),
+                start.into(),
+            ),
+        )),
+        Err(r) => Err(r),
+    }
 }
 
 fn array_type(s: Span) -> IResult<Span, Type> {
+    alt((
+        named_array_type_full,
+        named_array_type_short,
+        array_type_full,
+        array_type_short,
+    ))
+    .parse(s)
+}
+
+fn named_array_type_full(s: Span) -> IResult<Span, Type> {
     let res = (
-        terminated(tag("["), multispace0),
+        terminated(tag("Array["), multispace0),
         index_algebra,
         terminated(tag(","), multispace0),
         ltype,
@@ -121,7 +172,33 @@ fn array_type(s: Span) -> IResult<Span, Type> {
     }
 }
 
-fn vector_type(s: Span) -> IResult<Span, Type> {
+fn named_array_type_short(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(tag("Array["), multispace0),
+        single_type,
+        terminated(tag("]"), multispace0),
+    )
+        .parse(s);
+
+    match res {
+        Ok((s, (start, typ, _))) => Ok((
+            s,
+            Type::Vec(
+                VecType::Array,
+                Box::new(Type::Any(start.clone().into())),
+                Box::new(typ),
+                start.into(),
+            ),
+        )),
+        Err(r) => Err(r),
+    }
+}
+
+fn named_array_type(s: Span) -> IResult<Span, Type> {
+    alt((named_array_type_full, named_array_type_short)).parse(s)
+}
+
+fn vector_type_full(s: Span) -> IResult<Span, Type> {
     let res = (
         terminated(tag("Vec["), multispace0),
         index_algebra,
@@ -138,6 +215,90 @@ fn vector_type(s: Span) -> IResult<Span, Type> {
         )),
         Err(r) => Err(r),
     }
+}
+
+fn vector_type_short(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(tag("Vec["), multispace0),
+        single_type,
+        terminated(tag("]"), multispace0),
+    )
+        .parse(s);
+
+    match res {
+        Ok((s, (start, typ, _))) => Ok((
+            s,
+            Type::Vec(
+                VecType::Vector,
+                Box::new(Type::Any(start.clone().into())),
+                Box::new(typ),
+                start.into(),
+            ),
+        )),
+        Err(r) => Err(r),
+    }
+}
+
+fn vector_type(s: Span) -> IResult<Span, Type> {
+    alt((vector_type_full, vector_type_short)).parse(s)
+}
+
+fn dataframe_type_full(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(alt((tag("dataframe["), tag("df["))), multispace0),
+        index_algebra,
+        terminated(tag("]"), multispace0),
+        terminated(tag("{"), multispace0),
+        many0(argument),
+        terminated(tag("}"), multispace0),
+    )
+        .parse(s);
+
+    match res {
+        Ok((s, (start, num, _, _, columns, _))) => Ok((
+            s,
+            Type::Vec(
+                VecType::DataFrame,
+                Box::new(num),
+                Box::new(Type::Record(
+                    columns.iter().cloned().collect(),
+                    start.clone().into(),
+                )),
+                start.into(),
+            ),
+        )),
+        Err(r) => Err(r),
+    }
+}
+
+fn dataframe_type_short(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(alt((tag("dataframe"), tag("df"))), multispace0),
+        terminated(tag("{"), multispace0),
+        many0(argument),
+        terminated(tag("}"), multispace0),
+    )
+        .parse(s);
+
+    match res {
+        Ok((s, (start, _, columns, _))) => Ok((
+            s,
+            Type::Vec(
+                VecType::DataFrame,
+                Box::new(Type::Any(start.clone().into())),
+                Box::new(Type::Record(
+                    columns.iter().cloned().collect(),
+                    start.clone().into(),
+                )),
+                start.into(),
+            ),
+        )),
+        Err(r) => Err(r),
+    }
+}
+
+fn dataframe_type(s: Span) -> IResult<Span, Type> {
+    alt((dataframe_type_full, dataframe_type_short)).parse(s)
 }
 
 fn embedded_ltype(s: Span) -> IResult<Span, Type> {
@@ -586,6 +747,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             r_class,
             unknown_function,
             vector_type,
+            dataframe_type,
             record_type,
             parenthese_value,
             tag_type,
@@ -694,5 +856,223 @@ mod tests {
     fn test_char_litteral1() {
         let typ = char_litteral("'hello'".into()).unwrap().1;
         assert_eq!(typ.pretty(), "hello".to_string());
+    }
+
+    #[test]
+    fn test_dataframe_parsing1() {
+        let res = dataframe_type("dataframe[#N]{ name: char, age: int }".into());
+        assert!(res.is_ok(), "dataframe type should parse successfully");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::DataFrame, _, body, _) => match body.as_ref() {
+                Type::Record(fields, _) => assert_eq!(fields.len(), 2),
+                other => panic!("Expected Record body, got {:?}", other),
+            },
+            other => panic!("Expected Vec(DataFrame, ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dataframe_parsing2() {
+        let res = dataframe_type("dataframe[3]{ x: num }".into());
+        assert!(
+            res.is_ok(),
+            "dataframe type with numeric index should parse"
+        );
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::DataFrame, idx, body, _) => {
+                match idx.as_ref() {
+                    Type::Integer(_, _) => {}
+                    other => panic!("Expected Integer index, got {:?}", other),
+                }
+                match body.as_ref() {
+                    Type::Record(fields, _) => assert_eq!(fields.len(), 1),
+                    other => panic!("Expected Record body, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Vec(DataFrame, ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dataframe_via_ltype() {
+        let res = ltype("dataframe[#N]{ col1: int, col2: bool }".into());
+        assert!(res.is_ok(), "dataframe should be parseable via ltype");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::DataFrame, _, _, _) => {}
+            other => panic!("Expected Vec(DataFrame, ...) via ltype, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dataframe_df_shorthand() {
+        let res = dataframe_type("df[#N]{ name: char, age: int }".into());
+        assert!(res.is_ok(), "df shorthand should parse successfully");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::DataFrame, _, body, _) => match body.as_ref() {
+                Type::Record(fields, _) => assert_eq!(fields.len(), 2),
+                other => panic!("Expected Record body, got {:?}", other),
+            },
+            other => panic!("Expected Vec(DataFrame, ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dataframe_any_index() {
+        let res = dataframe_type("dataframe[Any]{ name: char }".into());
+        assert!(res.is_ok(), "dataframe with Any index should parse");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::DataFrame, idx, _, _) => match idx.as_ref() {
+                Type::Any(_) => {}
+                other => panic!("Expected Any index, got {:?}", other),
+            },
+            other => panic!("Expected Vec(DataFrame, ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_vector_any_index() {
+        let res = vector_type("Vec[Any, num]".into());
+        assert!(res.is_ok(), "Vec with Any index should parse");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::Vector, idx, _, _) => match idx.as_ref() {
+                Type::Any(_) => {}
+                other => panic!("Expected Any index, got {:?}", other),
+            },
+            other => panic!("Expected Vec(Vector, ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_array_any_index() {
+        let res = array_type("[Any, int]".into());
+        assert!(res.is_ok(), "Array with Any index should parse");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::S3, idx, _, _) => match idx.as_ref() {
+                Type::Any(_) => {}
+                other => panic!("Expected Any index, got {:?}", other),
+            },
+            other => panic!("Expected Vec(S3, ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dataframe_short_form() {
+        let res = dataframe_type("dataframe{ name: char, age: int }".into());
+        assert!(res.is_ok(), "dataframe without index should parse");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::DataFrame, idx, body, _) => {
+                match idx.as_ref() {
+                    Type::Any(_) => {}
+                    other => panic!("Expected Any index, got {:?}", other),
+                }
+                match body.as_ref() {
+                    Type::Record(fields, _) => assert_eq!(fields.len(), 2),
+                    other => panic!("Expected Record body, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Vec(DataFrame, ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_df_short_form() {
+        let res = dataframe_type("df{ x: num }".into());
+        assert!(res.is_ok(), "df without index should parse");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::DataFrame, idx, _, _) => match idx.as_ref() {
+                Type::Any(_) => {}
+                other => panic!("Expected Any index, got {:?}", other),
+            },
+            other => panic!("Expected Vec(DataFrame, ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_vector_short_form() {
+        let res = vector_type("Vec[num]".into());
+        assert!(res.is_ok(), "Vec[type] short form should parse");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::Vector, idx, body, _) => {
+                match idx.as_ref() {
+                    Type::Any(_) => {}
+                    other => panic!("Expected Any index, got {:?}", other),
+                }
+                match body.as_ref() {
+                    Type::Number(_) => {}
+                    other => panic!("Expected Number body, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Vec(Vector, ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_array_short_form() {
+        let res = array_type("[int]".into());
+        assert!(res.is_ok(), "[type] short form should parse");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::S3, idx, body, _) => {
+                match idx.as_ref() {
+                    Type::Any(_) => {}
+                    other => panic!("Expected Any index, got {:?}", other),
+                }
+                match body.as_ref() {
+                    Type::Integer(_, _) => {}
+                    other => panic!("Expected Integer body, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Vec(S3, ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_named_array_full() {
+        let res = array_type("Array[3, int]".into());
+        assert!(res.is_ok(), "Array[index, type] should parse");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::Array, idx, body, _) => {
+                match idx.as_ref() {
+                    Type::Integer(_, _) => {}
+                    other => panic!("Expected Integer index, got {:?}", other),
+                }
+                match body.as_ref() {
+                    Type::Integer(_, _) => {}
+                    other => panic!("Expected Integer body, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Vec(Array, ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_named_array_short() {
+        let res = array_type("Array[num]".into());
+        assert!(res.is_ok(), "Array[type] short form should parse");
+        let typ = res.unwrap().1;
+        match &typ {
+            Type::Vec(VecType::Array, idx, body, _) => {
+                match idx.as_ref() {
+                    Type::Any(_) => {}
+                    other => panic!("Expected Any index, got {:?}", other),
+                }
+                match body.as_ref() {
+                    Type::Number(_) => {}
+                    other => panic!("Expected Number body, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Vec(Array, ...), got {:?}", other),
+        }
     }
 }

@@ -15,9 +15,10 @@ pub mod type_system;
 pub mod union_type;
 pub mod vector_type;
 
-use crate::components::context::Context;
-use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::locatable::Locatable;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::type_printer::litteral;
+use crate::components::context::Context;
 use crate::components::language::var::Var;
 use crate::components::r#type::alias_type::Alias;
 use crate::components::r#type::argument_type::ArgumentType;
@@ -27,8 +28,7 @@ use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
 use crate::components::r#type::type_category::TypeCategory;
 use crate::components::r#type::type_operator::TypeOperator;
-use crate::components::r#type::type_printer::format;
-use crate::components::r#type::type_printer::verbose;
+use crate::components::r#type::type_printer::{format, verbose};
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::VecType;
 use crate::processes::parsing::operation_priority::TokenKind;
@@ -625,6 +625,10 @@ impl Type {
         verbose(self)
     }
 
+    pub fn pretty3(&self) -> String {
+        litteral(self)
+    }
+
     pub fn is_tag_or_union(&self) -> bool {
         match self {
             Type::Tag(_, _, _) => true,
@@ -835,14 +839,14 @@ impl Type {
         let h = HelpData::default();
         if args.len() > 1 {
             Type::Vec(
-                VecType::Array,
+                VecType::S3,
                 Box::new(args[0].clone()),
                 Box::new(Self::to_array2(args[1..].to_vec())),
                 h,
             )
         } else {
             Type::Vec(
-                VecType::Array,
+                VecType::S3,
                 Box::new(args[0].clone()),
                 Box::new(builder::integer_type_default()),
                 h,

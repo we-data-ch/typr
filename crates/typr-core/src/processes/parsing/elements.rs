@@ -690,7 +690,7 @@ fn match_exp(s: Span) -> IResult<Span, Lang> {
     }
 }
 
-fn tuple_exp(s: Span) -> IResult<Span, Lang> {
+pub fn tuple_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(alt((tag("list"), tag(":"))), multispace0),
         terminated(alt((tag("{"), tag("("))), multispace0),
@@ -801,9 +801,23 @@ fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
 }
 
 fn lambda(s: Span) -> IResult<Span, Lang> {
-    let res = preceded(tag("~"), elements).parse(s);
+    let res = (
+        tag("\\"),
+        terminated(tag("("), multispace0),
+        many0(terminated(variable, opt((tag(","), multispace0)))),
+        terminated(tag(")"), multispace0),
+        parse_elements,
+    )
+        .parse(s);
     match res {
-        Ok((s, e)) => Ok((s, Lang::Lambda(Box::new(e.clone()), e.into()))),
+        Ok((s, (start, _, v, _, body))) => Ok((
+            s,
+            Lang::Lambda(
+                v.iter().map(|(var, _)| var).cloned().collect(),
+                Box::new(body.clone()),
+                start.into(),
+            ),
+        )),
         Err(r) => Err(r),
     }
 }
