@@ -101,7 +101,7 @@ pub fn write_to_r_lang(
         .unwrap();
 }
 
-pub fn new(name: &str) {
+pub fn new(name: &str, renv: bool) {
     println!("Creating the R package '{}'...", name);
 
     let current_dir = match std::env::current_dir() {
@@ -213,6 +213,11 @@ pub fn new(name: &str) {
     }
 
     println!("Package R '{}' successfully created!", name);
+
+    if renv {
+        renv_init();
+    }
+
     let package_structure =
         include_str!("../configs/package_structure.md").replace("{{PACKAGE_NAME}}", name);
     println!("{}", package_structure);
@@ -361,44 +366,144 @@ pub fn get_package_name() -> Result<String, String> {
     Err("Package name not found in the DESCRIPTION file".to_string())
 }
 
-pub fn pkg_install() {
-    println!("Installing the package...");
+pub fn renv_init() {
+    println!("Initializing renv...");
 
-    let current_dir = match std::env::current_dir() {
-        Ok(dir) => dir,
-        Err(e) => {
-            eprintln!("Error obtaining current directory: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    let project_path = current_dir.to_str().unwrap();
-    let r_command = format!("devtools::install_local('{}')", project_path);
+    let r_command = "renv::init()";
     println!("Executing: R -e \"{}\"", r_command);
 
-    let output = Command::new("R").arg("-e").arg(&r_command).output();
+    let output = Command::new("R").arg("-e").arg(r_command).output();
 
     match output {
         Ok(output) => {
             if output.status.success() {
-                println!("Package installed successfully!");
+                println!("renv initialized successfully!");
 
                 if !output.stdout.is_empty() {
                     println!("\n{}", String::from_utf8_lossy(&output.stdout));
                 }
             } else {
-                eprintln!("Error during package installation");
+                eprintln!("Warning: renv initialization may have failed");
                 if !output.stderr.is_empty() {
                     eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
                 }
-
-                std::process::exit(1);
             }
         }
         Err(e) => {
-            eprintln!("Error executing command R: {}", e);
-            eprintln!("Make sure that R and devtools are installed.");
-            std::process::exit(1);
+            eprintln!("Warning: Could not execute renv::init(): {}", e);
+            eprintln!("Make sure that renv is installed (install.packages('renv')).");
+        }
+    }
+}
+
+pub fn renv_snapshot() {
+    println!("Taking renv snapshot...");
+
+    let r_command = "renv::snapshot()";
+    println!("Executing: R -e \"{}\"", r_command);
+
+    let output = Command::new("R").arg("-e").arg(r_command).output();
+
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                println!("renv snapshot saved successfully!");
+
+                if !output.stdout.is_empty() {
+                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                }
+            } else {
+                eprintln!("Warning: renv snapshot may have failed");
+                if !output.stderr.is_empty() {
+                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Warning: Could not execute renv::snapshot(): {}", e);
+        }
+    }
+}
+
+pub fn pkg_install(packages: Option<&[String]>) {
+    match packages {
+        Some(pkgs) if !pkgs.is_empty() => {
+            println!("Installing packages from CRAN: {:?}", pkgs);
+
+            let pkgs_str = pkgs
+                .iter()
+                .map(|p| format!("'{}'", p))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let r_command = format!("install.packages(c({}))", pkgs_str);
+            println!("Executing: R -e \"{}\"", r_command);
+
+            let output = Command::new("R").arg("-e").arg(&r_command).output();
+
+            match output {
+                Ok(output) => {
+                    if output.status.success() {
+                        println!("Package(s) installed successfully!");
+
+                        if !output.stdout.is_empty() {
+                            println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                        }
+
+                        renv_snapshot();
+                    } else {
+                        eprintln!("Error during package installation");
+                        if !output.stderr.is_empty() {
+                            eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
+                        }
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error executing R command: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        _ => {
+            println!("Installing the local package...");
+
+            let current_dir = match std::env::current_dir() {
+                Ok(dir) => dir,
+                Err(e) => {
+                    eprintln!("Error obtaining current directory: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            let project_path = current_dir.to_str().unwrap();
+            let r_command = format!("devtools::install_local('{}')", project_path);
+            println!("Executing: R -e \"{}\"", r_command);
+
+            let output = Command::new("R").arg("-e").arg(&r_command).output();
+
+            match output {
+                Ok(output) => {
+                    if output.status.success() {
+                        println!("Package installed successfully!");
+
+                        if !output.stdout.is_empty() {
+                            println!("\n{}", String::from_utf8_lossy(&output.stdout));
+                        }
+                    } else {
+                        eprintln!("Error during package installation");
+                        if !output.stderr.is_empty() {
+                            eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
+                        }
+
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error executing command R: {}", e);
+                    eprintln!("Make sure that R and devtools are installed.");
+                    std::process::exit(1);
+                }
+            }
         }
     }
 }

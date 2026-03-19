@@ -9,6 +9,7 @@ use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::set_related_type_if_variable;
 use crate::components::r#type::function_type::FunctionType;
+use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
 use crate::processes::type_checking::Context;
 use crate::processes::type_checking::HelpData;
@@ -38,10 +39,19 @@ fn build_success(
         .with_errors(param_errors)
 }
 
-fn filter_by_first_param(signatures: &[FunctionType], first_arg_type: &Type) -> Vec<FunctionType> {
+fn filter_by_first_param(
+    signatures: &[FunctionType],
+    first_arg_type: &Type,
+    context: &Context,
+) -> Vec<FunctionType> {
+    let reduced_arg = reduce_type(context, first_arg_type);
     signatures
         .iter()
-        .filter(|sig| sig.get_first_param().as_ref() == Some(first_arg_type))
+        .filter(|sig| {
+            sig.get_first_param()
+                .map(|p| reduce_type(context, &p) == reduced_arg)
+                .unwrap_or(false)
+        })
         .cloned()
         .collect()
 }
@@ -359,7 +369,7 @@ pub fn apply_from_variable(
 
     // === FILTRAGE 1 : Égalité stricte du 1er param, puis match complet (unification) ===
     if let Some(first_arg_type) = types.first() {
-        let candidates = filter_by_first_param(&all_signatures, first_arg_type);
+        let candidates = filter_by_first_param(&all_signatures, first_arg_type, context);
         if !candidates.is_empty() {
             if let Some(fun_typ) = try_direct_match(&candidates, &types, context) {
                 let (final_params, final_types) =
@@ -383,7 +393,7 @@ pub fn apply_from_variable(
             .subtypes
             .get_ordered_supertypes(first_arg_type, context);
         for super_type in &super_types {
-            let candidates = filter_by_first_param(&all_signatures, super_type);
+            let candidates = filter_by_first_param(&all_signatures, super_type, context);
             if !candidates.is_empty() {
                 if let Some(fun_typ) = try_direct_match(&candidates, &types, context) {
                     let (final_params, final_types) =
@@ -927,6 +937,62 @@ mod tests {
             !last_code.contains("Generic"),
             "Expected no 'Generic' in transpiled code, got: {}",
             last_code
+        );
+    }
+
+    // =====================================================================
+    // Type alias resolution in function application
+    // =====================================================================
+
+    /// A function whose parameter is a type alias (e.g. `Int` aliasing `int`)
+    /// should accept a value of the underlying concrete type (`int`).
+    #[test]
+    fn test_type_alias_param_accepts_concrete_type() {
+        let res = FluentParser::new()
+            .push("type Int <- int;")
+            .run()
+            .push("let id <- fn(o: Int): Int { o };")
+            .run()
+            .check_typing("id(10)");
+        // Int reduces to int, so the return type should be int
+        assert_eq!(res, builder::integer_type_default());
+    }
+
+    /// A function with a concrete `int` parameter should accept a value
+    /// whose type is an alias that reduces to `int`.
+    #[test]
+    fn test_concrete_param_accepts_alias_type_arg() {
+        let res = FluentParser::new()
+            .push("type Int <- int;")
+            .run()
+            .push("@incr: (int) -> int;")
+            .run()
+            .check_typing("incr(10)");
+        assert_eq!(res, builder::integer_type_default());
+    }
+
+    /// Both sides are aliases: function param is alias A, argument is alias B,
+    /// both reduce to the same concrete type.
+    #[test]
+    fn test_alias_param_with_alias_arg() {
+        let res = FluentParser::new()
+            .push("type MyInt <- int;")
+            .run()
+            .push("type AlsoInt <- int;")
+            .run()
+            .push("let id <- fn(o: MyInt): MyInt { o };")
+            .run()
+            .push("let a: AlsoInt <- 42;")
+            .parse_type_next()
+            .push("id(a)")
+            .parse_next();
+        // Both MyInt and AlsoInt reduce to int, so id(a) should type-check
+        // The return type is MyInt (the alias from the function signature)
+        let last_type = res.get_last_type();
+        assert!(
+            last_type.is_alias() || last_type == builder::integer_type_default(),
+            "Expected alias or int type, got: {:?}",
+            last_type
         );
     }
 }

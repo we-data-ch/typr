@@ -35,6 +35,8 @@ struct Cli {
 enum Commands {
     New {
         name: String,
+        #[arg(long, default_value = "true")]
+        renv: bool,
     },
     Check {
         #[arg(value_name = "FILE")]
@@ -67,7 +69,10 @@ enum Commands {
 
 #[derive(Subcommand, Debug)]
 enum PkgCommands {
-    Install,
+    Install {
+        #[arg(value_name = "PACKAGE", num_args = 1..)]
+        packages: Option<Vec<String>>,
+    },
     Uninstall,
 }
 
@@ -82,7 +87,7 @@ pub fn start() {
     }
 
     match cli.command {
-        Some(Commands::New { name }) => new(&name),
+        Some(Commands::New { name, renv }) => new(&name, renv),
         Some(Commands::Check { file }) => match file {
             Some(path) => check_file(&path),
             _ => check_project(),
@@ -97,7 +102,7 @@ pub fn start() {
         },
         Some(Commands::Test) => test(),
         Some(Commands::Pkg { pkg_command }) => match pkg_command {
-            PkgCommands::Install => pkg_install(),
+            PkgCommands::Install { packages } => pkg_install(packages.as_deref()),
             PkgCommands::Uninstall => pkg_uninstall(),
         },
         Some(Commands::Document) => document(),
