@@ -3,62 +3,6 @@
     "variables": [
       [
         {
-          "name": "`+`",
-          "is_opaque": false,
-          "related_type": {
-            "Integer": [
-              "Unknown",
-              {
-                "offset": 7,
-                "file_name": "/tmp/test_lambda.ty"
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 2,
-            "file_name": "/tmp/test_lambda.ty"
-          }
-        },
-        {
-          "Function": [
-            [
-              {
-                "Integer": [
-                  "Unknown",
-                  {
-                    "offset": 7,
-                    "file_name": "/tmp/test_lambda.ty"
-                  }
-                ]
-              },
-              {
-                "Integer": [
-                  "Unknown",
-                  {
-                    "offset": 12,
-                    "file_name": "/tmp/test_lambda.ty"
-                  }
-                ]
-              }
-            ],
-            {
-              "Integer": [
-                "Unknown",
-                {
-                  "offset": 20,
-                  "file_name": "/tmp/test_lambda.ty"
-                }
-              ]
-            },
-            {
-              "offset": 6,
-              "file_name": "/tmp/test_lambda.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
           "name": "%*%",
           "is_opaque": false,
           "related_type": {
@@ -18522,75 +18466,384 @@
       ],
       [
         {
-          "name": "single_map",
+          "name": "`+`",
           "is_opaque": false,
           "related_type": {
-            "Generic": [
-              "T",
+            "Integer": [
+              "Unknown",
               {
-                "offset": 0,
-                "file_name": ""
+                "offset": 7,
+                "file_name": "std_R.ty"
               }
             ]
           },
           "help_data": {
-            "offset": 31,
-            "file_name": "/tmp/test_lambda.ty"
+            "offset": 2,
+            "file_name": "std_R.ty"
           }
         },
         {
           "Function": [
             [
               {
-                "Generic": [
-                  "T",
+                "Integer": [
+                  "Unknown",
                   {
-                    "offset": 0,
-                    "file_name": ""
+                    "offset": 7,
+                    "file_name": "std_R.ty"
                   }
                 ]
               },
               {
-                "Function": [
-                  [
-                    {
-                      "Generic": [
-                        "T",
-                        {
-                          "offset": 0,
-                          "file_name": ""
-                        }
-                      ]
-                    }
-                  ],
+                "Integer": [
+                  "Unknown",
                   {
-                    "Generic": [
-                      "U",
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  {
-                    "offset": 56,
-                    "file_name": "/tmp/test_lambda.ty"
+                    "offset": 12,
+                    "file_name": "std_R.ty"
                   }
                 ]
               }
             ],
             {
-              "Generic": [
-                "U",
+              "Integer": [
+                "Unknown",
                 {
-                  "offset": 0,
+                  "offset": 20,
+                  "file_name": "std_R.ty"
+                }
+              ]
+            },
+            {
+              "offset": 6,
+              "file_name": "std_R.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "df",
+          "is_opaque": false,
+          "related_type": {
+            "Vec": [
+              "DataFrame",
+              {
+                "Integer": [
+                  {
+                    "Val": 3
+                  },
+                  {
+                    "offset": 4,
+                    "file_name": ""
+                  }
+                ]
+              },
+              {
+                "Record": [
+                  [
+                    [
+                      {
+                        "Char": [
+                          {
+                            "Val": "Training"
+                          },
+                          {
+                            "offset": 35,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Vec": [
+                          "Vector",
+                          {
+                            "Integer": [
+                              {
+                                "Val": 3
+                              },
+                              {
+                                "offset": 4,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "Char": [
+                              "Unknown",
+                              {
+                                "offset": 7,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "offset": 35,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      false
+                    ],
+                    [
+                      {
+                        "Char": [
+                          {
+                            "Val": "Pulse"
+                          },
+                          {
+                            "offset": 79,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Vec": [
+                          "Vector",
+                          {
+                            "Integer": [
+                              {
+                                "Val": 3
+                              },
+                              {
+                                "offset": 4,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "Integer": [
+                              "Unknown",
+                              {
+                                "offset": 7,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "offset": 79,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      false
+                    ],
+                    [
+                      {
+                        "Char": [
+                          {
+                            "Val": "Duration"
+                          },
+                          {
+                            "offset": 110,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Vec": [
+                          "Vector",
+                          {
+                            "Integer": [
+                              {
+                                "Val": 3
+                              },
+                              {
+                                "offset": 4,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "Integer": [
+                              "Unknown",
+                              {
+                                "offset": 7,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "offset": 110,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      false
+                    ]
+                  ],
+                  {
+                    "offset": 6,
+                    "file_name": "/tmp/test.ty"
+                  }
+                ]
+              },
+              {
+                "offset": 6,
+                "file_name": "/tmp/test.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 1,
+            "file_name": "/tmp/test.ty"
+          }
+        },
+        {
+          "Vec": [
+            "DataFrame",
+            {
+              "Integer": [
+                {
+                  "Val": 3
+                },
+                {
+                  "offset": 4,
                   "file_name": ""
                 }
               ]
             },
             {
-              "offset": 0,
-              "file_name": ""
+              "Record": [
+                [
+                  [
+                    {
+                      "Char": [
+                        {
+                          "Val": "Training"
+                        },
+                        {
+                          "offset": 35,
+                          "file_name": "/tmp/test.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Vec": [
+                        "Vector",
+                        {
+                          "Integer": [
+                            {
+                              "Val": 3
+                            },
+                            {
+                              "offset": 4,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Char": [
+                            "Unknown",
+                            {
+                              "offset": 7,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "offset": 35,
+                          "file_name": "/tmp/test.ty"
+                        }
+                      ]
+                    },
+                    false
+                  ],
+                  [
+                    {
+                      "Char": [
+                        {
+                          "Val": "Pulse"
+                        },
+                        {
+                          "offset": 79,
+                          "file_name": "/tmp/test.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Vec": [
+                        "Vector",
+                        {
+                          "Integer": [
+                            {
+                              "Val": 3
+                            },
+                            {
+                              "offset": 4,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Integer": [
+                            "Unknown",
+                            {
+                              "offset": 7,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "offset": 79,
+                          "file_name": "/tmp/test.ty"
+                        }
+                      ]
+                    },
+                    false
+                  ],
+                  [
+                    {
+                      "Char": [
+                        {
+                          "Val": "Duration"
+                        },
+                        {
+                          "offset": 110,
+                          "file_name": "/tmp/test.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Vec": [
+                        "Vector",
+                        {
+                          "Integer": [
+                            {
+                              "Val": 3
+                            },
+                            {
+                              "offset": 4,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Integer": [
+                            "Unknown",
+                            {
+                              "offset": 7,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "offset": 110,
+                          "file_name": "/tmp/test.ty"
+                        }
+                      ]
+                    },
+                    false
+                  ]
+                ],
+                {
+                  "offset": 6,
+                  "file_name": "/tmp/test.ty"
+                }
+              ]
+            },
+            {
+              "offset": 6,
+              "file_name": "/tmp/test.ty"
             }
           ]
         }
@@ -20050,6 +20303,129 @@
                 {
                   "Char": [
                     {
+                      "Val": "ylab"
+                    },
+                    {
+                      "offset": 269,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                {
+                  "Char": [
+                    "Unknown",
+                    {
+                      "offset": 274,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "ann"
+                    },
+                    {
+                      "offset": 281,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                {
+                  "Boolean": {
+                    "offset": 285,
+                    "file_name": "plot.ty"
+                  }
+                },
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "xlim"
+                    },
+                    {
+                      "offset": 191,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                {
+                  "Vec": [
+                    "S3",
+                    {
+                      "Integer": [
+                        {
+                          "Val": 2
+                        },
+                        {
+                          "offset": 197,
+                          "file_name": "plot.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Number": {
+                        "offset": 200,
+                        "file_name": "plot.ty"
+                      }
+                    },
+                    {
+                      "offset": 196,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "ylim"
+                    },
+                    {
+                      "offset": 207,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                {
+                  "Vec": [
+                    "S3",
+                    {
+                      "Integer": [
+                        {
+                          "Val": 2
+                        },
+                        {
+                          "offset": 213,
+                          "file_name": "plot.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Number": {
+                        "offset": 216,
+                        "file_name": "plot.ty"
+                      }
+                    },
+                    {
+                      "offset": 212,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
                       "Val": "axes"
                     },
                     {
@@ -20146,66 +20522,6 @@
                 {
                   "Char": [
                     {
-                      "Val": "ann"
-                    },
-                    {
-                      "offset": 281,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Boolean": {
-                    "offset": 285,
-                    "file_name": "plot.ty"
-                  }
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "xlim"
-                    },
-                    {
-                      "offset": 191,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Vec": [
-                    "S3",
-                    {
-                      "Integer": [
-                        {
-                          "Val": 2
-                        },
-                        {
-                          "offset": 197,
-                          "file_name": "plot.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Number": {
-                        "offset": 200,
-                        "file_name": "plot.ty"
-                      }
-                    },
-                    {
-                      "offset": 196,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
                       "Val": "type"
                     },
                     {
@@ -20219,46 +20535,6 @@
                     "Unknown",
                     {
                       "offset": 184,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "ylim"
-                    },
-                    {
-                      "offset": 207,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Vec": [
-                    "S3",
-                    {
-                      "Integer": [
-                        {
-                          "Val": 2
-                        },
-                        {
-                          "offset": 213,
-                          "file_name": "plot.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Number": {
-                        "offset": 216,
-                        "file_name": "plot.ty"
-                      }
-                    },
-                    {
-                      "offset": 212,
                       "file_name": "plot.ty"
                     }
                   ]
@@ -20356,29 +20632,6 @@
                   ]
                 },
                 false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "ylab"
-                    },
-                    {
-                      "offset": 269,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 274,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
               ]
             ],
             {
@@ -20390,7 +20643,7 @@
       ],
       [
         {
-          "name": "Function0",
+          "name": "Array0",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -20407,105 +20660,161 @@
           }
         },
         {
-          "Function": [
-            [
-              {
-                "Generic": [
-                  "T",
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              }
-            ],
+          "Vec": [
+            "DataFrame",
             {
-              "Generic": [
-                "U",
+              "Integer": [
                 {
-                  "offset": 0,
+                  "Val": 3
+                },
+                {
+                  "offset": 4,
                   "file_name": ""
                 }
               ]
             },
             {
-              "offset": 56,
-              "file_name": "/tmp/test_lambda.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "Function1",
-          "is_opaque": false,
-          "related_type": {
-            "Params": [
-              [],
-              {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 0,
-            "file_name": ""
-          }
-        },
-        {
-          "Function": [
-            [
-              {
-                "Generic": [
-                  "T",
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              },
-              {
-                "Function": [
+              "Record": [
+                [
                   [
                     {
-                      "Generic": [
-                        "T",
+                      "Char": [
                         {
-                          "offset": 0,
-                          "file_name": ""
+                          "Val": "Training"
+                        },
+                        {
+                          "offset": 35,
+                          "file_name": "/tmp/test.ty"
                         }
                       ]
-                    }
+                    },
+                    {
+                      "Vec": [
+                        "Vector",
+                        {
+                          "Integer": [
+                            {
+                              "Val": 3
+                            },
+                            {
+                              "offset": 4,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Char": [
+                            "Unknown",
+                            {
+                              "offset": 7,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "offset": 35,
+                          "file_name": "/tmp/test.ty"
+                        }
+                      ]
+                    },
+                    false
                   ],
-                  {
-                    "Generic": [
-                      "U",
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  {
-                    "offset": 56,
-                    "file_name": "/tmp/test_lambda.ty"
-                  }
-                ]
-              }
-            ],
-            {
-              "Generic": [
-                "U",
+                  [
+                    {
+                      "Char": [
+                        {
+                          "Val": "Pulse"
+                        },
+                        {
+                          "offset": 79,
+                          "file_name": "/tmp/test.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Vec": [
+                        "Vector",
+                        {
+                          "Integer": [
+                            {
+                              "Val": 3
+                            },
+                            {
+                              "offset": 4,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Integer": [
+                            "Unknown",
+                            {
+                              "offset": 7,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "offset": 79,
+                          "file_name": "/tmp/test.ty"
+                        }
+                      ]
+                    },
+                    false
+                  ],
+                  [
+                    {
+                      "Char": [
+                        {
+                          "Val": "Duration"
+                        },
+                        {
+                          "offset": 110,
+                          "file_name": "/tmp/test.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Vec": [
+                        "Vector",
+                        {
+                          "Integer": [
+                            {
+                              "Val": 3
+                            },
+                            {
+                              "offset": 4,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Integer": [
+                            "Unknown",
+                            {
+                              "offset": 7,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "offset": 110,
+                          "file_name": "/tmp/test.ty"
+                        }
+                      ]
+                    },
+                    false
+                  ]
+                ],
                 {
-                  "offset": 0,
-                  "file_name": ""
+                  "offset": 6,
+                  "file_name": "/tmp/test.ty"
                 }
               ]
             },
             {
-              "offset": 0,
-              "file_name": ""
+              "offset": 6,
+              "file_name": "/tmp/test.ty"
             }
           ]
         }
@@ -37193,141 +37502,161 @@
   "subtypes": {
     "memory": [
       {
-        "Function": [
-          [
-            {
-              "Generic": [
-                "T",
-                {
-                  "offset": 0,
-                  "file_name": ""
-                }
-              ]
-            }
-          ],
-          {
-            "Generic": [
-              "U",
-              {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          {
-            "offset": 56,
-            "file_name": "/tmp/test_lambda.ty"
-          }
-        ]
-      },
-      {
-        "Function": [
-          [
-            {
-              "Generic": [
-                "T",
-                {
-                  "offset": 0,
-                  "file_name": ""
-                }
-              ]
-            },
-            {
-              "Function": [
-                [
-                  {
-                    "Generic": [
-                      "T",
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  }
-                ],
-                {
-                  "Generic": [
-                    "U",
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "offset": 56,
-                  "file_name": "/tmp/test_lambda.ty"
-                }
-              ]
-            }
-          ],
-          {
-            "Generic": [
-              "U",
-              {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          {
-            "offset": 0,
-            "file_name": ""
-          }
-        ]
-      },
-      {
-        "Generic": [
-          "T",
-          {
-            "offset": 0,
-            "file_name": ""
-          }
-        ]
-      },
-      {
-        "Function": [
-          [
-            {
-              "Integer": [
-                "Unknown",
-                {
-                  "offset": 7,
-                  "file_name": "/tmp/test_lambda.ty"
-                }
-              ]
-            },
-            {
-              "Integer": [
-                "Unknown",
-                {
-                  "offset": 12,
-                  "file_name": "/tmp/test_lambda.ty"
-                }
-              ]
-            }
-          ],
+        "Vec": [
+          "DataFrame",
           {
             "Integer": [
-              "Unknown",
               {
-                "offset": 20,
-                "file_name": "/tmp/test_lambda.ty"
+                "Val": 3
+              },
+              {
+                "offset": 4,
+                "file_name": ""
+              }
+            ]
+          },
+          {
+            "Record": [
+              [
+                [
+                  {
+                    "Char": [
+                      {
+                        "Val": "Training"
+                      },
+                      {
+                        "offset": 35,
+                        "file_name": "/tmp/test.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "Vec": [
+                      "Vector",
+                      {
+                        "Integer": [
+                          {
+                            "Val": 3
+                          },
+                          {
+                            "offset": 4,
+                            "file_name": ""
+                          }
+                        ]
+                      },
+                      {
+                        "Char": [
+                          "Unknown",
+                          {
+                            "offset": 7,
+                            "file_name": ""
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 35,
+                        "file_name": "/tmp/test.ty"
+                      }
+                    ]
+                  },
+                  false
+                ],
+                [
+                  {
+                    "Char": [
+                      {
+                        "Val": "Pulse"
+                      },
+                      {
+                        "offset": 79,
+                        "file_name": "/tmp/test.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "Vec": [
+                      "Vector",
+                      {
+                        "Integer": [
+                          {
+                            "Val": 3
+                          },
+                          {
+                            "offset": 4,
+                            "file_name": ""
+                          }
+                        ]
+                      },
+                      {
+                        "Integer": [
+                          "Unknown",
+                          {
+                            "offset": 7,
+                            "file_name": ""
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 79,
+                        "file_name": "/tmp/test.ty"
+                      }
+                    ]
+                  },
+                  false
+                ],
+                [
+                  {
+                    "Char": [
+                      {
+                        "Val": "Duration"
+                      },
+                      {
+                        "offset": 110,
+                        "file_name": "/tmp/test.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "Vec": [
+                      "Vector",
+                      {
+                        "Integer": [
+                          {
+                            "Val": 3
+                          },
+                          {
+                            "offset": 4,
+                            "file_name": ""
+                          }
+                        ]
+                      },
+                      {
+                        "Integer": [
+                          "Unknown",
+                          {
+                            "offset": 7,
+                            "file_name": ""
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 110,
+                        "file_name": "/tmp/test.ty"
+                      }
+                    ]
+                  },
+                  false
+                ]
+              ],
+              {
+                "offset": 6,
+                "file_name": "/tmp/test.ty"
               }
             ]
           },
           {
             "offset": 6,
-            "file_name": "/tmp/test_lambda.ty"
-          }
-        ]
-      },
-      {
-        "Integer": [
-          "Unknown",
-          {
-            "offset": 7,
-            "file_name": "/tmp/test_lambda.ty"
+            "file_name": "/tmp/test.ty"
           }
         ]
       }
@@ -37342,261 +37671,165 @@
       "subtypes": [
         {
           "value": {
-            "Generic": [
-              "T",
+            "Vec": [
+              "DataFrame",
               {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          "subtypes": [
-            {
-              "value": {
                 "Integer": [
-                  "Unknown",
                   {
-                    "offset": 7,
-                    "file_name": "/tmp/test_lambda.ty"
-                  }
-                ]
-              },
-              "subtypes": []
-            },
-            {
-              "value": {
-                "Function": [
-                  [
-                    {
-                      "Generic": [
-                        "T",
-                        {
-                          "offset": 0,
-                          "file_name": ""
-                        }
-                      ]
-                    }
-                  ],
-                  {
-                    "Generic": [
-                      "U",
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
+                    "Val": 3
                   },
                   {
-                    "offset": 56,
-                    "file_name": "/tmp/test_lambda.ty"
-                  }
-                ]
-              },
-              "subtypes": []
-            },
-            {
-              "value": {
-                "Function": [
-                  [
-                    {
-                      "Generic": [
-                        "T",
-                        {
-                          "offset": 0,
-                          "file_name": ""
-                        }
-                      ]
-                    },
-                    {
-                      "Function": [
-                        [
-                          {
-                            "Generic": [
-                              "T",
-                              {
-                                "offset": 0,
-                                "file_name": ""
-                              }
-                            ]
-                          }
-                        ],
-                        {
-                          "Generic": [
-                            "U",
-                            {
-                              "offset": 0,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "offset": 56,
-                          "file_name": "/tmp/test_lambda.ty"
-                        }
-                      ]
-                    }
-                  ],
-                  {
-                    "Generic": [
-                      "U",
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  {
-                    "offset": 0,
+                    "offset": 4,
                     "file_name": ""
                   }
                 ]
               },
-              "subtypes": []
-            }
-          ]
-        },
-        {
-          "value": {
-            "Generic": [
-              "T",
               {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          "subtypes": [
-            {
-              "value": {
-                "Function": [
+                "Record": [
                   [
-                    {
-                      "Integer": [
-                        "Unknown",
-                        {
-                          "offset": 7,
-                          "file_name": "/tmp/test_lambda.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Integer": [
-                        "Unknown",
-                        {
-                          "offset": 12,
-                          "file_name": "/tmp/test_lambda.ty"
-                        }
-                      ]
-                    }
-                  ],
-                  {
-                    "Integer": [
-                      "Unknown",
+                    [
                       {
-                        "offset": 20,
-                        "file_name": "/tmp/test_lambda.ty"
-                      }
+                        "Char": [
+                          {
+                            "Val": "Training"
+                          },
+                          {
+                            "offset": 35,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Vec": [
+                          "Vector",
+                          {
+                            "Integer": [
+                              {
+                                "Val": 3
+                              },
+                              {
+                                "offset": 4,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "Char": [
+                              "Unknown",
+                              {
+                                "offset": 7,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "offset": 35,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      false
+                    ],
+                    [
+                      {
+                        "Char": [
+                          {
+                            "Val": "Pulse"
+                          },
+                          {
+                            "offset": 79,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Vec": [
+                          "Vector",
+                          {
+                            "Integer": [
+                              {
+                                "Val": 3
+                              },
+                              {
+                                "offset": 4,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "Integer": [
+                              "Unknown",
+                              {
+                                "offset": 7,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "offset": 79,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      false
+                    ],
+                    [
+                      {
+                        "Char": [
+                          {
+                            "Val": "Duration"
+                          },
+                          {
+                            "offset": 110,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Vec": [
+                          "Vector",
+                          {
+                            "Integer": [
+                              {
+                                "Val": 3
+                              },
+                              {
+                                "offset": 4,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "Integer": [
+                              "Unknown",
+                              {
+                                "offset": 7,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "offset": 110,
+                            "file_name": "/tmp/test.ty"
+                          }
+                        ]
+                      },
+                      false
                     ]
-                  },
+                  ],
                   {
                     "offset": 6,
-                    "file_name": "/tmp/test_lambda.ty"
+                    "file_name": "/tmp/test.ty"
                   }
                 ]
               },
-              "subtypes": []
-            },
-            {
-              "value": {
-                "Function": [
-                  [
-                    {
-                      "Generic": [
-                        "T",
-                        {
-                          "offset": 0,
-                          "file_name": ""
-                        }
-                      ]
-                    }
-                  ],
-                  {
-                    "Generic": [
-                      "U",
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  {
-                    "offset": 56,
-                    "file_name": "/tmp/test_lambda.ty"
-                  }
-                ]
-              },
-              "subtypes": []
-            },
-            {
-              "value": {
-                "Function": [
-                  [
-                    {
-                      "Generic": [
-                        "T",
-                        {
-                          "offset": 0,
-                          "file_name": ""
-                        }
-                      ]
-                    },
-                    {
-                      "Function": [
-                        [
-                          {
-                            "Generic": [
-                              "T",
-                              {
-                                "offset": 0,
-                                "file_name": ""
-                              }
-                            ]
-                          }
-                        ],
-                        {
-                          "Generic": [
-                            "U",
-                            {
-                              "offset": 0,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "offset": 56,
-                          "file_name": "/tmp/test_lambda.ty"
-                        }
-                      ]
-                    }
-                  ],
-                  {
-                    "Generic": [
-                      "U",
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              },
-              "subtypes": []
-            }
-          ]
+              {
+                "offset": 6,
+                "file_name": "/tmp/test.ty"
+              }
+            ]
+          },
+          "subtypes": []
         }
       ]
     },

@@ -235,6 +235,38 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
                 .collect();
             (cond, bindings.join("\n"))
         }
+        // DataFrame pattern: data__frame(col1 = x, col2 = y)
+        Lang::DataFrame(fields, _) => {
+            let conditions: Vec<String> = fields
+                .iter()
+                .map(|arg_val| format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument()))
+                .collect();
+            let cond = if conditions.is_empty() {
+                "is.data.frame(".to_string() + match_var + ")"
+            } else {
+                format!(
+                    "is.data.frame({}) && {}",
+                    match_var,
+                    conditions.join(" && ")
+                )
+            };
+            let bindings: Vec<String> = fields
+                .iter()
+                .filter_map(|arg_val| {
+                    if let Lang::Variable(var_name, _, _, _) = &arg_val.get_value() {
+                        Some(format!(
+                            "{} <- {}[[\"{}\"]]",
+                            var_name,
+                            match_var,
+                            arg_val.get_argument()
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            (cond, bindings.join("\n"))
+        }
         // Wildcard: _
         Lang::Variable(name, _, _, _) if name == "_" => ("TRUE".to_string(), String::new()),
         // Other variable: bind the whole value
@@ -291,6 +323,18 @@ impl RTranslatable<(String, Context)> for Lang {
                             .into(),
                     },
                     Lang::List(fields, _) => {
+                        let at = fields[0].clone();
+                        Translatable::from(cont.clone())
+                            .add("within(")
+                            .to_r(&e2)
+                            .add(", { ")
+                            .add(&at.get_argument())
+                            .add(" <- ")
+                            .to_r(&at.get_value())
+                            .add(" })")
+                            .into()
+                    }
+                    Lang::DataFrame(fields, _) => {
                         let at = fields[0].clone();
                         Translatable::from(cont.clone())
                             .add("within(")
@@ -564,6 +608,19 @@ impl RTranslatable<(String, Context)> for Lang {
                 cont.get_classes(&typ)
                     .map(|_| format!("list({}) |> {}", body, anotation))
                     .unwrap_or(format!("list({}) |> {}", body, anotation))
+                    .to_some()
+                    .map(|s| (s, current_cont))
+                    .unwrap()
+            }
+            Lang::DataFrame(args, _) => {
+                let (body, current_cont) = Translatable::from(cont.clone())
+                    .join_arg_val(args, ",\n ")
+                    .into();
+                let (typ, _, _) = typing(cont, self).to_tuple();
+                let anotation = cont.get_type_anotation(&typ);
+                cont.get_classes(&typ)
+                    .map(|_| format!("data.frame({}) |> {}", body, anotation))
+                    .unwrap_or(format!("data.frame({}) |> {}", body, anotation))
                     .to_some()
                     .map(|s| (s, current_cont))
                     .unwrap()

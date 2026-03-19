@@ -5,7 +5,32 @@ use crate::components::r#type::tint::Tint;
 use crate::components::r#type::type_category::TypeCategory;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
+
+fn simplify_for_dataframe(ty: &Type) -> String {
+    let fmt = |t: &Type| format(t);
+    match ty {
+        Type::Vec(VecType::Vector, _, inner, _) => simplify_for_dataframe(inner),
+        Type::Vec(VecType::DataFrame, _, inner, _) => simplify_for_dataframe(inner),
+        Type::Vec(VecType::Array, _, inner, _) => simplify_for_dataframe(inner),
+        Type::Vec(VecType::S3, _, inner, _) => simplify_for_dataframe(inner),
+        Type::Record(fields, _) => {
+            let formatted_fields = fields
+                .iter()
+                .map(|arg_typ| {
+                    format!(
+                        "{}: {}",
+                        arg_typ.get_argument(),
+                        simplify_for_dataframe(&arg_typ.get_type())
+                    )
+                })
+                .collect::<Vec<_>>();
+            format!("{{{}}}", formatted_fields.join(", "))
+        }
+        _ => fmt(ty),
+    }
+}
 
 pub fn format(ty: &Type) -> String {
     match ty {
@@ -18,7 +43,12 @@ pub fn format(ty: &Type) -> String {
             }
         }
         Type::Vec(vtype, dim, ty, _) => {
-            format!("{}[{}, {}]", vtype.to_string(), short(dim), verbose(ty))
+            let inner = if matches!(vtype, VecType::DataFrame) {
+                simplify_for_dataframe(ty)
+            } else {
+                verbose(ty)
+            };
+            format!("{}[{}, {}]", vtype.to_string(), short(dim), inner)
         }
         Type::Function(params, ret_ty, _h) => {
             let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();

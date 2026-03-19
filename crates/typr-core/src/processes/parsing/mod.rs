@@ -106,6 +106,12 @@ fn collect_syntax_errors_recursive(lang: &Lang, errors: &mut Vec<SyntaxError>) {
                 collect_syntax_errors_recursive(item, errors);
             }
         }
+        Lang::DataFrame(fields, _) => {
+            for field in fields {
+                let value = field.get_value();
+                collect_syntax_errors_recursive(&value, errors);
+            }
+        }
         Lang::Module(_, v, _, _, _) => {
             for item in v {
                 collect_syntax_errors_recursive(item, errors);

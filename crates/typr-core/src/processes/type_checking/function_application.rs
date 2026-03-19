@@ -250,6 +250,7 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             h.clone(),
         ),
         Lang::List(fields, h) => Lang::List(fields.clone(), h.clone()),
+        Lang::DataFrame(fields, h) => Lang::DataFrame(fields.clone(), h.clone()),
         Lang::Module(name, exprs, pos, config, h) => Lang::Module(
             name.clone(),
             exprs

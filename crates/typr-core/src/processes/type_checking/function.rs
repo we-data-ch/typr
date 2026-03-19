@@ -33,7 +33,7 @@ pub fn function(
     TypeContext::new(
         Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone()),
         expr.clone(),
-        context.clone(),
+        sub_context,
     )
     .with_errors(errors)
 }
@@ -271,6 +271,30 @@ mod tests {
             !tc2.has_errors(),
             "Expected no type errors, but got: {:?}",
             tc2.get_errors()
+        );
+    }
+
+    /// Test: function parameter called inside match expression branch.
+    /// Regression test for: function 'f' not defined in this scope when
+    /// calling f(x) inside a .Some(x) => pattern match branch.
+    /// The fix ensures that:
+    /// 1. Match type is not reduced before pattern matching (preserves Alias types)
+    /// 2. Function parameters are preserved in the returned context
+    #[test]
+    fn test_function_param_called_in_match_branch() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let code = parse2(
+            "fn(o: Option<int>, f: (int) -> int): int { match o { .Some(x) => f(x), .None => 0 } }"
+                .into(),
+        )
+        .unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(
+            !tc.has_errors(),
+            "Expected no type errors, got: {:?}",
+            tc.get_errors()
         );
     }
 }

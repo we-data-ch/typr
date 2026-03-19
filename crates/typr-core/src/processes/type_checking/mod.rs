@@ -29,6 +29,7 @@ use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::processes::type_checking::function::function;
 use crate::processes::type_checking::function_application::function_application;
@@ -328,7 +329,9 @@ pub fn match_types_to_generic(
 }
 
 fn are_homogenous_types(types: &[Type]) -> bool {
-    types.windows(2).all(|w| w[0] == w[1])
+    types
+        .windows(2)
+        .all(|w| w[0].to_category() == w[1].to_category())
 }
 
 trait WithLang2 {
@@ -677,6 +680,181 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     TypeContext::new(Type::UnknownFunction(h), (*expr).clone(), context.clone())
                         .with_errors(errors)
                 }
+                // DataFrame $ access: df$col -> [N, col_type] (VecType::Vector)
+                (
+                    Type::Vec(VecType::DataFrame, n, ref body, h),
+                    Lang::Variable(name, _, _, ref vh),
+                    _,
+                ) => match body.as_ref() {
+                    Type::Record(fields, _) => {
+                        match fields
+                            .iter()
+                            .find(|arg_typ2| arg_typ2.get_argument_str() == name)
+                        {
+                            Some(arg_typ) => {
+                                let inner_type = match arg_typ.1.clone() {
+                                    Type::Vec(_, _, inner, _) => *inner,
+                                    other => other,
+                                };
+                                TypeContext::new(
+                                    Type::Vec(
+                                        VecType::Vector,
+                                        n.clone(),
+                                        Box::new(inner_type),
+                                        h.clone(),
+                                    ),
+                                    expr.clone(),
+                                    context.clone(),
+                                )
+                                .with_errors(errors)
+                            }
+                            None => {
+                                errors.push(TypRError::Type(TypeError::FieldNotFound(
+                                    (name, vh.clone()),
+                                    ty1,
+                                )));
+                                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                                    .with_errors(errors)
+                            }
+                        }
+                    }
+                    _ => {
+                        errors.push(TypRError::Type(TypeError::WrongExpression(
+                            expr.get_help_data(),
+                        )));
+                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                            .with_errors(errors)
+                    }
+                },
+                // DataFrame $ access with string literal: df$"col"
+                (Type::Vec(VecType::DataFrame, n, ref body, h), Lang::Char(name, ref vh), _) => {
+                    match body.as_ref() {
+                        Type::Record(fields, _) => {
+                            match fields
+                                .iter()
+                                .find(|arg_typ2| arg_typ2.get_argument_str() == name)
+                            {
+                                Some(arg_typ) => {
+                                    let inner_type = match arg_typ.1.clone() {
+                                        Type::Vec(_, _, inner, _) => *inner,
+                                        other => other,
+                                    };
+                                    TypeContext::new(
+                                        Type::Vec(
+                                            VecType::Vector,
+                                            n,
+                                            Box::new(inner_type),
+                                            h.clone(),
+                                        ),
+                                        expr.clone(),
+                                        context.clone(),
+                                    )
+                                    .with_errors(errors)
+                                }
+                                None => {
+                                    errors.push(TypRError::Type(TypeError::FieldNotFound(
+                                        (name, vh.clone()),
+                                        ty1,
+                                    )));
+                                    TypeContext::new(
+                                        builder::any_type(),
+                                        expr.clone(),
+                                        context.clone(),
+                                    )
+                                    .with_errors(errors)
+                                }
+                            }
+                        }
+                        _ => {
+                            errors.push(TypRError::Type(TypeError::WrongExpression(
+                                expr.get_help_data(),
+                            )));
+                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                                .with_errors(errors)
+                        }
+                    }
+                }
+                // DataFrame $ update with list: df$:{col: new_type}
+                (Type::Vec(VecType::DataFrame, n, ref body, h), Lang::List(fields2, _), _) => {
+                    match body.as_ref() {
+                        Type::Record(fields1, rh) => {
+                            let at = fields2[0].clone();
+                            let fields3 = fields1
+                                .iter()
+                                .map(replace_fields_type_if_needed(context, at))
+                                .collect::<HashSet<_>>();
+                            TypeContext::new(
+                                Type::Vec(
+                                    VecType::DataFrame,
+                                    n,
+                                    Box::new(Type::Record(fields3, rh.clone())),
+                                    h.clone(),
+                                ),
+                                expr.clone(),
+                                context.clone(),
+                            )
+                            .with_errors(errors)
+                        }
+                        _ => {
+                            errors.push(TypRError::Type(TypeError::WrongExpression(
+                                expr.get_help_data(),
+                            )));
+                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                                .with_errors(errors)
+                        }
+                    }
+                }
+                // DataFrame $ function call: df$fn(args)
+                (
+                    Type::Vec(VecType::DataFrame, _n, ref body, _h),
+                    Lang::FunctionApp(exp, params, _),
+                    _,
+                ) => match body.as_ref() {
+                    Type::Record(fields, _) => match Var::from_language(*exp.clone()) {
+                        Some(var) => {
+                            match fields
+                                .iter()
+                                .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
+                            {
+                                Some(arg_typ) => {
+                                    let typ = arg_typ.get_type();
+                                    let tc = typing(
+                                        &context.clone().push_var_type(var, typ, context),
+                                        e2,
+                                    );
+                                    errors.extend(tc.errors.clone());
+                                    TypeContext::new(tc.value, expr.clone(), context.clone())
+                                        .with_errors(errors)
+                                }
+                                None => {
+                                    errors.push(TypRError::Type(TypeError::FunctionNotFound(
+                                        var.set_type_from_params(&params, context),
+                                    )));
+                                    TypeContext::new(
+                                        builder::any_type(),
+                                        expr.clone(),
+                                        context.clone(),
+                                    )
+                                    .with_errors(errors)
+                                }
+                            }
+                        }
+                        None => {
+                            errors.push(TypRError::Type(TypeError::WrongExpression(
+                                exp.get_help_data(),
+                            )));
+                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                                .with_errors(errors)
+                        }
+                    },
+                    _ => {
+                        errors.push(TypRError::Type(TypeError::WrongExpression(
+                            expr.get_help_data(),
+                        )));
+                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                            .with_errors(errors)
+                    }
+                },
                 (Type::Vec(vtype, n, _, h), Lang::Variable(_, _, _, _), _) => {
                     match ArrayLang::try_from(e1) {
                         Ok(arr_lang) => match arr_lang.get_first_argument() {
@@ -847,10 +1025,14 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 )
                 .with_errors(errors)
             } else if are_homogenous_types(&types) {
-                let new_type = format!("[{}, {}]", exprs.len(), types[0].clone().pretty())
-                    .parse::<Type>()
-                    .unwrap()
-                    .set_help_data(h.clone());
+                let new_type = format!(
+                    "[{}, {}]",
+                    exprs.len(),
+                    types[0].clone().generalize().pretty()
+                )
+                .parse::<Type>()
+                .unwrap()
+                .set_help_data(h.clone());
                 TypeContext::new(
                     new_type.clone(),
                     expr.clone(),
@@ -891,10 +1073,14 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 )
                 .with_errors(errors)
             } else if are_homogenous_types(&types) {
-                let new_type = format!("Vec[{}, {}]", exprs.len(), types[0].clone().pretty())
-                    .parse::<Type>()
-                    .unwrap()
-                    .set_help_data(h.clone());
+                let new_type = format!(
+                    "Vec[{}, {}]",
+                    exprs.len(),
+                    types[0].clone().generalize().pretty()
+                )
+                .parse::<Type>()
+                .unwrap()
+                .set_help_data(h.clone());
                 TypeContext::new(
                     new_type.clone(),
                     expr.clone(),
@@ -980,28 +1166,77 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             )
             .with_errors(errors)
         }
+        Lang::DataFrame(fields, h) => {
+            let type_contexts: Vec<_> = fields
+                .iter()
+                .map(|arg_val| typing(context, &arg_val.get_value()))
+                .collect();
+            let errors: Vec<TypRError> = type_contexts
+                .iter()
+                .flat_map(|tc| tc.errors.clone())
+                .collect();
+            let field_types = fields
+                .iter()
+                .zip(type_contexts.iter())
+                .map(|(arg_val, tc)| (arg_val.get_argument(), tc.value.clone()).into())
+                .collect();
+            let index = fields
+                .first()
+                .map(|arg_val| {
+                    let col_type = typing(context, &arg_val.get_value()).value;
+                    match col_type {
+                        Type::Vec(_, idx, _, _) => *idx,
+                        _ => builder::any_type(),
+                    }
+                })
+                .unwrap_or_else(builder::any_type);
+            TypeContext::new(
+                Type::Vec(
+                    VecType::DataFrame,
+                    Box::new(index),
+                    Box::new(Type::Record(field_types, h.clone())),
+                    h.clone(),
+                ),
+                expr.clone(),
+                context.clone(),
+            )
+            .with_errors(errors)
+        }
         Lang::Match(match_exp, branches, _h) => {
             let match_tc = typing(context, &**match_exp);
             let mut errors = match_tc.errors.clone();
-            let match_type = match_tc.value.clone().reduce(context);
+            let match_type = match_tc.value.clone();
 
             let branch_tcs: Vec<_> = branches
                 .iter()
                 .map(|(pattern, bexp)| {
                     // For tag patterns with bindings, we extract the inner type
                     let new_context = match pattern {
-                        Lang::Tag(tag_name, inner, _) => {
-                            match inner.as_ref() {
-                                Lang::Variable(var_name, _, _, _) => {
-                                    // Bind the variable to the inner type of the tag
-                                    let var = Var::from_name(var_name);
-                                    context
-                                        .clone()
-                                        .push_var_type(var, builder::any_type(), context)
-                                }
-                                _ => context.clone(),
+                        Lang::Tag(tag_name, inner, _) => match inner.as_ref() {
+                            Lang::Variable(var_name, _, _, _) => {
+                                let inner_type = match &match_type {
+                                    Type::Tag(tn, inner_t, _h) if tn == tag_name => {
+                                        (**inner_t).clone()
+                                    }
+                                    Type::Alias(name, generics, _, _h) => {
+                                        if name == "Option"
+                                            && (tag_name == "Some" || tag_name == "None")
+                                        {
+                                            generics
+                                                .first()
+                                                .cloned()
+                                                .unwrap_or_else(|| builder::any_type())
+                                        } else {
+                                            builder::any_type()
+                                        }
+                                    }
+                                    _ => builder::any_type(),
+                                };
+                                let var = Var::from_name(var_name);
+                                context.clone().push_var_type(var, inner_type, context)
                             }
-                        }
+                            _ => context.clone(),
+                        },
                         // For type patterns `x as int`, bind variable to that type
                         Lang::TypePattern(var_name, typ, _) => {
                             let var = Var::from_name(var_name);
@@ -1361,5 +1596,163 @@ mod tests {
             .get_last_type();
         println!("{}", typ.pretty());
         assert!(true);
+    }
+
+    // DataFrame tests
+
+    #[test]
+    fn test_dataframe_parsing_simple() {
+        let res = "data__frame(x = [1, 2, 3]) ".parse::<Lang>().unwrap();
+        println!("{:?}", res);
+        assert_eq!(res.simple_print(), "DataFrame");
+    }
+
+    #[test]
+    fn test_dataframe_type_simple() {
+        let expr = "data__frame(x = [1, 2, 3]) ".parse::<Lang>().unwrap();
+        let result = typing_with_errors(&Context::default(), &expr);
+        let typ = result.get_type().clone();
+        println!("typ: {:?}", typ);
+        assert!(
+            matches!(typ, Type::Vec(VecType::DataFrame, _, _, _)),
+            "Expected Vec(DataFrame, ...) but got {:?}",
+            typ
+        );
+    }
+
+    #[test]
+    fn test_dataframe_dollar_access() {
+        let fp = FluentParser::new()
+            .push("let df <- data__frame(x = [1, 2, 3]);")
+            .parse_type_next();
+        let context = fp.context.clone();
+        let df_type = context.get_type_from_existing_variable(Var::from_name("df"));
+        println!("df type: {:?}", df_type);
+        use crate::processes::parsing::parse_from_string;
+        let expr = parse_from_string("df$x", "test");
+        let tc = typing(&context, &expr);
+        println!("df$x type: {:?}", tc.value);
+        assert!(
+            matches!(tc.value, Type::Vec(VecType::Vector, _, _, _)),
+            "Expected Vec(Vector, ...) but got {:?}",
+            tc.value
+        );
+    }
+
+    #[test]
+    fn test_dataframe_dollar_unknown_field() {
+        let fp = FluentParser::new()
+            .push("let df <- data__frame(x = [1, 2, 3]);")
+            .parse_type_next();
+        let context = fp.context.clone();
+        use crate::processes::parsing::parse_from_string;
+        let expr = parse_from_string("df$unknown", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result.has_errors(),
+            "Expected a FieldNotFound error for df$unknown"
+        );
+    }
+
+    #[test]
+    fn test_dataframe_dollar_preserves_inner_type() {
+        let fp = FluentParser::new()
+            .push("let df <- data__frame(x = [\"a\", \"b\", \"c\"]);")
+            .parse_type_next();
+        let context = fp.context.clone();
+        use crate::processes::parsing::parse_from_string;
+        let expr = parse_from_string("df$x", "test");
+        let tc = typing(&context, &expr);
+        let typ = tc.value.clone();
+        if let Type::Vec(VecType::Vector, _, inner, _) = &typ {
+            println!("inner type: {:?}", inner);
+            assert!(
+                matches!(&**inner, Type::Any(_) | Type::Char(_, _)),
+                "Expected inner type to be Any or Char but got {:?}",
+                inner
+            );
+        } else {
+            panic!("Expected Vec(Vector, ...) but got {:?}", typ);
+        }
+    }
+
+    #[test]
+    fn test_dataframe_dollar_numeric_columns() {
+        let fp = FluentParser::new()
+            .push("let df <- data__frame(x = [1.0], y = [2.0]);")
+            .parse_type_next();
+        let context = fp.context.clone();
+        use crate::processes::parsing::parse_from_string;
+        let expr = parse_from_string("df$x", "test");
+        let tc = typing(&context, &expr);
+        let typ = tc.value.clone();
+        assert!(
+            matches!(typ, Type::Vec(VecType::Vector, _, _, _)),
+            "Expected Vec(Vector, ...) but got {:?}",
+            typ
+        );
+        if let Type::Vec(VecType::Vector, _, inner, _) = &typ {
+            assert!(
+                matches!(**inner, Type::Number(_)),
+                "Expected inner type to be Number but got {:?}",
+                inner
+            );
+        }
+    }
+
+    #[test]
+    fn test_dataframe_not_subtype_of_record() {
+        use crate::components::r#type::argument_type::ArgumentType;
+        use crate::components::r#type::vector_type::VecType;
+        use std::collections::HashSet;
+
+        let mut fields = HashSet::new();
+        fields.insert(ArgumentType::new(
+            "Training",
+            &builder::character_type_default(),
+        ));
+        fields.insert(ArgumentType::new("Pulse", &builder::integer_type_default()));
+
+        let record_type = Type::Record(fields, HelpData::default());
+        let df_type = Type::Vec(
+            VecType::DataFrame,
+            Box::new(builder::integer_type(3)),
+            Box::new(record_type.clone()),
+            HelpData::default(),
+        );
+
+        let context = Context::default();
+        assert!(
+            !df_type.is_subtype(&record_type, &context).0,
+            "DataFrame should not be a subtype of Record"
+        );
+    }
+
+    #[test]
+    fn test_record_not_subtype_of_dataframe() {
+        use crate::components::r#type::argument_type::ArgumentType;
+        use crate::components::r#type::vector_type::VecType;
+        use std::collections::HashSet;
+
+        let mut fields = HashSet::new();
+        fields.insert(ArgumentType::new(
+            "Training",
+            &builder::character_type_default(),
+        ));
+        fields.insert(ArgumentType::new("Pulse", &builder::integer_type_default()));
+
+        let record_type = Type::Record(fields, HelpData::default());
+        let df_type = Type::Vec(
+            VecType::DataFrame,
+            Box::new(builder::integer_type(3)),
+            Box::new(record_type.clone()),
+            HelpData::default(),
+        );
+
+        let context = Context::default();
+        assert!(
+            !record_type.is_subtype(&df_type, &context).0,
+            "Record should not be a subtype of DataFrame"
+        );
     }
 }

@@ -413,6 +413,20 @@ fn array_indexing(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+fn dataframe_exp(s: Span) -> IResult<Span, Lang> {
+    let res = (
+        alt((tag("data__frame"), tag("data.frame"))),
+        terminated(tag("("), multispace0),
+        many0(argument_val),
+        terminated(tag(")"), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (start, _, args, _))) => Ok((s, Lang::DataFrame(args.clone(), start.into()))),
+        Err(r) => Err(r),
+    }
+}
+
 fn function_application(s: Span) -> IResult<Span, Lang> {
     let res = (
         alt((scope, variable2)),
@@ -906,6 +920,7 @@ pub fn single_element(s: Span) -> IResult<Span, Lang> {
         if_exp,
         dotdotdot,
         array_variant,
+        dataframe_exp,
         record,
         r_function,
         function,

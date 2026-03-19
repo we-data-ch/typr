@@ -54,6 +54,7 @@ pub enum Lang {
     Alias(Box<Lang>, Vec<Type>, Type, HelpData),
     Array(Vec<Lang>, HelpData),
     List(Vec<ArgumentValue>, HelpData),
+    DataFrame(Vec<ArgumentValue>, HelpData),
     Tag(String, Box<Lang>, HelpData),
     If(Box<Lang>, Box<Lang>, Box<Lang>, HelpData),
     Match(Box<Lang>, Vec<(Lang, Box<Lang>)>, HelpData),
@@ -129,6 +130,7 @@ impl PartialEq for Lang {
             }
             (Lang::Array(a, _), Lang::Array(b, _)) => a == b,
             (Lang::List(a, _), Lang::List(b, _)) => a == b,
+            (Lang::DataFrame(a, _), Lang::DataFrame(b, _)) => a == b,
             (Lang::Tag(a1, a2, _), Lang::Tag(b1, b2, _)) => a1 == b1 && a2 == b2,
             (Lang::If(a1, a2, a3, _), Lang::If(b1, b2, b3, _)) => a1 == b1 && a2 == b2 && a3 == b3,
             (Lang::Match(a1, a2, _), Lang::Match(b1, b2, _)) => a1 == b1 && a2 == b2,
@@ -360,6 +362,7 @@ impl Lang {
             Lang::Let(_, _, _, h) => h,
             Lang::Array(_, h) => h,
             Lang::List(_, h) => h,
+            Lang::DataFrame(_, h) => h,
             Lang::Alias(_, _, _, h) => h,
             Lang::Tag(_, _, h) => h,
             Lang::If(_, _, _, h) => h,
@@ -454,6 +457,7 @@ impl Lang {
             ),
             Lang::Array(_, _) => "Array".to_string(),
             Lang::List(_, _) => "Record".to_string(),
+            Lang::DataFrame(_, _) => "DataFrame".to_string(),
             Lang::Alias(_, _, _, _) => "Alias".to_string(),
             Lang::Tag(_, _, _) => "Tag".to_string(),
             Lang::If(_, _, _, _) => "If".to_string(),
@@ -743,6 +747,8 @@ impl Lang {
     pub fn len(&self) -> i32 {
         match self {
             Lang::Integer(i, _) => *i,
+            Lang::Array(v, _) => v.len() as i32,
+            Lang::Vector(v, _) => v.len() as i32,
             n => panic!("not implemented for language {}", n.simple_print()),
         }
     }
@@ -774,6 +780,7 @@ impl From<Lang> for HelpData {
             Lang::Empty(h) => h,
             Lang::Array(_, h) => h,
             Lang::List(_, h) => h,
+            Lang::DataFrame(_, h) => h,
             Lang::Scope(_, h) => h,
             Lang::Let(_, _, _, h) => h,
             Lang::Alias(_, _, _, h) => h,

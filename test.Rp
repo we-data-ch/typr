@@ -1,0 +1,15 @@
+source('b_generic_functions.R')
+source('c_types.R')
+source('a_std.R', echo = FALSE)
+
+(function(o, f) {
+{
+match_val__ <- o
+if (match_val__[[1]] == 'Some') {
+x <- match_val__[["body"]]
+1L |> Integer()
+} else if (match_val__[[1]] == 'None') {
+0L |> Integer()
+}
+}
+} |> Integer()) |> Generic()

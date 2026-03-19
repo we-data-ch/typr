@@ -94,6 +94,19 @@ pub fn array_type2(i: i32, t: Type) -> Type {
     Type::Vec(VecType::S3, Box::new(i2), Box::new(t), HelpData::default())
 }
 
+pub fn dataframe_type(i: Type, columns: &[(String, Type)]) -> Type {
+    let fields = columns
+        .iter()
+        .map(|param| ArgumentType::from(param.to_owned()))
+        .collect::<HashSet<_>>();
+    Type::Vec(
+        VecType::DataFrame,
+        Box::new(i),
+        Box::new(Type::Record(fields, HelpData::default())),
+        HelpData::default(),
+    )
+}
+
 pub fn opaque_type(name: &str) -> Type {
     Type::Opaque(name.to_string(), HelpData::default())
 }
