@@ -20,6 +20,6 @@ impl Index {
     }
 
     pub fn get_value(&self) -> u32 {
-        self.0.clone()
+        self.0
     }
 }

@@ -10,9 +10,9 @@ use crate::Type;
 pub fn function(
     context: &Context,
     expr: &Lang,
-    params: &Vec<ArgumentType>,
+    params: &[ArgumentType],
     ret_ty: &Type,
-    body: &Box<Lang>,
+    body: &Lang,
     h: &HelpData,
 ) -> TypeContext {
     let list_of_types = params
@@ -20,7 +20,7 @@ pub fn function(
         .map(ArgumentType::get_type)
         .collect::<Vec<_>>();
     let sub_context = params
-        .into_iter()
+        .iter()
         .map(|arg_typ| arg_typ.clone().to_var(context))
         .zip(list_of_types.clone())
         .fold(context.clone(), |cont, (var, typ)| {
@@ -28,7 +28,7 @@ pub fn function(
         });
     let body_type = body.typing(&sub_context);
     let mut errors = body_type.errors.clone();
-    (!body_type.value.reduce_and_subtype(&ret_ty, &sub_context).0)
+    (!body_type.value.reduce_and_subtype(ret_ty, &sub_context).0)
         .then(|| errors.push(builder::unmatching_return_type(ret_ty, &body_type.value)));
     TypeContext::new(
         Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone()),

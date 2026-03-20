@@ -1,5 +1,6 @@
 use crate::components::context::Context;
 use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::Type;
 use crate::processes::type_checking::type_comparison;
 use std::collections::HashSet;
@@ -126,7 +127,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
                 .iter()
                 .map(|param| type_substitution(param, substitutions))
                 .collect(),
-            opacity.clone(),
+            *opacity,
             h.clone(),
         ),
 
@@ -136,6 +137,15 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             Box::new(type_substitution(inner_type, substitutions)),
             h.clone(),
         ),
+
+        // Operator type substitution (e.g. union types like .Some(T) | .None)
+        Type::Operator(op, t1, t2, h) => Type::Operator(
+            *op,
+            Box::new(type_substitution(t1, substitutions)),
+            Box::new(type_substitution(t2, substitutions)),
+            h.clone(),
+        ),
+
         // Default case: return the type unchanged
         _ => type_.clone(),
     }
@@ -163,6 +173,7 @@ fn match_wildcard(fields: &HashSet<ArgumentType>, arg_type: ArgumentType) -> Vec
 
 // Add these new functions to the previous implementation
 
+#[allow(clippy::only_used_in_recursion)]
 fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Vec<(Type, Type)> {
     match (type1, type2) {
         // Direct equality case
@@ -253,19 +264,57 @@ pub fn unify(cont: &Context, type1: &Type, type2: &Type) -> Vec<(Type, Type)> {
     let new_type1 = type_comparison::reduce_type(cont, type1);
     let new_type2 = type_comparison::reduce_type(cont, type2);
     // try unification helper
-    unification_helper(&vec![], &new_type1, &new_type2)
+    unification_helper(&[], &new_type1, &new_type2)
 }
 
 // Helper functions needed for unification
 
-fn merge_substitutions(existing: &mut Vec<(Type, Type)>, new: Vec<(Type, Type)>) {
-    for (name, type_) in new {
-        if let Some(pos) = existing.iter().position(|(n, _)| n == &name) {
-            existing[pos] = (name, type_);
-        } else {
-            existing.push((name, type_));
+fn resolve_in_chain(existing: &[(Type, Type)], typ: &Type) -> Type {
+    let mut current = typ.clone();
+    let mut seen = HashSet::new();
+    loop {
+        let found = existing.iter().find(|(k, _)| *k == current);
+        match found {
+            Some((_, next)) => {
+                if *next == current || !seen.insert(current.clone()) {
+                    break;
+                }
+                current = (*next).clone();
+            }
+            None => break,
         }
     }
+    current
+}
+
+fn transitive_closure(existing: &mut [(Type, Type)]) {
+    let mut changed = true;
+    while changed {
+        changed = false;
+        let mut i = 0;
+        while i < existing.len() {
+            let resolved = resolve_in_chain(existing, &existing[i].1);
+            if resolved != existing[i].1 {
+                existing[i].1 = resolved;
+                changed = true;
+            }
+            i += 1;
+        }
+    }
+}
+
+fn merge_substitutions(existing: &mut Vec<(Type, Type)>, new: Vec<(Type, Type)>) {
+    for (name, type_) in new {
+        let resolved_type = resolve_in_chain(existing, &type_);
+        if let Some(pos) = existing.iter().position(|(n, _)| n == &name) {
+            if resolved_type != existing[pos].1 {
+                existing[pos] = (name, resolved_type);
+            }
+        } else {
+            existing.push((name, resolved_type));
+        }
+    }
+    transitive_closure(existing);
 }
 
 pub fn record_intersection(
@@ -309,17 +358,9 @@ pub fn record_intersection(
     }
 
     // Merge labels with their respective values
-    let intersection1 = common_labels
-        .iter()
-        .zip(values1.into_iter())
-        .map(|(_label, value)| value)
-        .collect();
+    let intersection1 = values1.into_iter().collect();
 
-    let intersection2 = common_labels
-        .iter()
-        .zip(values2.into_iter())
-        .map(|(_label, value)| value)
-        .collect();
+    let intersection2 = values2.into_iter().collect();
 
     Some((intersection1, intersection2))
 }

@@ -78,7 +78,7 @@ fn integer(s: Span) -> IResult<Span, Lang> {
                 None => "",
             }
             .to_string()
-                + &d.to_string();
+                + d.as_ref();
             Ok((s, Lang::Integer(symbol.parse::<i32>().unwrap(), d.into())))
         }
         Err(r) => Err(r),
@@ -193,7 +193,7 @@ pub fn variable_exp(s: Span) -> IResult<Span, (String, HelpData)> {
     let res = (starting_char, many0(body_char)).parse(s);
     match res {
         Ok((s, ((s1, h), v))) => {
-            let res2 = v.iter().map(|(val, _h)| val.clone()).collect::<String>();
+            let res2 = v.iter().map(|(val, _h)| *val).collect::<String>();
             Ok((s, (format!("{}{}", s1, res2), h.clone())))
         }
         Err(r) => Err(r),
@@ -353,8 +353,10 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
             panic!("You forgot to specify the function return type: 'fn(...): Type'");
         }
         Ok((_s, (_, _, _args, _, Some(tag), None, _exp))) => {
-            None::<bool>.expect(&SyntaxError::FunctionWithoutReturnType(tag.into()).display());
-            exit(1)
+            panic!(
+                "{}",
+                SyntaxError::FunctionWithoutReturnType(tag.into()).display()
+            );
         }
         Ok((_s, (_, _, _args, _, None, Some(typ), _exp))) => {
             eprintln!(
@@ -498,7 +500,7 @@ fn record(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (Some(start), _, args, _))) => Ok((s, Lang::List(args.clone(), start.into()))),
         Ok((_s, (None, _ob, args, _))) => {
-            if args.len() == 0 {
+            if args.is_empty() {
                 panic!("Error: the scope shouldn't be empty")
             } else {
                 eprintln!("{}", _s);

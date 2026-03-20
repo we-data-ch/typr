@@ -30,7 +30,7 @@ impl TypeChecker {
     }
 
     pub fn has_errors(&self) -> bool {
-        self.errors.len() > 0
+        !self.errors.is_empty()
     }
 
     pub fn get_errors(&self) -> &Vec<TypRError> {

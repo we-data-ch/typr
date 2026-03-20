@@ -509,10 +509,7 @@ fn extract_multiline_prefix(content: &str, line: u32, character: u32) -> String 
     let lookback_lines = 10;
     let start_line = current_line_idx.saturating_sub(lookback_lines);
 
-    let mut context_lines = Vec::new();
-    for i in start_line..current_line_idx {
-        context_lines.push(lines[i]);
-    }
+    let mut context_lines = lines[start_line..current_line_idx].to_vec();
     context_lines.push(current_line_part);
 
     context_lines.join("\n")
@@ -521,9 +518,8 @@ fn extract_multiline_prefix(content: &str, line: u32, character: u32) -> String 
 fn detect_completion_context(prefix: &str) -> CompletionCtx {
     let trimmed = prefix.trim_end();
 
-    if trimmed.ends_with("|>") {
-        let before_pipe = trimmed[..trimmed.len() - 2].trim();
-        return CompletionCtx::Pipe(extract_expression_before(before_pipe));
+    if let Some(before_pipe) = trimmed.strip_suffix("|>") {
+        return CompletionCtx::Pipe(extract_expression_before(before_pipe.trim()));
     }
 
     if let Some(dollar_pos) = trimmed.rfind('$') {

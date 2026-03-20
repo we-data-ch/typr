@@ -20,18 +20,22 @@ use typr_core::components::context::Context;
 use typr_core::processes::type_checking::type_checker::TypeChecker;
 use typr_core::typing;
 
-pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environment) {
+pub fn write_header(context: Context, output_dir: &Path, environment: Environment) {
     let type_anotations = context.get_type_anotations();
     let mut app = match environment {
         Environment::Repl => OpenOptions::new()
             .append(true)
             .create(true)
             .open(output_dir.join(".repl.R")),
-        _ => OpenOptions::new().create(true).write(true).open(
-            output_dir
-                .join(context.get_environment().to_base_path())
-                .join("c_types.R"),
-        ),
+        _ => OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(
+                output_dir
+                    .join(context.get_environment().to_base_path())
+                    .join("c_types.R"),
+            ),
     }
     .unwrap();
 
@@ -64,11 +68,15 @@ pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environ
             .append(true)
             .create(true)
             .open(output_dir.join(".repl.R")),
-        _ => OpenOptions::new().create(true).write(true).open(
-            output_dir
-                .join(context.get_environment().to_string())
-                .join("b_generic_functions.R"),
-        ),
+        _ => OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(
+                output_dir
+                    .join(context.get_environment().to_string())
+                    .join("b_generic_functions.R"),
+            ),
     }
     .unwrap();
 
@@ -78,7 +86,7 @@ pub fn write_header(context: Context, output_dir: &PathBuf, environment: Environ
 
 pub fn write_to_r_lang(
     content: String,
-    output_dir: &PathBuf,
+    output_dir: &Path,
     file_name: &str,
     environment: Environment,
 ) {
@@ -263,7 +271,7 @@ pub fn build_project() {
     println!("R code successfully generated in the R/ folder");
 }
 
-pub fn build_file(path: &PathBuf) {
+pub fn build_file(path: &Path) {
     let lang = parse_code(path, Environment::StandAlone);
     let dir = PathBuf::from(".");
 
@@ -287,7 +295,7 @@ pub fn run_project() {
     execute_r_with_path(&PathBuf::from("R"), "main.R");
 }
 
-pub fn run_file(path: &PathBuf) {
+pub fn run_file(path: &Path) {
     let lang = parse_code(path, Environment::StandAlone);
     let dir = PathBuf::from(".");
 
@@ -308,7 +316,7 @@ pub fn run_file(path: &PathBuf) {
     execute_r_with_path(&dir, &r_file_name);
 }
 
-fn write_context_json(context: &Context, output_dir: &PathBuf) {
+fn write_context_json(context: &Context, output_dir: &Path) {
     let json = serde_json::to_string_pretty(context).expect("Failed to serialize context to JSON");
     let path = output_dir.join("context.json");
     let mut file = File::create(&path).expect("Failed to create context.json");

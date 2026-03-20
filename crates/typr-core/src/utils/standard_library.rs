@@ -111,7 +111,7 @@ pub fn validate_vectorization(
         for (num, _, typ) in &set {
             number_by_type
                 .entry((*typ).clone())
-                .or_insert_with(HashSet::new)
+                .or_default()
                 .insert(*num);
         }
 

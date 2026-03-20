@@ -20,7 +20,7 @@ pub fn reduce_param(
 }
 
 fn is_in_memory(name: &str, memory: &Vector<String>) -> bool {
-    memory.iter().find(|&val| val == name).is_some()
+    memory.iter().any(|val| val == name)
 }
 
 pub fn reduce_type(context: &Context, type_: &Type) -> Type {

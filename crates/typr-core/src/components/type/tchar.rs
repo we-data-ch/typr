@@ -17,10 +17,7 @@ impl Tchar {
     }
 
     pub fn gen_of(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Tchar::Unknown, _) => true,
-            _ => false,
-        }
+        matches!((self, other), (Tchar::Unknown, _))
     }
     pub fn get_val(&self) -> String {
         match self {

@@ -205,18 +205,16 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 )));
             }
 
-            let tc = TypeContext::new(
+            TypeContext::new(
                 builder::unknown_function_type(),
                 expr.clone(),
                 new_context.push_alias(var.get_name(), typ.to_owned()),
             )
-            .with_errors(errors);
-
-            tc
+            .with_errors(errors)
         }
         Lang::Assign(left_expr, right_expr, h) => {
-            let left_tc = typing(&context, left_expr);
-            let right_tc = typing(&context, right_expr);
+            let left_tc = typing(context, left_expr);
+            let right_tc = typing(context, right_expr);
             let mut errors = left_tc.errors.clone();
             errors.extend(right_tc.errors.clone());
 
@@ -277,7 +275,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
         }
         Lang::Module(_name, members, _position, _config, h) => {
             let module_expr = if members.len() > 1 {
-                Lang::Lines(members.iter().cloned().collect(), h.clone())
+                Lang::Lines(members.to_vec(), h.clone())
             } else {
                 members.iter().next().unwrap().clone()
             }; // TODO: Modules can't be empty
@@ -301,8 +299,26 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
 fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
     match (type1, type2) {
         (_, Type::Any(_)) => Some(vec![]),
-        (Type::Integer(i, _), Type::Integer(j, _)) => (j.gen_of(i) || i == j).then(|| vec![]),
-        (Type::Char(c, _), Type::Char(d, _)) => (d.gen_of(c) || d == c).then(|| vec![]),
+        (Type::Integer(i, _), Type::Integer(j, _)) => (j.gen_of(i) || i == j).then_some(vec![]),
+        (Type::Char(c, _), Type::Char(d, _)) => (d.gen_of(c) || d == c).then_some(vec![]),
+        (Type::Alias(name1, params1, _, _), Type::Alias(name2, params2, _, _)) => {
+            if name1 == name2 && params1.len() == params2.len() {
+                let res = params1
+                    .iter()
+                    .zip(params2.iter())
+                    .flat_map(|(p1, p2)| get_gen_type(p1, p2))
+                    .flatten()
+                    .collect::<Vec<_>>();
+                Some(res)
+            } else {
+                None
+            }
+        }
+        (Type::Alias(_, params1, _, _), Type::Generic(_, _)) => {
+            let res = params1.iter().map(|p| (p.clone(), type2.clone())).collect();
+            Some(res)
+        }
+        (Type::Tag(_, _, _), Type::Generic(_, _)) => Some(vec![(type1.clone(), type2.clone())]),
         (_, Type::Generic(_, _))
         | (_, Type::IndexGen(_, _))
         | (_, Type::LabelGen(_, _))
@@ -311,9 +327,9 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
             let res = args1
                 .iter()
                 .zip(args2.iter())
-                .chain([(&(**ret_typ1), &(**ret_typ2))].iter().cloned())
+                .chain([(&(**ret_typ1), &(**ret_typ2))])
                 .flat_map(|(typ1, typ2)| get_gen_type(typ1, typ2))
-                .flat_map(|x| x)
+                .flatten()
                 .collect::<Vec<_>>();
             Some(res)
         }
@@ -340,7 +356,39 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                 .collect::<Vec<_>>();
             Some(res)
         }
-        (Type::Tag(_name1, typ1, _h1), Type::Tag(_name2, typ2, _h2)) => get_gen_type(typ1, typ2),
+        (Type::Tag(name1, inner1, _), Type::Tag(name2, inner2, _)) if name1 == name2 => {
+            if matches!(
+                inner2.as_ref(),
+                Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _)
+            ) {
+                let inner_type: Type = (**inner2).clone();
+                Some(vec![(type1.clone(), inner_type)])
+            } else {
+                get_gen_type(inner1, inner2)
+            }
+        }
+        (Type::Tag(tag_name, inner, _), Type::Alias(alias_name, params, _, _)) => {
+            if params.len() == 1 {
+                get_gen_type(inner, &params[0])
+            } else {
+                None
+            }
+        }
+        (Type::Tag(tag_name, inner, _), Type::Operator(TypeOperator::Union, t1, t2, _)) => {
+            let t1_inner: &Type = t1.as_ref();
+            let t2_inner: &Type = t2.as_ref();
+            match (t1_inner, t2_inner) {
+                (Type::Tag(name1, _, _), _) if name1 == tag_name => {
+                    let t1_val: Type = (**t1).clone();
+                    Some(vec![(type1.clone(), t1_val)])
+                }
+                (_, Type::Tag(name2, _, _)) if name2 == tag_name => {
+                    let t2_val: Type = (**t2).clone();
+                    Some(vec![(type1.clone(), t2_val)])
+                }
+                _ => None,
+            }
+        }
         (t1, t2) if t1.is_subtype(t2, &Context::empty()).0 => Some(vec![]),
         _ => None,
     }
@@ -356,7 +404,7 @@ pub fn match_types_to_generic(
     let type2 = reduce_type(ctx, type2);
     get_gen_type(&type1, &type2).map(|vec| {
         vec.iter()
-            .flat_map(|(arg, par)| unification::unify(ctx, &arg, &par))
+            .flat_map(|(arg, par)| unification::unify(ctx, arg, par))
             .collect::<Vec<_>>()
     })
 }
@@ -389,7 +437,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             .into(),
         Lang::Bool(_, h) => (Type::Boolean(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Char(s, h) => (
-            builder::character_type(&s).set_help_data(h.clone()),
+            builder::character_type(s).set_help_data(h.clone()),
             expr.clone(),
             context.clone(),
         )
@@ -490,7 +538,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         }
                     }
                     (Type::Tuple(vals, _), Lang::Integer(i, h)) => {
-                        match vals.iter().nth((i - 1) as usize) {
+                        match vals.get((i - 1) as usize) {
                             Some(typ) => {
                                 TypeContext::new(typ.clone(), expr.clone(), context.clone())
                                     .with_errors(errors)
@@ -647,7 +695,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     }
                 }
                 (Type::Tuple(vals, _), Lang::Integer(i, h), _) => {
-                    match vals.iter().nth((i - 1) as usize) {
+                    match vals.get((i - 1) as usize) {
                         Some(typ) => TypeContext::new(typ.clone(), expr.clone(), context.clone())
                             .with_errors(errors),
                         None => {
@@ -972,10 +1020,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     langs.clone(),
                     context
                         .clone()
-                        .push_var_type(Var::from("_out"), typ.clone(), &context),
+                        .push_var_type(Var::from("_out"), typ.clone(), context),
                 )
                 .with_errors(errors)
-            } else if exprs.len() == 0 {
+            } else if exprs.is_empty() {
                 TypeContext::new(
                     builder::unknown_function_type(),
                     expr.clone(),
@@ -1019,9 +1067,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 errors.extend(true_tc.errors);
                 errors.extend(false_tc.errors);
 
-                let result_type = if true_tc.value == false_tc.value {
-                    true_tc.value
-                } else if false_tc.value.is_empty() {
+                let result_type = if true_tc.value == false_tc.value || false_tc.value.is_empty() {
                     true_tc.value
                 } else {
                     builder::union_type(&[true_tc.value, false_tc.value])
@@ -1236,7 +1282,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             .with_errors(errors)
         }
         Lang::Match(match_exp, branches, _h) => {
-            let match_tc = typing(context, &**match_exp);
+            let match_tc = typing(context, match_exp);
             let mut errors = match_tc.errors.clone();
             let match_type = match_tc.value.clone();
 
@@ -1258,7 +1304,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                             generics
                                                 .first()
                                                 .cloned()
-                                                .unwrap_or_else(|| builder::any_type())
+                                                .unwrap_or_else(builder::any_type)
                                         } else {
                                             builder::any_type()
                                         }
@@ -1292,7 +1338,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                         let elem_type = tuple_types
                                             .as_ref()
                                             .and_then(|types| types.get(i).cloned())
-                                            .unwrap_or_else(|| builder::any_type());
+                                            .unwrap_or_else(builder::any_type);
                                         let var = Var::from_name(var_name);
                                         ctx.push_var_type(var, elem_type, context)
                                     } else {
@@ -1317,7 +1363,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                             })
                                         })
                                         .map(|at| at.get_type())
-                                        .unwrap_or_else(|| builder::any_type());
+                                        .unwrap_or_else(builder::any_type);
                                     let var = Var::from_name(var_name);
                                     ctx.push_var_type(var, field_type, context)
                                 } else {
@@ -1458,13 +1504,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         }
         Lang::Let(..) => eval(context, expr),
         Lang::Assign(..) => eval(context, expr),
-        Lang::Alias(..) => eval(context, expr).with_lang(expr).into(),
-        Lang::Library(..) => eval(context, expr).with_lang(expr).into(),
-        Lang::ModuleDecl(..) => eval(context, expr).with_lang(expr).into(),
-        Lang::TestBlock(..) => eval(context, expr).with_lang(expr).into(),
-        Lang::Signature(..) => eval(context, expr).with_lang(expr).into(),
+        Lang::Alias(..) => eval(context, expr).with_lang(expr),
+        Lang::Library(..) => eval(context, expr).with_lang(expr),
+        Lang::ModuleDecl(..) => eval(context, expr).with_lang(expr),
+        Lang::TestBlock(..) => eval(context, expr).with_lang(expr),
+        Lang::Signature(..) => eval(context, expr).with_lang(expr),
         Lang::Return(exp, _) => typing(context, exp),
-        Lang::Module(_, _, _position, _, _) => eval(context, expr).with_lang(expr).into(),
+        Lang::Module(_, _, _position, _, _) => eval(context, expr).with_lang(expr),
         Lang::Lambda(params, body, h) => {
             let fresh_param_types: Vec<Type> = params
                 .iter()
@@ -1514,12 +1560,11 @@ fn replace_fields_type_if_needed(
     at: ArgumentValue,
 ) -> impl FnMut(&ArgumentType) -> ArgumentType + use<'_> {
     move |arg_typ2| {
-        (arg_typ2.get_argument_str() == at.get_argument())
-            .then_some(ArgumentType::new(
-                &at.get_argument(),
-                &typing(context, &at.get_value()).value,
-            ))
-            .unwrap_or(arg_typ2.clone())
+        if arg_typ2.get_argument_str() == at.get_argument() {
+            ArgumentType::new(&at.get_argument(), &typing(context, &at.get_value()).value)
+        } else {
+            arg_typ2.clone()
+        }
     }
 }
 

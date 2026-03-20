@@ -2,9 +2,10 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::fmt;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Hash, Default)]
 pub enum VecType {
     Vector,
+    #[default]
     S3,
     Array,
     DataFrame,
@@ -26,22 +27,10 @@ impl fmt::Display for VecType {
 
 impl VecType {
     pub fn is_vector(&self) -> bool {
-        match self {
-            VecType::Vector => true,
-            _ => false,
-        }
+        matches!(self, VecType::Vector)
     }
 
     pub fn is_array(&self) -> bool {
-        match self {
-            VecType::S3 => true,
-            _ => false,
-        }
-    }
-}
-
-impl Default for VecType {
-    fn default() -> Self {
-        VecType::S3
+        matches!(self, VecType::S3)
     }
 }

@@ -12,7 +12,7 @@ use crate::metaprogramming::metaprogrammation;
 use nom_locate::LocatedSpan;
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::Path;
 use typr_core::components::context::config::Environment;
 use typr_core::components::context::Context;
 use typr_core::components::error_message::typr_error::TypRError;
@@ -21,7 +21,7 @@ use typr_core::components::r#type::Type;
 use typr_core::processes::parsing::{parse, ParseResult};
 use typr_core::typing_with_errors;
 
-pub fn write_std_for_type_checking(output_dir: &PathBuf) {
+pub fn write_std_for_type_checking(output_dir: &Path) {
     let rstd = include_str!("../configs/std/std_R.ty");
     let std_path = output_dir.join("std.ty");
     let mut rstd_file = File::create(std_path).unwrap();
@@ -50,7 +50,7 @@ impl<'a> TypRFile<'a> {
 }
 
 /// Parse code and return the AST
-pub fn parse_code(path: &PathBuf, environment: Environment) -> Lang {
+pub fn parse_code(path: &Path, environment: Environment) -> Lang {
     let file = get_os_file(path.to_str().unwrap());
     let file_content = read_file(path).unwrap_or_else(|| panic!("Path {:?} not found", path));
     let base_file = TypRFile::new(&file_content, file);

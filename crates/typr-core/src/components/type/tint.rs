@@ -20,10 +20,7 @@ impl Tint {
     }
 
     pub fn gen_of(&self, other: &Tint) -> bool {
-        match (self, other) {
-            (Tint::Unknown, _) => true,
-            _ => false,
-        }
+        matches!((self, other), (Tint::Unknown, _))
     }
 
     pub fn get_value(&self) -> Option<i32> {
@@ -38,7 +35,7 @@ impl fmt::Display for Tint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Tint::Val(i) => write!(f, "{}", i),
-            _ => write!(f, "{}", "int"),
+            _ => write!(f, "int"),
         }
     }
 }
@@ -107,7 +104,7 @@ impl From<usize> for Tint {
 
 impl From<&str> for Tint {
     fn from(val: &str) -> Self {
-        if val == "" {
+        if val.is_empty() {
             Tint::Unknown
         } else {
             Tint::Val(val.parse::<i32>().unwrap_or(0))
@@ -119,7 +116,7 @@ impl From<Tint> for u32 {
     fn from(val: Tint) -> Self {
         match val {
             Tint::Val(i) => i as u32,
-            Tint::Unknown => 0 as u32,
+            Tint::Unknown => 0_u32,
         }
     }
 }

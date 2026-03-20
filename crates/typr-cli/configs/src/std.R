@@ -17,7 +17,7 @@ struct <- function(x, new_class, typed_dim = NULL) {
   if (is.null(x)) return(NULL)
   
   # Fusion propre des classes sans doublons
-  class(x) <- unique(c(new_class, class(x)))
+  class(x) <- unique(c(class(x), new_class))
   
   if (!is.null(typed_dim)) {
     attr(x, "typed_dim") <- typed_dim

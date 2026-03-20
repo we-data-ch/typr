@@ -41,7 +41,15 @@ impl FluentParser {
             saved_r: Vector::new(),
         }
     }
+}
 
+impl Default for FluentParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FluentParser {
     pub fn push(self, code: &str) -> Self {
         Self {
             raw_code: self.raw_code.push_back(code.to_string()),
@@ -71,10 +79,8 @@ impl FluentParser {
     }
 
     fn next_raw_code(self) -> Option<(String, Self)> {
-        match self.clone().raw_code.first() {
-            Some(val) => Some((val.clone(), self.drop_first_raw())),
-            _ => None,
-        }
+        let val = self.clone().raw_code.first()?.clone();
+        Some((val, self.drop_first_raw()))
     }
 
     /// Go from raw_code (String) to code (Lang)
@@ -114,10 +120,8 @@ impl FluentParser {
     }
 
     pub fn next_code(self) -> Option<(Lang, Self)> {
-        match self.code.first() {
-            Some(lang) => Some((lang.clone(), self.drop_first_code())),
-            _ => None,
-        }
+        let lang = self.code.first()?.clone();
+        Some((lang, self.drop_first_code()))
     }
 
     pub fn set_context(self, context: Context) -> Self {
@@ -202,8 +206,8 @@ impl FluentParser {
     }
 
     pub fn get_last_log(&self) -> String {
-        if self.logs.len() > 0_usize {
-            self.logs.iter().rev().next().unwrap().clone()
+        if !self.logs.is_empty() {
+            self.logs.iter().next_back().unwrap().clone()
         } else {
             "The logs are empty".to_string()
         }
@@ -221,10 +225,8 @@ impl FluentParser {
     }
 
     pub fn next_new_code(self) -> Option<(Lang, Self)> {
-        match self.new_code.first() {
-            Some(lang) => Some((lang.clone(), self.drop_first_new_code())),
-            _ => None,
-        }
+        let lang = self.new_code.first()?.clone();
+        Some((lang, self.drop_first_new_code()))
     }
 
     pub fn push_r_code(self, r_code: String) -> Self {
@@ -289,10 +291,8 @@ impl FluentParser {
     }
 
     pub fn next_r_code(self) -> Option<(String, Self)> {
-        match self.r_code.first() {
-            Some(lang) => Some((lang.clone(), self.drop_first_r_code())),
-            _ => None,
-        }
+        let lang = self.r_code.first()?.clone();
+        Some((lang, self.drop_first_r_code()))
     }
 
     pub fn display_context(&self) -> String {

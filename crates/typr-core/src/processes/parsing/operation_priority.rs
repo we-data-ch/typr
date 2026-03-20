@@ -25,10 +25,7 @@ pub trait PriorityToken: ToString + Default + Clone + From<TokenKind> + Debug + 
     fn combine(self, left: Self, right: Self) -> Self;
 
     fn is_operator(&self) -> bool {
-        match self.get_token_type() {
-            TokenKind::Operator => true,
-            _ => false,
-        }
+        matches!(self.get_token_type(), TokenKind::Operator)
     }
 
     fn is_expression(&self) -> bool {
@@ -40,13 +37,16 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
     fn get_first(&mut self) -> Option<T>;
     fn peak_first(&self) -> Option<T>;
     fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     fn display_state(&self) -> String;
     fn get_initial_expression(&self) -> HelpData;
 
     fn get_operator(&mut self) -> Result<T, String> {
         match self.get_first() {
             Some(n) if n.is_operator() => Ok(n),
-            Some(m) if m.is_expression() => Err(format!("{} is not an operator", m.to_string())),
+            Some(m) if m.is_expression() => Err(format!("{} is not an operator", m)),
             _ => Err("The collection is empty".to_string()),
         }
     }
@@ -54,7 +54,7 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
     fn peak_operator(&self) -> Result<T, String> {
         match self.peak_first() {
             Some(n) if n.is_operator() => Ok(n),
-            Some(m) if m.is_expression() => Err(format!("{} is not an operator", m.to_string())),
+            Some(m) if m.is_expression() => Err(format!("{} is not an operator", m)),
             _ => Err("The collection is empty".to_string()),
         }
     }
@@ -62,19 +62,18 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
     fn get_expression(&mut self) -> Result<T, String> {
         match self.get_first() {
             Some(n) if n.is_expression() => Ok(n),
-            Some(m) if m.is_operator() => Err(format!("{} is not an expression", m.to_string())),
+            Some(m) if m.is_operator() => Err(format!("{} is not an expression", m)),
             _ => Err("The collection is empty".to_string()),
         }
     }
 
     fn run(&mut self) -> E {
-        if self.len() == 0 {
+        if self.is_empty() {
             E::default()
         } else {
             //println!("START SESSION");
-            let res = E::from(self.run_helper(0));
             //println!("END SESSION");
-            res
+            E::from(self.run_helper(0))
         }
     }
 
@@ -82,9 +81,12 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
         //println!("--------------------");
         //println!("binding_power: {}", binding_power);
         //println!("{}", self.display_state());
-        let mut left = self
-            .get_expression()
-            .expect(&TypeError::WrongExpression(self.get_initial_expression()).display());
+        let mut left = self.get_expression().unwrap_or_else(|_| {
+            panic!(
+                "{}",
+                TypeError::WrongExpression(self.get_initial_expression()).display()
+            )
+        });
         //println!("left: {}", left);
         loop {
             let op = match self.peak_operator() {

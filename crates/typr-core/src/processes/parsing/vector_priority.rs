@@ -19,7 +19,7 @@ pub struct VectorPriority<T: PriorityToken> {
 
 impl<T: PriorityToken, E: From<T> + Default> PriorityTokens<T, E> for VectorPriority<T> {
     fn get_first(&mut self) -> Option<T> {
-        if self.body.len() > 0 {
+        if !self.body.is_empty() {
             Some(self.body.remove(0))
         } else {
             None
@@ -27,7 +27,7 @@ impl<T: PriorityToken, E: From<T> + Default> PriorityTokens<T, E> for VectorPrio
     }
 
     fn peak_first(&self) -> Option<T> {
-        self.body.iter().next().cloned()
+        self.body.first().cloned()
     }
 
     fn len(&self) -> usize {
@@ -56,7 +56,7 @@ impl<T: PriorityToken> fmt::Display for VectorPriority<T> {
 
 impl From<Vec<TypeToken>> for VectorPriority<TypeToken> {
     fn from(val: Vec<TypeToken>) -> Self {
-        let res = val.iter().next().unwrap().clone();
+        let res = val.first().unwrap().clone();
         let expression = val
             .iter()
             .map(|x| x.to_string())
@@ -72,7 +72,7 @@ impl From<Vec<TypeToken>> for VectorPriority<TypeToken> {
 
 impl From<Vec<LangToken>> for VectorPriority<LangToken> {
     fn from(val: Vec<LangToken>) -> Self {
-        let res = val.iter().next().unwrap().clone();
+        let res = val.first().unwrap().clone();
         let expression = val
             .iter()
             .map(|x| x.to_string())

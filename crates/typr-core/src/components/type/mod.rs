@@ -162,7 +162,7 @@ impl TypeSystem for Type {
             }
             (_, Type::Any(_)) => true,
             (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => {
-                n1.is_subtype_raw(&*n2, context) && t1.is_subtype_raw(&*t2, context)
+                n1.is_subtype_raw(n2, context) && t1.is_subtype_raw(t2, context)
             }
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
                 args1.len() == args2.len()
@@ -183,7 +183,7 @@ impl TypeSystem for Type {
             // Record subtyping
             (Type::Record(r1, _), Type::Record(r2, _)) => r1 == r2 || r1.is_superset(r2),
             (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
-                (name1 == name2) && body1.is_subtype_raw(&*body2, context)
+                (name1 == name2) && body1.is_subtype_raw(body2, context)
             }
             // Generic subtyping
             (_, Type::Generic(_, _)) => true,
@@ -198,7 +198,7 @@ impl TypeSystem for Type {
                         .zip(p2.iter())
                         .all(|(t1, t2)| t1.is_subtype_raw(t2, context))
             }
-            (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(&set2),
+            (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(set2),
             (
                 Type::Operator(TypeOperator::Union, _t1, _t2, _),
                 Type::Operator(TypeOperator::Union, _tp1, _tp2, _),
@@ -252,10 +252,7 @@ impl Locatable for Type {
 //main
 impl Type {
     pub fn is_alias(&self) -> bool {
-        match self {
-            Type::Alias(_, _, _, _) => true,
-            _ => false,
-        }
+        matches!(self, Type::Alias(_, _, _, _))
     }
 
     pub fn to_alias(self, _context: &Context) -> Option<Alias> {
@@ -269,7 +266,7 @@ impl Type {
         match self.clone() {
             Type::Vec(_, i, _, _) if i.equal(max_index.1) => self,
             Type::Vec(v, _, t, h) => Type::Vec(
-                v.clone(),
+                v,
                 Box::new(builder::integer_type(max_index.1)),
                 t.clone(),
                 h.clone(),
@@ -290,10 +287,7 @@ impl Type {
         }
     }
     pub fn is_interface(&self) -> bool {
-        match self {
-            Type::Interface(_, _) => true,
-            _ => false,
-        }
+        matches!(self, Type::Interface(_, _))
     }
 
     pub fn add_to_context(self, var: Var, context: Context) -> (Type, Context) {
@@ -302,31 +296,23 @@ impl Type {
             self.clone(),
             &context,
         );
-        if self.is_function() {
-            self.tuple(&cont) //TODO save if function
-        } else {
-            self.tuple(&cont)
-        }
+        self.tuple(&cont)
     }
 
     pub fn is_function(&self) -> bool {
-        match self {
-            Type::Function(_, _, _) => true,
-            Type::UnknownFunction(_) => true,
-            _ => false,
-        }
+        matches!(self, Type::Function(_, _, _) | Type::UnknownFunction(_))
     }
 
     pub fn is_primitive(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Type::Boolean(_)
-            | Type::Number(_)
-            | Type::Integer(_, _)
-            | Type::Char(_, _)
-            | Type::Null(_)
-            | Type::NA(_) => true,
-            _ => false,
-        }
+                | Type::Number(_)
+                | Type::Integer(_, _)
+                | Type::Char(_, _)
+                | Type::Null(_)
+                | Type::NA(_)
+        )
     }
 
     pub fn get_covariant_type(&self, annotation: &Type, context: &Context) -> Type {
@@ -614,19 +600,14 @@ impl Type {
     }
 
     pub fn is_boolean(&self) -> bool {
-        if let Type::Boolean(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Type::Boolean(_))
     }
 
     pub fn dependent_type(&self, dep_typ: &Type) -> bool {
-        match (dep_typ, self) {
-            (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
-            (Type::Char(_, _), Type::LabelGen(_, _)) => true,
-            _ => false,
-        }
+        matches!(
+            (dep_typ, self),
+            (Type::Integer(_, _), Type::IndexGen(_, _)) | (Type::Char(_, _), Type::LabelGen(_, _))
+        )
     }
 
     pub fn pretty2(&self) -> String {
@@ -638,19 +619,14 @@ impl Type {
     }
 
     pub fn is_tag_or_union(&self) -> bool {
-        match self {
-            Type::Tag(_, _, _) => true,
-            _ => false,
-        }
+        matches!(self, Type::Tag(_, _, _))
     }
 
     pub fn is_generic(&self) -> bool {
-        match self {
-            Type::Generic(_, _) => true,
-            Type::IndexGen(_, _) => true,
-            Type::LabelGen(_, _) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _)
+        )
     }
 
     pub fn exact_equality(&self, other: &Type) -> bool {
@@ -667,7 +643,7 @@ impl Type {
     pub fn for_var(self) -> Type {
         match self.to_owned() {
             Type::Function(p, _r, _h) => {
-                if p.len() > 0 {
+                if !p.is_empty() {
                     p[0].to_owned()
                 } else {
                     self
@@ -728,7 +704,7 @@ impl Type {
         match self {
             Type::Function(v, _, _) => v.len(),
             Type::Tuple(v, _) => v.len(),
-            _ => 0 as usize,
+            _ => 0,
         }
     }
 
@@ -819,10 +795,7 @@ impl Type {
     }
 
     pub fn is_empty(&self) -> bool {
-        match self {
-            Type::Empty(_) => true,
-            _ => false,
-        }
+        matches!(self, Type::Empty(_))
     }
 
     pub fn unlift(self) -> Type {
@@ -872,8 +845,8 @@ impl Type {
 
     pub fn get_index(&self) -> Option<u32> {
         match self {
-            Type::Integer(i, _) => Some(i.get_value().map(|x| x as u32).unwrap_or(0 as u32)),
-            Type::IndexGen(_, _) => Some(0 as u32),
+            Type::Integer(i, _) => Some(i.get_value().map(|x| x as u32).unwrap_or(0_u32)),
+            Type::IndexGen(_, _) => Some(0_u32),
             _ => None,
         }
     }
@@ -968,7 +941,7 @@ impl Type {
     }
 
     pub fn has_generic(&self) -> bool {
-        self.extract_generics().len() > 0
+        !self.extract_generics().is_empty()
     }
 
     pub fn has_operation(&self) -> bool {
@@ -984,16 +957,13 @@ impl Type {
     /// [3, T] -> rank: 3, vector type: Array, Type T
     pub fn get_size_type(&self) -> (i32, VecType, Type) {
         match self {
-            Type::Vec(v, i, t, _) => (i.get_index().unwrap() as i32, v.clone(), (**t).clone()),
+            Type::Vec(v, i, t, _) => (i.get_index().unwrap() as i32, *v, (**t).clone()),
             typ => (1, VecType::Unknown, typ.clone()),
         }
     }
 
     pub fn is_unknown_function(&self) -> bool {
-        match self {
-            Type::UnknownFunction(_) => true,
-            _ => false,
-        }
+        matches!(self, Type::UnknownFunction(_))
     }
 
     pub fn is_vector_of(&self, other: &Type, context: &Context) -> bool {
@@ -1014,7 +984,7 @@ pub struct Array {
 
 impl From<Vec<Type>> for HelpData {
     fn from(val: Vec<Type>) -> Self {
-        if val.len() > 0 {
+        if !val.is_empty() {
             val[0].clone().into()
         } else {
             HelpData::default()
@@ -1086,9 +1056,7 @@ impl PartialEq for Type {
             (Type::In(_), Type::In(_)) => true,
             (Type::Empty(_), Type::Empty(_)) => true,
             (Type::Any(_), Type::Any(_)) => true,
-            (Type::RClass(el1, _), Type::RClass(el2, _)) => {
-                el1.difference(&el2).collect::<Vec<_>>().len() == 0
-            }
+            (Type::RClass(el1, _), Type::RClass(el2, _)) => el1.difference(el2).next().is_none(),
             (Type::Intersection(s1, _), Type::Intersection(s2, _)) => s1 == s2,
             (Type::Variable(s1, _), Type::Variable(s2, _)) => s1 == s2,
             (Type::Null(_), Type::Null(_)) => true,
@@ -1132,8 +1100,8 @@ impl PartialOrd for Type {
             (typ1, typ2) if typ1 == typ2 => Some(Ordering::Equal),
             // Array subtyping
             (_, Type::Any(_)) => Some(Ordering::Less),
-            (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => (n1.partial_cmp(&*n2).is_some()
-                && t1.partial_cmp(&*t2).is_some())
+            (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => (n1.partial_cmp(n2).is_some()
+                && t1.partial_cmp(t2).is_some())
             .then_some(Ordering::Less),
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => args1
                 .iter()
@@ -1152,7 +1120,7 @@ impl PartialOrd for Type {
             }
 
             (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
-                ((name1 == name2) && body1.partial_cmp(&*body2).is_some()).then_some(Ordering::Less)
+                ((name1 == name2) && body1.partial_cmp(body2).is_some()).then_some(Ordering::Less)
             }
 
             // Generic subtyping
@@ -1170,7 +1138,7 @@ impl PartialOrd for Type {
             .then_some(Ordering::Less),
 
             (Type::RClass(set1, _), Type::RClass(set2, _)) => {
-                set1.is_subset(&set2).then_some(Ordering::Less)
+                set1.is_subset(set2).then_some(Ordering::Less)
             }
             (Type::Char(_, _), Type::Char(_, _)) => Some(Ordering::Less),
             (Type::Integer(_, _), Type::Integer(_, _)) => Some(Ordering::Less),

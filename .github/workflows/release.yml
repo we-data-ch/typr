@@ -151,3 +151,32 @@ jobs:
           files: typr-wasm-${{ github.ref_name }}.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to Playground
+        env:
+          PLAYGROUND_TOKEN: ${{ secrets.PLAYGROUND_DEPLOY_TOKEN }}
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          
+          # Clone the playground repository using the PAT for authentication
+          git clone https://x-access-token:${{ secrets.PLAYGROUND_DEPLOY_TOKEN }}@github.com/we-data-ch/typr-playground.github.io.git playground
+          
+          # Ensure destination directory exists
+          mkdir -p playground/public/wasm/
+          
+          # Copy new WASM and JS files
+          cp crates/typr-wasm/pkg/*.wasm playground/public/wasm/
+          cp crates/typr-wasm/pkg/*.js playground/public/wasm/
+          
+          # Commit and push changes to playground
+          cd playground
+          git add public/wasm/
+          
+          # Only commit and push if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to deploy to playground."
+          else
+            git commit -m "Update WASM to version ${{ github.ref_name }}"
+            git push origin main
+          fi

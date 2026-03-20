@@ -18522,328 +18522,231 @@
       ],
       [
         {
-          "name": "df",
+          "name": "o",
           "is_opaque": false,
           "related_type": {
-            "Vec": [
-              "DataFrame",
+            "Operator": [
+              "Union",
               {
-                "Integer": [
+                "Tag": [
+                  "Some",
                   {
-                    "Val": 3
+                    "Generic": [
+                      "T",
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
                   },
                   {
-                    "offset": 4,
-                    "file_name": ""
+                    "offset": 18,
+                    "file_name": "/tmp/test7.typr"
                   }
                 ]
               },
               {
-                "Record": [
-                  [
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "Training"
-                          },
-                          {
-                            "offset": 35,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      {
-                        "Vec": [
-                          "Vector",
-                          {
-                            "Integer": [
-                              {
-                                "Val": 3
-                              },
-                              {
-                                "offset": 4,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "Char": [
-                              "Unknown",
-                              {
-                                "offset": 7,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "offset": 35,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ],
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "Pulse"
-                          },
-                          {
-                            "offset": 79,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      {
-                        "Vec": [
-                          "Vector",
-                          {
-                            "Integer": [
-                              {
-                                "Val": 3
-                              },
-                              {
-                                "offset": 4,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "Integer": [
-                              "Unknown",
-                              {
-                                "offset": 7,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "offset": 79,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ],
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "Duration"
-                          },
-                          {
-                            "offset": 110,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      {
-                        "Vec": [
-                          "Vector",
-                          {
-                            "Integer": [
-                              {
-                                "Val": 3
-                              },
-                              {
-                                "offset": 4,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "Integer": [
-                              "Unknown",
-                              {
-                                "offset": 7,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "offset": 110,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ]
-                  ],
+                "Tag": [
+                  "None",
                   {
-                    "offset": 6,
-                    "file_name": "/tmp/test.ty"
+                    "Empty": {
+                      "offset": 31,
+                      "file_name": "/tmp/test7.typr"
+                    }
+                  },
+                  {
+                    "offset": 29,
+                    "file_name": "/tmp/test7.typr"
                   }
                 ]
               },
               {
-                "offset": 6,
-                "file_name": "/tmp/test.ty"
+                "offset": 18,
+                "file_name": "/tmp/test7.typr"
               }
             ]
           },
           "help_data": {
-            "offset": 1,
-            "file_name": "/tmp/test.ty"
+            "offset": 52,
+            "file_name": "/tmp/test7.typr"
           }
         },
         {
-          "Vec": [
-            "DataFrame",
+          "Alias": [
+            "Option",
+            [
+              {
+                "Generic": [
+                  "T",
+                  {
+                    "offset": 0,
+                    "file_name": ""
+                  }
+                ]
+              }
+            ],
+            false,
             {
-              "Integer": [
+              "offset": 55,
+              "file_name": "/tmp/test7.typr"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "f",
+          "is_opaque": false,
+          "related_type": {
+            "Generic": [
+              "T",
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 66,
+            "file_name": "/tmp/test7.typr"
+          }
+        },
+        {
+          "Function": [
+            [
+              {
+                "Generic": [
+                  "T",
+                  {
+                    "offset": 0,
+                    "file_name": ""
+                  }
+                ]
+              }
+            ],
+            {
+              "Generic": [
+                "U",
                 {
-                  "Val": 3
-                },
-                {
-                  "offset": 4,
+                  "offset": 0,
                   "file_name": ""
                 }
               ]
             },
             {
-              "Record": [
-                [
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "Training"
-                        },
-                        {
-                          "offset": 35,
-                          "file_name": "/tmp/test.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Vec": [
-                        "Vector",
-                        {
-                          "Integer": [
-                            {
-                              "Val": 3
-                            },
-                            {
-                              "offset": 4,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Char": [
-                            "Unknown",
-                            {
-                              "offset": 7,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "offset": 35,
-                          "file_name": "/tmp/test.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ],
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "Pulse"
-                        },
-                        {
-                          "offset": 79,
-                          "file_name": "/tmp/test.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Vec": [
-                        "Vector",
-                        {
-                          "Integer": [
-                            {
-                              "Val": 3
-                            },
-                            {
-                              "offset": 4,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Integer": [
-                            "Unknown",
-                            {
-                              "offset": 7,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "offset": 79,
-                          "file_name": "/tmp/test.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ],
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "Duration"
-                        },
-                        {
-                          "offset": 110,
-                          "file_name": "/tmp/test.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Vec": [
-                        "Vector",
-                        {
-                          "Integer": [
-                            {
-                              "Val": 3
-                            },
-                            {
-                              "offset": 4,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Integer": [
-                            "Unknown",
-                            {
-                              "offset": 7,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "offset": 110,
-                          "file_name": "/tmp/test.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ]
-                ],
+              "offset": 68,
+              "file_name": "/tmp/test7.typr"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "map",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "Option",
+              [
                 {
-                  "offset": 6,
-                  "file_name": "/tmp/test.ty"
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              false,
+              {
+                "offset": 55,
+                "file_name": "/tmp/test7.typr"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 42,
+            "file_name": "/tmp/test7.typr"
+          }
+        },
+        {
+          "Function": [
+            [
+              {
+                "Alias": [
+                  "Option",
+                  [
+                    {
+                      "Generic": [
+                        "T",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    }
+                  ],
+                  false,
+                  {
+                    "offset": 55,
+                    "file_name": "/tmp/test7.typr"
+                  }
+                ]
+              },
+              {
+                "Function": [
+                  [
+                    {
+                      "Generic": [
+                        "T",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "Generic": [
+                      "U",
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
+                  },
+                  {
+                    "offset": 68,
+                    "file_name": "/tmp/test7.typr"
+                  }
+                ]
+              }
+            ],
+            {
+              "Alias": [
+                "Option",
+                [
+                  {
+                    "Generic": [
+                      "U",
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
+                  }
+                ],
+                false,
+                {
+                  "offset": 80,
+                  "file_name": "/tmp/test7.typr"
                 }
               ]
             },
             {
-              "offset": 6,
-              "file_name": "/tmp/test.ty"
+              "offset": 0,
+              "file_name": ""
             }
           ]
         }
@@ -20303,10 +20206,10 @@
                 {
                   "Char": [
                     {
-                      "Val": "ylab"
+                      "Val": "sub"
                     },
                     {
-                      "offset": 269,
+                      "offset": 246,
                       "file_name": "plot.ty"
                     }
                   ]
@@ -20315,7 +20218,7 @@
                   "Char": [
                     "Unknown",
                     {
-                      "offset": 274,
+                      "offset": 250,
                       "file_name": "plot.ty"
                     }
                   ]
@@ -20326,19 +20229,22 @@
                 {
                   "Char": [
                     {
-                      "Val": "ann"
+                      "Val": "xlab"
                     },
                     {
-                      "offset": 281,
+                      "offset": 257,
                       "file_name": "plot.ty"
                     }
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 285,
-                    "file_name": "plot.ty"
-                  }
+                  "Char": [
+                    "Unknown",
+                    {
+                      "offset": 262,
+                      "file_name": "plot.ty"
+                    }
+                  ]
                 },
                 false
               ],
@@ -20419,6 +20325,49 @@
                       "file_name": "plot.ty"
                     }
                   ]
+                },
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "ylab"
+                    },
+                    {
+                      "offset": 269,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                {
+                  "Char": [
+                    "Unknown",
+                    {
+                      "offset": 274,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "ann"
+                    },
+                    {
+                      "offset": 281,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                {
+                  "Boolean": {
+                    "offset": 285,
+                    "file_name": "plot.ty"
+                  }
                 },
                 false
               ],
@@ -20586,52 +20535,6 @@
                   ]
                 },
                 false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "sub"
-                    },
-                    {
-                      "offset": 246,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 250,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "xlab"
-                    },
-                    {
-                      "offset": 257,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 262,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
               ]
             ],
             {
@@ -20643,7 +20546,78 @@
       ],
       [
         {
-          "name": "Array0",
+          "name": "Option",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              {
+                "offset": 6,
+                "file_name": "/tmp/test7.typr"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Operator": [
+            "Union",
+            {
+              "Tag": [
+                "Some",
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "offset": 18,
+                  "file_name": "/tmp/test7.typr"
+                }
+              ]
+            },
+            {
+              "Tag": [
+                "None",
+                {
+                  "Empty": {
+                    "offset": 31,
+                    "file_name": "/tmp/test7.typr"
+                  }
+                },
+                {
+                  "offset": 29,
+                  "file_name": "/tmp/test7.typr"
+                }
+              ]
+            },
+            {
+              "offset": 18,
+              "file_name": "/tmp/test7.typr"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function0",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -20660,161 +20634,171 @@
           }
         },
         {
-          "Vec": [
-            "DataFrame",
+          "Function": [
+            [
+              {
+                "Generic": [
+                  "T",
+                  {
+                    "offset": 0,
+                    "file_name": ""
+                  }
+                ]
+              }
+            ],
             {
-              "Integer": [
+              "Generic": [
+                "U",
                 {
-                  "Val": 3
-                },
-                {
-                  "offset": 4,
+                  "offset": 0,
                   "file_name": ""
                 }
               ]
             },
             {
-              "Record": [
-                [
+              "offset": 68,
+              "file_name": "/tmp/test7.typr"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function1",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              {
+                "Operator": [
+                  "Union",
+                  {
+                    "Tag": [
+                      "Some",
+                      {
+                        "Generic": [
+                          "T",
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 18,
+                        "file_name": "/tmp/test7.typr"
+                      }
+                    ]
+                  },
+                  {
+                    "Tag": [
+                      "None",
+                      {
+                        "Empty": {
+                          "offset": 31,
+                          "file_name": "/tmp/test7.typr"
+                        }
+                      },
+                      {
+                        "offset": 29,
+                        "file_name": "/tmp/test7.typr"
+                      }
+                    ]
+                  },
+                  {
+                    "offset": 18,
+                    "file_name": "/tmp/test7.typr"
+                  }
+                ]
+              },
+              {
+                "Function": [
                   [
                     {
-                      "Char": [
+                      "Generic": [
+                        "T",
                         {
-                          "Val": "Training"
-                        },
-                        {
-                          "offset": 35,
-                          "file_name": "/tmp/test.ty"
+                          "offset": 0,
+                          "file_name": ""
                         }
                       ]
-                    },
-                    {
-                      "Vec": [
-                        "Vector",
-                        {
-                          "Integer": [
-                            {
-                              "Val": 3
-                            },
-                            {
-                              "offset": 4,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Char": [
-                            "Unknown",
-                            {
-                              "offset": 7,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "offset": 35,
-                          "file_name": "/tmp/test.ty"
-                        }
-                      ]
-                    },
-                    false
+                    }
                   ],
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "Pulse"
-                        },
-                        {
-                          "offset": 79,
-                          "file_name": "/tmp/test.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Vec": [
-                        "Vector",
-                        {
-                          "Integer": [
-                            {
-                              "Val": 3
-                            },
-                            {
-                              "offset": 4,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Integer": [
-                            "Unknown",
-                            {
-                              "offset": 7,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "offset": 79,
-                          "file_name": "/tmp/test.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ],
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "Duration"
-                        },
-                        {
-                          "offset": 110,
-                          "file_name": "/tmp/test.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Vec": [
-                        "Vector",
-                        {
-                          "Integer": [
-                            {
-                              "Val": 3
-                            },
-                            {
-                              "offset": 4,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Integer": [
-                            "Unknown",
-                            {
-                              "offset": 7,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "offset": 110,
-                          "file_name": "/tmp/test.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ]
-                ],
+                  {
+                    "Generic": [
+                      "U",
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
+                  },
+                  {
+                    "offset": 68,
+                    "file_name": "/tmp/test7.typr"
+                  }
+                ]
+              }
+            ],
+            {
+              "Operator": [
+                "Union",
                 {
-                  "offset": 6,
-                  "file_name": "/tmp/test.ty"
+                  "Tag": [
+                    "Some",
+                    {
+                      "Generic": [
+                        "T",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 18,
+                      "file_name": "/tmp/test7.typr"
+                    }
+                  ]
+                },
+                {
+                  "Tag": [
+                    "None",
+                    {
+                      "Empty": {
+                        "offset": 31,
+                        "file_name": "/tmp/test7.typr"
+                      }
+                    },
+                    {
+                      "offset": 29,
+                      "file_name": "/tmp/test7.typr"
+                    }
+                  ]
+                },
+                {
+                  "offset": 18,
+                  "file_name": "/tmp/test7.typr"
                 }
               ]
             },
             {
-              "offset": 6,
-              "file_name": "/tmp/test.ty"
+              "offset": 0,
+              "file_name": ""
             }
           ]
         }
@@ -37502,161 +37486,203 @@
   "subtypes": {
     "memory": [
       {
-        "Vec": [
-          "DataFrame",
+        "Function": [
+          [
+            {
+              "Generic": [
+                "T",
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
+            }
+          ],
           {
-            "Integer": [
+            "Generic": [
+              "U",
               {
-                "Val": 3
-              },
-              {
-                "offset": 4,
+                "offset": 0,
                 "file_name": ""
               }
             ]
           },
           {
-            "Record": [
-              [
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "Training"
-                      },
-                      {
-                        "offset": 35,
-                        "file_name": "/tmp/test.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Vec": [
-                      "Vector",
-                      {
-                        "Integer": [
-                          {
-                            "Val": 3
-                          },
-                          {
-                            "offset": 4,
-                            "file_name": ""
-                          }
-                        ]
-                      },
-                      {
-                        "Char": [
-                          "Unknown",
-                          {
-                            "offset": 7,
-                            "file_name": ""
-                          }
-                        ]
-                      },
-                      {
-                        "offset": 35,
-                        "file_name": "/tmp/test.ty"
-                      }
-                    ]
-                  },
-                  false
-                ],
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "Pulse"
-                      },
-                      {
-                        "offset": 79,
-                        "file_name": "/tmp/test.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Vec": [
-                      "Vector",
-                      {
-                        "Integer": [
-                          {
-                            "Val": 3
-                          },
-                          {
-                            "offset": 4,
-                            "file_name": ""
-                          }
-                        ]
-                      },
-                      {
-                        "Integer": [
-                          "Unknown",
-                          {
-                            "offset": 7,
-                            "file_name": ""
-                          }
-                        ]
-                      },
-                      {
-                        "offset": 79,
-                        "file_name": "/tmp/test.ty"
-                      }
-                    ]
-                  },
-                  false
-                ],
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "Duration"
-                      },
-                      {
-                        "offset": 110,
-                        "file_name": "/tmp/test.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Vec": [
-                      "Vector",
-                      {
-                        "Integer": [
-                          {
-                            "Val": 3
-                          },
-                          {
-                            "offset": 4,
-                            "file_name": ""
-                          }
-                        ]
-                      },
-                      {
-                        "Integer": [
-                          "Unknown",
-                          {
-                            "offset": 7,
-                            "file_name": ""
-                          }
-                        ]
-                      },
-                      {
-                        "offset": 110,
-                        "file_name": "/tmp/test.ty"
-                      }
-                    ]
-                  },
-                  false
-                ]
-              ],
+            "offset": 68,
+            "file_name": "/tmp/test7.typr"
+          }
+        ]
+      },
+      {
+        "Operator": [
+          "Union",
+          {
+            "Tag": [
+              "Some",
               {
-                "offset": 6,
-                "file_name": "/tmp/test.ty"
+                "Generic": [
+                  "T",
+                  {
+                    "offset": 0,
+                    "file_name": ""
+                  }
+                ]
+              },
+              {
+                "offset": 18,
+                "file_name": "/tmp/test7.typr"
               }
             ]
           },
           {
-            "offset": 6,
-            "file_name": "/tmp/test.ty"
+            "Tag": [
+              "None",
+              {
+                "Empty": {
+                  "offset": 31,
+                  "file_name": "/tmp/test7.typr"
+                }
+              },
+              {
+                "offset": 29,
+                "file_name": "/tmp/test7.typr"
+              }
+            ]
+          },
+          {
+            "offset": 18,
+            "file_name": "/tmp/test7.typr"
+          }
+        ]
+      },
+      {
+        "Function": [
+          [
+            {
+              "Operator": [
+                "Union",
+                {
+                  "Tag": [
+                    "Some",
+                    {
+                      "Generic": [
+                        "T",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 18,
+                      "file_name": "/tmp/test7.typr"
+                    }
+                  ]
+                },
+                {
+                  "Tag": [
+                    "None",
+                    {
+                      "Empty": {
+                        "offset": 31,
+                        "file_name": "/tmp/test7.typr"
+                      }
+                    },
+                    {
+                      "offset": 29,
+                      "file_name": "/tmp/test7.typr"
+                    }
+                  ]
+                },
+                {
+                  "offset": 18,
+                  "file_name": "/tmp/test7.typr"
+                }
+              ]
+            },
+            {
+              "Function": [
+                [
+                  {
+                    "Generic": [
+                      "T",
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
+                  }
+                ],
+                {
+                  "Generic": [
+                    "U",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "offset": 68,
+                  "file_name": "/tmp/test7.typr"
+                }
+              ]
+            }
+          ],
+          {
+            "Operator": [
+              "Union",
+              {
+                "Tag": [
+                  "Some",
+                  {
+                    "Generic": [
+                      "T",
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
+                  },
+                  {
+                    "offset": 18,
+                    "file_name": "/tmp/test7.typr"
+                  }
+                ]
+              },
+              {
+                "Tag": [
+                  "None",
+                  {
+                    "Empty": {
+                      "offset": 31,
+                      "file_name": "/tmp/test7.typr"
+                    }
+                  },
+                  {
+                    "offset": 29,
+                    "file_name": "/tmp/test7.typr"
+                  }
+                ]
+              },
+              {
+                "offset": 18,
+                "file_name": "/tmp/test7.typr"
+              }
+            ]
+          },
+          {
+            "offset": 0,
+            "file_name": ""
+          }
+        ]
+      },
+      {
+        "Generic": [
+          "T",
+          {
+            "offset": 0,
+            "file_name": ""
           }
         ]
       }
@@ -37671,165 +37697,217 @@
       "subtypes": [
         {
           "value": {
-            "Vec": [
-              "DataFrame",
+            "Generic": [
+              "T",
               {
-                "Integer": [
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "subtypes": [
+            {
+              "value": {
+                "Operator": [
+                  "Union",
                   {
-                    "Val": 3
+                    "Tag": [
+                      "Some",
+                      {
+                        "Generic": [
+                          "T",
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 18,
+                        "file_name": "/tmp/test7.typr"
+                      }
+                    ]
                   },
                   {
-                    "offset": 4,
+                    "Tag": [
+                      "None",
+                      {
+                        "Empty": {
+                          "offset": 31,
+                          "file_name": "/tmp/test7.typr"
+                        }
+                      },
+                      {
+                        "offset": 29,
+                        "file_name": "/tmp/test7.typr"
+                      }
+                    ]
+                  },
+                  {
+                    "offset": 18,
+                    "file_name": "/tmp/test7.typr"
+                  }
+                ]
+              },
+              "subtypes": []
+            },
+            {
+              "value": {
+                "Function": [
+                  [
+                    {
+                      "Generic": [
+                        "T",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "Generic": [
+                      "U",
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
+                  },
+                  {
+                    "offset": 68,
+                    "file_name": "/tmp/test7.typr"
+                  }
+                ]
+              },
+              "subtypes": []
+            },
+            {
+              "value": {
+                "Function": [
+                  [
+                    {
+                      "Operator": [
+                        "Union",
+                        {
+                          "Tag": [
+                            "Some",
+                            {
+                              "Generic": [
+                                "T",
+                                {
+                                  "offset": 0,
+                                  "file_name": ""
+                                }
+                              ]
+                            },
+                            {
+                              "offset": 18,
+                              "file_name": "/tmp/test7.typr"
+                            }
+                          ]
+                        },
+                        {
+                          "Tag": [
+                            "None",
+                            {
+                              "Empty": {
+                                "offset": 31,
+                                "file_name": "/tmp/test7.typr"
+                              }
+                            },
+                            {
+                              "offset": 29,
+                              "file_name": "/tmp/test7.typr"
+                            }
+                          ]
+                        },
+                        {
+                          "offset": 18,
+                          "file_name": "/tmp/test7.typr"
+                        }
+                      ]
+                    },
+                    {
+                      "Function": [
+                        [
+                          {
+                            "Generic": [
+                              "T",
+                              {
+                                "offset": 0,
+                                "file_name": ""
+                              }
+                            ]
+                          }
+                        ],
+                        {
+                          "Generic": [
+                            "U",
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "offset": 68,
+                          "file_name": "/tmp/test7.typr"
+                        }
+                      ]
+                    }
+                  ],
+                  {
+                    "Operator": [
+                      "Union",
+                      {
+                        "Tag": [
+                          "Some",
+                          {
+                            "Generic": [
+                              "T",
+                              {
+                                "offset": 0,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "offset": 18,
+                            "file_name": "/tmp/test7.typr"
+                          }
+                        ]
+                      },
+                      {
+                        "Tag": [
+                          "None",
+                          {
+                            "Empty": {
+                              "offset": 31,
+                              "file_name": "/tmp/test7.typr"
+                            }
+                          },
+                          {
+                            "offset": 29,
+                            "file_name": "/tmp/test7.typr"
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 18,
+                        "file_name": "/tmp/test7.typr"
+                      }
+                    ]
+                  },
+                  {
+                    "offset": 0,
                     "file_name": ""
                   }
                 ]
               },
-              {
-                "Record": [
-                  [
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "Training"
-                          },
-                          {
-                            "offset": 35,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      {
-                        "Vec": [
-                          "Vector",
-                          {
-                            "Integer": [
-                              {
-                                "Val": 3
-                              },
-                              {
-                                "offset": 4,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "Char": [
-                              "Unknown",
-                              {
-                                "offset": 7,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "offset": 35,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ],
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "Pulse"
-                          },
-                          {
-                            "offset": 79,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      {
-                        "Vec": [
-                          "Vector",
-                          {
-                            "Integer": [
-                              {
-                                "Val": 3
-                              },
-                              {
-                                "offset": 4,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "Integer": [
-                              "Unknown",
-                              {
-                                "offset": 7,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "offset": 79,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ],
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "Duration"
-                          },
-                          {
-                            "offset": 110,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      {
-                        "Vec": [
-                          "Vector",
-                          {
-                            "Integer": [
-                              {
-                                "Val": 3
-                              },
-                              {
-                                "offset": 4,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "Integer": [
-                              "Unknown",
-                              {
-                                "offset": 7,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "offset": 110,
-                            "file_name": "/tmp/test.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ]
-                  ],
-                  {
-                    "offset": 6,
-                    "file_name": "/tmp/test.ty"
-                  }
-                ]
-              },
-              {
-                "offset": 6,
-                "file_name": "/tmp/test.ty"
-              }
-            ]
-          },
-          "subtypes": []
+              "subtypes": []
+            }
+          ]
         }
       ]
     },

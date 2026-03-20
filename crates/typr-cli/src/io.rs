@@ -8,19 +8,16 @@
 #![allow(dead_code)]
 
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use typr_core::components::context::config::Environment;
 
 pub fn get_os_file(file: &str) -> String {
-    if cfg!(windows) {
-        file.replace("\\", r"\")
-    } else {
-        file.to_string()
-    }
+    file.to_string()
 }
 
-pub fn read_file(path: &PathBuf) -> Option<String> {
+pub fn read_file(path: &Path) -> Option<String> {
     let file = get_os_file(path.to_str().unwrap());
     fs::read_to_string(&file).ok()
 }

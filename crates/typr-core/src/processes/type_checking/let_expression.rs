@@ -5,6 +5,7 @@ use crate::processes::type_checking::Lang;
 use crate::processes::type_checking::TypeContext;
 use crate::processes::type_checking::Var;
 
+#[allow(clippy::borrowed_box)]
 pub fn let_expression(
     context: &Context,
     name: &Box<Lang>,

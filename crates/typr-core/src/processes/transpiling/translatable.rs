@@ -39,6 +39,7 @@ impl Translatable {
         self.add(&res).add(joint)
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn add(self, s: &str) -> Translatable {
         Translatable {
             code: self.code + s,
@@ -59,8 +60,8 @@ impl Translatable {
     }
 
     pub fn join(self, vals: &[Lang], joint: &str) -> Translatable {
-        if vals.len() > 0 {
-            vals.into_iter()
+        if !vals.is_empty() {
+            vals.iter()
                 .fold(self, |trans, val| trans.to_r(val).add(joint))
                 .sub(joint.len())
         } else {
@@ -69,11 +70,12 @@ impl Translatable {
     }
 
     pub fn join_arg_val(self, vals: &[ArgumentValue], joint: &str) -> Translatable {
-        vals.into_iter()
+        vals.iter()
             .fold(self, |trans, val| trans.to_r_arg_val(val, joint))
             .sub(joint.len())
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn sub(self, len: usize) -> Translatable {
         let new_code = if self.code.len() > len {
             &self.code[0..(self.code.len() - len)]
@@ -91,9 +93,11 @@ impl Add for Translatable {
     type Output = Translatable;
 
     fn add(self, other: Self) -> Self::Output {
-        let new_context = (other.context == Context::default())
-            .then_some(self.context)
-            .unwrap_or(other.context);
+        let new_context = if other.context == Context::default() {
+            self.context
+        } else {
+            other.context
+        };
         Translatable {
             context: new_context,
             code: self.code + &other.code,

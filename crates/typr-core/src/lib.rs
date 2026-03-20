@@ -137,9 +137,9 @@ impl std::fmt::Display for CompileError {
         match self {
             CompileError::FileNotFound(name) => write!(f, "File not found: {}", name),
             CompileError::TypeErrors(errors) => {
-                write!(f, "Type errors:\n")?;
+                writeln!(f, "Type errors:")?;
                 for err in errors {
-                    write!(f, "  - {:?}\n", err)?;
+                    writeln!(f, "  - {:?}", err)?;
                 }
                 Ok(())
             }

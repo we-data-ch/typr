@@ -368,9 +368,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     {
                         format!("vec_apply(get, {}, typed_vec('{}'))", e1.to_r(cont).0, name)
                     }
-                    (Type::Vec(vtype, _, _, _), Lang::Variable(name, _, _, _))
-                        if matches!(vtype, VecType::S3) =>
-                    {
+                    (Type::Vec(VecType::S3, _, _, _), Lang::Variable(name, _, _, _)) => {
                         let name_str = name.replace("__", ".");
                         format!("get({}, '{}')", e1.to_r(cont).0, name_str)
                     }
@@ -380,7 +378,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 (val, cont.clone())
             }
             Lang::Operator(op, e1, e2, _) => {
-                let op_str = format!(" {} ", op.to_string());
+                let op_str = format!(" {} ", op);
                 Translatable::from(cont.clone())
                     .to_r(e1)
                     .add(&op_str)
@@ -401,15 +399,17 @@ impl RTranslatable<(String, Context)> for Lang {
                     .map(ArgumentType::get_type)
                     .collect::<Vec<_>>();
                 let sub_context = params
-                    .into_iter()
+                    .iter()
                     .map(|arg_typ| arg_typ.clone().to_var(cont))
                     .zip(list_of_types.clone())
                     .fold(cont.clone(), |context: Context, (var, typ)| {
                         context.clone().push_var_type(var, typ, &context)
                     });
-                let res = (output_conversion == "")
-                    .then_some("".to_string())
-                    .unwrap_or(" |> ".to_owned() + &output_conversion);
+                let res = if output_conversion.is_empty() {
+                    "".to_string()
+                } else {
+                    " |> ".to_owned() + &output_conversion
+                };
                 (
                     format!(
                         "(function({}) {}{}) |> {}",
@@ -433,7 +433,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 } else {
                     var.display_type(cont).get_name()
                 };
-                ((&name).to_string(), cont.clone())
+                (name.to_string(), cont.clone())
             }
             Lang::FunctionApp(exp, vals, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
@@ -442,17 +442,17 @@ impl RTranslatable<(String, Context)> for Lang {
                 let fn_t = FunctionType::try_from(
                     cont1
                         .get_type_from_variable(&var)
-                        .expect(&format!("variable {} don't have a related type", var)),
+                        .unwrap_or_else(|_| panic!("variable {} don't have a related type", var)),
                 )
                 .map(|ft| ft.adjust_nb_parameters(vals.len()))
                 .unwrap();
                 let new_args = fn_t
                     .get_param_types()
-                    .into_iter()
-                    .map(|arg| reduce_type(&cont1, &arg))
+                    .iter()
+                    .map(|arg| reduce_type(&cont1, arg))
                     .collect::<Vec<_>>();
                 let new_vals = vals
-                    .into_iter()
+                    .iter()
                     .zip(new_args.iter())
                     .map(set_related_type_if_variable)
                     .collect::<Vec<_>>();
@@ -490,19 +490,18 @@ impl RTranslatable<(String, Context)> for Lang {
                     (s, cont.clone())
                 } else {
                     let (exp_str, cont1) = exp.to_r(cont);
-                    let fn_t = FunctionType::try_from(
-                        cont1
-                            .get_type_from_variable(&var)
-                            .expect(&format!("variable {} don't have a related type", var)),
-                    )
-                    .unwrap();
+                    let fn_t =
+                        FunctionType::try_from(cont1.get_type_from_variable(&var).unwrap_or_else(
+                            |_| panic!("variable {} don't have a related type", var),
+                        ))
+                        .unwrap();
                     let new_args = fn_t
                         .get_param_types()
-                        .into_iter()
-                        .map(|arg| reduce_type(&cont1, &arg))
+                        .iter()
+                        .map(|arg| reduce_type(&cont1, arg))
                         .collect::<Vec<_>>();
                     let new_vals = vals
-                        .into_iter()
+                        .iter()
                         .zip(new_args.iter())
                         .map(set_related_type_if_variable)
                         .collect::<Vec<_>>();
@@ -527,7 +526,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::ArrayIndexing(exp, val, _) => {
                 let (exp_str, _) = exp.to_r(cont);
                 let (val_str, _) = val.to_simple_r(cont);
-                let (typ, _, _) = typing(&cont, exp).to_tuple();
+                let (typ, _, _) = typing(cont, exp).to_tuple();
                 let res = match typ {
                     Type::Vec(_, _, _, _) => format!("{}[[{}]]", exp_str, val_str),
                     _ => "".to_string(),
@@ -535,7 +534,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 (res, cont.clone())
             }
             Lang::GenFunc(func, _, _) => (
-                format!("function(x, ...) UseMethod('{}')", func.to_string()),
+                format!("function(x, ...) UseMethod('{}')", func),
                 cont.clone(),
             ),
             Lang::Let(expr, ttype, body, _) => {
@@ -582,15 +581,15 @@ impl RTranslatable<(String, Context)> for Lang {
                     .unwrap()
                     .get_shape()
                     .map(|sha| format!("c({})", sha))
-                    .unwrap_or(format!("c(0)"));
+                    .unwrap_or_else(|| "c(0)".to_string());
 
                 let array = &self
                     .linearize_array()
                     .iter()
-                    .map(|lang| lang.to_r(&cont).0)
+                    .map(|lang| lang.to_r(cont).0)
                     .collect::<Vec<_>>()
                     .join(", ")
-                    .and_if(|lin_array| lin_array != "")
+                    .and_if(|lin_array| !lin_array.is_empty())
                     .map(|lin_array| format!("typed_vec({}, dim = {})", lin_array, dimension))
                     .unwrap_or("logical(0)".to_string());
 
@@ -658,7 +657,10 @@ impl RTranslatable<(String, Context)> for Lang {
                 let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
                 (
-                    format!("list('{}', body = {}) |> {}", s, t_str, anotation),
+                    format!(
+                        "structure(list('{}', body = {}), class = c('.{}', 'Tag')) |> {}",
+                        s, t_str, s, anotation
+                    ),
                     new_cont,
                 )
             }
@@ -707,7 +709,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 .add("function (")
                 .join(vars, ", ")
                 .add(") \n")
-                .add(&body)
+                .add(body)
                 .add("\n")
                 .into(),
             Lang::Signature(_, _, _) => ("".to_string(), cont.clone()),
@@ -725,7 +727,7 @@ impl RTranslatable<(String, Context)> for Lang {
             }
             Lang::Not(exp, _) => (format!("!{}", exp.to_r(cont).0), cont.clone()),
             Lang::Sequence(vals, _) => {
-                let res = if vals.len() > 0 {
+                let res = if !vals.is_empty() {
                     "c(".to_string()
                         + &vals
                             .iter()

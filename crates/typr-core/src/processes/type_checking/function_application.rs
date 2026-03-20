@@ -344,14 +344,28 @@ fn specialize_lambda(
         }
 
         let specialized_lang = substitute_type_in_lang(lambda_lang, &substitutions);
+
+        let specialized_context = substitutions
+            .iter()
+            .fold(context.clone(), |ctx, (name, typ)| {
+                let new_ctx = ctx.clone();
+                new_ctx.push_var_type(Var::from_name(name), typ.clone(), &ctx)
+            });
+
+        let specialized_tc = typing(&specialized_context, &specialized_lang);
+        let specialized_body_type = if let Type::Function(_, ret, _) = &specialized_tc.value {
+            *ret.clone()
+        } else {
+            expected_ret.as_ref().clone()
+        };
+
         let new_type = Type::Function(
             expected_params.clone(),
-            expected_ret.clone(),
+            Box::new(specialized_body_type),
             lambda_type.get_help_data().clone(),
         );
 
-        let specialized_tc = typing(context, &specialized_lang);
-        return (specialized_tc.lang, specialized_tc.value);
+        return (specialized_tc.lang, new_type);
     }
     (lambda_lang.clone(), lambda_type.clone())
 }
@@ -359,7 +373,7 @@ fn specialize_lambda(
 pub fn apply_from_variable(
     var: Var,
     context: &Context,
-    parameters: &Vec<Lang>,
+    parameters: &[Lang],
     h: &HelpData,
 ) -> TypeContext {
     let (expanded_parameters, types, param_errors) =
@@ -462,7 +476,7 @@ fn specialize_lambdas(
 
 fn get_expanded_parameters_with_their_types(
     context: &Context,
-    values: &Vec<Lang>,
+    values: &[Lang],
 ) -> (Vec<Lang>, Vec<Type>, Vec<TypRError>) {
     let typing_contexts: Vec<_> = values.iter().map(|x| typing(context, x)).collect();
     let errors: Vec<TypRError> = typing_contexts
@@ -488,18 +502,17 @@ fn build_function_lang(
     fun_typ: &FunctionType,
     lang: Lang,
 ) -> Lang {
-    let new_expr = if fun_typ.is_vectorized() {
+    if fun_typ.is_vectorized() {
         Lang::VecFunctionApp(Box::new(lang), new_values.clone(), h.clone())
     } else {
         Lang::FunctionApp(Box::new(lang), new_values.clone(), h.clone())
-    };
-    new_expr
+    }
 }
 
 pub fn apply_from_expression(
     context: &Context,
-    fn_var_name: &Box<Lang>,
-    values: &Vec<Lang>,
+    fn_var_name: &Lang,
+    values: &[Lang],
     h: &HelpData,
 ) -> TypeContext {
     // Collect errors from parameters but return Any type
@@ -513,8 +526,8 @@ pub fn apply_from_expression(
 
 pub fn function_application(
     context: &Context,
-    fn_var_name: &Box<Lang>,
-    values: &Vec<Lang>,
+    fn_var_name: &Lang,
+    values: &[Lang],
     h: &HelpData,
 ) -> TypeContext {
     match Var::try_from(fn_var_name.clone()) {
@@ -993,6 +1006,111 @@ mod tests {
             last_type.is_alias() || last_type == builder::integer_type_default(),
             "Expected alias or int type, got: {:?}",
             last_type
+        );
+    }
+
+    // =====================================================================
+    // Generic type parameter inference
+    // =====================================================================
+
+    /// When calling a generic function with a concrete type argument,
+    /// the return type should be properly resolved (not left as a generic).
+    #[test]
+    fn test_generic_function_return_type_inference() {
+        let fp = FluentParser::new()
+            .push("let apply <- fn(a: T, f: (T) -> U): U { f(a) };")
+            .run()
+            .push("apply(3, \\(n) n)")
+            .parse_type_next();
+        let last_type = fp.get_last_type();
+        assert_eq!(
+            last_type,
+            builder::integer_type_default(),
+            "Expected int, got: {:?}",
+            last_type
+        );
+    }
+
+    /// Multiple levels of generic inference should chain correctly.
+    #[test]
+    fn test_chained_generic_inference() {
+        let res = FluentParser::new()
+            .push("let extract <- fn(c: T): T { c };")
+            .run()
+            .push("extract(42)")
+            .parse_type_next();
+        assert_eq!(res.get_last_type(), builder::integer_type_default());
+    }
+
+    /// Test that Option<T> return type is properly inferred.
+    #[test]
+    fn test_option_generic_return_type() {
+        let fp = FluentParser::new()
+            .push("type Option<T> <- .Some(T) | .None;")
+            .run()
+            .push("let map <- fn(o: T, f: (T) -> U): U { f(o) };")
+            .run()
+            .push("map(3, \\(n) n)")
+            .parse_type_next();
+        assert_eq!(
+            fp.get_last_type(),
+            builder::integer_type_default(),
+            "Expected int, got: {:?}",
+            fp.get_last_type()
+        );
+    }
+
+    /// Test Option type identity function.
+    #[test]
+    fn test_option_type_identity() {
+        let fp = FluentParser::new()
+            .push("type Option<T> <- .Some(T) | .None;")
+            .run()
+            .push("@id: (Option<int>) -> Option<int>;")
+            .run()
+            .push("id(.Some(3))")
+            .parse_type_next();
+        let expected: Type = "Option<int>".parse().unwrap();
+        assert_eq!(
+            fp.get_last_type(),
+            expected,
+            "Expected Option<int>, got: {:?}",
+            fp.get_last_type()
+        );
+    }
+
+    /// Test generic function with concrete return type.
+    #[test]
+    fn test_generic_function_concrete_return() {
+        let fp = FluentParser::new()
+            .push("let first <- fn(a: T, b: U): T { a };")
+            .run()
+            .push("first(3, \"hello\")")
+            .parse_type_next();
+        assert_eq!(
+            fp.get_last_type(),
+            builder::integer_type_default(),
+            "Expected int, got: {:?}",
+            fp.get_last_type()
+        );
+    }
+
+    /// Test generic Option return type.
+    #[test]
+    fn test_generic_option_return() {
+        let fp = FluentParser::new()
+            .push("type Option<T> <- .Some(T) | .None;")
+            .run()
+            .push("let identity <- fn(x: T): T { x };")
+            .run()
+            .push("identity(.Some(3))")
+            .parse_type_next();
+        let expected: Type = "Option<int>".parse().unwrap();
+        assert_eq!(
+            fp.get_last_type(),
+            expected,
+            "Expected Option<int>, got: {:?}",
+            fp.get_last_type()
         );
     }
 }

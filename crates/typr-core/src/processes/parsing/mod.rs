@@ -321,8 +321,8 @@ fn clean_syntax_errors(lang: &Lang) -> Lang {
         ),
         Lang::Return(inner, h) => Lang::Return(Box::new(clean_syntax_errors(inner)), h.clone()),
         Lang::Lambda(params, body, h) => Lang::Lambda(
-            params.into_iter().map(clean_syntax_errors).collect(),
-            Box::new(clean_syntax_errors(&*body)),
+            params.iter().map(clean_syntax_errors).collect(),
+            Box::new(clean_syntax_errors(body)),
             h.clone(),
         ),
         Lang::Not(inner, h) => Lang::Not(Box::new(clean_syntax_errors(inner)), h.clone()),
@@ -414,7 +414,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
         .parse(s);
     match res {
         Ok((s, (_let, (pat_var, None), typ, _eq, Lang::Function(params, ty, body, h))))
-            if params.len() > 0 =>
+            if !params.is_empty() =>
         {
             let newvar = Var::from_language(pat_var[0].clone())
                 .unwrap()
@@ -559,7 +559,7 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
         .parse(s);
     match res {
         Ok((s, (_ty, Type::Alias(name, params, _, h), _eq, ty, _))) => {
-            let h2 = if params.len() > 0 {
+            let h2 = if !params.is_empty() {
                 params[0].clone().into()
             } else {
                 HelpData::default()

@@ -35,10 +35,10 @@ fn simplify_for_dataframe(ty: &Type) -> String {
 pub fn format(ty: &Type) -> String {
     match ty {
         Type::Alias(name, params, _, _) => {
-            if params.len() == 0 {
-                format!("{}", name)
+            if params.is_empty() {
+                name.to_string()
             } else {
-                let paras = params.iter().map(|typ| verbose(typ)).collect::<Vec<_>>();
+                let paras = params.iter().map(verbose).collect::<Vec<_>>();
                 format!("{}<{}>", name, paras.join(", "))
             }
         }
@@ -48,10 +48,10 @@ pub fn format(ty: &Type) -> String {
             } else {
                 verbose(ty)
             };
-            format!("{}[{}, {}]", vtype.to_string(), short(dim), inner)
+            format!("{}[{}, {}]", vtype, short(dim), inner)
         }
         Type::Function(params, ret_ty, _h) => {
-            let formatted_params = params.iter().map(|param| format(param)).collect::<Vec<_>>();
+            let formatted_params = params.iter().map(format).collect::<Vec<_>>();
             format!("fn({}) -> {}", formatted_params.join(", "), format(ret_ty))
         }
         Type::Tag(name, param, _) => {
@@ -81,7 +81,7 @@ pub fn format(ty: &Type) -> String {
         Type::Number(_) => "num".to_string(),
         Type::Boolean(_) => "bool".to_string(),
         Type::Char(tchar, _) => match tchar {
-            Tchar::Val(c) => format!("{}", c),
+            Tchar::Val(c) => c.to_string(),
             _ => "char".to_string(),
         },
         Type::Null(_) => "null".to_string(),
@@ -102,14 +102,7 @@ pub fn format(ty: &Type) -> String {
             "class({})",
             elem.iter().cloned().collect::<Vec<_>>().join(", ")
         ),
-        Type::Intersection(s, _) => format!(
-            "{}",
-            s.iter()
-                .cloned()
-                .map(|x| x.pretty())
-                .collect::<Vec<_>>()
-                .join(" & ")
-        ),
+        Type::Intersection(s, _) => s.iter().map(|x| x.pretty()).collect::<Vec<_>>().join(" & "),
         Type::Interface(args, _) => {
             format!("interface{{ {} }}", pretty(args.clone()))
         }
@@ -125,7 +118,7 @@ pub fn format(ty: &Type) -> String {
             format!("{}${}", left.pretty(), right.pretty())
         }
         Type::Operator(op, left, right, _) => {
-            format!("({} {} {})", left.pretty(), op.to_string(), right.pretty())
+            format!("({} {} {})", left.pretty(), op, right.pretty())
         }
         Type::Variable(name, _) => name.to_string(),
         t => format!("{:?}", t),
@@ -167,7 +160,7 @@ pub fn verbose(t: &Type) -> String {
         }
         Type::IndexGen(idgen, _) => format!("#{}", idgen),
         Type::Vec(vtype, i, t, _) => {
-            format!("{}[{}, {}]", vtype.to_string(), i.pretty(), t.pretty2())
+            format!("{}[{}, {}]", vtype, i.pretty(), t.pretty2())
         }
         val if val.to_category() == TypeCategory::Template => val.pretty(),
         val => val.pretty(), //val => panic!("{:?} doesn't have a second format", val)

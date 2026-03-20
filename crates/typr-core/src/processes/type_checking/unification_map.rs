@@ -18,22 +18,40 @@ impl SafeHashMap {
     }
 
     fn insert(&mut self, key: Type, value: Type) {
+        let resolved_value = Self::resolve_generic(&self.map, &value);
         match self.map.iter().find(|(k, _v)| k == &key) {
-            Some((Type::Generic(_, _), Type::Integer(_, _))) => {
-                self.map.push((key, value.generalize()))
-            }
-            Some((_ke, va)) => {
-                // Instead of panicking, just skip conflicting insertions
-                // The error will be collected at a higher level
-                if !(va.exact_equality(&value)) {
-                    // Silently ignore conflicting types - the error is handled elsewhere
+            Some((Type::Generic(old_key_name, _), existing_val)) => {
+                let final_value = Self::resolve_generic(&self.map, existing_val);
+                if final_value.exact_equality(&resolved_value)
+                    || matches!(&final_value, Type::Generic(_, _))
+                {
+                    self.map.push((key, resolved_value));
                 }
             }
-            None => self.map.push((key, value)),
+            Some((_ke, va)) => if va.exact_equality(&resolved_value) {},
+            None => self.map.push((key, resolved_value)),
         }
     }
 
-    fn to_vec(self) -> Vec<(Type, Type)> {
+    fn resolve_generic(map: &[(Type, Type)], typ: &Type) -> Type {
+        let mut current = typ.clone();
+        let mut seen = HashSet::new();
+        loop {
+            let found = map.iter().find(|(k, _)| k == &current);
+            match found {
+                Some((_, next)) => {
+                    if next == &current || !seen.insert(current.clone()) {
+                        break;
+                    }
+                    current = next.clone();
+                }
+                None => break,
+            }
+        }
+        current
+    }
+
+    fn to_vec(&self) -> Vec<(Type, Type)> {
         self.map.clone()
     }
 }
@@ -72,11 +90,21 @@ impl UnificationMap {
     }
 
     pub fn superficial_substitution(&self, ret_ty: &Type) -> Type {
-        self.mapping
-            .iter()
-            .find(|(typ1, _)| ret_ty == typ1)
-            .map(|(_, typ2)| typ2.clone())
-            .unwrap_or(ret_ty.clone())
+        let mut current = ret_ty.clone();
+        let mut seen = HashSet::new();
+        loop {
+            let found = self.mapping.iter().find(|(typ1, _)| *typ1 == current);
+            match found {
+                Some((_, typ2)) => {
+                    if typ2 == &current || !seen.insert(current.clone()) {
+                        break;
+                    }
+                    current = typ2.clone();
+                }
+                None => break,
+            }
+        }
+        current
     }
 
     pub fn type_substitution(&self, ret_ty: &Type) -> Type {
@@ -85,8 +113,17 @@ impl UnificationMap {
     }
 
     pub fn apply_unification_type(&self, context: &Context, ret_ty: &Type) -> (Type, Context) {
-        let ret_ty = ret_ty.reduce(context);
-        let new_type = self.type_substitution(&ret_ty).index_calculation();
+        // Try substitution first on the original type (preserving alias structure).
+        // For example: Option<U> with {U→int} → Option<int> (alias kept, not expanded).
+        // If substitution changed the type, use that result directly.
+        // If nothing changed (e.g. a bare alias like `Int` with no matching generics),
+        // fall back to reducing so that `Int` becomes `int`.
+        let substituted = self.type_substitution(ret_ty);
+        let new_type = if &substituted != ret_ty {
+            substituted.index_calculation()
+        } else {
+            ret_ty.reduce(context).index_calculation()
+        };
         (new_type, context.clone())
     }
 
@@ -114,7 +151,7 @@ impl std::iter::FromIterator<(Type, Type)> for UnificationMap {
 
 impl From<Vec<Vec<(Type, Type)>>> for UnificationMap {
     fn from(val: Vec<Vec<(Type, Type)>>) -> Self {
-        val.iter().cloned().flatten().collect::<UnificationMap>()
+        val.into_iter().flatten().collect::<UnificationMap>()
     }
 }
 
@@ -122,7 +159,7 @@ impl From<HashSet<(i32, Type)>> for UnificationMap {
     fn from(val: HashSet<(i32, Type)>) -> Self {
         let res = val
             .iter()
-            .map(|(i, typ)| (typ.clone(), builder::array_type2(i.clone(), typ.clone())))
+            .map(|(i, typ)| (typ.clone(), builder::array_type2(*i, typ.clone())))
             .collect::<Vec<_>>();
         UnificationMap {
             mapping: res,
@@ -142,6 +179,7 @@ impl fmt::Display for UnificationMap {
     }
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for UnificationMap {
     fn default() -> Self {
         Self {

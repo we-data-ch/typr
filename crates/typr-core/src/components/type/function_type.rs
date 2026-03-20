@@ -132,7 +132,15 @@ impl FunctionType {
         let new_return_type = um
             .apply_unification_type(context, &fun_typ.get_return_type())
             .0;
-        fun_typ.set_infered_return_type(new_return_type)
+        let new_args: Vec<Type> = fun_typ
+            .get_param_types()
+            .iter()
+            .map(|arg| um.apply_unification_type(context, arg).0)
+            .collect();
+        fun_typ
+            .set_infered_return_type(new_return_type.clone())
+            .set_params(new_args)
+            .set_return_type(new_return_type)
     }
 
     pub fn set_infered_return_type(self, ret_typ: Type) -> Self {
