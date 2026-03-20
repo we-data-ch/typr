@@ -17,6 +17,7 @@ use typr_core::components::context::Context;
 use typr_core::components::language::var::Var;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::type_system::TypeSystem;
+use typr_core::components::r#type::vector_type::VecType;
 use typr_core::components::r#type::Type;
 use typr_core::processes::parsing::parse;
 use typr_core::typing;
@@ -774,7 +775,7 @@ fn get_pipe_completions(context: &Context, expr: &str) -> Vec<CompletionItem> {
 fn get_record_field_completions(context: &Context, expr: &str) -> Vec<CompletionItem> {
     let record_type = infer_expression_type(context, expr);
 
-    match record_type {
+    match &record_type {
         Type::Record(fields, _) => fields
             .iter()
             .map(|arg_type| CompletionItem {
@@ -784,6 +785,21 @@ fn get_record_field_completions(context: &Context, expr: &str) -> Vec<Completion
                 ..Default::default()
             })
             .collect(),
+        Type::Vec(VecType::DataFrame, _, inner_type, _) => {
+            if let Type::Record(fields, _) = inner_type.as_ref() {
+                fields
+                    .iter()
+                    .map(|arg_type| CompletionItem {
+                        label: arg_type.get_argument_str(),
+                        kind: Some(CompletionItemKind::FIELD),
+                        detail: Some(arg_type.get_type().pretty()),
+                        ..Default::default()
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        }
         _ => Vec::new(),
     }
 }
@@ -793,15 +809,30 @@ fn get_dot_completions(context: &Context, expr: &str) -> Vec<CompletionItem> {
 
     let expr_type = infer_expression_type(context, expr);
 
-    if let Type::Record(fields, _) = &expr_type {
-        for arg_type in fields {
-            items.push(CompletionItem {
-                label: arg_type.get_argument_str(),
-                kind: Some(CompletionItemKind::FIELD),
-                detail: Some(arg_type.get_type().pretty()),
-                ..Default::default()
-            });
+    match &expr_type {
+        Type::Record(fields, _) => {
+            for arg_type in fields {
+                items.push(CompletionItem {
+                    label: arg_type.get_argument_str(),
+                    kind: Some(CompletionItemKind::FIELD),
+                    detail: Some(arg_type.get_type().pretty()),
+                    ..Default::default()
+                });
+            }
         }
+        Type::Vec(VecType::DataFrame, _, inner_type, _) => {
+            if let Type::Record(fields, _) = inner_type.as_ref() {
+                for arg_type in fields {
+                    items.push(CompletionItem {
+                        label: arg_type.get_argument_str(),
+                        kind: Some(CompletionItemKind::FIELD),
+                        detail: Some(arg_type.get_type().pretty()),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+        _ => {}
     }
 
     let all_functions: Vec<_> = context

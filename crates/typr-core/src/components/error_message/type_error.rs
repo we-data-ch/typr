@@ -24,6 +24,7 @@ pub enum TypeError {
     WrongIndexing(Type, Type),
     AliasNotFound(Type),
     FunctionNotFound(Var),
+    AliasMissingGenerics(String, Vec<String>, Type),
 }
 
 impl TypeError {
@@ -43,6 +44,7 @@ impl TypeError {
             TypeError::WrongIndexing(t1, _) => Some(t1.get_help_data()),
             TypeError::AliasNotFound(typ) => Some(typ.get_help_data()),
             TypeError::FunctionNotFound(var) => Some(var.get_help_data()),
+            TypeError::AliasMissingGenerics(_, _, typ) => Some(typ.get_help_data()),
         }
     }
 
@@ -106,6 +108,13 @@ impl TypeError {
                     var.get_type().pretty()
                 )
             }
+            TypeError::AliasMissingGenerics(name, generics, _) => {
+                let generics_str = generics.join(", ");
+                format!(
+                    "The alias {} isn't catching every generics. You should write `type {}<{}> <- ...;` instead. If you don't want them as a parameter, you can replace them with `Any`.",
+                    name, name, generics_str
+                )
+            }
         }
     }
 }
@@ -141,6 +150,21 @@ impl ErrorMsg for TypeError {
                     .pos((typ.get_help_data().get_offset(), 0))
                     .text(format!("Alias {} not defined in this scope.", typ.pretty()))
                     .pos_text("Not defined in this scope")
+                    .build()
+            }
+            TypeError::AliasMissingGenerics(name, generics, typ) => {
+                let generics_str = generics.join(", ");
+                let (file_name, text) = typ
+                    .get_file_name_and_text()
+                    .unwrap_or_else(|| ("std.ty".to_string(), "".to_string()));
+                SingleBuilder::new(file_name, text)
+                    .pos((typ.get_help_data().get_offset(), 0))
+                    .text(format!("The alias {} isn't catching every generics.", name))
+                    .pos_text(format!(
+                        "You should write `type {}<{}> <- ...;` instead.",
+                        name, generics_str
+                    ))
+                    .help("If you don't want them as a parameter, you can replace them with `Any`.")
                     .build()
             }
             TypeError::Let(t1, t2) => {

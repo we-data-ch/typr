@@ -505,6 +505,14 @@ impl Type {
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect::<Vec<_>>(),
+            Type::Operator(TypeOperator::Union, t1, t2, _) => t1
+                .extract_generics()
+                .into_iter()
+                .chain(t2.extract_generics())
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>(),
+            Type::Tag(_, inner, _) => inner.extract_generics(),
             _ => vec![],
         }
     }
