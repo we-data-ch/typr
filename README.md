@@ -14,7 +14,7 @@
 </div>
 
 # TypR
-![](configs/images/TypR_logo.png)
+![](src/TypR_logo.png)
 
 ## Website
 
