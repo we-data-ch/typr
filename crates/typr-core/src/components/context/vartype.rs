@@ -114,11 +114,13 @@ impl VarType {
     ) -> VarType {
         match typ {
             Type::Interface(args, _) => {
-                let alias = original_type
-                    .clone()
-                    .to_alias(context)
-                    .map(|a| a.to_type())
-                    .unwrap_or_else(|| Alias::default().set_opacity(true).to_type());
+                let alias = match original_type.clone() {
+                    Type::Alias(name, params, _, h) => {
+                        Alias::new(format!("{}_", name), params, true, h).to_type()
+                    }
+                    Type::Interface(_, _) => Alias::default().set_opacity(true).to_type(),
+                    _ => Alias::default().set_opacity(true).to_type(),
+                };
                 args.iter()
                     .map(|arg_typ| {
                         (

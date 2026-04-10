@@ -303,12 +303,12 @@ impl Var {
     }
 
     pub fn to_let(self) -> Lang {
-        Lang::Let(
-            Box::new(self.clone().to_language()),
-            builder::unknown_function_type(),
-            Box::default(),
-            self.get_help_data(),
-        )
+        Lang::Let {
+            variable: Box::new(self.clone().to_language()),
+            r#type: builder::unknown_function_type(),
+            expression: Box::default(),
+            help_data: self.get_help_data(),
+        }
     }
 
     pub fn contains(&self, s: &str) -> bool {

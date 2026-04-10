@@ -82,3 +82,6 @@ lcov.info
 # Agent guidelines
 AGENTS.md
 CLAUDE.md
+
+# Documentation
+function_type_checking.md

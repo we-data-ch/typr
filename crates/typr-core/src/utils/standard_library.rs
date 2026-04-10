@@ -103,7 +103,7 @@ pub fn validate_vectorization(
     let concrete_vec_types: HashSet<_> = set
         .iter()
         .map(|(_, vectyp, _)| vectyp)
-        .filter(|v| **v != VecType::Unknown)
+        .filter(|v| **v != VecType::Empty)
         .collect();
     if concrete_vec_types.len() <= 1 {
         let mut number_by_type: HashMap<Type, HashSet<i32>> = HashMap::new();

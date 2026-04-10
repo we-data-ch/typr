@@ -606,13 +606,13 @@ fn collect_symbols_from_ast(
             }
         }
 
-        Lang::Scope(statements, _) => {
+        Lang::Scope { body: statements, .. } => {
             for stmt in statements {
                 collect_symbols_from_ast(stmt, content, file_uri, container_name.clone(), symbols);
             }
         }
 
-        Lang::Let(var_lang, typ, body, _) => {
+        Lang::Let { variable: var_lang, r#type: typ, expression: body, help_data: _ } => {
             if let Ok(var) = Var::try_from(var_lang) {
                 let name = var.get_name();
                 let help_data = var.get_help_data();
@@ -664,7 +664,7 @@ fn collect_symbols_from_ast(
             }
         }
 
-        Lang::Module(name, members, _, _, help_data) => {
+        Lang::Module { name, body: members, help_data, .. } => {
             let offset = help_data.get_offset();
             let pos = offset_to_position(offset, content);
             let end_col = pos.character + name.len() as u32;
@@ -706,7 +706,7 @@ fn collect_symbols_from_ast(
             });
         }
 
-        Lang::Function(_, _, body, _) => {
+        Lang::Function { body, .. } => {
             collect_symbols_from_ast(body, content, file_uri, container_name, symbols);
         }
 

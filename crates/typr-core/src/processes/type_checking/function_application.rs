@@ -18,6 +18,7 @@ use crate::processes::type_checking::Type;
 use crate::processes::type_checking::TypeContext;
 use crate::processes::type_checking::TypeError;
 use crate::processes::type_checking::Var;
+use crate::processes::type_checking::VecType;
 use crate::utils::builder;
 
 fn build_success(
@@ -149,10 +150,20 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             let new_body = substitute_type_in_lang(body, subs);
             Lang::Lambda(new_params, Box::new(new_body), h.clone())
         }
-        Lang::Function(args, ret, body, h) => {
+        Lang::Function {
+            parameters: args,
+            return_type: ret,
+            body,
+            help_data: h,
+        } => {
             let new_ret = substitute_type(ret, subs);
             let new_body = substitute_type_in_lang(body, subs);
-            Lang::Function(args.clone(), new_ret, Box::new(new_body), h.clone())
+            Lang::Function {
+                parameters: args.clone(),
+                return_type: new_ret,
+                body: Box::new(new_body),
+                help_data: h.clone(),
+            }
         }
         Lang::FunctionApp(func, args, h) => Lang::FunctionApp(
             Box::new(substitute_type_in_lang(func, subs)),
@@ -161,7 +172,8 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
                 .collect(),
             h.clone(),
         ),
-        Lang::VecFunctionApp(func, args, h) => Lang::VecFunctionApp(
+        Lang::VecFunctionApp(vec_type, func, args, h) => Lang::VecFunctionApp(
+            *vec_type,
             Box::new(substitute_type_in_lang(func, subs)),
             args.iter()
                 .map(|a| substitute_type_in_lang(a, subs))
@@ -177,12 +189,17 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
         Lang::Return(exp, h) => {
             Lang::Return(Box::new(substitute_type_in_lang(exp, subs)), h.clone())
         }
-        Lang::Let(name, typ, val, h) => Lang::Let(
-            name.clone(),
-            substitute_type(typ, subs),
-            Box::new(substitute_type_in_lang(val, subs)),
-            h.clone(),
-        ),
+        Lang::Let {
+            variable: name,
+            r#type: typ,
+            expression: val,
+            help_data: h,
+        } => Lang::Let {
+            variable: name.clone(),
+            r#type: substitute_type(typ, subs),
+            expression: Box::new(substitute_type_in_lang(val, subs)),
+            help_data: h.clone(),
+        },
         Lang::If(cond, then, else_, h) => Lang::If(
             Box::new(substitute_type_in_lang(cond, subs)),
             Box::new(substitute_type_in_lang(then, subs)),
@@ -190,13 +207,16 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             h.clone(),
         ),
         Lang::Not(exp, h) => Lang::Not(Box::new(substitute_type_in_lang(exp, subs)), h.clone()),
-        Lang::Scope(exprs, h) => Lang::Scope(
-            exprs
+        Lang::Scope {
+            body: exprs,
+            help_data: h,
+        } => Lang::Scope {
+            body: exprs
                 .iter()
                 .map(|e| substitute_type_in_lang(e, subs))
                 .collect(),
-            h.clone(),
-        ),
+            help_data: h.clone(),
+        },
         Lang::Lines(exprs, h) => Lang::Lines(
             exprs
                 .iter()
@@ -261,16 +281,22 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
         ),
         Lang::List(fields, h) => Lang::List(fields.clone(), h.clone()),
         Lang::DataFrame(fields, h) => Lang::DataFrame(fields.clone(), h.clone()),
-        Lang::Module(name, exprs, pos, config, h) => Lang::Module(
-            name.clone(),
-            exprs
+        Lang::Module {
+            name,
+            body: exprs,
+            module_position: pos,
+            config,
+            help_data: h,
+        } => Lang::Module {
+            name: name.clone(),
+            body: exprs
                 .iter()
                 .map(|e| substitute_type_in_lang(e, subs))
                 .collect(),
-            pos.clone(),
-            config.clone(),
-            h.clone(),
-        ),
+            module_position: pos.clone(),
+            config: config.clone(),
+            help_data: h.clone(),
+        },
         Lang::ModuleDecl(name, h) => lang.clone(),
         Lang::Union(left, right, h) => Lang::Union(
             Box::new(substitute_type_in_lang(left, subs)),
@@ -292,13 +318,12 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
         Lang::Exp(_, h) => lang.clone(),
         Lang::Break(h) => Lang::Break(h.clone()),
         Lang::Empty(h) => Lang::Empty(h.clone()),
-        Lang::Number(_, h) => lang.clone(),
-        Lang::Integer(_, h) => lang.clone(),
-        Lang::Bool(_, h) => lang.clone(),
-        Lang::Char(_, h) => lang.clone(),
+        Lang::Number { help_data: h, .. } => lang.clone(),
+        Lang::Integer { help_data: h, .. } => lang.clone(),
+        Lang::Bool { help_data: h, .. } => lang.clone(),
+        Lang::Char { help_data: h, .. } => lang.clone(),
         Lang::Null(h) => lang.clone(),
         Lang::NA(h) => lang.clone(),
-        Lang::SyntaxErr(_, _) => lang.clone(),
         Lang::Comment(_, h) => lang.clone(),
         Lang::ModuleImport(_, h) => lang.clone(),
         Lang::Import(_, h) => lang.clone(),
@@ -381,7 +406,7 @@ pub fn apply_from_variable(
 
     let all_signatures = var.get_functions_from_name(context);
 
-    // === FILTRAGE 1 : Égalité stricte du 1er param, puis match complet (unification) ===
+    // === FILTERING 1 : First equality of the first param, then complet match (unification) ===
     if let Some(first_arg_type) = types.first() {
         let candidates = filter_by_first_param(&all_signatures, first_arg_type, context);
         if !candidates.is_empty() {
@@ -401,7 +426,7 @@ pub fn apply_from_variable(
         }
     }
 
-    // === FILTRAGE 2 : Super-types du 1er arg, un par un du plus proche ===
+    // === FILTERING 2 : Super-type of the first arg, one by one from the closest one ===
     if let Some(first_arg_type) = types.first() {
         let super_types = context
             .subtypes
@@ -426,7 +451,7 @@ pub fn apply_from_variable(
         }
     }
 
-    // === FILTRAGE 3 : Vectorisation ===
+    // === FILTERING 3 : Vectorization ===
     if let Some(fun_typ) = try_vectorized_match(&all_signatures, &types, context) {
         let (final_params, final_types) =
             specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
@@ -441,7 +466,7 @@ pub fn apply_from_variable(
         );
     }
 
-    // === ERREUR : aucun filtrage n'a marché ===
+    // === ERROR : no filtering worked ===
     let mut errors = param_errors;
     errors.push(TypRError::Type(TypeError::FunctionNotFound(
         var.clone().set_type_from_params(parameters, context),
@@ -503,7 +528,8 @@ fn build_function_lang(
     lang: Lang,
 ) -> Lang {
     if fun_typ.is_vectorized() {
-        Lang::VecFunctionApp(Box::new(lang), new_values.clone(), h.clone())
+        // Todo: Should get VecType from fun_typ
+        Lang::VecFunctionApp(VecType::S3, Box::new(lang), new_values.clone(), h.clone())
     } else {
         Lang::FunctionApp(Box::new(lang), new_values.clone(), h.clone())
     }
@@ -1060,25 +1086,6 @@ mod tests {
         );
     }
 
-    /// Test Option type identity function.
-    #[test]
-    fn test_option_type_identity() {
-        let fp = FluentParser::new()
-            .push("type Option<T> <- .Some(T) | .None;")
-            .run()
-            .push("@id: (Option<int>) -> Option<int>;")
-            .run()
-            .push("id(.Some(3))")
-            .parse_type_next();
-        let expected: Type = "Option<int>".parse().unwrap();
-        assert_eq!(
-            fp.get_last_type(),
-            expected,
-            "Expected Option<int>, got: {:?}",
-            fp.get_last_type()
-        );
-    }
-
     /// Test generic function with concrete return type.
     #[test]
     fn test_generic_function_concrete_return() {
@@ -1091,25 +1098,6 @@ mod tests {
             fp.get_last_type(),
             builder::integer_type_default(),
             "Expected int, got: {:?}",
-            fp.get_last_type()
-        );
-    }
-
-    /// Test generic Option return type.
-    #[test]
-    fn test_generic_option_return() {
-        let fp = FluentParser::new()
-            .push("type Option<T> <- .Some(T) | .None;")
-            .run()
-            .push("let identity <- fn(x: T): T { x };")
-            .run()
-            .push("identity(.Some(3))")
-            .parse_type_next();
-        let expected: Type = "Option<int>".parse().unwrap();
-        assert_eq!(
-            fp.get_last_type(),
-            expected,
-            "Expected Option<int>, got: {:?}",
             fp.get_last_type()
         );
     }

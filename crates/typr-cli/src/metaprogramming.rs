@@ -25,12 +25,24 @@ fn import_file_module_code(line: &Lang, environment: Environment) -> Lang {
 
 fn import_file_modules_code(adt: Lang, environment: Environment) -> Lang {
     match adt {
-        Lang::Module(name, lines, position, config, h) => {
+        Lang::Module {
+            name,
+            body: lines,
+            module_position: position,
+            config,
+            help_data: h,
+        } => {
             let new_lines = lines
                 .iter()
                 .map(|x| import_file_module_code(x, environment))
                 .collect::<Vec<_>>();
-            Lang::Module(name, new_lines, position, config, h)
+            Lang::Module {
+                name,
+                body: new_lines,
+                module_position: position,
+                config,
+                help_data: h,
+            }
         }
         Lang::Lines(lines, h) => {
             let new_lines = lines

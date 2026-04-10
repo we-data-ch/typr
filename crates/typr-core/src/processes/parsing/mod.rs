@@ -50,309 +50,43 @@ use std::ops::Deref;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
+use std::cell::RefCell;
+
+thread_local! {
+    static PARSE_ERRORS: RefCell<Vec<SyntaxError>> = RefCell::new(Vec::new());
+}
+
+fn push_parse_error(err: SyntaxError) {
+    PARSE_ERRORS.with(|e| e.borrow_mut().push(err));
+}
+
+fn take_parse_errors() -> Vec<SyntaxError> {
+    PARSE_ERRORS.with(|e| e.borrow_mut().drain(..).collect())
+}
+
 /// Result of parsing containing the AST and any syntax errors collected
 #[derive(Debug, Clone)]
 pub struct ParseResult {
-    /// The parsed AST (may contain Lang::SyntaxErr nodes)
     pub ast: Lang,
-    /// All syntax errors collected from the AST
     pub errors: Vec<SyntaxError>,
 }
 
 impl ParseResult {
-    /// Create a new ParseResult from an AST, automatically collecting errors
     pub fn new(ast: Lang) -> Self {
-        let errors = collect_syntax_errors(&ast);
+        let errors = take_parse_errors();
         ParseResult { ast, errors }
     }
 
-    /// Check if parsing produced any errors
     pub fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
 
-    /// Get the AST (regardless of errors)
     pub fn get_ast(&self) -> &Lang {
         &self.ast
     }
 
-    /// Get a clean AST with SyntaxErr nodes replaced by their inner expressions
     pub fn get_clean_ast(&self) -> Lang {
-        clean_syntax_errors(&self.ast)
-    }
-}
-
-/// Recursively collect all SyntaxError from a Lang AST
-fn collect_syntax_errors(lang: &Lang) -> Vec<SyntaxError> {
-    let mut errors = Vec::new();
-    collect_syntax_errors_recursive(lang, &mut errors);
-    errors
-}
-
-fn collect_syntax_errors_recursive(lang: &Lang, errors: &mut Vec<SyntaxError>) {
-    match lang {
-        Lang::SyntaxErr(inner, err) => {
-            errors.push(err.clone());
-            collect_syntax_errors_recursive(inner, errors);
-        }
-        Lang::Lines(v, _)
-        | Lang::Scope(v, _)
-        | Lang::Array(v, _)
-        | Lang::Tuple(v, _)
-        | Lang::Vector(v, _)
-        | Lang::Sequence(v, _)
-        | Lang::Test(v, _) => {
-            for item in v {
-                collect_syntax_errors_recursive(item, errors);
-            }
-        }
-        Lang::DataFrame(fields, _) => {
-            for field in fields {
-                let value = field.get_value();
-                collect_syntax_errors_recursive(&value, errors);
-            }
-        }
-        Lang::Module(_, v, _, _, _) => {
-            for item in v {
-                collect_syntax_errors_recursive(item, errors);
-            }
-        }
-        Lang::Function(_, _, body, _) => {
-            collect_syntax_errors_recursive(body, errors);
-        }
-        Lang::Let(var, _, body, _) => {
-            collect_syntax_errors_recursive(var, errors);
-            collect_syntax_errors_recursive(body, errors);
-        }
-        Lang::Alias(var, _, _, _) => {
-            collect_syntax_errors_recursive(var, errors);
-        }
-        Lang::If(cond, then_branch, else_branch, _) => {
-            collect_syntax_errors_recursive(cond, errors);
-            collect_syntax_errors_recursive(then_branch, errors);
-            collect_syntax_errors_recursive(else_branch, errors);
-        }
-        Lang::Match(expr, cases, _) => {
-            collect_syntax_errors_recursive(expr, errors);
-            for (pattern, case_body) in cases {
-                collect_syntax_errors_recursive(pattern, errors);
-                collect_syntax_errors_recursive(case_body, errors);
-            }
-        }
-        Lang::FunctionApp(func, args, _) | Lang::VecFunctionApp(func, args, _) => {
-            collect_syntax_errors_recursive(func, errors);
-            for arg in args {
-                collect_syntax_errors_recursive(arg, errors);
-            }
-        }
-        Lang::MethodCall(obj, args, _, _) => {
-            collect_syntax_errors_recursive(obj, errors);
-            for arg in args {
-                collect_syntax_errors_recursive(arg, errors);
-            }
-        }
-        Lang::Operator(_, left, right, _) => {
-            collect_syntax_errors_recursive(left, errors);
-            collect_syntax_errors_recursive(right, errors);
-        }
-        Lang::Union(left, right, _) => {
-            collect_syntax_errors_recursive(left, errors);
-            collect_syntax_errors_recursive(right, errors);
-        }
-        Lang::Assign(target, value, _) => {
-            collect_syntax_errors_recursive(target, errors);
-            collect_syntax_errors_recursive(value, errors);
-        }
-        Lang::ArrayIndexing(arr, idx, _) => {
-            collect_syntax_errors_recursive(arr, errors);
-            collect_syntax_errors_recursive(idx, errors);
-        }
-        Lang::Tag(_, inner, _) => {
-            collect_syntax_errors_recursive(inner, errors);
-        }
-        Lang::Return(inner, _) | Lang::Not(inner, _) | Lang::TestBlock(inner, _) => {
-            collect_syntax_errors_recursive(inner, errors);
-        }
-        Lang::Lambda(_, body, _) => {
-            collect_syntax_errors_recursive(body, errors);
-        }
-        Lang::ForLoop(_, iter, body, _) => {
-            collect_syntax_errors_recursive(iter, errors);
-            collect_syntax_errors_recursive(body, errors);
-        }
-        Lang::WhileLoop(cond, body, _) => {
-            collect_syntax_errors_recursive(cond, errors);
-            collect_syntax_errors_recursive(body, errors);
-        }
-        Lang::Use(lib, members, _) => {
-            collect_syntax_errors_recursive(lib, errors);
-            collect_syntax_errors_recursive(members, errors);
-        }
-        Lang::KeyValue(_, value, _) => {
-            collect_syntax_errors_recursive(value, errors);
-        }
-        Lang::JSBlock(inner, _, _) => {
-            collect_syntax_errors_recursive(inner, errors);
-        }
-        Lang::List(args, _) => {
-            for arg in args {
-                collect_syntax_errors_recursive(&arg.1, errors);
-            }
-        }
-        Lang::RFunction(args, _, _) => {
-            for arg in args {
-                collect_syntax_errors_recursive(arg, errors);
-            }
-        }
-        // Leaf nodes - no children to check
-        Lang::Number(_, _)
-        | Lang::Integer(_, _)
-        | Lang::Bool(_, _)
-        | Lang::Char(_, _)
-        | Lang::Null(_)
-        | Lang::NA(_)
-        | Lang::Variable(_, _, _, _)
-        | Lang::Comment(_, _)
-        | Lang::ModuleImport(_, _)
-        | Lang::Import(_, _)
-        | Lang::GenFunc(_, _, _)
-        | Lang::VecBlock(_, _)
-        | Lang::Library(_, _)
-        | Lang::Exp(_, _)
-        | Lang::Signature(_, _, _)
-        | Lang::Empty(_)
-        | Lang::Break(_)
-        | Lang::ModuleDecl(_, _)
-        | Lang::TypePattern(_, _, _) => {}
-    }
-}
-
-/// Clean an AST by replacing SyntaxErr nodes with their inner expressions
-fn clean_syntax_errors(lang: &Lang) -> Lang {
-    match lang {
-        Lang::SyntaxErr(inner, _) => clean_syntax_errors(inner),
-        Lang::Lines(v, h) => Lang::Lines(v.iter().map(clean_syntax_errors).collect(), h.clone()),
-        Lang::Scope(v, h) => Lang::Scope(v.iter().map(clean_syntax_errors).collect(), h.clone()),
-        Lang::Array(v, h) => Lang::Array(v.iter().map(clean_syntax_errors).collect(), h.clone()),
-        Lang::Tuple(v, h) => Lang::Tuple(v.iter().map(clean_syntax_errors).collect(), h.clone()),
-        Lang::Vector(v, h) => Lang::Vector(v.iter().map(clean_syntax_errors).collect(), h.clone()),
-        Lang::Sequence(v, h) => {
-            Lang::Sequence(v.iter().map(clean_syntax_errors).collect(), h.clone())
-        }
-        Lang::Test(v, h) => Lang::Test(v.iter().map(clean_syntax_errors).collect(), h.clone()),
-        Lang::Module(name, v, pos, config, h) => Lang::Module(
-            name.clone(),
-            v.iter().map(clean_syntax_errors).collect(),
-            pos.clone(),
-            config.clone(),
-            h.clone(),
-        ),
-        Lang::Function(params, ret_ty, body, h) => Lang::Function(
-            params.clone(),
-            ret_ty.clone(),
-            Box::new(clean_syntax_errors(body)),
-            h.clone(),
-        ),
-        Lang::Let(var, ty, body, h) => Lang::Let(
-            Box::new(clean_syntax_errors(var)),
-            ty.clone(),
-            Box::new(clean_syntax_errors(body)),
-            h.clone(),
-        ),
-        Lang::If(cond, then_b, else_b, h) => Lang::If(
-            Box::new(clean_syntax_errors(cond)),
-            Box::new(clean_syntax_errors(then_b)),
-            Box::new(clean_syntax_errors(else_b)),
-            h.clone(),
-        ),
-        Lang::Match(expr, cases, h) => {
-            let clean_cases = cases
-                .iter()
-                .map(|(pattern, body)| {
-                    (
-                        clean_syntax_errors(pattern),
-                        Box::new(clean_syntax_errors(body)),
-                    )
-                })
-                .collect();
-            Lang::Match(Box::new(clean_syntax_errors(expr)), clean_cases, h.clone())
-        }
-        Lang::FunctionApp(func, args, h) => Lang::FunctionApp(
-            Box::new(clean_syntax_errors(func)),
-            args.iter().map(clean_syntax_errors).collect(),
-            h.clone(),
-        ),
-        Lang::VecFunctionApp(func, args, h) => Lang::VecFunctionApp(
-            Box::new(clean_syntax_errors(func)),
-            args.iter().map(clean_syntax_errors).collect(),
-            h.clone(),
-        ),
-        Lang::MethodCall(obj, args, ty, h) => Lang::MethodCall(
-            Box::new(clean_syntax_errors(obj)),
-            args.iter().map(clean_syntax_errors).collect(),
-            ty.clone(),
-            h.clone(),
-        ),
-        Lang::Operator(op, left, right, h) => Lang::Operator(
-            op.clone(),
-            Box::new(clean_syntax_errors(left)),
-            Box::new(clean_syntax_errors(right)),
-            h.clone(),
-        ),
-        Lang::Union(left, right, h) => Lang::Union(
-            Box::new(clean_syntax_errors(left)),
-            Box::new(clean_syntax_errors(right)),
-            h.clone(),
-        ),
-        Lang::Assign(target, value, h) => Lang::Assign(
-            Box::new(clean_syntax_errors(target)),
-            Box::new(clean_syntax_errors(value)),
-            h.clone(),
-        ),
-        Lang::ArrayIndexing(arr, idx, h) => Lang::ArrayIndexing(
-            Box::new(clean_syntax_errors(arr)),
-            Box::new(clean_syntax_errors(idx)),
-            h.clone(),
-        ),
-        Lang::Tag(name, inner, h) => Lang::Tag(
-            name.clone(),
-            Box::new(clean_syntax_errors(inner)),
-            h.clone(),
-        ),
-        Lang::Return(inner, h) => Lang::Return(Box::new(clean_syntax_errors(inner)), h.clone()),
-        Lang::Lambda(params, body, h) => Lang::Lambda(
-            params.iter().map(clean_syntax_errors).collect(),
-            Box::new(clean_syntax_errors(body)),
-            h.clone(),
-        ),
-        Lang::Not(inner, h) => Lang::Not(Box::new(clean_syntax_errors(inner)), h.clone()),
-        Lang::TestBlock(inner, h) => {
-            Lang::TestBlock(Box::new(clean_syntax_errors(inner)), h.clone())
-        }
-        Lang::ForLoop(var, iter, body, h) => Lang::ForLoop(
-            var.clone(),
-            Box::new(clean_syntax_errors(iter)),
-            Box::new(clean_syntax_errors(body)),
-            h.clone(),
-        ),
-        Lang::WhileLoop(cond, body, h) => Lang::WhileLoop(
-            Box::new(clean_syntax_errors(cond)),
-            Box::new(clean_syntax_errors(body)),
-            h.clone(),
-        ),
-        Lang::Use(lib, members, h) => Lang::Use(
-            Box::new(clean_syntax_errors(lib)),
-            Box::new(clean_syntax_errors(members)),
-            h.clone(),
-        ),
-        Lang::KeyValue(key, value, h) => {
-            Lang::KeyValue(key.clone(), Box::new(clean_syntax_errors(value)), h.clone())
-        }
-        Lang::JSBlock(inner, n, h) => {
-            Lang::JSBlock(Box::new(clean_syntax_errors(inner)), *n, h.clone())
-        }
-        // Nodes that don't need deep cleaning or are leaf nodes
-        other => other.clone(),
+        self.ast.clone()
     }
 }
 
@@ -386,14 +120,8 @@ fn single_parse(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (exp, Some(_)))) => Ok((s, exp)),
         Ok((s, (exp, None))) => {
-            // Return a SyntaxError wrapped in the Lang to be collected later
-            Ok((
-                s,
-                Lang::SyntaxErr(
-                    Box::new(exp.clone()),
-                    SyntaxError::ForgottenSemicolon(exp.into()),
-                ),
-            ))
+            push_parse_error(SyntaxError::ForgottenSemicolon(exp.clone().into()));
+            Ok((s, exp))
         }
         Err(r) => Err(r),
     }
@@ -413,59 +141,77 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     )
         .parse(s);
     match res {
-        Ok((s, (_let, (pat_var, None), typ, _eq, Lang::Function(params, ty, body, h))))
-            if !params.is_empty() =>
-        {
+        Ok((
+            s,
+            (
+                _let,
+                (pat_var, None),
+                typ,
+                _eq,
+                Lang::Function {
+                    parameters: params,
+                    return_type: ty,
+                    body,
+                    help_data: h,
+                },
+            ),
+        )) if !params.is_empty() => {
             let newvar = Var::from_language(pat_var[0].clone())
                 .unwrap()
                 .set_type(params[0].1.clone());
             Ok((
                 s,
-                vec![Lang::Let(
-                    Box::new(newvar.to_language()),
-                    typ.unwrap_or(Type::Empty(HelpData::default())),
-                    Box::new(Lang::Function(params, ty, body, h)),
-                    _let.into(),
-                )],
+                vec![Lang::Let {
+                    variable: Box::new(newvar.to_language()),
+                    r#type: typ.unwrap_or(Type::Empty(HelpData::default())),
+                    expression: Box::new(Lang::Function {
+                        parameters: params,
+                        return_type: ty,
+                        body,
+                        help_data: h,
+                    }),
+                    help_data: _let.into(),
+                }],
             ))
         }
         Ok((s, (_let, (pat_var, None), typ, _eq, body))) => Ok((
             s,
-            vec![Lang::Let(
-                Box::new(pat_var[0].clone()),
-                typ.clone().unwrap_or(Type::Empty(HelpData::default())),
-                Box::new(body),
-                _let.into(),
-            )],
+            vec![Lang::Let {
+                variable: Box::new(pat_var[0].clone()),
+                r#type: typ.clone().unwrap_or(Type::Empty(HelpData::default())),
+                expression: Box::new(body),
+                help_data: _let.into(),
+            }],
         )),
         Ok((s, (_let, (pat_var, Some(_)), typ, eq, body))) => {
             if pat_var.len() == 1 {
                 Ok((
                     s,
-                    vec![Lang::Let(
-                        Box::new(pat_var[0].clone()),
-                        typ.clone().unwrap_or(Type::Empty(HelpData::default())),
-                        Box::new(Lang::Operator(
+                    vec![Lang::Let {
+                        variable: Box::new(pat_var[0].clone()),
+                        r#type: typ.clone().unwrap_or(Type::Empty(HelpData::default())),
+                        expression: Box::new(Lang::Operator(
                             Op::Dollar(HelpData::default()),
-                            Box::new(Lang::Number(0.0, eq.into())),
+                            Box::new(Lang::Number {
+                                value: 0.0,
+                                help_data: eq.into(),
+                            }),
                             Box::new(body),
                             pat_var.into(),
                         )),
-                        _let.into(),
-                    )],
+                        help_data: _let.into(),
+                    }],
                 ))
             } else {
                 Ok((
                     s,
                     pat_var
                         .iter()
-                        .map(|x| {
-                            Lang::Let(
-                                Box::new(x.clone()),
-                                typ.clone().unwrap_or(Type::Empty(HelpData::default())),
-                                Box::new(body.clone()),
-                                HelpData::default(),
-                            )
+                        .map(|x| Lang::Let {
+                            variable: Box::new(x.clone()),
+                            r#type: typ.clone().unwrap_or(Type::Empty(HelpData::default())),
+                            expression: Box::new(body.clone()),
+                            help_data: HelpData::default(),
                         })
                         .collect::<Vec<_>>(),
                 ))
@@ -490,12 +236,12 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             let tmp_var = Var::from_name(tmp_name).to_language();
 
             // First: let __tuple_tmp__ <- body;
-            let tmp_let = Lang::Let(
-                Box::new(tmp_var.clone()),
-                typ.unwrap_or(Type::Empty(HelpData::default())),
-                Box::new(body),
-                _let.into(),
-            );
+            let tmp_let = Lang::Let {
+                variable: Box::new(tmp_var.clone()),
+                r#type: typ.unwrap_or(Type::Empty(HelpData::default())),
+                expression: Box::new(body),
+                help_data: _let.into(),
+            };
 
             // Then: let a <- 1.__tuple_tmp__; let b <- 2.__tuple_tmp__; ...
             let mut result = vec![tmp_let];
@@ -505,17 +251,20 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         continue; // skip wildcard
                     }
                 }
-                result.push(Lang::Let(
-                    Box::new(elem.clone()),
-                    Type::Empty(HelpData::default()),
-                    Box::new(Lang::Operator(
+                result.push(Lang::Let {
+                    variable: Box::new(elem.clone()),
+                    r#type: Type::Empty(HelpData::default()),
+                    expression: Box::new(Lang::Operator(
                         Op::Dot(HelpData::default()),
-                        Box::new(Lang::Integer((i + 1) as i32, HelpData::default())),
+                        Box::new(Lang::Integer {
+                            value: (i + 1) as i32,
+                            help_data: HelpData::default(),
+                        }),
                         Box::new(tmp_var.clone()),
                         HelpData::default(),
                     )),
-                    HelpData::default(),
-                ));
+                    help_data: HelpData::default(),
+                });
             }
 
             Ok((s, result))
@@ -533,11 +282,21 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             let new_le = le
                 .iter()
                 .map(|x| match x {
-                    Lang::Let(var, typ, body, h) => {
+                    Lang::Let {
+                        variable: var,
+                        r#type: typ,
+                        expression: body,
+                        help_data: h,
+                    } => {
                         let vari = Var::from_language(var.deref().clone())
                             .unwrap()
                             .to_language();
-                        Lang::Let(Box::new(vari), typ.clone(), body.clone(), h.clone())
+                        Lang::Let {
+                            variable: Box::new(vari),
+                            r#type: typ.clone(),
+                            expression: body.clone(),
+                            help_data: h.clone(),
+                        }
                     }
                     lan => lan.clone(),
                 })
@@ -646,13 +405,13 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (modu, (name, _), _op, v, _cl, _dv))) => Ok((
             s,
-            vec![Lang::Module(
+            vec![Lang::Module {
                 name,
-                v,
-                ModulePosition::Internal,
-                Config::default(),
-                modu.into(),
-            )],
+                body: v,
+                module_position: ModulePosition::Internal,
+                config: Config::default(),
+                help_data: modu.into(),
+            }],
         )),
         Err(r) => Err(r),
     }
@@ -666,11 +425,11 @@ fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
             terminated(tag("<-"), multispace0),
         )),
         parse_elements,
-        terminated(tag(";"), multispace0),
+        opt(terminated(tag(";"), multispace0)),
     )
         .parse(s);
     match res {
-        Ok((s, ((var, _), _eq, exp, _pv))) => Ok((
+        Ok((s, ((var, _), _eq, exp, Some(_)))) => Ok((
             s,
             vec![Lang::Assign(
                 Box::new(var.clone()),
@@ -678,6 +437,11 @@ fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
                 var.into(),
             )],
         )),
+        Ok((s, ((var, _), _eq, exp, None))) => {
+            push_parse_error(SyntaxError::ForgottenSemicolon(exp.clone().into()));
+            let assign = Lang::Assign(Box::new(var.clone()), Box::new(exp), var.into());
+            Ok((s, vec![assign]))
+        }
         Err(r) => Err(r),
     }
 }
@@ -693,9 +457,13 @@ fn comment(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 pub fn simple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (parse_elements, terminated(tag(";"), multispace0)).parse(s);
+    let res = (parse_elements, opt(terminated(tag(";"), multispace0))).parse(s);
     match res {
-        Ok((s, (lang, _sc))) => Ok((s, vec![lang])),
+        Ok((s, (lang, Some(_)))) => Ok((s, vec![lang])),
+        Ok((s, (lang, None))) => {
+            push_parse_error(SyntaxError::ForgottenSemicolon(lang.clone().into()));
+            Ok((s, vec![lang]))
+        }
         Err(r) => Err(r),
     }
 }
@@ -799,6 +567,19 @@ fn custom_operators(s: Span) -> IResult<Span, (String, HelpData)> {
     let res = custom_op.parse(s);
     match res {
         Ok((s, co)) => Ok((s, (co.clone().to_string(), co.into()))),
+        Err(r) => Err(r),
+    }
+}
+
+fn return_stmt(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (s, e) = return_exp(s)?;
+    Ok((s, vec![e]))
+}
+
+fn stmt_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (parse_elements, terminated(tag(";"), multispace0)).parse(s);
+    match res {
+        Ok((s, (lang, _))) => Ok((s, vec![lang])),
         Err(r) => Err(r),
     }
 }
@@ -907,6 +688,7 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
 
 // main
 pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
+    let initial = s.clone();
     let res = (
         opt(multispace0),
         many0(alt((
@@ -928,18 +710,25 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
             let_exp,
             module,
             assign,
-            simple_exp,
+            return_stmt,
+            stmt_exp,
         ))),
-        opt(alt((return_exp, parse_elements))),
+        opt(parse_elements),
     )
         .parse(s);
     match res {
-        Ok((s, (_, v, Some(exp)))) => {
-            let mut new_v = v.iter().flatten().cloned().collect::<Vec<_>>();
-            new_v.push(exp);
-            Ok((s, new_v))
+        // Case 1: nothing → Empty
+        Ok((s, (_, v, None))) if v.is_empty() => Ok((s, vec![Lang::Empty(initial.into())])),
+        // Case 2: no statements, one trailing expression (no ";") → return it directly
+        Ok((s, (_, v, Some(expr)))) if v.is_empty() => Ok((s, vec![expr])),
+        // Case 3: one or more statements + optional trailing expression
+        Ok((s, (_, v, trailing))) => {
+            let mut result: Vec<Lang> = v.into_iter().flatten().collect();
+            if let Some(expr) = trailing {
+                result.push(expr);
+            }
+            Ok((s, result))
         }
-        Ok((s, (_, v, None))) => Ok((s, v.iter().flatten().cloned().collect())),
         Err(r) => Err(r),
     }
 }
@@ -1024,6 +813,29 @@ mod tesus {
     }
 
     #[test]
+    fn test_semicolon_standalone_exp() {
+        let res = parse("f(x)".into());
+        // Case 2: a single expression without ";" is valid — no error
+        assert!(
+            !res.has_errors(),
+            "A standalone expression without semicolon is valid (case 2)"
+        );
+    }
+
+    #[test]
+    fn test_semicolon_assign() {
+        let res = parse("a <- 12".into());
+        assert!(
+            res.has_errors(),
+            "An assign expression without semicolon should produce a syntax error"
+        );
+        match &res.errors[0] {
+            SyntaxError::ForgottenSemicolon(_) => (),
+            _ => panic!("Expected ForgottenSemicolon error"),
+        }
+    }
+
+    #[test]
     fn test_assign1() {
         let res = assign("a <- 12;".into()).unwrap().1;
         assert_eq!(
@@ -1059,7 +871,7 @@ mod tesus {
     fn test_let_tuple_tmp_variable() {
         let res = let_tuple_exp("let :{a, b} <- :{1, 2};".into()).unwrap().1;
         // First Let should bind __tuple_tmp__
-        if let Lang::Let(var, _, _, _) = &res[0] {
+        if let Lang::Let { variable: var, .. } = &res[0] {
             if let Lang::Variable(name, _, _, _) = var.as_ref() {
                 assert_eq!(name, "__tuple_tmp__");
             } else {
@@ -1074,7 +886,12 @@ mod tesus {
     fn test_let_tuple_bindings() {
         let res = let_tuple_exp("let :{x, y} <- :{10, 20};".into()).unwrap().1;
         // Second Let should bind 'x' using Dot access
-        if let Lang::Let(var, _, body, _) = &res[1] {
+        if let Lang::Let {
+            variable: var,
+            expression: body,
+            ..
+        } = &res[1]
+        {
             if let Lang::Variable(name, _, _, _) = var.as_ref() {
                 assert_eq!(name, "x");
             } else {
@@ -1089,7 +906,7 @@ mod tesus {
             panic!("Expected Let");
         }
         // Third Let should bind 'y'
-        if let Lang::Let(var, _, _, _) = &res[2] {
+        if let Lang::Let { variable: var, .. } = &res[2] {
             if let Lang::Variable(name, _, _, _) = var.as_ref() {
                 assert_eq!(name, "y");
             } else {
@@ -1112,7 +929,7 @@ mod tesus {
             "Should produce 3 Let statements (wildcard skipped)"
         );
         // Second Let should bind 'a'
-        if let Lang::Let(var, _, _, _) = &res[1] {
+        if let Lang::Let { variable: var, .. } = &res[1] {
             if let Lang::Variable(name, _, _, _) = var.as_ref() {
                 assert_eq!(name, "a");
             } else {
@@ -1122,7 +939,7 @@ mod tesus {
             panic!("Expected Let");
         }
         // Third Let should bind 'c'
-        if let Lang::Let(var, _, _, _) = &res[2] {
+        if let Lang::Let { variable: var, .. } = &res[2] {
             if let Lang::Variable(name, _, _, _) = var.as_ref() {
                 assert_eq!(name, "c");
             } else {

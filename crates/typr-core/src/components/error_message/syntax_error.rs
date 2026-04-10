@@ -1,6 +1,7 @@
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::help_message::SingleBuilder;
+use crate::components::language::Lang;
 use crate::components::r#type::Type;
 use miette::Result;
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,7 @@ pub enum SyntaxError {
     FunctionWithoutReturnType(HelpData),
     ForgottenSemicolon(HelpData),
     MissingListPrefix(HelpData),
+    WithNode(Box<Lang>, Box<SyntaxError>),
 }
 
 impl SyntaxError {
@@ -21,6 +23,7 @@ impl SyntaxError {
             SyntaxError::FunctionWithoutReturnType(h) => Some(h.clone()),
             SyntaxError::ForgottenSemicolon(h) => Some(h.clone()),
             SyntaxError::MissingListPrefix(h) => Some(h.clone()),
+            SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
     }
 
@@ -39,6 +42,7 @@ impl SyntaxError {
             SyntaxError::MissingListPrefix(_) => {
                 "Missing list prefix ('list' or ':') before the braces".to_string()
             }
+            SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
     }
 }
@@ -55,6 +59,9 @@ impl ErrorMsg for SyntaxError {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
                     .pos((help_data.get_offset(), 0))
+                    .text("Function parameter is missing a type annotation")
+                    .pos_text("Here")
+                    .help("Add a type after the parameter name, e.g. 'fn(x: Integer): ...'")
                     .build()
             }
             SyntaxError::FunctionWithoutReturnType(help_data) => {
@@ -84,10 +91,8 @@ impl ErrorMsg for SyntaxError {
                     .help("Add 'list' or ':' before the braces, e.g. 'list {1, 2, 3}' or ': {1, 2, 3}'")
                     .build()
             }
+            SyntaxError::WithNode(_, inner) => return inner.display(),
         };
-        match msg {
-            Err(val) => format!("Syntax error:\n{:?}", val),
-            _ => todo!(),
-        }
+        format!("{:?}", msg)
     }
 }

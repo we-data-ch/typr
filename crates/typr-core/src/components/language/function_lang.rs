@@ -54,9 +54,12 @@ impl TryFrom<Lang> for Function {
 
     fn try_from(value: Lang) -> Result<Self, Self::Error> {
         match value {
-            Lang::Function(arg_types, return_type, body, help_data) => {
-                Ok(Function::new(arg_types, return_type, body, help_data))
-            }
+            Lang::Function {
+                parameters: arg_types,
+                return_type,
+                body,
+                help_data,
+            } => Ok(Function::new(arg_types, return_type, body, help_data)),
             _ => Err(()),
         }
     }

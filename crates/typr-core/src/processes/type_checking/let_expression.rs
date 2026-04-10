@@ -22,12 +22,12 @@ pub fn let_expression(
         .get_covariant_type(ty)
         .add_to_context(Var::try_from(name).unwrap());
 
-    let new_expr = Lang::Let(
-        name.clone(),
-        ty.clone(),
-        Box::new(res.get_expr()),
-        h.clone(),
-    );
+    let new_expr = Lang::Let {
+        variable: name.clone(),
+        r#type: ty.clone(),
+        expression: Box::new(res.get_expr()),
+        help_data: h.clone(),
+    };
 
     res.with_lang(&new_expr)
 }

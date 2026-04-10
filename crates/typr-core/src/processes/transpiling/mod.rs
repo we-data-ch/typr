@@ -281,7 +281,7 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
 impl RTranslatable<(String, Context)> for Lang {
     fn to_r(&self, cont: &Context) -> (String, Context) {
         let result = match self {
-            Lang::Bool(b, _) => {
+            Lang::Bool { value: b, .. } => {
                 let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
                 (
@@ -289,17 +289,17 @@ impl RTranslatable<(String, Context)> for Lang {
                     cont.clone(),
                 )
             }
-            Lang::Number(n, _) => {
+            Lang::Number { value: n, .. } => {
                 let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("{} |> {}", n, anotation), cont.clone())
             }
-            Lang::Integer(i, _) => {
+            Lang::Integer { value: i, .. } => {
                 let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("{}L |> {}", i, anotation), cont.clone())
             }
-            Lang::Char(s, _) => {
+            Lang::Char { value: s, .. } => {
                 let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("'{}' |> {}", s, anotation), cont.clone())
@@ -309,7 +309,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let e2 = (**e2).clone();
                 match e2.clone() {
                     Lang::Variable(_, _, _, _) => match e1 {
-                        Lang::Integer(_, _) => Translatable::from(cont.clone())
+                        Lang::Integer { .. } => Translatable::from(cont.clone())
                             .to_r(&e2)
                             .add("[[")
                             .to_r(&e1)
@@ -385,12 +385,16 @@ impl RTranslatable<(String, Context)> for Lang {
                     .to_r(e2)
                     .into()
             }
-            Lang::Scope(exps, _) => Translatable::from(cont.clone())
+            Lang::Scope { body: exps, .. } => Translatable::from(cont.clone())
                 .add("{\n")
                 .join(exps, "\n")
                 .add("\n}")
                 .into(),
-            Lang::Function(params, _, body, _) => {
+            Lang::Function {
+                parameters: params,
+                body,
+                ..
+            } => {
                 let fn_type = FunctionType::try_from(typing(cont, self).value.clone()).unwrap();
                 let output_conversion = cont.get_type_anotation(&fn_type.get_return_type());
 
@@ -469,7 +473,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     })
                     .unwrap_or((format!("{}({})", exp_str, args), current_cont))
             }
-            Lang::VecFunctionApp(exp, vals, _) => {
+            Lang::VecFunctionApp(_, exp, vals, _) => {
                 let var = Var::try_from(exp.clone()).unwrap();
                 let name = var.get_name();
                 let str_vals = vals
@@ -537,7 +541,12 @@ impl RTranslatable<(String, Context)> for Lang {
                 format!("function(x, ...) UseMethod('{}')", func),
                 cont.clone(),
             ),
-            Lang::Let(expr, ttype, body, _) => {
+            Lang::Let {
+                variable: expr,
+                r#type: ttype,
+                expression: body,
+                help_data: _,
+            } => {
                 let (body_str, new_cont) = body.to_r(cont);
                 let new_name = format_backtick(expr.clone().to_r(cont).0);
 
@@ -567,8 +576,8 @@ impl RTranslatable<(String, Context)> for Lang {
                     })
                     .unwrap_or((format!("{} <- {}", new_name, body_str), new_name));
                 let code = if !ttype.is_empty() {
-                    let _ = new_cont.get_type_anotation(ttype);
-                    format!("{}\n", r_code)
+                    let type_annotation = new_cont.get_type_anotation(ttype);
+                    format!("{} |> {}\n", r_code, type_annotation)
                 } else {
                     r_code + "\n"
                 };
@@ -769,7 +778,13 @@ impl RTranslatable<(String, Context)> for Lang {
             ),
             Lang::Break(_) => ("break".to_string(), cont.clone()),
             Lang::NA(_) => ("NA".to_string(), cont.clone()),
-            Lang::Module(name, body, position, config, _) => {
+            Lang::Module {
+                name,
+                body,
+                module_position: position,
+                config,
+                ..
+            } => {
                 let name = if (name == "main") && (config.environment == Environment::Project) {
                     "a_main"
                 } else {

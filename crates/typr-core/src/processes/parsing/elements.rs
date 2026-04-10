@@ -59,7 +59,13 @@ fn number_helper(s: Span) -> IResult<Span, Lang> {
         Ok((s, (sign, d1, _dot, d2))) => {
             let sign2 = sign.unwrap_or(LocatedSpan::new_extra("", d1.clone().extra));
             let n = format!("{}{}.{}", sign2, d1, d2).parse::<f32>().unwrap();
-            Ok((s, Lang::Number(n, sign2.into())))
+            Ok((
+                s,
+                Lang::Number {
+                    value: n,
+                    help_data: sign2.into(),
+                },
+            ))
         }
         Err(r) => Err(r),
     }
@@ -79,7 +85,13 @@ fn integer(s: Span) -> IResult<Span, Lang> {
             }
             .to_string()
                 + d.as_ref();
-            Ok((s, Lang::Integer(symbol.parse::<i32>().unwrap(), d.into())))
+            Ok((
+                s,
+                Lang::Integer {
+                    value: symbol.parse::<i32>().unwrap(),
+                    help_data: d.into(),
+                },
+            ))
         }
         Err(r) => Err(r),
     }
@@ -87,8 +99,14 @@ fn integer(s: Span) -> IResult<Span, Lang> {
 
 fn get_value(l: LocatedSpan<&str, String>) -> Lang {
     match l.clone().into_fragment() {
-        "true" | "TRUE" => Lang::Bool(true, l.into()),
-        "false" | "FALSE" => Lang::Bool(false, l.into()),
+        "true" | "TRUE" => Lang::Bool {
+            value: true,
+            help_data: l.into(),
+        },
+        "false" | "FALSE" => Lang::Bool {
+            value: false,
+            help_data: l.into(),
+        },
         _ => panic!("No other boolean notation alolwed"),
     }
 }
@@ -148,7 +166,13 @@ pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
             let location = st
                 .map(|span| span.into())
                 .unwrap_or_else(|| s.clone().into());
-            Ok((s, Lang::Char(content, location)))
+            Ok((
+                s,
+                Lang::Char {
+                    value: content,
+                    help_data: location,
+                },
+            ))
         }
         Err(r) => Err(r),
     }
@@ -167,7 +191,13 @@ pub fn single_quotes(input: Span) -> IResult<Span, Lang> {
             let location = st
                 .map(|span| span.into())
                 .unwrap_or_else(|| s.clone().into());
-            Ok((s, Lang::Char(content, location)))
+            Ok((
+                s,
+                Lang::Char {
+                    value: content,
+                    help_data: location,
+                },
+            ))
         }
         Err(r) => Err(r),
     }
@@ -347,7 +377,12 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (_, _, args, _, Some(_), Some(typ), exp))) => Ok((
             s,
-            Lang::Function(args, typ, Box::new(exp), HelpData::default()),
+            Lang::Function {
+                parameters: args,
+                return_type: typ,
+                body: Box::new(exp),
+                help_data: HelpData::default(),
+            },
         )),
         Ok((_s, (_, _, _args, _cp, None, None, _exp))) => {
             panic!("You forgot to specify the function return type: 'fn(...): Type'");
@@ -731,7 +766,10 @@ fn create_range(params: &[Lang]) -> Lang {
             vec![
                 params[0].clone(),
                 params[1].clone(),
-                Lang::Integer(1, HelpData::default()),
+                Lang::Integer {
+                    value: 1,
+                    help_data: HelpData::default(),
+                },
             ],
             params.to_vec().into(),
         )
@@ -944,7 +982,13 @@ pub fn scope(s: Span) -> IResult<Span, Lang> {
     )
     .parse(s);
     match res {
-        Ok((s, Some(v))) => Ok((s, Lang::Scope(v.clone(), v.into()))),
+        Ok((s, Some(v))) => Ok((
+            s,
+            Lang::Scope {
+                body: v.clone(),
+                help_data: v.into(),
+            },
+        )),
         Ok((_s, None)) => panic!("Error: the scope shouldn't be empty"),
         Err(r) => Err(r),
     }

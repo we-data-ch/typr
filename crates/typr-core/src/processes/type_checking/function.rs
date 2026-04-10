@@ -7,6 +7,15 @@ use crate::Context;
 use crate::Lang;
 use crate::Type;
 
+fn is_opaque_of(body_type: &Type, declared_ret: &Type) -> bool {
+    match (body_type, declared_ret) {
+        (Type::Alias(name1, _, true, _), Type::Alias(name2, _, false, _)) => {
+            name1 == &format!("{}_", name2)
+        }
+        _ => false,
+    }
+}
+
 pub fn function(
     context: &Context,
     expr: &Lang,
@@ -28,7 +37,9 @@ pub fn function(
         });
     let body_type = body.typing(&sub_context);
     let mut errors = body_type.errors.clone();
-    (!body_type.value.reduce_and_subtype(ret_ty, &sub_context).0)
+    let is_compatible = is_opaque_of(&body_type.value, ret_ty)
+        || body_type.value.reduce_and_subtype(ret_ty, &sub_context).0;
+    (!is_compatible)
         .then(|| errors.push(builder::unmatching_return_type(ret_ty, &body_type.value)));
     TypeContext::new(
         Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone()),

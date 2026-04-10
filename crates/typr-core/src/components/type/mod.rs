@@ -215,6 +215,10 @@ impl TypeSystem for Type {
             (typ, Type::Operator(TypeOperator::Intersection, t1, t2, _)) => {
                 typ.is_subtype_raw(t1, context) && typ.is_subtype_raw(t2, context)
             }
+            // Opaque alias is subtype of original alias (e.g., Addable_ -> Addable)
+            (Type::Alias(name1, _, true, _), Type::Alias(name2, _, false, _)) => {
+                name1 == &format!("{}_", name2)
+            }
             // Reduce non-opaque aliases before comparing
             (_, Type::Alias(_, _, false, _)) => {
                 let reduced = other.reduce(context);
@@ -578,11 +582,13 @@ impl Type {
     pub fn to_function_type(&self) -> Option<FunctionType> {
         match self {
             Type::Function(args, ret_ty, h) => Some(FunctionType::new(
+                VecType::Empty,
                 args.clone(),
                 (**ret_ty).clone(),
                 h.clone(),
             )),
             Type::UnknownFunction(h) => Some(FunctionType::new(
+                VecType::Empty,
                 vec![],
                 builder::unknown_function_type(),
                 h.clone(),
@@ -958,7 +964,7 @@ impl Type {
     pub fn get_size_type(&self) -> (i32, VecType, Type) {
         match self {
             Type::Vec(v, i, t, _) => (i.get_index().unwrap() as i32, *v, (**t).clone()),
-            typ => (1, VecType::Unknown, typ.clone()),
+            typ => (1, VecType::Empty, typ.clone()),
         }
     }
 

@@ -21,7 +21,7 @@ pub struct FunctionType {
     return_type: Type,
     infered_return_type: Type,
     help_data: HelpData,
-    vectorized: bool,
+    vec_type: VecType,
 }
 
 fn lift(max_index: (VecType, i32), types: &[Type]) -> Vec<Type> {
@@ -33,12 +33,12 @@ fn lift(max_index: (VecType, i32), types: &[Type]) -> Vec<Type> {
 
 //main
 impl FunctionType {
-    pub fn new(arguments: Vec<Type>, return_type: Type, help_data: HelpData) -> Self {
+    pub fn new(vec_type: VecType, arguments: Vec<Type>, return_type: Type, help_data: HelpData) -> Self {
         Self {
             return_type,
             help_data,
             arguments,
-            vectorized: false,
+            vec_type: vec_type,
             infered_return_type: builder::empty_type(),
         }
     }
@@ -53,15 +53,15 @@ impl FunctionType {
         Self { arguments, ..self }
     }
 
-    pub fn set_vectorized(self) -> Self {
+    pub fn set_vectorized(self, vec_type: VecType) -> Self {
         Self {
-            vectorized: true,
+            vec_type: vec_type,
             ..self
         }
     }
 
     pub fn is_vectorized(&self) -> bool {
-        self.vectorized
+        !self.vec_type.is_empty()
     }
 
     fn lift_and_unification(
@@ -114,7 +114,7 @@ impl FunctionType {
                 .map(|typ| typ.clone().lift(index))
                 .collect(),
             return_type: self.return_type.lift(index),
-            vectorized: true,
+            vec_type: index.0,
             ..self
         }
     }
@@ -206,7 +206,7 @@ impl TryFrom<Type> for FunctionType {
 
     fn try_from(value: Type) -> Result<Self, Self::Error> {
         match value {
-            Type::Function(args, ret, h) => Ok(FunctionType::new(args, *ret, h)),
+            Type::Function(args, ret, h) => Ok(FunctionType::new(VecType::Empty, args, *ret, h)),
             Type::UnknownFunction(h) => Ok(FunctionType::default().set_help_data(h.clone())),
             _ => Err(format!(
                 "{} is a type not convertible to FunctionType",
@@ -219,6 +219,7 @@ impl TryFrom<Type> for FunctionType {
 impl Default for FunctionType {
     fn default() -> FunctionType {
         FunctionType::new(
+            VecType::Empty,
             vec![],
             builder::unknown_function_type(),
             HelpData::default(),

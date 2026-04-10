@@ -41,7 +41,13 @@ impl TryFrom<Lang> for ModuleLang {
 
     fn try_from(value: Lang) -> Result<Self, Self::Error> {
         match value {
-            Lang::Module(name, args, position, config, h) => Ok(ModuleLang {
+            Lang::Module {
+                name,
+                body: args,
+                module_position: position,
+                config,
+                help_data: h,
+            } => Ok(ModuleLang {
                 name,
                 members: args,
                 position,

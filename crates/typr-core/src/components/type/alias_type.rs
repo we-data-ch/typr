@@ -1,6 +1,8 @@
 use crate::components::r#type::HelpData;
 use crate::components::r#type::Type;
-use rand::prelude::*;
+use std::sync::atomic::{AtomicU32, Ordering};
+
+static INTERFACE_COUNTER: AtomicU32 = AtomicU32::new(0);
 
 pub struct Alias {
     name: String,
@@ -33,13 +35,8 @@ impl Alias {
 
 impl Default for Alias {
     fn default() -> Self {
-        let mut rng = rand::rng();
-
-        // Version la plus lisible et la plus utilisée
-        //// Generate and shuffle a sequence:
-        let nums: Vec<i32> = (1..=1000).collect();
-        let nombre = nums.choose(&mut rng).unwrap();
-        let name = format!("Opaque{nombre}");
+        let counter = INTERFACE_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let name = format!("Interface{counter}");
         Alias {
             name,
             params: vec![],

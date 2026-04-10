@@ -9,7 +9,7 @@ pub enum VecType {
     S3,
     Array,
     DataFrame,
-    Unknown,
+    Empty,
 }
 
 impl fmt::Display for VecType {
@@ -19,13 +19,17 @@ impl fmt::Display for VecType {
             VecType::S3 => "",
             VecType::Array => "Array",
             VecType::DataFrame => "DataFrame",
-            VecType::Unknown => "Unknown",
+            VecType::Empty => "Empty",
         };
         write!(f, "{}", res)
     }
 }
 
 impl VecType {
+    pub fn is_empty(&self) -> bool {
+        matches!(self, VecType::Empty)
+    }
+
     pub fn is_vector(&self) -> bool {
         matches!(self, VecType::Vector)
     }
