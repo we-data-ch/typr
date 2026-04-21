@@ -149,7 +149,12 @@ impl Var {
 
     pub fn from_language(l: Lang) -> Option<Var> {
         match l {
-            Lang::Variable(name, muta, typ, h) => Some(Var {
+            Lang::Variable {
+                name,
+                is_opaque: muta,
+                related_type: typ,
+                help_data: h,
+            } => Some(Var {
                 name,
                 is_opaque: muta,
                 related_type: typ,
@@ -189,7 +194,12 @@ impl Var {
     }
 
     pub fn to_language(self) -> Lang {
-        Lang::Variable(self.name, self.is_opaque, self.related_type, self.help_data)
+        Lang::Variable {
+            name: self.name,
+            is_opaque: self.is_opaque,
+            related_type: self.related_type,
+            help_data: self.help_data,
+        }
     }
 
     pub fn set_name(self, s: &str) -> Var {
@@ -205,7 +215,7 @@ impl Var {
         let typ = match typ {
             Type::Function(params, _, h) => {
                 if !params.is_empty() {
-                    params[0].clone()
+                    params[0].get_type()
                 } else {
                     Type::Any(h)
                 }
@@ -294,12 +304,12 @@ impl Var {
     }
 
     pub fn to_alias_lang(self) -> Lang {
-        Lang::Alias(
-            Box::new(self.clone().to_language()),
-            vec![],
-            builder::unknown_function_type(),
-            self.get_help_data(),
-        )
+        Lang::Alias {
+            identifier: Box::new(self.clone().to_language()),
+            parameters: vec![],
+            target_type: builder::unknown_function_type(),
+            help_data: self.get_help_data(),
+        }
     }
 
     pub fn to_let(self) -> Lang {
@@ -378,7 +388,12 @@ impl TryFrom<Lang> for Var {
 
     fn try_from(value: Lang) -> Result<Self, Self::Error> {
         match value {
-            Lang::Variable(name, muta, typ, h) => Ok(Var {
+            Lang::Variable {
+                name,
+                is_opaque: muta,
+                related_type: typ,
+                help_data: h,
+            } => Ok(Var {
                 name,
                 is_opaque: muta,
                 related_type: typ,

@@ -456,7 +456,7 @@ impl Context {
             .map(|typ| match typ.to_owned() {
                 Type::Function(typs, _, _) => {
                     if !typs.is_empty() {
-                        typs[0].clone()
+                        typs[0].get_type()
                     } else {
                         typ
                     }
@@ -467,14 +467,14 @@ impl Context {
         params
             .iter()
             .zip(param_types.clone())
-            .map(|(arg_typ, par_typ)| {
+            .map(|(arg_typ, par_typ): (&ArgumentType, Type)| {
                 (
                     Var::from_name(&arg_typ.get_argument_str())
                         .set_type(reduce_type(self, &par_typ)),
                     reduce_type(self, &arg_typ.get_type()),
                 )
             })
-            .fold(self.clone(), |cont, (var, typ)| {
+            .fold(self.clone(), |cont: Context, (var, typ): (Var, Type)| {
                 cont.clone().push_var_type(var, typ, &cont)
             })
     }

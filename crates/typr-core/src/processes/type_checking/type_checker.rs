@@ -45,10 +45,10 @@ impl TypeChecker {
 
     pub fn typing(self, exp: &Lang) -> Self {
         let res = match exp {
-            Lang::Lines(exps, _) => {
-                let type_checker = exps
-                    .iter()
-                    .fold(self.clone(), |acc, lang| acc.typing_helper(lang));
+            Lang::Lines { value: exps, .. } => {
+                let type_checker = exps.iter().fold(self.clone(), |acc: TypeChecker, lang| {
+                    acc.typing_helper(lang)
+                });
                 eprintln!("Typing:\n{}\n", type_checker.last_type.pretty());
                 type_checker
             }
@@ -66,10 +66,10 @@ impl TypeChecker {
     /// The transpilation can still proceed even if there are type errors.
     pub fn typing_no_panic(self, exp: &Lang) -> Self {
         match exp {
-            Lang::Lines(exps, _) => {
-                let type_checker = exps
-                    .iter()
-                    .fold(self.clone(), |acc, lang| acc.typing_helper(lang));
+            Lang::Lines { value: exps, .. } => {
+                let type_checker = exps.iter().fold(self.clone(), |acc: TypeChecker, lang| {
+                    acc.typing_helper(lang)
+                });
                 type_checker
             }
             _ => self.clone().typing_helper(exp),

@@ -10,7 +10,7 @@ use typr_core::processes::parsing::parse;
 
 fn import_file_module_code(line: &Lang, environment: Environment) -> Lang {
     match line {
-        Lang::ModuleImport(name, _h) => {
+        Lang::ModuleImport { value: name, .. } => {
             let file = get_os_file(&format!("{}.ty", name));
             let parse_result = parse(LocatedSpan::new_extra(
                 &read_file_from_name(name, environment),
@@ -44,12 +44,18 @@ fn import_file_modules_code(adt: Lang, environment: Environment) -> Lang {
                 help_data: h,
             }
         }
-        Lang::Lines(lines, h) => {
+        Lang::Lines {
+            value: lines,
+            help_data: h,
+        } => {
             let new_lines = lines
                 .iter()
                 .map(|x| import_file_module_code(x, environment))
                 .collect::<Vec<_>>();
-            Lang::Lines(new_lines, h)
+            Lang::Lines {
+                value: new_lines,
+                help_data: h,
+            }
         }
         s => s,
     }

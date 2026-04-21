@@ -191,7 +191,12 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             expression: exp,
             help_data: h,
         } => let_expression(context, name, ty, exp, h),
-        Lang::Alias(exp, params, typ, h) => {
+        Lang::Alias {
+            identifier: exp,
+            parameters: params,
+            target_type: typ,
+            help_data: h,
+        } => {
             let var = Var::try_from(exp)
                 .unwrap()
                 .set_type(Type::Params(params.to_vec(), h.clone()));
@@ -238,7 +243,12 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             )
             .with_errors(errors)
         }
-        Lang::Assign(left_expr, right_expr, h) => {
+        Lang::Assign {
+            identifier: left_expr,
+            expression: right_expr,
+            help_data: h,
+            ..
+        } => {
             let left_tc = typing(context, left_expr);
             let right_tc = typing(context, right_expr);
             let mut errors = left_tc.errors.clone();
@@ -268,7 +278,10 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                     .with_errors(errors)
             }
         }
-        Lang::Library(name, _h) => {
+        Lang::Library {
+            value: name,
+            help_data: _h,
+        } => {
             // In WASM mode, library imports are no-op (types must be pre-registered)
             // In native mode, this would install and load the package
             install_package(name);
@@ -282,14 +295,12 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             )
                 .into()
         }
-        Lang::ModuleDecl(_name, _h) => (
-            builder::unknown_function_type(),
-            expr.clone(),
-            context.clone(),
-        )
-            .into(),
-        Lang::Signature(var, typ, _h) => signature_expression(context, expr, var, typ),
-        Lang::TestBlock(body, _) => {
+        Lang::Signature {
+            identifier: var,
+            target_type: typ,
+            ..
+        } => signature_expression(context, expr, var, typ),
+        Lang::TestBlock { value: body, .. } => {
             //Needed to be type checked
             let tc = typing(context, body);
             TypeContext::new(
@@ -305,7 +316,10 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             ..
         } => {
             let module_expr = if members.len() > 1 {
-                Lang::Lines(members.to_vec(), h.clone())
+                Lang::Lines {
+                    value: members.to_vec(),
+                    help_data: h.clone(),
+                }
             } else {
                 members.iter().next().unwrap().clone()
             }; // TODO: Modules can't be empty
@@ -354,13 +368,19 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         | (_, Type::LabelGen(_, _))
         | (_, Type::Interface(_, _)) => Some(vec![(type1.clone(), type2.clone())]),
         (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
-            let res = args1
-                .iter()
-                .zip(args2.iter())
-                .chain([(&(**ret_typ1), &(**ret_typ2))])
-                .flat_map(|(typ1, typ2)| get_gen_type(typ1, typ2))
-                .flatten()
-                .collect::<Vec<_>>();
+            let args1_types: Vec<Type> = args1.iter().map(|arg| arg.get_type()).collect();
+            let args2_types: Vec<Type> = args2.iter().map(|arg| arg.get_type()).collect();
+            let ret1 = (**ret_typ1).clone();
+            let ret2 = (**ret_typ2).clone();
+            let mut res = Vec::new();
+            for (t1, t2) in args1_types.iter().zip(args2_types.iter()) {
+                if let Some(gen) = get_gen_type(t1, t2) {
+                    res.extend(gen);
+                }
+            }
+            if let Some(gen) = get_gen_type(&ret1, &ret2) {
+                res.extend(gen);
+            }
             Some(res)
         }
         (Type::Vec(_, ind1, typ1, _), Type::Vec(_, ind2, typ2, _)) => {
@@ -484,7 +504,18 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             .into(),
         Lang::Null(h) => (Type::Null(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Empty(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()).into(),
-        Lang::Operator(Op::And(_), e1, e2, _) | Lang::Operator(Op::Or(_), e1, e2, _) => {
+        Lang::Operator {
+            operator: Op::And(_),
+            rhs: e1,
+            lhs: e2,
+            ..
+        }
+        | Lang::Operator {
+            operator: Op::Or(_),
+            rhs: e1,
+            lhs: e2,
+            ..
+        } => {
             let tc1 = typing(context, e1);
             let tc2 = typing(context, e2);
             let mut errors = tc1.errors.clone();
@@ -501,11 +532,36 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     .with_errors(errors)
             }
         }
-        Lang::Operator(Op::Eq(_), e1, e2, _)
-        | Lang::Operator(Op::LesserOrEqual(_), e1, e2, _)
-        | Lang::Operator(Op::GreaterOrEqual(_), e1, e2, _)
-        | Lang::Operator(Op::GreaterThan(_), e1, e2, _)
-        | Lang::Operator(Op::LesserThan(_), e1, e2, _) => {
+        Lang::Operator {
+            operator: Op::Eq(_),
+            rhs: e1,
+            lhs: e2,
+            ..
+        }
+        | Lang::Operator {
+            operator: Op::LesserOrEqual(_),
+            rhs: e1,
+            lhs: e2,
+            ..
+        }
+        | Lang::Operator {
+            operator: Op::GreaterOrEqual(_),
+            rhs: e1,
+            lhs: e2,
+            ..
+        }
+        | Lang::Operator {
+            operator: Op::GreaterThan(_),
+            rhs: e1,
+            lhs: e2,
+            ..
+        }
+        | Lang::Operator {
+            operator: Op::LesserThan(_),
+            rhs: e1,
+            lhs: e2,
+            ..
+        } => {
             let tc1 = typing(context, e1);
             let tc2 = typing(context, e2);
             let mut errors = tc1.errors.clone();
@@ -522,24 +578,45 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     .with_errors(errors)
             }
         }
-        Lang::Operator(Op::Dot(_), e1, e2, _) | Lang::Operator(Op::Pipe(_), e1, e2, _) => {
-            if let Lang::FunctionApp(exp, v, h) = (**e2).clone() {
-                let fun_app = Lang::FunctionApp(
-                    exp,
-                    [(**e1).clone()]
+        Lang::Operator {
+            operator: Op::Dot(_),
+            rhs: e1,
+            lhs: e2,
+            ..
+        }
+        | Lang::Operator {
+            operator: Op::Pipe(_),
+            rhs: e1,
+            lhs: e2,
+            ..
+        } => {
+            if let Lang::FunctionApp {
+                identifier: exp,
+                arguments: v,
+                help_data: h,
+            } = (**e2).clone()
+            {
+                let fun_app = Lang::FunctionApp {
+                    identifier: exp,
+                    arguments: [(**e1).clone()]
                         .iter()
                         .chain(v.iter())
                         .cloned()
                         .collect::<Vec<_>>(),
-                    h.clone(),
-                );
+                    help_data: h.clone(),
+                };
                 typing(context, &fun_app)
             } else {
                 let tc2 = typing(context, e2);
                 let mut errors = tc2.errors.clone();
                 let ty2 = tc2.value.clone().reduce(context);
                 match (ty2.clone(), *e1.clone()) {
-                    (Type::Record(fields, _), Lang::Variable(name, _, _, h)) => {
+                    (
+                        Type::Record(fields, _),
+                        Lang::Variable {
+                            name, help_data: h, ..
+                        },
+                    ) => {
                         match fields
                             .iter()
                             .find(|arg_typ2| arg_typ2.get_argument_str() == name)
@@ -598,7 +675,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                 .with_errors(errors)
                         }
                     },
-                    (Type::Record(fields1, h), Lang::List(_, _)) => {
+                    (Type::Record(fields1, h), Lang::List { .. }) => {
                         let tc1 = e1.typing(context);
                         errors.extend(tc1.errors.clone());
                         let fields3: HashSet<_> = match tc1.value {
@@ -617,7 +694,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         )
                         .with_errors(errors)
                     }
-                    (Type::Generic(_, _), Lang::List(_, _)) => {
+                    (Type::Generic(_, _), Lang::List { .. }) => {
                         let tc1 = e1.typing(context);
                         errors.extend(tc1.errors.clone());
                         TypeContext::new(
@@ -637,16 +714,27 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 }
             }
         }
-        Lang::Operator(Op::Dollar(hd), e1, e2, _) => {
+        Lang::Operator {
+            operator: Op::Dollar(hd),
+            rhs: e1,
+            lhs: e2,
+            ..
+        } => {
             let op = match expr {
-                Lang::Operator(op, _, _, _) => op.clone(),
+                Lang::Operator { operator: op, .. } => op.clone(),
                 _ => Op::Dollar(HelpData::default()),
             };
             let tc1 = typing(context, e1);
             let mut errors = tc1.errors.clone();
             let ty1 = tc1.value.clone();
             match (ty1.reduce(context), *e2.clone(), &op) {
-                (Type::Record(fields, _), Lang::Variable(name, _, _, h), _) => {
+                (
+                    Type::Record(fields, _),
+                    Lang::Variable {
+                        name, help_data: h, ..
+                    },
+                    _,
+                ) => {
                     match fields
                         .iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
@@ -662,7 +750,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         }
                     }
                 }
-                (Type::Module(fields, _), Lang::Variable(name, _, _, h), _) => {
+                (
+                    Type::Module(fields, _),
+                    Lang::Variable {
+                        name, help_data: h, ..
+                    },
+                    _,
+                ) => {
                     match fields
                         .iter()
                         .find(|arg_typ2| arg_typ2.get_argument_str() == name)
@@ -673,41 +767,41 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         }
                         None => {
                             errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                                Lang::Variable(name, false, builder::any_type(), h.clone()),
+                                Lang::Variable {
+                                    name,
+                                    is_opaque: false,
+                                    related_type: builder::any_type(),
+                                    help_data: h.clone(),
+                                },
                             )));
                             TypeContext::new(builder::any_type(), expr.clone(), context.clone())
                                 .with_errors(errors)
                         }
                     }
                 }
-                (Type::Module(fields, _), Lang::FunctionApp(exp, _, _), _) => {
-                    match Var::from_language(*exp.clone()) {
-                        Some(var) => {
-                            match fields
-                                .iter()
-                                .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
-                            {
-                                Some(arg_typ) => match FunctionType::try_from(arg_typ.get_type()) {
-                                    Ok(ft) => TypeContext::new(
-                                        ft.get_return_type(),
-                                        expr.clone(),
-                                        context.clone(),
-                                    )
-                                    .with_errors(errors),
-                                    Err(_) => {
-                                        errors.push(TypRError::Type(TypeError::WrongExpression(
-                                            exp.get_help_data(),
-                                        )));
-                                        TypeContext::new(
-                                            builder::any_type(),
-                                            expr.clone(),
-                                            context.clone(),
-                                        )
-                                        .with_errors(errors)
-                                    }
-                                },
-                                None => {
-                                    errors.push(TypRError::Type(TypeError::FunctionNotFound(var)));
+                (
+                    Type::Module(fields, _),
+                    Lang::FunctionApp {
+                        identifier: exp, ..
+                    },
+                    _,
+                ) => match Var::from_language(*exp.clone()) {
+                    Some(var) => {
+                        match fields
+                            .iter()
+                            .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
+                        {
+                            Some(arg_typ) => match FunctionType::try_from(arg_typ.get_type()) {
+                                Ok(ft) => TypeContext::new(
+                                    ft.get_return_type(),
+                                    expr.clone(),
+                                    context.clone(),
+                                )
+                                .with_errors(errors),
+                                Err(_) => {
+                                    errors.push(TypRError::Type(TypeError::WrongExpression(
+                                        exp.get_help_data(),
+                                    )));
                                     TypeContext::new(
                                         builder::any_type(),
                                         expr.clone(),
@@ -715,17 +809,22 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                     )
                                     .with_errors(errors)
                                 }
+                            },
+                            None => {
+                                errors.push(TypRError::Type(TypeError::FunctionNotFound(var)));
+                                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                                    .with_errors(errors)
                             }
                         }
-                        None => {
-                            errors.push(TypRError::Type(TypeError::WrongExpression(
-                                exp.get_help_data(),
-                            )));
-                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
                     }
-                }
+                    None => {
+                        errors.push(TypRError::Type(TypeError::WrongExpression(
+                            exp.get_help_data(),
+                        )));
+                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                            .with_errors(errors)
+                    }
+                },
                 (
                     Type::Record(fields, _),
                     Lang::Char {
@@ -765,7 +864,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                             .with_errors(errors)
                     }
                 },
-                (Type::Record(fields1, h), Lang::List(fields2, _), _) => {
+                (Type::Record(fields1, h), Lang::List { value: fields2, .. }, _) => {
                     let at = fields2[0].clone();
                     let fields3 = fields1
                         .iter()
@@ -778,53 +877,57 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     )
                     .with_errors(errors)
                 }
-                (Type::Record(fields, _), Lang::FunctionApp(exp, params, _), _) => {
-                    match Var::from_language(*exp.clone()) {
-                        Some(var) => {
-                            match fields
-                                .iter()
-                                .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
-                            {
-                                Some(arg_typ) => {
-                                    let typ = arg_typ.get_type();
-                                    let tc = typing(
-                                        &context.clone().push_var_type(var, typ, context),
-                                        e2,
-                                    );
-                                    errors.extend(tc.errors.clone());
-                                    TypeContext::new(tc.value, expr.clone(), context.clone())
-                                        .with_errors(errors)
-                                }
-                                None => {
-                                    errors.push(TypRError::Type(TypeError::FunctionNotFound(
-                                        var.set_type_from_params(&params, context),
-                                    )));
-                                    TypeContext::new(
-                                        builder::any_type(),
-                                        expr.clone(),
-                                        context.clone(),
-                                    )
+                (
+                    Type::Record(fields, _),
+                    Lang::FunctionApp {
+                        identifier: exp,
+                        arguments: params,
+                        ..
+                    },
+                    _,
+                ) => match Var::from_language(*exp.clone()) {
+                    Some(var) => {
+                        match fields
+                            .iter()
+                            .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
+                        {
+                            Some(arg_typ) => {
+                                let typ = arg_typ.get_type();
+                                let tc =
+                                    typing(&context.clone().push_var_type(var, typ, context), e2);
+                                errors.extend(tc.errors.clone());
+                                TypeContext::new(tc.value, expr.clone(), context.clone())
                                     .with_errors(errors)
-                                }
+                            }
+                            None => {
+                                errors.push(TypRError::Type(TypeError::FunctionNotFound(
+                                    var.set_type_from_params(&params, context),
+                                )));
+                                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                                    .with_errors(errors)
                             }
                         }
-                        None => {
-                            errors.push(TypRError::Type(TypeError::WrongExpression(
-                                exp.get_help_data(),
-                            )));
-                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
                     }
-                }
-                (Type::UnknownFunction(h), Lang::FunctionApp(_, _, _), _) => {
+                    None => {
+                        errors.push(TypRError::Type(TypeError::WrongExpression(
+                            exp.get_help_data(),
+                        )));
+                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                            .with_errors(errors)
+                    }
+                },
+                (Type::UnknownFunction(h), Lang::FunctionApp { .. }, _) => {
                     TypeContext::new(Type::UnknownFunction(h), (*expr).clone(), context.clone())
                         .with_errors(errors)
                 }
                 // DataFrame $ access: df$col -> [N, col_type] (VecType::Vector)
                 (
                     Type::Vec(VecType::DataFrame, n, ref body, h),
-                    Lang::Variable(name, _, _, ref vh),
+                    Lang::Variable {
+                        name,
+                        help_data: ref vh,
+                        ..
+                    },
                     _,
                 ) => match body.as_ref() {
                     Type::Record(fields, _) => {
@@ -912,39 +1015,45 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     }
                 },
                 // DataFrame $ update with list: df$:{col: new_type}
-                (Type::Vec(VecType::DataFrame, n, ref body, h), Lang::List(fields2, _), _) => {
-                    match body.as_ref() {
-                        Type::Record(fields1, rh) => {
-                            let at = fields2[0].clone();
-                            let fields3 = fields1
-                                .iter()
-                                .map(replace_fields_type_if_needed(context, at))
-                                .collect::<HashSet<_>>();
-                            TypeContext::new(
-                                Type::Vec(
-                                    VecType::DataFrame,
-                                    n,
-                                    Box::new(Type::Record(fields3, rh.clone())),
-                                    h.clone(),
-                                ),
-                                expr.clone(),
-                                context.clone(),
-                            )
-                            .with_errors(errors)
-                        }
-                        _ => {
-                            errors.push(TypRError::Type(TypeError::WrongExpression(
-                                expr.get_help_data(),
-                            )));
-                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
+                (
+                    Type::Vec(VecType::DataFrame, n, ref body, h),
+                    Lang::List { value: fields2, .. },
+                    _,
+                ) => match body.as_ref() {
+                    Type::Record(fields1, rh) => {
+                        let at = fields2[0].clone();
+                        let fields3 = fields1
+                            .iter()
+                            .map(replace_fields_type_if_needed(context, at))
+                            .collect::<HashSet<_>>();
+                        TypeContext::new(
+                            Type::Vec(
+                                VecType::DataFrame,
+                                n,
+                                Box::new(Type::Record(fields3, rh.clone())),
+                                h.clone(),
+                            ),
+                            expr.clone(),
+                            context.clone(),
+                        )
+                        .with_errors(errors)
                     }
-                }
+                    _ => {
+                        errors.push(TypRError::Type(TypeError::WrongExpression(
+                            expr.get_help_data(),
+                        )));
+                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                            .with_errors(errors)
+                    }
+                },
                 // DataFrame $ function call: df$fn(args)
                 (
                     Type::Vec(VecType::DataFrame, _n, ref body, _h),
-                    Lang::FunctionApp(exp, params, _),
+                    Lang::FunctionApp {
+                        identifier: exp,
+                        arguments: params,
+                        ..
+                    },
                     _,
                 ) => match body.as_ref() {
                     Type::Record(fields, _) => match Var::from_language(*exp.clone()) {
@@ -992,7 +1101,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                             .with_errors(errors)
                     }
                 },
-                (Type::Vec(vtype, n, _, h), Lang::Variable(_, _, _, _), _) => {
+                (Type::Vec(vtype, n, _, h), Lang::Variable { .. }, _) => {
                     match ArrayLang::try_from(e1) {
                         Ok(arr_lang) => match arr_lang.get_first_argument() {
                             Some(first_arg) => {
@@ -1029,18 +1138,26 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         }
                     }
                 }
-                (_, Lang::FunctionApp(exp, args, h2), Op::Dot(_)) => {
+                (
+                    _,
+                    Lang::FunctionApp {
+                        identifier: exp,
+                        arguments: args,
+                        help_data: h2,
+                    },
+                    Op::Dot(_),
+                ) => {
                     let tc = typing(
                         context,
-                        &Lang::FunctionApp(
-                            exp,
-                            [(**e1).clone()]
+                        &Lang::FunctionApp {
+                            identifier: exp,
+                            arguments: [(**e1).clone()]
                                 .iter()
                                 .chain(args.iter())
                                 .cloned()
                                 .collect(),
-                            h2,
-                        ),
+                            help_data: h2,
+                        },
                     );
                     errors.extend(tc.errors);
                     TypeContext::new(tc.value, tc.lang, tc.context).with_errors(errors)
@@ -1054,15 +1171,20 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 }
             }
         }
-        Lang::Operator(op, e1, e2, h) => {
+        Lang::Operator {
+            operator: op,
+            rhs: e1,
+            lhs: e2,
+            help_data: h,
+        } => {
             let var_exp = Var::from_name(&format!("`{}`", op))
                 .set_help_data(e1.get_help_data())
                 .to_language();
-            let fun_app = Lang::FunctionApp(
-                Box::new(var_exp),
-                vec![(**e1).clone(), (**e2).clone()],
-                h.clone(),
-            );
+            let fun_app = Lang::FunctionApp {
+                identifier: Box::new(var_exp),
+                arguments: vec![(**e1).clone(), (**e2).clone()],
+                help_data: h.clone(),
+            };
             typing(context, &fun_app)
         }
         Lang::Function {
@@ -1071,7 +1193,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             body,
             help_data: h,
         } => function(context, expr, params, ret_ty, body, h),
-        Lang::Lines(exprs, _h) => {
+        Lang::Lines {
+            value: exprs,
+            help_data: _h,
+        } => {
             if exprs.len() == 1 {
                 let res = exprs.clone().pop().unwrap();
                 let tc = typing(context, &res);
@@ -1106,10 +1231,16 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     .with_errors(all_errors)
             }
         }
-        Lang::FunctionApp(fn_var_name, values, h) => {
-            function_application(context, fn_var_name, values, h)
-        }
-        Lang::Tag(name, tag_expr, h) => {
+        Lang::FunctionApp {
+            identifier: fn_var_name,
+            arguments: values,
+            help_data: h,
+        } => function_application(context, fn_var_name, values, h),
+        Lang::Tag {
+            name,
+            value: tag_expr,
+            help_data: h,
+        } => {
             let tc = typing(context, tag_expr);
             TypeContext::new(
                 Type::Tag(name.clone(), Box::new(tc.value.clone()), h.clone()),
@@ -1118,7 +1249,12 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             )
             .with_errors(tc.errors)
         }
-        Lang::If(cond, true_branch, false_branch, _h) => {
+        Lang::If {
+            condition: cond,
+            if_block: true_branch,
+            else_block: false_branch,
+            help_data: _h,
+        } => {
             let cond_tc = typing(context, cond);
             let mut errors = cond_tc.errors.clone();
 
@@ -1142,7 +1278,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     .with_errors(errors)
             }
         }
-        Lang::Array(exprs, h) => {
+        Lang::Array {
+            value: exprs,
+            help_data: h,
+        } => {
             let type_contexts: Vec<_> = exprs.iter().map(|expr| typing(context, expr)).collect();
             let mut errors: Vec<TypRError> = type_contexts
                 .iter()
@@ -1193,7 +1332,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .with_errors(errors)
             }
         }
-        Lang::Vector(exprs, h) => {
+        Lang::Vector {
+            value: exprs,
+            help_data: h,
+        } => {
             let type_contexts: Vec<_> = exprs.iter().map(|expr| typing(context, expr)).collect();
             let mut errors: Vec<TypRError> = type_contexts
                 .iter()
@@ -1241,8 +1383,14 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .with_errors(errors)
             }
         }
-        Lang::Sequence(exprs, h) => {
-            let type_contexts: Vec<_> = exprs.iter().map(|expr| typing(context, expr)).collect();
+        Lang::Sequence {
+            body: exprs,
+            help_data: h,
+        } => {
+            let type_contexts: Vec<_> = exprs
+                .iter()
+                .map(|expr: &Lang| typing(context, expr))
+                .collect();
             let mut errors: Vec<TypRError> = type_contexts
                 .iter()
                 .flat_map(|tc| tc.errors.clone())
@@ -1285,10 +1433,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .with_errors(errors)
             }
         }
-        Lang::List(fields, h) => {
+        Lang::List {
+            value: fields,
+            help_data: h,
+        } => {
             let type_contexts: Vec<_> = fields
                 .iter()
-                .map(|arg_val| typing(context, &arg_val.get_value()))
+                .map(|arg_val: &ArgumentValue| typing(context, &arg_val.get_value()))
                 .collect();
             let errors: Vec<TypRError> = type_contexts
                 .iter()
@@ -1306,10 +1457,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             )
             .with_errors(errors)
         }
-        Lang::DataFrame(fields, h) => {
+        Lang::DataFrame {
+            value: fields,
+            help_data: h,
+        } => {
             let type_contexts: Vec<_> = fields
                 .iter()
-                .map(|arg_val| typing(context, &arg_val.get_value()))
+                .map(|arg_val: &ArgumentValue| typing(context, &arg_val.get_value()))
                 .collect();
             let errors: Vec<TypRError> = type_contexts
                 .iter()
@@ -1322,7 +1476,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .collect();
             let index = fields
                 .first()
-                .map(|arg_val| {
+                .map(|arg_val: &ArgumentValue| {
                     let col_type = typing(context, &arg_val.get_value()).value;
                     match col_type {
                         Type::Vec(_, idx, _, _) => *idx,
@@ -1342,7 +1496,11 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             )
             .with_errors(errors)
         }
-        Lang::Match(match_exp, branches, _h) => {
+        Lang::Match {
+            target: match_exp,
+            branches,
+            ..
+        } => {
             let match_tc = typing(context, match_exp);
             let mut errors = match_tc.errors.clone();
             let match_type = match_tc.value.clone();
@@ -1352,8 +1510,12 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .map(|(pattern, bexp)| {
                     // For tag patterns with bindings, we extract the inner type
                     let new_context = match pattern {
-                        Lang::Tag(tag_name, inner, _) => match inner.as_ref() {
-                            Lang::Variable(var_name, _, _, _) => {
+                        Lang::Tag {
+                            name: tag_name,
+                            value: inner,
+                            ..
+                        } => match inner.as_ref() {
+                            Lang::Variable { name: var_name, .. } => {
                                 let inner_type = match &match_type {
                                     Type::Tag(tn, inner_t, _h) if tn == tag_name => {
                                         (**inner_t).clone()
@@ -1378,21 +1540,26 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                             _ => context.clone(),
                         },
                         // For type patterns `x as int`, bind variable to that type
-                        Lang::TypePattern(var_name, typ, _) => {
+                        Lang::TypePattern {
+                            variable_name: var_name,
+                            matched_type: typ,
+                            ..
+                        } => {
                             let var = Var::from_name(var_name);
                             context.clone().push_var_type(var, typ.clone(), context)
                         }
                         // For tuple patterns `:{a, b, c}`, bind each variable by position
-                        Lang::Tuple(elements, _) => {
+                        Lang::Tuple {
+                            value: elements, ..
+                        } => {
                             let tuple_types = match &match_type {
                                 Type::Tuple(types, _) => Some(types.clone()),
                                 _ => None,
                             };
-                            elements
-                                .iter()
-                                .enumerate()
-                                .fold(context.clone(), |ctx, (i, elem)| {
-                                    if let Lang::Variable(var_name, _, _, _) = elem {
+                            elements.iter().enumerate().fold(
+                                context.clone(),
+                                |ctx: Context, (i, elem)| {
+                                    if let Lang::Variable { name: var_name, .. } = elem {
                                         if var_name == "_" {
                                             return ctx;
                                         }
@@ -1400,37 +1567,43 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                             .as_ref()
                                             .and_then(|types| types.get(i).cloned())
                                             .unwrap_or_else(builder::any_type);
-                                        let var = Var::from_name(var_name);
+                                        let var = Var::from_name(&var_name);
                                         ctx.push_var_type(var, elem_type, context)
                                     } else {
                                         ctx
                                     }
-                                })
+                                },
+                            )
                         }
                         // For list/record patterns `:{nom: n, age: a}`, bind each variable
-                        Lang::List(fields, _) => {
+                        Lang::List { value: fields, .. } => {
                             // Extract record field types from the matched expression if available
                             let record_fields = match &match_type {
                                 Type::Record(field_types, _) => Some(field_types.clone()),
                                 _ => None,
                             };
-                            fields.iter().fold(context.clone(), |ctx, arg_val| {
-                                if let Lang::Variable(var_name, _, _, _) = &arg_val.get_value() {
-                                    let field_type = record_fields
-                                        .as_ref()
-                                        .and_then(|fields| {
-                                            fields.iter().find(|at| {
-                                                at.get_argument_str() == arg_val.get_argument()
+                            fields.iter().fold(
+                                context.clone(),
+                                |ctx: Context, arg_val: &ArgumentValue| {
+                                    if let Lang::Variable { name: var_name, .. } =
+                                        &arg_val.get_value()
+                                    {
+                                        let field_type = record_fields
+                                            .as_ref()
+                                            .and_then(|fields| {
+                                                fields.iter().find(|at| {
+                                                    at.get_argument_str() == arg_val.get_argument()
+                                                })
                                             })
-                                        })
-                                        .map(|at| at.get_type())
-                                        .unwrap_or_else(builder::any_type);
-                                    let var = Var::from_name(var_name);
-                                    ctx.push_var_type(var, field_type, context)
-                                } else {
-                                    ctx
-                                }
-                            })
+                                            .map(|at| at.get_type())
+                                            .unwrap_or_else(builder::any_type);
+                                        let var = Var::from_name(&var_name);
+                                        ctx.push_var_type(var, field_type, context)
+                                    } else {
+                                        ctx
+                                    }
+                                },
+                            )
                         }
                         _ => context.clone(),
                     };
@@ -1448,7 +1621,11 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             };
             TypeContext::new(output_type, expr.clone(), context.clone()).with_errors(errors)
         }
-        Lang::ArrayIndexing(arr_exp, index, h) => {
+        Lang::ArrayIndexing {
+            identifier: arr_exp,
+            indexing: index,
+            help_data: h,
+        } => {
             let tc = typing(context, arr_exp);
             let mut errors = tc.errors.clone();
             let typ1 = tc.value;
@@ -1484,7 +1661,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 }
             }
         }
-        Lang::Variable(_, _, _, _) => {
+        Lang::Variable { .. } => {
             let old_var = Var::try_from(expr.clone()).unwrap();
             let var = context.get_true_variable(&old_var);
             context
@@ -1496,23 +1673,37 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Scope {
             body: expr,
             help_data: h,
-        } => typing(context, &Lang::Lines(expr.to_vec(), h.clone())),
-        Lang::Tuple(elements, h) => {
+        } => typing(
+            context,
+            &Lang::Lines {
+                value: expr.to_vec(),
+                help_data: h.clone(),
+            },
+        ),
+        Lang::Tuple {
+            value: elements,
+            help_data: h,
+        } => {
             let tcs: Vec<_> = elements.iter().map(|x| typing(context, x)).collect();
             let errors: Vec<TypRError> = tcs.iter().flat_map(|tc| tc.errors.clone()).collect();
             let types: Vec<_> = tcs.iter().map(|tc| tc.value.clone()).collect();
             TypeContext::new(Type::Tuple(types, h.clone()), expr.clone(), context.clone())
                 .with_errors(errors)
         }
-        Lang::VecBlock(_, h) => {
+        Lang::VecBlock { help_data: h, .. } => {
             TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
         }
-        Lang::RFunction(_, _, h) => TypeContext::new(
+        Lang::RFunction { help_data: h, .. } => TypeContext::new(
             Type::UnknownFunction(h.clone()),
             expr.clone(),
             context.clone(),
         ),
-        Lang::ForLoop(var, iter, body, h) => {
+        Lang::ForLoop {
+            identifier: var,
+            expression: iter,
+            body,
+            help_data: h,
+        } => {
             let iter_tc = typing(context, iter);
             let mut errors = iter_tc.errors.clone();
 
@@ -1538,7 +1729,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 }
             }
         }
-        Lang::Not(not_exp, h) => {
+        Lang::Not {
+            value: not_exp,
+            help_data: h,
+        } => {
             let tc = typing(context, not_exp);
             let mut errors = tc.errors.clone();
 
@@ -1567,15 +1761,18 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .into()
         }
         Lang::Let { .. } => eval(context, expr),
-        Lang::Assign(..) => eval(context, expr),
-        Lang::Alias(..) => eval(context, expr).with_lang(expr),
-        Lang::Library(..) => eval(context, expr).with_lang(expr),
-        Lang::ModuleDecl(..) => eval(context, expr).with_lang(expr),
-        Lang::TestBlock(..) => eval(context, expr).with_lang(expr),
-        Lang::Signature(..) => eval(context, expr).with_lang(expr),
-        Lang::Return(exp, _) => typing(context, exp),
+        Lang::Assign { .. } => eval(context, expr),
+        Lang::Alias { .. } => eval(context, expr).with_lang(expr),
+        Lang::Library { .. } => eval(context, expr).with_lang(expr),
+        Lang::TestBlock { .. } => eval(context, expr).with_lang(expr),
+        Lang::Signature { .. } => eval(context, expr).with_lang(expr),
+        Lang::Return { value: exp, .. } => typing(context, exp),
         Lang::Module { .. } => eval(context, expr).with_lang(expr),
-        Lang::Lambda(params, body, h) => {
+        Lang::Lambda {
+            parameters: params,
+            body,
+            help_data: h,
+        } => {
             let fresh_param_types: Vec<Type> = params
                 .iter()
                 .enumerate()
@@ -1583,14 +1780,22 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .collect();
             let sub_context = params.iter().zip(fresh_param_types.iter()).fold(
                 context.clone(),
-                |ctx, (param, typ)| {
+                |ctx: Context, (param, typ): (&Lang, &Type)| {
                     let var = Var::from_language(param.clone()).unwrap();
                     ctx.clone().push_var_type(var, typ.clone(), &ctx)
                 },
             );
             let body_tc = typing(&sub_context, body);
+            let fresh_arg_types: Vec<ArgumentType> = fresh_param_types
+                .iter()
+                .enumerate()
+                .map(|(i, typ)| {
+                    let arg_name = crate::components::r#type::generate_arg(i);
+                    ArgumentType::new(&arg_name, typ)
+                })
+                .collect();
             let func_type = Type::Function(
-                fresh_param_types,
+                fresh_arg_types,
                 Box::new(body_tc.value.clone()),
                 h.clone(),
             );

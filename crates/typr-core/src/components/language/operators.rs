@@ -87,12 +87,12 @@ impl Op {
     }
 
     pub fn combine(self, left: Lang, right: Lang) -> Lang {
-        Lang::Operator(
-            self,
-            Box::new(left.clone()),
-            Box::new(right),
-            left.get_help_data(),
-        )
+        Lang::Operator {
+            operator: self,
+            rhs: Box::new(left.clone()),
+            lhs: Box::new(right),
+            help_data: left.get_help_data(),
+        }
     }
 
     pub fn get_help_data(&self) -> HelpData {

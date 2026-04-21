@@ -24,14 +24,11 @@ pub fn function(
     body: &Lang,
     h: &HelpData,
 ) -> TypeContext {
-    let list_of_types = params
-        .iter()
-        .map(ArgumentType::get_type)
-        .collect::<Vec<_>>();
+    let list_of_types = params.to_vec();
     let sub_context = params
         .iter()
         .map(|arg_typ| arg_typ.clone().to_var(context))
-        .zip(list_of_types.clone())
+        .zip(list_of_types.iter().map(|arg| arg.get_type()))
         .fold(context.clone(), |cont, (var, typ)| {
             cont.clone().push_var_type(var, typ, &cont)
         });

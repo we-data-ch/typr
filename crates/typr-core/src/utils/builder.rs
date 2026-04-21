@@ -78,7 +78,10 @@ pub fn params_type() -> Type {
 
 pub fn generic_function(s: &str) -> Lang {
     let body = format!("{} <- function(x, ...) {{ UseMethod('{}') }}", s, s);
-    Lang::GenFunc(body, "".to_string(), HelpData::default())
+    Lang::GenFunc {
+        name: body,
+        help_data: HelpData::default(),
+    }
 }
 
 pub fn tuple_type(types: &[Type]) -> Type {
@@ -112,7 +115,15 @@ pub fn opaque_type(name: &str) -> Type {
 }
 
 pub fn function_type(args: &[Type], return_type: Type) -> Type {
-    Type::Function(args.to_vec(), Box::new(return_type), HelpData::default())
+    let arg_types: Vec<ArgumentType> = args
+        .iter()
+        .enumerate()
+        .map(|(i, typ)| {
+            let arg_name = crate::components::r#type::generate_arg(i);
+            ArgumentType::new(&arg_name, typ)
+        })
+        .collect();
+    Type::Function(arg_types, Box::new(return_type), HelpData::default())
 }
 
 pub fn interface_type(signatures: &[(&str, Type)]) -> Type {
@@ -158,12 +169,12 @@ pub fn unknown_function_type() -> Type {
 }
 
 pub fn operation(operator: Op, left: Lang, right: Lang) -> Lang {
-    Lang::Operator(
+    Lang::Operator {
         operator,
-        Box::new(left),
-        Box::new(right),
-        HelpData::default(),
-    )
+        rhs: Box::new(left),
+        lhs: Box::new(right),
+        help_data: HelpData::default(),
+    }
 }
 
 pub fn let_var(name: &str, typ: Type) -> (Var, Type) {

@@ -1,4 +1,5 @@
 use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::Type;
 use crate::processes::parsing::operation_priority::PriorityToken;
@@ -75,7 +76,17 @@ impl PriorityToken for TypeToken {
                 TypeToken::Operator(TypeOperator::Arrow),
                 TypeToken::Expression(Type::Tuple(v, h)),
                 TypeToken::Expression(exp2),
-            ) => TypeToken::Expression(Type::Function(v, Box::new(exp2), h)),
+            ) => {
+                let args: Vec<ArgumentType> = v
+                    .iter()
+                    .enumerate()
+                    .map(|(i, typ)| {
+                        let arg_name = crate::components::r#type::generate_arg(i);
+                        ArgumentType::new(&arg_name, typ)
+                    })
+                    .collect();
+                TypeToken::Expression(Type::Function(args, Box::new(exp2), h))
+            }
             (TypeToken::Operator(op), TypeToken::Expression(exp1), TypeToken::Expression(exp2)) => {
                 TypeToken::Expression(op.combine(exp1, exp2))
             }

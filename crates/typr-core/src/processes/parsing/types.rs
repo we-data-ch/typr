@@ -57,7 +57,15 @@ fn function_type(s: Span) -> IResult<Span, Type> {
         .parse(s);
     match res {
         Ok((s, (start, v, _, _, t))) => {
-            Ok((s, Type::Function(v.clone(), Box::new(t), start.into())))
+            let args: Vec<ArgumentType> = v
+                .iter()
+                .enumerate()
+                .map(|(i, typ)| {
+                    let arg_name = crate::components::r#type::generate_arg(i);
+                    ArgumentType::new(&arg_name, typ)
+                })
+                .collect();
+            Ok((s, Type::Function(args, Box::new(t), start.into())))
         }
         Err(r) => Err(r),
     }
@@ -312,9 +320,12 @@ fn embedded_ltype(s: Span) -> IResult<Span, Type> {
 fn simple_label(s: Span) -> IResult<Span, Type> {
     let res = variable2(s);
     match res.clone() {
-        Ok((s, Lang::Variable(name, _, _, h))) => {
-            Ok((s, Type::Char(name.to_owned().into(), h.clone())))
-        }
+        Ok((
+            s,
+            Lang::Variable {
+                name, help_data: h, ..
+            },
+        )) => Ok((s, Type::Char(name.to_owned().into(), h.clone()))),
         Ok((_s, _)) => panic!(
             "Error: {:?} shouldn't be something different from a variable",
             res

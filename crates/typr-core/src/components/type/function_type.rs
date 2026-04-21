@@ -9,6 +9,7 @@ use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
 use crate::components::r#type::Type;
+use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::VecType;
 use crate::processes::type_checking::unification_map::UnificationMap;
 use crate::utils::builder;
@@ -33,7 +34,13 @@ fn lift(max_index: (VecType, i32), types: &[Type]) -> Vec<Type> {
 
 //main
 impl FunctionType {
-    pub fn new(vec_type: VecType, arguments: Vec<Type>, return_type: Type, help_data: HelpData) -> Self {
+    pub fn new(
+        vec_type: VecType,
+        arguments: Vec<ArgumentType>,
+        return_type: Type,
+        help_data: HelpData,
+    ) -> Self {
+        let arguments: Vec<Type> = arguments.iter().map(|arg| arg.get_type()).collect();
         Self {
             return_type,
             help_data,

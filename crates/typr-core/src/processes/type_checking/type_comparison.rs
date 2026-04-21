@@ -87,10 +87,13 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
         ),
         Type::If(typ, _conditions, _) => *typ.clone(),
         Type::Function(typs, ret_typ, h) => {
-            let typs2 = typs
+            let typs2: Vec<ArgumentType> = typs
                 .iter()
-                .map(|x| reduce_type_helper(context, x, memory.clone()))
-                .collect::<Vec<_>>();
+                .map(|arg| {
+                    let new_type = reduce_type_helper(context, &arg.get_type(), memory.clone());
+                    ArgumentType::new(&arg.get_argument_str(), &new_type)
+                })
+                .collect();
             let ret_typ2 = reduce_type_helper(context, ret_typ, memory.clone());
             Type::Function(typs2, Box::new(ret_typ2), h.to_owned())
         }

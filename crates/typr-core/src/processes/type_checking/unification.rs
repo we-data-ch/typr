@@ -114,7 +114,10 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         Type::Function(params, return_type, h) => Type::Function(
             params
                 .iter()
-                .map(|param| type_substitution(param, substitutions))
+                .map(|arg| {
+                    let new_type = type_substitution(&arg.get_type(), substitutions);
+                    ArgumentType::new(&arg.get_argument_str(), &new_type)
+                })
                 .collect(),
             Box::new(type_substitution(return_type, substitutions)),
             h.clone(),
@@ -213,9 +216,9 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Vec<(Type,
             // Unify return types
             let mut matches = unification_helper(values, ret1, ret2);
 
-            // Unify parameters
+            // Unify parameters (extract the actual Type from ArgumentType)
             for (p1, p2) in params1.iter().zip(params2.iter()) {
-                let param_matches = unification_helper(values, p1, p2);
+                let param_matches = unification_helper(values, &p1.get_type(), &p2.get_type());
                 merge_substitutions(&mut matches, param_matches);
             }
 

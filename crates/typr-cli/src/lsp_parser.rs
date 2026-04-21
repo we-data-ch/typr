@@ -463,7 +463,7 @@ fn parse_document_without_cursor_line(content: &str, cursor_line: u32) -> Option
 
     let context = Context::default();
 
-    let final_context = if let Lang::Lines(exprs, _) = &ast {
+    let final_context = if let Lang::Lines { value: exprs, .. } = &ast {
         let mut ctx = context.clone();
         for expr in exprs {
             if let Ok(tc) =
@@ -1072,7 +1072,7 @@ fn try_normalize_rightmost_dot_call(context: &Context, expr: &str) -> Option<Str
 
 fn get_first_parameter_type(typ: &Type) -> Option<Type> {
     match typ {
-        Type::Function(params, _, _) => params.first().cloned(),
+        Type::Function(params, _, _) => params.first().map(|arg| arg.get_type()),
         _ => None,
     }
 }

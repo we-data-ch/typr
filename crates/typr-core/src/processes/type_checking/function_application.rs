@@ -8,6 +8,7 @@
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::set_related_type_if_variable;
+use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
@@ -84,8 +85,8 @@ fn get_generic_params_from_type(typ: &Type) -> Vec<(String, Type)> {
         Type::Function(params, ret, _) => {
             let mut result = Vec::new();
             for (i, param) in params.iter().enumerate() {
-                if let Type::Generic(name, _) = param {
-                    result.push((name.clone(), param.clone()));
+                if let Type::Generic(name, _) = &param.get_type() {
+                    result.push((name.clone(), param.get_type()));
                 }
             }
             if let Type::Generic(name, _) = ret.as_ref() {
@@ -115,7 +116,13 @@ fn substitute_type(typ: &Type, subs: &std::collections::HashMap<String, Type>) -
     match typ {
         Type::Generic(name, h) => subs.get(name).cloned().unwrap_or_else(|| typ.clone()),
         Type::Function(params, ret, h) => Type::Function(
-            params.iter().map(|p| substitute_type(p, subs)).collect(),
+            params
+                .iter()
+                .map(|arg| {
+                    let new_type = substitute_type(&arg.get_type(), subs);
+                    ArgumentType::new(&arg.get_argument_str(), &new_type)
+                })
+                .collect(),
             Box::new(substitute_type(ret, subs)),
             h.clone(),
         ),
@@ -125,20 +132,45 @@ fn substitute_type(typ: &Type, subs: &std::collections::HashMap<String, Type>) -
 
 fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String, Type>) -> Lang {
     match lang {
-        Lang::Variable(name, mutable_, _, h) => {
-            if let Some(new_type) = subs.get(name) {
-                Lang::Variable(name.clone(), *mutable_, new_type.clone(), h.clone())
+        Lang::Variable {
+            name,
+            is_opaque: mutable_,
+            help_data: h,
+            ..
+        } => {
+            if let Some(related_type) = subs.get(name) {
+                Lang::Variable {
+                    name: name.clone(),
+                    is_opaque: *mutable_,
+                    related_type: related_type.clone(),
+                    help_data: h.clone(),
+                }
             } else {
                 lang.clone()
             }
         }
-        Lang::Lambda(params, body, h) => {
+        Lang::Lambda {
+            parameters: params,
+            body,
+            help_data: h,
+        } => {
             let new_params: Vec<Lang> = params
                 .iter()
-                .map(|p| {
-                    if let Lang::Variable(name, mutable_, _, h2) = p {
-                        if let Some(new_type) = subs.get(name) {
-                            Lang::Variable(name.clone(), *mutable_, new_type.clone(), h2.clone())
+                .map(|p: &Lang| {
+                    if let Lang::Variable {
+                        name,
+                        is_opaque: mutable_,
+                        help_data: h2,
+                        ..
+                    } = p
+                    {
+                        if let Some(related_type) = subs.get(name.as_str()) {
+                            Lang::Variable {
+                                name: name.clone(),
+                                is_opaque: mutable_.clone(),
+                                related_type: related_type.clone(),
+                                help_data: h2.clone(),
+                            }
                         } else {
                             p.clone()
                         }
@@ -148,7 +180,11 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
                 })
                 .collect();
             let new_body = substitute_type_in_lang(body, subs);
-            Lang::Lambda(new_params, Box::new(new_body), h.clone())
+            Lang::Lambda {
+                parameters: new_params,
+                body: Box::new(new_body),
+                help_data: h.clone(),
+            }
         }
         Lang::Function {
             parameters: args,
@@ -165,30 +201,50 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
                 help_data: h.clone(),
             }
         }
-        Lang::FunctionApp(func, args, h) => Lang::FunctionApp(
-            Box::new(substitute_type_in_lang(func, subs)),
-            args.iter()
+        Lang::FunctionApp {
+            identifier: func,
+            arguments: args,
+            help_data: h,
+        } => Lang::FunctionApp {
+            identifier: Box::new(substitute_type_in_lang(func, subs)),
+            arguments: args
+                .iter()
                 .map(|a| substitute_type_in_lang(a, subs))
                 .collect(),
-            h.clone(),
-        ),
-        Lang::VecFunctionApp(vec_type, func, args, h) => Lang::VecFunctionApp(
-            *vec_type,
-            Box::new(substitute_type_in_lang(func, subs)),
-            args.iter()
+            help_data: h.clone(),
+        },
+        Lang::VecFunctionApp {
+            vector_type: vec_type,
+            identifier: func,
+            arguments: args,
+            help_data: h,
+        } => Lang::VecFunctionApp {
+            vector_type: *vec_type,
+            identifier: Box::new(substitute_type_in_lang(func, subs)),
+            arguments: args
+                .iter()
                 .map(|a| substitute_type_in_lang(a, subs))
                 .collect(),
-            h.clone(),
-        ),
-        Lang::Operator(op, e1, e2, h) => Lang::Operator(
-            op.clone(),
-            Box::new(substitute_type_in_lang(e1, subs)),
-            Box::new(substitute_type_in_lang(e2, subs)),
-            h.clone(),
-        ),
-        Lang::Return(exp, h) => {
-            Lang::Return(Box::new(substitute_type_in_lang(exp, subs)), h.clone())
-        }
+            help_data: h.clone(),
+        },
+        Lang::Operator {
+            operator: op,
+            rhs: e1,
+            lhs: e2,
+            help_data: h,
+        } => Lang::Operator {
+            operator: op.clone(),
+            rhs: Box::new(substitute_type_in_lang(e1, subs)),
+            lhs: Box::new(substitute_type_in_lang(e2, subs)),
+            help_data: h.clone(),
+        },
+        Lang::Return {
+            value: exp,
+            help_data: h,
+        } => Lang::Return {
+            value: Box::new(substitute_type_in_lang(exp, subs)),
+            help_data: h.clone(),
+        },
         Lang::Let {
             variable: name,
             r#type: typ,
@@ -200,13 +256,24 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             expression: Box::new(substitute_type_in_lang(val, subs)),
             help_data: h.clone(),
         },
-        Lang::If(cond, then, else_, h) => Lang::If(
-            Box::new(substitute_type_in_lang(cond, subs)),
-            Box::new(substitute_type_in_lang(then, subs)),
-            Box::new(substitute_type_in_lang(else_, subs)),
-            h.clone(),
-        ),
-        Lang::Not(exp, h) => Lang::Not(Box::new(substitute_type_in_lang(exp, subs)), h.clone()),
+        Lang::If {
+            condition: cond,
+            if_block: then,
+            else_block: else_,
+            help_data: h,
+        } => Lang::If {
+            condition: Box::new(substitute_type_in_lang(cond, subs)),
+            if_block: Box::new(substitute_type_in_lang(then, subs)),
+            else_block: Box::new(substitute_type_in_lang(else_, subs)),
+            help_data: h.clone(),
+        },
+        Lang::Not {
+            value: exp,
+            help_data: h,
+        } => Lang::Not {
+            value: Box::new(substitute_type_in_lang(exp, subs)),
+            help_data: h.clone(),
+        },
         Lang::Scope {
             body: exprs,
             help_data: h,
@@ -217,70 +284,121 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
                 .collect(),
             help_data: h.clone(),
         },
-        Lang::Lines(exprs, h) => Lang::Lines(
-            exprs
+        Lang::Lines {
+            value: exprs,
+            help_data: h,
+        } => Lang::Lines {
+            value: exprs
                 .iter()
                 .map(|e| substitute_type_in_lang(e, subs))
                 .collect(),
-            h.clone(),
-        ),
-        Lang::Assign(target, value, h) => Lang::Assign(
-            Box::new(substitute_type_in_lang(target, subs)),
-            Box::new(substitute_type_in_lang(value, subs)),
-            h.clone(),
-        ),
-        Lang::ForLoop(var, iter, body, h) => Lang::ForLoop(
-            var.clone(),
-            Box::new(substitute_type_in_lang(iter, subs)),
-            Box::new(substitute_type_in_lang(body, subs)),
-            h.clone(),
-        ),
-        Lang::WhileLoop(cond, body, h) => Lang::WhileLoop(
-            Box::new(substitute_type_in_lang(cond, subs)),
-            Box::new(substitute_type_in_lang(body, subs)),
-            h.clone(),
-        ),
-        Lang::Match(exp, branches, h) => Lang::Match(
-            Box::new(substitute_type_in_lang(exp, subs)),
-            branches
+            help_data: h.clone(),
+        },
+        Lang::Assign {
+            identifier: target,
+            expression: value,
+            help_data: h,
+        } => Lang::Assign {
+            identifier: Box::new(substitute_type_in_lang(target, subs)),
+            expression: Box::new(substitute_type_in_lang(value, subs)),
+            help_data: h.clone(),
+        },
+        Lang::ForLoop {
+            identifier: var,
+            expression: iter,
+            body,
+            help_data: h,
+        } => Lang::ForLoop {
+            identifier: var.clone(),
+            expression: Box::new(substitute_type_in_lang(iter, subs)),
+            body: Box::new(substitute_type_in_lang(body, subs)),
+            help_data: h.clone(),
+        },
+        Lang::WhileLoop {
+            condition: cond,
+            body,
+            help_data: h,
+        } => Lang::WhileLoop {
+            condition: Box::new(substitute_type_in_lang(cond, subs)),
+            body: Box::new(substitute_type_in_lang(body, subs)),
+            help_data: h.clone(),
+        },
+        Lang::Match {
+            target: exp,
+            branches,
+            help_data: h,
+        } => Lang::Match {
+            target: Box::new(substitute_type_in_lang(exp, subs)),
+            branches: branches
                 .iter()
-                .map(|(pat, exp)| (pat.clone(), Box::new(substitute_type_in_lang(exp, subs))))
+                .map(|(pat, exp): &(Lang, Box<Lang>)| {
+                    (pat.clone(), Box::new(substitute_type_in_lang(exp, subs)))
+                })
                 .collect(),
-            h.clone(),
-        ),
-        Lang::Array(elems, h) => Lang::Array(
-            elems
+            help_data: h.clone(),
+        },
+        Lang::Array {
+            value: elems,
+            help_data: h,
+        } => Lang::Array {
+            value: elems
                 .iter()
                 .map(|e| substitute_type_in_lang(e, subs))
                 .collect(),
-            h.clone(),
-        ),
-        Lang::Vector(elems, h) => Lang::Vector(
-            elems
+            help_data: h.clone(),
+        },
+        Lang::Vector {
+            value: elems,
+            help_data: h,
+        } => Lang::Vector {
+            value: elems
                 .iter()
                 .map(|e| substitute_type_in_lang(e, subs))
                 .collect(),
-            h.clone(),
-        ),
-        Lang::Tuple(elems, h) => Lang::Tuple(
-            elems
+            help_data: h.clone(),
+        },
+        Lang::Tuple {
+            value: elems,
+            help_data: h,
+        } => Lang::Tuple {
+            value: elems
                 .iter()
                 .map(|e| substitute_type_in_lang(e, subs))
                 .collect(),
-            h.clone(),
-        ),
-        Lang::ArrayIndexing(arr, idx, h) => Lang::ArrayIndexing(
-            Box::new(substitute_type_in_lang(arr, subs)),
-            Box::new(substitute_type_in_lang(idx, subs)),
-            h.clone(),
-        ),
-        Lang::Tag(name, inner, h) => Lang::Tag(
-            name.clone(),
-            Box::new(substitute_type_in_lang(inner, subs)),
-            h.clone(),
-        ),
-        Lang::List(fields, h) => Lang::List(fields.clone(), h.clone()),
-        Lang::DataFrame(fields, h) => Lang::DataFrame(fields.clone(), h.clone()),
+            help_data: h.clone(),
+        },
+        Lang::ArrayIndexing {
+            identifier: arr,
+            indexing: idx,
+            help_data: h,
+        } => Lang::ArrayIndexing {
+            identifier: Box::new(substitute_type_in_lang(arr, subs)),
+            indexing: Box::new(substitute_type_in_lang(idx, subs)),
+            help_data: h.clone(),
+        },
+        Lang::Tag {
+            name,
+            value: inner,
+            help_data: h,
+        } => Lang::Tag {
+            name: name.clone(),
+            value: Box::new(substitute_type_in_lang(inner, subs)),
+            help_data: h.clone(),
+        },
+        Lang::List {
+            value: fields,
+            help_data: h,
+        } => Lang::List {
+            value: fields.clone(),
+            help_data: h.clone(),
+        },
+        Lang::DataFrame {
+            value: fields,
+            help_data: h,
+        } => Lang::DataFrame {
+            value: fields.clone(),
+            help_data: h.clone(),
+        },
         Lang::Module {
             name,
             body: exprs,
@@ -297,7 +415,6 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             config: config.clone(),
             help_data: h.clone(),
         },
-        Lang::ModuleDecl(name, h) => lang.clone(),
         Lang::Union(left, right, h) => Lang::Union(
             Box::new(substitute_type_in_lang(left, subs)),
             Box::new(substitute_type_in_lang(right, subs)),
@@ -308,31 +425,14 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             *id,
             h.clone(),
         ),
-        Lang::VecBlock(_, h) => lang.clone(),
-        Lang::RFunction(_, _, h) => lang.clone(),
-        Lang::Alias(_, _, _, h) => lang.clone(),
-        Lang::Signature(_, _, h) => lang.clone(),
-        Lang::Library(_, h) => lang.clone(),
-        Lang::TypePattern(_, _, h) => lang.clone(),
-        Lang::TestBlock(_, h) => lang.clone(),
-        Lang::Exp(_, h) => lang.clone(),
-        Lang::Break(h) => Lang::Break(h.clone()),
-        Lang::Empty(h) => Lang::Empty(h.clone()),
-        Lang::Number { help_data: h, .. } => lang.clone(),
-        Lang::Integer { help_data: h, .. } => lang.clone(),
-        Lang::Bool { help_data: h, .. } => lang.clone(),
-        Lang::Char { help_data: h, .. } => lang.clone(),
-        Lang::Null(h) => lang.clone(),
-        Lang::NA(h) => lang.clone(),
-        Lang::Comment(_, h) => lang.clone(),
-        Lang::ModuleImport(_, h) => lang.clone(),
-        Lang::Import(_, h) => lang.clone(),
-        Lang::GenFunc(_, _, h) => lang.clone(),
-        Lang::Test(_, h) => lang.clone(),
-        Lang::KeyValue(_, _, h) => lang.clone(),
-        Lang::Sequence(_, h) => lang.clone(),
-        Lang::MethodCall(_, _, _, h) => lang.clone(),
-        Lang::Use(_, _, h) => lang.clone(),
+        Lang::VecBlock { .. } => lang.clone(),
+        Lang::RFunction { help_data: h, .. } => lang.clone(),
+        Lang::Signature { help_data: h, .. } => lang.clone(),
+        Lang::TypePattern { help_data: h, .. } => lang.clone(),
+        Lang::KeyValue { help_data: h, .. } => lang.clone(),
+        Lang::Sequence { .. } => lang.clone(),
+        Lang::Use { .. } => lang.clone(),
+        _ => lang.clone(),
     }
 }
 
@@ -351,9 +451,9 @@ fn specialize_lambda(
             std::collections::HashMap::new();
 
         for (lambda_param, expected_param) in lambda_params.iter().zip(expected_params.iter()) {
-            if let Type::Generic(name, _) = lambda_param {
-                if !matches!(expected_param, Type::Generic(_, _)) {
-                    substitutions.insert(name.clone(), expected_param.clone());
+            if let Type::Generic(name, _) = &lambda_param.get_type() {
+                if !matches!(expected_param.get_type(), Type::Generic(_, _)) {
+                    substitutions.insert(name.clone(), expected_param.get_type());
                 }
             }
         }
@@ -486,7 +586,7 @@ fn specialize_lambdas(
     let fun_params = fun_typ.get_param_types();
 
     for (i, (param, param_type)) in params.iter().zip(types.iter()).enumerate() {
-        if let Lang::Lambda(_, _, _) = param {
+        if let Lang::Lambda { .. } = param {
             if let Some(expected_type) = fun_params.get(i) {
                 let (specialized_lang, specialized_type) =
                     specialize_lambda(param, param_type, expected_type, context);
@@ -529,9 +629,18 @@ fn build_function_lang(
 ) -> Lang {
     if fun_typ.is_vectorized() {
         // Todo: Should get VecType from fun_typ
-        Lang::VecFunctionApp(VecType::S3, Box::new(lang), new_values.clone(), h.clone())
+        Lang::VecFunctionApp {
+            vector_type: VecType::S3,
+            identifier: Box::new(lang),
+            arguments: new_values.clone(),
+            help_data: h.clone(),
+        }
     } else {
-        Lang::FunctionApp(Box::new(lang), new_values.clone(), h.clone())
+        Lang::FunctionApp {
+            identifier: Box::new(lang),
+            arguments: new_values.clone(),
+            help_data: h.clone(),
+        }
     }
 }
 

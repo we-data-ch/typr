@@ -104,6 +104,10 @@ impl ArgumentType {
             .collect::<Vec<_>>()
             .join("; ")
     }
+
+    pub fn index_calculation(self) -> ArgumentType {
+        ArgumentType(self.0, self.1.index_calculation(), self.2)
+    }
 }
 
 impl fmt::Display for ArgumentType {

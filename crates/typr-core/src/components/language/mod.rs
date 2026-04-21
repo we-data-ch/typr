@@ -1,31 +1,31 @@
 pub mod argument_value;
-pub mod array_lang;
 pub mod function_lang;
+pub mod var_function;
 pub mod module_lang;
+pub mod array_lang;
 pub mod operators;
 pub mod var;
-pub mod var_function;
 
-use crate::components::context::config::Config;
-use crate::components::context::config::Environment;
-use crate::components::context::Context;
-use crate::components::error_message::help_data::HelpData;
-use crate::components::error_message::locatable::Locatable;
 use crate::components::language::argument_value::ArgumentValue;
-use crate::components::language::operators::Op;
-use crate::components::language::var::Var;
-use crate::components::r#type::argument_type::ArgumentType;
-use crate::components::r#type::function_type::FunctionType;
-use crate::components::r#type::vector_type::VecType;
-use crate::components::r#type::Type;
-use crate::processes::parsing::elements::elements;
-use crate::processes::parsing::lang_token::LangToken;
-use crate::processes::parsing::operation_priority::TokenKind;
 use crate::processes::transpiling::translatable::RTranslatable;
 use crate::processes::type_checking::type_context::TypeContext;
+use crate::processes::parsing::operation_priority::TokenKind;
+use crate::components::error_message::locatable::Locatable;
+use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::function_type::FunctionType;
+use crate::components::error_message::help_data::HelpData;
+use crate::processes::parsing::lang_token::LangToken;
+use crate::components::r#type::vector_type::VecType;
+use crate::components::context::config::Environment;
+use crate::processes::parsing::elements::elements;
+use crate::components::context::config::Config;
+use crate::components::language::operators::Op;
 use crate::processes::type_checking::typing;
-use crate::utils::builder;
+use crate::components::language::var::Var;
+use crate::components::context::Context;
+use crate::components::r#type::Type;
 use serde::{Deserialize, Serialize};
+use crate::utils::builder;
 use std::str::FromStr;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -62,6 +62,11 @@ pub enum Lang {
         body: Box<Lang>,
         help_data: HelpData,
     },
+    Lambda {
+        parameters: Vec<Lang>,
+        body: Box<Lang>,
+        help_data: HelpData,
+    },
     Module {
         name: String,
         body: Vec<Lang>,
@@ -69,58 +74,183 @@ pub enum Lang {
         config: Config,
         help_data: HelpData,
     },
-    ModuleDecl(String, HelpData),
-    Variable(String, bool, Type, HelpData),
-    FunctionApp(Box<Lang>, Vec<Lang>, HelpData),
-    VecFunctionApp(VecType, Box<Lang>, Vec<Lang>, HelpData),
-    MethodCall(Box<Lang>, Vec<Lang>, Type, HelpData),
-    ArrayIndexing(Box<Lang>, Box<Lang>, HelpData),
+    Variable {
+        name: String,
+        is_opaque: bool,
+        related_type: Type,
+        help_data: HelpData,
+    },
+    FunctionApp {
+        identifier: Box<Lang>,
+        arguments: Vec<Lang>,
+        help_data: HelpData,
+    },
+    VecFunctionApp {
+        vector_type: VecType,
+        identifier: Box<Lang>,
+        arguments: Vec<Lang>,
+        help_data: HelpData,
+    },
+    ArrayIndexing {
+        identifier: Box<Lang>,
+        indexing: Box<Lang>,
+        help_data: HelpData,
+    },
     Let {
         variable: Box<Lang>,
         r#type: Type,
         expression: Box<Lang>,
         help_data: HelpData,
     },
-    Alias(Box<Lang>, Vec<Type>, Type, HelpData),
-    Array(Vec<Lang>, HelpData),
-    List(Vec<ArgumentValue>, HelpData),
-    DataFrame(Vec<ArgumentValue>, HelpData),
-    Tag(String, Box<Lang>, HelpData),
-    If(Box<Lang>, Box<Lang>, Box<Lang>, HelpData),
-    Match(Box<Lang>, Vec<(Lang, Box<Lang>)>, HelpData),
-    Tuple(Vec<Lang>, HelpData),
-    Lines(Vec<Lang>, HelpData),
-    Assign(Box<Lang>, Box<Lang>, HelpData),
-    Comment(String, HelpData),
-    ModuleImport(String, HelpData),
-    Import(Type, HelpData),
-    GenFunc(String, String, HelpData),
-    Test(Vec<Lang>, HelpData),
-    Return(Box<Lang>, HelpData),
-    VecBlock(String, HelpData),
-    Lambda(Vec<Lang>, Box<Lang>, HelpData),
-    Library(String, HelpData),
-    Exp(String, HelpData),
-    Signature(Var, Type, HelpData),
-    ForLoop(Var, Box<Lang>, Box<Lang>, HelpData),
-    RFunction(Vec<Lang>, String, HelpData),
-    KeyValue(String, Box<Lang>, HelpData),
-    Vector(Vec<Lang>, HelpData),
-    Sequence(Vec<Lang>, HelpData),
-    Not(Box<Lang>, HelpData),
-    TestBlock(Box<Lang>, HelpData),
-    JSBlock(Box<Lang>, u32, HelpData),
-    Use(Box<Lang>, Box<Lang>, HelpData),
-    Empty(HelpData),
-    WhileLoop(Box<Lang>, Box<Lang>, HelpData),
-    Break(HelpData),
-    Operator(Op, Box<Lang>, Box<Lang>, HelpData),
+    Alias {
+        identifier: Box<Lang>,
+        parameters: Vec<Type>,
+        target_type: Type,
+        help_data: HelpData,
+    },
+    Array {
+        value: Vec<Lang>,
+        help_data: HelpData,
+    },
+    List {
+        value: Vec<ArgumentValue>,
+        help_data: HelpData,
+    },
+    DataFrame {
+        value: Vec<ArgumentValue>,
+        help_data: HelpData,
+    },
+    Tuple {
+        value: Vec<Lang>,
+        help_data: HelpData,
+    },
+    Lines {
+        value: Vec<Lang>,
+        help_data: HelpData,
+    },
+    Comment {
+        value: String,
+        help_data: HelpData,
+    },
+    ModuleImport {
+        value: String,
+        help_data: HelpData,
+    },
+    Import {
+        value: Type,
+        help_data: HelpData,
+    },
+    Test {
+        value: Vec<Lang>,
+        help_data: HelpData,
+    },
+    Return {
+        value: Box<Lang>,
+        help_data: HelpData,
+    },
+    VecBlock {
+        value: String,
+        help_data: HelpData,
+    },
+    Library {
+        value: String,
+        help_data: HelpData,
+    },
+    Exp {
+        value: String,
+        help_data: HelpData,
+    },
+    Vector {
+        value: Vec<Lang>,
+        help_data: HelpData,
+    },
+    Not {
+        value: Box<Lang>,
+        help_data: HelpData,
+    },
+    TestBlock {
+        value: Box<Lang>,
+        help_data: HelpData,
+    },
+    Use {
+        lang: Box<Lang>,
+        members: Box<Lang>,
+        help_data: HelpData,
+    },
+    WhileLoop {
+        condition: Box<Lang>,
+        body: Box<Lang>,
+        help_data: HelpData,
+    },
+    Sequence {
+        body: Vec<Lang>,
+        help_data: HelpData,
+    },
+    Tag {
+        name: String,
+        value: Box<Lang>,
+        help_data: HelpData,
+    },
+    GenFunc {
+        name: String,
+        help_data: HelpData,
+    },
+    If {
+        condition: Box<Lang>,
+        if_block: Box<Lang>,
+        else_block: Box<Lang>,
+        help_data: HelpData,
+    },
+    Match {
+        target: Box<Lang>,
+        branches: Vec<(Lang, Box<Lang>)>,
+        help_data: HelpData,
+    },
+    Assign {
+        identifier: Box<Lang>,
+        expression: Box<Lang>,
+        help_data: HelpData,
+    },
+    Signature {
+        identifier: Var,
+        target_type: Type,
+        help_data: HelpData,
+    },
+    ForLoop {
+        identifier: Var,
+        expression: Box<Lang>,
+        body: Box<Lang>,
+        help_data: HelpData,
+    },
+    RFunction {
+        parameters: Vec<Lang>,
+        body: String,
+        help_data: HelpData,
+    },
+    KeyValue {
+        key: String,
+        value: Box<Lang>,
+        help_data: HelpData,
+    },
+    Operator {
+        operator: Op,
+        rhs: Box<Lang>,
+        lhs: Box<Lang>,
+        help_data: HelpData,
+    },
     /// Pattern matching on primitive types: `x as int => ...`
     /// TypePattern(variable_name, matched_type, help_data)
-    TypePattern(String, Type, HelpData),
+    TypePattern {
+        variable_name: String,
+        matched_type: Type,
+        help_data: HelpData,
+    },
+    Union(Box<Lang>, Box<Lang>, HelpData),
+    JSBlock(Box<Lang>, u32, HelpData),
+    Break(HelpData),
     Null(HelpData),
     NA(HelpData),
-    Union(Box<Lang>, Box<Lang>, HelpData),
+    Empty(HelpData),
 }
 
 impl PartialEq for Lang {
@@ -162,20 +292,58 @@ impl PartialEq for Lang {
                     ..
                 },
             ) => a1 == b1 && a2 == b2 && a3 == b3 && a4 == b4,
-            (Lang::ModuleDecl(a, _), Lang::ModuleDecl(b, _)) => a == b,
-            (Lang::Variable(a1, a2, a3, _), Lang::Variable(b1, b2, b3, _)) => {
-                a1 == b1 && a2 == b2 && a3 == b3
-            }
-            (Lang::FunctionApp(a1, a2, _), Lang::FunctionApp(b1, b2, _)) => a1 == b1 && a2 == b2,
-            (Lang::VecFunctionApp(a0, a1, a2, _), Lang::VecFunctionApp(b0, b1, b2, _)) => {
-                a0 == b0 && a1 == b1 && a2 == b2
-            }
-            (Lang::MethodCall(a1, a2, a3, _), Lang::MethodCall(b1, b2, b3, _)) => {
-                a1 == b1 && a2 == b2 && a3 == b3
-            }
-            (Lang::ArrayIndexing(a1, a2, _), Lang::ArrayIndexing(b1, b2, _)) => {
-                a1 == b1 && a2 == b2
-            }
+            (
+                Lang::Variable {
+                    name: a1,
+                    is_opaque: a2,
+                    related_type: a3,
+                    ..
+                },
+                Lang::Variable {
+                    name: b1,
+                    is_opaque: b2,
+                    related_type: b3,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2 && a3 == b3,
+            (
+                Lang::FunctionApp {
+                    identifier: a1,
+                    arguments: a2,
+                    ..
+                },
+                Lang::FunctionApp {
+                    identifier: b1,
+                    arguments: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
+            (
+                Lang::VecFunctionApp {
+                    vector_type: a0,
+                    identifier: a1,
+                    arguments: a2,
+                    ..
+                },
+                Lang::VecFunctionApp {
+                    vector_type: b0,
+                    identifier: b1,
+                    arguments: b2,
+                    ..
+                },
+            ) => a0 == b0 && a1 == b1 && a2 == b2,
+            (
+                Lang::ArrayIndexing {
+                    identifier: a1,
+                    indexing: a2,
+                    ..
+                },
+                Lang::ArrayIndexing {
+                    identifier: b1,
+                    indexing: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
             (
                 Lang::Let {
                     variable: a1,
@@ -190,47 +358,197 @@ impl PartialEq for Lang {
                     help_data: _,
                 },
             ) => a1 == b1 && a2 == b2 && a3 == b3,
-            (Lang::Alias(a1, a2, a3, _), Lang::Alias(b1, b2, b3, _)) => {
-                a1 == b1 && a2 == b2 && a3 == b3
-            }
-            (Lang::Array(a, _), Lang::Array(b, _)) => a == b,
-            (Lang::List(a, _), Lang::List(b, _)) => a == b,
-            (Lang::DataFrame(a, _), Lang::DataFrame(b, _)) => a == b,
-            (Lang::Tag(a1, a2, _), Lang::Tag(b1, b2, _)) => a1 == b1 && a2 == b2,
-            (Lang::If(a1, a2, a3, _), Lang::If(b1, b2, b3, _)) => a1 == b1 && a2 == b2 && a3 == b3,
-            (Lang::Match(a1, a2, _), Lang::Match(b1, b2, _)) => a1 == b1 && a2 == b2,
-            (Lang::Tuple(a, _), Lang::Tuple(b, _)) => a == b,
-            (Lang::Lines(a, _), Lang::Lines(b, _)) => a == b,
-            (Lang::Assign(a1, a2, _), Lang::Assign(b1, b2, _)) => a1 == b1 && a2 == b2,
-            (Lang::Comment(a, _), Lang::Comment(b, _)) => a == b,
-            (Lang::ModuleImport(a, _), Lang::ModuleImport(b, _)) => a == b,
-            (Lang::Import(a, _), Lang::Import(b, _)) => a == b,
-            (Lang::GenFunc(a1, a2, _), Lang::GenFunc(b1, b2, _)) => a1 == b1 && a2 == b2,
-            (Lang::Test(a, _), Lang::Test(b, _)) => a == b,
-            (Lang::Return(a, _), Lang::Return(b, _)) => a == b,
-            (Lang::VecBlock(a, _), Lang::VecBlock(b, _)) => a == b,
-            (Lang::Lambda(a, _, _), Lang::Lambda(b, _, _)) => a == b,
-            (Lang::Library(a, _), Lang::Library(b, _)) => a == b,
-            (Lang::Exp(a, _), Lang::Exp(b, _)) => a == b,
-            (Lang::Signature(a1, a2, _), Lang::Signature(b1, b2, _)) => a1 == b1 && a2 == b2,
-            (Lang::ForLoop(a1, a2, a3, _), Lang::ForLoop(b1, b2, b3, _)) => {
-                a1 == b1 && a2 == b2 && a3 == b3
-            }
-            (Lang::RFunction(a1, a2, _), Lang::RFunction(b1, b2, _)) => a1 == b1 && a2 == b2,
-            (Lang::KeyValue(a1, a2, _), Lang::KeyValue(b1, b2, _)) => a1 == b1 && a2 == b2,
-            (Lang::Vector(a, _), Lang::Vector(b, _)) => a == b,
-            (Lang::Sequence(a, _), Lang::Sequence(b, _)) => a == b,
-            (Lang::Not(a, _), Lang::Not(b, _)) => a == b,
-            (Lang::TestBlock(a, _), Lang::TestBlock(b, _)) => a == b,
+            (
+                Lang::Alias {
+                    identifier: a1,
+                    parameters: a2,
+                    target_type: a3,
+                    ..
+                },
+                Lang::Alias {
+                    identifier: b1,
+                    parameters: b2,
+                    target_type: b3,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2 && a3 == b3,
+            (Lang::Array { value: a, .. }, Lang::Array { value: b, .. }) => a == b,
+            (Lang::List { value: a, .. }, Lang::List { value: b, .. }) => a == b,
+            (Lang::DataFrame { value: a, .. }, Lang::DataFrame { value: b, .. }) => a == b,
+            (
+                Lang::Tag {
+                    name: a1,
+                    value: a2,
+                    ..
+                },
+                Lang::Tag {
+                    name: b1,
+                    value: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
+            (
+                Lang::If {
+                    condition: a1,
+                    if_block: a2,
+                    else_block: a3,
+                    ..
+                },
+                Lang::If {
+                    condition: b1,
+                    if_block: b2,
+                    else_block: b3,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2 && a3 == b3,
+            (
+                Lang::Match {
+                    target: a1,
+                    branches: a2,
+                    ..
+                },
+                Lang::Match {
+                    target: b1,
+                    branches: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
+            (Lang::Tuple { value: a, .. }, Lang::Tuple { value: b, .. }) => a == b,
+            (Lang::Lines { value: a, .. }, Lang::Lines { value: b, .. }) => a == b,
+            (
+                Lang::Assign {
+                    identifier: a1,
+                    expression: a2,
+                    ..
+                },
+                Lang::Assign {
+                    identifier: b1,
+                    expression: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
+            (Lang::Comment { value: a, .. }, Lang::Comment { value: b, .. }) => a == b,
+            (Lang::ModuleImport { value: a, .. }, Lang::ModuleImport { value: b, .. }) => a == b,
+            (Lang::Import { value: a, .. }, Lang::Import { value: b, .. }) => a == b,
+            (
+                Lang::GenFunc {
+                    name: a1,
+                    help_data: a2,
+                },
+                Lang::GenFunc {
+                    name: b1,
+                    help_data: b2,
+                },
+            ) => a1 == b1 && a2 == b2,
+            (Lang::Test { value: a, .. }, Lang::Test { value: b, .. }) => a == b,
+            (Lang::Return { value: a, .. }, Lang::Return { value: b, .. }) => a == b,
+            (Lang::VecBlock { value: a, .. }, Lang::VecBlock { value: b, .. }) => a == b,
+            (Lang::Lambda { parameters: a, .. }, Lang::Lambda { parameters: b, .. }) => a == b,
+            (Lang::Library { value: a, .. }, Lang::Library { value: b, .. }) => a == b,
+            (Lang::Exp { value: a, .. }, Lang::Exp { value: b, .. }) => a == b,
+            (
+                Lang::Signature {
+                    identifier: a1,
+                    target_type: a2,
+                    ..
+                },
+                Lang::Signature {
+                    identifier: b1,
+                    target_type: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
+            (
+                Lang::ForLoop {
+                    identifier: a1,
+                    expression: a2,
+                    body: a3,
+                    ..
+                },
+                Lang::ForLoop {
+                    identifier: b1,
+                    expression: b2,
+                    body: b3,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2 && a3 == b3,
+            (
+                Lang::RFunction {
+                    parameters: a1,
+                    body: a2,
+                    ..
+                },
+                Lang::RFunction {
+                    parameters: b1,
+                    body: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
+            (
+                Lang::KeyValue {
+                    key: a1, value: a2, ..
+                },
+                Lang::KeyValue {
+                    key: b1, value: b2, ..
+                },
+            ) => a1 == b1 && a2 == b2,
+            (Lang::Vector { value: a, .. }, Lang::Vector { value: b, .. }) => a == b,
+            (Lang::Sequence { body: a, .. }, Lang::Sequence { body: b, .. }) => a == b,
+            (Lang::Not { value: a, .. }, Lang::Not { value: b, .. }) => a == b,
+            (Lang::TestBlock { value: a, .. }, Lang::TestBlock { value: b, .. }) => a == b,
             (Lang::JSBlock(a1, a2, _), Lang::JSBlock(b1, b2, _)) => a1 == b1 && a2 == b2,
-            (Lang::Use(a1, a2, _), Lang::Use(b1, b2, _)) => a1 == b1 && a2 == b2,
+            (
+                Lang::Use {
+                    lang: a1,
+                    members: a2,
+                    ..
+                },
+                Lang::Use {
+                    lang: b1,
+                    members: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
             (Lang::Empty(_), Lang::Empty(_)) => true,
-            (Lang::WhileLoop(a1, a2, _), Lang::WhileLoop(b1, b2, _)) => a1 == b1 && a2 == b2,
+            (
+                Lang::WhileLoop {
+                    condition: a1,
+                    body: a2,
+                    ..
+                },
+                Lang::WhileLoop {
+                    condition: b1,
+                    body: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
             (Lang::Break(_), Lang::Break(_)) => true,
-            (Lang::Operator(a1, a2, a3, _), Lang::Operator(b1, b2, b3, _)) => {
-                a1 == b1 && a2 == b2 && a3 == b3
-            }
-            (Lang::TypePattern(a1, a2, _), Lang::TypePattern(b1, b2, _)) => a1 == b1 && a2 == b2,
+            (
+                Lang::Operator {
+                    operator: a1,
+                    rhs: a2,
+                    lhs: a3,
+                    ..
+                },
+                Lang::Operator {
+                    operator: b1,
+                    rhs: b2,
+                    lhs: b3,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2 && a3 == b3,
+            (
+                Lang::TypePattern {
+                    variable_name: a1,
+                    matched_type: a2,
+                    ..
+                },
+                Lang::TypePattern {
+                    variable_name: b1,
+                    matched_type: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
             (Lang::Null(_), Lang::Null(_)) => true,
             (Lang::NA(_), Lang::NA(_)) => true,
             _ => false,
@@ -254,7 +572,12 @@ impl Locatable for Lang {
 
 impl From<Var> for Lang {
     fn from(val: Var) -> Self {
-        Lang::Variable(val.name, val.is_opaque, val.related_type, val.help_data)
+        Lang::Variable {
+            name: val.name,
+            is_opaque: val.is_opaque,
+            related_type: val.related_type,
+            help_data: val.help_data,
+        }
     }
 }
 
@@ -281,12 +604,15 @@ pub fn set_related_type_if_variable((val, arg): (&Lang, &Type)) -> Lang {
 //main
 impl Lang {
     pub fn save_in_memory(&self) -> bool {
-        matches!(self, Lang::Let { .. } | Lang::Assign(_, _, _))
+        matches!(self, Lang::Let { .. } | Lang::Assign { .. })
     }
 
     pub fn to_module(self, name: &str, environment: Environment) -> Self {
         match self {
-            Lang::Lines(v, h) => Lang::Module {
+            Lang::Lines {
+                value: v,
+                help_data: h,
+            } => Lang::Module {
                 name: name.to_string(),
                 body: v,
                 module_position: ModulePosition::External,
@@ -299,17 +625,23 @@ impl Lang {
 
     fn set_type_if_variable(&self, typ: &Type) -> Lang {
         match self {
-            Lang::Variable(name, spec, existing_type, h) => {
-                // Don't overwrite a concrete related_type with a generic one.
-                // This preserves types resolved during type-checking (e.g. when
-                // a function variable like `incr: (int)->int` is passed to a
-                // generic higher-order function like `apply: (T,(T)->U)->U`).
+            Lang::Variable {
+                name,
+                is_opaque: spec,
+                related_type: existing_type,
+                help_data: h,
+            } => {
                 let new_type = if typ.is_generic() && !existing_type.is_empty() {
                     existing_type.clone()
                 } else {
                     typ.clone()
                 };
-                Lang::Variable(name.clone(), *spec, new_type, h.clone())
+                Lang::Variable {
+                    name: name.clone(),
+                    is_opaque: *spec,
+                    related_type: new_type,
+                    help_data: h.clone(),
+                }
             }
             _ => self.clone(),
         }
@@ -326,7 +658,12 @@ impl Lang {
                 &Var::from_language((**var).clone()).unwrap().get_name(),
                 ty,
             )),
-            Lang::Alias(var, _types, ty, _) => Some(ArgumentType::new(
+            Lang::Alias {
+                identifier: var,
+                parameters: _types,
+                target_type: ty,
+                ..
+            } => Some(ArgumentType::new(
                 &Var::from_language((**var).clone()).unwrap().get_name(),
                 ty,
             )),
@@ -339,7 +676,11 @@ impl Lang {
             vec![typing(context, self).value.clone()]
         } else {
             match self {
-                Lang::FunctionApp(exp, arg_typs, _) => {
+                Lang::FunctionApp {
+                    identifier: exp,
+                    arguments: arg_typs,
+                    ..
+                } => {
                     let typs = exp.extract_types_from_expression(context);
                     let typs2 = arg_typs
                         .iter()
@@ -360,7 +701,7 @@ impl Lang {
                 | Lang::Bool { .. }
                 | Lang::Char { .. }
                 | Lang::Null(_)
-                | Lang::Array(_, _)
+                | Lang::Array { .. }
         )
     }
 
@@ -378,7 +719,7 @@ impl Lang {
     }
 
     pub fn is_function(&self) -> bool {
-        matches!(self, Lang::Function { .. } | Lang::RFunction(_, _, _))
+        matches!(self, Lang::Function { .. } | Lang::RFunction { .. })
     }
 
     pub fn infer_var_name(&self, args: &[Lang], context: &Context) -> Var {
@@ -399,11 +740,12 @@ impl Lang {
     }
 
     pub fn lang_substitution(&self, sub_var: &Lang, var: &Lang, context: &Context) -> String {
-        if let Lang::Variable(name, _, _, _) = var {
+        if let Lang::Variable { name, .. } = var {
             let res = match self {
-                Lang::Variable(_, _, _, h) if self == sub_var => {
-                    Lang::Exp(format!("{}[[2]]", name), h.clone())
-                }
+                Lang::Variable { help_data: h, .. } if self == sub_var => Lang::Exp {
+                    value: format!("{}[[2]]", name),
+                    help_data: h.clone(),
+                },
                 lang => lang.clone(),
             };
             res.to_r(context).0
@@ -422,48 +764,46 @@ impl Lang {
             Lang::Scope { help_data: h, .. } => h,
             Lang::Function { help_data: h, .. } => h,
             Lang::Module { help_data: h, .. } => h,
-            Lang::ModuleDecl(_, h) => h,
-            Lang::Variable(_, _, _, h) => h,
-            Lang::FunctionApp(_, _, h) => h,
-            Lang::VecFunctionApp(_, _, _, h) => h,
-            Lang::MethodCall(_, _, _, h) => h,
-            Lang::ArrayIndexing(_, _, h) => h,
+            Lang::Variable { help_data: h, .. } => h,
+            Lang::FunctionApp { help_data: h, .. } => h,
+            Lang::VecFunctionApp { help_data: h, .. } => h,
+            Lang::ArrayIndexing { help_data: h, .. } => h,
             Lang::Let { help_data: h, .. } => h,
-            Lang::Array(_, h) => h,
-            Lang::List(_, h) => h,
-            Lang::DataFrame(_, h) => h,
-            Lang::Alias(_, _, _, h) => h,
-            Lang::Tag(_, _, h) => h,
-            Lang::If(_, _, _, h) => h,
-            Lang::Match(_, _, h) => h,
-            Lang::Tuple(_, h) => h,
-            Lang::Lines(_, h) => h,
-            Lang::Assign(_, _, h) => h,
-            Lang::Comment(_, h) => h,
-            Lang::ModuleImport(_, h) => h,
-            Lang::Import(_, h) => h,
-            Lang::GenFunc(_, _, h) => h,
-            Lang::Test(_, h) => h,
-            Lang::Return(_, h) => h,
-            Lang::VecBlock(_, h) => h,
-            Lang::Lambda(_, _, h) => h,
-            Lang::Library(_, h) => h,
-            Lang::Exp(_, h) => h,
+            Lang::Array { help_data: h, .. } => h,
+            Lang::List { help_data: h, .. } => h,
+            Lang::DataFrame { help_data: h, .. } => h,
+            Lang::Alias { help_data: h, .. } => h,
+            Lang::Tag { help_data: h, .. } => h,
+            Lang::If { help_data: h, .. } => h,
+            Lang::Match { help_data: h, .. } => h,
+            Lang::Tuple { help_data: h, .. } => h,
+            Lang::Lines { help_data: h, .. } => h,
+            Lang::Assign { help_data: h, .. } => h,
+            Lang::Comment { help_data: h, .. } => h,
+            Lang::ModuleImport { help_data: h, .. } => h,
+            Lang::Import { help_data: h, .. } => h,
+            Lang::GenFunc { help_data: h, .. } => h,
+            Lang::Test { help_data: h, .. } => h,
+            Lang::Return { help_data: h, .. } => h,
+            Lang::VecBlock { help_data: h, .. } => h,
+            Lang::Lambda { help_data: h, .. } => h,
+            Lang::Library { help_data: h, .. } => h,
+            Lang::Exp { help_data: h, .. } => h,
             Lang::Empty(h) => h,
-            Lang::Signature(_, _, h) => h,
-            Lang::ForLoop(_, _, _, h) => h,
-            Lang::RFunction(_, _, h) => h,
-            Lang::KeyValue(_, _, h) => h,
-            Lang::Vector(_, h) => h,
-            Lang::Not(_, h) => h,
-            Lang::Sequence(_, h) => h,
-            Lang::TestBlock(_, h) => h,
+            Lang::Signature { help_data: h, .. } => h,
+            Lang::ForLoop { help_data: h, .. } => h,
+            Lang::RFunction { help_data: h, .. } => h,
+            Lang::KeyValue { help_data: h, .. } => h,
+            Lang::Vector { help_data: h, .. } => h,
+            Lang::Not { help_data: h, .. } => h,
+            Lang::Sequence { help_data: h, .. } => h,
+            Lang::TestBlock { help_data: h, .. } => h,
             Lang::JSBlock(_, _, h) => h,
-            Lang::Use(_, _, h) => h,
-            Lang::WhileLoop(_, _, h) => h,
+            Lang::Use { help_data: h, .. } => h,
+            Lang::WhileLoop { help_data: h, .. } => h,
             Lang::Break(h) => h,
-            Lang::Operator(_, _, _, h) => h,
-            Lang::TypePattern(_, _, h) => h,
+            Lang::Operator { help_data: h, .. } => h,
+            Lang::TypePattern { help_data: h, .. } => h,
             Lang::Null(h) => h,
             Lang::NA(h) => h,
         }
@@ -472,7 +812,7 @@ impl Lang {
 
     pub fn linearize_array(&self) -> Vec<Lang> {
         match self {
-            Lang::Array(v, _) => v.iter().fold(vec![], |acc, x| {
+            Lang::Array { value: v, .. } => v.iter().fold(Vec::<Lang>::new(), |acc, x: &Lang| {
                 acc.iter()
                     .chain(x.linearize_array().iter())
                     .cloned()
@@ -483,7 +823,7 @@ impl Lang {
     }
 
     pub fn is_r_function(&self) -> bool {
-        matches!(self, Lang::RFunction(_, _, _))
+        matches!(self, Lang::RFunction { .. })
     }
 
     pub fn nb_params(&self) -> usize {
@@ -506,61 +846,66 @@ impl Lang {
             Lang::Scope { .. } => "Scope".to_string(),
             Lang::Function { .. } => "Function".to_string(),
             Lang::Module { .. } => "Module".to_string(),
-            Lang::ModuleDecl(_, _) => "ModuleDecl".to_string(),
-            Lang::Variable(name, _, _, _) => format!("Variable({})", name),
-            Lang::FunctionApp(var, _, _) => format!(
+            Lang::Variable { name, .. } => format!("Variable({})", name),
+            Lang::FunctionApp {
+                identifier: var, ..
+            } => format!(
                 "FunctionApp({})",
                 Var::from_language(*(var.clone())).unwrap().get_name()
             ),
-            Lang::VecFunctionApp(vec_typ, var, _, _) => format!(
+            Lang::VecFunctionApp {
+                vector_type: vec_typ,
+                identifier: var,
+                ..
+            } => format!(
                 "VecFunctionApp({}, {})",
                 vec_typ,
                 Var::from_language(*(var.clone())).unwrap().get_name()
             ),
-            Lang::MethodCall(var, _, _, _) => format!(
-                "MethodCall({})",
-                Var::from_language(*(var.clone())).unwrap().get_name()
-            ),
-            Lang::ArrayIndexing(_, _, _) => "ArrayIndexing".to_string(),
+            Lang::ArrayIndexing { .. } => "ArrayIndexing".to_string(),
             Lang::Let { variable: var, .. } => format!(
                 "let {}",
                 Var::from_language((**var).clone()).unwrap().get_name()
             ),
-            Lang::Array(_, _) => "Array".to_string(),
-            Lang::List(_, _) => "Record".to_string(),
-            Lang::DataFrame(_, _) => "DataFrame".to_string(),
-            Lang::Alias(_, _, _, _) => "Alias".to_string(),
-            Lang::Tag(_, _, _) => "Tag".to_string(),
-            Lang::If(_, _, _, _) => "If".to_string(),
-            Lang::Match(_, _, _) => "Match".to_string(),
-            Lang::Tuple(_, _) => "Tuple".to_string(),
-            Lang::Lines(_, _) => "Sequence".to_string(),
-            Lang::Assign(_, _, _) => "Assign".to_string(),
-            Lang::Comment(_, _) => "Comment".to_string(),
-            Lang::ModuleImport(_, _) => "ModImp".to_string(),
-            Lang::Import(_, _) => "Import".to_string(),
-            Lang::GenFunc(_, _, _) => "GenFunc".to_string(),
-            Lang::Test(_, _) => "Test".to_string(),
-            Lang::Return(_, _) => "Return".to_string(),
-            Lang::VecBlock(_, _) => "VecBloc".to_string(),
-            Lang::Lambda(..) => "Lambda".to_string(),
-            Lang::Library(_, _) => "Library".to_string(),
-            Lang::Exp(_, _) => "Exp".to_string(),
+            Lang::Array { .. } => "Array".to_string(),
+            Lang::List { .. } => "Record".to_string(),
+            Lang::DataFrame { .. } => "DataFrame".to_string(),
+            Lang::Alias { .. } => "Alias".to_string(),
+            Lang::Tag { .. } => "Tag".to_string(),
+            Lang::If { .. } => "If".to_string(),
+            Lang::Match { .. } => "Match".to_string(),
+            Lang::Tuple { .. } => "Tuple".to_string(),
+            Lang::Lines { .. } => "Sequence".to_string(),
+            Lang::Assign { .. } => "Assign".to_string(),
+            Lang::Comment { .. } => "Comment".to_string(),
+            Lang::ModuleImport { .. } => "ModImp".to_string(),
+            Lang::Import { .. } => "Import".to_string(),
+            Lang::GenFunc { .. } => "GenFunc".to_string(),
+            Lang::Test { .. } => "Test".to_string(),
+            Lang::Return { .. } => "Return".to_string(),
+            Lang::VecBlock { .. } => "VecBloc".to_string(),
+            Lang::Lambda { .. } => "Lambda".to_string(),
+            Lang::Library { .. } => "Library".to_string(),
+            Lang::Exp { .. } => "Exp".to_string(),
             Lang::Empty(_) => "Empty".to_string(),
-            Lang::Signature(_, _, _) => "Signature".to_string(),
-            Lang::ForLoop(_, _, _, _) => "ForLoop".to_string(),
-            Lang::RFunction(_, _, _) => "RFunction".to_string(),
-            Lang::KeyValue(_, _, _) => "KeyValue".to_string(),
-            Lang::Vector(_, _) => "Vector".to_string(),
-            Lang::Not(_, _) => "Not".to_string(),
-            Lang::Sequence(_, _) => "Sequence".to_string(),
-            Lang::TestBlock(_, _) => "TestBlock".to_string(),
+            Lang::Signature { .. } => "Signature".to_string(),
+            Lang::ForLoop { .. } => "ForLoop".to_string(),
+            Lang::RFunction { .. } => "RFunction".to_string(),
+            Lang::KeyValue { .. } => "KeyValue".to_string(),
+            Lang::Vector { .. } => "Vector".to_string(),
+            Lang::Not { .. } => "Not".to_string(),
+            Lang::Sequence { .. } => "Sequence".to_string(),
+            Lang::TestBlock { .. } => "TestBlock".to_string(),
             Lang::JSBlock(_, _, _) => "JSBlock".to_string(),
-            Lang::Use(_, _, _) => "Use".to_string(),
-            Lang::WhileLoop(_, _, _) => "WhileLoop".to_string(),
+            Lang::Use { .. } => "Use".to_string(),
+            Lang::WhileLoop { .. } => "WhileLoop".to_string(),
             Lang::Break(_) => "Break".to_string(),
-            Lang::Operator(_, _, _, _) => "Operator".to_string(),
-            Lang::TypePattern(name, typ, _) => {
+            Lang::Operator { .. } => "Operator".to_string(),
+            Lang::TypePattern {
+                variable_name: name,
+                matched_type: typ,
+                ..
+            } => {
                 format!("TypePattern({} as {})", name, typ.pretty2())
             }
             Lang::Null(_) => "Null".to_string(),
@@ -593,7 +938,11 @@ impl Lang {
                 ),
                 context.clone(),
             ),
-            Lang::Assign(var, body, _) => (
+            Lang::Assign {
+                identifier: var,
+                expression: body,
+                ..
+            } => (
                 format!("{} = {};", var.to_js(context).0, body.to_js(context).0),
                 context.clone(),
             ),
@@ -605,8 +954,14 @@ impl Lang {
                     .join("\n");
                 (res, context.clone())
             }
-            Lang::Return(exp, _) => (format!("return {};", exp.to_js(context).0), context.clone()),
-            Lang::FunctionApp(exp, params, _) => {
+            Lang::Return { value: exp, .. } => {
+                (format!("return {};", exp.to_js(context).0), context.clone())
+            }
+            Lang::FunctionApp {
+                identifier: exp,
+                arguments: params,
+                ..
+            } => {
                 let var = Var::try_from(exp.clone()).unwrap();
                 let res = format!(
                     "{}({})",
@@ -634,11 +989,13 @@ impl Lang {
                     context.clone(),
                 )
             }
-            Lang::Use(lib, members, _) => {
+            Lang::Use {
+                lang: lib, members, ..
+            } => {
                 let body = match (**members).clone() {
-                    Lang::Vector(v, _) => v
+                    Lang::Vector { value: v, .. } => v
                         .iter()
-                        .map(|val| val.to_js(context).0.replace("\\'", ""))
+                        .map(|val: &Lang| val.to_js(context).0.replace("\\'", ""))
                         .collect::<Vec<_>>()
                         .join(", "),
                     Lang::Char { value: val, .. } => val.clone(),
@@ -649,38 +1006,40 @@ impl Lang {
                     context.clone(),
                 )
             }
-            Lang::Sequence(v, _) => {
+            Lang::Sequence { body: v, .. } => {
                 let res = "[".to_string()
                     + &v.iter()
-                        .map(|lang| lang.to_js(context).0)
+                        .map(|lang: &Lang| lang.to_js(context).0)
                         .collect::<Vec<_>>()
                         .join(", ")
                     + "]";
                 (res, context.clone())
             }
-            Lang::Array(v, _) => {
+            Lang::Array { value: v, .. } => {
                 let res = "[".to_string()
                     + &v.iter()
-                        .map(|lang| lang.to_js(context).0)
+                        .map(|lang: &Lang| lang.to_js(context).0)
                         .collect::<Vec<_>>()
                         .join(", ")
                     + "]";
                 (res, context.clone())
             }
-            Lang::Vector(v, _) => {
+            Lang::Vector { value: v, .. } => {
                 let res = "[".to_string()
                     + &v.iter()
-                        .map(|lang| lang.to_js(context).0)
+                        .map(|lang: &Lang| lang.to_js(context).0)
                         .collect::<Vec<_>>()
                         .join(", ")
                     + "]";
                 (res, context.clone())
             }
-            Lang::List(arg_vals, _) => {
+            Lang::List {
+                value: arg_vals, ..
+            } => {
                 let res = "{".to_string()
                     + &arg_vals
                         .iter()
-                        .map(|arg_val| {
+                        .map(|arg_val: &ArgumentValue| {
                             arg_val.get_argument().replace("'", "")
                                 + ": "
                                 + &arg_val.get_value().to_js(context).0
@@ -690,11 +1049,15 @@ impl Lang {
                     + "}";
                 (res, context.clone())
             }
-            Lang::Lambda(params, body, _) => {
+            Lang::Lambda {
+                parameters: params,
+                body,
+                ..
+            } => {
                 let param_names: Vec<String> = params
                     .iter()
-                    .map(|p| match p {
-                        Lang::Variable(name, _, _, _) => name.clone(),
+                    .map(|p: &Lang| match p {
+                        Lang::Variable { name, .. } => name.clone(),
                         _ => "x".to_string(),
                     })
                     .collect();
@@ -708,7 +1071,12 @@ impl Lang {
                     context.clone(),
                 )
             }
-            Lang::Operator(op, e1, e2, _) => (
+            Lang::Operator {
+                operator: op,
+                rhs: e1,
+                lhs: e2,
+                ..
+            } => (
                 format!("{} {} {}", e1.to_js(context).0, op, e2.to_js(context).0),
                 context.clone(),
             ),
@@ -719,7 +1087,7 @@ impl Lang {
     pub fn to_simple_r(&self, context: &Context) -> (String, Context) {
         match self {
             Lang::Number { value: n, .. } => (n.to_string(), context.clone()),
-            Lang::Array(v, _) => {
+            Lang::Array { value: v, .. } => {
                 if v.len() == 1 {
                     v[0].to_simple_r(context)
                 } else {
@@ -737,31 +1105,35 @@ impl Lang {
                 body,
                 help_data: h,
                 ..
-            } => Lang::Lines(body.clone(), h).to_module_helper(&name),
+            } => Lang::Lines {
+                value: body.clone(),
+                help_data: h,
+            }
+            .to_module_helper(&name),
             res => res,
         }
     }
 
     pub fn to_module_helper(self, name: &str) -> Lang {
         match self.clone() {
-            Lang::Variable(_, _, _, h) => Lang::Operator(
-                Op::Dollar(h.clone()),
-                Box::new(Var::from_name(name).to_language()),
-                Box::new(self),
-                h,
-            ),
+            Lang::Variable { help_data: h, .. } => Lang::Operator {
+                operator: Op::Dollar(h.clone()),
+                rhs: Box::new(Var::from_name(name).to_language()),
+                lhs: Box::new(self),
+                help_data: h,
+            },
             Lang::Let {
                 variable: var,
                 r#type: typ,
                 expression: lang,
                 help_data: h,
             } => {
-                let expr = Lang::Operator(
-                    Op::Dollar(h.clone()),
-                    var,
-                    Box::new(Var::from_name(name).to_language()),
-                    h.clone(),
-                );
+                let expr = Lang::Operator {
+                    operator: Op::Dollar(h.clone()),
+                    rhs: var,
+                    lhs: Box::new(Var::from_name(name).to_language()),
+                    help_data: h.clone(),
+                };
                 Lang::Let {
                     variable: Box::new(expr),
                     r#type: typ,
@@ -769,14 +1141,24 @@ impl Lang {
                     help_data: h,
                 }
             }
-            Lang::Alias(var, types, typ, h) => {
-                let expr = Lang::Operator(
-                    Op::Dollar(h.clone()),
-                    Box::new(Var::from_name(name).to_language()),
-                    var,
-                    h.clone(),
-                );
-                Lang::Alias(Box::new(expr), types, typ, h)
+            Lang::Alias {
+                identifier: var,
+                parameters: types,
+                target_type: typ,
+                help_data: h,
+            } => {
+                let expr = Lang::Operator {
+                    operator: Op::Dollar(h.clone()),
+                    rhs: Box::new(Var::from_name(name).to_language()),
+                    lhs: var,
+                    help_data: h.clone(),
+                };
+                Lang::Alias {
+                    identifier: Box::new(expr),
+                    parameters: types,
+                    target_type: typ,
+                    help_data: h,
+                }
             }
             Lang::Function {
                 parameters: args,
@@ -789,14 +1171,17 @@ impl Lang {
                 body: Box::new(body.to_module_helper(name)),
                 help_data: h,
             },
-            Lang::Lines(exprs, h) => Lang::Lines(
-                exprs
+            Lang::Lines {
+                value: exprs,
+                help_data: h,
+            } => Lang::Lines {
+                value: exprs
                     .iter()
                     .cloned()
-                    .map(|expr| expr.to_module_helper(name))
+                    .map(|expr: Lang| expr.to_module_helper(name))
                     .collect::<Vec<_>>(),
-                h,
-            ),
+                help_data: h,
+            },
             rest => rest,
         }
     }
@@ -823,7 +1208,10 @@ impl Lang {
                         Some(vec![
                             ArgumentValue(
                                 var.get_name(),
-                                Lang::GenFunc(var.get_name(), var.get_name(), h),
+                                Lang::GenFunc {
+                                    name: var.get_name(),
+                                    help_data: h,
+                                },
                             ),
                             ArgumentValue(var2.get_name(), *body.clone()),
                         ])
@@ -844,7 +1232,7 @@ impl Lang {
 
     pub fn get_members_if_array(&self) -> Option<Vec<Lang>> {
         match self {
-            Lang::Array(members, _) => Some(members.clone()),
+            Lang::Array { value: members, .. } => Some(members.clone()),
             _ => None,
         }
     }
@@ -852,8 +1240,8 @@ impl Lang {
     pub fn len(&self) -> i32 {
         match self {
             Lang::Integer { value: i, .. } => *i,
-            Lang::Array(v, _) => v.len() as i32,
-            Lang::Vector(v, _) => v.len() as i32,
+            Lang::Array { value: v, .. } => v.len() as i32,
+            Lang::Vector { value: v, .. } => v.len() as i32,
             n => panic!("not implemented for language {}", n.simple_print()),
         }
     }
@@ -864,7 +1252,7 @@ impl Lang {
 
     pub fn to_vec(self) -> Vec<Lang> {
         match self {
-            Lang::Lines(v, _) => v,
+            Lang::Lines { value: v, .. } => v,
             l => vec![l],
         }
     }
@@ -877,52 +1265,50 @@ impl From<Lang> for HelpData {
             Lang::Integer { help_data: h, .. } => h,
             Lang::Bool { help_data: h, .. } => h,
             Lang::Char { help_data: h, .. } => h,
-            Lang::Variable(_, _, _, h) => h,
-            Lang::Match(_, _, h) => h,
-            Lang::FunctionApp(_, _, h) => h,
-            Lang::VecFunctionApp(_, _, _, h) => h,
-            Lang::MethodCall(_, _, _, h) => h,
+            Lang::Variable { help_data: h, .. } => h,
+            Lang::Match { help_data: h, .. } => h,
+            Lang::FunctionApp { help_data: h, .. } => h,
+            Lang::VecFunctionApp { help_data: h, .. } => h,
             Lang::Empty(h) => h,
-            Lang::Array(_, h) => h,
-            Lang::List(_, h) => h,
-            Lang::DataFrame(_, h) => h,
+            Lang::Array { help_data: h, .. } => h,
+            Lang::List { help_data: h, .. } => h,
+            Lang::DataFrame { help_data: h, .. } => h,
             Lang::Scope { help_data: h, .. } => h,
             Lang::Let { help_data: h, .. } => h,
-            Lang::Alias(_, _, _, h) => h,
-            Lang::Lambda(_, _, h) => h,
+            Lang::Alias { help_data: h, .. } => h,
+            Lang::Lambda { help_data: h, .. } => h,
             Lang::Function { help_data: h, .. } => h,
-            Lang::VecBlock(_, h) => h,
-            Lang::If(_, _, _, h) => h,
-            Lang::Assign(_, _, h) => h,
+            Lang::VecBlock { help_data: h, .. } => h,
+            Lang::If { help_data: h, .. } => h,
+            Lang::Assign { help_data: h, .. } => h,
             Lang::Union(_, _, h) => h,
             Lang::Module { help_data: h, .. } => h,
-            Lang::ModuleDecl(_, h) => h,
-            Lang::ModuleImport(_, h) => h,
-            Lang::Import(_, h) => h,
-            Lang::ArrayIndexing(_, _, h) => h,
-            Lang::Tag(_, _, h) => h,
-            Lang::Tuple(_, h) => h,
-            Lang::Lines(_, h) => h,
-            Lang::Comment(_, h) => h,
-            Lang::GenFunc(_, _, h) => h,
-            Lang::Test(_, h) => h,
-            Lang::Return(_, h) => h,
-            Lang::Library(_, h) => h,
-            Lang::Exp(_, h) => h,
-            Lang::Signature(_, _, h) => h,
-            Lang::ForLoop(_, _, _, h) => h,
-            Lang::RFunction(_, _, h) => h,
-            Lang::KeyValue(_, _, h) => h,
-            Lang::Vector(_, h) => h,
-            Lang::Not(_, h) => h,
-            Lang::Sequence(_, h) => h,
-            Lang::TestBlock(_, h) => h,
+            Lang::ModuleImport { help_data: h, .. } => h,
+            Lang::Import { help_data: h, .. } => h,
+            Lang::ArrayIndexing { help_data: h, .. } => h,
+            Lang::Tag { help_data: h, .. } => h,
+            Lang::Tuple { help_data: h, .. } => h,
+            Lang::Lines { help_data: h, .. } => h,
+            Lang::Comment { help_data: h, .. } => h,
+            Lang::GenFunc { help_data: h, .. } => h,
+            Lang::Test { help_data: h, .. } => h,
+            Lang::Return { help_data: h, .. } => h,
+            Lang::Library { help_data: h, .. } => h,
+            Lang::Exp { help_data: h, .. } => h,
+            Lang::Signature { help_data: h, .. } => h,
+            Lang::ForLoop { help_data: h, .. } => h,
+            Lang::RFunction { help_data: h, .. } => h,
+            Lang::KeyValue { help_data: h, .. } => h,
+            Lang::Vector { help_data: h, .. } => h,
+            Lang::Not { help_data: h, .. } => h,
+            Lang::Sequence { help_data: h, .. } => h,
+            Lang::TestBlock { help_data: h, .. } => h,
             Lang::JSBlock(_, _, h) => h,
-            Lang::Use(_, _, h) => h,
-            Lang::WhileLoop(_, _, h) => h,
+            Lang::Use { help_data: h, .. } => h,
+            Lang::WhileLoop { help_data: h, .. } => h,
             Lang::Break(h) => h,
-            Lang::Operator(_, _, _, h) => h,
-            Lang::TypePattern(_, _, h) => h,
+            Lang::Operator { help_data: h, .. } => h,
+            Lang::TypePattern { help_data: h, .. } => h,
             Lang::Null(h) => h,
             Lang::NA(h) => h,
         }
@@ -934,7 +1320,11 @@ use std::fmt;
 impl fmt::Display for Lang {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
-            Lang::Variable(name, _bo, typ, _h) => format!("{} -> {}", name, typ),
+            Lang::Variable {
+                name,
+                related_type: typ,
+                ..
+            } => format!("{} -> {}", name, typ),
             _ => format!("{:?}", self),
         };
         write!(f, "{}", res)

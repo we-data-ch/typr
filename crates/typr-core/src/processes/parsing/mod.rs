@@ -93,12 +93,28 @@ impl ParseResult {
 fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
     let res = alt((tag_exp, variable2)).parse(s);
     match res {
-        Ok((s, Lang::Tag(name, val, _h))) => {
-            if let Lang::Variable(name2, mutopa, typ, h) = *val {
+        Ok((
+            s,
+            Lang::Tag {
+                name, value: val, ..
+            },
+        )) => {
+            if let Lang::Variable {
+                name: name2,
+                is_opaque: mutopa,
+                related_type: typ,
+                help_data: h,
+            } = *val
+            {
                 Ok((
                     s,
                     (
-                        vec![Lang::Variable(name2.to_string(), mutopa, typ, h.clone())],
+                        vec![Lang::Variable {
+                            name: name2.to_string(),
+                            is_opaque: mutopa,
+                            related_type: typ,
+                            help_data: h.clone(),
+                        }],
                         Some(name.to_string()),
                     ),
                 ))
@@ -106,9 +122,25 @@ fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
                 Ok((s, (vec![], Some(name.to_string()))))
             }
         }
-        Ok((s, Lang::Variable(name, mutopa, typ, h))) => Ok((
+        Ok((
             s,
-            (vec![Lang::Variable(name, mutopa, typ, h.clone())], None),
+            Lang::Variable {
+                name,
+                is_opaque: mutopa,
+                related_type: typ,
+                help_data: h,
+            },
+        )) => Ok((
+            s,
+            (
+                vec![Lang::Variable {
+                    name,
+                    is_opaque: mutopa,
+                    related_type: typ,
+                    help_data: h.clone(),
+                }],
+                None,
+            ),
         )),
         Err(r) => Err(r),
         _ => todo!(),
@@ -190,15 +222,15 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     vec![Lang::Let {
                         variable: Box::new(pat_var[0].clone()),
                         r#type: typ.clone().unwrap_or(Type::Empty(HelpData::default())),
-                        expression: Box::new(Lang::Operator(
-                            Op::Dollar(HelpData::default()),
-                            Box::new(Lang::Number {
+                        expression: Box::new(Lang::Operator {
+                            operator: Op::Dollar(HelpData::default()),
+                            rhs: Box::new(Lang::Number {
                                 value: 0.0,
                                 help_data: eq.into(),
                             }),
-                            Box::new(body),
-                            pat_var.into(),
-                        )),
+                            lhs: Box::new(body),
+                            help_data: pat_var.into(),
+                        }),
                         help_data: _let.into(),
                     }],
                 ))
@@ -231,7 +263,19 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     )
         .parse(s);
     match res {
-        Ok((s, (_let, Lang::Tuple(elements, _th), typ, _eq, body))) => {
+        Ok((
+            s,
+            (
+                _let,
+                Lang::Tuple {
+                    value: elements,
+                    help_data: _th,
+                },
+                typ,
+                _eq,
+                body,
+            ),
+        )) => {
             let tmp_name = "__tuple_tmp__";
             let tmp_var = Var::from_name(tmp_name).to_language();
 
@@ -246,7 +290,7 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             // Then: let a <- 1.__tuple_tmp__; let b <- 2.__tuple_tmp__; ...
             let mut result = vec![tmp_let];
             for (i, elem) in elements.iter().enumerate() {
-                if let Lang::Variable(name, _, _, _) = elem {
+                if let Lang::Variable { name, .. } = elem {
                     if name == "_" {
                         continue; // skip wildcard
                     }
@@ -254,15 +298,15 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 result.push(Lang::Let {
                     variable: Box::new(elem.clone()),
                     r#type: Type::Empty(HelpData::default()),
-                    expression: Box::new(Lang::Operator(
-                        Op::Dot(HelpData::default()),
-                        Box::new(Lang::Integer {
+                    expression: Box::new(Lang::Operator {
+                        operator: Op::Dot(HelpData::default()),
+                        rhs: Box::new(Lang::Integer {
                             value: (i + 1) as i32,
                             help_data: HelpData::default(),
                         }),
-                        Box::new(tmp_var.clone()),
-                        HelpData::default(),
-                    )),
+                        lhs: Box::new(tmp_var.clone()),
+                        help_data: HelpData::default(),
+                    }),
                     help_data: HelpData::default(),
                 });
             }
@@ -326,7 +370,15 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
             let vari = Var::from_name(&name)
                 .set_type(Type::Params(params.clone(), h2))
                 .to_language();
-            Ok((s, Lang::Alias(Box::new(vari), params, ty, h)))
+            Ok((
+                s,
+                Lang::Alias {
+                    identifier: Box::new(vari),
+                    parameters: params,
+                    target_type: ty,
+                    help_data: h,
+                },
+            ))
         }
         Ok((s, (_ty, _, _eq, _ty2, _))) => Ok((s, Lang::Empty(_ty.into()))),
         Err(r) => Err(r),
@@ -337,11 +389,30 @@ fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(terminated(tag("pub"), multispace0)), base_type_exp).parse(s);
     match res {
         Ok((s, (Some(_pu), ali))) => Ok((s, vec![ali])),
-        Ok((s, (None, Lang::Alias(var, params, typ, h)))) => {
+        Ok((
+            s,
+            (
+                None,
+                Lang::Alias {
+                    identifier: var,
+                    parameters: params,
+                    target_type: typ,
+                    help_data: h,
+                },
+            ),
+        )) => {
             let vari = Var::from_language(var.deref().clone())
                 .unwrap()
                 .to_language();
-            Ok((s, vec![Lang::Alias(Box::new(vari), params, typ, h)]))
+            Ok((
+                s,
+                vec![Lang::Alias {
+                    identifier: Box::new(vari),
+                    parameters: params,
+                    target_type: typ,
+                    help_data: h,
+                }],
+            ))
         }
         Err(r) => Err(r),
         _ => todo!(),
@@ -363,7 +434,15 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
                 .set_type(Type::Params(params.clone(), params.clone().into()))
                 .set_opacity(true)
                 .to_language();
-            Ok((s, Lang::Alias(Box::new(vari), params, ty, h)))
+            Ok((
+                s,
+                Lang::Alias {
+                    identifier: Box::new(vari),
+                    parameters: params,
+                    target_type: ty,
+                    help_data: h,
+                },
+            ))
         }
         Ok((s, (_ty, _, _eq, _ty2, _))) => Ok((s, Lang::Empty(_ty.into()))),
         Err(r) => Err(r),
@@ -373,19 +452,57 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
 fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (opt(terminated(tag("pub"), multispace0)), base_opaque_exp).parse(s);
     match res {
-        Ok((s, (Some(_pu), Lang::Alias(var, params, typ, h)))) => {
+        Ok((
+            s,
+            (
+                Some(_pu),
+                Lang::Alias {
+                    identifier: var,
+                    parameters: params,
+                    target_type: typ,
+                    help_data: h,
+                },
+            ),
+        )) => {
             let vari = Var::from_language(var.deref().clone())
                 .unwrap()
                 .set_opacity(true)
                 .to_language();
-            Ok((s, vec![Lang::Alias(Box::new(vari), params, typ, h)]))
+            Ok((
+                s,
+                vec![Lang::Alias {
+                    identifier: Box::new(vari),
+                    parameters: params,
+                    target_type: typ,
+                    help_data: h,
+                }],
+            ))
         }
-        Ok((s, (None, Lang::Alias(var, params, typ, h)))) => {
+        Ok((
+            s,
+            (
+                None,
+                Lang::Alias {
+                    identifier: var,
+                    parameters: params,
+                    target_type: typ,
+                    help_data: h,
+                },
+            ),
+        )) => {
             let vari = Var::from_language(var.deref().clone())
                 .unwrap()
                 .set_opacity(true)
                 .to_language();
-            Ok((s, vec![Lang::Alias(Box::new(vari), params, typ, h)]))
+            Ok((
+                s,
+                vec![Lang::Alias {
+                    identifier: Box::new(vari),
+                    parameters: params,
+                    target_type: typ,
+                    help_data: h,
+                }],
+            ))
         }
         Err(r) => Err(r),
         _ => todo!(),
@@ -431,15 +548,19 @@ fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, ((var, _), _eq, exp, Some(_)))) => Ok((
             s,
-            vec![Lang::Assign(
-                Box::new(var.clone()),
-                Box::new(exp),
-                var.into(),
-            )],
+            vec![Lang::Assign {
+                identifier: Box::new(var.clone()),
+                expression: Box::new(exp),
+                help_data: var.into(),
+            }],
         )),
         Ok((s, ((var, _), _eq, exp, None))) => {
             push_parse_error(SyntaxError::ForgottenSemicolon(exp.clone().into()));
-            let assign = Lang::Assign(Box::new(var.clone()), Box::new(exp), var.into());
+            let assign = Lang::Assign {
+                identifier: Box::new(var.clone()),
+                expression: Box::new(exp),
+                help_data: var.into(),
+            };
             Ok((s, vec![assign]))
         }
         Err(r) => Err(r),
@@ -449,9 +570,13 @@ fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
 fn comment(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("#"), not_line_ending, opt(line_ending), multispace0).parse(s);
     match res {
-        Ok((s, (_hashtag, txt, _, _))) => {
-            Ok((s, vec![Lang::Comment(txt.to_string(), _hashtag.into())]))
-        }
+        Ok((s, (_hashtag, txt, _, _))) => Ok((
+            s,
+            vec![Lang::Comment {
+                value: txt.to_string(),
+                help_data: _hashtag.into(),
+            }],
+        )),
         Err(r) => Err(r),
     }
 }
@@ -476,9 +601,13 @@ fn mod_imp(s: Span) -> IResult<Span, Vec<Lang>> {
     )
         .parse(s);
     match res {
-        Ok((s, (_mod, (name, _), _sc))) => {
-            Ok((s, vec![Lang::ModuleImport(name.to_string(), _mod.into())]))
-        }
+        Ok((s, (_mod, (name, _), _sc))) => Ok((
+            s,
+            vec![Lang::ModuleImport {
+                value: name.to_string(),
+                help_data: _mod.into(),
+            }],
+        )),
         Err(r) => Err(r),
     }
 }
@@ -511,7 +640,13 @@ fn import_type(s: Span) -> IResult<Span, Vec<Lang>> {
         .parse(s);
 
     match res {
-        Ok((s, (_use, alias, _sc))) => Ok((s, vec![Lang::Import(alias, _use.into())])),
+        Ok((s, (_use, alias, _sc))) => Ok((
+            s,
+            vec![Lang::Import {
+                value: alias,
+                help_data: _use.into(),
+            }],
+        )),
         Err(r) => Err(r),
     }
 }
@@ -519,7 +654,13 @@ fn import_type(s: Span) -> IResult<Span, Vec<Lang>> {
 fn tests(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("Test"), delimited(tag("["), base_parse, tag("]"))).parse(s);
     match res {
-        Ok((s, (_t, body))) => Ok((s, vec![Lang::Test(body, _t.into())])),
+        Ok((s, (_t, body))) => Ok((
+            s,
+            vec![Lang::Test {
+                value: body,
+                help_data: _t.into(),
+            }],
+        )),
         Err(r) => Err(r),
     }
 }
@@ -535,9 +676,13 @@ fn library(s: Span) -> IResult<Span, Vec<Lang>> {
         .parse(s);
 
     match res {
-        Ok((s, (_lib, (var, h), _cl, Some(_col), _))) => {
-            Ok((s, vec![Lang::Library(var, h.clone())]))
-        }
+        Ok((s, (_lib, (var, h), _cl, Some(_col), _))) => Ok((
+            s,
+            vec![Lang::Library {
+                value: var,
+                help_data: h.clone(),
+            }],
+        )),
         Ok((_, (_lib, _var, _cl, None, _))) => {
             panic!("You forgot to put a ';' at the end of the line")
         }
@@ -557,7 +702,11 @@ fn use_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (us, lib, _, members, _))) => Ok((
             s,
-            vec![Lang::Use(Box::new(lib), Box::new(members), us.into())],
+            vec![Lang::Use {
+                lang: Box::new(lib),
+                members: Box::new(members),
+                help_data: us.into(),
+            }],
         )),
         Err(r) => Err(r),
     }
@@ -596,7 +745,14 @@ fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (at, (name, h), _col, typ, _))) => {
             let var2 = Var::from_name(&name).set_help_data(h).set_type(typ.clone());
-            Ok((s, vec![Lang::Signature(var2, typ, at.into())]))
+            Ok((
+                s,
+                vec![Lang::Signature {
+                    identifier: var2,
+                    target_type: typ,
+                    help_data: at.into(),
+                }],
+            ))
         }
         Err(r) => Err(r),
     }
@@ -616,7 +772,14 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
             let var2 = Var::from_name(&name)
                 .set_help_data(h.clone())
                 .set_type(typ.clone());
-            Ok((s, vec![Lang::Signature(var2, typ, at.into())]))
+            Ok((
+                s,
+                vec![Lang::Signature {
+                    identifier: var2,
+                    target_type: typ,
+                    help_data: at.into(),
+                }],
+            ))
         }
         Ok((_s, (_, _, _, _, _))) => todo!(),
         Err(r) => Err(r),
@@ -642,12 +805,12 @@ fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (_for, _op, (var_str, _h), _in, iterator, _cl, scop, _semi))) => Ok((
             s,
-            vec![Lang::ForLoop(
-                Var::from_name(&var_str),
-                Box::new(iterator),
-                Box::new(scop),
-                _for.into(),
-            )],
+            vec![Lang::ForLoop {
+                identifier: Var::from_name(&var_str),
+                expression: Box::new(iterator),
+                body: Box::new(scop),
+                help_data: _for.into(),
+            }],
         )),
         Err(r) => Err(r),
     }
@@ -666,11 +829,11 @@ fn while_loop(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (_while, _op, condition, _cl, scop, _semi))) => Ok((
             s,
-            vec![Lang::WhileLoop(
-                Box::new(condition),
-                Box::new(scop),
-                _while.into(),
-            )],
+            vec![Lang::WhileLoop {
+                condition: Box::new(condition),
+                body: Box::new(scop),
+                help_data: _while.into(),
+            }],
         )),
         Err(r) => Err(r),
     }
@@ -681,7 +844,13 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
     //parse_block).parse(s);
 
     match res {
-        Ok((s, (tst, body))) => Ok((s, vec![Lang::TestBlock(Box::new(body), tst.into())])),
+        Ok((s, (tst, body))) => Ok((
+            s,
+            vec![Lang::TestBlock {
+                value: Box::new(body),
+                help_data: tst.into(),
+            }],
+        )),
         Err(r) => Err(r),
     }
 }
@@ -740,7 +909,10 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
 pub fn parse(s: Span) -> ParseResult {
     let res = base_parse(s.clone());
     match res {
-        Ok((_, v)) => ParseResult::new(Lang::Lines(v.clone(), v.into())),
+        Ok((_, v)) => ParseResult::new(Lang::Lines {
+            value: v.clone(),
+            help_data: v.into(),
+        }),
         Err(_) => panic!("Can't parse string {}", s),
     }
 }
@@ -872,7 +1044,7 @@ mod tesus {
         let res = let_tuple_exp("let :{a, b} <- :{1, 2};".into()).unwrap().1;
         // First Let should bind __tuple_tmp__
         if let Lang::Let { variable: var, .. } = &res[0] {
-            if let Lang::Variable(name, _, _, _) = var.as_ref() {
+            if let Lang::Variable { name, .. } = var.as_ref() {
                 assert_eq!(name, "__tuple_tmp__");
             } else {
                 panic!("Expected Variable in first Let");
@@ -892,7 +1064,7 @@ mod tesus {
             ..
         } = &res[1]
         {
-            if let Lang::Variable(name, _, _, _) = var.as_ref() {
+            if let Lang::Variable { name, .. } = var.as_ref() {
                 assert_eq!(name, "x");
             } else {
                 panic!("Expected Variable 'x'");
@@ -907,7 +1079,7 @@ mod tesus {
         }
         // Third Let should bind 'y'
         if let Lang::Let { variable: var, .. } = &res[2] {
-            if let Lang::Variable(name, _, _, _) = var.as_ref() {
+            if let Lang::Variable { name, .. } = var.as_ref() {
                 assert_eq!(name, "y");
             } else {
                 panic!("Expected Variable 'y'");
@@ -930,7 +1102,7 @@ mod tesus {
         );
         // Second Let should bind 'a'
         if let Lang::Let { variable: var, .. } = &res[1] {
-            if let Lang::Variable(name, _, _, _) = var.as_ref() {
+            if let Lang::Variable { name, .. } = var.as_ref() {
                 assert_eq!(name, "a");
             } else {
                 panic!("Expected Variable 'a'");
@@ -940,7 +1112,7 @@ mod tesus {
         }
         // Third Let should bind 'c'
         if let Lang::Let { variable: var, .. } = &res[2] {
-            if let Lang::Variable(name, _, _, _) = var.as_ref() {
+            if let Lang::Variable { name, .. } = var.as_ref() {
                 assert_eq!(name, "c");
             } else {
                 panic!("Expected Variable 'c'");

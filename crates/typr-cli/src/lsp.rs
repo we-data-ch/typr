@@ -600,19 +600,28 @@ fn collect_symbols_from_ast(
     symbols: &mut Vec<SymbolInformation>,
 ) {
     match lang {
-        Lang::Lines(statements, _) => {
+        Lang::Lines {
+            value: statements, ..
+        } => {
             for stmt in statements {
                 collect_symbols_from_ast(stmt, content, file_uri, container_name.clone(), symbols);
             }
         }
 
-        Lang::Scope { body: statements, .. } => {
+        Lang::Scope {
+            body: statements, ..
+        } => {
             for stmt in statements {
                 collect_symbols_from_ast(stmt, content, file_uri, container_name.clone(), symbols);
             }
         }
 
-        Lang::Let { variable: var_lang, r#type: typ, expression: body, help_data: _ } => {
+        Lang::Let {
+            variable: var_lang,
+            r#type: typ,
+            expression: body,
+            help_data: _,
+        } => {
             if let Ok(var) = Var::try_from(var_lang) {
                 let name = var.get_name();
                 let help_data = var.get_help_data();
@@ -642,7 +651,10 @@ fn collect_symbols_from_ast(
             }
         }
 
-        Lang::Alias(var_lang, _params, _typ, _) => {
+        Lang::Alias {
+            identifier: var_lang,
+            ..
+        } => {
             if let Ok(var) = Var::try_from(var_lang) {
                 let name = var.get_name();
                 let help_data = var.get_help_data();
@@ -664,7 +676,12 @@ fn collect_symbols_from_ast(
             }
         }
 
-        Lang::Module { name, body: members, help_data, .. } => {
+        Lang::Module {
+            name,
+            body: members,
+            help_data,
+            ..
+        } => {
             let offset = help_data.get_offset();
             let pos = offset_to_position(offset, content);
             let end_col = pos.character + name.len() as u32;
@@ -686,7 +703,7 @@ fn collect_symbols_from_ast(
             }
         }
 
-        Lang::Signature(var, _typ, _) => {
+        Lang::Signature { identifier: var, .. } => {
             let name = var.get_name();
             let help_data = var.get_help_data();
             let offset = help_data.get_offset();

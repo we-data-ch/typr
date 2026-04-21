@@ -91,7 +91,7 @@ pub enum Type {
     Boolean(HelpData),
     Char(Tchar, HelpData),
     Embedded(Box<Type>, HelpData),
-    Function(Vec<Type>, Box<Type>, HelpData),
+    Function(Vec<ArgumentType>, Box<Type>, HelpData),
     Generic(String, HelpData),
     IndexGen(String, HelpData),
     LabelGen(String, HelpData),
@@ -165,12 +165,22 @@ impl TypeSystem for Type {
                 n1.is_subtype_raw(n2, context) && t1.is_subtype_raw(t2, context)
             }
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
-                args1.len() == args2.len()
-                    && args1
-                        .iter()
-                        .chain([&(**ret_typ1)])
-                        .zip(args2.iter().chain([&(**ret_typ2)]))
-                        .all(|(typ1, typ2)| typ1.strict_subtype(typ2))
+                let args1_types: Vec<Type> = args1.iter().map(|arg| arg.get_type()).collect();
+                let args2_types: Vec<Type> = args2.iter().map(|arg| arg.get_type()).collect();
+                if args1_types.len() != args2_types.len() {
+                    false
+                } else {
+                    let ret1 = (**ret_typ1).clone();
+                    let ret2 = (**ret_typ2).clone();
+                    let mut all_match = true;
+                    for (t1, t2) in args1_types.iter().zip(args2_types.iter()) {
+                        if !t1.strict_subtype(t2) {
+                            all_match = false;
+                            break;
+                        }
+                    }
+                    all_match && ret1.strict_subtype(&ret2)
+                }
             }
             (_, Type::UnknownFunction(_)) => true,
             (Type::Interface(args1, _), Type::Interface(args2, _)) => {
@@ -337,7 +347,7 @@ impl Type {
     pub fn extract_types(&self) -> Vec<Type> {
         match self {
             Type::Function(args, ret, _) => {
-                let mut sol = args.clone();
+                let mut sol = args.iter().map(|arg| arg.get_type()).collect::<Vec<_>>();
                 sol.push((**ret).clone());
                 sol.push(self.clone());
                 sol
@@ -368,7 +378,13 @@ impl Type {
             Type::Function(args, ret, h) => {
                 let new_args = args
                     .iter()
-                    .map(|typ| if *typ == t1 { t2.clone() } else { typ.clone() })
+                    .map(|arg| {
+                        if arg.get_type() == t1 {
+                            ArgumentType::new(&arg.get_argument_str(), &t2)
+                        } else {
+                            arg.clone()
+                        }
+                    })
                     .collect::<Vec<_>>();
                 let new_ret = if *ret == t1 { t2 } else { *ret };
                 Type::Function(new_args, Box::new(new_ret), h)
@@ -408,7 +424,7 @@ impl Type {
                 let res = args
                     .iter()
                     .enumerate()
-                    .map(|(i, typ)| format!("{}: {}", generate_arg(i), typ.to_typescript()))
+                    .map(|(i, arg)| format!("{}: {}", generate_arg(i), arg.get_type().to_typescript()))
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("({}) => {}", res, ret.to_typescript())
@@ -449,7 +465,7 @@ impl Type {
                 let res = args
                     .iter()
                     .enumerate()
-                    .map(|(i, typ)| format!("{}: {}", generate_arg(i), typ.to_typescript()))
+                    .map(|(i, arg)| format!("{}: {}", generate_arg(i), arg.get_type().to_typescript()))
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("({}) => {}", res, ret.to_typescript())
@@ -474,11 +490,10 @@ impl Type {
             Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _) => vec![self.clone()],
             Type::Function(args, ret_typ, _) => args
                 .iter()
-                .cloned()
-                .chain([(**ret_typ).clone()].iter().cloned())
+                .flat_map(|arg| arg.get_type().extract_generics())
+                .chain([(**ret_typ).clone()])
                 .collect::<HashSet<_>>()
-                .iter()
-                .flat_map(|typ| typ.extract_generics())
+                .into_iter()
                 .collect::<Vec<_>>(),
             Type::Vec(_, ind, typ, _) => typ
                 .extract_generics()
@@ -522,7 +537,7 @@ impl Type {
             Type::Function(args, ret_typ, h) => {
                 let new_args = args
                     .iter()
-                    .map(|typ| typ.index_calculation())
+                    .map(|arg| arg.clone().index_calculation())
                     .collect::<Vec<_>>();
                 Type::Function(new_args, Box::new(ret_typ.index_calculation()), h.clone())
             }
@@ -650,7 +665,7 @@ impl Type {
         match self.to_owned() {
             Type::Function(p, _r, _h) => {
                 if !p.is_empty() {
-                    p[0].to_owned()
+                    p[0].get_type()
                 } else {
                     self
                 }
@@ -908,7 +923,7 @@ impl Type {
 
     pub fn get_first_parameter(&self) -> Option<Type> {
         match self {
-            Type::Function(args, _, _) => args.iter().next().cloned(),
+            Type::Function(args, _, _) => args.iter().next().map(|arg| arg.get_type()),
             _ => None,
         }
     }
@@ -1083,7 +1098,8 @@ impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Type::Function(p, r, h) => {
-                write!(f, "({}) -> {}", Type::Params(p.clone(), h.clone()), r)
+                let p_types: Vec<Type> = p.iter().map(|arg| arg.get_type()).collect();
+                write!(f, "({}) -> {}", Type::Params(p_types, h.clone()), r)
             }
             Type::Params(v, _) => {
                 let res = v
@@ -1109,12 +1125,24 @@ impl PartialOrd for Type {
             (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => (n1.partial_cmp(n2).is_some()
                 && t1.partial_cmp(t2).is_some())
             .then_some(Ordering::Less),
-            (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => args1
-                .iter()
-                .chain([&(**ret_typ1)])
-                .zip(args2.iter().chain([&(**ret_typ2)]))
-                .all(|(typ1, typ2)| typ1.partial_cmp(typ2).is_some())
-                .then_some(Ordering::Less),
+            (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
+                let args1_types: Vec<Type> = args1.iter().map(|arg| arg.get_type()).collect();
+                let args2_types: Vec<Type> = args2.iter().map(|arg| arg.get_type()).collect();
+                let ret1 = (**ret_typ1).clone();
+                let ret2 = (**ret_typ2).clone();
+                let mut all_match = true;
+                for (t1, t2) in args1_types.iter().zip(args2_types.iter()) {
+                    if t1.partial_cmp(t2).is_none() {
+                        all_match = false;
+                        break;
+                    }
+                }
+                if all_match && ret1.partial_cmp(&ret2).is_some() {
+                    Some(Ordering::Less)
+                } else {
+                    None
+                }
+            }
             (Type::Function(_, _, _), Type::UnknownFunction(_)) => Some(Ordering::Less),
             // Interface subtyping
             (Type::Interface(args1, _), Type::Interface(args2, _)) => {
@@ -1212,8 +1240,17 @@ pub fn display_types(v: &[Type]) -> String {
 
 impl From<FunctionType> for Type {
     fn from(val: FunctionType) -> Self {
+        let args: Vec<ArgumentType> = val
+            .get_param_types()
+            .iter()
+            .enumerate()
+            .map(|(i, typ)| {
+                let arg_name = generate_arg(i);
+                ArgumentType::new(&arg_name, typ)
+            })
+            .collect();
         Type::Function(
-            val.get_param_types(),
+            args,
             Box::new(val.get_return_type()),
             val.get_help_data(),
         )

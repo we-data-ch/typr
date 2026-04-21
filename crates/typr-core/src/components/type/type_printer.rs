@@ -51,7 +51,10 @@ pub fn format(ty: &Type) -> String {
             format!("{}[{}, {}]", vtype, short(dim), inner)
         }
         Type::Function(params, ret_ty, _h) => {
-            let formatted_params = params.iter().map(format).collect::<Vec<_>>();
+            let formatted_params = params
+                .iter()
+                .map(|arg| format(&arg.get_type()))
+                .collect::<Vec<_>>();
             format!("fn({}) -> {}", formatted_params.join(", "), format(ret_ty))
         }
         Type::Tag(name, param, _) => {

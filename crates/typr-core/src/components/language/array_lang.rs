@@ -25,7 +25,10 @@ impl TryFrom<Lang> for ArrayLang {
 
     fn try_from(value: Lang) -> Result<Self, Self::Error> {
         match value {
-            Lang::Array(arr, h) => Ok(ArrayLang(arr, h)),
+            Lang::Array {
+                value: arr,
+                help_data: h,
+            } => Ok(ArrayLang(arr, h)),
             _ => Err(format!("{} can't be an array", value.simple_print())),
         }
     }
@@ -36,7 +39,10 @@ impl TryFrom<&Box<Lang>> for ArrayLang {
 
     fn try_from(value: &Box<Lang>) -> Result<Self, Self::Error> {
         match (**value).clone() {
-            Lang::Array(arr, h) => Ok(ArrayLang(arr, h)),
+            Lang::Array {
+                value: arr,
+                help_data: h,
+            } => Ok(ArrayLang(arr, h)),
             _ => Err(format!("{} can't be an array", value.simple_print())),
         }
     }

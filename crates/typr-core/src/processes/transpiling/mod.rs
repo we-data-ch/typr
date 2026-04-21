@@ -3,6 +3,7 @@ pub mod translatable;
 use crate::components::context::config::Environment;
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
+use crate::components::language::argument_value::ArgumentValue;
 use crate::components::language::format_backtick;
 use crate::components::language::function_lang::Function;
 use crate::components::language::operators::Op;
@@ -164,10 +165,12 @@ fn type_to_r_check(typ: &Type) -> Option<&'static str> {
 fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> (String, String) {
     match pattern {
         // Tag with a binding variable: .Some(a)
-        Lang::Tag(name, inner, _) => {
+        Lang::Tag {
+            name, value: inner, ..
+        } => {
             let cond = format!("{}[[1]] == '{}'", match_var, name);
             match inner.as_ref() {
-                Lang::Variable(var_name, _, _, _) => {
+                Lang::Variable { name: var_name, .. } => {
                     let binding = format!("{} <- {}[[\"body\"]]", var_name, match_var);
                     (cond, binding)
                 }
@@ -176,14 +179,20 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
             }
         }
         // Type pattern: x as int
-        Lang::TypePattern(var_name, typ, _) => {
+        Lang::TypePattern {
+            variable_name: var_name,
+            matched_type: typ,
+            ..
+        } => {
             let check_fn = type_to_r_check(typ).unwrap_or("is.logical");
             let cond = format!("{}({})", check_fn, match_var);
             let binding = format!("{} <- {}", var_name, match_var);
             (cond, binding)
         }
         // Tuple pattern: :{a, b, c}
-        Lang::Tuple(elements, _) => {
+        Lang::Tuple {
+            value: elements, ..
+        } => {
             let cond = format!(
                 "inherits({}, 'Tuple') && length({}) == {}",
                 match_var,
@@ -194,7 +203,7 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
                 .iter()
                 .enumerate()
                 .filter_map(|(i, elem)| {
-                    if let Lang::Variable(var_name, _, _, _) = elem {
+                    if let Lang::Variable { name: var_name, .. } = elem {
                         if var_name == "_" {
                             None
                         } else {
@@ -208,10 +217,12 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
             (cond, bindings.join("\n"))
         }
         // List/record pattern: :{nom: n, age: a}
-        Lang::List(fields, _) => {
+        Lang::List { value: fields, .. } => {
             let conditions: Vec<String> = fields
                 .iter()
-                .map(|arg_val| format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument()))
+                .map(|arg_val: &ArgumentValue| {
+                    format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument())
+                })
                 .collect();
             let cond = if conditions.is_empty() {
                 "is.list(".to_string() + match_var + ")"
@@ -221,7 +232,7 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
             let bindings: Vec<String> = fields
                 .iter()
                 .filter_map(|arg_val| {
-                    if let Lang::Variable(var_name, _, _, _) = &arg_val.get_value() {
+                    if let Lang::Variable { name: var_name, .. } = &arg_val.get_value() {
                         Some(format!(
                             "{} <- {}[[\"{}\"]]",
                             var_name,
@@ -236,10 +247,12 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
             (cond, bindings.join("\n"))
         }
         // DataFrame pattern: data__frame(col1 = x, col2 = y)
-        Lang::DataFrame(fields, _) => {
+        Lang::DataFrame { value: fields, .. } => {
             let conditions: Vec<String> = fields
                 .iter()
-                .map(|arg_val| format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument()))
+                .map(|arg_val: &ArgumentValue| {
+                    format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument())
+                })
                 .collect();
             let cond = if conditions.is_empty() {
                 "is.data.frame(".to_string() + match_var + ")"
@@ -253,7 +266,7 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
             let bindings: Vec<String> = fields
                 .iter()
                 .filter_map(|arg_val| {
-                    if let Lang::Variable(var_name, _, _, _) = &arg_val.get_value() {
+                    if let Lang::Variable { name: var_name, .. } = &arg_val.get_value() {
                         Some(format!(
                             "{} <- {}[[\"{}\"]]",
                             var_name,
@@ -268,9 +281,9 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
             (cond, bindings.join("\n"))
         }
         // Wildcard: _
-        Lang::Variable(name, _, _, _) if name == "_" => ("TRUE".to_string(), String::new()),
+        Lang::Variable { name, .. } if name == "_" => ("TRUE".to_string(), String::new()),
         // Other variable: bind the whole value
-        Lang::Variable(name, _, _, _) => {
+        Lang::Variable { name, .. } => {
             let binding = format!("{} <- {}", name, match_var);
             ("TRUE".to_string(), binding)
         }
@@ -304,11 +317,22 @@ impl RTranslatable<(String, Context)> for Lang {
                 let anotation = cont.get_type_anotation(&typ);
                 (format!("'{}' |> {}", s, anotation), cont.clone())
             }
-            Lang::Operator(Op::Dot(_), e1, e2, _) | Lang::Operator(Op::Pipe(_), e1, e2, _) => {
+            Lang::Operator {
+                operator: Op::Dot(_),
+                rhs: e1,
+                lhs: e2,
+                ..
+            }
+            | Lang::Operator {
+                operator: Op::Pipe(_),
+                rhs: e1,
+                lhs: e2,
+                ..
+            } => {
                 let e1 = (**e1).clone();
                 let e2 = (**e2).clone();
                 match e2.clone() {
-                    Lang::Variable(_, _, _, _) => match e1 {
+                    Lang::Variable { .. } => match e1 {
                         Lang::Integer { .. } => Translatable::from(cont.clone())
                             .to_r(&e2)
                             .add("[[")
@@ -322,7 +346,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             .add("']]")
                             .into(),
                     },
-                    Lang::List(fields, _) => {
+                    Lang::List { value: fields, .. } => {
                         let at = fields[0].clone();
                         Translatable::from(cont.clone())
                             .add("within(")
@@ -334,7 +358,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             .add(" })")
                             .into()
                     }
-                    Lang::DataFrame(fields, _) => {
+                    Lang::DataFrame { value: fields, .. } => {
                         let at = fields[0].clone();
                         Translatable::from(cont.clone())
                             .add("within(")
@@ -346,9 +370,18 @@ impl RTranslatable<(String, Context)> for Lang {
                             .add(" })")
                             .into()
                     }
-                    Lang::FunctionApp(var, v, h) => {
+                    Lang::FunctionApp {
+                        identifier: var,
+                        arguments: v,
+                        help_data: h,
+                    } => {
                         let v = [e1].iter().chain(v.iter()).cloned().collect();
-                        Lang::FunctionApp(var, v, h).to_r(cont)
+                        Lang::FunctionApp {
+                            identifier: var,
+                            arguments: v,
+                            help_data: h,
+                        }
+                        .to_r(cont)
                     }
                     _ => Translatable::from(cont.clone())
                         .to_r(&e2)
@@ -358,26 +391,36 @@ impl RTranslatable<(String, Context)> for Lang {
                         .into(),
                 }
             }
-            Lang::Operator(Op::Dollar(_), e1, e2, _) => {
+            Lang::Operator {
+                operator: Op::Dollar(_),
+                rhs: e1,
+                lhs: e2,
+                ..
+            } => {
                 let e1 = (**e1).clone();
                 let e2 = (**e2).clone();
                 let t1 = typing(cont, &e1).value;
                 let val = match (t1.clone(), e2.clone()) {
-                    (Type::Vec(vtype, _, _, _), Lang::Variable(name, _, _, _))
+                    (Type::Vec(vtype, _, _, _), Lang::Variable { name, .. })
                         if vtype.is_array() =>
                     {
                         format!("vec_apply(get, {}, typed_vec('{}'))", e1.to_r(cont).0, name)
                     }
-                    (Type::Vec(VecType::S3, _, _, _), Lang::Variable(name, _, _, _)) => {
+                    (Type::Vec(VecType::S3, _, _, _), Lang::Variable { name, .. }) => {
                         let name_str = name.replace("__", ".");
                         format!("get({}, '{}')", e1.to_r(cont).0, name_str)
                     }
-                    (_, Lang::Variable(name, _, _, _)) => format!("{}${}", e1.to_r(cont).0, name),
+                    (_, Lang::Variable { name, .. }) => format!("{}${}", e1.to_r(cont).0, name),
                     _ => format!("{}${}", e1.to_r(cont).0, e2.to_r(cont).0),
                 };
                 (val, cont.clone())
             }
-            Lang::Operator(op, e1, e2, _) => {
+            Lang::Operator {
+                operator: op,
+                rhs: e1,
+                lhs: e2,
+                ..
+            } => {
                 let op_str = format!(" {} ", op);
                 Translatable::from(cont.clone())
                     .to_r(e1)
@@ -429,7 +472,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     cont.clone(),
                 )
             }
-            Lang::Variable(_, _, _, _) => {
+            Lang::Variable { .. } => {
                 //Here we only keep the variable name, the path and the type
                 let var = Var::from_language(self.clone()).unwrap();
                 let name = if var.contains("__") {
@@ -439,7 +482,11 @@ impl RTranslatable<(String, Context)> for Lang {
                 };
                 (name.to_string(), cont.clone())
             }
-            Lang::FunctionApp(exp, vals, _) => {
+            Lang::FunctionApp {
+                identifier: exp,
+                arguments: vals,
+                ..
+            } => {
                 let var = Var::try_from(exp.clone()).unwrap();
 
                 let (exp_str, cont1) = exp.to_r(cont);
@@ -473,7 +520,11 @@ impl RTranslatable<(String, Context)> for Lang {
                     })
                     .unwrap_or((format!("{}({})", exp_str, args), current_cont))
             }
-            Lang::VecFunctionApp(_, exp, vals, _) => {
+            Lang::VecFunctionApp {
+                identifier: exp,
+                arguments: vals,
+                ..
+            } => {
                 let var = Var::try_from(exp.clone()).unwrap();
                 let name = var.get_name();
                 let str_vals = vals
@@ -527,7 +578,11 @@ impl RTranslatable<(String, Context)> for Lang {
                         .unwrap_or((format!("vec_apply({}, {})", exp_str, args), current_cont))
                 }
             }
-            Lang::ArrayIndexing(exp, val, _) => {
+            Lang::ArrayIndexing {
+                identifier: exp,
+                indexing: val,
+                ..
+            } => {
                 let (exp_str, _) = exp.to_r(cont);
                 let (val_str, _) = val.to_simple_r(cont);
                 let (typ, _, _) = typing(cont, exp).to_tuple();
@@ -537,7 +592,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 };
                 (res, cont.clone())
             }
-            Lang::GenFunc(func, _, _) => (
+            Lang::GenFunc { name: func, .. } => (
                 format!("function(x, ...) UseMethod('{}')", func),
                 cont.clone(),
             ),
@@ -583,7 +638,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 };
                 (code, new_cont)
             }
-            Lang::Array(_v, _h) => {
+            Lang::Array { .. } => {
                 let typ = self.typing(cont).value;
 
                 let dimension = ArrayType::try_from(typ.clone())
@@ -607,7 +662,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     cont.to_owned(),
                 )
             }
-            Lang::List(args, _) => {
+            Lang::List { value: args, .. } => {
                 let (body, current_cont) = Translatable::from(cont.clone())
                     .join_arg_val(args, ",\n ")
                     .into();
@@ -620,7 +675,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     .map(|s| (s, current_cont))
                     .unwrap()
             }
-            Lang::DataFrame(args, _) => {
+            Lang::DataFrame { value: args, .. } => {
                 let (body, current_cont) = Translatable::from(cont.clone())
                     .join_arg_val(args, ",\n ")
                     .into();
@@ -633,7 +688,12 @@ impl RTranslatable<(String, Context)> for Lang {
                     .map(|s| (s, current_cont))
                     .unwrap()
             }
-            Lang::If(cond, exp, els, _) if els == &Box::new(Lang::Empty(HelpData::default())) => {
+            Lang::If {
+                condition: cond,
+                if_block: exp,
+                else_block: els,
+                ..
+            } if els == &Box::new(Lang::Empty(HelpData::default())) => {
                 Translatable::from(cont.clone())
                     .add("if(")
                     .to_r(cond)
@@ -642,7 +702,12 @@ impl RTranslatable<(String, Context)> for Lang {
                     .add(" \n}")
                     .into()
             }
-            Lang::If(cond, exp, els, _) => Translatable::from(cont.clone())
+            Lang::If {
+                condition: cond,
+                if_block: exp,
+                else_block: els,
+                help_data: _,
+            } => Translatable::from(cont.clone())
                 .add("if(")
                 .to_r(cond)
                 .add(") {\n")
@@ -650,18 +715,24 @@ impl RTranslatable<(String, Context)> for Lang {
                 .add(" \n} else ")
                 .to_r(els)
                 .into(),
-            Lang::Tuple(vals, _) => Translatable::from(cont.clone())
+            Lang::Tuple { value: vals, .. } => Translatable::from(cont.clone())
                 .add("struct(list(")
                 .join(vals, ", ")
                 .add("), 'Tuple')")
                 .into(),
-            Lang::Assign(var, exp, _) => Translatable::from(cont.clone())
+            Lang::Assign {
+                identifier: var,
+                expression: exp,
+                ..
+            } => Translatable::from(cont.clone())
                 .to_r(var)
                 .add(" <- ")
                 .to_r(exp)
                 .into(),
-            Lang::Comment(txt, _) => ("#".to_string() + txt, cont.clone()),
-            Lang::Tag(s, t, _) => {
+            Lang::Comment { value: txt, .. } => ("#".to_string() + &txt, cont.clone()),
+            Lang::Tag {
+                name: s, value: t, ..
+            } => {
                 let (t_str, new_cont) = t.to_r(cont);
                 let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
@@ -675,17 +746,22 @@ impl RTranslatable<(String, Context)> for Lang {
             }
             Lang::Null(_) => ("NULL".to_string(), cont.clone()),
             Lang::Empty(_) => ("NA".to_string(), cont.clone()),
-            Lang::ModuleDecl(name, _) => (format!("{} <- new.env()", name), cont.clone()),
-            Lang::Lines(exps, _) => Translatable::from(cont.clone()).join(exps, "\n").into(),
-            Lang::Return(exp, _) => Translatable::from(cont.clone())
+            Lang::Lines { value: exps, .. } => {
+                Translatable::from(cont.clone()).join(exps, "\n").into()
+            }
+            Lang::Return { value: exp, .. } => Translatable::from(cont.clone())
                 .add("return ")
                 .to_r(exp)
                 .into(),
-            Lang::Lambda(params, bloc, _) => {
+            Lang::Lambda {
+                parameters: params,
+                body: bloc,
+                ..
+            } => {
                 let param_names: Vec<String> = params
                     .iter()
-                    .map(|p| match p {
-                        Lang::Variable(name, _, _, _) => name.clone(),
+                    .map(|p: &Lang| match p {
+                        Lang::Variable { name, .. } => name.clone(),
                         _ => "x".to_string(),
                     })
                     .collect();
@@ -698,14 +774,23 @@ impl RTranslatable<(String, Context)> for Lang {
                     cont.clone(),
                 )
             }
-            Lang::VecBlock(bloc, _) => (bloc.to_string(), cont.clone()),
-            Lang::Library(name, _) => (format!("library({})", name), cont.clone()),
-            Lang::Match(exp, branches, _) => (
+            Lang::VecBlock { value: bloc, .. } => (bloc.to_string(), cont.clone()),
+            Lang::Library { value: name, .. } => (format!("library({})", name), cont.clone()),
+            Lang::Match {
+                target: exp,
+                branches,
+                ..
+            } => (
                 to_pattern_match_statement((**exp).clone(), branches, cont),
                 cont.clone(),
             ),
-            Lang::Exp(exp, _) => (exp.clone(), cont.clone()),
-            Lang::ForLoop(var, iterator, body, _) => Translatable::from(cont.clone())
+            Lang::Exp { value: exp, .. } => (exp.clone(), cont.clone()),
+            Lang::ForLoop {
+                identifier: var,
+                expression: iterator,
+                body,
+                ..
+            } => Translatable::from(cont.clone())
                 .add("for (")
                 .to_r_safe(var)
                 .add(" in ")
@@ -714,33 +799,39 @@ impl RTranslatable<(String, Context)> for Lang {
                 .to_r_safe(body)
                 .add("\n}")
                 .into(),
-            Lang::RFunction(vars, body, _) => Translatable::from(cont.clone())
+            Lang::RFunction {
+                parameters: vars,
+                body,
+                ..
+            } => Translatable::from(cont.clone())
                 .add("function (")
                 .join(vars, ", ")
                 .add(") \n")
                 .add(body)
                 .add("\n")
                 .into(),
-            Lang::Signature(_, _, _) => ("".to_string(), cont.clone()),
-            Lang::Alias(_, _, _, _) => ("".to_string(), cont.clone()),
-            Lang::KeyValue(k, v, _) => (format!("{} = {}", k, v.to_r(cont).0), cont.clone()),
-            Lang::Vector(vals, _) => {
+            Lang::Signature { .. } => ("".to_string(), cont.clone()),
+            Lang::Alias { .. } => ("".to_string(), cont.clone()),
+            Lang::KeyValue {
+                key: k, value: v, ..
+            } => (format!("{} = {}", k, v.to_r(cont).0), cont.clone()),
+            Lang::Vector { value: vals, .. } => {
                 let res = "c(".to_string()
                     + &vals
                         .iter()
-                        .map(|x| x.to_r(cont).0)
+                        .map(|x: &Lang| x.to_r(cont).0)
                         .collect::<Vec<_>>()
                         .join(", ")
                     + ")";
                 (res, cont.to_owned())
             }
-            Lang::Not(exp, _) => (format!("!{}", exp.to_r(cont).0), cont.clone()),
-            Lang::Sequence(vals, _) => {
+            Lang::Not { value: exp, .. } => (format!("!{}", exp.to_r(cont).0), cont.clone()),
+            Lang::Sequence { body: vals, .. } => {
                 let res = if !vals.is_empty() {
                     "c(".to_string()
                         + &vals
                             .iter()
-                            .map(|x| "list(".to_string() + &x.to_r(cont).0 + ")")
+                            .map(|x: &Lang| "list(".to_string() + &x.to_r(cont).0 + ")")
                             .collect::<Vec<_>>()
                             .join(", ")
                         + ")"
@@ -749,7 +840,10 @@ impl RTranslatable<(String, Context)> for Lang {
                 };
                 (res, cont.to_owned())
             }
-            Lang::TestBlock(body, h) => {
+            Lang::TestBlock {
+                value: body,
+                help_data: h,
+            } => {
                 let file_name = h
                     .get_file_data()
                     .map(|(name, _)| format!("test-{}", name))
@@ -768,7 +862,9 @@ impl RTranslatable<(String, Context)> for Lang {
                 let res = exp.to_js(&js_cont).0;
                 (format!("'{}{}'", JS_HEADER, res), cont.clone())
             }
-            Lang::WhileLoop(condition, body, _) => (
+            Lang::WhileLoop {
+                condition, body, ..
+            } => (
                 format!(
                     "while ({}) {{\n{}\n}}",
                     condition.to_r(cont).0,

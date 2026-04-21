@@ -356,7 +356,14 @@ pub fn r_function(s: Span) -> IResult<Span, Lang> {
         }
         Ok((s, (id, _op, args, _cl, exp))) => {
             let args = args.iter().map(|(arg, _)| arg).cloned().collect::<Vec<_>>();
-            Ok((s, Lang::RFunction(args, exp.to_string(), id.into())))
+            Ok((
+                s,
+                Lang::RFunction {
+                    parameters: args,
+                    body: exp.to_string(),
+                    help_data: id.into(),
+                },
+            ))
         }
         Err(r) => Err(r),
     }
@@ -417,7 +424,14 @@ fn key_value(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (v, _eq, el))) => Ok((s, Lang::KeyValue((*v).into(), Box::new(el), v.into()))),
+        Ok((s, (v, _eq, el))) => Ok((
+            s,
+            Lang::KeyValue {
+                key: (*v).into(),
+                value: Box::new(el),
+                help_data: v.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -444,7 +458,11 @@ fn array_indexing(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (lang1, lang2))) => Ok((
             s,
-            Lang::ArrayIndexing(Box::new(lang1.clone()), Box::new(lang2), lang1.into()),
+            Lang::ArrayIndexing {
+                identifier: Box::new(lang1.clone()),
+                indexing: Box::new(lang2),
+                help_data: lang1.into(),
+            },
         )),
         Err(r) => Err(r),
     }
@@ -459,7 +477,13 @@ fn dataframe_exp(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (start, _, args, _))) => Ok((s, Lang::DataFrame(args.clone(), start.into()))),
+        Ok((s, (start, _, args, _))) => Ok((
+            s,
+            Lang::DataFrame {
+                value: args.clone(),
+                help_data: start.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -475,7 +499,11 @@ fn function_application(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (exp, _, v, _))) => Ok((
             s,
-            Lang::FunctionApp(Box::new(exp.clone()), v.clone(), exp.into()),
+            Lang::FunctionApp {
+                identifier: Box::new(exp.clone()),
+                arguments: v.clone(),
+                help_data: exp.into(),
+            },
         )),
         Err(r) => Err(r),
     }
@@ -489,7 +517,13 @@ fn array(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (_, v, _))) => Ok((s, Lang::Array(v.clone(), v.into()))),
+        Ok((s, (_, v, _))) => Ok((
+            s,
+            Lang::Array {
+                value: v.clone(),
+                help_data: v.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -502,7 +536,13 @@ pub fn vector(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (_, v, _))) => Ok((s, Lang::Vector(v.clone(), v.into()))),
+        Ok((s, (_, v, _))) => Ok((
+            s,
+            Lang::Vector {
+                value: v.clone(),
+                help_data: v.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -515,7 +555,13 @@ fn sequence(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (_, v, _))) => Ok((s, Lang::Sequence(v.clone(), v.into()))),
+        Ok((s, (_, v, _))) => Ok((
+            s,
+            Lang::Sequence {
+                body: v.clone(),
+                help_data: v.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -533,7 +579,13 @@ fn record(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (Some(start), _, args, _))) => Ok((s, Lang::List(args.clone(), start.into()))),
+        Ok((s, (Some(start), _, args, _))) => Ok((
+            s,
+            Lang::List {
+                value: args.clone(),
+                help_data: start.into(),
+            },
+        )),
         Ok((_s, (None, _ob, args, _))) => {
             if args.is_empty() {
                 panic!("Error: the scope shouldn't be empty")
@@ -572,9 +624,20 @@ pub fn tag_exp(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (dot, (n, _h), None))) => Ok((
             s,
-            Lang::Tag(n, Box::new(Lang::Empty(dot.clone().into())), dot.into()),
+            Lang::Tag {
+                name: n,
+                value: Box::new(Lang::Empty(dot.clone().into())),
+                help_data: dot.into(),
+            },
         )),
-        Ok((s, (dot, (n, _h), Some(val)))) => Ok((s, Lang::Tag(n, Box::new(val), dot.into()))),
+        Ok((s, (dot, (n, _h), Some(val)))) => Ok((
+            s,
+            Lang::Tag {
+                name: n,
+                value: Box::new(val),
+                help_data: dot.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -620,12 +683,12 @@ fn if_exp(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (_if, _op, cond, _cp, _o, exp, _c, els))) => Ok((
             s,
-            Lang::If(
-                Box::new(cond),
-                Box::new(exp),
-                Box::new(els.unwrap_or(Lang::Empty(HelpData::default()))),
-                _if.into(),
-            ),
+            Lang::If {
+                condition: Box::new(cond),
+                if_block: Box::new(exp),
+                else_block: Box::new(els.unwrap_or(Lang::Empty(HelpData::default()))),
+                help_data: _if.into(),
+            },
         )),
         Err(r) => Err(r),
     }
@@ -644,7 +707,14 @@ fn tag_pattern_with_var(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (dot, (n, _h), var))) => Ok((s, Lang::Tag(n, Box::new(var), dot.into()))),
+        Ok((s, (dot, (n, _h), var))) => Ok((
+            s,
+            Lang::Tag {
+                name: n,
+                value: Box::new(var),
+                help_data: dot.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -655,7 +725,11 @@ fn tag_pattern_no_var(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (dot, (n, _h)))) => Ok((
             s,
-            Lang::Tag(n, Box::new(Lang::Empty(dot.clone().into())), dot.into()),
+            Lang::Tag {
+                name: n,
+                value: Box::new(Lang::Empty(dot.clone().into())),
+                help_data: dot.into(),
+            },
         )),
         Err(r) => Err(r),
     }
@@ -667,12 +741,12 @@ fn wildcard_pattern(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, underscore)) => Ok((
             s,
-            Lang::Variable(
-                "_".to_string(),
-                false,
-                builder::empty_type(),
-                underscore.into(),
-            ),
+            Lang::Variable {
+                name: "_".to_string(),
+                is_opaque: false,
+                related_type: builder::empty_type(),
+                help_data: underscore.into(),
+            },
         )),
         Err(r) => Err(r),
     }
@@ -687,7 +761,14 @@ fn type_pattern(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, ((name, h), _as, typ))) => Ok((s, Lang::TypePattern(name, typ, h))),
+        Ok((s, ((name, h), _as, typ))) => Ok((
+            s,
+            Lang::TypePattern {
+                variable_name: name,
+                matched_type: typ,
+                help_data: h,
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -736,7 +817,14 @@ fn match_exp(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (_m, exp, _o, bs, _c))) => Ok((s, Lang::Match(Box::new(exp), bs, _m.into()))),
+        Ok((s, (_m, exp, _o, bs, _c))) => Ok((
+            s,
+            Lang::Match {
+                target: Box::new(exp),
+                branches: bs,
+                help_data: _m.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -750,7 +838,13 @@ pub fn tuple_exp(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (id, _op, vals, _cl))) => Ok((s, Lang::Tuple(vals, id.into()))),
+        Ok((s, (id, _op, vals, _cl))) => Ok((
+            s,
+            Lang::Tuple {
+                value: vals,
+                help_data: id.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -761,9 +855,9 @@ fn int_or_var(s: Span) -> IResult<Span, Lang> {
 
 fn create_range(params: &[Lang]) -> Lang {
     if params.len() == 2 {
-        Lang::FunctionApp(
-            Box::new(Var::from_name("seq").to_language()),
-            vec![
+        Lang::FunctionApp {
+            identifier: Box::new(Var::from_name("seq").to_language()),
+            arguments: vec![
                 params[0].clone(),
                 params[1].clone(),
                 Lang::Integer {
@@ -771,14 +865,14 @@ fn create_range(params: &[Lang]) -> Lang {
                     help_data: HelpData::default(),
                 },
             ],
-            params.to_vec().into(),
-        )
+            help_data: params.to_vec().into(),
+        }
     } else {
-        Lang::FunctionApp(
-            Box::new(Var::from_name("seq").to_language()),
-            vec![params[0].clone(), params[1].clone(), params[2].clone()],
-            params.to_vec().into(),
-        )
+        Lang::FunctionApp {
+            identifier: Box::new(Var::from_name("seq").to_language()),
+            arguments: vec![params[0].clone(), params[1].clone(), params[2].clone()],
+            help_data: params.to_vec().into(),
+        }
     }
 }
 
@@ -803,7 +897,13 @@ fn range(s: Span) -> IResult<Span, Lang> {
 fn function_application2(s: Span) -> IResult<Span, Lang> {
     let res = recognize(function_application).parse(s);
     match res {
-        Ok((s, fun_app)) => Ok((s, Lang::Exp(fun_app.to_string(), fun_app.into()))),
+        Ok((s, fun_app)) => Ok((
+            s,
+            Lang::Exp {
+                value: fun_app.to_string(),
+                help_data: fun_app.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -811,7 +911,23 @@ fn function_application2(s: Span) -> IResult<Span, Lang> {
 fn dot_variable(s: Span) -> IResult<Span, Lang> {
     let res = preceded(tag("."), variable2).parse(s);
     match res {
-        Ok((s, Lang::Variable(n, b, c, d))) => Ok((s, Lang::Variable(format!(".{}", n), b, c, d))),
+        Ok((
+            s,
+            Lang::Variable {
+                name: n,
+                is_opaque: b,
+                related_type: c,
+                help_data: d,
+            },
+        )) => Ok((
+            s,
+            Lang::Variable {
+                name: format!(".{}", n),
+                is_opaque: b,
+                related_type: c,
+                help_data: d,
+            },
+        )),
         Ok((_s, _)) => todo!(),
         Err(r) => Err(r),
     }
@@ -847,9 +963,13 @@ fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (_start, bloc, _end))) => {
-            Ok((s, Lang::VecBlock(bloc.fragment().to_string(), bloc.into())))
-        }
+        Ok((s, (_start, bloc, _end))) => Ok((
+            s,
+            Lang::VecBlock {
+                value: bloc.fragment().to_string(),
+                help_data: bloc.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -866,11 +986,11 @@ fn lambda(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (start, _, v, _, body))) => Ok((
             s,
-            Lang::Lambda(
-                v.iter().map(|(var, _)| var).cloned().collect(),
-                Box::new(body.clone()),
-                start.into(),
-            ),
+            Lang::Lambda {
+                parameters: v.iter().map(|(var, _)| var).cloned().collect(),
+                body: Box::new(body.clone()),
+                help_data: start.into(),
+            },
         )),
         Err(r) => Err(r),
     }
@@ -904,7 +1024,13 @@ fn not_exp(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, (not_op, lang))) => Ok((s, Lang::Not(Box::new(lang), not_op.into()))),
+        Ok((s, (not_op, lang))) => Ok((
+            s,
+            Lang::Not {
+                value: Box::new(lang),
+                help_data: not_op.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -933,7 +1059,13 @@ pub fn return_exp(s: Span) -> IResult<Span, Lang> {
     )
     .parse(s);
     match res {
-        Ok((s, el)) => Ok((s, Lang::Return(Box::new(el.clone()), el.into()))),
+        Ok((s, el)) => Ok((
+            s,
+            Lang::Return {
+                value: Box::new(el.clone()),
+                help_data: el.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -1300,7 +1432,10 @@ mod tests {
         let input = ".Some(a)";
         let res = tag_pattern_with_var(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Tag");
-        if let Lang::Tag(name, inner, _) = &res {
+        if let Lang::Tag {
+            name, value: inner, ..
+        } = &res
+        {
             assert_eq!(name, "Some");
             assert_eq!(inner.simple_print(), "Variable(a)");
         } else {
@@ -1313,7 +1448,10 @@ mod tests {
         let input = ".None ";
         let res = tag_pattern_no_var(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Tag");
-        if let Lang::Tag(name, inner, _) = &res {
+        if let Lang::Tag {
+            name, value: inner, ..
+        } = &res
+        {
             assert_eq!(name, "None");
             assert_eq!(inner.simple_print(), "Empty");
         } else {
@@ -1447,7 +1585,7 @@ mod tests {
             "Record",
             "Should parse record pattern as Record"
         );
-        if let Lang::List(fields, _) = &res {
+        if let Lang::List { value: fields, .. } = &res {
             assert_eq!(fields.len(), 2);
             assert_eq!(fields[0].get_argument(), "nom");
             assert_eq!(fields[1].get_argument(), "age");
@@ -1461,7 +1599,7 @@ mod tests {
         let input = "list(nom = n, age = a) ";
         let res = match_pattern(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Record");
-        if let Lang::List(fields, _) = &res {
+        if let Lang::List { value: fields, .. } = &res {
             assert_eq!(fields.len(), 2);
             assert_eq!(fields[0].get_argument(), "nom");
             assert_eq!(fields[1].get_argument(), "age");
@@ -1527,7 +1665,7 @@ mod tests {
         let input = ":{nom: n} ";
         let res = match_pattern(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Record");
-        if let Lang::List(fields, _) = &res {
+        if let Lang::List { value: fields, .. } = &res {
             assert_eq!(fields.len(), 1);
             assert_eq!(fields[0].get_argument(), "nom");
         } else {
@@ -1542,7 +1680,10 @@ mod tests {
         let input = ":{a, b, c} ";
         let res = match_pattern(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Tuple");
-        if let Lang::Tuple(elements, _) = &res {
+        if let Lang::Tuple {
+            value: elements, ..
+        } = &res
+        {
             assert_eq!(elements.len(), 3);
         } else {
             panic!("Expected Tuple variant");
@@ -1554,7 +1695,10 @@ mod tests {
         let input = "list(a, b, c) ";
         let res = match_pattern(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Tuple");
-        if let Lang::Tuple(elements, _) = &res {
+        if let Lang::Tuple {
+            value: elements, ..
+        } = &res
+        {
             assert_eq!(elements.len(), 3);
         } else {
             panic!("Expected Tuple variant");
@@ -1566,7 +1710,10 @@ mod tests {
         let input = ":{x, y} ";
         let res = match_pattern(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Tuple");
-        if let Lang::Tuple(elements, _) = &res {
+        if let Lang::Tuple {
+            value: elements, ..
+        } = &res
+        {
             assert_eq!(elements.len(), 2);
         } else {
             panic!("Expected Tuple variant");
