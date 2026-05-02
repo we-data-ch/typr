@@ -61,7 +61,7 @@ mod tests {
         let res = res.first().unwrap();
         let integer = builder::integer_type_default();
         let var = Var::from_name("a").set_type(integer.clone());
-        assert_eq!(res, &Lang::Signature(var, integer, HelpData::default()));
+        assert_eq!(res, &Lang::Signature { identifier: var, target_type: integer, help_data: HelpData::default() });
     }
 
     #[test]

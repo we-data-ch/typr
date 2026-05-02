@@ -28,10 +28,10 @@ impl fmt::Display for ErrorMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = match self {
             ErrorMessage::UnificationMatch(args, param_types) => format!(
-                "The given values don't match:\nexpected:{:?}\nrecieved: {:?}",
+                "The given values don't match:\nexpected:{:?}\nreceived: {:?}",
                 args, param_types
             ),
-            _ => "Unknonw error".to_string(),
+            _ => "Unknown error".to_string(),
         };
         write!(f, "{}", res)
     }

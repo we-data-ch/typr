@@ -1381,7 +1381,7 @@ mod tests {
         let res = match_exp(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Match");
         // Verify we have 3 branches
-        if let Lang::Match(_, branches, _) = &res {
+        if let Lang::Match { branches, .. } = &res {
             assert_eq!(branches.len(), 3, "Should have 3 branches");
         } else {
             panic!("Expected Match variant");
@@ -1468,7 +1468,7 @@ mod tests {
         } ";
         let res = match_exp(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Match");
-        if let Lang::Match(_, branches, _) = &res {
+        if let Lang::Match { branches, .. } = &res {
             assert_eq!(branches.len(), 3);
         } else {
             panic!("Expected Match variant");
@@ -1485,7 +1485,7 @@ mod tests {
             res.simple_print().starts_with("TypePattern"),
             "Should parse 'x as int' as TypePattern"
         );
-        if let Lang::TypePattern(name, _, _) = &res {
+        if let Lang::TypePattern { variable_name: name, .. } = &res {
             assert_eq!(name, "x");
         } else {
             panic!("Expected TypePattern variant");
@@ -1496,7 +1496,7 @@ mod tests {
     fn test_type_pattern_bool() {
         let input = "y as bool ";
         let res = type_pattern(input.into()).unwrap().1;
-        if let Lang::TypePattern(name, _, _) = &res {
+        if let Lang::TypePattern { variable_name: name, .. } = &res {
             assert_eq!(name, "y");
         } else {
             panic!("Expected TypePattern variant");
@@ -1507,7 +1507,7 @@ mod tests {
     fn test_type_pattern_num() {
         let input = "val as num ";
         let res = type_pattern(input.into()).unwrap().1;
-        if let Lang::TypePattern(name, _, _) = &res {
+        if let Lang::TypePattern { variable_name: name, .. } = &res {
             assert_eq!(name, "val");
         } else {
             panic!("Expected TypePattern variant");
@@ -1518,7 +1518,7 @@ mod tests {
     fn test_type_pattern_char() {
         let input = "s as char ";
         let res = type_pattern(input.into()).unwrap().1;
-        if let Lang::TypePattern(name, _, _) = &res {
+        if let Lang::TypePattern { variable_name: name, .. } = &res {
             assert_eq!(name, "s");
         } else {
             panic!("Expected TypePattern variant");
@@ -1530,7 +1530,7 @@ mod tests {
         let input = "match x { y as int => y + 1, z as bool => 0 } ";
         let res = match_exp(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Match");
-        if let Lang::Match(_, branches, _) = &res {
+        if let Lang::Match { branches, .. } = &res {
             assert_eq!(branches.len(), 2, "Should have 2 branches");
             assert!(
                 branches[0].0.simple_print().starts_with("TypePattern"),
@@ -1554,7 +1554,7 @@ mod tests {
         } ";
         let res = match_exp(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Match");
-        if let Lang::Match(_, branches, _) = &res {
+        if let Lang::Match { branches, .. } = &res {
             assert_eq!(branches.len(), 3, "Should have 3 branches");
             assert_eq!(branches[0].0.simple_print(), "Tag");
             assert!(branches[1].0.simple_print().starts_with("TypePattern"));
@@ -1613,7 +1613,7 @@ mod tests {
         let input = "match x { :{nom: n, age: a} => a, _ => 0 } ";
         let res = match_exp(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Match");
-        if let Lang::Match(_, branches, _) = &res {
+        if let Lang::Match { branches, .. } = &res {
             assert_eq!(branches.len(), 2, "Should have 2 branches");
             assert_eq!(
                 branches[0].0.simple_print(),
@@ -1631,7 +1631,7 @@ mod tests {
         let input = "match x { list(nom = n, age = a) => a, _ => 0 } ";
         let res = match_exp(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Match");
-        if let Lang::Match(_, branches, _) = &res {
+        if let Lang::Match { branches, .. } = &res {
             assert_eq!(branches.len(), 2);
             assert_eq!(branches[0].0.simple_print(), "Record");
         } else {
@@ -1649,7 +1649,7 @@ mod tests {
         } ";
         let res = match_exp(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Match");
-        if let Lang::Match(_, branches, _) = &res {
+        if let Lang::Match { branches, .. } = &res {
             assert_eq!(branches.len(), 4);
             assert_eq!(branches[0].0.simple_print(), "Tag");
             assert_eq!(branches[1].0.simple_print(), "Record");
@@ -1725,7 +1725,7 @@ mod tests {
         let input = "match x { :{a, b, c} => a + c, _ => 0 } ";
         let res = match_exp(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Match");
-        if let Lang::Match(_, branches, _) = &res {
+        if let Lang::Match { branches, .. } = &res {
             assert_eq!(branches.len(), 2);
             assert_eq!(branches[0].0.simple_print(), "Tuple");
             assert_eq!(branches[1].0.simple_print(), "Variable(_)");
@@ -1739,7 +1739,7 @@ mod tests {
         let input = "match x { list(a, b, c) => a + c, _ => 0 } ";
         let res = match_exp(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Match");
-        if let Lang::Match(_, branches, _) = &res {
+        if let Lang::Match { branches, .. } = &res {
             assert_eq!(branches.len(), 2);
             assert_eq!(branches[0].0.simple_print(), "Tuple");
         } else {
@@ -1758,7 +1758,7 @@ mod tests {
         } ";
         let res = match_exp(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Match");
-        if let Lang::Match(_, branches, _) = &res {
+        if let Lang::Match { branches, .. } = &res {
             assert_eq!(branches.len(), 5);
             assert_eq!(branches[0].0.simple_print(), "Tag");
             assert_eq!(branches[1].0.simple_print(), "Record");

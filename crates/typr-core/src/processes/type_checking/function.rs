@@ -49,6 +49,7 @@ pub fn function(
 #[cfg(test)]
 mod tests {
     use crate::components::error_message::help_data::HelpData;
+    use crate::components::r#type::argument_type::ArgumentType;
     use crate::utils::builder;
     use crate::utils::fluent_parser::FluentParser;
     use crate::Type;
@@ -83,7 +84,11 @@ mod tests {
                 builder::character_type_default(),
             ),
         )]);
-        let expected = builder::function_type(&[interface], builder::character_type_default());
+        let expected = Type::Function(
+            vec![ArgumentType::new("x", &interface)],
+            Box::new(builder::character_type_default()),
+            HelpData::default(),
+        );
         assert_eq!(res, expected);
     }
 
@@ -111,7 +116,11 @@ mod tests {
                 ),
             ),
         ]);
-        let expected = builder::function_type(&[interface], builder::character_type_default());
+        let expected = Type::Function(
+            vec![ArgumentType::new("x", &interface)],
+            Box::new(builder::character_type_default()),
+            HelpData::default(),
+        );
         assert_eq!(res, expected);
     }
 
@@ -146,7 +155,11 @@ mod tests {
                 builder::character_type_default(),
             ),
         )]);
-        let expected = builder::function_type(&[interface], builder::integer_type_default());
+        let expected = Type::Function(
+            vec![ArgumentType::new("x", &interface)],
+            Box::new(builder::integer_type_default()),
+            HelpData::default(),
+        );
         assert_eq!(fp.get_last_type(), expected);
     }
 
@@ -162,9 +175,13 @@ mod tests {
                 builder::character_type_default(),
             ),
         )]);
-        let expected = builder::function_type(
-            &[interface, builder::integer_type_default()],
-            builder::character_type_default(),
+        let expected = Type::Function(
+            vec![
+                ArgumentType::new("x", &interface),
+                ArgumentType::new("y", &builder::integer_type_default()),
+            ],
+            Box::new(builder::character_type_default()),
+            HelpData::default(),
         );
         assert_eq!(res, expected);
     }
@@ -186,7 +203,11 @@ mod tests {
                 builder::self_generic_type(),
             ),
         )]);
-        let expected = builder::function_type(&[interface], builder::integer_type_default());
+        let expected = Type::Function(
+            vec![ArgumentType::new("x", &interface)],
+            Box::new(builder::integer_type_default()),
+            HelpData::default(),
+        );
         assert_eq!(res, expected);
     }
 
@@ -195,9 +216,10 @@ mod tests {
     #[test]
     fn test_function_without_interface_param() {
         let res = FluentParser::new().check_typing("fn(x: int): int { x }");
-        let expected = builder::function_type(
-            &[builder::integer_type_default()],
-            builder::integer_type_default(),
+        let expected = Type::Function(
+            vec![ArgumentType::new("x", &builder::integer_type_default())],
+            Box::new(builder::integer_type_default()),
+            HelpData::default(),
         );
         assert_eq!(res, expected);
     }
@@ -215,7 +237,11 @@ mod tests {
                 builder::self_generic_type(),
             ),
         )]);
-        let expected = builder::function_type(&[interface], builder::integer_type_default());
+        let expected = Type::Function(
+            vec![ArgumentType::new("x", &interface)],
+            Box::new(builder::integer_type_default()),
+            HelpData::default(),
+        );
         assert_eq!(res, expected);
     }
 

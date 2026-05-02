@@ -93,6 +93,6 @@ impl ErrorMsg for SyntaxError {
             }
             SyntaxError::WithNode(_, inner) => return inner.display(),
         };
-        format!("{:?}", msg)
+        msg.map_or_else(|e| format!("{:?}", e), |_| String::new())
     }
 }

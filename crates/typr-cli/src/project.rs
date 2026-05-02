@@ -247,6 +247,7 @@ pub fn check_file(path: &PathBuf) {
     let dir = PathBuf::from(".");
     write_std_for_type_checking(&dir);
     let type_checker = TypeChecker::new(context.clone()).typing(&lang);
+    write_context_json(&type_checker.get_context(), &dir);
     if type_checker.has_errors() {
         std::process::exit(1);
     }

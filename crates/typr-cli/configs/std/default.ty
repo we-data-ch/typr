@@ -1,6 +1,6 @@
 @nchar: (a: char) -> int;
 
-let len <- fn(a: char): int;
+let len <- fn(a: char): int {
 	nchar(a)
 };
 

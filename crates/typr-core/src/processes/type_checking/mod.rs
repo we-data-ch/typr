@@ -197,9 +197,16 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             target_type: typ,
             help_data: h,
         } => {
-            let var = Var::try_from(exp)
-                .unwrap()
-                .set_type(Type::Params(params.to_vec(), h.clone()));
+            let var = match Var::try_from(exp) {
+                Ok(v) => v.set_type(Type::Params(params.to_vec(), h.clone())),
+                Err(_) => {
+                    return TypeContext::new(
+                        builder::unknown_function_type(),
+                        expr.clone(),
+                        context.clone(),
+                    )
+                }
+            };
             let alias_context = context.clone().push_alias(var.get_name(), typ.to_owned());
             let new_context =
                 context
@@ -260,9 +267,12 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let reduced_right_type = reduce_type(context, &right_type);
 
             if reduced_right_type.is_subtype(&reduced_left_type, context).0 {
-                let var = Var::from_language((**left_expr).clone())
-                    .unwrap()
-                    .set_type(right_type.clone());
+                let Some(var) = Var::from_language((**left_expr).clone())
+                    .map(|v| v.set_type(right_type.clone()))
+                else {
+                    return TypeContext::new(right_type, expr.clone(), context.clone())
+                        .with_errors(errors);
+                };
                 TypeContext::new(
                     right_type.clone(),
                     expr.clone(),
@@ -320,9 +330,11 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                     value: members.to_vec(),
                     help_data: h.clone(),
                 }
+            } else if let Some(first) = members.iter().next() {
+                first.clone()
             } else {
-                members.iter().next().unwrap().clone()
-            }; // TODO: Modules can't be empty
+                return TypeContext::new(builder::empty_type(), expr.clone(), context.clone());
+            };
             let tc = typing(&Context::default(), &module_expr);
             TypeContext::new(
                 builder::empty_type(),
@@ -473,6 +485,69 @@ impl WithLang2 for Type {
     fn with_lang(self, expr: &Lang, context: &Context) -> (Type, Lang, Context) {
         (self, expr.clone(), context.clone())
     }
+}
+
+/// Type-check a homogeneous container literal (Array, Vector, Sequence).
+///
+/// - `type_prefix`: the string prefix for the type representation ("", "Vec", "Seq")
+/// - `empty_elem_type`: the element type used when the container is empty ("Empty" or "Any")
+/// - `reduce`: whether to alias-reduce element types before checking homogeneity
+/// - `generalize`: whether to generalize the element type when all elements share a type
+fn typing_container(
+    context: &Context,
+    expr: &Lang,
+    exprs: &[Lang],
+    h: &HelpData,
+    type_prefix: &str,
+    empty_elem_type: &str,
+    reduce: bool,
+    generalize: bool,
+) -> TypeContext {
+    let type_contexts: Vec<_> = exprs.iter().map(|e| typing(context, e)).collect();
+    let mut errors: Vec<TypRError> = type_contexts
+        .iter()
+        .flat_map(|tc| tc.errors.clone())
+        .collect();
+    let types: Vec<_> = type_contexts
+        .iter()
+        .map(|tc| {
+            if reduce {
+                tc.value.clone().reduce(context)
+            } else {
+                tc.value.clone()
+            }
+        })
+        .collect();
+
+    let new_type = if exprs.is_empty() {
+        format!("{}[0, {}]", type_prefix, empty_elem_type)
+            .parse::<Type>()
+            .unwrap()
+            .set_help_data(h.clone())
+    } else if are_homogenous_types(&types) {
+        let elem_str = if generalize {
+            types[0].clone().generalize().pretty()
+        } else {
+            types[0].clone().pretty()
+        };
+        format!("{}[{}, {}]", type_prefix, exprs.len(), elem_str)
+            .parse::<Type>()
+            .unwrap()
+            .set_help_data(h.clone())
+    } else {
+        errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
+        format!("{}[{}, Any]", type_prefix, exprs.len())
+            .parse::<Type>()
+            .unwrap()
+            .set_help_data(h.clone())
+    };
+
+    TypeContext::new(
+        new_type.clone(),
+        expr.clone(),
+        context.clone().push_types(&[new_type]),
+    )
+    .with_errors(errors)
 }
 
 //main
@@ -1281,158 +1356,15 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Array {
             value: exprs,
             help_data: h,
-        } => {
-            let type_contexts: Vec<_> = exprs.iter().map(|expr| typing(context, expr)).collect();
-            let mut errors: Vec<TypRError> = type_contexts
-                .iter()
-                .flat_map(|tc| tc.errors.clone())
-                .collect();
-            let types: Vec<_> = type_contexts
-                .iter()
-                .map(|tc| tc.value.clone().reduce(context))
-                .collect();
-
-            if exprs.is_empty() {
-                let new_type = "[0, Empty]"
-                    .parse::<Type>()
-                    .unwrap()
-                    .set_help_data(h.clone());
-                TypeContext::new(
-                    new_type.clone(),
-                    expr.clone(),
-                    context.clone().push_types(&[new_type]),
-                )
-                .with_errors(errors)
-            } else if are_homogenous_types(&types) {
-                let new_type = format!(
-                    "[{}, {}]",
-                    exprs.len(),
-                    types[0].clone().generalize().pretty()
-                )
-                .parse::<Type>()
-                .unwrap()
-                .set_help_data(h.clone());
-                TypeContext::new(
-                    new_type.clone(),
-                    expr.clone(),
-                    context.clone().push_types(&[new_type]),
-                )
-                .with_errors(errors)
-            } else {
-                errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
-                let new_type = format!("[{}, Any]", exprs.len())
-                    .parse::<Type>()
-                    .unwrap()
-                    .set_help_data(h.clone());
-                TypeContext::new(
-                    new_type.clone(),
-                    expr.clone(),
-                    context.clone().push_types(&[new_type]),
-                )
-                .with_errors(errors)
-            }
-        }
+        } => typing_container(context, expr, exprs, h, "", "Empty", true, true),
         Lang::Vector {
             value: exprs,
             help_data: h,
-        } => {
-            let type_contexts: Vec<_> = exprs.iter().map(|expr| typing(context, expr)).collect();
-            let mut errors: Vec<TypRError> = type_contexts
-                .iter()
-                .flat_map(|tc| tc.errors.clone())
-                .collect();
-            let types: Vec<_> = type_contexts.iter().map(|tc| tc.value.clone()).collect();
-
-            if exprs.is_empty() {
-                let new_type = "Vec[0, Any]"
-                    .parse::<Type>()
-                    .unwrap()
-                    .set_help_data(h.clone());
-                TypeContext::new(
-                    new_type.clone(),
-                    expr.clone(),
-                    context.clone().push_types(&[new_type]),
-                )
-                .with_errors(errors)
-            } else if are_homogenous_types(&types) {
-                let new_type = format!(
-                    "Vec[{}, {}]",
-                    exprs.len(),
-                    types[0].clone().generalize().pretty()
-                )
-                .parse::<Type>()
-                .unwrap()
-                .set_help_data(h.clone());
-                TypeContext::new(
-                    new_type.clone(),
-                    expr.clone(),
-                    context.clone().push_types(&[new_type]),
-                )
-                .with_errors(errors)
-            } else {
-                errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
-                let new_type = format!("Vec[{}, Any]", exprs.len())
-                    .parse::<Type>()
-                    .unwrap()
-                    .set_help_data(h.clone());
-                TypeContext::new(
-                    new_type.clone(),
-                    expr.clone(),
-                    context.clone().push_types(&[new_type]),
-                )
-                .with_errors(errors)
-            }
-        }
+        } => typing_container(context, expr, exprs, h, "Vec", "Any", false, true),
         Lang::Sequence {
             body: exprs,
             help_data: h,
-        } => {
-            let type_contexts: Vec<_> = exprs
-                .iter()
-                .map(|expr: &Lang| typing(context, expr))
-                .collect();
-            let mut errors: Vec<TypRError> = type_contexts
-                .iter()
-                .flat_map(|tc| tc.errors.clone())
-                .collect();
-            let types: Vec<_> = type_contexts.iter().map(|tc| tc.value.clone()).collect();
-
-            if exprs.is_empty() {
-                let new_type = "Seq[0, Empty]"
-                    .parse::<Type>()
-                    .unwrap()
-                    .set_help_data(h.clone());
-                TypeContext::new(
-                    new_type.clone(),
-                    expr.clone(),
-                    context.clone().push_types(&[new_type]),
-                )
-                .with_errors(errors)
-            } else if are_homogenous_types(&types) {
-                let new_type = format!("Seq[{}, {}]", exprs.len(), types[0].clone().pretty())
-                    .parse::<Type>()
-                    .unwrap()
-                    .set_help_data(h.clone());
-                TypeContext::new(
-                    new_type.clone(),
-                    expr.clone(),
-                    context.clone().push_types(&[new_type]),
-                )
-                .with_errors(errors)
-            } else {
-                errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
-                let new_type = format!("Seq[{}, Any]", exprs.len())
-                    .parse::<Type>()
-                    .unwrap()
-                    .set_help_data(h.clone());
-                TypeContext::new(
-                    new_type.clone(),
-                    expr.clone(),
-                    context.clone().push_types(&[new_type]),
-                )
-                .with_errors(errors)
-            }
-        }
+        } => typing_container(context, expr, exprs, h, "Seq", "Empty", false, false),
         Lang::List {
             value: fields,
             help_data: h,
@@ -1781,8 +1713,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let sub_context = params.iter().zip(fresh_param_types.iter()).fold(
                 context.clone(),
                 |ctx: Context, (param, typ): (&Lang, &Type)| {
-                    let var = Var::from_language(param.clone()).unwrap();
-                    ctx.clone().push_var_type(var, typ.clone(), &ctx)
+                    match Var::from_language(param.clone()) {
+                        Some(var) => ctx.clone().push_var_type(var, typ.clone(), &ctx),
+                        None => ctx,
+                    }
                 },
             );
             let body_tc = typing(&sub_context, body);

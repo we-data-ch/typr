@@ -129,9 +129,9 @@ impl ErrorMsg for TypeError {
     fn display(self) -> String {
         let msg: Result<()> = match self {
             TypeError::FunctionNotFound(var) => {
-                let (file_name, text) = var.get_file_name_and_text().unwrap_or_else(|| {
-                    panic!("Function {} not defined in this scope", var.get_name())
-                });
+                let (file_name, text) = var
+                    .get_file_name_and_text()
+                    .unwrap_or_else(|| ("std.ty".to_string(), String::new()));
                 SingleBuilder::new(file_name, text)
                     .pos((var.get_help_data().get_offset(), 0))
                     .text(format!(
@@ -181,7 +181,7 @@ impl ErrorMsg for TypeError {
                         t2.pretty()
                     ))
                     .pos_text1(format!("Expected {}", t1.pretty()))
-                    .pos_text2(format!("Recieved {}", t2.pretty()))
+                    .pos_text2(format!("Received {}", t2.pretty()))
                     .build()
             }
             TypeError::Param(t1, t2) => {
@@ -200,7 +200,7 @@ impl ErrorMsg for TypeError {
                         t2.pretty()
                     ))
                     .pos_text1(format!("Expected {}", t1.pretty()))
-                    .pos_text2(format!("Recieved {}", t2.pretty()))
+                    .pos_text2(format!("Received {}", t2.pretty()))
                     .build()
             }
             TypeError::GenericPatternMatch(t1, t2) => {
@@ -234,9 +234,9 @@ impl ErrorMsg for TypeError {
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
-                    .text(format!("The output type of the function don't match it's type annotation\nExpected: {:?}\nFound: {}", t1.pretty(), t2.pretty()))
+                    .text(format!("The output type of the function don't match it's type annotation\nExpected: {}\nFound: {}", t1.pretty(), t2.pretty()))
                     .pos_text1(format!("Expected {}", t1.pretty()))
-                    .pos_text2(format!("Recieved {}", t2.pretty()))
+                    .pos_text2(format!("Received {}", t2.pretty()))
                     .build()
             }
             TypeError::UndefinedFunction(fun) => {
@@ -252,7 +252,10 @@ impl ErrorMsg for TypeError {
             }
             TypeError::UndefinedVariable(var) => {
                 let help_data = var.get_help_data();
-                let var2 = Var::from_language(var).unwrap();
+                let var2 = match Var::from_language(var) {
+                    Some(v) => v,
+                    None => return "Undefined variable".to_string(),
+                };
                 let (file_name, text) = help_data
                     .get_file_data()
                     .unwrap_or_else(|| ("std.ty".to_string(), "".to_string()));
@@ -267,18 +270,12 @@ impl ErrorMsg for TypeError {
                 let var = var.clone().set_type(var.get_type().generalize());
                 let help_data1 = var_assign.get_help_data();
                 let help_data2 = var.get_help_data();
-                let (file_name1, text1) = help_data1.get_file_data().unwrap_or_else(|| {
-                    panic!(
-                        "The file name of {:?} for {} doesn't exist",
-                        help_data1, var_assign
-                    )
-                });
-                let (file_name2, text2) = help_data2.get_file_data().unwrap_or_else(|| {
-                    panic!(
-                        "The file name of {:?} for {} doesn't exist",
-                        help_data2, var
-                    )
-                });
+                let (file_name1, text1) = help_data1
+                    .get_file_data()
+                    .unwrap_or_else(default_file_data);
+                let (file_name2, text2) = help_data2
+                    .get_file_data()
+                    .unwrap_or_else(default_file_data);
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
@@ -292,18 +289,12 @@ impl ErrorMsg for TypeError {
                 let var = var.clone().set_type(var.get_type().generalize());
                 let help_data1 = var_used.get_help_data();
                 let help_data2 = var.get_help_data();
-                let (file_name1, text1) = help_data1.get_file_data().unwrap_or_else(|| {
-                    panic!(
-                        "The file name of {:?} for {} doesn't exist",
-                        help_data1, var_used
-                    )
-                });
-                let (file_name2, text2) = help_data2.get_file_data().unwrap_or_else(|| {
-                    panic!(
-                        "The file name of {:?} for {} doesn't exist",
-                        help_data2, var
-                    )
-                });
+                let (file_name1, text1) = help_data1
+                    .get_file_data()
+                    .unwrap_or_else(default_file_data);
+                let (file_name2, text2) = help_data2
+                    .get_file_data()
+                    .unwrap_or_else(default_file_data);
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
@@ -350,6 +341,6 @@ impl ErrorMsg for TypeError {
                     .build()
             }
         };
-        format!("{:?}", msg)
+        msg.map_or_else(|e| format!("{:?}", e), |_| String::new())
     }
 }
