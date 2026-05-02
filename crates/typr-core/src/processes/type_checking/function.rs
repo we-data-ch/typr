@@ -1,3 +1,5 @@
+use crate::components::error_message::syntax_error::SyntaxError;
+use crate::components::error_message::typr_error::TypRError;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::ArgumentType;
 use crate::processes::type_checking::HelpData;
@@ -24,6 +26,22 @@ pub fn function(
     body: &Lang,
     h: &HelpData,
 ) -> TypeContext {
+    if let Lang::Scope {
+        body: scope_body,
+        help_data: scope_h,
+    } = body
+    {
+        if scope_body.len() == 1 && matches!(scope_body[0], Lang::Empty(_)) {
+            let error = TypRError::Syntax(SyntaxError::EmptyFunctionBody(scope_h.clone()));
+            return TypeContext::new(
+                Type::Function(params.to_vec(), Box::new(ret_ty.clone()), h.clone()),
+                expr.clone(),
+                context.clone(),
+            )
+            .with_errors(vec![error]);
+        }
+    }
+
     let list_of_types = params.to_vec();
     let sub_context = params
         .iter()
@@ -329,6 +347,24 @@ mod tests {
             !tc.has_errors(),
             "Expected no type errors, got: {:?}",
             tc.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_empty_function_body_produces_error() {
+        use crate::components::error_message::syntax_error::SyntaxError;
+        use crate::components::error_message::typr_error::TypRError;
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let code = parse2("fn(): Any {}".into()).unwrap();
+        let tc = TypeChecker::new(Context::empty()).typing_no_panic(&code);
+        assert!(tc.has_errors(), "Expected at least one error for empty function body");
+        let errors = tc.get_errors();
+        assert!(
+            errors.iter().any(|e| matches!(e, TypRError::Syntax(SyntaxError::EmptyFunctionBody(_)))),
+            "Expected EmptyFunctionBody error, got: {:?}",
+            errors
         );
     }
 }

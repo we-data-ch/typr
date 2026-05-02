@@ -357,7 +357,7 @@ fn record_type(s: Span) -> IResult<Span, Type> {
     let res = (
         opt(terminated(tag("list"), multispace0)),
         terminated(tag("{"), multispace0),
-        many0(argument),
+        many1(argument),
         terminated(tag("}"), multispace0),
     )
         .parse(s);
@@ -490,7 +490,7 @@ fn interface(s: Span) -> IResult<Span, Type> {
 fn tuple_type(s: Span) -> IResult<Span, Type> {
     let res = (
         alt((tag("{"), tag("("))),
-        many0(ltype_parameter),
+        many1(ltype_parameter),
         alt((tag("}"), tag(")"))),
     )
         .parse(s);

@@ -1737,7 +1737,8 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             // the body will be re-typed after specialization in apply_from_variable
             // with concrete types substituted for the fresh type variables.
             TypeContext::new(func_type, expr.clone(), context.clone())
-        }
+        },
+        Lang::Dots(h) => Type::Empty(h.clone()).with_lang(expr, context).into(),
         _ => builder::any_type().with_lang(expr, context).into(),
     }
 }

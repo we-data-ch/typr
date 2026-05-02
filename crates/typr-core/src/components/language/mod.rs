@@ -251,6 +251,7 @@ pub enum Lang {
     Null(HelpData),
     NA(HelpData),
     Empty(HelpData),
+    Dots(HelpData)
 }
 
 impl PartialEq for Lang {
@@ -806,6 +807,7 @@ impl Lang {
             Lang::TypePattern { help_data: h, .. } => h,
             Lang::Null(h) => h,
             Lang::NA(h) => h,
+            Lang::Dots(h) => h,
         }
         .clone()
     }
@@ -910,6 +912,7 @@ impl Lang {
             }
             Lang::Null(_) => "Null".to_string(),
             Lang::NA(_) => "NA".to_string(),
+            Lang::Dots(_) => "Dots".to_string(),
         }
     }
 
@@ -1311,6 +1314,7 @@ impl From<Lang> for HelpData {
             Lang::TypePattern { help_data: h, .. } => h,
             Lang::Null(h) => h,
             Lang::NA(h) => h,
+            Lang::Dots(h) => h,
         }
         .clone()
     }
