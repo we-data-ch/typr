@@ -70,19 +70,19 @@ let len <- fn(a: char): int {
 
 @sub: (a: char, b: char, c: char) -> char;
 
-let replace <- (s: char, old: char, new: char) -> char;
+let replace <- fn(s: char, old: char, new: char): char {
 	sub(old, new, s)
 };
 
 @gsub: (a: char, b: char, c: char) -> char;
 
-let replace_all <- fn(s: char, old: char, new: char): char;
+let replace_all <- fn(s: char, old: char, new: char): char {
 	gsub(old, new, s)
 };
 
 @strsplit: (s: char, d: char) -> [#N, char];
 
-let split <- fn(s: char, d: char): [#N, char];
+let split <- fn(s: char, d: char): [#N, char] {
 	strsplit(s, d)
 };
 

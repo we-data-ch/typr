@@ -2,10 +2,10 @@
 
 @t: (m: [#M, [#N, T]]): [#N, [#M, T]];
 
-let lvec <- fn(a: [#M, T]): [1, [#M, T]];
+let lvec <- fn(a: [#M, T]): [1, [#M, T]] {
 	[a]
 };
 
-let cvec <- (a: [#M, T]): [#M, [1, T]];
+let cvec <- fn(a: [#M, T]): [#M, [1, T]] {
 	a.lvec().t()
 };
