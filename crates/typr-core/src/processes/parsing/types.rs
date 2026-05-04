@@ -34,9 +34,24 @@ use std::collections::HashSet;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
+// Handles the `name: type` form in function type signatures, e.g. `(a: char) -> .None`.
+// The parameter name is discarded — only the type matters for type checking.
+fn labeled_ltype(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(label, multispace0),
+        terminated(tag(":"), multispace0),
+        alt((embedded_ltype, ltype)),
+    )
+    .parse(s);
+    match res {
+        Ok((s, (_, _, typ))) => Ok((s, typ)),
+        Err(r) => Err(r),
+    }
+}
+
 fn ltype_arg(s: Span) -> IResult<Span, Type> {
     let res = terminated(
-        terminated(ltype, multispace0),
+        terminated(alt((labeled_ltype, ltype)), multispace0),
         opt(terminated(tag(","), multispace0)),
     )
     .parse(s);
@@ -489,9 +504,9 @@ fn interface(s: Span) -> IResult<Span, Type> {
 
 fn tuple_type(s: Span) -> IResult<Span, Type> {
     let res = (
-        alt((tag("{"), tag("("))),
+        tag("("),
         many1(ltype_parameter),
-        alt((tag("}"), tag(")"))),
+        tag(")"),
     )
         .parse(s);
     match res {
@@ -1085,5 +1100,53 @@ mod tests {
             }
             other => panic!("Expected Vec(Array, ...), got {:?}", other),
         }
+    }
+
+    /// Regression: `ltype` must NOT consume `{ .Rouge }` as a type token after `Feux`.
+    /// Previously `tuple_type` accepted `{...}` which caused `fn(i: int): Feux { .Rouge }`
+    /// to be misparsed (body consumed as part of return type).
+    #[test]
+    fn test_ltype_stops_before_brace_body() {
+        use crate::processes::parsing::elements::simple_function;
+        let res = simple_function("fn(i: int): Feux { .Rouge }".into());
+        assert!(res.is_ok(), "Should parse fn with tag-alias return type");
+        let (remaining, _lang) = res.unwrap();
+        assert!(
+            remaining.is_empty(),
+            "Should consume the whole input, remaining: {:?}",
+            *remaining
+        );
+    }
+
+    // ==================== Named parameter in function type ====================
+
+    #[test]
+    fn test_named_param_function_type_parses() {
+        let res = ltype("(a: char) -> .None".into());
+        assert!(res.is_ok(), "Should parse (a: char) -> .None as a function type");
+    }
+
+    #[test]
+    fn test_named_param_signature_type_checks() {
+        use crate::utils::fluent_parser::FluentParser;
+        // The return type is .None = Tag("None", Empty)
+        let res = FluentParser::new()
+            .push("@print: (a: char) -> .None;")
+            .run()
+            .check_typing("print(\"Hello world\")");
+        assert_eq!(
+            res,
+            Type::Tag(
+                "None".to_string(),
+                Box::new(Type::Empty(HelpData::default())),
+                HelpData::default()
+            )
+        );
+    }
+
+    #[test]
+    fn test_named_param_multi_args() {
+        let res = ltype("(a: int, b: int) -> int".into());
+        assert!(res.is_ok(), "Should parse (a: int, b: int) -> int as a function type");
     }
 }

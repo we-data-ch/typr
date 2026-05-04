@@ -620,7 +620,7 @@ fn parenthese_value(s: Span) -> IResult<Span, Lang> {
 }
 
 pub fn tag_exp(s: Span) -> IResult<Span, Lang> {
-    let res = (tag("."), pascal_case, opt(parenthese_value)).parse(s);
+    let res = terminated((tag("."), pascal_case, opt(parenthese_value)), multispace0).parse(s);
     match res {
         Ok((s, (dot, (n, _h), None))) => Ok((
             s,
@@ -1107,21 +1107,28 @@ pub fn single_element(s: Span) -> IResult<Span, Lang> {
 }
 
 pub fn scope(s: Span) -> IResult<Span, Lang> {
-    let res = delimited(
+    let res = (
         terminated(alt((tag("("), tag("{"))), multispace0),
         opt(base_parse),
         terminated(alt((tag(")"), tag("}"))), multispace0),
     )
     .parse(s);
     match res {
-        Ok((s, Some(v))) => Ok((
+        Ok((s, (open, Some(v), _))) if v.is_empty() => Ok((
+            s,
+            Lang::Scope {
+                body: vec![],
+                help_data: open.into(),
+            },
+        )),
+        Ok((s, (_, Some(v), _))) => Ok((
             s,
             Lang::Scope {
                 body: v.clone(),
                 help_data: v.into(),
             },
         )),
-        Ok((_s, None)) => panic!("Error: the scope shouldn't be empty"),
+        Ok((_s, (_, None, _))) => panic!("Error: the scope shouldn't be empty"),
         Err(r) => Err(r),
     }
 }

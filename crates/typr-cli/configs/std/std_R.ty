@@ -17,3 +17,4 @@
 @expect_true: (bool) -> Empty;
 @expect_false: (T, T) -> Empty;
 @expect_equal: (T, T) -> Empty;
+@print: (Any) -> Empty;

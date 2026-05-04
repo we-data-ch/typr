@@ -857,7 +857,6 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
 
 // main
 pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
-    let initial = s.clone();
     let res = (
         opt(multispace0),
         many0(alt((
@@ -886,8 +885,8 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     )
         .parse(s);
     match res {
-        // Case 1: nothing → Empty
-        Ok((s, (_, v, None))) if v.is_empty() => Ok((s, vec![Lang::Empty(initial.into())])),
+        // Case 1: nothing → empty vec (truly empty, distinct from `...`)
+        Ok((s, (_, v, None))) if v.is_empty() => Ok((s, vec![])),
         // Case 2: no statements, one trailing expression (no ";") → return it directly
         Ok((s, (_, v, Some(expr)))) if v.is_empty() => Ok((s, vec![expr])),
         // Case 3: one or more statements + optional trailing expression

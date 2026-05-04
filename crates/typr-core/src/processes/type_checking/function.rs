@@ -31,7 +31,7 @@ pub fn function(
         help_data: scope_h,
     } = body
     {
-        if scope_body.len() == 1 && matches!(scope_body[0], Lang::Empty(_)) {
+        if scope_body.is_empty() {
             let error = TypRError::Syntax(SyntaxError::EmptyFunctionBody(scope_h.clone()));
             return TypeContext::new(
                 Type::Function(params.to_vec(), Box::new(ret_ty.clone()), h.clone()),
@@ -365,6 +365,20 @@ mod tests {
             errors.iter().any(|e| matches!(e, TypRError::Syntax(SyntaxError::EmptyFunctionBody(_)))),
             "Expected EmptyFunctionBody error, got: {:?}",
             errors
+        );
+    }
+
+    #[test]
+    fn test_dotdotdot_placeholder_no_error() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let code = parse2("fn(): Any { ... }".into()).unwrap();
+        let tc = TypeChecker::new(Context::empty()).typing_no_panic(&code);
+        assert!(
+            !tc.has_errors(),
+            "fn(): Any {{ ... }} should not produce errors, got: {:?}",
+            tc.get_errors()
         );
     }
 }
