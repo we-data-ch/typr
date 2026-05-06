@@ -153,6 +153,7 @@ impl TypeSystem for Type {
         (result, Some(new_context))
     }
 
+    //main
     fn is_subtype_raw(&self, other: &Type, context: &Context) -> bool {
         match (self, other) {
             (Type::Empty(_), _) => true,
@@ -165,16 +166,18 @@ impl TypeSystem for Type {
                 n1.is_subtype_raw(n2, context) && t1.is_subtype_raw(t2, context)
             }
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
-                let args1_types: Vec<Type> = args1.iter().map(|arg| arg.get_type()).collect();
-                let args2_types: Vec<Type> = args2.iter().map(|arg| arg.get_type()).collect();
+                let args1_types: Vec<(String, Type)> = args1.iter()
+                    .map(|arg| (arg.get_argument_str(), arg.get_type())).collect();
+                let args2_types: Vec<(String, Type)> = args2.iter()
+                    .map(|arg| (arg.get_argument_str(), arg.get_type())).collect();
                 if args1_types.len() != args2_types.len() {
                     false
                 } else {
                     let ret1 = (**ret_typ1).clone();
                     let ret2 = (**ret_typ2).clone();
                     let mut all_match = true;
-                    for (t1, t2) in args1_types.iter().zip(args2_types.iter()) {
-                        if !t1.strict_subtype(t2) {
+                    for (p1, p2) in args1_types.iter().zip(args2_types.iter()) {
+                        if !(p1.1.strict_subtype(&p2.1) && p1.0 == p2.0) {
                             all_match = false;
                             break;
                         }

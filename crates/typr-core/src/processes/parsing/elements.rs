@@ -570,7 +570,7 @@ fn record_identifier(s: Span) -> IResult<Span, Span> {
     alt((tag("record"), tag("object"), tag("list"), tag(":"))).parse(s)
 }
 
-fn record(s: Span) -> IResult<Span, Lang> {
+pub fn record(s: Span) -> IResult<Span, Lang> {
     let res = (
         opt(record_identifier),
         terminated(alt((tag("{"), tag("("))), multispace0),
@@ -1775,5 +1775,79 @@ mod tests {
         } else {
             panic!("Expected Match variant");
         }
+    }
+
+    #[test]
+    fn test_character_constructor_fn() {
+        let input = "fn(name: char, attack: int, health: int): Character {\n    :{ name: name, attack: attack, health: health }\n}";
+        let res = simple_function(input.into());
+        match &res {
+            Ok((remaining, _)) => {
+                println!("SUCCESS, remaining: {:?}", **remaining);
+                assert!(remaining.is_empty(), "Should consume entire input, remaining: {:?}", **remaining);
+            }
+            Err(e) => panic!("Parse failed: {:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_scope_with_record_body() {
+        let input = "{\n    :{ name: name, attack: attack, health: health }\n}";
+        let res = scope(input.into());
+        match &res {
+            Ok((remaining, _)) => {
+                println!("scope SUCCESS, remaining: {:?}", **remaining);
+            }
+            Err(e) => println!("scope FAILED: {:?}", e),
+        }
+        assert!(res.is_ok(), "scope should succeed");
+    }
+
+    #[test]
+    fn test_record_parse_directly() {
+        use crate::processes::parsing::base_parse;
+        let input = ":{ name: name, attack: attack, health: health }";
+        let res = base_parse(input.into());
+        println!("base_parse result: {:?}", res.as_ref().map(|(r, v): &(_, Vec<_>)| (*r.fragment(), v.len())));
+        assert!(res.is_ok());
+        let (remaining, elems) = res.unwrap();
+        println!("  remaining: {:?}", *remaining.fragment());
+        println!("  elements count: {}", elems.len());
+        for (i, el) in elems.iter().enumerate() {
+            println!("  elem[{}]: {}", i, el.simple_print());
+        }
+    }
+
+    #[test]
+    fn test_parse_elements_record() {
+        let input = ":{ name: name, attack: attack, health: health }";
+        let res = parse_elements(input.into());
+        match &res {
+            Ok((remaining, lang)) => println!("parse_elements OK: {}, remaining: {:?}", lang.simple_print(), **remaining),
+            Err(e) => println!("parse_elements FAILED: {:?}", e),
+        }
+        assert!(res.is_ok(), "parse_elements should succeed on record");
+    }
+
+    #[test]
+    fn test_single_element_record() {
+        let input = ":{ name: name, attack: attack, health: health }";
+        let res = single_element(input.into());
+        match &res {
+            Ok((remaining, lang)) => println!("single_element OK: {}, remaining: {:?}", lang.simple_print(), **remaining),
+            Err(e) => println!("single_element FAILED: {:?}", e),
+        }
+        assert!(res.is_ok(), "single_element should succeed on record");
+    }
+
+    #[test]
+    fn test_record_logic_inline() {
+        let input = ":{ name: name, attack: attack, health: health }";
+        let res = record(input.into());
+        match &res {
+            Ok((remaining, lang)) => println!("record OK: {}, remaining: {:?}", lang.simple_print(), **remaining),
+            Err(e) => println!("record FAILED: {:?}", e),
+        }
+        assert!(res.is_ok(), "record should succeed");
     }
 }

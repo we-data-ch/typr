@@ -223,7 +223,7 @@ pub fn new(name: &str, renv: bool) {
     println!("Package R '{}' successfully created!", name);
 
     if renv {
-        renv_init();
+        renv_init(&project_path);
     }
 
     let package_structure =
@@ -293,7 +293,27 @@ pub fn build_file(path: &Path) {
 
 pub fn run_project() {
     build_project();
-    execute_r_with_path(&PathBuf::from("R"), "main.R");
+    let r_command = "devtools::load_all(); source('R/d_main.R')";
+    println!("Executing: Rscript -e \"{}\"", r_command);
+    match Command::new("Rscript")
+        .arg("-e")
+        .arg(r_command)
+        .output()
+    {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if output.status.success() {
+                println!("Execution: \n{}", stdout);
+            } else {
+                println!("Error (code {}): \n{}", output.status, stderr);
+                if !stdout.is_empty() {
+                    println!("Standard output: \n{}", stdout);
+                }
+            }
+        }
+        Err(e) => println!("Failed to execute command: {}", e),
+    }
 }
 
 pub fn run_file(path: &Path) {
@@ -375,13 +395,17 @@ pub fn get_package_name() -> Result<String, String> {
     Err("Package name not found in the DESCRIPTION file".to_string())
 }
 
-pub fn renv_init() {
+pub fn renv_init(project_path: &std::path::Path) {
     println!("Initializing renv...");
 
     let r_command = "renv::init()";
     println!("Executing: R -e \"{}\"", r_command);
 
-    let output = Command::new("R").arg("-e").arg(r_command).output();
+    let output = Command::new("R")
+        .arg("-e")
+        .arg(r_command)
+        .current_dir(project_path)
+        .output();
 
     match output {
         Ok(output) => {
@@ -434,17 +458,34 @@ pub fn renv_snapshot() {
     }
 }
 
+fn is_renv_active() -> bool {
+    std::env::current_dir()
+        .map(|d| d.join("renv.lock").exists())
+        .unwrap_or(false)
+}
+
 pub fn pkg_install(packages: Option<&[String]>) {
     match packages {
         Some(pkgs) if !pkgs.is_empty() => {
-            println!("Installing packages from CRAN: {:?}", pkgs);
+            let renv = is_renv_active();
 
-            let pkgs_str = pkgs
-                .iter()
-                .map(|p| format!("'{}'", p))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let r_command = format!("install.packages(c({}))", pkgs_str);
+            let r_command = if renv {
+                println!("Installing packages via renv: {:?}", pkgs);
+                let pkgs_str = pkgs
+                    .iter()
+                    .map(|p| format!("'{}'", p))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("renv::install(c({}))", pkgs_str)
+            } else {
+                println!("Installing packages from CRAN: {:?}", pkgs);
+                let pkgs_str = pkgs
+                    .iter()
+                    .map(|p| format!("'{}'", p))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("install.packages(c({}))", pkgs_str)
+            };
             println!("Executing: R -e \"{}\"", r_command);
 
             let output = Command::new("R").arg("-e").arg(&r_command).output();
@@ -458,7 +499,9 @@ pub fn pkg_install(packages: Option<&[String]>) {
                             println!("\n{}", String::from_utf8_lossy(&output.stdout));
                         }
 
-                        renv_snapshot();
+                        if !renv {
+                            renv_snapshot();
+                        }
                     } else {
                         eprintln!("Error during package installation");
                         if !output.stderr.is_empty() {

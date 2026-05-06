@@ -1,0 +1,7 @@
+
+
+
+# Main TypR code goes here
+# This will be compiled to R code
+# Example function
+print('Hello world' |> Character())

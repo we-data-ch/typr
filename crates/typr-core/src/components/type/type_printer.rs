@@ -53,7 +53,7 @@ pub fn format(ty: &Type) -> String {
         Type::Function(params, ret_ty, _h) => {
             let formatted_params = params
                 .iter()
-                .map(|arg| format(&arg.get_type()))
+                .map(|arg| format!("{}: {}", arg.get_argument_str(), format(&arg.get_type())))
                 .collect::<Vec<_>>();
             format!("fn({}) -> {}", formatted_params.join(", "), format(ret_ty))
         }
@@ -72,7 +72,7 @@ pub fn format(ty: &Type) -> String {
                 .map(|arg_typ| {
                     format!(
                         "{}: {}",
-                        verbose(&arg_typ.get_argument()),
+                        arg_typ.get_argument_str(),
                         format(&arg_typ.get_type())
                     )
                 })
