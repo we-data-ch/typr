@@ -171,6 +171,7 @@ fn get_op(ls: LocatedSpan<&str, String>) -> Op {
         "%" => Op::Modulo(ls.into()),
         "|>" => Op::Pipe(ls.into()),
         "|>>" => Op::Pipe2(ls.into()),
+        "::" => Op::Dollar(ls.into()),
         "=" => Op::Eq2(ls.into()),
         "." => Op::Dot(ls.into()),
         ".." => Op::Dot2(ls.into()),
@@ -201,6 +202,7 @@ fn pipe_op(s: Span) -> IResult<Span, Span> {
     alt((
         tag("|>>"),
         tag("|>"),
+        tag("::"),
         tag(".."),
         tag("."),
         tag("$$"),

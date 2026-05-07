@@ -31,6 +31,7 @@ use nom::character::complete::digit1;
 use nom::character::complete::multispace0;
 use nom::character::complete::multispace1;
 use nom::character::complete::one_of;
+use nom::combinator::not;
 use nom::combinator::opt;
 use nom::combinator::recognize;
 use nom::multi::many0;
@@ -113,8 +114,8 @@ fn get_value(l: LocatedSpan<&str, String>) -> Lang {
 
 fn null_value(s: Span) -> IResult<Span, Lang> {
     let res = alt((
-        terminated(tag("NULL"), multispace0),
-        terminated(tag("null"), multispace0),
+        terminated(terminated(tag("NULL"), not(body_char)), multispace0),
+        terminated(terminated(tag("null"), not(body_char)), multispace0),
     ))
     .parse(s);
     match res {
@@ -125,8 +126,8 @@ fn null_value(s: Span) -> IResult<Span, Lang> {
 
 fn na_value(s: Span) -> IResult<Span, Lang> {
     let res = alt((
-        terminated(tag("NA"), multispace0),
-        terminated(tag("na"), multispace0),
+        terminated(terminated(tag("NA"), not(body_char)), multispace0),
+        terminated(terminated(tag("na"), not(body_char)), multispace0),
     ))
     .parse(s);
     match res {
@@ -137,10 +138,10 @@ fn na_value(s: Span) -> IResult<Span, Lang> {
 
 fn boolean(s: Span) -> IResult<Span, Lang> {
     let res = alt((
-        terminated(tag("true"), multispace0),
-        terminated(tag("TRUE"), multispace0),
-        terminated(tag("false"), multispace0),
-        terminated(tag("FALSE"), multispace0),
+        terminated(terminated(tag("true"), not(body_char)), multispace0),
+        terminated(terminated(tag("TRUE"), not(body_char)), multispace0),
+        terminated(terminated(tag("false"), not(body_char)), multispace0),
+        terminated(terminated(tag("FALSE"), not(body_char)), multispace0),
     ))
     .parse(s);
     match res {

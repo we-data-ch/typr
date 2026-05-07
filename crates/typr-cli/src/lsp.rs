@@ -620,6 +620,7 @@ fn collect_symbols_from_ast(
             variable: var_lang,
             r#type: typ,
             expression: body,
+            is_public: _,
             help_data: _,
         } => {
             if let Ok(var) = Var::try_from(var_lang) {

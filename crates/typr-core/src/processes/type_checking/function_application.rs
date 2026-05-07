@@ -249,11 +249,13 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             variable: name,
             r#type: typ,
             expression: val,
+            is_public,
             help_data: h,
         } => Lang::Let {
             variable: name.clone(),
             r#type: substitute_type(typ, subs),
             expression: Box::new(substitute_type_in_lang(val, subs)),
+            is_public: *is_public,
             help_data: h.clone(),
         },
         Lang::If {

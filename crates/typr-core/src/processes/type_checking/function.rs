@@ -381,4 +381,24 @@ mod tests {
             tc.get_errors()
         );
     }
+
+    #[test]
+    fn test_record_constructor_matches_type_alias() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 = parse2("type Character <- list { name: char, attack: int, health: int };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
+
+        let code2 = parse2(
+            "let new_character <- fn(name: char, attack: int, health: int): Character { list(name=name, attack=attack, health=health) };".into()
+        ).unwrap();
+        let tc2 = tc1.typing_no_panic(&code2);
+        assert!(
+            !tc2.has_errors(),
+            "Expected no errors, got: {:?}",
+            tc2.get_errors()
+        );
+    }
 }

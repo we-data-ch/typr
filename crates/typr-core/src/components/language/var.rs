@@ -308,6 +308,7 @@ impl Var {
             identifier: Box::new(self.clone().to_language()),
             parameters: vec![],
             target_type: builder::unknown_function_type(),
+            is_public: false,
             help_data: self.get_help_data(),
         }
     }
@@ -317,6 +318,7 @@ impl Var {
             variable: Box::new(self.clone().to_language()),
             r#type: builder::unknown_function_type(),
             expression: Box::default(),
+            is_public: false,
             help_data: self.get_help_data(),
         }
     }

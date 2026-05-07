@@ -14,21 +14,48 @@ use crate::utils::builder;
 
 #[derive(Debug)]
 pub struct ModuleType {
-    args: Vec<ArgumentType>,
+    pub_members: Vec<ArgumentType>,
+    priv_members: Vec<ArgumentType>,
     help_data: HelpData,
 }
 
 impl ModuleType {
+    pub fn new(
+        pub_members: Vec<ArgumentType>,
+        priv_members: Vec<ArgumentType>,
+        help_data: HelpData,
+    ) -> Self {
+        ModuleType {
+            pub_members,
+            priv_members,
+            help_data,
+        }
+    }
+
     pub fn get_type_from_name(&self, name: &str) -> Result<Type, String> {
-        self.args
+        self.pub_members
             .iter()
             .find(|arg_typ| arg_typ.get_argument_str() == name)
             .map(|arg_typ| arg_typ.get_type())
             .ok_or("Alias not available in the module".to_string())
     }
 
+    pub fn get_public_members(&self) -> &Vec<ArgumentType> {
+        &self.pub_members
+    }
+
+    pub fn get_private_members(&self) -> &Vec<ArgumentType> {
+        &self.priv_members
+    }
+
+    pub fn is_public_member(&self, name: &str) -> bool {
+        self.pub_members
+            .iter()
+            .any(|arg_typ| arg_typ.get_argument_str() == name)
+    }
+
     pub fn get_aliases(&self) -> Vec<(Var, Type)> {
-        self.args
+        self.pub_members
             .iter()
             .filter(|arg_typ| is_pascal_case(&arg_typ.get_argument_str()))
             .map(|arg_typ| {
@@ -41,10 +68,13 @@ impl ModuleType {
     }
 }
 
+/// Build from Type::Module — all members treated as public since Type::Module only stores
+/// publicly accessible members.
 impl From<(Vec<ArgumentType>, HelpData)> for ModuleType {
     fn from(val: (Vec<ArgumentType>, HelpData)) -> Self {
         ModuleType {
-            args: val.0,
+            pub_members: val.0,
+            priv_members: vec![],
             help_data: val.1,
         }
     }

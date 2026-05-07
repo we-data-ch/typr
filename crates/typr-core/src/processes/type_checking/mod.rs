@@ -189,13 +189,15 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             variable: name,
             r#type: ty,
             expression: exp,
+            is_public,
             help_data: h,
-        } => let_expression(context, name, ty, exp, h),
+        } => let_expression(context, name, ty, exp, *is_public, h),
         Lang::Alias {
             identifier: exp,
             parameters: params,
             target_type: typ,
             help_data: h,
+            ..
         } => {
             let var = match Var::try_from(exp) {
                 Ok(v) => v.set_type(Type::Params(params.to_vec(), h.clone())),
@@ -207,11 +209,18 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                     )
                 }
             };
-            let alias_context = context.clone().push_alias(var.get_name(), typ.to_owned());
+            // Inside a module body, opaque aliases are transparent so internal
+            // functions can use operators on the underlying type.
+            let effective_var = if context.is_in_module_body() && var.get_opacity() {
+                var.clone().set_opacity(false)
+            } else {
+                var.clone()
+            };
+            let alias_context = context.clone().push_alias(effective_var.get_name(), typ.to_owned());
             let new_context =
                 context
                     .clone()
-                    .push_var_type(var.clone(), typ.clone(), &alias_context);
+                    .push_var_type(effective_var.clone(), typ.clone(), &alias_context);
 
             let mut errors = Vec::new();
             let generics_in_type = typ.extract_generics();
@@ -246,7 +255,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             TypeContext::new(
                 builder::unknown_function_type(),
                 expr.clone(),
-                new_context.push_alias(var.get_name(), typ.to_owned()),
+                new_context.push_alias(effective_var.get_name(), typ.to_owned()),
             )
             .with_errors(errors)
         }
@@ -321,6 +330,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             .with_errors(tc.errors)
         }
         Lang::Module {
+            name: module_name,
             body: members,
             help_data: h,
             ..
@@ -335,13 +345,114 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             } else {
                 return TypeContext::new(builder::empty_type(), expr.clone(), context.clone());
             };
-            let tc = typing(&Context::default(), &module_expr);
-            TypeContext::new(
-                builder::empty_type(),
-                expr.clone(),
-                context.clone() + tc.context,
-            )
-            .with_errors(tc.errors)
+            // Type-check the module body with an internal context where opaque
+            // aliases are transparent — module-internal functions see through them.
+            let internal_context = Context::default().set_in_module_body();
+            let typing_context = typing(&internal_context, &module_expr);
+
+            // Collect opaque alias names declared in this module so we can
+            // re-opacify them in exported function signatures.
+            let opaque_names: std::collections::HashSet<String> = members
+                .iter()
+                .filter_map(|m| match m {
+                    Lang::Alias { identifier: id, .. } => Var::try_from(id)
+                        .ok()
+                        .filter(|v| v.get_opacity())
+                        .map(|v| v.get_name()),
+                    _ => None,
+                })
+                .collect();
+
+            // Re-opacify any alias in `ty` whose name is in `opaque_names`.
+            fn reify_opaque(ty: Type, opaque_names: &std::collections::HashSet<String>) -> Type {
+                match ty {
+                    Type::Alias(name, params, _, h) if opaque_names.contains(&name) => {
+                        Type::Alias(name, params, true, h)
+                    }
+                    Type::Function(args, ret, h) => Type::Function(
+                        args.into_iter()
+                            .map(|a| {
+                                ArgumentType::new(
+                                    &a.get_argument_str(),
+                                    &reify_opaque(a.get_type(), opaque_names),
+                                )
+                            })
+                            .collect(),
+                        Box::new(reify_opaque(*ret, opaque_names)),
+                        h,
+                    ),
+                    other => other,
+                }
+            }
+
+            // Build public member types for the module's Type::Module.
+            // For opaque aliases, export the opaque alias type (not the underlying type)
+            // so callers outside the module cannot see through it.
+            let pub_arg_types: Vec<ArgumentType> = members
+                .iter()
+                .filter_map(|member| match member {
+                    Lang::Let {
+                        variable: var,
+                        is_public: true,
+                        ..
+                    } => Var::try_from(var).ok().map(|v| {
+                        let var_type = typing_context
+                            .context
+                            .get_type_from_variable(&v)
+                            .unwrap_or_else(|_| builder::empty_type());
+                        let reified = reify_opaque(var_type, &opaque_names);
+                        let exported = reduce_type(&typing_context.context, &reified);
+                        ArgumentType::new(&v.get_name(), &exported)
+                    }),
+                    Lang::Alias {
+                        identifier: exp,
+                        target_type: typ,
+                        is_public: true,
+                        ..
+                    } => Var::try_from(exp).ok().map(|v| {
+                        let exported_type = if v.get_opacity() {
+                            v.clone().to_alias_type()
+                        } else {
+                            typ.clone()
+                        };
+                        ArgumentType::new(&v.get_name(), &exported_type)
+                    }),
+                    _ => None,
+                })
+                .collect();
+
+            // Expose @pub members individually and register the module as a typed variable
+            let public_context = members.iter().fold(context.clone(), |ctx, member| {
+                if let Lang::Let {
+                    variable: var,
+                    is_public: true,
+                    ..
+                } = member
+                {
+                    if let Ok(v) = Var::try_from(var) {
+                        let var_type = typing_context
+                            .context
+                            .get_type_from_variable(&v)
+                            .unwrap_or_else(|_| builder::empty_type());
+                        let reified = reify_opaque(var_type, &opaque_names);
+                        let exported = reduce_type(&typing_context.context, &reified);
+                        ctx.clone().push_var_type(v, exported, &ctx)
+                    } else {
+                        ctx
+                    }
+                } else {
+                    ctx
+                }
+            });
+
+            // Register the module itself as a typed variable so M::x can be resolved
+            let module_type = Type::Module(pub_arg_types, h.clone());
+            let module_var = Var::from_name(module_name);
+            let final_context =
+                public_context.clone().push_var_type(module_var, module_type, &public_context);
+
+            TypeContext::new(builder::empty_type(), expr.clone(), final_context)
+                .with_errors(typing_context.errors)
         }
         _ => (
             builder::unknown_function_type(),
@@ -2057,5 +2168,174 @@ mod tests {
             true,
             "Placeholder test - generics in type aliases need proper tag type support"
         );
+    }
+
+    #[test]
+    fn test_module_type_access_pub_valid() {
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("module geo { @pub type Meters <- int; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+
+        let expr = parse_from_string("let x: geo::Meters <- 50;", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            !result.has_errors(),
+            "Expected no errors for @pub type access geo::Meters, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_module_type_access_pub_type_mismatch() {
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("module geo { @pub type Meters <- int; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+
+        let expr = parse_from_string("let x: geo::Meters <- true;", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result.has_errors(),
+            "Expected a type mismatch error when assigning Boolean to geo::Meters (int)"
+        );
+    }
+
+    #[test]
+    fn test_module_type_access_private_not_accessible() {
+        use crate::components::error_message::type_error::TypeError;
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("module geo { type Meters <- int; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+
+        let expr = parse_from_string("let x: geo::Meters <- true;", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result.has_errors(),
+            "Expected AliasNotFound for private type geo::Meters"
+        );
+        assert!(
+            result.get_errors().iter().any(|e| matches!(
+                e,
+                TypRError::Type(TypeError::AliasNotFound(_))
+            )),
+            "Expected AliasNotFound error but got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    // ==================== Opaque type tests ====================
+
+    #[test]
+    fn test_opaque_type_internal_transparent() {
+        // Inside a module, opaque types are transparent — functions can use
+        // operators on the underlying type.
+        use crate::processes::parsing::parse_from_string;
+        let expr = parse_from_string(
+            "module units { @pub opaque Unit <- int; @pub let make_unit <- fn(x: int): Unit { x }; };",
+            "test",
+        );
+        let result = typing_with_errors(&Context::default(), &expr);
+        assert!(
+            !result.has_errors(),
+            "Module with opaque type should compile without errors, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_opaque_type_external_opaque() {
+        // Outside the module, M::Unit resolves to the opaque alias type.
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("module units { @pub opaque Unit <- int; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+
+        // 5 is int; outside the module, int is NOT a subtype of opaque Unit
+        let expr = parse_from_string("let x: units::Unit <- 5;", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result.has_errors(),
+            "Assigning int to opaque Unit outside the module should fail"
+        );
+    }
+
+    #[test]
+    fn test_opaque_type_constructor_roundtrip() {
+        // The module exports make_unit with return type opaque Unit.
+        let fp = FluentParser::new()
+            .push(
+                "module units { @pub opaque Unit <- int; @pub let make_unit <- fn(x: int): Unit { x }; @pub let get_value <- fn(u: Unit): int { u }; };",
+            )
+            .parse_type_next();
+        let context = fp.context.clone();
+
+        // The module should export make_unit as (int) -> Unit (opaque)
+        let units_type = context
+            .get_type_from_variable(&Var::from_name("units"))
+            .expect("units module should be in context")
+            .to_module_type()
+            .expect("units should have module type");
+        let make_unit_type = units_type
+            .get_type_from_name("make_unit")
+            .expect("make_unit should be exported");
+        println!("make_unit type: {:?}", make_unit_type);
+        // Return type of make_unit should be opaque Unit
+        if let Type::Function(_, ret, _) = make_unit_type {
+            assert!(
+                matches!(*ret, Type::Alias(ref name, _, true, _) if name == "Unit"),
+                "Expected opaque Unit return type but got {:?}",
+                ret
+            );
+        } else {
+            panic!("Expected function type for make_unit, got {:?}", make_unit_type);
+        }
+    }
+
+    #[test]
+    fn test_opaque_arrow_syntax() {
+        // The opaque keyword should accept both `=` and `<-`.
+        use crate::processes::parsing::parse;
+        let src1 = "module mo { @pub opaque Ox = int; };";
+        let src2 = "module mo { @pub opaque Ox <- int; };";
+        let r1 = parse(src1.into());
+        let r2 = parse(src2.into());
+        assert!(!r1.has_errors(), "opaque with = should parse");
+        assert!(!r2.has_errors(), "opaque with <- should parse");
+    }
+
+    #[test]
+    fn test_module_non_opaque_type_transpile() {
+        // A non-opaque `type` alias in a module should NOT generate opaque/Any suffix.
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let fp = FluentParser::new()
+            .push("module machin { @pub type Truc <- list { a: int, b: int }; @pub let get_a <- fn(t: Truc): int { t$a }; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+
+        // get_a exported with type should have Truc (not Any) as parameter class
+        let machin_type = context
+            .get_type_from_variable(&Var::from_name("machin"))
+            .expect("machin should be in context")
+            .to_module_type()
+            .expect("machin should be a module type");
+        let get_a_type = machin_type.get_type_from_name("get_a").expect("get_a should be exported");
+        println!("get_a type in module: {:?}", get_a_type);
+        // The parameter should NOT be Any — it should be Truc or Record, not Any
+        if let Type::Function(args, _, _) = &get_a_type {
+            let param_ty = args[0].get_type();
+            assert!(
+                !matches!(param_ty, Type::Any(_)),
+                "Parameter type of get_a should not be Any, but was {:?}",
+                param_ty
+            );
+        } else {
+            panic!("get_a should be a function type, got {:?}", get_a_type);
+        }
     }
 }

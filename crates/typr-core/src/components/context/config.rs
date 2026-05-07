@@ -63,6 +63,10 @@ pub struct Config {
     pub environment: Environment,
     pub file_type: FileType,
     pub target_language: TargetLanguage,
+    /// When true, opaque alias declarations are registered as transparent.
+    /// Set to true when type-checking a module body so internal functions
+    /// can see through opaque types they declare.
+    pub in_module_body: bool,
 }
 
 //main
@@ -88,6 +92,13 @@ impl Config {
         }
     }
 
+    pub fn set_in_module_body(self, val: bool) -> Self {
+        Self {
+            in_module_body: val,
+            ..self
+        }
+    }
+
     pub fn get_target_language(&self) -> TargetLanguage {
         self.target_language
     }
@@ -103,6 +114,7 @@ impl Default for Config {
             target_language: TargetLanguage::R,
             environment: Environment::StandAlone,
             file_type: FileType::Main,
+            in_module_body: false,
         }
     }
 }

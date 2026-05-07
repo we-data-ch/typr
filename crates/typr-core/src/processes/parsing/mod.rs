@@ -8,21 +8,21 @@ pub mod type_token;
 pub mod types;
 pub mod vector_priority;
 
-use crate::components::context::config::Config;
-use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::syntax_error::SyntaxError;
+use crate::components::error_message::help_data::HelpData;
+use crate::processes::parsing::elements::parse_elements;
+use crate::processes::parsing::elements::single_element;
 use crate::components::language::operators::custom_op;
+use crate::processes::parsing::elements::return_exp;
+use crate::processes::parsing::elements::break_exp;
+use crate::components::language::ModulePosition;
+use crate::components::context::config::Config;
 use crate::components::language::operators::Op;
+use crate::processes::parsing::elements::chars;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
-use crate::components::language::ModulePosition;
 use crate::components::r#type::Type;
-use crate::processes::parsing::elements::break_exp;
-use crate::processes::parsing::elements::chars;
-use crate::processes::parsing::elements::parse_elements;
-use crate::processes::parsing::elements::return_exp;
 use crate::processes::parsing::elements::scope;
-use crate::processes::parsing::elements::single_element;
 use crate::processes::parsing::elements::tag_exp;
 use crate::processes::parsing::elements::tuple_exp;
 use crate::processes::parsing::elements::variable;
@@ -202,6 +202,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         body,
                         help_data: h,
                     }),
+                    is_public: false,
                     help_data: _let.into(),
                 }],
             ))
@@ -212,6 +213,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 variable: Box::new(pat_var[0].clone()),
                 r#type: typ.clone().unwrap_or(Type::Empty(HelpData::default())),
                 expression: Box::new(body),
+                is_public: false,
                 help_data: _let.into(),
             }],
         )),
@@ -231,6 +233,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                             lhs: Box::new(body),
                             help_data: pat_var.into(),
                         }),
+                        is_public: false,
                         help_data: _let.into(),
                     }],
                 ))
@@ -243,6 +246,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                             variable: Box::new(x.clone()),
                             r#type: typ.clone().unwrap_or(Type::Empty(HelpData::default())),
                             expression: Box::new(body.clone()),
+                            is_public: false,
                             help_data: HelpData::default(),
                         })
                         .collect::<Vec<_>>(),
@@ -284,6 +288,7 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 variable: Box::new(tmp_var.clone()),
                 r#type: typ.unwrap_or(Type::Empty(HelpData::default())),
                 expression: Box::new(body),
+                is_public: false,
                 help_data: _let.into(),
             };
 
@@ -307,6 +312,7 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         lhs: Box::new(tmp_var.clone()),
                         help_data: HelpData::default(),
                     }),
+                    is_public: false,
                     help_data: HelpData::default(),
                 });
             }
@@ -319,7 +325,7 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (opt(terminated(tag("pub"), multispace0)), base_let_exp).parse(s);
+    let res = (opt(terminated(tag("@pub"), multispace0)), base_let_exp).parse(s);
     match res {
         Ok((s, (None, le))) => Ok((s, le)),
         Ok((s, (Some(_pu), le))) => {
@@ -330,6 +336,7 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         variable: var,
                         r#type: typ,
                         expression: body,
+                        is_public: _,
                         help_data: h,
                     } => {
                         let vari = Var::from_language(var.deref().clone())
@@ -339,6 +346,7 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                             variable: Box::new(vari),
                             r#type: typ.clone(),
                             expression: body.clone(),
+                            is_public: true,
                             help_data: h.clone(),
                         }
                     }
@@ -376,6 +384,7 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
                     identifier: Box::new(vari),
                     parameters: params,
                     target_type: ty,
+                    is_public: false,
                     help_data: h,
                 },
             ))
@@ -386,9 +395,30 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (opt(terminated(tag("pub"), multispace0)), base_type_exp).parse(s);
+    let res = (opt(terminated(tag("@pub"), multispace0)), base_type_exp).parse(s);
     match res {
-        Ok((s, (Some(_pu), ali))) => Ok((s, vec![ali])),
+        Ok((
+            s,
+            (
+                Some(_pu),
+                Lang::Alias {
+                    identifier: var,
+                    parameters: params,
+                    target_type: typ,
+                    help_data: h,
+                    ..
+                },
+            ),
+        )) => Ok((
+            s,
+            vec![Lang::Alias {
+                identifier: var,
+                parameters: params,
+                target_type: typ,
+                is_public: true,
+                help_data: h,
+            }],
+        )),
         Ok((
             s,
             (
@@ -398,6 +428,7 @@ fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     parameters: params,
                     target_type: typ,
                     help_data: h,
+                    ..
                 },
             ),
         )) => {
@@ -410,6 +441,7 @@ fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     identifier: Box::new(vari),
                     parameters: params,
                     target_type: typ,
+                    is_public: false,
                     help_data: h,
                 }],
             ))
@@ -423,7 +455,7 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("opaque"), multispace0),
         type_alias,
-        terminated(tag("="), multispace0),
+        equality_operator,
         ltype,
         terminated(tag(";"), multispace0),
     )
@@ -440,6 +472,7 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
                     identifier: Box::new(vari),
                     parameters: params,
                     target_type: ty,
+                    is_public: false,
                     help_data: h,
                 },
             ))
@@ -450,7 +483,7 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (opt(terminated(tag("pub"), multispace0)), base_opaque_exp).parse(s);
+    let res = (opt(terminated(tag("@pub"), multispace0)), base_opaque_exp).parse(s);
     match res {
         Ok((
             s,
@@ -461,6 +494,7 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     parameters: params,
                     target_type: typ,
                     help_data: h,
+                    ..
                 },
             ),
         )) => {
@@ -474,6 +508,7 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     identifier: Box::new(vari),
                     parameters: params,
                     target_type: typ,
+                    is_public: true,
                     help_data: h,
                 }],
             ))
@@ -487,6 +522,7 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     parameters: params,
                     target_type: typ,
                     help_data: h,
+                    ..
                 },
             ),
         )) => {
@@ -500,6 +536,7 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     identifier: Box::new(vari),
                     parameters: params,
                     target_type: typ,
+                    is_public: false,
                     help_data: h,
                 }],
             ))
@@ -512,7 +549,7 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("module"), multispace0),
-        terminated(variable_exp, multispace0),
+        terminated(variable_recognizer, multispace0),
         terminated(tag("{"), multispace0),
         base_parse,
         terminated(tag("}"), multispace0),

@@ -1,3 +1,6 @@
+use crate::components::error_message::type_error::TypeError;
+use crate::components::error_message::typr_error::TypRError;
+use crate::components::r#type::type_operator::TypeOperator;
 use crate::processes::type_checking::r#Type;
 use crate::processes::type_checking::Context;
 use crate::processes::type_checking::HelpData;
@@ -5,17 +8,89 @@ use crate::processes::type_checking::Lang;
 use crate::processes::type_checking::TypeContext;
 use crate::processes::type_checking::Var;
 
+fn collect_undefined_aliases(context: &Context, ty: &Type) -> Vec<TypRError> {
+    match ty {
+        Type::Alias(name, params, is_opaque, _) => {
+            let is_builtin =
+                matches!(name.as_str(), "Integer" | "Character" | "Boolean" | "Number");
+            let is_defined = Var::from_type(ty.clone())
+                .and_then(|var| context.get_matching_alias_signature(&var))
+                .is_some();
+
+            let mut errors = Vec::new();
+            if !is_opaque && !is_builtin && !is_defined {
+                errors.push(TypRError::type_error(TypeError::AliasNotFound(ty.clone())));
+            }
+            for param in params {
+                errors.extend(collect_undefined_aliases(context, param));
+            }
+            errors
+        }
+        Type::Operator(TypeOperator::Access, t1, t2, _) => {
+            let module_name = match t1.as_ref() {
+                Type::Variable(name, _) | Type::Alias(name, _, _, _) => Some(name.as_str()),
+                _ => None,
+            };
+            let alias_name = match t2.as_ref() {
+                Type::Alias(name, _, _, _) => Some(name.as_str()),
+                _ => None,
+            };
+            match (module_name, alias_name) {
+                (Some(module_name), Some(alias_name)) => {
+                    let module_type = context
+                        .get_type_from_variable(&Var::from_name(module_name))
+                        .ok()
+                        .and_then(|t| t.to_module_type().ok());
+                    match module_type {
+                        None => vec![TypRError::type_error(TypeError::AliasNotFound(ty.clone()))],
+                        Some(module_type) => {
+                            if module_type.get_type_from_name(alias_name).is_err() {
+                                vec![TypRError::type_error(TypeError::AliasNotFound(ty.clone()))]
+                            } else {
+                                vec![]
+                            }
+                        }
+                    }
+                }
+                _ => vec![],
+            }
+        }
+        Type::Function(args, ret, _) => {
+            let mut errors: Vec<TypRError> = args
+                .iter()
+                .flat_map(|arg| collect_undefined_aliases(context, &arg.get_type()))
+                .collect();
+            errors.extend(collect_undefined_aliases(context, ret));
+            errors
+        }
+        Type::Vec(_, ind, inner, _) => {
+            let mut errors = collect_undefined_aliases(context, ind);
+            errors.extend(collect_undefined_aliases(context, inner));
+            errors
+        }
+        Type::Record(fields, _) => fields
+            .iter()
+            .flat_map(|arg| collect_undefined_aliases(context, &arg.get_type()))
+            .collect(),
+        Type::Tag(_, inner, _) => collect_undefined_aliases(context, inner),
+        _ => Vec::new(),
+    }
+}
+
 #[allow(clippy::borrowed_box)]
 pub fn let_expression(
     context: &Context,
     name: &Box<Lang>,
     ty: &Type,
     exp: &Box<Lang>,
+    is_public: bool,
     h: &HelpData,
 ) -> TypeContext {
     let new_context = context
         .clone()
         .push_types(&exp.extract_types_from_expression(context));
+
+    let alias_errors = collect_undefined_aliases(context, ty);
 
     let res = exp
         .typing(&new_context)
@@ -26,15 +101,17 @@ pub fn let_expression(
         variable: name.clone(),
         r#type: ty.clone(),
         expression: Box::new(res.get_expr()),
+        is_public,
         help_data: h.clone(),
     };
 
-    res.with_lang(&new_expr)
+    res.with_lang(&new_expr).with_errors(alias_errors)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::components::error_message::typr_error::TypRError;
     use crate::utils::builder;
     use crate::utils::fluent_parser::FluentParser;
 
@@ -47,5 +124,28 @@ mod tests {
             .type_next()
             .get_last_type();
         assert_eq!(res, builder::integer_type_default());
+    }
+
+    #[test]
+    fn test_let_undefined_type_annotation_produces_error() {
+        use crate::components::context::Context;
+        use crate::processes::type_checking::typing_with_errors;
+        use crate::processes::parsing::parse2;
+
+        let expr = parse2("let v: Hey <- false;".into()).unwrap();
+        let result = typing_with_errors(&Context::default(), &expr);
+
+        assert!(
+            result.has_errors(),
+            "Expected an AliasNotFound error for undefined type 'Hey'"
+        );
+        assert!(
+            result.get_errors().iter().any(|e| matches!(
+                e,
+                TypRError::Type(crate::components::error_message::type_error::TypeError::AliasNotFound(_))
+            )),
+            "Expected AliasNotFound error but got: {:?}",
+            result.get_errors()
+        );
     }
 }

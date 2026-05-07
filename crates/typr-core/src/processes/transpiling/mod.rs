@@ -600,6 +600,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 variable: expr,
                 r#type: ttype,
                 expression: body,
+                is_public: _,
                 help_data: _,
             } => {
                 let (body_str, new_cont) = body.to_r(cont);
@@ -881,33 +882,101 @@ impl RTranslatable<(String, Context)> for Lang {
                 config,
                 ..
             } => {
-                let name = if (name == "main") && (config.environment == Environment::Project) {
+                let name_str = if (name == "main") && (config.environment == Environment::Project) {
                     "a_main"
                 } else {
                     name
                 };
-                let content = body
+
+                let body_content = body
                     .iter()
                     .map(|lang| lang.to_r(cont).0)
                     .collect::<Vec<_>>()
                     .join("\n");
+
+                // Build exports (inside local) and generics (outside local) for @pub members
+                let mut exports: Vec<String> = Vec::new();
+                let mut generics: Vec<String> = Vec::new();
+                let mut generic_exports: Vec<String> = Vec::new();
+
+                for lang in body.iter() {
+                    if let Lang::Let {
+                        variable: var,
+                        is_public: true,
+                        ..
+                    } = lang
+                    {
+                        if let Some(v) = Var::from_language(*var.clone()) {
+                            let raw_name = v.get_name();
+                            let typed_name = v.clone().display_type(cont).get_name();
+
+                            // Export the (possibly type-suffixed) member into the module env
+                            exports.push(format!(
+                                "{}${} <- {}",
+                                name_str, typed_name, typed_name
+                            ));
+
+                            // For typed functions: register as S3 method and create generic
+                            let var_type = v.get_type();
+                            if !var_type.is_empty() && typed_name != raw_name {
+                                let class_name = cont.get_class_unquoted(&var_type);
+                                exports.push(format!(
+                                    "registerS3method(\"{}\", \"{}\", {})",
+                                    raw_name, class_name, typed_name
+                                ));
+
+                                let generic_def = format!(
+                                    "{} <- function(x, ...) UseMethod(\"{}\")",
+                                    raw_name, raw_name
+                                );
+                                if !generics.contains(&generic_def) {
+                                    generics.push(generic_def);
+                                    generic_exports.push(format!(
+                                        "{}${} <- {}",
+                                        name_str, raw_name, raw_name
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let exports_str = if exports.is_empty() {
+                    String::new()
+                } else {
+                    "\n".to_string() + &exports.join("\n")
+                };
+
+                let generics_str = if generics.is_empty() {
+                    String::new()
+                } else {
+                    "\n".to_string()
+                        + &generics.join("\n")
+                        + "\n"
+                        + &generic_exports.join("\n")
+                };
+
+                let content = format!(
+                    "{} <- new.env(parent = emptyenv())\nlocal({{\n{}{}\n}}){}",
+                    name_str, body_content, exports_str, generics_str
+                );
+
                 match (position, config.environment) {
                     (ModulePosition::Internal, _) => (content, cont.clone()),
                     // In WASM mode, inline all external modules instead of writing files
                     (ModulePosition::External, Environment::Wasm) => {
-                        let file_path = format!("{}.R", name);
+                        let file_path = format!("{}.R", name_str);
                         let _ = write_output_file(&file_path, &content);
-                        // Return the content directly, no source() call
                         (content, cont.clone())
                     }
                     (ModulePosition::External, Environment::StandAlone)
                     | (ModulePosition::External, Environment::Repl) => {
-                        let file_path = format!("{}.R", name);
+                        let file_path = format!("{}.R", name_str);
                         let _ = write_output_file(&file_path, &content);
                         (format!("source('{}')", file_path), cont.clone())
                     }
                     (ModulePosition::External, Environment::Project) => {
-                        let file_path = format!("R/{}.R", name);
+                        let file_path = format!("R/{}.R", name_str);
                         let _ = write_output_file(&file_path, &content);
                         ("".to_string(), cont.clone())
                     }
@@ -920,5 +989,57 @@ impl RTranslatable<(String, Context)> for Lang {
         };
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::fluent_parser::FluentParser;
+
+    #[test]
+    fn test_module_transpilation_with_pub() {
+        let r_code = FluentParser::new()
+            .push("module Math { let sq <- 2; @pub let pi <- 3; };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(r_code.contains("Math <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
+        assert!(r_code.contains("local({"), "missing local block: {}", r_code);
+        assert!(r_code.contains("Math$pi <- pi"), "missing public export: {}", r_code);
+        assert!(!r_code.contains("Math$sq"), "private member should not be exported: {}", r_code);
+    }
+
+    #[test]
+    fn test_module_transpilation_no_pub() {
+        let r_code = FluentParser::new()
+            .push("module Empty { let x <- 1; };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(r_code.contains("Empty <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
+        assert!(r_code.contains("local({"), "missing local block: {}", r_code);
+        assert!(!r_code.contains("Empty$x"), "private member should not be exported: {}", r_code);
+    }
+
+    #[test]
+    fn test_module_s3_registration_for_typed_pub_fn() {
+        let r_code = FluentParser::new()
+            .push("module Math { @pub let double <- fn(x: Integer): Integer { x }; };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(r_code.contains("Math <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
+        assert!(r_code.contains("registerS3method(\"double\", \"integer\", double.integer)"), "missing S3 registration: {}", r_code);
+        assert!(r_code.contains("double <- function(x, ...) UseMethod(\"double\")"), "missing generic: {}", r_code);
+        assert!(r_code.contains("Math$double <- double"), "missing generic export: {}", r_code);
     }
 }

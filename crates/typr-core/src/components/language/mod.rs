@@ -100,12 +100,14 @@ pub enum Lang {
         variable: Box<Lang>,
         r#type: Type,
         expression: Box<Lang>,
+        is_public: bool,
         help_data: HelpData,
     },
     Alias {
         identifier: Box<Lang>,
         parameters: Vec<Type>,
         target_type: Type,
+        is_public: bool,
         help_data: HelpData,
     },
     Array {
@@ -350,12 +352,14 @@ impl PartialEq for Lang {
                     variable: a1,
                     r#type: a2,
                     expression: a3,
+                    is_public: _,
                     help_data: _,
                 },
                 Lang::Let {
                     variable: b1,
                     r#type: b2,
                     expression: b3,
+                    is_public: _,
                     help_data: _,
                 },
             ) => a1 == b1 && a2 == b2 && a3 == b3,
@@ -654,6 +658,7 @@ impl Lang {
                 variable: var,
                 r#type: ty,
                 expression: _,
+                is_public: _,
                 help_data: _,
             } => Some(ArgumentType::new(
                 &Var::from_language((**var).clone()).unwrap().get_name(),
@@ -932,6 +937,7 @@ impl Lang {
                 variable: var,
                 r#type: _,
                 expression: body,
+                is_public: _,
                 help_data: _,
             } => (
                 format!(
@@ -1129,6 +1135,7 @@ impl Lang {
                 variable: var,
                 r#type: typ,
                 expression: lang,
+                is_public: is_pub,
                 help_data: h,
             } => {
                 let expr = Lang::Operator {
@@ -1141,6 +1148,7 @@ impl Lang {
                     variable: Box::new(expr),
                     r#type: typ,
                     expression: lang,
+                    is_public: is_pub,
                     help_data: h,
                 }
             }
@@ -1148,6 +1156,7 @@ impl Lang {
                 identifier: var,
                 parameters: types,
                 target_type: typ,
+                is_public: is_pub,
                 help_data: h,
             } => {
                 let expr = Lang::Operator {
@@ -1160,6 +1169,7 @@ impl Lang {
                     identifier: Box::new(expr),
                     parameters: types,
                     target_type: typ,
+                    is_public: is_pub,
                     help_data: h,
                 }
             }
@@ -1195,6 +1205,7 @@ impl Lang {
                 variable: lang,
                 r#type: _,
                 expression: body,
+                is_public: _,
                 help_data: h,
             } if Var::from_language(*lang.clone()).is_some() => {
                 let var = Var::from_language(*lang).unwrap();

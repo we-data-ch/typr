@@ -669,6 +669,7 @@ fn type_operator(s: Span) -> IResult<Span, TypeToken> {
     let res = terminated(
         alt((
             tag("->"),
+            tag("::"),
             tag("|"),
             tag("&"),
             tag("+"),
@@ -685,13 +686,13 @@ fn type_operator(s: Span) -> IResult<Span, TypeToken> {
         Ok((s, op)) => {
             let operator = match op.into_fragment() {
                 "->" => TypeOperator::Arrow,
+                "::" | "$" => TypeOperator::Access,
                 "|" => TypeOperator::Union,
                 "&" => TypeOperator::Intersection,
                 "+" => TypeOperator::Addition,
                 "-" => TypeOperator::Substraction,
                 "*" => TypeOperator::Multiplication,
                 "/" => TypeOperator::Division,
-                "$" => TypeOperator::Access,
                 _ => TypeOperator::Unknown,
             };
             Ok((s, operator.into()))

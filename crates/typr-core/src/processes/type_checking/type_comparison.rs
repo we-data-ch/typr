@@ -5,6 +5,7 @@ use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use crate::processes::type_checking::unification::type_substitution;
+use crate::utils::builder;
 use rpds::Vector;
 
 pub fn reduce_param(
@@ -72,8 +73,13 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
                                         context,
                                     )
                                 })
-                                // Return Any type instead of panicking if alias not found
-                                .unwrap_or_else(|| Type::Any(h.clone()))
+                                .unwrap_or_else(|| match name.as_str() {
+                                    "Integer" => builder::integer_type_default(),
+                                    "Character" => builder::character_type_default(),
+                                    "Boolean" => builder::boolean_type(),
+                                    "Number" => builder::number_type(),
+                                    _ => Type::Any(h.clone()),
+                                })
                         }
                         None => Type::Any(h.clone()),
                     }
@@ -117,15 +123,22 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
         Type::Operator(TypeOperator::Access, t1, t2, h) => {
             let t1_inner = (**t1).clone();
             let t2_inner = (**t2).clone();
-            match (t1_inner, t2_inner) {
-                (Type::Variable(module_name, _), Type::Alias(alias_name, _args, _opaque, _)) => {
-                    context
-                        .get_type_from_variable(&Var::from_name(&module_name))
-                        .ok()
-                        .and_then(|t| t.to_module_type().ok())
-                        .and_then(|module_type| module_type.get_type_from_name(&alias_name).ok())
-                        .unwrap_or_else(|| Type::Any(h.clone()))
-                }
+            let module_name = match &t1_inner {
+                Type::Variable(name, _) => Some(name.as_str()),
+                Type::Alias(name, _, _, _) => Some(name.as_str()),
+                _ => None,
+            };
+            let alias_name = match &t2_inner {
+                Type::Alias(name, _, _, _) => Some(name.as_str()),
+                _ => None,
+            };
+            match (module_name, alias_name) {
+                (Some(module_name), Some(alias_name)) => context
+                    .get_type_from_variable(&Var::from_name(module_name))
+                    .ok()
+                    .and_then(|t| t.to_module_type().ok())
+                    .and_then(|module_type| module_type.get_type_from_name(alias_name).ok())
+                    .unwrap_or_else(|| Type::Any(h.clone())),
                 _ => Type::Any(h.clone()),
             }
         }

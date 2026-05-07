@@ -29,6 +29,7 @@ impl TryFrom<Lang> for VarFunction {
                 variable,
                 r#type: _,
                 expression,
+                is_public: _,
                 help_data: _,
             } if expression.is_function() => {
                 let var = Var::try_from(variable).unwrap();

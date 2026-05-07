@@ -18,7 +18,7 @@ fn import_file_module_code(line: &Lang, environment: Environment) -> Lang {
             ));
             // TODO: propagate errors from imported modules
             metaprogrammation(parse_result.ast.to_module(name, environment), environment)
-        }
+        },
         n => n.clone(),
     }
 }

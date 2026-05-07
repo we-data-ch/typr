@@ -84,6 +84,17 @@ impl Context {
         }
     }
 
+    pub fn set_in_module_body(self) -> Self {
+        Self {
+            config: self.config.set_in_module_body(true),
+            ..self
+        }
+    }
+
+    pub fn is_in_module_body(&self) -> bool {
+        self.config.in_module_body
+    }
+
     /// Retourne un nouveau Context avec le Graph de sous-typage mis à jour
     pub fn with_subtypes(self, subtypes: Graph<Type>) -> Self {
         Self { subtypes, ..self }
@@ -275,7 +286,7 @@ impl Context {
     }
 
     pub fn get_class_unquoted(&self, t: &Type) -> String {
-        self.typing_context.get_class_unquoted(t)
+        self.typing_context.get_class_unquoted(&t.reduce(self))
     }
 
     pub fn module_aliases(&self) -> Vec<(Var, Type)> {
