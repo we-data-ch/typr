@@ -608,7 +608,11 @@ impl RTranslatable<(String, Context)> for Lang {
 
                 let (r_code, _new_name2) = Function::try_from((**body).clone())
                     .map(|_| {
-                        let related_type = typing(cont, expr).value;
+                        let related_type = Var::try_from(expr)
+                            .ok()
+                            .map(|v| v.get_type())
+                            .filter(|t| !matches!(t, Type::Empty(_) | Type::UnknownFunction(_)))
+                            .unwrap_or_else(|| typing(cont, expr).value);
                         let method = match cont.get_environment() {
                             Environment::Project => format!(
                                 "#' @method {}\n",
@@ -939,6 +943,21 @@ impl RTranslatable<(String, Context)> for Lang {
                             }
                         }
                     }
+                    // Export @pub opaque type constructors into the module environment
+                    if let Lang::Alias {
+                        identifier: var,
+                        is_public: true,
+                        ..
+                    } = lang
+                    {
+                        if let Some(v) = Var::from_language(*var.clone()) {
+                            let alias_name = v.get_name();
+                            exports.push(format!(
+                                "{}${} <- {}",
+                                name_str, alias_name, alias_name
+                            ));
+                        }
+                    }
                 }
 
                 let exports_str = if exports.is_empty() {
@@ -947,18 +966,21 @@ impl RTranslatable<(String, Context)> for Lang {
                     "\n".to_string() + &exports.join("\n")
                 };
 
-                let generics_str = if generics.is_empty() {
+                let generics_defs_str = if generics.is_empty() {
                     String::new()
                 } else {
-                    "\n".to_string()
-                        + &generics.join("\n")
-                        + "\n"
-                        + &generic_exports.join("\n")
+                    generics.join("\n") + "\n"
+                };
+
+                let generic_exports_str = if generic_exports.is_empty() {
+                    String::new()
+                } else {
+                    "\n".to_string() + &generic_exports.join("\n")
                 };
 
                 let content = format!(
-                    "{} <- new.env(parent = emptyenv())\nlocal({{\n{}{}\n}}){}",
-                    name_str, body_content, exports_str, generics_str
+                    "{}{} <- new.env(parent = emptyenv())\nlocal({{\n{}{}\n}}){}",
+                    generics_defs_str, name_str, body_content, exports_str, generic_exports_str
                 );
 
                 match (position, config.environment) {
@@ -982,6 +1004,52 @@ impl RTranslatable<(String, Context)> for Lang {
                     }
                 }
             }
+            Lang::UseModule {
+                module_path,
+                selector,
+                ..
+            } => {
+                use crate::components::language::use_lang::UseSelector;
+
+                // Build the R accessor prefix: A::B::C → A$B$C
+                let r_path = module_path.join("$");
+
+                // Resolve the module type from context to enumerate public members for wildcards
+                let mod_type_opt = (|| {
+                    let root = cont
+                        .get_type_from_variable(&Var::from_name(&module_path[0]))
+                        .ok()?;
+                    let mut current = root;
+                    for seg in module_path.iter().skip(1) {
+                        current = current.to_module_type().ok()?.get_type_from_name(seg).ok()?;
+                    }
+                    current.to_module_type().ok()
+                })();
+
+                let bindings: Vec<String> = match selector {
+                    UseSelector::Wildcard => mod_type_opt
+                        .map(|mt| {
+                            mt.get_public_members()
+                                .iter()
+                                .map(|m| {
+                                    let name = m.get_argument_str();
+                                    format!("{} <- {}${}", name, r_path, name)
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    UseSelector::Items(items) => items
+                        .iter()
+                        .map(|item| {
+                            let local_name = item.alias.as_deref().unwrap_or(&item.name);
+                            format!("{} <- {}${}", local_name, r_path, item.name)
+                        })
+                        .collect(),
+                };
+
+                (bindings.join("\n"), cont.clone())
+            }
+            Lang::ModuleImport { .. } => ("".to_string(), cont.clone()),
             _ => {
                 println!("This language structure won't transpile: {:?}", self);
                 ("".to_string(), cont.clone())
@@ -1041,5 +1109,83 @@ mod tests {
         assert!(r_code.contains("registerS3method(\"double\", \"integer\", double.integer)"), "missing S3 registration: {}", r_code);
         assert!(r_code.contains("double <- function(x, ...) UseMethod(\"double\")"), "missing generic: {}", r_code);
         assert!(r_code.contains("Math$double <- double"), "missing generic export: {}", r_code);
+    }
+
+    #[test]
+    fn test_module_no_trailing_semicolon() {
+        let r_code = FluentParser::new()
+            .push("module Geo { @pub let pi <- 3; }")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(r_code.contains("Geo <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
+        assert!(r_code.contains("Geo$pi <- pi"), "missing public export: {}", r_code);
+    }
+
+    #[test]
+    fn test_import_module() {
+        let r_code = FluentParser::new()
+            .push("module Math { @pub let pi <- 3; }")
+            .push("import Math")
+            .run()
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(r_code.contains("Math <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
+    }
+
+    #[test]
+    fn test_import_module_as_alias() {
+        let r_code = FluentParser::new()
+            .push("module Math { @pub let pi <- 3; }")
+            .push("import Math as Maths")
+            .run()
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(r_code.contains("Math <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
+        assert!(r_code.contains("Maths <- Math") || r_code.contains("`Maths` <- Math"), "missing alias assignment: {}", r_code);
+    }
+
+    #[test]
+    fn test_use_items_transpiles() {
+        let r_code = FluentParser::new()
+            .push("module Math { @pub let pi <- 3; @pub let e <- 2; };")
+            .push("use Math::{pi, e as euler};")
+            .run()
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(r_code.contains("pi <- Math$pi"), "missing pi binding: {}", r_code);
+        assert!(r_code.contains("euler <- Math$e"), "missing euler binding: {}", r_code);
+    }
+
+    #[test]
+    fn test_use_wildcard_transpiles() {
+        let r_code = FluentParser::new()
+            .push("module Math { @pub let pi <- 3; @pub let e <- 2; let secret <- 0; };")
+            .push("use Math::*;")
+            .run()
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(r_code.contains("pi <- Math$pi"), "missing pi binding: {}", r_code);
+        assert!(r_code.contains("e <- Math$e"), "missing e binding: {}", r_code);
+        assert!(!r_code.contains("secret <- Math$secret"), "private member must not be imported: {}", r_code);
     }
 }

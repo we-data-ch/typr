@@ -1092,6 +1092,7 @@ impl PartialEq for Type {
                 Type::Operator(TypeOperator::Union, _, _, _),
                 Type::Operator(TypeOperator::Union, _, _, _),
             ) => true, //Todo: refactor this with a UnionType struct
+            (Type::Module(a1, _), Type::Module(a2, _)) => a1 == a2,
             _ => false,
         }
     }

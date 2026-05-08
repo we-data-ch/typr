@@ -76,6 +76,10 @@ impl TypeChecker {
         }
     }
 
+    pub fn typing_helper_pub(self, exp: &Lang) -> Self {
+        self.typing_helper(exp)
+    }
+
     fn typing_helper(self, exp: &Lang) -> Self {
         let (typ, lang, context, errors) = typing(&self.context, exp).to_tuple_with_errors();
         Self {

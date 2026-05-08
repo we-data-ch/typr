@@ -282,11 +282,23 @@ impl Context {
     }
 
     pub fn get_class(&self, t: &Type) -> String {
-        self.typing_context.get_class(&t.reduce(self))
+        let reduced = t.reduce(self);
+        if matches!(reduced, Type::Any(_)) {
+            if let Type::Alias(name, _, _, _) = t {
+                return "'".to_string() + name + "'";
+            }
+        }
+        self.typing_context.get_class(&reduced)
     }
 
     pub fn get_class_unquoted(&self, t: &Type) -> String {
-        self.typing_context.get_class_unquoted(&t.reduce(self))
+        let reduced = t.reduce(self);
+        if matches!(reduced, Type::Any(_)) {
+            if let Type::Alias(name, _, _, _) = t {
+                return name.clone();
+            }
+        }
+        self.typing_context.get_class_unquoted(&reduced)
     }
 
     pub fn module_aliases(&self) -> Vec<(Var, Type)> {
@@ -323,11 +335,17 @@ impl Context {
                 } else {
                     Default::default()
                 };
+                let class_str = self.get_class(&typ);
+                let prefix = if name0.is_empty() && class_str != format!("'{}'", name) {
+                    format!("'{}', ", name)
+                } else {
+                    name0
+                };
                 format!(
                     "{} <- function(x) x |> struct(c({}{}, {}))",
                     name,
-                    name0,
-                    self.get_class(&typ),
+                    prefix,
+                    class_str,
                     self.get_classes(&typ).unwrap()
                 )
             })

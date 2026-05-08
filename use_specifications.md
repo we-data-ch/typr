@@ -1,313 +1,251 @@
-Voici la spécification révisée, propre, cohérente, complète, intégrant :
+Vue d’ensemble
 
-- ta syntaxe module M { ... }
-- l’affectation let x <- expr
-- l’annotation @pub pour rendre public
-- l’immutabilité
-- la traduction vers R + environnements + S3
-- la résolution des noms
-- la gestion des imports
-- la garantie d’absence de collisions
-
-C’est une spec officielle, prête à être intégrée dans un document de langage.
+use est une directive de résolution de noms qui permet d’introduire dans le scope courant des symboles publics (@pub) provenant d’un module.  
+Elle ne crée pas de nouveaux symboles dans le module, elle ne fait que lier des noms dans le scope courant vers des membres publics existants.
 
 ---
 
-📘 Spécification formelle du système de modules de L (version révisée)
+Syntaxe formelle
 
-1. Objectifs du système de modules
+Forme générale
 
-Le système de modules de L fournit :
+`ebnf
+UseDirective  ::= "use" UsePath ";"
 
-1. Encapsulation :  
-   - toutes les déclarations sont privées par défaut.
-   - seules les déclarations annotées @pub sont exportées.
+UsePath       ::= ModulePath "::" UseSelector
+                | ModulePath
 
-2. Immutabilité :  
-   - aucune variable ne peut être modifiée après sa définition.
-   - aucune mutation externe (<<-) n’est générée en R.
+ModulePath    ::= Ident ( "::" Ident )*
 
-3. Isolation :  
-   - chaque module est traduit en un environnement R distinct.
-   - aucune collision possible entre modules.
+UseSelector   ::= "*" 
+                | "{" UseItemList "}"
 
-4. Interopérabilité R/S3 :  
-   - les fonctions publiques peuvent devenir des génériques S3.
-   - les données privées sont capturées lexicalement.
+UseItemList   ::= UseItem ( "," UseItem )* [ "," ]
+
+UseItem       ::= Ident [ "as" Ident ]
+`
+
+Remarques
+
+- use M::*; : import global de tous les symboles publics de M.
+- use M::{a, b as c}; : import sélectif, avec renommage optionnel.
+- use M; (sans ::) : n’importe rien dans le scope courant, mais peut être réservé pour d’autres usages (par exemple, forcer la résolution/chargement du module). Tu peux décider de l’interdire pour l’instant si tu veux rester strict.
 
 ---
 
-2. Syntaxe du langage L
+Domaine d’application
 
-2.1. Déclaration de module
+Scope
 
+- Portée lexicale :  
+  Une directive use s’applique au scope lexical dans lequel elle apparaît (fichier, bloc, module interne, etc.).
+- Ordre :  
+  Toutes les directives use d’un même scope sont traitées avant la résolution des références dans ce scope.
+
+Visibilité
+
+- use ne rend visibles que les symboles marqués @pub dans le module cible.
+- Les symboles non publics restent inaccessibles, même via use.
+
+---
+
+Sémantique
+
+1. Résolution du module
+
+Pour une directive :
+
+`r
+use A::B::C::{x, y as z};
 `
-ModuleDecl ::= "module" Ident "{" Decl* "}"
-`
 
-Exemple :
+1. Résoudre A::B::C comme un module existant dans l’environnement de compilation.
+2. Si le module n’existe pas → erreur de compilation : UnknownModule.
 
-`
+2. Sélection des symboles
+
+- Cas * :
+
+  `r
+  use M::*;
+  `
+
+  1. Collecter l’ensemble \( P \) des symboles publics du module M.
+  2. Pour chaque symbole \( s \in P \), proposer une liaison dans le scope courant sous le même nom s.
+
+- Cas { ... } :
+
+  `r
+  use M::{a, b as c};
+  `
+
+  Pour chaque UseItem :
+
+  - a :
+    - Vérifier que a est un symbole public de M.
+    - Créer une liaison dans le scope courant sous le nom a.
+  - b as c :
+    - Vérifier que b est un symbole public de M.
+    - Créer une liaison dans le scope courant sous le nom c.
+
+3. Nature de la liaison
+
+Pour chaque symbole importé :
+
+- La liaison dans le scope courant est un alias vers le membre du module, pas une copie conceptuelle.
+- En pratique (dans ta transpilation R), cela se traduit typiquement par :
+
+  `r
+  a <- M$a
+  c <- M$b
+  `
+
+- Si ton langage supporte la mutabilité sur ces symboles, la sémantique doit être définie clairement :
+  - soit alias vers la valeur (mutation via le module seulement),
+  - soit copie de la valeur (mutation locale indépendante).
+  
+  Tu peux spécifier, par défaut, que use importe des références en lecture seule (API), et que la mutation des membres de module se fait uniquement via Module::name.
+
+---
+
+Résolution de noms
+
+Ordre de résolution dans un scope
+
+Lorsqu’un identifiant x est rencontré dans un scope :
+
+1. Déclarations locales (variables, paramètres, let, etc.).
+2. Imports use du scope courant :
+   - symboles importés explicitement ({...}),
+   - symboles importés via *.
+3. Membres accessibles via qualification (Module::x).
+4. Scopes englobants (si ton langage a des scopes imbriqués).
+
+Si x est trouvé à plusieurs niveaux au même rang (par exemple, deux use qui importent x), c’est une collision.
+
+---
+
+Gestion des collisions
+
+Types de collisions
+
+1. Collision avec une déclaration locale
+
+   `r
+   let x <- 1
+   use M::{x};
+   `
+
+   → Erreur de compilation : NameConflictLocal("x").
+
+2. Collision entre deux use
+
+   `r
+   use A::{x};
+   use B::{x};
+   `
+
+   → Erreur de compilation : NameConflictImport("x").
+
+3. Collision entre * et un import explicite
+
+   `r
+   use A::*;
+   use B::{x};
+   `
+
+   Si A exporte aussi x → Erreur de compilation : NameConflictImport("x").
+
+Règle générale
+
+- Aucune ombre silencieuse : toute collision de nom introduit par use est une erreur.
+- Le développeur doit résoudre la collision via :
+  - renommage :
+
+    `r
+    use A::{x as ax};
+    use B::{x as bx};
+    `
+
+  - ou suppression d’un des imports.
+
+---
+
+Erreurs de compilation formelles
+
+Tu peux définir un ensemble d’erreurs liées à use :
+
+- UnknownModule(path: ModulePath)  
+  Le module référencé n’existe pas.
+
+- UnknownSymbol(module: ModulePath, name: Ident)  
+  Le symbole demandé n’existe pas dans le module.
+
+- SymbolNotPublic(module: ModulePath, name: Ident)  
+  Le symbole existe mais n’est pas marqué @pub.
+
+- NameConflictLocal(name: Ident)  
+  Un symbole importé entre en conflit avec une déclaration locale.
+
+- NameConflictImport(name: Ident)  
+  Deux imports (ou plus) tentent de lier le même nom dans le scope.
+
+- WildcardNotAllowedHere (optionnel)  
+  Si tu décides d’interdire * dans certains contextes (par exemple à l’intérieur de fonctions).
+
+---
+
+Exemples canoniques
+
+Import global
+
+`r
 module Math {
-    let pi_internal <- 3.14159
-    @pub let pi <- 3.14
+  @pub let pi <- 3.14159
+  @pub let sin <- function(x) { ... }
+  let secret <- 42
 }
+
+use Math::*;
+
+print(pi)        # OK
+print(sin(0.5))  # OK
+print(secret)    # Erreur : SymbolNotPublic("Math", "secret")
 `
 
----
-
-2.2. Déclarations internes
-
-2.2.1. Déclaration privée (par défaut)
-
-`
-PrivDecl ::= "let" Ident "<-" Expr
-`
-
-2.2.2. Déclaration publique
-
-`
-PubDecl ::= "@pub" "let" Ident "<-" Expr
-`
-
-2.2.3. Fonctions
-
-`
-Function ::= "function" "(" ParamList? ")" Expr
-`
-
-Exemples :
-
-`
-let square <- function(x) x * x
-@pub let area <- function(r) pi * square(r)
-`
-
----
-
-3. Sémantique des modules
-
-3.1. Portée
-
-À l’intérieur d’un module :
-
-1. les paramètres de fonction
-2. les déclarations privées
-3. les déclarations publiques
-4. les modules importés
-5. l’environnement global R (optionnel)
-
-3.2. Visibilité
-
-- Privé : accessible uniquement dans le module.
-- Public : accessible via Module::name.
-
-3.3. Immutabilité
-
-- Une déclaration let x <- expr crée une valeur immutable.
-- Aucune opération de mutation n’existe dans L.
-- La traduction R n’utilise jamais <<-.
-
----
-
-4. Traduction vers R
-
-4.1. Structure générale
-
-Pour un module M :
+Import sélectif avec renommage
 
 `r
-M <- new.env(parent = emptyenv())
+use Math::{pi as PI, sin};
 
-local({
-    <T_Decl(Decl1)>
-    <T_Decl(Decl2)>
-    ...
-})
+print(PI)
+print(sin(0.5))
 `
 
----
-
-4.2. Traduction des déclarations
-
-4.2.1. Déclaration privée
-
-En L :
-
-`
-let x <- expr
-`
-
-En R :
+Collision
 
 `r
-local({
-    x <- <T(expr)>
-})
+let pi <- 3
+
+use Math::{pi};  # Erreur : NameConflictLocal("pi")
 `
-
-- x est strictement privé.
-
----
-
-4.2.2. Déclaration publique
-
-En L :
-
-`
-@pub let y <- expr
-`
-
-En R :
 
 `r
-local({
-    y <- <T(expr)>
-    M$y <- y
-})
-`
-
-- y devient accessible via M$y.
-
----
-
-4.3. Traduction des fonctions
-
-4.3.1. Fonction privée
-
-En L :
-
-`
-let helper <- function(x) x * 2
-`
-
-En R :
-
-`r
-local({
-    helper <- function(x) x * 2
-})
+use A::{x};
+use B::{x};      # Erreur : NameConflictImport("x")
 `
 
 ---
 
-4.3.2. Fonction publique
+Résumé formel
 
-En L :
+- But : introduire des alias locaux vers des symboles publics de modules.
+- Syntaxe clé :
+  - use M::*;
+  - use M::{a, b as c};
+- Portée : lexicale, limitée au scope où apparaît la directive.
+- Visibilité : uniquement les symboles @pub.
+- Collisions : toujours des erreurs, jamais de shadowing implicite.
+- Sémantique : alias vers les membres du module, sans casser l’encapsulation.
 
-`
-@pub let f <- function(x) helper(x) + 1
-`
-
-En R :
-
-`r
-local({
-    f <- function(x) helper(x) + 1
-    M$f <- f
-})
-`
-
----
-
-4.4. Option S3 (si activée)
-
-Si une fonction publique doit devenir un générique S3 :
-
-En L :
-
-`
-@pub let print <- function(x: MyType) ...
-`
-
-En R :
-
-`r
-local({
-    M$print <- function(x, ...) UseMethod("M_print", x)
-    M_print.MyType <- function(x, ...) { ... }
-})
-`
-
----
-
-5. Traduction de Module::name
-
-Règle :
-
-- M::x → M$x
-- M::f(a, b) → M$f(a, b)
-
-Si un conteneur global est utilisé :
-
-- M::x → .modules$M$x
-
----
-
-6. Imports (optionnel mais prévu)
-
-6.1. Syntaxe
-
-`
-import M
-import M as Alias
-`
-
-6.2. Traduction
-
-En R :
-
-`
-Alias <- M
-`
-
-ou
-
-`
-M <- M
-`
-
----
-
-7. Exemple complet
-
-En L
-
-`
-module Math {
-    let pi_internal <- 3.14159
-    @pub let pi <- 3.14
-
-    let square <- function(x) x * x
-
-    @pub let circleArea <- function(r) pi * square(r)
-}
-`
-
-En R généré
-
-`r
-Math <- new.env(parent = emptyenv())
-
-local({
-    pi_internal <- 3.14159
-    pi <- 3.14
-    square <- function(x) x * x
-
-    circleArea <- function(r) pi * square(r)
-
-    Math$pi <- pi
-    Math$circleArea <- circleArea
-})
-`
-
----
-
-8. Propriétés garanties
-
-- Encapsulation stricte : les valeurs privées ne sont jamais accessibles.
-- Immutabilité : aucune mutation possible.
-- Absence de collisions : chaque module est un environnement isolé.
-- Interopérabilité R : les modules sont des environnements R standards.
-- Interopérabilité S3 : les fonctions publiques peuvent devenir des génériques.
-- Syntaxe claire et R-like : @pub let est explicite et lisible.
+Si tu veux, on peut maintenant écrire la section “Modules & Imports” de la spec de ton langage en intégrant module, @pub, Module::name et use dans un tout cohérent.

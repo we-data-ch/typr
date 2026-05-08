@@ -38,9 +38,12 @@ use nom::bytes::complete::tag;
 use nom::character::complete::line_ending;
 use nom::character::complete::multispace0;
 use nom::character::complete::not_line_ending;
+use nom::combinator::map;
 use nom::combinator::opt;
 use nom::multi::many0;
+use nom::multi::separated_list0;
 use nom::sequence::delimited;
+use nom::sequence::pair;
 use nom::sequence::preceded;
 use nom::sequence::terminated;
 use nom::IResult;
@@ -553,7 +556,7 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
         terminated(tag("{"), multispace0),
         base_parse,
         terminated(tag("}"), multispace0),
-        terminated(tag(";"), multispace0),
+        opt(terminated(tag(";"), multispace0)),
     )
         .parse(s);
     match res {
@@ -567,6 +570,48 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
                 help_data: modu.into(),
             }],
         )),
+        Err(r) => Err(r),
+    }
+}
+
+fn import_module(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+        terminated(tag("import"), multispace0),
+        terminated(variable_recognizer, multispace0),
+        opt((
+            terminated(tag("as"), multispace0),
+            terminated(variable_recognizer, multispace0),
+        )),
+        opt(terminated(tag(";"), multispace0)),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (import_kw, (name, _), None, _))) => Ok((
+            s,
+            vec![Lang::ModuleImport {
+                value: name,
+                help_data: import_kw.into(),
+            }],
+        )),
+        Ok((s, (_, (name, h), Some((_, (alias, _))), _))) => {
+            let module_var = Lang::Variable {
+                name,
+                is_opaque: false,
+                related_type: Type::Empty(HelpData::default()),
+                help_data: h.clone(),
+            };
+            let alias_var = Var::from_name(&alias).to_language();
+            Ok((
+                s,
+                vec![Lang::Let {
+                    variable: Box::new(alias_var),
+                    r#type: Type::Empty(HelpData::default()),
+                    expression: Box::new(module_var),
+                    is_public: false,
+                    help_data: h,
+                }],
+            ))
+        }
         Err(r) => Err(r),
     }
 }
@@ -725,6 +770,120 @@ fn library(s: Span) -> IResult<Span, Vec<Lang>> {
         }
         Err(r) => Err(r),
     }
+}
+
+fn use_item_exp(s: Span) -> IResult<Span, crate::components::language::use_lang::UseItem> {
+    use crate::components::language::use_lang::UseItem;
+    // Parse: Ident (as Ident)?
+    let res = (
+        terminated(variable_recognizer, multispace0),
+        opt(preceded(
+            pair(tag("as"), multispace0),
+            terminated(variable_recognizer, multispace0),
+        )),
+    )
+        .parse(s);
+    match res {
+        Ok((s, ((name, _), alias_opt))) => {
+            let alias = alias_opt.map(|(alias_name, _)| alias_name);
+            Ok((s, UseItem { name, alias }))
+        }
+        Err(r) => Err(r),
+    }
+}
+
+fn use_items_selector(s: Span) -> IResult<Span, crate::components::language::use_lang::UseSelector> {
+    use crate::components::language::use_lang::UseSelector;
+    let res = (
+        pair(tag("{"), multispace0),
+        separated_list0(pair(tag(","), multispace0), use_item_exp),
+        opt(pair(tag(","), multispace0)),
+        pair(tag("}"), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (_, items, _, _))) => Ok((s, UseSelector::Items(items))),
+        Err(r) => Err(r),
+    }
+}
+
+fn use_selector_exp(s: Span) -> IResult<Span, crate::components::language::use_lang::UseSelector> {
+    use crate::components::language::use_lang::UseSelector;
+    alt((
+        map(terminated(tag("*"), multispace0), |_| UseSelector::Wildcard),
+        use_items_selector,
+    ))
+    .parse(s)
+}
+
+fn use_module_directive(s: Span) -> IResult<Span, Vec<Lang>> {
+    use crate::components::language::use_lang::UseSelector;
+
+    // Parse: use FirstSeg :: ...
+    let res = (
+        terminated(tag("use"), multispace0),
+        terminated(variable_recognizer, multispace0),
+        pair(tag("::"), multispace0),
+    )
+        .parse(s);
+
+    let (s, (use_kw, (first_seg, _), _)) = match res {
+        Ok(r) => r,
+        Err(r) => return Err(r),
+    };
+
+    let mut path = vec![first_seg];
+    let mut current_s = s;
+    let selector;
+
+    loop {
+        match use_selector_exp(current_s.clone()) {
+            Ok((s2, sel)) => {
+                selector = sel;
+                current_s = s2;
+                break;
+            }
+            Err(_) => {
+                match terminated(variable_recognizer, multispace0).parse(current_s.clone()) {
+                    Ok((s2, (seg, _))) => {
+                        let colon_res: IResult<Span, (Span, Span)> =
+                            pair(tag("::"), multispace0).parse(s2.clone());
+                        match colon_res {
+                            Ok((s3, _)) => {
+                                path.push(seg);
+                                current_s = s3;
+                            }
+                            Err(_) => {
+                                use crate::components::language::use_lang::UseItem;
+                                selector = UseSelector::Items(vec![UseItem {
+                                    name: seg,
+                                    alias: None,
+                                }]);
+                                current_s = s2;
+                                break;
+                            }
+                        }
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+    }
+
+    let res = terminated(tag(";"), multispace0).parse(current_s);
+    let (s, _) = match res {
+        Ok(r) => r,
+        Err(r) => return Err(r),
+    };
+
+    Ok((
+        s,
+        vec![Lang::UseModule {
+            module_path: path,
+            selector,
+            help_data: use_kw.into(),
+        }],
+    ))
 }
 
 fn use_exp(s: Span) -> IResult<Span, Vec<Lang>> {
@@ -897,26 +1056,32 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         opt(multispace0),
         many0(alt((
-            library,
-            break_exp,
-            use_exp,
-            test_block,
-            while_loop,
-            for_loop,
-            signature,
-            tests,
-            import_type,
-            import_var,
-            mod_imp,
-            comment,
-            type_exp,
-            opaque_exp,
-            let_tuple_exp,
-            let_exp,
-            module,
-            assign,
-            return_stmt,
-            stmt_exp,
+            alt((
+                library,
+                break_exp,
+                use_exp,
+                test_block,
+                while_loop,
+                for_loop,
+                signature,
+                tests,
+                import_module,
+                use_module_directive,
+                import_type,
+            )),
+            alt((
+                import_var,
+                mod_imp,
+                comment,
+                type_exp,
+                opaque_exp,
+                let_tuple_exp,
+                let_exp,
+                module,
+                assign,
+                return_stmt,
+                stmt_exp,
+            )),
         ))),
         opt(parse_elements),
     )
@@ -1238,5 +1403,50 @@ mod tesus {
             builder::character_type("hello"),
             "Variable 'y' should be Character('hello')"
         );
+    }
+
+    #[test]
+    fn test_use_wildcard_parses() {
+        use crate::components::language::use_lang::UseSelector;
+        let lang = parse2("use Math::*;".into()).expect("parse failed");
+        match lang {
+            Lang::UseModule { module_path, selector, .. } => {
+                assert_eq!(module_path, vec!["Math".to_string()]);
+                assert_eq!(selector, UseSelector::Wildcard);
+            }
+            other => panic!("Expected UseModule, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_use_items_parses() {
+        use crate::components::language::use_lang::{UseItem, UseSelector};
+        let lang = parse2("use Math::{pi, sin as s};".into()).expect("parse failed");
+        match lang {
+            Lang::UseModule { module_path, selector, .. } => {
+                assert_eq!(module_path, vec!["Math".to_string()]);
+                assert_eq!(
+                    selector,
+                    UseSelector::Items(vec![
+                        UseItem { name: "pi".to_string(), alias: None },
+                        UseItem { name: "sin".to_string(), alias: Some("s".to_string()) },
+                    ])
+                );
+            }
+            other => panic!("Expected UseModule, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_use_nested_path_parses() {
+        use crate::components::language::use_lang::UseSelector;
+        let lang = parse2("use Aa::Bb::Cc::*;".into()).expect("parse failed");
+        match lang {
+            Lang::UseModule { module_path, selector, .. } => {
+                assert_eq!(module_path, vec!["Aa".to_string(), "Bb".to_string(), "Cc".to_string()]);
+                assert_eq!(selector, UseSelector::Wildcard);
+            }
+            other => panic!("Expected UseModule, got {:?}", other),
+        }
     }
 }

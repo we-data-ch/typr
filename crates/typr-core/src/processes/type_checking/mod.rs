@@ -421,35 +421,11 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 })
                 .collect();
 
-            // Expose @pub members individually and register the module as a typed variable
-            let public_context = members.iter().fold(context.clone(), |ctx, member| {
-                if let Lang::Let {
-                    variable: var,
-                    is_public: true,
-                    ..
-                } = member
-                {
-                    if let Ok(v) = Var::try_from(var) {
-                        let var_type = typing_context
-                            .context
-                            .get_type_from_variable(&v)
-                            .unwrap_or_else(|_| builder::empty_type());
-                        let reified = reify_opaque(var_type, &opaque_names);
-                        let exported = reduce_type(&typing_context.context, &reified);
-                        ctx.clone().push_var_type(v, exported, &ctx)
-                    } else {
-                        ctx
-                    }
-                } else {
-                    ctx
-                }
-            });
-
-            // Register the module itself as a typed variable so M::x can be resolved
+            // Register only the module itself — members must be imported explicitly via `use`
             let module_type = Type::Module(pub_arg_types, h.clone());
             let module_var = Var::from_name(module_name);
             let final_context =
-                public_context.clone().push_var_type(module_var, module_type, &public_context);
+                context.clone().push_var_type(module_var, module_type, context);
 
             TypeContext::new(builder::empty_type(), expr.clone(), final_context)
                 .with_errors(typing_context.errors)
@@ -1850,6 +1826,158 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             TypeContext::new(func_type, expr.clone(), context.clone())
         },
         Lang::Dots(h) => Type::Any(h.clone()).with_lang(expr, context).into(),
+        Lang::UseModule {
+            module_path,
+            selector,
+            help_data,
+        } => {
+            use crate::components::language::use_lang::UseSelector;
+            let mut errors = Vec::new();
+            let mut new_context = context.clone();
+
+            if module_path.is_empty() {
+                return TypeContext::new(builder::empty_type(), expr.clone(), context.clone());
+            }
+
+            // Resolve first segment of path in context
+            let module_var = Var::from_name(&module_path[0]);
+            let root_type = match context.get_type_from_variable(&module_var) {
+                Ok(t) => t,
+                Err(_) => {
+                    errors.push(TypRError::Type(TypeError::UndefinedVariable(
+                        Lang::Variable {
+                            name: module_path[0].clone(),
+                            is_opaque: false,
+                            related_type: builder::any_type(),
+                            help_data: help_data.clone(),
+                        },
+                    )));
+                    return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
+                        .with_errors(errors);
+                }
+            };
+
+            // Navigate nested path segments
+            let mut current_type = root_type;
+            for segment in module_path.iter().skip(1) {
+                match current_type.clone().to_module_type() {
+                    Ok(mt) => match mt.get_type_from_name(segment) {
+                        Ok(t) => current_type = t,
+                        Err(_) => {
+                            errors.push(TypRError::Type(TypeError::UndefinedVariable(
+                                Lang::Variable {
+                                    name: segment.clone(),
+                                    is_opaque: false,
+                                    related_type: builder::any_type(),
+                                    help_data: help_data.clone(),
+                                },
+                            )));
+                            return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
+                                .with_errors(errors);
+                        }
+                    },
+                    Err(_) => {
+                        errors.push(TypRError::Type(TypeError::UndefinedVariable(
+                            Lang::Variable {
+                                name: segment.clone(),
+                                is_opaque: false,
+                                related_type: builder::any_type(),
+                                help_data: help_data.clone(),
+                            },
+                        )));
+                        return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
+                            .with_errors(errors);
+                    }
+                }
+            }
+
+            let mod_type = match current_type.to_module_type() {
+                Ok(mt) => mt,
+                Err(_) => {
+                    errors.push(TypRError::Type(TypeError::UndefinedVariable(
+                        Lang::Variable {
+                            name: module_path.last().cloned().unwrap_or_default(),
+                            is_opaque: false,
+                            related_type: builder::any_type(),
+                            help_data: help_data.clone(),
+                        },
+                    )));
+                    return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
+                        .with_errors(errors);
+                }
+            };
+
+            // Track names imported in this directive to detect intra-directive conflicts
+            let mut imported_names: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
+
+            match selector {
+                UseSelector::Wildcard => {
+                    for member in mod_type.get_public_members() {
+                        let local_name = member.get_argument_str();
+                        // Conflict with local declaration
+                        if context.get_type_from_variable(&Var::from_name(&local_name)).is_ok() {
+                            errors.push(TypRError::Type(TypeError::ImmutableVariable(
+                                Var::from_name(&local_name),
+                                Var::from_name(&local_name),
+                            )));
+                        } else {
+                            new_context = new_context
+                                .clone()
+                                .push_var_type(Var::from_name(&local_name), member.get_type(), &new_context);
+                        }
+                    }
+                }
+                UseSelector::Items(items) => {
+                    use crate::components::language::use_lang::UseItem;
+                    for item in items {
+                        let local_name = item.alias.as_ref().unwrap_or(&item.name).clone();
+
+                        // Conflict with another import in this directive
+                        if imported_names.contains(&local_name) {
+                            errors.push(TypRError::Type(TypeError::ImmutableVariable(
+                                Var::from_name(&local_name),
+                                Var::from_name(&local_name),
+                            )));
+                            continue;
+                        }
+
+                        // Conflict with existing local
+                        if context.get_type_from_variable(&Var::from_name(&local_name)).is_ok() {
+                            errors.push(TypRError::Type(TypeError::ImmutableVariable(
+                                Var::from_name(&local_name),
+                                Var::from_name(&local_name),
+                            )));
+                            continue;
+                        }
+
+                        match mod_type.get_type_from_name(&item.name) {
+                            Ok(member_type) => {
+                                imported_names.insert(local_name.clone());
+                                new_context = new_context.clone().push_var_type(
+                                    Var::from_name(&local_name),
+                                    member_type,
+                                    &new_context,
+                                );
+                            }
+                            Err(_) => {
+                                errors.push(TypRError::Type(TypeError::UndefinedVariable(
+                                    Lang::Variable {
+                                        name: item.name.clone(),
+                                        is_opaque: false,
+                                        related_type: builder::any_type(),
+                                        help_data: help_data.clone(),
+                                    },
+                                )));
+                            }
+                        }
+                    }
+                }
+            }
+
+            TypeContext::new(builder::empty_type(), expr.clone(), new_context)
+                .with_errors(errors)
+        }
         _ => builder::any_type().with_lang(expr, context).into(),
     }
 }
@@ -2307,6 +2435,118 @@ mod tests {
         let r2 = parse(src2.into());
         assert!(!r1.has_errors(), "opaque with = should parse");
         assert!(!r2.has_errors(), "opaque with <- should parse");
+    }
+
+    #[test]
+    fn test_use_items_imports_into_context() {
+        let module_src = "module person { @pub opaque Person <- list { name: char, age: int }; @pub let new_person <- fn(name: char, age: int): Person { :{ name: name, age: age } }; @pub let is_minor <- fn(p: Person): bool { p$age < 18 }; };";
+        let fp = FluentParser::new()
+            .push(module_src)
+            .parse_type_next()
+            .push("use person::new_person;")
+            .parse_type_next();
+        let ctx = fp.context.clone();
+        assert!(
+            ctx.get_type_from_variable(&Var::from_name("new_person")).is_ok(),
+            "new_person should be in context after 'use person::new_person'"
+        );
+        assert!(
+            ctx.get_type_from_variable(&Var::from_name("is_minor")).is_err(),
+            "is_minor should NOT be in context (not imported)"
+        );
+    }
+
+    #[test]
+    fn test_use_full_file_simulation() {
+        use crate::processes::parsing::parse_from_string;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let src = r#"module person {
+    @pub opaque Person <- list { name: char, age: int };
+    @pub let new_person <- fn(name: char, age: int): Person { :{ name: name, age: age } };
+    @pub let is_minor <- fn(p: Person): bool { p$age < 18 };
+};
+use person::new_person;
+let p <- new_person("Anna", 32);
+p"#;
+        let lang = parse_from_string(src, "test_app");
+
+        // Step 1: check module alone
+        let module_expr = if let Lang::Lines { value: exprs, .. } = &lang { exprs[0].clone() } else { unreachable!() };
+        let use_expr = if let Lang::Lines { value: exprs, .. } = &lang { exprs[1].clone() } else { unreachable!() };
+
+        let ctx0 = Context::default();
+        let tc_after_module = TypeChecker::new(ctx0).typing_no_panic(&module_expr);
+        let ctx_after_module = tc_after_module.get_context();
+
+        // Check person is in context
+        assert!(ctx_after_module.get_type_from_variable(&Var::from_name("person")).is_ok(),
+            "person module should be in context after module definition");
+
+        // Check person's module type has new_person
+        let person_type = ctx_after_module.get_type_from_variable(&Var::from_name("person")).unwrap();
+        let mod_type = person_type.to_module_type().expect("person should be a module type");
+        let new_person_exported = mod_type.get_type_from_name("new_person");
+        assert!(new_person_exported.is_ok(), "new_person should be exported by person module, got members: {:?}",
+            mod_type.get_public_members().iter().map(|m| m.get_argument_str()).collect::<Vec<_>>());
+
+        // Step 2: check use expression updates context
+        let tc_after_use = TypeChecker::new(ctx_after_module).typing_no_panic(&use_expr);
+        let ctx_after_use = tc_after_use.get_context();
+        assert!(ctx_after_use.get_type_from_variable(&Var::from_name("new_person")).is_ok(),
+            "new_person should be in context after use person::new_person");
+
+        // Step 3: check supertypes and function matching
+        if let Lang::Lines { value: exprs, .. } = &lang {
+            let tc0 = TypeChecker::new(Context::default());
+            let tc1 = tc0.typing_helper_pub(&exprs[0]);
+            let ctx_after_module = tc1.get_context();
+
+            // Print what member_type is returned for new_person from module type
+            let person_type = ctx_after_module.get_type_from_variable(&Var::from_name("person")).unwrap();
+            let mod_type = person_type.to_module_type().unwrap();
+            let new_person_type = mod_type.get_type_from_name("new_person").unwrap();
+            println!("new_person type from module: {:?}", new_person_type);
+            println!("new_person type pretty: {}", new_person_type.pretty());
+            // Check extract_types
+            let extracted = new_person_type.extract_types();
+            println!("extracted types: {:?}", extracted.iter().map(|t| t.pretty()).collect::<Vec<_>>());
+
+            let tc2 = tc1.typing_helper_pub(&exprs[1]);
+            let ctx_after_use = tc2.get_context();
+
+            let anna_type = Type::Char(crate::components::r#type::tchar::Tchar::Val("Anna".to_string()), crate::components::error_message::help_data::HelpData::default());
+            let char_unknown = builder::character_type_default();
+
+            // Check if Char(Unknown) is in the graph after module
+            let in_graph_after_module = ctx_after_module.subtypes.get_ordered_supertypes(&char_unknown, &ctx_after_module);
+            println!("supertypes of Char(Unknown) after module: {:?}", in_graph_after_module.iter().map(|t| t.pretty()).collect::<Vec<_>>());
+
+            // Check if Char(Unknown) is in graph after use
+            let in_graph_after_use = ctx_after_use.subtypes.get_ordered_supertypes(&char_unknown, &ctx_after_use);
+            println!("supertypes of Char(Unknown) after use: {:?}", in_graph_after_use.iter().map(|t| t.pretty()).collect::<Vec<_>>());
+
+            // Check supertypes of Char(Val("Anna"))
+            let supertypes = ctx_after_use.subtypes.get_ordered_supertypes(&anna_type, &ctx_after_use);
+            println!("supertypes of Char(Val('Anna')): {:?}", supertypes.iter().map(|t| t.pretty()).collect::<Vec<_>>());
+
+            // Print memory entries that are char-related
+            let hierarchy = ctx_after_use.subtypes.get_hierarchy();
+            let level1_lines: Vec<&str> = hierarchy.lines().filter(|l| l.trim_start_matches(' ').starts_with("char") || *l == "  char").collect();
+            println!("Char top-level hierarchy entries: {:?}", &level1_lines[..level1_lines.len().min(10)]);
+        }
+    }
+
+    #[test]
+    fn test_graph_char_subtype() {
+        use crate::components::context::graph::Graph;
+        let ctx = Context::default();
+        let char_unknown = builder::character_type_default();
+        let char_anna = builder::character_type("Anna");
+        let graph = Graph::new();
+        let graph = graph.add_type(char_unknown.clone(), &ctx);
+        let supertypes = graph.get_ordered_supertypes(&char_anna, &ctx);
+        println!("After adding Char(Unknown), supertypes of Char(Val('Anna')): {:?}", supertypes.iter().map(|t| t.pretty()).collect::<Vec<_>>());
+        assert!(supertypes.iter().any(|t| t == &char_unknown), "Char(Unknown) should be a supertype of Char(Val('Anna')), got: {:?}", supertypes);
     }
 
     #[test]

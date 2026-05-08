@@ -5,8 +5,10 @@ pub mod module_lang;
 pub mod array_lang;
 pub mod operators;
 pub mod var;
+pub mod use_lang;
 
 use crate::components::language::argument_value::ArgumentValue;
+use crate::components::language::use_lang::UseSelector;
 use crate::processes::transpiling::translatable::RTranslatable;
 use crate::processes::type_checking::type_context::TypeContext;
 use crate::processes::parsing::operation_priority::TokenKind;
@@ -253,7 +255,13 @@ pub enum Lang {
     Null(HelpData),
     NA(HelpData),
     Empty(HelpData),
-    Dots(HelpData)
+    Dots(HelpData),
+    /// Directive `use M::*;` or `use M::{a, b as c};`
+    UseModule {
+        module_path: Vec<String>,
+        selector: UseSelector,
+        help_data: HelpData,
+    },
 }
 
 impl PartialEq for Lang {
@@ -556,6 +564,18 @@ impl PartialEq for Lang {
             ) => a1 == b1 && a2 == b2,
             (Lang::Null(_), Lang::Null(_)) => true,
             (Lang::NA(_), Lang::NA(_)) => true,
+            (
+                Lang::UseModule {
+                    module_path: a1,
+                    selector: a2,
+                    ..
+                },
+                Lang::UseModule {
+                    module_path: b1,
+                    selector: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
             _ => false,
         }
     }
@@ -813,6 +833,7 @@ impl Lang {
             Lang::Null(h) => h,
             Lang::NA(h) => h,
             Lang::Dots(h) => h,
+            Lang::UseModule { help_data: h, .. } => h,
         }
         .clone()
     }
@@ -918,6 +939,7 @@ impl Lang {
             Lang::Null(_) => "Null".to_string(),
             Lang::NA(_) => "NA".to_string(),
             Lang::Dots(_) => "Dots".to_string(),
+            Lang::UseModule { module_path, .. } => format!("UseModule({})", module_path.join("::")),
         }
     }
 
@@ -1326,6 +1348,7 @@ impl From<Lang> for HelpData {
             Lang::Null(h) => h,
             Lang::NA(h) => h,
             Lang::Dots(h) => h,
+            Lang::UseModule { help_data: h, .. } => h,
         }
         .clone()
     }
