@@ -325,6 +325,7 @@ impl Context {
             .cloned()
             .chain(self.module_aliases())
             .filter(|(_, typ)| typ.clone().to_module_type().is_err())
+            .filter(|(_, typ)| !matches!(typ, Type::Record(_, _)))
             .map(|(var, typ)| (typ, var.get_name()))
             .map(|(typ, name)| {
                 let name0 = if ["Integer", "Character", "Boolean", "Number"]

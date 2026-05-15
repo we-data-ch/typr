@@ -17,6 +17,7 @@ use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::processes::transpiling::translatable::Translatable;
+use crate::processes::type_checking::flatten_operator_union;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
 use translatable::RTranslatable;
@@ -534,6 +535,8 @@ impl RTranslatable<(String, Context)> for Lang {
                     .join(", ");
                 if name == "reduce" {
                     (format!("vec_reduce({})", str_vals), cont.clone())
+                } else if name == "extend" {
+                    (format!("vec_extend({})", str_vals), cont.clone())
                 } else if cont.is_an_untyped_function(&name) {
                     let name = name.replace("__", ".");
                     let new_name = if &name[0..1] == "%" {
@@ -672,6 +675,17 @@ impl RTranslatable<(String, Context)> for Lang {
                     .join_arg_val(args, ",\n ")
                     .into();
                 let (typ, _, _) = typing(cont, self).to_tuple();
+                // For record-alias types use the constructor directly
+                if let Type::Alias(alias_name, _, _, _) = &typ {
+                    let is_record = cont
+                        .aliases()
+                        .find(|(var, _)| var.get_name() == *alias_name)
+                        .map(|(_, t)| matches!(t, Type::Record(_, _)))
+                        .unwrap_or(false);
+                    if is_record {
+                        return (format!("{}({})", alias_name, body), current_cont);
+                    }
+                }
                 let anotation = cont.get_type_anotation(&typ);
                 cont.get_classes(&typ)
                     .map(|_| format!("list({}) |> {}", body, anotation))
@@ -816,7 +830,119 @@ impl RTranslatable<(String, Context)> for Lang {
                 .add("\n")
                 .into(),
             Lang::Signature { .. } => ("".to_string(), cont.clone()),
-            Lang::Alias { .. } => ("".to_string(), cont.clone()),
+            Lang::Alias {
+                identifier: ident,
+                target_type: typ,
+                ..
+            } => {
+                let name = Var::from_language(*ident.clone())
+                    .map(|v| v.get_name())
+                    .unwrap_or_default();
+                match typ {
+                    Type::Record(fields, _) => {
+                        let mut sorted_fields: Vec<&ArgumentType> = fields.iter().collect();
+                        sorted_fields.sort_by_key(|f| f.get_argument_str());
+                        let params = sorted_fields
+                            .iter()
+                            .map(|f| f.get_argument_str())
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        let field_args = sorted_fields
+                            .iter()
+                            .map(|f| {
+                                let n = f.get_argument_str();
+                                format!("{n} = {n}")
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        (
+                            format!(
+                                "{name} <- function({params}) {{\n  structure(list({field_args}), class = c(\"{name}\", \"list\"))\n}}"
+                            ),
+                            cont.clone(),
+                        )
+                    }
+                    Type::Operator(_, _, _, _) => {
+                        // Union alias: generate constructors for each variant
+                        let union_name = &name;
+                        let members = flatten_operator_union(typ);
+                        // Sort for deterministic output
+                        let mut members_vec: Vec<Type> = members.into_iter().collect();
+                        members_vec.sort_by_key(|t| t.pretty2());
+                        let constructors: Vec<String> = members_vec
+                            .iter()
+                            .filter_map(|member| match member {
+                                Type::Tag(variant_name, inner, _) => {
+                                    match inner.as_ref() {
+                                        Type::Empty(_) => Some(format!(
+                                            "{variant_name} <- function() {{\n  structure(list(), class = c(\"{variant_name}\", \"{union_name}\", \"list\"))\n}}"
+                                        )),
+                                        _ => {
+                                            // Tag with payload: wrap as single-field constructor
+                                            Some(format!(
+                                                "{variant_name} <- function(x) {{\n  structure(list(x), class = c(\"{variant_name}\", \"{union_name}\", \"list\"))\n}}"
+                                            ))
+                                        }
+                                    }
+                                }
+                                Type::Alias(alias_name, _, _, _) => {
+                                    // Look up the record fields for this alias
+                                    let record_fields = cont
+                                        .aliases()
+                                        .find(|(var, _)| var.get_name() == *alias_name)
+                                        .and_then(|(_, t)| {
+                                            if let Type::Record(fields, _) = t {
+                                                Some(fields.clone())
+                                            } else {
+                                                None
+                                            }
+                                        });
+                                    if let Some(fields) = record_fields {
+                                        let mut sorted: Vec<&ArgumentType> =
+                                            fields.iter().collect();
+                                        sorted.sort_by_key(|f| f.get_argument_str());
+                                        let params = sorted
+                                            .iter()
+                                            .map(|f| f.get_argument_str())
+                                            .collect::<Vec<_>>()
+                                            .join(", ");
+                                        let field_args = sorted
+                                            .iter()
+                                            .map(|f| {
+                                                let n = f.get_argument_str();
+                                                format!("{n} = {n}")
+                                            })
+                                            .collect::<Vec<_>>()
+                                            .join(", ");
+                                        Some(format!(
+                                            "{alias_name} <- function({params}) {{\n  structure(list({field_args}), class = c(\"{alias_name}\", \"{union_name}\", \"list\"))\n}}"
+                                        ))
+                                    } else {
+                                        None
+                                    }
+                                }
+                                _ => None,
+                            })
+                            .collect();
+                        (constructors.join("\n"), cont.clone())
+                    }
+                    _ => ("".to_string(), cont.clone()),
+                }
+            }
+            Lang::UnionConstructor {
+                variant_name,
+                fields,
+                ..
+            } => {
+                if fields.is_empty() {
+                    (format!("{}()", variant_name), cont.clone())
+                } else {
+                    let (body, current_cont) = Translatable::from(cont.clone())
+                        .join_arg_val(fields, ", ")
+                        .into();
+                    (format!("{}({})", variant_name, body), current_cont)
+                }
+            }
             Lang::KeyValue {
                 key: k, value: v, ..
             } => (format!("{} = {}", k, v.to_r(cont).0), cont.clone()),
@@ -1050,6 +1176,44 @@ impl RTranslatable<(String, Context)> for Lang {
                 (bindings.join("\n"), cont.clone())
             }
             Lang::ModuleImport { .. } => ("".to_string(), cont.clone()),
+            Lang::ConstructorCall {
+                type_name,
+                fields,
+                ..
+            } => {
+                let (body, current_cont) = Translatable::from(cont.clone())
+                    .join_arg_val(fields, ", ")
+                    .into();
+                (format!("{}({})", type_name, body), current_cont)
+            }
+            Lang::ArrayConstructorCall {
+                type_name,
+                elements,
+                help_data: h,
+            } => {
+                let temp_array = Lang::Array {
+                    value: elements.clone(),
+                    help_data: h.clone(),
+                };
+                let typ = temp_array.typing(cont).value;
+                let dimension = ArrayType::try_from(typ)
+                    .unwrap()
+                    .get_shape()
+                    .map(|sha| format!("c({})", sha))
+                    .unwrap_or_else(|| "c(0)".to_string());
+                let lin_array = temp_array
+                    .linearize_array()
+                    .iter()
+                    .map(|lang| lang.to_r(cont).0)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let inner = if lin_array.is_empty() {
+                    "logical(0)".to_string()
+                } else {
+                    format!("typed_vec({}, dim = {})", lin_array, dimension)
+                };
+                (format!("{}({})", type_name, inner), cont.clone())
+            }
             _ => {
                 println!("This language structure won't transpile: {:?}", self);
                 ("".to_string(), cont.clone())
@@ -1187,5 +1351,21 @@ mod tests {
         assert!(r_code.contains("pi <- Math$pi"), "missing pi binding: {}", r_code);
         assert!(r_code.contains("e <- Math$e"), "missing e binding: {}", r_code);
         assert!(!r_code.contains("secret <- Math$secret"), "private member must not be imported: {}", r_code);
+    }
+
+    #[test]
+    fn test_array_constructor_call_transpilation() {
+        let r_code = FluentParser::new()
+            .push("type Bits <- [Any, int];")
+            .run()
+            .push("let b <- Bits:[1, 2, 3];")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(r_code.contains("Bits(typed_vec("), "expected Bits(...) constructor: {}", r_code);
+        assert!(r_code.contains("dim = c(3)"), "expected dimension annotation: {}", r_code);
     }
 }

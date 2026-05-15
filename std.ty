@@ -12,6 +12,7 @@
 @as__character: (Any) -> char;
 @source: (char) -> Empty;
 @reduce: ([#N, T], (T, U) -> T) -> T;
+@extend: ([#N, T], T) -> [#N, T];
 @sum: ([#N, T]) -> T;
 @test_that: (char, Any) -> Empty;
 @expect_true: (bool) -> Empty;

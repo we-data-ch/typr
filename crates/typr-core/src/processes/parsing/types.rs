@@ -504,13 +504,14 @@ fn interface(s: Span) -> IResult<Span, Type> {
 
 fn tuple_type(s: Span) -> IResult<Span, Type> {
     let res = (
-        tag("("),
+        opt(terminated(tag("list"), multispace0)),
+        terminated(tag("{"), multispace0),
         many1(ltype_parameter),
-        tag(")"),
+        terminated(tag("}"), multispace0),
     )
         .parse(s);
     match res {
-        Ok((s, (ope, v, _cl))) => Ok((s, Type::Tuple(v, ope.into()))),
+        Ok((s, (_, ope, v, _cl))) => Ok((s, Type::Tuple(v, ope.into()))),
         Err(r) => Err(r),
     }
 }
@@ -776,6 +777,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             vector_type,
             dataframe_type,
             record_type,
+            tuple_type,
             parenthese_value,
             tag_type,
             any,
@@ -789,7 +791,6 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             type_variable,
             generic,
             array_type,
-            tuple_type,
         )),
         multispace0,
     )

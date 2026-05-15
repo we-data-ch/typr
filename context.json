@@ -18504,12 +18504,12 @@
           "is_opaque": false,
           "related_type": {
             "Any": {
-              "offset": 559,
+              "offset": 593,
               "file_name": "std_R.ty"
             }
           },
           "help_data": {
-            "offset": 552,
+            "offset": 586,
             "file_name": "std_R.ty"
           }
         },
@@ -18530,7 +18530,7 @@
                 },
                 {
                   "Any": {
-                    "offset": 559,
+                    "offset": 593,
                     "file_name": "std_R.ty"
                   }
                 },
@@ -18539,12 +18539,12 @@
             ],
             {
               "Empty": {
-                "offset": 567,
+                "offset": 601,
                 "file_name": "std_R.ty"
               }
             },
             {
-              "offset": 558,
+              "offset": 592,
               "file_name": "std_R.ty"
             }
           ]
@@ -18564,7 +18564,7 @@
             ]
           },
           "help_data": {
-            "offset": 520,
+            "offset": 554,
             "file_name": "std_R.ty"
           }
         },
@@ -18620,12 +18620,12 @@
             ],
             {
               "Empty": {
-                "offset": 543,
+                "offset": 577,
                 "file_name": "std_R.ty"
               }
             },
             {
-              "offset": 533,
+              "offset": 567,
               "file_name": "std_R.ty"
             }
           ]
@@ -18645,7 +18645,7 @@
             ]
           },
           "help_data": {
-            "offset": 488,
+            "offset": 522,
             "file_name": "std_R.ty"
           }
         },
@@ -18701,12 +18701,12 @@
             ],
             {
               "Empty": {
-                "offset": 511,
+                "offset": 545,
                 "file_name": "std_R.ty"
               }
             },
             {
-              "offset": 501,
+              "offset": 535,
               "file_name": "std_R.ty"
             }
           ]
@@ -18718,9 +18718,64 @@
           "is_opaque": false,
           "related_type": {
             "Boolean": {
-              "offset": 470,
+              "offset": 504,
               "file_name": "std_R.ty"
             }
+          },
+          "help_data": {
+            "offset": 491,
+            "file_name": "std_R.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Boolean": {
+                    "offset": 504,
+                    "file_name": "std_R.ty"
+                  }
+                },
+                false
+              ]
+            ],
+            {
+              "Empty": {
+                "offset": 513,
+                "file_name": "std_R.ty"
+              }
+            },
+            {
+              "offset": 503,
+              "file_name": "std_R.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "test_that",
+          "is_opaque": false,
+          "related_type": {
+            "Char": [
+              "Unknown",
+              {
+                "offset": 468,
+                "file_name": "std_R.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 457,
@@ -18743,65 +18798,10 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 470,
-                    "file_name": "std_R.ty"
-                  }
-                },
-                false
-              ]
-            ],
-            {
-              "Empty": {
-                "offset": 479,
-                "file_name": "std_R.ty"
-              }
-            },
-            {
-              "offset": 469,
-              "file_name": "std_R.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "test_that",
-          "is_opaque": false,
-          "related_type": {
-            "Char": [
-              "Unknown",
-              {
-                "offset": 434,
-                "file_name": "std_R.ty"
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 423,
-            "file_name": "std_R.ty"
-          }
-        },
-        {
-          "Function": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "a"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
                   "Char": [
                     "Unknown",
                     {
-                      "offset": 434,
+                      "offset": 468,
                       "file_name": "std_R.ty"
                     }
                   ]
@@ -18822,7 +18822,7 @@
                 },
                 {
                   "Any": {
-                    "offset": 440,
+                    "offset": 474,
                     "file_name": "std_R.ty"
                   }
                 },
@@ -18831,12 +18831,12 @@
             ],
             {
               "Empty": {
-                "offset": 448,
+                "offset": 482,
                 "file_name": "std_R.ty"
               }
             },
             {
-              "offset": 433,
+              "offset": 467,
               "file_name": "std_R.ty"
             }
           ]
@@ -18853,7 +18853,7 @@
                 "IndexGen": [
                   "N",
                   {
-                    "offset": 407,
+                    "offset": 441,
                     "file_name": "std_R.ty"
                   }
                 ]
@@ -18868,7 +18868,104 @@
                 ]
               },
               {
-                "offset": 406,
+                "offset": 440,
+                "file_name": "std_R.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 435,
+            "file_name": "std_R.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Vec": [
+                    "S3",
+                    {
+                      "IndexGen": [
+                        "N",
+                        {
+                          "offset": 441,
+                          "file_name": "std_R.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Generic": [
+                        "T",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 440,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
+                },
+                false
+              ]
+            ],
+            {
+              "Generic": [
+                "T",
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
+            },
+            {
+              "offset": 439,
+              "file_name": "std_R.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "extend",
+          "is_opaque": false,
+          "related_type": {
+            "Vec": [
+              "S3",
+              {
+                "IndexGen": [
+                  "N",
+                  {
+                    "offset": 410,
+                    "file_name": "std_R.ty"
+                  }
+                ]
+              },
+              {
+                "Generic": [
+                  "T",
+                  {
+                    "offset": 0,
+                    "file_name": ""
+                  }
+                ]
+              },
+              {
+                "offset": 409,
                 "file_name": "std_R.ty"
               }
             ]
@@ -18900,7 +18997,7 @@
                       "IndexGen": [
                         "N",
                         {
-                          "offset": 407,
+                          "offset": 410,
                           "file_name": "std_R.ty"
                         }
                       ]
@@ -18915,8 +19012,31 @@
                       ]
                     },
                     {
-                      "offset": 406,
+                      "offset": 409,
                       "file_name": "std_R.ty"
+                    }
+                  ]
+                },
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
                     }
                   ]
                 },
@@ -18924,16 +19044,34 @@
               ]
             ],
             {
-              "Generic": [
-                "T",
+              "Vec": [
+                "S3",
                 {
-                  "offset": 0,
-                  "file_name": ""
+                  "IndexGen": [
+                    "N",
+                    {
+                      "offset": 425,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
+                },
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "offset": 424,
+                  "file_name": "std_R.ty"
                 }
               ]
             },
             {
-              "offset": 405,
+              "offset": 408,
               "file_name": "std_R.ty"
             }
           ]
@@ -21082,302 +21220,64 @@
       ],
       [
         {
-          "name": "person",
-          "is_opaque": false,
-          "related_type": {
-            "Empty": {
-              "offset": 0,
-              "file_name": ""
-            }
-          },
-          "help_data": {
-            "offset": 0,
-            "file_name": ""
-          }
-        },
-        {
-          "Module": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "Person"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Alias": [
-                    "Person",
-                    [],
-                    true,
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "new_person"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Function": [
-                    [
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "name"
-                            },
-                            {
-                              "offset": 0,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Char": [
-                            "Unknown",
-                            {
-                              "offset": 112,
-                              "file_name": "lab/app.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ],
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "age"
-                            },
-                            {
-                              "offset": 0,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Integer": [
-                            "Unknown",
-                            {
-                              "offset": 123,
-                              "file_name": "lab/app.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ]
-                    ],
-                    {
-                      "Alias": [
-                        "Person",
-                        [],
-                        true,
-                        {
-                          "offset": 130,
-                          "file_name": "lab/app.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "is_minor"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Function": [
-                    [
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "p"
-                            },
-                            {
-                              "offset": 0,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Alias": [
-                            "Person",
-                            [],
-                            true,
-                            {
-                              "offset": 202,
-                              "file_name": "lab/app.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ]
-                    ],
-                    {
-                      "Boolean": {
-                        "offset": 210,
-                        "file_name": "lab/app.ty"
-                      }
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                false
-              ]
-            ],
-            {
-              "offset": 0,
-              "file_name": "lab/app.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "new_person",
-          "is_opaque": false,
-          "related_type": {
-            "Empty": {
-              "offset": 0,
-              "file_name": ""
-            }
-          },
-          "help_data": {
-            "offset": 0,
-            "file_name": ""
-          }
-        },
-        {
-          "Function": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "name"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 112,
-                      "file_name": "lab/app.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "age"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Integer": [
-                    "Unknown",
-                    {
-                      "offset": 123,
-                      "file_name": "lab/app.ty"
-                    }
-                  ]
-                },
-                false
-              ]
-            ],
-            {
-              "Alias": [
-                "Person",
-                [],
-                true,
-                {
-                  "offset": 130,
-                  "file_name": "lab/app.ty"
-                }
-              ]
-            },
-            {
-              "offset": 0,
-              "file_name": ""
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "p",
+          "name": "b",
           "is_opaque": false,
           "related_type": {
             "Alias": [
-              "Person",
+              "Bits",
               [],
-              true,
+              false,
               {
-                "offset": 130,
-                "file_name": "lab/app.ty"
+                "offset": 38,
+                "file_name": "/tmp/test_array_constructor2.typr"
               }
             ]
           },
           "help_data": {
-            "offset": 268,
-            "file_name": "lab/app.ty"
+            "offset": 30,
+            "file_name": "/tmp/test_array_constructor2.typr"
           }
         },
         {
           "Alias": [
-            "Person",
+            "Bits",
             [],
-            true,
+            false,
             {
-              "offset": 130,
-              "file_name": "lab/app.ty"
+              "offset": 38,
+              "file_name": "/tmp/test_array_constructor2.typr"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "c",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "Bits",
+              [],
+              false,
+              {
+                "offset": 63,
+                "file_name": "/tmp/test_array_constructor2.typr"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 55,
+            "file_name": "/tmp/test_array_constructor2.typr"
+          }
+        },
+        {
+          "Alias": [
+            "Bits",
+            [],
+            false,
+            {
+              "offset": 63,
+              "file_name": "/tmp/test_array_constructor2.typr"
             }
           ]
         }
@@ -22253,7 +22153,7 @@
                       "IndexGen": [
                         "N",
                         {
-                          "offset": 407,
+                          "offset": 410,
                           "file_name": "std_R.ty"
                         }
                       ]
@@ -22268,8 +22168,31 @@
                       ]
                     },
                     {
-                      "offset": 406,
+                      "offset": 409,
                       "file_name": "std_R.ty"
+                    }
+                  ]
+                },
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
                     }
                   ]
                 },
@@ -22277,16 +22200,34 @@
               ]
             ],
             {
-              "Generic": [
-                "T",
+              "Vec": [
+                "S3",
                 {
-                  "offset": 0,
-                  "file_name": ""
+                  "IndexGen": [
+                    "N",
+                    {
+                      "offset": 425,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
+                },
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "offset": 424,
+                  "file_name": "std_R.ty"
                 }
               ]
             },
             {
-              "offset": 405,
+              "offset": 408,
               "file_name": "std_R.ty"
             }
           ]
@@ -22326,45 +22267,46 @@
                   ]
                 },
                 {
-                  "Char": [
-                    "Unknown",
+                  "Vec": [
+                    "S3",
                     {
-                      "offset": 434,
+                      "IndexGen": [
+                        "N",
+                        {
+                          "offset": 441,
+                          "file_name": "std_R.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Generic": [
+                        "T",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 440,
                       "file_name": "std_R.ty"
                     }
                   ]
                 },
                 false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "b"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Any": {
-                    "offset": 440,
-                    "file_name": "std_R.ty"
-                  }
-                },
-                false
               ]
             ],
             {
-              "Empty": {
-                "offset": 448,
-                "file_name": "std_R.ty"
-              }
+              "Generic": [
+                "T",
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
             },
             {
-              "offset": 433,
+              "offset": 439,
               "file_name": "std_R.ty"
             }
           ]
@@ -22404,8 +22346,31 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 470,
+                  "Char": [
+                    "Unknown",
+                    {
+                      "offset": 468,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
+                },
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Any": {
+                    "offset": 474,
                     "file_name": "std_R.ty"
                   }
                 },
@@ -22414,12 +22379,12 @@
             ],
             {
               "Empty": {
-                "offset": 479,
+                "offset": 482,
                 "file_name": "std_R.ty"
               }
             },
             {
-              "offset": 469,
+              "offset": 467,
               "file_name": "std_R.ty"
             }
           ]
@@ -22428,6 +22393,61 @@
       [
         {
           "name": "Function11",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Boolean": {
+                    "offset": 504,
+                    "file_name": "std_R.ty"
+                  }
+                },
+                false
+              ]
+            ],
+            {
+              "Empty": {
+                "offset": 513,
+                "file_name": "std_R.ty"
+              }
+            },
+            {
+              "offset": 503,
+              "file_name": "std_R.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function12",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -22495,12 +22515,12 @@
             ],
             {
               "Empty": {
-                "offset": 511,
+                "offset": 545,
                 "file_name": "std_R.ty"
               }
             },
             {
-              "offset": 501,
+              "offset": 535,
               "file_name": "std_R.ty"
             }
           ]
@@ -22508,7 +22528,7 @@
       ],
       [
         {
-          "name": "Function12",
+          "name": "Function13",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -22541,7 +22561,7 @@
                 },
                 {
                   "Any": {
-                    "offset": 559,
+                    "offset": 593,
                     "file_name": "std_R.ty"
                   }
                 },
@@ -22550,12 +22570,12 @@
             ],
             {
               "Empty": {
-                "offset": 567,
+                "offset": 601,
                 "file_name": "std_R.ty"
               }
             },
             {
-              "offset": 558,
+              "offset": 592,
               "file_name": "std_R.ty"
             }
           ]
@@ -22563,7 +22583,7 @@
       ],
       [
         {
-          "name": "Function13",
+          "name": "Function14",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -22600,7 +22620,7 @@
       ],
       [
         {
-          "name": "Function14",
+          "name": "Function15",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -22707,7 +22727,7 @@
       ],
       [
         {
-          "name": "Function15",
+          "name": "Function16",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -22762,7 +22782,7 @@
       ],
       [
         {
-          "name": "Function16",
+          "name": "Function17",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -22820,7 +22840,7 @@
       ],
       [
         {
-          "name": "Function17",
+          "name": "Function18",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -22972,7 +22992,7 @@
       ],
       [
         {
-          "name": "Function18",
+          "name": "Function19",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -23066,7 +23086,7 @@
       ],
       [
         {
-          "name": "Function19",
+          "name": "Function20",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -23183,7 +23203,7 @@
       ],
       [
         {
-          "name": "Function20",
+          "name": "Function21",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -23300,7 +23320,7 @@
       ],
       [
         {
-          "name": "Function21",
+          "name": "Function22",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -23513,7 +23533,7 @@
       ],
       [
         {
-          "name": "Function22",
+          "name": "Function23",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -23914,29 +23934,6 @@
                 {
                   "Char": [
                     {
-                      "Val": "main"
-                    },
-                    {
-                      "offset": 234,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 239,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
                       "Val": "sub"
                     },
                     {
@@ -23973,29 +23970,6 @@
                     "Unknown",
                     {
                       "offset": 262,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "ylab"
-                    },
-                    {
-                      "offset": 269,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 274,
                       "file_name": "plot.ty"
                     }
                   ]
@@ -24162,6 +24136,29 @@
                 {
                   "Char": [
                     {
+                      "Val": "ylab"
+                    },
+                    {
+                      "offset": 269,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                {
+                  "Char": [
+                    "Unknown",
+                    {
+                      "offset": 274,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
                       "Val": "ann"
                     },
                     {
@@ -24243,6 +24240,29 @@
                   ]
                 },
                 false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "main"
+                    },
+                    {
+                      "offset": 234,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                {
+                  "Char": [
+                    "Unknown",
+                    {
+                      "offset": 239,
+                      "file_name": "plot.ty"
+                    }
+                  ]
+                },
+                false
               ]
             ],
             {
@@ -24318,7 +24338,7 @@
       ],
       [
         {
-          "name": "Function23",
+          "name": "Function24",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -24574,7 +24594,7 @@
       ],
       [
         {
-          "name": "Function24",
+          "name": "Function25",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -24773,7 +24793,7 @@
       ],
       [
         {
-          "name": "Function25",
+          "name": "Function26",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -24956,7 +24976,7 @@
       ],
       [
         {
-          "name": "Function26",
+          "name": "Function27",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -25073,7 +25093,7 @@
       ],
       [
         {
-          "name": "Function27",
+          "name": "Function28",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -25308,29 +25328,6 @@
                 {
                   "Char": [
                     {
-                      "Val": "stdin"
-                    },
-                    {
-                      "offset": 167,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 173,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
                       "Val": "command"
                     },
                     {
@@ -25395,6 +25392,29 @@
                   ]
                 },
                 false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "stdin"
+                    },
+                    {
+                      "offset": 167,
+                      "file_name": "system.ty"
+                    }
+                  ]
+                },
+                {
+                  "Char": [
+                    "Unknown",
+                    {
+                      "offset": 173,
+                      "file_name": "system.ty"
+                    }
+                  ]
+                },
+                false
               ]
             ],
             {
@@ -25406,7 +25426,7 @@
       ],
       [
         {
-          "name": "Function28",
+          "name": "Function29",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -25456,29 +25476,6 @@
                     {
                       "Char": [
                         {
-                          "Val": "stderr"
-                        },
-                        {
-                          "offset": 153,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Char": [
-                        "Unknown",
-                        {
-                          "offset": 160,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ],
-                  [
-                    {
-                      "Char": [
-                        {
                           "Val": "args"
                         },
                         {
@@ -25510,6 +25507,29 @@
                         },
                         {
                           "offset": 126,
+                          "file_name": "system.ty"
+                        }
+                      ]
+                    },
+                    false
+                  ],
+                  [
+                    {
+                      "Char": [
+                        {
+                          "Val": "stderr"
+                        },
+                        {
+                          "offset": 153,
+                          "file_name": "system.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Char": [
+                        "Unknown",
+                        {
+                          "offset": 160,
                           "file_name": "system.ty"
                         }
                       ]
@@ -25601,7 +25621,7 @@
       ],
       [
         {
-          "name": "Function29",
+          "name": "Function30",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -25635,70 +25655,6 @@
                 {
                   "Record": [
                     [
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "args"
-                            },
-                            {
-                              "offset": 121,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        {
-                          "Vec": [
-                            "S3",
-                            {
-                              "IndexGen": [
-                                "N",
-                                {
-                                  "offset": 127,
-                                  "file_name": "system.ty"
-                                }
-                              ]
-                            },
-                            {
-                              "Char": [
-                                "Unknown",
-                                {
-                                  "offset": 131,
-                                  "file_name": "system.ty"
-                                }
-                              ]
-                            },
-                            {
-                              "offset": 126,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ],
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "stdin"
-                            },
-                            {
-                              "offset": 167,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        {
-                          "Char": [
-                            "Unknown",
-                            {
-                              "offset": 173,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ],
                       [
                         {
                           "Char": [
@@ -25767,6 +25723,70 @@
                           ]
                         },
                         false
+                      ],
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "stdin"
+                            },
+                            {
+                              "offset": 167,
+                              "file_name": "system.ty"
+                            }
+                          ]
+                        },
+                        {
+                          "Char": [
+                            "Unknown",
+                            {
+                              "offset": 173,
+                              "file_name": "system.ty"
+                            }
+                          ]
+                        },
+                        false
+                      ],
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "args"
+                            },
+                            {
+                              "offset": 121,
+                              "file_name": "system.ty"
+                            }
+                          ]
+                        },
+                        {
+                          "Vec": [
+                            "S3",
+                            {
+                              "IndexGen": [
+                                "N",
+                                {
+                                  "offset": 127,
+                                  "file_name": "system.ty"
+                                }
+                              ]
+                            },
+                            {
+                              "Char": [
+                                "Unknown",
+                                {
+                                  "offset": 131,
+                                  "file_name": "system.ty"
+                                }
+                              ]
+                            },
+                            {
+                              "offset": 126,
+                              "file_name": "system.ty"
+                            }
+                          ]
+                        },
+                        false
                       ]
                     ],
                     {
@@ -25796,14 +25816,14 @@
       ],
       [
         {
-          "name": "Person0",
+          "name": "Bits",
           "is_opaque": false,
           "related_type": {
             "Params": [
               [],
               {
-                "offset": 0,
-                "file_name": ""
+                "offset": 6,
+                "file_name": "/tmp/test_array_constructor2.typr"
               }
             ]
           },
@@ -25813,349 +25833,26 @@
           }
         },
         {
-          "Alias": [
-            "Person",
-            [],
-            true,
+          "Vec": [
+            "S3",
             {
-              "offset": 0,
-              "file_name": ""
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "Function0",
-          "is_opaque": false,
-          "related_type": {
-            "Params": [
-              [],
-              {
-                "offset": 0,
-                "file_name": ""
+              "Any": {
+                "offset": 14,
+                "file_name": "/tmp/test_array_constructor2.typr"
               }
-            ]
-          },
-          "help_data": {
-            "offset": 0,
-            "file_name": ""
-          }
-        },
-        {
-          "Function": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "name"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 112,
-                      "file_name": "lab/app.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "age"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Integer": [
-                    "Unknown",
-                    {
-                      "offset": 123,
-                      "file_name": "lab/app.ty"
-                    }
-                  ]
-                },
-                false
-              ]
-            ],
+            },
             {
-              "Alias": [
-                "Person",
-                [],
-                true,
+              "Integer": [
+                "Unknown",
                 {
-                  "offset": 130,
-                  "file_name": "lab/app.ty"
+                  "offset": 19,
+                  "file_name": "/tmp/test_array_constructor2.typr"
                 }
               ]
             },
             {
-              "offset": 0,
-              "file_name": ""
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "Function1",
-          "is_opaque": false,
-          "related_type": {
-            "Params": [
-              [],
-              {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 0,
-            "file_name": ""
-          }
-        },
-        {
-          "Function": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "p"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Alias": [
-                    "Person",
-                    [],
-                    true,
-                    {
-                      "offset": 202,
-                      "file_name": "lab/app.ty"
-                    }
-                  ]
-                },
-                false
-              ]
-            ],
-            {
-              "Boolean": {
-                "offset": 210,
-                "file_name": "lab/app.ty"
-              }
-            },
-            {
-              "offset": 0,
-              "file_name": ""
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "Module0",
-          "is_opaque": false,
-          "related_type": {
-            "Params": [
-              [],
-              {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 0,
-            "file_name": ""
-          }
-        },
-        {
-          "Module": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "Person"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Alias": [
-                    "Person",
-                    [],
-                    true,
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "new_person"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Function": [
-                    [
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "name"
-                            },
-                            {
-                              "offset": 0,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Char": [
-                            "Unknown",
-                            {
-                              "offset": 112,
-                              "file_name": "lab/app.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ],
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "age"
-                            },
-                            {
-                              "offset": 0,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Integer": [
-                            "Unknown",
-                            {
-                              "offset": 123,
-                              "file_name": "lab/app.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ]
-                    ],
-                    {
-                      "Alias": [
-                        "Person",
-                        [],
-                        true,
-                        {
-                          "offset": 130,
-                          "file_name": "lab/app.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "is_minor"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Function": [
-                    [
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "p"
-                            },
-                            {
-                              "offset": 0,
-                              "file_name": ""
-                            }
-                          ]
-                        },
-                        {
-                          "Alias": [
-                            "Person",
-                            [],
-                            true,
-                            {
-                              "offset": 202,
-                              "file_name": "lab/app.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ]
-                    ],
-                    {
-                      "Boolean": {
-                        "offset": 210,
-                        "file_name": "lab/app.ty"
-                      }
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                false
-              ]
-            ],
-            {
-              "offset": 0,
-              "file_name": "lab/app.ty"
+              "offset": 13,
+              "file_name": "/tmp/test_array_constructor2.typr"
             }
           ]
         }
@@ -42843,310 +42540,26 @@
   "subtypes": {
     "memory": [
       {
-        "Char": [
-          "Unknown",
+        "Vec": [
+          "S3",
           {
-            "offset": 112,
-            "file_name": "lab/app.ty"
-          }
-        ]
-      },
-      {
-        "Alias": [
-          "Person",
-          [],
-          true,
+            "Any": {
+              "offset": 14,
+              "file_name": "/tmp/test_array_constructor2.typr"
+            }
+          },
           {
-            "offset": 0,
-            "file_name": ""
-          }
-        ]
-      },
-      {
-        "Integer": [
-          "Unknown",
-          {
-            "offset": 123,
-            "file_name": "lab/app.ty"
-          }
-        ]
-      },
-      {
-        "Function": [
-          [
-            [
+            "Integer": [
+              "Unknown",
               {
-                "Char": [
-                  {
-                    "Val": "name"
-                  },
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              },
-              {
-                "Char": [
-                  "Unknown",
-                  {
-                    "offset": 112,
-                    "file_name": "lab/app.ty"
-                  }
-                ]
-              },
-              false
-            ],
-            [
-              {
-                "Char": [
-                  {
-                    "Val": "age"
-                  },
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              },
-              {
-                "Integer": [
-                  "Unknown",
-                  {
-                    "offset": 123,
-                    "file_name": "lab/app.ty"
-                  }
-                ]
-              },
-              false
-            ]
-          ],
-          {
-            "Alias": [
-              "Person",
-              [],
-              true,
-              {
-                "offset": 130,
-                "file_name": "lab/app.ty"
+                "offset": 19,
+                "file_name": "/tmp/test_array_constructor2.typr"
               }
             ]
           },
           {
-            "offset": 0,
-            "file_name": ""
-          }
-        ]
-      },
-      {
-        "Function": [
-          [
-            [
-              {
-                "Char": [
-                  {
-                    "Val": "p"
-                  },
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              },
-              {
-                "Alias": [
-                  "Person",
-                  [],
-                  true,
-                  {
-                    "offset": 202,
-                    "file_name": "lab/app.ty"
-                  }
-                ]
-              },
-              false
-            ]
-          ],
-          {
-            "Boolean": {
-              "offset": 210,
-              "file_name": "lab/app.ty"
-            }
-          },
-          {
-            "offset": 0,
-            "file_name": ""
-          }
-        ]
-      },
-      {
-        "Module": [
-          [
-            [
-              {
-                "Char": [
-                  {
-                    "Val": "Person"
-                  },
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              },
-              {
-                "Alias": [
-                  "Person",
-                  [],
-                  true,
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              },
-              false
-            ],
-            [
-              {
-                "Char": [
-                  {
-                    "Val": "new_person"
-                  },
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              },
-              {
-                "Function": [
-                  [
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "name"
-                          },
-                          {
-                            "offset": 0,
-                            "file_name": ""
-                          }
-                        ]
-                      },
-                      {
-                        "Char": [
-                          "Unknown",
-                          {
-                            "offset": 112,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ],
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "age"
-                          },
-                          {
-                            "offset": 0,
-                            "file_name": ""
-                          }
-                        ]
-                      },
-                      {
-                        "Integer": [
-                          "Unknown",
-                          {
-                            "offset": 123,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ]
-                  ],
-                  {
-                    "Alias": [
-                      "Person",
-                      [],
-                      true,
-                      {
-                        "offset": 130,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              },
-              false
-            ],
-            [
-              {
-                "Char": [
-                  {
-                    "Val": "is_minor"
-                  },
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              },
-              {
-                "Function": [
-                  [
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "p"
-                          },
-                          {
-                            "offset": 0,
-                            "file_name": ""
-                          }
-                        ]
-                      },
-                      {
-                        "Alias": [
-                          "Person",
-                          [],
-                          true,
-                          {
-                            "offset": 202,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ]
-                  ],
-                  {
-                    "Boolean": {
-                      "offset": 210,
-                      "file_name": "lab/app.ty"
-                    }
-                  },
-                  {
-                    "offset": 0,
-                    "file_name": ""
-                  }
-                ]
-              },
-              false
-            ]
-          ],
-          {
-            "offset": 0,
-            "file_name": "lab/app.ty"
+            "offset": 13,
+            "file_name": "/tmp/test_array_constructor2.typr"
           }
         ]
       }
@@ -43161,336 +42574,36 @@
       "subtypes": [
         {
           "value": {
-            "Alias": [
-              "Person",
-              [],
-              true,
+            "Vec": [
+              "S3",
               {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          "subtypes": []
-        },
-        {
-          "value": {
-            "Function": [
-              [
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "name"
-                      },
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  {
-                    "Char": [
-                      "Unknown",
-                      {
-                        "offset": 112,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  false
-                ],
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "age"
-                      },
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      "Unknown",
-                      {
-                        "offset": 123,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  false
-                ]
-              ],
+                "Any": {
+                  "offset": 14,
+                  "file_name": "/tmp/test_array_constructor2.typr"
+                }
+              },
               {
-                "Alias": [
-                  "Person",
-                  [],
-                  true,
+                "Integer": [
+                  "Unknown",
                   {
-                    "offset": 130,
-                    "file_name": "lab/app.ty"
+                    "offset": 19,
+                    "file_name": "/tmp/test_array_constructor2.typr"
                   }
                 ]
               },
               {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          "subtypes": []
-        },
-        {
-          "value": {
-            "Function": [
-              [
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "p"
-                      },
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  {
-                    "Alias": [
-                      "Person",
-                      [],
-                      true,
-                      {
-                        "offset": 202,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  false
-                ]
-              ],
-              {
-                "Boolean": {
-                  "offset": 210,
-                  "file_name": "lab/app.ty"
-                }
-              },
-              {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          "subtypes": []
-        },
-        {
-          "value": {
-            "Module": [
-              [
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "Person"
-                      },
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  {
-                    "Alias": [
-                      "Person",
-                      [],
-                      true,
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  false
-                ],
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "new_person"
-                      },
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  {
-                    "Function": [
-                      [
-                        [
-                          {
-                            "Char": [
-                              {
-                                "Val": "name"
-                              },
-                              {
-                                "offset": 0,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "Char": [
-                              "Unknown",
-                              {
-                                "offset": 112,
-                                "file_name": "lab/app.ty"
-                              }
-                            ]
-                          },
-                          false
-                        ],
-                        [
-                          {
-                            "Char": [
-                              {
-                                "Val": "age"
-                              },
-                              {
-                                "offset": 0,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "Integer": [
-                              "Unknown",
-                              {
-                                "offset": 123,
-                                "file_name": "lab/app.ty"
-                              }
-                            ]
-                          },
-                          false
-                        ]
-                      ],
-                      {
-                        "Alias": [
-                          "Person",
-                          [],
-                          true,
-                          {
-                            "offset": 130,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  false
-                ],
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "is_minor"
-                      },
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  {
-                    "Function": [
-                      [
-                        [
-                          {
-                            "Char": [
-                              {
-                                "Val": "p"
-                              },
-                              {
-                                "offset": 0,
-                                "file_name": ""
-                              }
-                            ]
-                          },
-                          {
-                            "Alias": [
-                              "Person",
-                              [],
-                              true,
-                              {
-                                "offset": 202,
-                                "file_name": "lab/app.ty"
-                              }
-                            ]
-                          },
-                          false
-                        ]
-                      ],
-                      {
-                        "Boolean": {
-                          "offset": 210,
-                          "file_name": "lab/app.ty"
-                        }
-                      },
-                      {
-                        "offset": 0,
-                        "file_name": ""
-                      }
-                    ]
-                  },
-                  false
-                ]
-              ],
-              {
-                "offset": 0,
-                "file_name": "lab/app.ty"
-              }
-            ]
-          },
-          "subtypes": []
-        },
-        {
-          "value": {
-            "Char": [
-              "Unknown",
-              {
-                "offset": 112,
-                "file_name": "lab/app.ty"
-              }
-            ]
-          },
-          "subtypes": []
-        },
-        {
-          "value": {
-            "Integer": [
-              "Unknown",
-              {
-                "offset": 123,
-                "file_name": "lab/app.ty"
+                "offset": 13,
+                "file_name": "/tmp/test_array_constructor2.typr"
               }
             ]
           },
           "subtypes": []
         }
       ]
-    },
-    "subtype_cache": {}
+    }
   },
   "config": {
-    "environment": "StandAlone",
+    "environment": "Project",
     "file_type": "Main",
     "target_language": "R",
     "in_module_body": false

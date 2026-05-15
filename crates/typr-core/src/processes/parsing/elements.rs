@@ -567,6 +567,50 @@ fn sequence(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+fn constructor_call(s: Span) -> IResult<Span, Lang> {
+    let res = (
+        pascal_case,
+        terminated(tag(":"), multispace0),
+        terminated(tag("{"), multispace0),
+        many0(argument_val),
+        terminated(tag("}"), multispace0),
+    )
+    .parse(s);
+    match res {
+        Ok((s, ((name, h), _, _, args, _))) => Ok((
+            s,
+            Lang::ConstructorCall {
+                type_name: name,
+                fields: args,
+                help_data: h,
+            },
+        )),
+        Err(r) => Err(r),
+    }
+}
+
+fn array_constructor_call(s: Span) -> IResult<Span, Lang> {
+    let res = (
+        pascal_case,
+        tag(":["),
+        multispace0,
+        values,
+        terminated(tag("]"), multispace0),
+    )
+    .parse(s);
+    match res {
+        Ok((s, ((name, h), _, _, elems, _))) => Ok((
+            s,
+            Lang::ArrayConstructorCall {
+                type_name: name,
+                elements: elems,
+                help_data: h,
+            },
+        )),
+        Err(r) => Err(r),
+    }
+}
+
 fn record_identifier(s: Span) -> IResult<Span, Span> {
     alt((tag("record"), tag("object"), tag("list"), tag(":"))).parse(s)
 }
@@ -609,6 +653,42 @@ fn pascal_case_helper(s: Span) -> IResult<Span, (String, HelpData)> {
 
 fn pascal_case(s: Span) -> IResult<Span, (String, HelpData)> {
     pascal_case_helper.parse(s)
+}
+
+fn union_constructor(s: Span) -> IResult<Span, Lang> {
+    let res = (
+        pascal_case,
+        terminated(tag("."), multispace0),
+        pascal_case,
+        opt((
+            terminated(tag(":"), multispace0),
+            terminated(tag("{"), multispace0),
+            many0(argument_val),
+            terminated(tag("}"), multispace0),
+        )),
+    )
+    .parse(s);
+    match res {
+        Ok((s, ((union_name, h), _, (variant_name, _), None))) => Ok((
+            s,
+            Lang::UnionConstructor {
+                union_name,
+                variant_name,
+                fields: vec![],
+                help_data: h,
+            },
+        )),
+        Ok((s, ((union_name, h), _, (variant_name, _), Some((_, _, fields, _))))) => Ok((
+            s,
+            Lang::UnionConstructor {
+                union_name,
+                variant_name,
+                fields,
+                help_data: h,
+            },
+        )),
+        Err(r) => Err(r),
+    }
 }
 
 fn parenthese_value(s: Span) -> IResult<Span, Lang> {
@@ -1082,27 +1162,34 @@ pub fn break_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 // main
 pub fn single_element(s: Span) -> IResult<Span, Lang> {
     alt((
-        not_exp,
-        tag_exp,
-        range,
-        lambda,
-        primitive,
-        js_block,
-        return_exp,
-        match_exp,
-        if_exp,
-        dotdotdot,
-        array_variant,
-        dataframe_exp,
-        record,
-        r_function,
-        function,
-        tuple_exp,
-        function_application,
-        array_indexing,
-        variable2,
-        scope,
-        array,
+        alt((
+            not_exp,
+            tag_exp,
+            union_constructor,
+            range,
+            lambda,
+            primitive,
+            js_block,
+            return_exp,
+            match_exp,
+            if_exp,
+            dotdotdot,
+            array_variant,
+        )),
+        alt((
+            dataframe_exp,
+            array_constructor_call,
+            constructor_call,
+            record,
+            r_function,
+            function,
+            tuple_exp,
+            function_application,
+            array_indexing,
+            variable2,
+            scope,
+            array,
+        )),
     ))
     .parse(s)
 }

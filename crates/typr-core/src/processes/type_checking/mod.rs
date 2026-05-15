@@ -252,10 +252,26 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 )));
             }
 
+            let ctx_with_alias = new_context.push_alias(effective_var.get_name(), typ.to_owned());
+
+            // For union aliases, register variant types in the subtype graph so that
+            // get_classes() returns the correct hierarchy (e.g. Tag("Red") → Alias("Color"))
+            let final_context = if let Type::Operator(TypeOperator::Union, _, _, _) = typ {
+                let alias_type = Type::Alias(effective_var.get_name(), vec![], false, h.clone());
+                let members = flatten_operator_union(typ);
+                let new_subtypes = members.iter().fold(
+                    ctx_with_alias.subtypes.clone(),
+                    |graph, member| graph.cache_subtype(member.clone(), alias_type.clone(), true),
+                );
+                ctx_with_alias.with_subtypes(new_subtypes)
+            } else {
+                ctx_with_alias
+            };
+
             TypeContext::new(
                 builder::unknown_function_type(),
                 expr.clone(),
-                new_context.push_alias(effective_var.get_name(), typ.to_owned()),
+                final_context,
             )
             .with_errors(errors)
         }
@@ -1978,12 +1994,57 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             TypeContext::new(builder::empty_type(), expr.clone(), new_context)
                 .with_errors(errors)
         }
+        Lang::ConstructorCall {
+            type_name,
+            fields: _,
+            help_data: h,
+        } => {
+            let alias_exists = context
+                .aliases()
+                .any(|(var, _)| var.get_name() == *type_name);
+            if alias_exists {
+                TypeContext::new(
+                    Type::Alias(type_name.clone(), vec![], false, h.clone()),
+                    expr.clone(),
+                    context.clone(),
+                )
+            } else {
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+            }
+        }
+        Lang::ArrayConstructorCall {
+            type_name,
+            help_data: h,
+            ..
+        } => {
+            let alias_exists = context
+                .aliases()
+                .any(|(var, _)| var.get_name() == *type_name);
+            if alias_exists {
+                TypeContext::new(
+                    Type::Alias(type_name.clone(), vec![], false, h.clone()),
+                    expr.clone(),
+                    context.clone(),
+                )
+            } else {
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+            }
+        }
+        Lang::UnionConstructor {
+            union_name,
+            help_data: h,
+            ..
+        } => TypeContext::new(
+            Type::Alias(union_name.clone(), vec![], false, h.clone()),
+            expr.clone(),
+            context.clone(),
+        ),
         _ => builder::any_type().with_lang(expr, context).into(),
     }
 }
 
 /// Flatten a nested `Type::Operator(Union, ...)` tree into a flat `HashSet<Type>`.
-fn flatten_operator_union(typ: &Type) -> HashSet<Type> {
+pub fn flatten_operator_union(typ: &Type) -> HashSet<Type> {
     match typ {
         Type::Operator(TypeOperator::Union, t1, t2, _) => {
             let mut set = flatten_operator_union(t1);
@@ -2577,5 +2638,149 @@ p"#;
         } else {
             panic!("get_a should be a function type, got {:?}", get_a_type);
         }
+    }
+
+    #[test]
+    fn test_record_constructor_generated() {
+        let fp = FluentParser::new()
+            .push("type Point <- list { x: int, y: int };")
+            .run();
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_code.contains("Point <- function("),
+            "Expected constructor function for Point, got:\n{}",
+            r_code
+        );
+        assert!(
+            r_code.contains("structure(list("),
+            "Expected structure(list(...)) in constructor, got:\n{}",
+            r_code
+        );
+        assert!(
+            r_code.contains("class = c(\"Point\", \"list\")"),
+            "Expected S3 class annotation in constructor, got:\n{}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_constructor_call_syntax() {
+        let fp = FluentParser::new()
+            .push("type Point <- list { x: int, y: int };")
+            .run()
+            .push("let p <- Point:{ x = 1, y = 2 };")
+            .run();
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_code.contains("Point("),
+            "Expected Point(...) call from constructor syntax, got:\n{}",
+            r_code
+        );
+    }
+
+    // ==================== Union Constructor Tests ====================
+
+    #[test]
+    fn test_union_tag_constructor_parsing() {
+        let res = "Color.Red".parse::<Lang>().unwrap();
+        assert_eq!(res.simple_print(), "UnionConstructor(Color.Red)");
+    }
+
+    #[test]
+    fn test_union_record_constructor_parsing() {
+        let res = "Color.Rgb:{ r = 10, g = 20, b = 30 }".parse::<Lang>().unwrap();
+        assert_eq!(res.simple_print(), "UnionConstructor(Color.Rgb)");
+        if let Lang::UnionConstructor { union_name, variant_name, fields, .. } = &res {
+            assert_eq!(union_name, "Color");
+            assert_eq!(variant_name, "Rgb");
+            assert_eq!(fields.len(), 3);
+        } else {
+            panic!("Expected UnionConstructor");
+        }
+    }
+
+    #[test]
+    fn test_union_constructor_typing() {
+        let fp = FluentParser::new()
+            .push("type Color <- .Red | .Blue;")
+            .run()
+            .push("Color.Red")
+            .parse_type_next();
+        let typ = fp.get_last_type();
+        assert!(
+            matches!(typ, Type::Alias(ref n, _, _, _) if n == "Color"),
+            "Expected Color alias type, got: {}",
+            typ
+        );
+    }
+
+    #[test]
+    fn test_union_tag_transpilation() {
+        let fp = FluentParser::new()
+            .push("type Color <- .Red | .Blue;")
+            .run()
+            .push("Color.Red")
+            .run();
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_code.contains("Red()"),
+            "Expected Red() in transpiled code, got:\n{}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_union_record_variant_transpilation() {
+        let fp = FluentParser::new()
+            .push("type Rgb <- list { r: int, g: int, b: int };")
+            .run()
+            .push("type Color <- .Red | .Blue | Rgb;")
+            .run()
+            .push("Color.Rgb:{ r = 10, g = 20, b = 30 }")
+            .run();
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_code.contains("Rgb("),
+            "Expected Rgb(...) call, got:\n{}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_union_alias_generates_tag_constructors() {
+        let fp = FluentParser::new()
+            .push("type Color <- .Red | .Blue;")
+            .run();
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_code.contains("Red <- function()"),
+            "Expected Red constructor, got:\n{}",
+            r_code
+        );
+        assert!(
+            r_code.contains("Blue <- function()"),
+            "Expected Blue constructor, got:\n{}",
+            r_code
+        );
+        assert!(
+            r_code.contains(r#"class = c("Red", "Color", "list")"#),
+            "Expected S3 class hierarchy for Red, got:\n{}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_union_alias_generates_record_variant_constructor() {
+        let fp = FluentParser::new()
+            .push("type Rgb <- list { r: int, g: int, b: int };")
+            .run()
+            .push("type Color <- .Red | Rgb;")
+            .run();
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_code.contains(r#"class = c("Rgb", "Color", "list")"#),
+            "Expected S3 class hierarchy for Rgb, got:\n{}",
+            r_code
+        );
     }
 }

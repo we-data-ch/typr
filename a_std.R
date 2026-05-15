@@ -276,6 +276,20 @@ sum.typed_vec <- function(x, ...) {
   reduce(x, `+`)
 }
 
+vec_reduce <- function(vec, f, init = NULL) reduce(vec, f, init)
+
+extend <- function(vec, ...) UseMethod("extend")
+
+extend.typed_vec <- function(vec, x) {
+  structure(
+    list(data = c(vec$data, list(x))),
+    class = "typed_vec",
+    typed_dim = length(vec) + 1L
+  )
+}
+
+vec_extend <- function(vec, x) extend(vec, x)
+
 print.typed_vec <- function(x, ...) {
   dims <- attr(x, "typed_dim")
   data <- x$data

@@ -262,6 +262,25 @@ pub enum Lang {
         selector: UseSelector,
         help_data: HelpData,
     },
+    /// Explicit constructor call: `TypeName:{ field1 = val1, field2 = val2 }`
+    ConstructorCall {
+        type_name: String,
+        fields: Vec<ArgumentValue>,
+        help_data: HelpData,
+    },
+    /// Array constructor call: `TypeName:[expr, expr, ...]`
+    ArrayConstructorCall {
+        type_name: String,
+        elements: Vec<Lang>,
+        help_data: HelpData,
+    },
+    /// Union constructor: `Union.Variant` or `Union.Variant:{ field = val, ... }`
+    UnionConstructor {
+        union_name: String,
+        variant_name: String,
+        fields: Vec<ArgumentValue>,
+        help_data: HelpData,
+    },
 }
 
 impl PartialEq for Lang {
@@ -386,6 +405,10 @@ impl PartialEq for Lang {
                 },
             ) => a1 == b1 && a2 == b2 && a3 == b3,
             (Lang::Array { value: a, .. }, Lang::Array { value: b, .. }) => a == b,
+            (
+                Lang::ArrayConstructorCall { type_name: a1, elements: a2, .. },
+                Lang::ArrayConstructorCall { type_name: b1, elements: b2, .. },
+            ) => a1 == b1 && a2 == b2,
             (Lang::List { value: a, .. }, Lang::List { value: b, .. }) => a == b,
             (Lang::DataFrame { value: a, .. }, Lang::DataFrame { value: b, .. }) => a == b,
             (
@@ -576,6 +599,20 @@ impl PartialEq for Lang {
                     ..
                 },
             ) => a1 == b1 && a2 == b2,
+            (
+                Lang::UnionConstructor {
+                    union_name: a1,
+                    variant_name: a2,
+                    fields: a3,
+                    ..
+                },
+                Lang::UnionConstructor {
+                    union_name: b1,
+                    variant_name: b2,
+                    fields: b3,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2 && a3 == b3,
             _ => false,
         }
     }
@@ -834,6 +871,9 @@ impl Lang {
             Lang::NA(h) => h,
             Lang::Dots(h) => h,
             Lang::UseModule { help_data: h, .. } => h,
+            Lang::ConstructorCall { help_data: h, .. } => h,
+            Lang::UnionConstructor { help_data: h, .. } => h,
+            Lang::ArrayConstructorCall { help_data: h, .. } => h,
         }
         .clone()
     }
@@ -940,6 +980,11 @@ impl Lang {
             Lang::NA(_) => "NA".to_string(),
             Lang::Dots(_) => "Dots".to_string(),
             Lang::UseModule { module_path, .. } => format!("UseModule({})", module_path.join("::")),
+            Lang::ConstructorCall { type_name, .. } => format!("ConstructorCall({})", type_name),
+            Lang::UnionConstructor { union_name, variant_name, .. } => {
+                format!("UnionConstructor({}.{})", union_name, variant_name)
+            }
+            Lang::ArrayConstructorCall { type_name, .. } => format!("ArrayConstructorCall({})", type_name),
         }
     }
 
@@ -1349,6 +1394,9 @@ impl From<Lang> for HelpData {
             Lang::NA(h) => h,
             Lang::Dots(h) => h,
             Lang::UseModule { help_data: h, .. } => h,
+            Lang::ConstructorCall { help_data: h, .. } => h,
+            Lang::UnionConstructor { help_data: h, .. } => h,
+            Lang::ArrayConstructorCall { help_data: h, .. } => h,
         }
         .clone()
     }

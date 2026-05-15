@@ -12,6 +12,7 @@ use std::ops::Add;
 pub struct Graph<T: TypeSystem> {
     memory: HashSet<T>,
     root: Node<T>,
+    #[serde(skip)]
     subtype_cache: HashMap<(T, T), bool>,
 }
 

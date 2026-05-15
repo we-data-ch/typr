@@ -1,0 +1,6 @@
+source('b_generic_functions.R')
+source('c_types.R')
+source('a_std.R', echo = FALSE)
+
+
+`b` <- Bits(typed_vec(1L |> Integer(), 2L |> Integer(), 3L |> Integer(), dim = c(3)))
