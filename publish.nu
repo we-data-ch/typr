@@ -12,7 +12,7 @@
 # --- 1. Bump version ---
 let data_file = "configs/src/data.toml"
 let new_version = (open $data_file | get release_version | $in + 1)
-let version_string = $"0.4.($new_version)"
+let version_string = $"0.5.($new_version)"
 let updated_line = $"version = \"($version_string)\""
 # Update version in [workspace.package] section (matches the line: version = "x.y.z")
 sed -i $"/^\\[workspace\\.package\\]/,/^\\[/ s/^version = .*/version = \"($version_string)\"/" Cargo.toml
