@@ -1,0 +1,57 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+expression: ty
+---
+Function(
+    [
+        ArgumentType(
+            Char(
+                Val(
+                    "a",
+                ),
+                HelpData {
+                    offset: 15,
+                    file_name: "",
+                },
+            ),
+            Integer(
+                Unknown,
+                HelpData {
+                    offset: 17,
+                    file_name: "",
+                },
+            ),
+            false,
+        ),
+        ArgumentType(
+            Char(
+                Val(
+                    "b",
+                ),
+                HelpData {
+                    offset: 23,
+                    file_name: "",
+                },
+            ),
+            Integer(
+                Unknown,
+                HelpData {
+                    offset: 25,
+                    file_name: "",
+                },
+            ),
+            false,
+        ),
+    ],
+    Integer(
+        Unknown,
+        HelpData {
+            offset: 31,
+            file_name: "",
+        },
+    ),
+    HelpData {
+        offset: 0,
+        file_name: "",
+    },
+)

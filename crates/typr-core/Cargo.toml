@@ -27,6 +27,9 @@ anyhow.workspace = true
 countmap.workspace = true
 bincode = "1.3"
 
+[dev-dependencies]
+insta = { version = "1", features = ["yaml"] }
+
 # For WASM random number generation (getrandom 0.4 uses wasm_js feature)
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.4", features = ["wasm_js"] }

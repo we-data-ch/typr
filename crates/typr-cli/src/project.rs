@@ -7,7 +7,6 @@
 //! - Package management
 
 use crate::engine::{parse_code, write_std_for_type_checking};
-use crate::io::execute_r_with_path;
 use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -17,8 +16,290 @@ use std::path::PathBuf;
 use std::process::Command;
 use typr_core::components::context::config::Environment;
 use typr_core::components::context::Context;
+use typr_core::components::language::var::Var;
+use typr_core::components::language::Lang;
+use typr_core::components::r#type::type_system::TypeSystem;
 use typr_core::processes::type_checking::type_checker::TypeChecker;
 use typr_core::typing;
+
+/// Options for the `typr debug` subcommand
+#[derive(Debug, Clone)]
+pub struct DebugOptions {
+    pub show_ast: bool,
+    pub show_types: bool,
+    pub show_r: bool,
+    pub write_json: bool,
+}
+
+impl Default for DebugOptions {
+    fn default() -> Self {
+        DebugOptions {
+            show_ast: false,
+            show_types: false,
+            show_r: false,
+            write_json: false,
+        }
+    }
+}
+
+/// Render a pipeline step heading with consistent formatting
+fn print_step(title: &str) {
+    println!("\n{}", "─".repeat(60));
+    println!("  {} {}", "▶", title);
+    println!("{}", "─".repeat(60));
+}
+
+/// Pretty-print a Lang AST tree, omitting noise like HelpData
+fn print_ast(lang: &Lang, indent: usize) -> String {
+    use Lang::*;
+    let pad = "  ".repeat(indent);
+    let result = match lang {
+        Number { value, .. } => format!("{}Number({})", pad, value),
+        Integer { value, .. } => format!("{}Integer({})", pad, value),
+        Bool { value, .. } => format!("{}Bool({})", pad, value),
+        Char { value, .. } => format!("{}Char({:?})", pad, value),
+        Variable { name, is_opaque, .. } => {
+            let op = if *is_opaque { " (opaque)" } else { "" };
+            format!("{}Variable({}{})", pad, name, op)
+        }
+        Let {
+            variable,
+            r#type,
+            expression,
+            is_public,
+            ..
+        } => {
+            let pub_ = if *is_public { "@pub " } else { "" };
+            let var = Var::from_language((**variable).clone())
+                .map(|v| v.get_name())
+                .unwrap_or_default();
+            let ty = r#type.pretty();
+            let ty_str = if ty == "Empty" {
+                String::new()
+            } else {
+                format!(" : {}", ty)
+            };
+            format!(
+                "{}{}let {}{}\n{}",
+                pad,
+                pub_,
+                var,
+                ty_str,
+                print_ast(expression, indent + 1)
+            )
+        }
+        Function {
+            parameters,
+            return_type,
+            body,
+            ..
+        } => {
+            let params: Vec<String> = parameters
+                .iter()
+                .map(|p| format!("{}: {}", p.get_argument_str(), p.get_type().pretty()))
+                .collect();
+            let ret = return_type.pretty();
+            format!(
+                "{}fn({}) -> {}\n{}",
+                pad,
+                params.join(", "),
+                ret,
+                print_ast(body, indent + 1)
+            )
+        }
+        Lambda { parameters, body, .. } => {
+            let params: Vec<String> = parameters
+                .iter()
+                .map(|p| p.simple_print())
+                .collect();
+            format!(
+                "{}fn({}) {{ ... }}\n{}",
+                pad,
+                params.join(", "),
+                print_ast(body, indent + 1)
+            )
+        }
+        FunctionApp {
+            identifier, arguments, ..
+        } => {
+            let name = match identifier.as_ref() {
+                Variable { name, .. } => name.clone(),
+                other => other.simple_print(),
+            };
+            let args: Vec<String> = arguments.iter().map(|a| print_ast(a, 0)).collect();
+            format!("{}{}({})", pad, name, args.join(", "))
+        }
+        Alias {
+            identifier,
+            parameters,
+            target_type,
+            is_public,
+            ..
+        } => {
+            let pub_ = if *is_public { "@pub " } else { "" };
+            let name = Var::from_language((**identifier).clone())
+                .map(|v| v.get_name())
+                .unwrap_or_default();
+            let params: Vec<String> = parameters.iter().map(|p| p.pretty()).collect();
+            let params_str = if params.is_empty() {
+                String::new()
+            } else {
+                format!("<{}>", params.join(", "))
+            };
+            format!(
+                "{}{}type {}{} <- {}",
+                pad, pub_, name, params_str, target_type.pretty()
+            )
+        }
+        Lines { value, .. } => {
+            let items: Vec<String> = value.iter().map(|l| print_ast(l, indent + 1)).collect();
+            format!("{}Sequence\n{}", pad, items.join("\n"))
+        }
+        Scope { body, .. } => {
+            let items: Vec<String> = body.iter().map(|l| print_ast(l, indent + 1)).collect();
+            format!("{}Scope\n{}", pad, items.join("\n"))
+        }
+        Operator { operator, rhs, lhs, .. } => {
+            let op_str = format!("{}", operator);
+            let rhs_str = print_ast(rhs, indent + 1);
+            let lhs_str = print_ast(lhs, indent + 1);
+            format!("{}({})\n{}\n{}", pad, op_str, rhs_str, lhs_str)
+        }
+        If {
+            condition,
+            if_block,
+            else_block,
+            ..
+        } => {
+            format!(
+                "{}if\n{}\n{}then:\n{}\n{}else:\n{}",
+                pad,
+                print_ast(condition, indent + 1),
+                pad,
+                print_ast(if_block, indent + 1),
+                pad,
+                print_ast(else_block, indent + 1)
+            )
+        }
+        Match {
+            target, branches, ..
+        } => {
+            let branches_str: Vec<String> = branches
+                .iter()
+                .map(|(pat, body)| {
+                    format!(
+                        "{}  {} =>\n{}",
+                        pad,
+                        print_ast(pat, 0),
+                        print_ast(body, indent + 2)
+                    )
+                })
+                .collect();
+            format!(
+                "{}match\n{}\n{}cases:\n{}",
+                pad,
+                print_ast(target, indent + 1),
+                pad,
+                branches_str.join("\n")
+            )
+        }
+        Module { name, body, .. } => {
+            let items: Vec<String> = body.iter().map(|l| print_ast(l, indent + 1)).collect();
+            format!("{}module {}\n{}", pad, name, items.join("\n"))
+        }
+        ConstructorCall {
+            type_name,
+            fields,
+            ..
+        } => {
+            let args: Vec<String> = fields
+                .iter()
+                .map(|a| format!("{} = {}", a.0, print_ast(&a.1, 0)))
+                .collect();
+            format!("{}{}:{{ {} }}", pad, type_name, args.join(", "))
+        }
+        Tag { name, value, .. } => {
+            format!("{}.{}({})", pad, name, print_ast(value, 0))
+        }
+        List { value, .. } => {
+            let fields: Vec<String> = value
+                .iter()
+                .map(|a| format!("{} = {}", a.0, print_ast(&a.1, 0)))
+                .collect();
+            format!("{}:{{ {} }}", pad, fields.join(", "))
+        }
+        Null(_) => format!("{}Null", pad),
+        Empty(_) => format!("{}Empty", pad),
+        Comment { value, .. } => format!("{}// {}", pad, value),
+        Use { .. } => format!("{}use", pad),
+        _ => format!("{}{}", pad, lang.simple_print()),
+    };
+    result
+}
+
+/// Add a new Debug subcommand to inspect the pipeline step by step
+pub fn debug_file(path: &Path, opts: DebugOptions) {
+    let show_all = !opts.show_ast && !opts.show_types && !opts.show_r;
+    let source = match std::fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error reading file {:?}: {}", path, e);
+            std::process::exit(1);
+        }
+    };
+
+    println!("{}", "=".repeat(60));
+    println!("  TypR Debug: {:?}", path);
+    println!("{}", "=".repeat(60));
+
+    // Step 1: Parse
+    if show_all || opts.show_ast {
+        print_step("Parsing");
+        let result =
+            typr_core::processes::parsing::parse_from_string_with_errors(&source, &path.to_string_lossy());
+        println!("  AST ({:?} nodes):", path);
+        println!("{}", print_ast(&result.ast, 1));
+
+        if result.has_errors() {
+            println!("\n  Syntax errors:");
+            for err in &result.errors {
+                println!("    - {}", err.simple_message());
+            }
+        }
+    }
+
+    // Step 2: Type-check
+    if show_all || opts.show_types || opts.show_r {
+        print_step("Type Checking + Transpilation");
+        let context = Context::default();
+        let ast = typr_core::processes::parsing::parse_from_string(&source, &path.to_string_lossy());
+        let type_checker = TypeChecker::new(context).typing_no_panic(&ast);
+
+        if type_checker.has_errors() {
+            println!("  Errors:");
+            type_checker.show_errors();
+        } else {
+            let types = type_checker.get_types();
+            for (i, ty) in types.iter().enumerate() {
+                println!("  expr {} type: {}", i + 1, ty.pretty());
+            }
+            println!();
+        }
+
+        // Step 3: Transpile
+        if show_all || opts.show_r {
+            print_step("Generated R Code");
+            let r_code = type_checker.clone().transpile();
+            println!("{}", r_code);
+        }
+
+        if opts.write_json || (show_all && opts.write_json) {
+            let context = type_checker.get_context();
+            write_context_json(&context, &PathBuf::from("."));
+            println!("  → context.json written");
+        }
+    }
+}
 
 pub fn write_header(context: Context, output_dir: &Path, environment: Environment) {
     let type_anotations = context.get_type_anotations();
@@ -246,9 +527,11 @@ pub fn check_file(path: &PathBuf) {
     let lang = parse_code(path, context.get_environment());
     let dir = PathBuf::from(".");
     write_std_for_type_checking(&dir);
-    let type_checker = TypeChecker::new(context.clone()).typing(&lang);
+    let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     write_context_json(&type_checker.get_context(), &dir);
     if type_checker.has_errors() {
+        eprintln!("Type errors found:");
+        type_checker.show_errors();
         std::process::exit(1);
     }
     println!("File verification {:?} successful!", path);
@@ -258,7 +541,10 @@ pub fn build_project() {
     let dir = PathBuf::from(".");
     let context = Context::default().set_environment(Environment::Project);
     let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
-    let type_checker = TypeChecker::new(context.clone()).typing(&lang);
+    let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
+    if type_checker.has_errors() {
+        type_checker.show_errors();
+    }
 
     let content = type_checker.clone().transpile();
     write_header(type_checker.get_context(), &dir, Environment::Project);
@@ -278,7 +564,7 @@ pub fn build_file(path: &Path) {
 
     write_std_for_type_checking(&dir);
     let context = Context::default();
-    let type_checker = TypeChecker::new(context.clone()).typing(&lang);
+    let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     let r_file_name = path
         .file_name()
         .unwrap()
@@ -322,7 +608,12 @@ pub fn run_file(path: &Path) {
 
     write_std_for_type_checking(&dir);
     let context = Context::default();
-    let type_checker = TypeChecker::new(context.clone()).typing(&lang);
+    let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
+    if type_checker.has_errors() {
+        type_checker.show_errors();
+        std::process::exit(1);
+    }
+    println!("Type: {}\n", type_checker.get_last_type().pretty());
     let r_file_name = path
         .file_name()
         .unwrap()
@@ -330,11 +621,26 @@ pub fn run_file(path: &Path) {
         .unwrap()
         .replace(".ty", ".R");
     let content = type_checker.clone().transpile();
-    let final_context = type_checker.get_context();
-    write_context_json(&final_context, &dir);
-    write_header(final_context, &dir, Environment::StandAlone);
+    write_header(type_checker.get_context(), &dir, Environment::StandAlone);
     write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
-    execute_r_with_path(&dir, &r_file_name);
+    let r_path = dir.join(&r_file_name);
+    match Command::new("Rscript").arg(&r_path).output() {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if output.status.success() {
+                if !stdout.is_empty() {
+                    println!("{}", stdout);
+                }
+            } else {
+                eprintln!("Error (code {}):\n{}", output.status, stderr);
+                if !stdout.is_empty() {
+                    println!("{}", stdout);
+                }
+            }
+        }
+        Err(e) => eprintln!("Failed to execute Rscript: {}", e),
+    }
 }
 
 fn write_context_json(context: &Context, output_dir: &Path) {

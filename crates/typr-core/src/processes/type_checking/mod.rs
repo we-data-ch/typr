@@ -2039,6 +2039,17 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             expr.clone(),
             context.clone(),
         ),
+        Lang::Comment { help_data: h, .. }
+        | Lang::ModuleImport { help_data: h, .. }
+        | Lang::Import { help_data: h, .. }
+        | Lang::Test { help_data: h, .. }
+        | Lang::Use { help_data: h, .. } => {
+            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
+        }
+        Lang::GenFunc { help_data: h, .. } => {
+            TypeContext::new(builder::unknown_function_type(), expr.clone(), context.clone())
+        }
+        Lang::KeyValue { value, .. } => typing(context, value),
         _ => builder::any_type().with_lang(expr, context).into(),
     }
 }

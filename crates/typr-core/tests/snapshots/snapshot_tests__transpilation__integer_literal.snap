@@ -1,0 +1,5 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+expression: r
+---
+8L |> Integer()

@@ -10,8 +10,8 @@
 //! - `typr lsp`: Start Language Server Protocol server
 
 use crate::project::{
-    build_file, build_project, check_file, check_project, clean, cran, document, load, new,
-    pkg_install, pkg_uninstall, run_file, run_project, test, use_package,
+    build_file, build_project, check_file, check_project, clean, cran, debug_file, document, load,
+    new, pkg_install, pkg_uninstall, run_file, run_project, test, use_package, DebugOptions,
 };
 use crate::repl;
 use crate::standard_library::standard_library;
@@ -49,6 +49,18 @@ enum Commands {
     Run {
         #[arg(value_name = "FILE")]
         file: Option<PathBuf>,
+    },
+    Debug {
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+        #[arg(short, long)]
+        ast: bool,
+        #[arg(short = 'y', long)]
+        types: bool,
+        #[arg(short, long)]
+        r: bool,
+        #[arg(short, long)]
+        json: bool,
     },
     Test,
     Pkg {
@@ -100,6 +112,21 @@ pub fn start() {
             Some(path) => run_file(&path),
             _ => run_project(),
         },
+        Some(Commands::Debug {
+            file,
+            ast,
+            types,
+            r,
+            json,
+        }) => debug_file(
+            &file,
+            DebugOptions {
+                show_ast: ast,
+                show_types: types,
+                show_r: r,
+                write_json: json,
+            },
+        ),
         Some(Commands::Test) => test(),
         Some(Commands::Pkg { pkg_command }) => match pkg_command {
             PkgCommands::Install { packages } => pkg_install(packages.as_deref()),

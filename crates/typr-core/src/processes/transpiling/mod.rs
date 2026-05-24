@@ -439,8 +439,27 @@ impl RTranslatable<(String, Context)> for Lang {
                 body,
                 ..
             } => {
-                let fn_type = FunctionType::try_from(typing(cont, self).value.clone()).unwrap();
-                let output_conversion = cont.get_type_anotation(&fn_type.get_return_type());
+                let fn_type = FunctionType::try_from(typing(cont, self).value.clone())
+                    .expect("function expression should have a function type");
+                let return_type = fn_type.get_return_type();
+
+                // Record alias constructors take specific named fields — calling
+                // TypeName(single_value) would fail.  The body already constructs
+                // the correct type (via ConstructorCall or List), so skip the
+                // output conversion for record aliases.
+                let is_record_alias_return = match &return_type {
+                    Type::Alias(alias_name, _, _, _) => cont
+                        .aliases()
+                        .find(|(var, _)| var.get_name() == *alias_name)
+                        .map(|(_, t)| matches!(t, Type::Record(_, _)))
+                        .unwrap_or(false),
+                    _ => false,
+                };
+                let output_conversion = if is_record_alias_return {
+                    "".to_string()
+                } else {
+                    cont.get_type_anotation(&return_type)
+                };
 
                 let list_of_types = params
                     .iter()
@@ -497,7 +516,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         .unwrap_or_else(|_| panic!("variable {} don't have a related type", var)),
                 )
                 .map(|ft| ft.adjust_nb_parameters(vals.len()))
-                .unwrap();
+                .expect("function application identifier should have a function type");
                 let new_args = fn_t
                     .get_param_types()
                     .iter()
@@ -552,7 +571,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         FunctionType::try_from(cont1.get_type_from_variable(&var).unwrap_or_else(
                             |_| panic!("variable {} don't have a related type", var),
                         ))
-                        .unwrap();
+                        .expect("vector function application identifier should have a function type");
                     let new_args = fn_t
                         .get_param_types()
                         .iter()
@@ -590,8 +609,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let (val_str, _) = val.to_simple_r(cont);
                 let (typ, _, _) = typing(cont, exp).to_tuple();
                 let res = match typ {
-                    Type::Vec(_, _, _, _) => format!("{}[[{}]]", exp_str, val_str),
-                    _ => "".to_string(),
+                    _ => format!("{}[[{}]]", exp_str, val_str),
                 };
                 (res, cont.clone())
             }
@@ -650,7 +668,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let typ = self.typing(cont).value;
 
                 let dimension = ArrayType::try_from(typ.clone())
-                    .unwrap()
+                    .expect("array literal should have an array type")
                     .get_shape()
                     .map(|sha| format!("c({})", sha))
                     .unwrap_or_else(|| "c(0)".to_string());
@@ -1197,7 +1215,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 };
                 let typ = temp_array.typing(cont).value;
                 let dimension = ArrayType::try_from(typ)
-                    .unwrap()
+                    .expect("array constructor call should have an array type")
                     .get_shape()
                     .map(|sha| format!("c({})", sha))
                     .unwrap_or_else(|| "c(0)".to_string());
@@ -1214,10 +1232,10 @@ impl RTranslatable<(String, Context)> for Lang {
                 };
                 (format!("{}({})", type_name, inner), cont.clone())
             }
-            _ => {
-                println!("This language structure won't transpile: {:?}", self);
+            Lang::Import { .. } | Lang::Test { .. } | Lang::Use { .. } => {
                 ("".to_string(), cont.clone())
             }
+            _ => ("".to_string(), cont.clone())
         };
 
         result
@@ -1368,4 +1386,34 @@ mod tests {
         assert!(r_code.contains("Bits(typed_vec("), "expected Bits(...) constructor: {}", r_code);
         assert!(r_code.contains("dim = c(3)"), "expected dimension annotation: {}", r_code);
     }
+
+    #[test]
+    fn test_record_alias_return_no_constructor_pipe() {
+        // A function returning a record alias must NOT get `|> TypeName()` in
+        // its body — the constructor takes specific named fields, not a single
+        // value, so piping the body result through it would fail at runtime.
+        let r_code = FluentParser::new()
+            .push("type Point <- list { x: int, y: int };")
+            .run()
+            .push("let incr <- fn(p: Point): Point { Point:{x: (p$x+1), y: (p$y+1)} };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        // The method definition must not contain `|> Point()` inside the body
+        assert!(
+            !r_code.contains("}) |> Point()"),
+            "record alias output conversion should not be added: {}",
+            r_code
+        );
+        // The method should still be wrapped by Generic() for S3 dispatch
+        assert!(
+            r_code.contains("|> Generic()") || r_code.contains("|> Function"),
+            "function type annotation should still be applied: {}",
+            r_code
+        );
+    }
 }
+

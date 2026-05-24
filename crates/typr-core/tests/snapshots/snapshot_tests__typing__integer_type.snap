@@ -1,0 +1,13 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+expression: ty
+---
+Integer(
+    Val(
+        42,
+    ),
+    HelpData {
+        offset: 0,
+        file_name: "",
+    },
+)

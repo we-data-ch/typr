@@ -370,7 +370,7 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
 
 fn record_type(s: Span) -> IResult<Span, Type> {
     let res = (
-        opt(terminated(tag("list"), multispace0)),
+        terminated(tag("list"), multispace0),
         terminated(tag("{"), multispace0),
         many1(argument),
         terminated(tag("}"), multispace0),
@@ -504,14 +504,14 @@ fn interface(s: Span) -> IResult<Span, Type> {
 
 fn tuple_type(s: Span) -> IResult<Span, Type> {
     let res = (
-        opt(terminated(tag("list"), multispace0)),
+        terminated(tag("list"), multispace0),
         terminated(tag("{"), multispace0),
         many1(ltype_parameter),
         terminated(tag("}"), multispace0),
     )
         .parse(s);
     match res {
-        Ok((s, (_, ope, v, _cl))) => Ok((s, Type::Tuple(v, ope.into()))),
+        Ok((s, (ope, _, v, _cl))) => Ok((s, Type::Tuple(v, ope.into()))),
         Err(r) => Err(r),
     }
 }

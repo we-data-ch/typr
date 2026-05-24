@@ -95,6 +95,14 @@ impl TypeChecker {
         self.context.clone()
     }
 
+    pub fn get_last_type(&self) -> Type {
+        self.last_type.clone()
+    }
+
+    pub fn get_types(&self) -> Vector<Type> {
+        self.types.clone()
+    }
+
     pub fn transpile(self) -> String {
         let code = self
             .code

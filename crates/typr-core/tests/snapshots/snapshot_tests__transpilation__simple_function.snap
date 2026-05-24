@@ -1,0 +1,7 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+expression: r
+---
+`add.integer` <- (function(a, b) {
+a + b
+} |> Integer()) |> Function0()

@@ -1216,7 +1216,13 @@ pub fn scope(s: Span) -> IResult<Span, Lang> {
                 help_data: v.into(),
             },
         )),
-        Ok((_s, (_, None, _))) => panic!("Error: the scope shouldn't be empty"),
+        Ok((s, (open, None, _))) => Ok((
+            s,
+            Lang::Scope {
+                body: vec![],
+                help_data: open.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }

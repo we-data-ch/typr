@@ -1,0 +1,13 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+expression: ty
+---
+Alias(
+    "Point",
+    [],
+    false,
+    HelpData {
+        offset: 5,
+        file_name: "",
+    },
+)

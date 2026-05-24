@@ -1,0 +1,17 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+expression: ty
+---
+Tag(
+    "Circle",
+    Number(
+        HelpData {
+            offset: 0,
+            file_name: "",
+        },
+    ),
+    HelpData {
+        offset: 0,
+        file_name: "",
+    },
+)

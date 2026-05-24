@@ -1,5 +1,27 @@
 # Debugging TypR Errors
 
+## 0. Workflow rapide (boucle édition → test)
+
+```bash
+# Build + déploie + exécute un fichier lab/ en une commande
+nu debug.nu lab/app.ty
+
+# Avec compilation automatique au changement de fichier
+nu debug.nu lab/app.ty --watch
+
+# Build + lance les tests Rust
+nu debug.nu --test
+
+# Build + lance les tests lab/ (tous les lab/*.ty)
+nu debug.nu --check
+
+# Lancer les tests lab/ sans rebuild
+nu debug.nu --skip-build --check
+
+# Lancer un test lab/ spécifique (filtre par nom)
+nu debug.nu --skip-build --check --filter incr
+```
+
 ## 1. Identifier l'étape fautive
 
 Les trois étapes du pipeline sont dans `typr-core` :
@@ -54,10 +76,28 @@ Le dossier `lab/` à la racine du projet est prévu pour les fichiers de test ad
 
 ```bash
 # Créer un fichier de test dans lab/
-# lab/test.typr
+# lab/app.ty
 
 # Lancer le type-checker dessus
-typr check lab/test.typr
+typr check lab/app.ty
+
+# Voir le pipeline complet pas à pas
+typr debug lab/app.ty
+
+# Voir seulement le code R généré
+typr debug lab/app.ty --r
+
+# Lancer tous les tests lab/ automatiquement
+nu test-lab.nu
+
+# Avec un filtre (ne garde que les fichiers contenant "incr")
+nu test-lab.nu incr
+
+# En mode debug (utilise `typr debug` au lieu de `typr check`)
+nu test-lab.nu --debug
+
+# En mode watch (re-exécute au changement de fichier)
+nu test-lab.nu --watch
 ```
 
 Cela génère un fichier `context.json` dans le répertoire courant.
@@ -129,7 +169,48 @@ $ctx.typing_context.std | select 0 1
 $ctx.typing_context.variables | length
 ```
 
-## 7. Hiérarchie d'erreurs
+## 7. Sous-commande `typr debug`
+
+Affiche le pipeline pas à pas pour un fichier TypR :
+
+```bash
+# Les 3 étapes (parse → type-check → transpile → R)
+typr debug lab/app.ty
+
+# Une seule étape
+typr debug lab/app.ty --ast     # AST arborescent uniquement
+typr debug lab/app.ty --types   # types inférés uniquement
+typr debug lab/app.ty --r       # code R transpilé uniquement
+
+# Sortie au format JSON
+typr debug lab/app.ty --json
+```
+
+## 8. Tests snapshot avec `insta`
+
+16 tests de régression dans `crates/typr-core/tests/snapshot_tests.rs` :
+
+```bash
+# Exécuter tous les snapshot tests
+cargo test -p typr-core --test snapshot_tests
+
+# Voir les snapshots (sortie complète)
+cargo test -p typr-core --test snapshot_tests -- --nocapture
+
+# Réviser/accepter les nouveaux snapshots
+cargo insta review
+
+# Accepter depuis le terminal (sans éditeur interactif)
+cargo insta accept
+```
+
+Les snapshots sont stockés dans `crates/typr-core/tests/snapshots/`.
+
+Deux types :
+- **Transpilation** : `assert_snapshot!` — capture la sortie R générée
+- **Types** : `assert_debug_snapshot!` — capture la sortie `Debug` du `Type` inféré
+
+## 9. Hiérarchie d'erreurs
 
 - `TypRError` → wraps `TypeError` ou `SyntaxError`
 - `ErrorCollector` accumule plusieurs erreurs (pas fail-fast)
