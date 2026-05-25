@@ -29,6 +29,7 @@ pub struct DebugOptions {
     pub show_types: bool,
     pub show_r: bool,
     pub write_json: bool,
+    pub show_files: bool,
 }
 
 impl Default for DebugOptions {
@@ -38,6 +39,7 @@ impl Default for DebugOptions {
             show_types: false,
             show_r: false,
             write_json: false,
+            show_files: false,
         }
     }
 }
@@ -239,7 +241,7 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
 
 /// Add a new Debug subcommand to inspect the pipeline step by step
 pub fn debug_file(path: &Path, opts: DebugOptions) {
-    let show_all = !opts.show_ast && !opts.show_types && !opts.show_r;
+    let show_all = !opts.show_ast && !opts.show_types && !opts.show_r && !opts.show_files;
     let source = match std::fs::read_to_string(path) {
         Ok(s) => s,
         Err(e) => {
@@ -269,7 +271,7 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
     }
 
     // Step 2: Type-check
-    if show_all || opts.show_types || opts.show_r {
+    if show_all || opts.show_types || opts.show_r || opts.show_files {
         print_step("Type Checking + Transpilation");
         let context = Context::default();
         let ast = typr_core::processes::parsing::parse_from_string(&source, &path.to_string_lossy());
@@ -286,16 +288,43 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
             println!();
         }
 
-        // Step 3: Transpile
+        let final_context = type_checker.get_context();
+
+        // Step 3: Transpile — show the full file as it would be executed by Rscript
         if show_all || opts.show_r {
-            print_step("Generated R Code");
-            let r_code = type_checker.clone().transpile();
-            println!("{}", r_code);
+            print_step("Full R File (as executed)");
+            let transpiled = type_checker.clone().transpile();
+            let preamble = "source('a_std.R', echo = FALSE)\nsource('b_generic_functions.R')\nsource('c_types.R')";
+            println!("{}\n{}", preamble, transpiled);
         }
 
-        if opts.write_json || (show_all && opts.write_json) {
-            let context = type_checker.get_context();
-            write_context_json(&context, &PathBuf::from("."));
+        // Step 4: Show intermediate generated files
+        if show_all || opts.show_files {
+            let type_annotations = final_context.get_type_anotations();
+            let generic_functions = final_context
+                .get_all_generic_functions()
+                .iter()
+                .map(|(var, _)| var.get_name())
+                .filter(|x| !x.contains("<-"))
+                .map(|fn_name| {
+                    format!(
+                        "{} <- function(x, ...) UseMethod('{}', x)",
+                        fn_name,
+                        fn_name.replace('`', "")
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            print_step("b_generic_functions.R");
+            println!("{}", generic_functions);
+
+            print_step("c_types.R");
+            println!("{}", type_annotations);
+        }
+
+        if opts.write_json {
+            write_context_json(&final_context, &PathBuf::from("."));
             println!("  → context.json written");
         }
     }
@@ -384,7 +413,7 @@ pub fn write_to_r_lang(
     .unwrap();
     let source = match environment {
         Environment::Project | Environment::Repl | Environment::Wasm => "",
-        Environment::StandAlone => "source('b_generic_functions.R')\nsource('c_types.R')",
+        Environment::StandAlone => "source('a_std.R', echo = FALSE)\nsource('b_generic_functions.R')\nsource('c_types.R')",
     };
     app.write_all(format!("{}\n{}", source, content).as_bytes())
         .unwrap();

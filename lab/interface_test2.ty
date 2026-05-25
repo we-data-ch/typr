@@ -1,0 +1,15 @@
+type Incrementable <- interface {
+    incr: (s: Self) -> Self
+};
+
+let double <- fn(i: Incrementable):  Incrementable {
+    i.incr().incr()
+};
+
+let incr <- fn(s: int): int {
+    s + 1
+};
+
+let a <- (3).double().double();
+
+a

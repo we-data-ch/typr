@@ -17,7 +17,7 @@ pub fn reduce_param(
 
     // Reduce the type part of each parameter
     let reduced_type = reduce_type_helper(context, &param.get_type(), memory);
-    ArgumentType(param.get_argument(), reduced_type, param.2.to_owned())
+    ArgumentType(param.get_argument(), reduced_type, param.2.to_owned(), param.3.to_owned())
 }
 
 fn is_in_memory(name: &str, memory: &Vector<String>) -> bool {

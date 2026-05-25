@@ -1,4 +1,3 @@
-use crate::components::context::config::Environment;
 use crate::components::context::Context;
 use crate::components::language::Lang;
 use crate::components::r#type::type_system::TypeSystem;
@@ -111,17 +110,7 @@ impl TypeChecker {
             .map(|(lang, _)| lang.to_r(&self.context).0)
             .collect::<Vec<_>>()
             .join("\n");
-        let import = match self.get_environment() {
-            Environment::Project | Environment::Repl => "",
-            Environment::StandAlone => "source('a_std.R', echo = FALSE)",
-            // In WASM mode, no source() calls - files will be inlined by the compiler
-            Environment::Wasm => "",
-        };
-
-        format!("{}\n\n{}", import, code)
+        format!("\n{}", code)
     }
 
-    fn get_environment(&self) -> Environment {
-        self.context.get_environment()
-    }
 }

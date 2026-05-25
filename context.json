@@ -16679,134 +16679,6 @@
       ],
       [
         {
-          "name": "exec",
-          "is_opaque": false,
-          "related_type": {
-            "Alias": [
-              "System2",
-              [],
-              false,
-              {
-                "offset": 221,
-                "file_name": "system.ty"
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 214,
-            "file_name": "system.ty"
-          }
-        },
-        {
-          "Function": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "a"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Alias": [
-                    "System2",
-                    [],
-                    false,
-                    {
-                      "offset": 221,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                false
-              ]
-            ],
-            {
-              "Char": [
-                "Unknown",
-                {
-                  "offset": 232,
-                  "file_name": "system.ty"
-                }
-              ]
-            },
-            {
-              "offset": 219,
-              "file_name": "system.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "bsystem2",
-          "is_opaque": false,
-          "related_type": {
-            "Char": [
-              "Unknown",
-              {
-                "offset": 193,
-                "file_name": "system.ty"
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 183,
-            "file_name": "system.ty"
-          }
-        },
-        {
-          "Function": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "a"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 193,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                false
-              ]
-            ],
-            {
-              "Alias": [
-                "System2",
-                [],
-                false,
-                {
-                  "offset": 203,
-                  "file_name": "system.ty"
-                }
-              ]
-            },
-            {
-              "offset": 192,
-              "file_name": "system.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
           "name": "system2",
           "is_opaque": false,
           "related_type": {
@@ -16847,6 +16719,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -16888,6 +16761,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -16911,6 +16785,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -16934,6 +16809,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -16957,6 +16833,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -17090,6 +16967,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -17259,6 +17137,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17318,6 +17197,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -17445,6 +17325,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17483,6 +17364,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17506,6 +17388,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17546,6 +17429,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17586,6 +17470,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17609,6 +17494,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17632,6 +17518,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17655,6 +17542,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17678,6 +17566,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17701,6 +17590,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17721,6 +17611,7 @@
                     "file_name": "plot.ty"
                   }
                 },
+                false,
                 false
               ],
               [
@@ -17741,6 +17632,7 @@
                     "file_name": "plot.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -17808,6 +17700,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -17866,6 +17759,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -17924,6 +17818,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -17947,6 +17842,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -18005,6 +17901,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -18028,6 +17925,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -18086,6 +17984,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -18109,6 +18008,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -18167,6 +18067,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -18225,6 +18126,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -18283,6 +18185,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -18445,6 +18348,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -18534,6 +18438,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -18592,6 +18497,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -18615,6 +18521,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -18673,6 +18580,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -18696,6 +18604,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -18748,6 +18657,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -18806,6 +18716,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -18826,6 +18737,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -18920,6 +18832,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -19017,6 +18930,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -19040,6 +18954,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -19155,6 +19070,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -19193,6 +19109,7 @@
                             }
                           ]
                         },
+                        false,
                         false
                       ],
                       [
@@ -19216,6 +19133,7 @@
                             }
                           ]
                         },
+                        false,
                         false
                       ]
                     ],
@@ -19234,6 +19152,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -19295,6 +19214,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -19347,6 +19267,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -19444,6 +19365,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -19485,6 +19407,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -19558,6 +19481,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ],
               [
@@ -19578,6 +19502,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -19630,6 +19555,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ],
               [
@@ -19650,6 +19576,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -19702,6 +19629,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ],
               [
@@ -19722,6 +19650,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -19780,6 +19709,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -19803,6 +19733,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -19858,6 +19789,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ],
               [
@@ -19878,6 +19810,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -19936,6 +19869,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -19959,6 +19893,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -20014,6 +19949,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ],
               [
@@ -20034,6 +19970,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -20092,6 +20029,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -20115,6 +20053,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -20170,6 +20109,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ],
               [
@@ -20190,6 +20130,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -20248,6 +20189,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -20271,6 +20213,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -20429,6 +20372,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -20542,6 +20486,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -20565,6 +20510,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -20678,6 +20624,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -20701,6 +20648,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -20786,6 +20734,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -20868,6 +20817,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -21026,6 +20976,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -21161,6 +21112,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -21220,77 +21172,28 @@
       ],
       [
         {
-          "name": "p",
+          "name": "s",
           "is_opaque": false,
           "related_type": {
-            "Record": [
-              [
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "x"
-                      },
-                      {
-                        "offset": 23,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      "Unknown",
-                      {
-                        "offset": 25,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  false
-                ],
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "y"
-                      },
-                      {
-                        "offset": 32,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      "Unknown",
-                      {
-                        "offset": 34,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  false
-                ]
-              ],
+            "Integer": [
+              "Unknown",
               {
-                "offset": 19,
-                "file_name": "lab/app.ty"
+                "offset": 80,
+                "file_name": "/tmp/debug_subtypes.ty"
               }
             ]
           },
           "help_data": {
-            "offset": 58,
-            "file_name": "lab/app.ty"
+            "offset": 78,
+            "file_name": "/tmp/debug_subtypes.ty"
           }
         },
         {
-          "Alias": [
-            "Point",
-            [],
-            false,
+          "Integer": [
+            "Unknown",
             {
-              "offset": 61,
-              "file_name": "lab/app.ty"
+              "offset": 80,
+              "file_name": "/tmp/debug_subtypes.ty"
             }
           ]
         }
@@ -21300,19 +21203,17 @@
           "name": "incr",
           "is_opaque": false,
           "related_type": {
-            "Alias": [
-              "Point",
-              [],
-              false,
+            "Integer": [
+              "Unknown",
               {
-                "offset": 61,
-                "file_name": "lab/app.ty"
+                "offset": 80,
+                "file_name": "/tmp/debug_subtypes.ty"
               }
             ]
           },
           "help_data": {
-            "offset": 47,
-            "file_name": "lab/app.ty"
+            "offset": 67,
+            "file_name": "/tmp/debug_subtypes.ty"
           }
         },
         {
@@ -21322,36 +21223,33 @@
                 {
                   "Char": [
                     {
-                      "Val": "p"
+                      "Val": "s"
                     },
                     {
-                      "offset": 58,
-                      "file_name": "lab/app.ty"
+                      "offset": 78,
+                      "file_name": "/tmp/debug_subtypes.ty"
                     }
                   ]
                 },
                 {
-                  "Alias": [
-                    "Point",
-                    [],
-                    false,
+                  "Integer": [
+                    "Unknown",
                     {
-                      "offset": 61,
-                      "file_name": "lab/app.ty"
+                      "offset": 80,
+                      "file_name": "/tmp/debug_subtypes.ty"
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
             {
-              "Alias": [
-                "Point",
-                [],
-                false,
+              "Integer": [
+                "Unknown",
                 {
-                  "offset": 69,
-                  "file_name": "lab/app.ty"
+                  "offset": 86,
+                  "file_name": "/tmp/debug_subtypes.ty"
                 }
               ]
             },
@@ -21434,6 +21332,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -21457,6 +21356,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -21515,6 +21415,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ],
               [
@@ -21535,6 +21436,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -21590,6 +21492,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ],
               [
@@ -21610,6 +21513,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -21732,6 +21636,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -21773,6 +21678,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -21849,6 +21755,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -21935,6 +21842,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -21993,6 +21901,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -22016,6 +21925,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -22095,6 +22005,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -22133,6 +22044,7 @@
                             }
                           ]
                         },
+                        false,
                         false
                       ],
                       [
@@ -22156,6 +22068,7 @@
                             }
                           ]
                         },
+                        false,
                         false
                       ]
                     ],
@@ -22174,6 +22087,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -22253,6 +22167,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -22276,6 +22191,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -22373,6 +22289,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -22434,6 +22351,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -22454,6 +22372,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -22509,6 +22428,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -22567,6 +22487,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -22590,6 +22511,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -22645,6 +22567,7 @@
                     "file_name": "std_R.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -22740,6 +22663,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -22902,6 +22826,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -22960,6 +22885,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -22983,6 +22909,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -23145,6 +23072,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -23239,6 +23167,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23262,6 +23191,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -23356,6 +23286,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23379,6 +23310,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -23473,6 +23405,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -23668,6 +23601,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23706,6 +23640,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23729,6 +23664,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23769,6 +23705,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23809,6 +23746,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23832,6 +23770,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23855,6 +23794,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23878,6 +23818,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23901,6 +23842,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23924,6 +23866,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -23944,6 +23887,7 @@
                     "file_name": "plot.ty"
                   }
                 },
+                false,
                 false
               ],
               [
@@ -23964,6 +23908,7 @@
                     "file_name": "plot.ty"
                   }
                 },
+                false,
                 false
               ]
             ],
@@ -23984,369 +23929,6 @@
             },
             {
               "offset": 34,
-              "file_name": "plot.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "Plot",
-          "is_opaque": false,
-          "related_type": {
-            "Params": [
-              [],
-              {
-                "offset": 142,
-                "file_name": "plot.ty"
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 0,
-            "file_name": ""
-          }
-        },
-        {
-          "Record": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "xlim"
-                    },
-                    {
-                      "offset": 191,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Vec": [
-                    "S3",
-                    {
-                      "Integer": [
-                        {
-                          "Val": 2
-                        },
-                        {
-                          "offset": 197,
-                          "file_name": "plot.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Number": {
-                        "offset": 200,
-                        "file_name": "plot.ty"
-                      }
-                    },
-                    {
-                      "offset": 196,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "ylim"
-                    },
-                    {
-                      "offset": 207,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Vec": [
-                    "S3",
-                    {
-                      "Integer": [
-                        {
-                          "Val": 2
-                        },
-                        {
-                          "offset": 213,
-                          "file_name": "plot.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Number": {
-                        "offset": 216,
-                        "file_name": "plot.ty"
-                      }
-                    },
-                    {
-                      "offset": 212,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "ann"
-                    },
-                    {
-                      "offset": 281,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Boolean": {
-                    "offset": 285,
-                    "file_name": "plot.ty"
-                  }
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "axes"
-                    },
-                    {
-                      "offset": 292,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Boolean": {
-                    "offset": 297,
-                    "file_name": "plot.ty"
-                  }
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "main"
-                    },
-                    {
-                      "offset": 234,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 239,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "sub"
-                    },
-                    {
-                      "offset": 246,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 250,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "xlab"
-                    },
-                    {
-                      "offset": 257,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 262,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "ylab"
-                    },
-                    {
-                      "offset": 269,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 274,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "type"
-                    },
-                    {
-                      "offset": 179,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 184,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "log"
-                    },
-                    {
-                      "offset": 223,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 227,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "x"
-                    },
-                    {
-                      "offset": 151,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Vec": [
-                    "S3",
-                    {
-                      "IndexGen": [
-                        "N",
-                        {
-                          "offset": 154,
-                          "file_name": "plot.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Number": {
-                        "offset": 158,
-                        "file_name": "plot.ty"
-                      }
-                    },
-                    {
-                      "offset": 153,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "y"
-                    },
-                    {
-                      "offset": 165,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                {
-                  "Vec": [
-                    "S3",
-                    {
-                      "IndexGen": [
-                        "N",
-                        {
-                          "offset": 168,
-                          "file_name": "plot.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Number": {
-                        "offset": 172,
-                        "file_name": "plot.ty"
-                      }
-                    },
-                    {
-                      "offset": 167,
-                      "file_name": "plot.ty"
-                    }
-                  ]
-                },
-                false
-              ]
-            ],
-            {
-              "offset": 148,
               "file_name": "plot.ty"
             }
           ]
@@ -24494,6 +24076,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -24553,6 +24136,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -24750,6 +24334,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -24931,6 +24516,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -25114,6 +24700,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -25213,6 +24800,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -25254,6 +24842,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -25277,6 +24866,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -25300,6 +24890,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ],
               [
@@ -25323,6 +24914,7 @@
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
@@ -25344,566 +24936,14 @@
       ],
       [
         {
-          "name": "System2",
-          "is_opaque": false,
-          "related_type": {
-            "Params": [
-              [],
-              {
-                "offset": 94,
-                "file_name": "system.ty"
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 0,
-            "file_name": ""
-          }
-        },
-        {
-          "Record": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "stdin"
-                    },
-                    {
-                      "offset": 167,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 173,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "args"
-                    },
-                    {
-                      "offset": 121,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                {
-                  "Vec": [
-                    "S3",
-                    {
-                      "IndexGen": [
-                        "N",
-                        {
-                          "offset": 127,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Char": [
-                        "Unknown",
-                        {
-                          "offset": 131,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "offset": 126,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "command"
-                    },
-                    {
-                      "offset": 106,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 114,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "stdout"
-                    },
-                    {
-                      "offset": 139,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 146,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "stderr"
-                    },
-                    {
-                      "offset": 153,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 160,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                false
-              ]
-            ],
-            {
-              "offset": 103,
-              "file_name": "system.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "Function29",
-          "is_opaque": false,
-          "related_type": {
-            "Params": [
-              [],
-              {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 0,
-            "file_name": ""
-          }
-        },
-        {
-          "Function": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "a"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 193,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                false
-              ]
-            ],
-            {
-              "Record": [
-                [
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "command"
-                        },
-                        {
-                          "offset": 106,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Char": [
-                        "Unknown",
-                        {
-                          "offset": 114,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ],
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "args"
-                        },
-                        {
-                          "offset": 121,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Vec": [
-                        "S3",
-                        {
-                          "IndexGen": [
-                            "N",
-                            {
-                              "offset": 127,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        {
-                          "Char": [
-                            "Unknown",
-                            {
-                              "offset": 131,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        {
-                          "offset": 126,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ],
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "stdout"
-                        },
-                        {
-                          "offset": 139,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Char": [
-                        "Unknown",
-                        {
-                          "offset": 146,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ],
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "stderr"
-                        },
-                        {
-                          "offset": 153,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Char": [
-                        "Unknown",
-                        {
-                          "offset": 160,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ],
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "stdin"
-                        },
-                        {
-                          "offset": 167,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Char": [
-                        "Unknown",
-                        {
-                          "offset": 173,
-                          "file_name": "system.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ]
-                ],
-                {
-                  "offset": 103,
-                  "file_name": "system.ty"
-                }
-              ]
-            },
-            {
-              "offset": 192,
-              "file_name": "system.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "Function30",
-          "is_opaque": false,
-          "related_type": {
-            "Params": [
-              [],
-              {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 0,
-            "file_name": ""
-          }
-        },
-        {
-          "Function": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "a"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Record": [
-                    [
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "args"
-                            },
-                            {
-                              "offset": 121,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        {
-                          "Vec": [
-                            "S3",
-                            {
-                              "IndexGen": [
-                                "N",
-                                {
-                                  "offset": 127,
-                                  "file_name": "system.ty"
-                                }
-                              ]
-                            },
-                            {
-                              "Char": [
-                                "Unknown",
-                                {
-                                  "offset": 131,
-                                  "file_name": "system.ty"
-                                }
-                              ]
-                            },
-                            {
-                              "offset": 126,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ],
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "command"
-                            },
-                            {
-                              "offset": 106,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        {
-                          "Char": [
-                            "Unknown",
-                            {
-                              "offset": 114,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ],
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "stdout"
-                            },
-                            {
-                              "offset": 139,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        {
-                          "Char": [
-                            "Unknown",
-                            {
-                              "offset": 146,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ],
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "stderr"
-                            },
-                            {
-                              "offset": 153,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        {
-                          "Char": [
-                            "Unknown",
-                            {
-                              "offset": 160,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ],
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "stdin"
-                            },
-                            {
-                              "offset": 167,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        {
-                          "Char": [
-                            "Unknown",
-                            {
-                              "offset": 173,
-                              "file_name": "system.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ]
-                    ],
-                    {
-                      "offset": 103,
-                      "file_name": "system.ty"
-                    }
-                  ]
-                },
-                false
-              ]
-            ],
-            {
-              "Char": [
-                "Unknown",
-                {
-                  "offset": 232,
-                  "file_name": "system.ty"
-                }
-              ]
-            },
-            {
-              "offset": 219,
-              "file_name": "system.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "Point",
+          "name": "Incrementable",
           "is_opaque": false,
           "related_type": {
             "Params": [
               [],
               {
                 "offset": 6,
-                "file_name": "lab/app.ty"
+                "file_name": "/tmp/debug_subtypes.ty"
               }
             ]
           },
@@ -25913,58 +24953,70 @@
           }
         },
         {
-          "Record": [
+          "Interface": [
             [
               [
                 {
                   "Char": [
                     {
-                      "Val": "y"
+                      "Val": "incr"
                     },
                     {
-                      "offset": 32,
-                      "file_name": "lab/app.ty"
+                      "offset": 39,
+                      "file_name": "/tmp/debug_subtypes.ty"
                     }
                   ]
                 },
                 {
-                  "Integer": [
-                    "Unknown",
+                  "Function": [
+                    [
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "a"
+                            },
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Generic": [
+                            "Self",
+                            {
+                              "offset": 45,
+                              "file_name": "/tmp/debug_subtypes.ty"
+                            }
+                          ]
+                        },
+                        false,
+                        false
+                      ]
+                    ],
                     {
-                      "offset": 34,
-                      "file_name": "lab/app.ty"
-                    }
-                  ]
-                },
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "x"
+                      "Generic": [
+                        "Self",
+                        {
+                          "offset": 54,
+                          "file_name": "/tmp/debug_subtypes.ty"
+                        }
+                      ]
                     },
                     {
-                      "offset": 23,
-                      "file_name": "lab/app.ty"
+                      "offset": 44,
+                      "file_name": "/tmp/debug_subtypes.ty"
                     }
                   ]
                 },
-                {
-                  "Integer": [
-                    "Unknown",
-                    {
-                      "offset": 25,
-                      "file_name": "lab/app.ty"
-                    }
-                  ]
-                },
+                false,
                 false
               ]
             ],
             {
-              "offset": 19,
-              "file_name": "lab/app.ty"
+              "offset": 22,
+              "file_name": "/tmp/debug_subtypes.ty"
             }
           ]
         }
@@ -25994,7 +25046,7 @@
                 {
                   "Char": [
                     {
-                      "Val": "p"
+                      "Val": "s"
                     },
                     {
                       "offset": 0,
@@ -26003,117 +25055,24 @@
                   ]
                 },
                 {
-                  "Record": [
-                    [
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "y"
-                            },
-                            {
-                              "offset": 32,
-                              "file_name": "lab/app.ty"
-                            }
-                          ]
-                        },
-                        {
-                          "Integer": [
-                            "Unknown",
-                            {
-                              "offset": 34,
-                              "file_name": "lab/app.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ],
-                      [
-                        {
-                          "Char": [
-                            {
-                              "Val": "x"
-                            },
-                            {
-                              "offset": 23,
-                              "file_name": "lab/app.ty"
-                            }
-                          ]
-                        },
-                        {
-                          "Integer": [
-                            "Unknown",
-                            {
-                              "offset": 25,
-                              "file_name": "lab/app.ty"
-                            }
-                          ]
-                        },
-                        false
-                      ]
-                    ],
+                  "Integer": [
+                    "Unknown",
                     {
-                      "offset": 19,
-                      "file_name": "lab/app.ty"
+                      "offset": 80,
+                      "file_name": "/tmp/debug_subtypes.ty"
                     }
                   ]
                 },
+                false,
                 false
               ]
             ],
             {
-              "Record": [
-                [
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "y"
-                        },
-                        {
-                          "offset": 32,
-                          "file_name": "lab/app.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Integer": [
-                        "Unknown",
-                        {
-                          "offset": 34,
-                          "file_name": "lab/app.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ],
-                  [
-                    {
-                      "Char": [
-                        {
-                          "Val": "x"
-                        },
-                        {
-                          "offset": 23,
-                          "file_name": "lab/app.ty"
-                        }
-                      ]
-                    },
-                    {
-                      "Integer": [
-                        "Unknown",
-                        {
-                          "offset": 25,
-                          "file_name": "lab/app.ty"
-                        }
-                      ]
-                    },
-                    false
-                  ]
-                ],
+              "Integer": [
+                "Unknown",
                 {
-                  "offset": 19,
-                  "file_name": "lab/app.ty"
+                  "offset": 86,
+                  "file_name": "/tmp/debug_subtypes.ty"
                 }
               ]
             },
@@ -42807,58 +41766,11 @@
   "subtypes": {
     "memory": [
       {
-        "Record": [
-          [
-            [
-              {
-                "Char": [
-                  {
-                    "Val": "y"
-                  },
-                  {
-                    "offset": 32,
-                    "file_name": "lab/app.ty"
-                  }
-                ]
-              },
-              {
-                "Integer": [
-                  "Unknown",
-                  {
-                    "offset": 34,
-                    "file_name": "lab/app.ty"
-                  }
-                ]
-              },
-              false
-            ],
-            [
-              {
-                "Char": [
-                  {
-                    "Val": "x"
-                  },
-                  {
-                    "offset": 23,
-                    "file_name": "lab/app.ty"
-                  }
-                ]
-              },
-              {
-                "Integer": [
-                  "Unknown",
-                  {
-                    "offset": 25,
-                    "file_name": "lab/app.ty"
-                  }
-                ]
-              },
-              false
-            ]
-          ],
+        "Integer": [
+          "Unknown",
           {
-            "offset": 19,
-            "file_name": "lab/app.ty"
+            "offset": 80,
+            "file_name": "/tmp/debug_subtypes.ty"
           }
         ]
       },
@@ -42869,7 +41781,7 @@
               {
                 "Char": [
                   {
-                    "Val": "p"
+                    "Val": "s"
                   },
                   {
                     "offset": 0,
@@ -42878,117 +41790,24 @@
                 ]
               },
               {
-                "Record": [
-                  [
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "y"
-                          },
-                          {
-                            "offset": 32,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      {
-                        "Integer": [
-                          "Unknown",
-                          {
-                            "offset": 34,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ],
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "x"
-                          },
-                          {
-                            "offset": 23,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      {
-                        "Integer": [
-                          "Unknown",
-                          {
-                            "offset": 25,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ]
-                  ],
+                "Integer": [
+                  "Unknown",
                   {
-                    "offset": 19,
-                    "file_name": "lab/app.ty"
+                    "offset": 80,
+                    "file_name": "/tmp/debug_subtypes.ty"
                   }
                 ]
               },
+              false,
               false
             ]
           ],
           {
-            "Record": [
-              [
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "y"
-                      },
-                      {
-                        "offset": 32,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      "Unknown",
-                      {
-                        "offset": 34,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  false
-                ],
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "x"
-                      },
-                      {
-                        "offset": 23,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      "Unknown",
-                      {
-                        "offset": 25,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  false
-                ]
-              ],
+            "Integer": [
+              "Unknown",
               {
-                "offset": 19,
-                "file_name": "lab/app.ty"
+                "offset": 86,
+                "file_name": "/tmp/debug_subtypes.ty"
               }
             ]
           },
@@ -43009,58 +41828,11 @@
       "subtypes": [
         {
           "value": {
-            "Record": [
-              [
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "y"
-                      },
-                      {
-                        "offset": 32,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      "Unknown",
-                      {
-                        "offset": 34,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  false
-                ],
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "x"
-                      },
-                      {
-                        "offset": 23,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      "Unknown",
-                      {
-                        "offset": 25,
-                        "file_name": "lab/app.ty"
-                      }
-                    ]
-                  },
-                  false
-                ]
-              ],
+            "Integer": [
+              "Unknown",
               {
-                "offset": 19,
-                "file_name": "lab/app.ty"
+                "offset": 80,
+                "file_name": "/tmp/debug_subtypes.ty"
               }
             ]
           },
@@ -43074,7 +41846,7 @@
                   {
                     "Char": [
                       {
-                        "Val": "p"
+                        "Val": "s"
                       },
                       {
                         "offset": 0,
@@ -43083,117 +41855,24 @@
                     ]
                   },
                   {
-                    "Record": [
-                      [
-                        [
-                          {
-                            "Char": [
-                              {
-                                "Val": "y"
-                              },
-                              {
-                                "offset": 32,
-                                "file_name": "lab/app.ty"
-                              }
-                            ]
-                          },
-                          {
-                            "Integer": [
-                              "Unknown",
-                              {
-                                "offset": 34,
-                                "file_name": "lab/app.ty"
-                              }
-                            ]
-                          },
-                          false
-                        ],
-                        [
-                          {
-                            "Char": [
-                              {
-                                "Val": "x"
-                              },
-                              {
-                                "offset": 23,
-                                "file_name": "lab/app.ty"
-                              }
-                            ]
-                          },
-                          {
-                            "Integer": [
-                              "Unknown",
-                              {
-                                "offset": 25,
-                                "file_name": "lab/app.ty"
-                              }
-                            ]
-                          },
-                          false
-                        ]
-                      ],
+                    "Integer": [
+                      "Unknown",
                       {
-                        "offset": 19,
-                        "file_name": "lab/app.ty"
+                        "offset": 80,
+                        "file_name": "/tmp/debug_subtypes.ty"
                       }
                     ]
                   },
+                  false,
                   false
                 ]
               ],
               {
-                "Record": [
-                  [
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "y"
-                          },
-                          {
-                            "offset": 32,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      {
-                        "Integer": [
-                          "Unknown",
-                          {
-                            "offset": 34,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ],
-                    [
-                      {
-                        "Char": [
-                          {
-                            "Val": "x"
-                          },
-                          {
-                            "offset": 23,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      {
-                        "Integer": [
-                          "Unknown",
-                          {
-                            "offset": 25,
-                            "file_name": "lab/app.ty"
-                          }
-                        ]
-                      },
-                      false
-                    ]
-                  ],
+                "Integer": [
+                  "Unknown",
                   {
-                    "offset": 19,
-                    "file_name": "lab/app.ty"
+                    "offset": 86,
+                    "file_name": "/tmp/debug_subtypes.ty"
                   }
                 ]
               },

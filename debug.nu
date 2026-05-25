@@ -31,7 +31,7 @@ def main [
       do_deploy
     }
     if $test or $nocapture {
-      do_test ...$rest
+      do_test $nocapture ...$rest
     } else if $check {
       do_check $file
     } else {
@@ -65,15 +65,22 @@ def do_check [file: string] {
   typr check $file
 }
 
-def do_test [...rest: string] {
+def do_test [nocapture: bool, ...rest: string] {
   let filter = if ($rest | length) > 0 { $rest | first } else { "" }
-  let capture_flag = if $nocapture { "-- --nocapture" } else { "" }
   if $filter != "" {
     print $"Running tests matching: ($filter)"
-    cargo test -p typr-core $filter $"--($capture_flag)"
+    if $nocapture {
+      cargo test -p typr-core $filter -- --nocapture
+    } else {
+      cargo test -p typr-core $filter
+    }
   } else {
     print "Running all typr-core tests..."
-    cargo test -p typr-core
+    if $nocapture {
+      cargo test -p typr-core -- --nocapture
+    } else {
+      cargo test -p typr-core
+    }
   }
 }
 
@@ -86,7 +93,7 @@ def build_and_run_command [
   test: bool
   nocapture: bool
   ...extra: string
-] -> string {
+] {
   let parts = []
   let parts = if not $skip_build {
     if $quiet { $parts | append "cargo build -q" } else { $parts | append "cargo build" }
@@ -96,11 +103,11 @@ def build_and_run_command [
   } else { $parts }
   let parts = if $test or $nocapture {
     let filter = if ($extra | length) > 0 { $extra | first } else { "" }
-    let nc = if $nocapture { "-- --nocapture" } else { "" }
+    let nc = if $nocapture { " -- --nocapture" } else { "" }
     if $filter != "" {
-      $parts | append $"cargo test -p typr-core ($filter) ($nc)"
+      $parts | append $"cargo test -p typr-core ($filter)($nc)"
     } else {
-      $parts | append "cargo test -p typr-core"
+      $parts | append $"cargo test -p typr-core($nc)"
     }
   } else if $check {
     $parts | append $"typr check ($file)"

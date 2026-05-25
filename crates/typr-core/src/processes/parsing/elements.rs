@@ -295,6 +295,20 @@ pub fn variable(s: Span) -> IResult<Span, (Lang, Case)> {
 }
 
 pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
+    // Try variadic: `...name: T[,]`
+    let variadic = (
+        terminated(tag("..."), multispace0),
+        terminated(label, multispace0),
+        terminated(tag(":"), multispace0),
+        ltype,
+        opt(terminated(tag(","), multispace0)),
+    )
+    .parse(s.clone());
+    if let Ok((s2, (_, e1, _, e2, _))) = variadic {
+        return Ok((s2, ArgumentType(e1, e2, false, true)));
+    }
+
+    // Regular: `name: T[,]`
     let res = (
         terminated(label, multispace0),
         terminated(tag(":"), multispace0),
@@ -303,7 +317,7 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
     )
         .parse(s);
     match res {
-        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false))),
+        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false, false))),
         Err(r) => Err(r),
     }
 }

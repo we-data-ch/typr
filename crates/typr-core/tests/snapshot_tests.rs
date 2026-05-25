@@ -5,6 +5,33 @@
 
 use typr_core::utils::fluent_parser::FluentParser;
 
+fn c_types(lines: &[&str]) -> String {
+    let fp = lines.iter().fold(FluentParser::new(), |acc, line| {
+        acc.push(line).run()
+    });
+    fp.get_context().get_type_anotations()
+}
+
+fn b_generic_functions(lines: &[&str]) -> String {
+    let fp = lines.iter().fold(FluentParser::new(), |acc, line| {
+        acc.push(line).run()
+    });
+    fp.get_context()
+        .get_all_generic_functions()
+        .iter()
+        .map(|(var, _)| var.get_name())
+        .filter(|x| !x.contains("<-"))
+        .map(|fn_name| {
+            format!(
+                "{} <- function(x, ...) UseMethod('{}', x)",
+                fn_name,
+                fn_name.replace('`', "")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn transpile(code: &str) -> String {
     FluentParser::new()
         .push(code)
@@ -104,6 +131,43 @@ mod transpilation {
     fn opaque_alias() {
         let r = transpile("opaque Meters <- int;");
         insta::assert_snapshot!(r);
+    }
+}
+
+mod generated_files {
+    use super::*;
+
+    /// Integer must include 'Incrementable' in its R class hierarchy once a
+    /// function typed with Incrementable is defined (which adds the interface
+    /// to the subtype graph). Regression test for source-order bug where
+    /// a_std.R overwrote c_types.R, silently dropping 'Incrementable'.
+    #[test]
+    fn integer_class_includes_implemented_interface() {
+        let result = c_types(&[
+            "type Incrementable <- interface { incr: (Self) -> Self };",
+            "let double <- fn(i: Incrementable): Incrementable { i.incr().incr() };",
+            "let incr <- fn(s: int): int { s + 1 };",
+        ]);
+        let integer_line = result
+            .lines()
+            .find(|l| l.starts_with("Integer <-"))
+            .expect("Integer constructor not found in c_types output");
+        assert!(
+            integer_line.contains("'Incrementable'"),
+            "Expected 'Incrementable' in Integer class hierarchy, got: {}",
+            integer_line
+        );
+    }
+
+    #[test]
+    fn interface_functions_appear_in_b_generics() {
+        let result = b_generic_functions(&[
+            "type Incrementable <- interface { incr: (Self) -> Self };",
+            "let double <- fn(i: Incrementable): Incrementable { i.incr().incr() };",
+            "let incr <- fn(s: int): int { s + 1 };",
+        ]);
+        assert!(result.contains("double <- function"), "double generic missing");
+        assert!(result.contains("incr <- function"), "incr generic missing");
     }
 }
 

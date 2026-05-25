@@ -10,6 +10,7 @@ use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::set_related_type_if_variable;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
 use crate::processes::type_checking::Context;
@@ -77,6 +78,18 @@ fn try_vectorized_match(
     candidates
         .iter()
         .flat_map(|x| x.clone().infer_return_type_vectorized(types, context))
+        .next()
+}
+
+fn try_variadic_match(
+    all_signatures: &[FunctionType],
+    types: &[Type],
+    context: &Context,
+) -> Option<FunctionType> {
+    all_signatures
+        .iter()
+        .filter(|sig| sig.is_variadic())
+        .flat_map(|x| x.clone().infer_return_type(types, context))
         .next()
 }
 
@@ -553,8 +566,57 @@ pub fn apply_from_variable(
         }
     }
 
+    // === FILTERING 2.5 : Interface structural subtyping ===
+    // Handles the case where the first parameter is an interface alias and the argument
+    // satisfies the interface structurally (via to_interface / is_subtype_raw).
+    if let Some(first_arg_type) = types.first() {
+        let interface_candidates: Vec<FunctionType> = all_signatures
+            .iter()
+            .filter(|sig| {
+                sig.get_first_param()
+                    .map(|p| {
+                        let reduced_param = reduce_type(context, &p);
+                        matches!(&reduced_param, Type::Interface(_, _))
+                            && first_arg_type.is_subtype_raw(&reduced_param, context)
+                    })
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+        if !interface_candidates.is_empty() {
+            if let Some(fun_typ) = try_direct_match(&interface_candidates, &types, context) {
+                let (final_params, final_types) =
+                    specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
+                return build_success(
+                    &var,
+                    &fun_typ,
+                    final_params,
+                    &final_types,
+                    param_errors,
+                    context,
+                    h,
+                );
+            }
+        }
+    }
+
     // === FILTERING 3 : Vectorization ===
     if let Some(fun_typ) = try_vectorized_match(&all_signatures, &types, context) {
+        let (final_params, final_types) =
+            specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
+        return build_success(
+            &var,
+            &fun_typ,
+            final_params,
+            &final_types,
+            param_errors,
+            context,
+            h,
+        );
+    }
+
+    // === FILTERING 4 : Variadic function (handles 0-arg calls and arity mismatch) ===
+    if let Some(fun_typ) = try_variadic_match(&all_signatures, &types, context) {
         let (final_params, final_types) =
             specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
         return build_success(
@@ -1210,6 +1272,27 @@ mod tests {
             builder::integer_type_default(),
             "Expected int, got: {:?}",
             fp.get_last_type()
+        );
+    }
+
+    /// Test that a concrete type satisfying a named interface alias
+    /// can be passed to a function expecting that interface via dot notation.
+    #[test]
+    fn test_interface_alias_structural_subtyping_dot_call() {
+        let fp = FluentParser::new()
+            .push("type Incrementable <- interface { incr: (Self) -> Self };")
+            .run()
+            .push("let double <- fn(i: Incrementable): Incrementable { i.incr().incr() };")
+            .run()
+            .push("let incr <- fn(i: int): int { i + 1 };")
+            .run()
+            .push("(3).double()")
+            .parse_type_next();
+        let last_log = fp.get_last_log();
+        assert!(
+            !last_log.contains("not defined in this scope"),
+            "Expected double to resolve, got: {}",
+            last_log
         );
     }
 }

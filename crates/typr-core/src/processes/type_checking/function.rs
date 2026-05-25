@@ -383,6 +383,80 @@ mod tests {
     }
 
     #[test]
+    fn test_variadic_function_type() {
+        let res = FluentParser::new().check_typing("fn(...xs: num): num { xs }");
+        let expected = Type::Function(
+            vec![ArgumentType(
+                Type::Char("xs".to_string().into(), HelpData::default()),
+                builder::number_type(),
+                false,
+                true,
+            )],
+            Box::new(builder::number_type()),
+            HelpData::default(),
+        );
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_variadic_function_call_multi_args() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 = parse2("let f <- fn(...xs: num): num { xs };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
+        assert!(!tc1.has_errors(), "variadic decl errors: {:?}", tc1.get_errors());
+
+        let code2 = parse2("f(1.0, 2.0, 3.0)".into()).unwrap();
+        let tc2 = tc1.typing_no_panic(&code2);
+        assert!(!tc2.has_errors(), "variadic call errors: {:?}", tc2.get_errors());
+    }
+
+    #[test]
+    fn test_variadic_function_call_zero_args() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 = parse2("let f <- fn(...xs: num): num { xs };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
+
+        let code2 = parse2("f()".into()).unwrap();
+        let tc2 = tc1.typing_no_panic(&code2);
+        assert!(!tc2.has_errors(), "zero-arg variadic call errors: {:?}", tc2.get_errors());
+    }
+
+    #[test]
+    fn test_variadic_function_call_type_error() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 = parse2("let f <- fn(...xs: num): num { xs };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
+
+        let code2 = parse2("f(\"hello\", \"world\")".into()).unwrap();
+        let tc2 = tc1.typing_no_panic(&code2);
+        assert!(tc2.has_errors(), "expected type error for wrong arg type");
+    }
+
+    #[test]
+    fn test_variadic_with_fixed_params() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 = parse2("let concat <- fn(sep: char, ...args: char): char { args };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
+        assert!(!tc1.has_errors(), "variadic with fixed param errors: {:?}", tc1.get_errors());
+
+        let code2 = parse2("concat(\"-\", \"a\", \"b\", \"c\")".into()).unwrap();
+        let tc2 = tc1.typing_no_panic(&code2);
+        assert!(!tc2.has_errors(), "call with fixed+variadic errors: {:?}", tc2.get_errors());
+    }
+
+    #[test]
     fn test_record_constructor_matches_type_alias() {
         use crate::components::context::Context;
         use crate::processes::parsing::parse2;

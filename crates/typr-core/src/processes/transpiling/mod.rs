@@ -461,6 +461,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     cont.get_type_anotation(&return_type)
                 };
 
+                let has_variadic = params.last().map(|p| p.is_variadic()).unwrap_or(false);
                 let list_of_types = params
                     .iter()
                     .map(ArgumentType::get_type)
@@ -477,6 +478,18 @@ impl RTranslatable<(String, Context)> for Lang {
                 } else {
                     " |> ".to_owned() + &output_conversion
                 };
+                let body_r = body.to_r(&sub_context).0;
+                let final_body_r = if has_variadic {
+                    let vname = params.last().unwrap().get_argument_str();
+                    // inject `vname <- list(...)` after opening `{`
+                    if body_r.starts_with('{') {
+                        format!("{{\n{} <- list(...){}", vname, &body_r[1..])
+                    } else {
+                        body_r
+                    }
+                } else {
+                    body_r
+                };
                 (
                     format!(
                         "(function({}) {}{}) |> {}",
@@ -485,7 +498,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             .map(|x| x.to_r())
                             .collect::<Vec<_>>()
                             .join(", "),
-                        body.to_r(&sub_context).0,
+                        final_body_r,
                         res,
                         cont.get_type_anotation(&fn_type.into())
                     ),

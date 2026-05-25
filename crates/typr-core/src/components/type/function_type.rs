@@ -23,6 +23,7 @@ pub struct FunctionType {
     infered_return_type: Type,
     help_data: HelpData,
     vec_type: VecType,
+    is_variadic: bool,
 }
 
 fn lift(max_index: (VecType, i32), types: &[Type]) -> Vec<Type> {
@@ -40,24 +41,42 @@ impl FunctionType {
         return_type: Type,
         help_data: HelpData,
     ) -> Self {
+        let is_variadic = arguments.last().map(|a| a.is_variadic()).unwrap_or(false);
         let arguments: Vec<Type> = arguments.iter().map(|arg| arg.get_type()).collect();
         Self {
             return_type,
             help_data,
             arguments,
-            vec_type: vec_type,
+            vec_type,
             infered_return_type: builder::empty_type(),
+            is_variadic,
         }
     }
 
     pub fn adjust_nb_parameters(self, nb: usize) -> Self {
-        let arguments = if self.arguments.len() == nb {
+        let arguments = if self.is_variadic {
+            let fixed_count = self.arguments.len().saturating_sub(1);
+            if nb >= fixed_count {
+                let variadic_type = self.arguments.last().cloned().unwrap_or(builder::any_type());
+                let mut expanded = self.arguments[..fixed_count].to_vec();
+                for _ in fixed_count..nb {
+                    expanded.push(variadic_type.clone());
+                }
+                expanded
+            } else {
+                (0..nb).map(|_| builder::any_type()).collect()
+            }
+        } else if self.arguments.len() == nb {
             self.arguments
         } else {
             (0..nb).map(|_| builder::any_type()).collect::<Vec<Type>>()
         };
 
         Self { arguments, ..self }
+    }
+
+    pub fn is_variadic(&self) -> bool {
+        self.is_variadic
     }
 
     pub fn set_vectorized(self, vec_type: VecType) -> Self {
@@ -93,11 +112,32 @@ impl FunctionType {
     }
 
     pub fn infer_return_type(self, types: &[Type], context: &Context) -> Option<Self> {
+        if self.is_variadic {
+            return self.infer_return_type_variadic_fn(types, context);
+        }
         let param_types = self.get_param_types();
         context
             .get_unification_map(types, &param_types)
             .or(Self::lift_and_unification(context, types, &param_types))
             .map(|um| self.apply_unification_to_return_type(context, um))
+    }
+
+    fn infer_return_type_variadic_fn(self, types: &[Type], context: &Context) -> Option<Self> {
+        let fixed_count = self.arguments.len().saturating_sub(1);
+        if types.len() < fixed_count {
+            return None;
+        }
+        let variadic_type = self.arguments.last()?.clone();
+        // Expand params to match number of args passed
+        let mut expanded_params = self.arguments[..fixed_count].to_vec();
+        for _ in fixed_count..types.len() {
+            expanded_params.push(variadic_type.clone());
+        }
+        let expanded_self = self.clone().set_params(expanded_params.clone());
+        context
+            .get_unification_map(types, &expanded_params)
+            .or(Self::lift_and_unification(context, types, &expanded_params))
+            .map(|um| expanded_self.apply_unification_to_return_type(context, um))
     }
 
     pub fn infer_return_type_direct(self, types: &[Type], context: &Context) -> Option<Self> {
@@ -225,11 +265,13 @@ impl TryFrom<Type> for FunctionType {
 
 impl Default for FunctionType {
     fn default() -> FunctionType {
-        FunctionType::new(
-            VecType::Empty,
-            vec![],
-            builder::unknown_function_type(),
-            HelpData::default(),
-        )
+        FunctionType {
+            arguments: vec![],
+            return_type: builder::unknown_function_type(),
+            infered_return_type: builder::empty_type(),
+            help_data: HelpData::default(),
+            vec_type: VecType::Empty,
+            is_variadic: false,
+        }
     }
 }

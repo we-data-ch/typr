@@ -49,14 +49,25 @@ fn labeled_ltype(s: Span) -> IResult<Span, Type> {
     }
 }
 
-fn ltype_arg(s: Span) -> IResult<Span, Type> {
+fn ltype_arg(s: Span) -> IResult<Span, (bool, Type)> {
+    // Try variadic: `...Type` or `...name: Type`
+    let variadic = (
+        terminated(tag("..."), multispace0),
+        terminated(alt((labeled_ltype, ltype)), multispace0),
+        opt(terminated(tag(","), multispace0)),
+    )
+    .parse(s.clone());
+    if let Ok((s2, (_, typ, _))) = variadic {
+        return Ok((s2, (true, typ)));
+    }
+    // Regular: `Type` or `name: Type`
     let res = terminated(
         terminated(alt((labeled_ltype, ltype)), multispace0),
         opt(terminated(tag(","), multispace0)),
     )
     .parse(s);
     match res {
-        Ok((s, t)) => Ok((s, t)),
+        Ok((s, t)) => Ok((s, (false, t))),
         Err(r) => Err(r),
     }
 }
@@ -75,9 +86,9 @@ fn function_type(s: Span) -> IResult<Span, Type> {
             let args: Vec<ArgumentType> = v
                 .iter()
                 .enumerate()
-                .map(|(i, typ)| {
+                .map(|(i, (is_variadic, typ))| {
                     let arg_name = crate::components::r#type::generate_arg(i);
-                    ArgumentType::new(&arg_name, typ)
+                    ArgumentType::new(&arg_name, typ).set_variadic(*is_variadic)
                 })
                 .collect();
             Ok((s, Type::Function(args, Box::new(t), start.into())))
@@ -362,8 +373,8 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
     )
         .parse(s);
     match res {
-        Ok((s, (e1, _, Type::Embedded(ty, _), _))) => Ok((s, ArgumentType(e1, *ty.clone(), true))),
-        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false))),
+        Ok((s, (e1, _, Type::Embedded(ty, _), _))) => Ok((s, ArgumentType(e1, *ty.clone(), true, false))),
+        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false, false))),
         Err(r) => Err(r),
     }
 }
@@ -480,7 +491,7 @@ fn interface_function(s: Span) -> IResult<Span, ArgumentType> {
     )
         .parse(s);
     match res {
-        Ok((s, (e, _, f, _))) => Ok((s, ArgumentType(e, f, false))),
+        Ok((s, (e, _, f, _))) => Ok((s, ArgumentType(e, f, false, false))),
         Err(r) => Err(r),
     }
 }
@@ -495,7 +506,16 @@ fn interface(s: Span) -> IResult<Span, Type> {
         .parse(s);
     match res {
         Ok((s, (i, _, v, _))) => {
-            let set = v.iter().cloned().collect::<HashSet<_>>();
+            // Normalize function parameter names in interface method signatures
+            // so that `fn(s: Self) -> Self` compares equal to `fn(a: Self) -> Self`.
+            let set = v
+                .iter()
+                .cloned()
+                .map(|arg| {
+                    let normalized_type = arg.get_type().normalize_fn_param_names();
+                    arg.set_type(normalized_type)
+                })
+                .collect::<HashSet<_>>();
             Ok((s, Type::Interface(set, i.into())))
         }
         Err(r) => Err(r),

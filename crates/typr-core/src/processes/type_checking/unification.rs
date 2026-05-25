@@ -104,6 +104,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
                         arg_type.0.clone(),
                         type_substitution(&arg_type.1, substitutions),
                         arg_type.2,
+                        arg_type.3,
                     )
                 })
                 .collect(),

@@ -875,6 +875,23 @@ impl Type {
         }
     }
 
+    /// Normalize parameter names in a function type to generated names ("a", "b", …).
+    /// This ensures interface method signatures compare equal regardless of the
+    /// parameter names used in the original function definition.
+    pub fn normalize_fn_param_names(self) -> Type {
+        match self {
+            Type::Function(params, ret, h) => {
+                let new_params = params
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| ArgumentType::new(&generate_arg(i), &p.get_type()))
+                    .collect();
+                Type::Function(new_params, ret, h)
+            }
+            other => other,
+        }
+    }
+
     pub fn to_interface(&self, context: &Context) -> Type {
         match self {
             Type::Interface(_, _) => self.clone(),
@@ -887,10 +904,9 @@ impl Type {
                     .iter()
                     .cloned()
                     .map(|(var, typ2)| {
-                        (
-                            var.get_name(),
-                            typ2.replace_function_types(typ.clone(), builder::self_generic_type()),
-                        )
+                        let replaced =
+                            typ2.replace_function_types(typ.clone(), builder::self_generic_type());
+                        (var.get_name(), replaced.normalize_fn_param_names())
                     })
                     .collect::<Vec<_>>();
                 builder::interface_type2(&function_signatures)

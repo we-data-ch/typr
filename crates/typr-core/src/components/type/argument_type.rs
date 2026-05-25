@@ -8,8 +8,8 @@ use crate::processes::type_checking::type_comparison::reduce_type;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq)] // 3 argument is for the embedding
-pub struct ArgumentType(pub Type, pub Type, pub bool);
+#[derive(Debug, Clone, Serialize, Deserialize, Eq)] // 3rd bool = is_embedded, 4th bool = is_variadic
+pub struct ArgumentType(pub Type, pub Type, pub bool, pub bool);
 
 impl PartialEq for ArgumentType {
     fn eq(&self, other: &Self) -> bool {
@@ -25,11 +25,15 @@ impl std::hash::Hash for ArgumentType {
         self.0.hash(state);
         self.1.hash(state);
         self.2.hash(state);
+        self.3.hash(state);
     }
 }
 
 impl ArgumentType {
     pub fn to_r(&self) -> String {
+        if self.3 {
+            return "...".to_string();
+        }
         match &self.0 {
             Type::Char(c, _) => match c {
                 Tchar::Val(x) => x.to_string(),
@@ -44,7 +48,16 @@ impl ArgumentType {
             Type::Char(name.to_string().into(), HelpData::default()),
             type_.clone(),
             false,
+            false,
         )
+    }
+
+    pub fn is_variadic(&self) -> bool {
+        self.3
+    }
+
+    pub fn set_variadic(self, variadic: bool) -> Self {
+        ArgumentType(self.0, self.1, self.2, variadic)
     }
 
     pub fn get_type(&self) -> Type {
@@ -62,13 +75,13 @@ impl ArgumentType {
                 _ => panic!("A parameter can't be an empty value"),
             },
             Type::LabelGen(l, _) => l.to_string().to_uppercase(),
-            Type::Multi(t, _) => ArgumentType(*t, self.1.clone(), false).get_argument_str(),
+            Type::Multi(t, _) => ArgumentType(*t, self.1.clone(), false, false).get_argument_str(),
             _ => panic!("The argument wasn't a label"),
         }
     }
 
     pub fn remove_embeddings(&self) -> ArgumentType {
-        ArgumentType(self.0.clone(), self.1.clone(), false)
+        ArgumentType(self.0.clone(), self.1.clone(), false, self.3)
     }
 
     pub fn is_embedded(&self) -> bool {
@@ -76,7 +89,7 @@ impl ArgumentType {
     }
 
     pub fn set_type(self, typ: Type) -> ArgumentType {
-        ArgumentType(self.0, typ, self.2)
+        ArgumentType(self.0, typ, self.2, self.3)
     }
 
     pub fn to_var(self, context: &Context) -> Var {
@@ -106,7 +119,7 @@ impl ArgumentType {
     }
 
     pub fn index_calculation(self) -> ArgumentType {
-        ArgumentType(self.0, self.1.index_calculation(), self.2)
+        ArgumentType(self.0, self.1.index_calculation(), self.2, self.3)
     }
 }
 
@@ -118,7 +131,7 @@ impl fmt::Display for ArgumentType {
 
 impl From<(String, Type)> for ArgumentType {
     fn from(val: (String, Type)) -> Self {
-        ArgumentType(Type::Char(val.0.into(), val.1.clone().into()), val.1, false)
+        ArgumentType(Type::Char(val.0.into(), val.1.clone().into()), val.1, false, false)
     }
 }
 
@@ -127,6 +140,7 @@ impl From<(&str, Type)> for ArgumentType {
         ArgumentType(
             Type::Char(val.0.to_string().into(), val.1.clone().into()),
             val.1,
+            false,
             false,
         )
     }
@@ -137,6 +151,7 @@ impl From<(Var, Type)> for ArgumentType {
         ArgumentType(
             Type::Char(val.0.get_name().into(), val.1.clone().into()),
             val.1,
+            false,
             false,
         )
     }

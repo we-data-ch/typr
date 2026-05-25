@@ -61,6 +61,8 @@ enum Commands {
         r: bool,
         #[arg(short, long)]
         json: bool,
+        #[arg(short, long)]
+        files: bool,
     },
     Test,
     Pkg {
@@ -118,6 +120,7 @@ pub fn start() {
             types,
             r,
             json,
+            files,
         }) => debug_file(
             &file,
             DebugOptions {
@@ -125,6 +128,7 @@ pub fn start() {
                 show_types: types,
                 show_r: r,
                 write_json: json,
+                show_files: files,
             },
         ),
         Some(Commands::Test) => test(),
