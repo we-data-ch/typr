@@ -1,6 +1,8 @@
 use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::error_message::typr_error::TypRError;
+use crate::components::error_message::type_error::TypeError;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::ArgumentType;
 use crate::processes::type_checking::HelpData;
 use crate::processes::type_checking::TypeContext;
@@ -16,6 +18,19 @@ fn is_opaque_of(body_type: &Type, declared_ret: &Type) -> bool {
         }
         _ => false,
     }
+}
+
+/// Returns true when the return type is an interface that does not appear in any
+/// parameter. Such a position would require an existential type, which TypR does
+/// not support. The caller should use an opaque type instead.
+fn is_interface_return_only(params: &[ArgumentType], ret_ty: &Type, context: &Context) -> bool {
+    let reduced_ret = reduce_type(context, ret_ty);
+    if !reduced_ret.is_interface() {
+        return false;
+    }
+    !params
+        .iter()
+        .any(|p| reduce_type(context, &p.get_type()) == reduced_ret)
 }
 
 pub fn function(
@@ -43,6 +58,20 @@ pub fn function(
     }
 
     let list_of_types = params.to_vec();
+
+    // Error early if the return type is an interface not bound to any parameter.
+    // Such a position would require an existential type; use an opaque type instead.
+    if is_interface_return_only(params, ret_ty, context) {
+        return TypeContext::new(
+            Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone()),
+            expr.clone(),
+            context.clone(),
+        )
+        .with_errors(vec![TypRError::Type(TypeError::InterfaceReturnOnly(
+            ret_ty.clone(),
+        ))]);
+    }
+
     let sub_context = params
         .iter()
         .map(|arg_typ| arg_typ.clone().to_var(context))
@@ -472,6 +501,90 @@ mod tests {
         assert!(
             !tc2.has_errors(),
             "Expected no errors, got: {:?}",
+            tc2.get_errors()
+        );
+    }
+
+    // =====================================================================
+    // Tests for interface-return-only error (existential position)
+    // =====================================================================
+
+    /// fn(): Incrementable — interface only in return, no params at all.
+    /// Must produce an InterfaceReturnOnly error.
+    #[test]
+    fn test_interface_return_only_no_params() {
+        use crate::components::context::Context;
+        use crate::components::error_message::type_error::TypeError;
+        use crate::components::error_message::typr_error::TypRError;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 =
+            parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::empty()).typing_no_panic(&code1);
+
+        let code2 = parse2("fn(): Incrementable { ... }".into()).unwrap();
+        let tc2 = tc1.typing_no_panic(&code2);
+
+        assert!(tc2.has_errors(), "Expected InterfaceReturnOnly error");
+        assert!(
+            tc2.get_errors()
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::InterfaceReturnOnly(_)))),
+            "Expected InterfaceReturnOnly, got: {:?}",
+            tc2.get_errors()
+        );
+    }
+
+    /// fn(x: int): Incrementable — interface only in return, param is concrete.
+    /// Must produce an InterfaceReturnOnly error.
+    #[test]
+    fn test_interface_return_only_concrete_param() {
+        use crate::components::context::Context;
+        use crate::components::error_message::type_error::TypeError;
+        use crate::components::error_message::typr_error::TypRError;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 =
+            parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::empty()).typing_no_panic(&code1);
+
+        let code2 = parse2("fn(x: int): Incrementable { ... }".into()).unwrap();
+        let tc2 = tc1.typing_no_panic(&code2);
+
+        assert!(tc2.has_errors(), "Expected InterfaceReturnOnly error");
+        assert!(
+            tc2.get_errors()
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::InterfaceReturnOnly(_)))),
+            "Expected InterfaceReturnOnly, got: {:?}",
+            tc2.get_errors()
+        );
+    }
+
+    /// fn(i: Incrementable): Incrementable — interface in both param and return.
+    /// Must NOT produce an InterfaceReturnOnly error.
+    #[test]
+    fn test_interface_param_and_return_no_error() {
+        use crate::components::context::Context;
+        use crate::components::error_message::type_error::TypeError;
+        use crate::components::error_message::typr_error::TypRError;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 =
+            parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::empty()).typing_no_panic(&code1);
+
+        let code2 = parse2("fn(i: Incrementable): Incrementable { i.incr() }".into()).unwrap();
+        let tc2 = tc1.typing_no_panic(&code2);
+
+        assert!(
+            !tc2.get_errors()
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::InterfaceReturnOnly(_)))),
+            "Should not have InterfaceReturnOnly error, got: {:?}",
             tc2.get_errors()
         );
     }

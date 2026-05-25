@@ -25,6 +25,7 @@ pub enum TypeError {
     AliasNotFound(Type),
     FunctionNotFound(Var),
     AliasMissingGenerics(String, Vec<String>, Type),
+    InterfaceReturnOnly(Type),
 }
 
 impl TypeError {
@@ -45,6 +46,7 @@ impl TypeError {
             TypeError::AliasNotFound(typ) => Some(typ.get_help_data()),
             TypeError::FunctionNotFound(var) => Some(var.get_help_data()),
             TypeError::AliasMissingGenerics(_, _, typ) => Some(typ.get_help_data()),
+            TypeError::InterfaceReturnOnly(typ) => Some(typ.get_help_data()),
         }
     }
 
@@ -113,6 +115,12 @@ impl TypeError {
                 format!(
                     "The alias {} isn't catching every generics. You should write `type {}<{}> <- ...;` instead. If you don't want them as a parameter, you can replace them with `Any`.",
                     name, name, generics_str
+                )
+            }
+            TypeError::InterfaceReturnOnly(typ) => {
+                format!(
+                    "Interface type '{}' appears only in return position. Use an opaque type instead: `opaque MyType <- ...`.",
+                    typ.pretty()
                 )
             }
         }
@@ -338,6 +346,24 @@ impl ErrorMsg for TypeError {
                     .text("Wrong indexing".to_string())
                     .pos_text1(format!("{} Can't be indexed", t1.pretty2()))
                     .pos_text2(format!("Has a bigger dimension {}", t2.pretty2()))
+                    .build()
+            }
+            TypeError::InterfaceReturnOnly(typ) => {
+                let help_data = typ.get_help_data();
+                let (file_name, text) =
+                    help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "Interface '{}' appears only in return position.",
+                        typ.pretty()
+                    ))
+                    .pos_text("Interface type used as existential return")
+                    .help(
+                        "An interface in return position (without a matching parameter) \
+                         acts as an existential type, which is not supported. \
+                         Use an opaque type to hide the implementation: `opaque MyType <- ...`."
+                    )
                     .build()
             }
         };

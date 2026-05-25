@@ -93,6 +93,61 @@ fn try_variadic_match(
         .next()
 }
 
+/// Interface subtyping match with universal generic return-type inference.
+///
+/// For each candidate, checks that every argument satisfies its corresponding
+/// parameter (using is_subtype_raw for interface params, subtype check otherwise).
+/// When the return type reduces to the same interface as one of the matched
+/// parameters, it is replaced by the concrete argument type for that parameter.
+/// This implements the desugaring: fn(i: I): I  =>  forall A: I. A -> A.
+fn try_interface_subtype_match(
+    candidates: &[FunctionType],
+    arg_types: &[Type],
+    context: &Context,
+) -> Option<FunctionType> {
+    for sig in candidates {
+        let param_types = sig.get_param_types();
+        if param_types.len() != arg_types.len() {
+            continue;
+        }
+
+        // Collect interface-param → concrete-arg mappings while verifying all params match.
+        let mut interface_to_concrete: Vec<(Type, Type)> = Vec::new();
+        let all_match = param_types.iter().zip(arg_types.iter()).all(|(param, arg)| {
+            let reduced_param = reduce_type(context, param);
+            if matches!(&reduced_param, Type::Interface(_, _)) {
+                if arg.is_subtype_raw(&reduced_param, context) {
+                    if !interface_to_concrete.iter().any(|(k, _)| k == &reduced_param) {
+                        interface_to_concrete.push((reduced_param, arg.clone()));
+                    }
+                    true
+                } else {
+                    false
+                }
+            } else {
+                arg.is_subtype_raw(&reduced_param, context)
+            }
+        });
+
+        if !all_match {
+            continue;
+        }
+
+        // If the return type reduces to one of the matched interfaces, substitute it
+        // with the corresponding concrete argument type.
+        let ret_type = sig.get_return_type();
+        let reduced_ret = reduce_type(context, &ret_type);
+        let inferred_ret = interface_to_concrete
+            .iter()
+            .find(|(iface, _)| *iface == reduced_ret)
+            .map(|(_, concrete)| concrete.clone())
+            .unwrap_or(ret_type);
+
+        return Some(sig.clone().set_infered_return_type(inferred_ret));
+    }
+    None
+}
+
 fn get_generic_params_from_type(typ: &Type) -> Vec<(String, Type)> {
     match typ {
         Type::Function(params, ret, _) => {
@@ -547,6 +602,11 @@ pub fn apply_from_variable(
             .subtypes
             .get_ordered_supertypes(first_arg_type, context);
         for super_type in &super_types {
+            // Interface super-types are handled by FILTERING 2.5 with proper
+            // return-type inference (universal generic semantics). Skip them here.
+            if matches!(reduce_type(context, super_type), Type::Interface(_, _)) {
+                continue;
+            }
             let candidates = filter_by_first_param(&all_signatures, super_type, context);
             if !candidates.is_empty() {
                 if let Some(fun_typ) = try_direct_match(&candidates, &types, context) {
@@ -567,8 +627,10 @@ pub fn apply_from_variable(
     }
 
     // === FILTERING 2.5 : Interface structural subtyping ===
-    // Handles the case where the first parameter is an interface alias and the argument
-    // satisfies the interface structurally (via to_interface / is_subtype_raw).
+    // Handles the case where parameters are interface types and arguments satisfy them
+    // structurally. When the return type is the same interface as a matched parameter,
+    // it is substituted with the concrete argument type (universal generic semantics:
+    // fn(i: I): I desugars to forall A: I. A -> A).
     if let Some(first_arg_type) = types.first() {
         let interface_candidates: Vec<FunctionType> = all_signatures
             .iter()
@@ -584,7 +646,9 @@ pub fn apply_from_variable(
             .cloned()
             .collect();
         if !interface_candidates.is_empty() {
-            if let Some(fun_typ) = try_direct_match(&interface_candidates, &types, context) {
+            if let Some(fun_typ) =
+                try_interface_subtype_match(&interface_candidates, &types, context)
+            {
                 let (final_params, final_types) =
                     specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
                 return build_success(
@@ -1293,6 +1357,48 @@ mod tests {
             !last_log.contains("not defined in this scope"),
             "Expected double to resolve, got: {}",
             last_log
+        );
+    }
+
+    /// When calling a function with an interface parameter and the return type is the same
+    /// interface, the return type should be the concrete argument type (universal generic
+    /// semantics: fn(i: I): I  desugars to  forall A: I. A -> A).
+    #[test]
+    fn test_interface_param_infers_concrete_return_type() {
+        let fp = FluentParser::new()
+            .push("type Incrementable <- interface { incr: (Self) -> Self };")
+            .run()
+            .push("let double <- fn(i: Incrementable): Incrementable { i.incr().incr() };")
+            .run()
+            .push("let incr <- fn(i: int): int { i + 1 };")
+            .run()
+            .push("double(3)")
+            .parse_type_next();
+        assert_eq!(
+            fp.get_last_type(),
+            builder::integer_type_default(),
+            "Expected int (concrete return type), got: {:?}",
+            fp.get_last_type()
+        );
+    }
+
+    /// Chaining interface method calls: double(double(3)) should return int.
+    #[test]
+    fn test_interface_chained_application_returns_concrete_type() {
+        let fp = FluentParser::new()
+            .push("type Incrementable <- interface { incr: (Self) -> Self };")
+            .run()
+            .push("let double <- fn(i: Incrementable): Incrementable { i.incr().incr() };")
+            .run()
+            .push("let incr <- fn(i: int): int { i + 1 };")
+            .run()
+            .push("double(double(3))")
+            .parse_type_next();
+        assert_eq!(
+            fp.get_last_type(),
+            builder::integer_type_default(),
+            "Expected int, got: {:?}",
+            fp.get_last_type()
         );
     }
 }
