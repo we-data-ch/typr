@@ -1,33 +1,33 @@
 pub mod argument_value;
-pub mod function_lang;
-pub mod var_function;
-pub mod module_lang;
 pub mod array_lang;
+pub mod function_lang;
+pub mod module_lang;
 pub mod operators;
-pub mod var;
 pub mod use_lang;
+pub mod var;
+pub mod var_function;
 
-use crate::components::language::argument_value::ArgumentValue;
-use crate::components::language::use_lang::UseSelector;
-use crate::processes::transpiling::translatable::RTranslatable;
-use crate::processes::type_checking::type_context::TypeContext;
-use crate::processes::parsing::operation_priority::TokenKind;
+use crate::components::context::config::Config;
+use crate::components::context::config::Environment;
+use crate::components::context::Context;
+use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::locatable::Locatable;
+use crate::components::language::argument_value::ArgumentValue;
+use crate::components::language::operators::Op;
+use crate::components::language::use_lang::UseSelector;
+use crate::components::language::var::Var;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
-use crate::components::error_message::help_data::HelpData;
-use crate::processes::parsing::lang_token::LangToken;
 use crate::components::r#type::vector_type::VecType;
-use crate::components::context::config::Environment;
-use crate::processes::parsing::elements::elements;
-use crate::components::context::config::Config;
-use crate::components::language::operators::Op;
-use crate::processes::type_checking::typing;
-use crate::components::language::var::Var;
-use crate::components::context::Context;
 use crate::components::r#type::Type;
-use serde::{Deserialize, Serialize};
+use crate::processes::parsing::elements::elements;
+use crate::processes::parsing::lang_token::LangToken;
+use crate::processes::parsing::operation_priority::TokenKind;
+use crate::processes::transpiling::translatable::RTranslatable;
+use crate::processes::type_checking::type_context::TypeContext;
+use crate::processes::type_checking::typing;
 use crate::utils::builder;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -406,8 +406,16 @@ impl PartialEq for Lang {
             ) => a1 == b1 && a2 == b2 && a3 == b3,
             (Lang::Array { value: a, .. }, Lang::Array { value: b, .. }) => a == b,
             (
-                Lang::ArrayConstructorCall { type_name: a1, elements: a2, .. },
-                Lang::ArrayConstructorCall { type_name: b1, elements: b2, .. },
+                Lang::ArrayConstructorCall {
+                    type_name: a1,
+                    elements: a2,
+                    ..
+                },
+                Lang::ArrayConstructorCall {
+                    type_name: b1,
+                    elements: b2,
+                    ..
+                },
             ) => a1 == b1 && a2 == b2,
             (Lang::List { value: a, .. }, Lang::List { value: b, .. }) => a == b,
             (Lang::DataFrame { value: a, .. }, Lang::DataFrame { value: b, .. }) => a == b,
@@ -981,10 +989,16 @@ impl Lang {
             Lang::Dots(_) => "Dots".to_string(),
             Lang::UseModule { module_path, .. } => format!("UseModule({})", module_path.join("::")),
             Lang::ConstructorCall { type_name, .. } => format!("ConstructorCall({})", type_name),
-            Lang::UnionConstructor { union_name, variant_name, .. } => {
+            Lang::UnionConstructor {
+                union_name,
+                variant_name,
+                ..
+            } => {
                 format!("UnionConstructor({}.{})", union_name, variant_name)
             }
-            Lang::ArrayConstructorCall { type_name, .. } => format!("ArrayConstructorCall({})", type_name),
+            Lang::ArrayConstructorCall { type_name, .. } => {
+                format!("ArrayConstructorCall({})", type_name)
+            }
         }
     }
 

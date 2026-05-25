@@ -13,6 +13,12 @@ pub enum SyntaxError {
     ForgottenSemicolon(HelpData),
     MissingListPrefix(HelpData),
     EmptyFunctionBody(HelpData),
+    FunctionTypeSyntax(HelpData),
+    UnknownElement {
+        element: String,
+        line: u32,
+        help_data: HelpData,
+    },
     WithNode(Box<Lang>, Box<SyntaxError>),
 }
 
@@ -25,6 +31,8 @@ impl SyntaxError {
             SyntaxError::ForgottenSemicolon(h) => Some(h.clone()),
             SyntaxError::MissingListPrefix(h) => Some(h.clone()),
             SyntaxError::EmptyFunctionBody(h) => Some(h.clone()),
+            SyntaxError::FunctionTypeSyntax(h) => Some(h.clone()),
+            SyntaxError::UnknownElement { help_data, .. } => Some(help_data.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
     }
@@ -46,6 +54,17 @@ impl SyntaxError {
             }
             SyntaxError::EmptyFunctionBody(_) => {
                 "Empty function body is not allowed. Use `...` as a placeholder.".to_string()
+            }
+            SyntaxError::FunctionTypeSyntax(_) => {
+                "Function types use parentheses without 'fn': use `(args) -> Type` instead of `fn(args) -> Type`".to_string()
+            }
+            SyntaxError::UnknownElement { element, line, help_data } => {
+                format!(
+                    "Unknown element `{}` in `{}` at `{}`",
+                    element,
+                    help_data.get_file_name(),
+                    line
+                )
             }
             SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
@@ -103,6 +122,26 @@ impl ErrorMsg for SyntaxError {
                     .text("Empty function body is not allowed")
                     .pos_text("Empty body here")
                     .help("Use `...` as a placeholder: `fn(): Type { ... }`")
+                    .build()
+            }
+            SyntaxError::FunctionTypeSyntax(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text("Function types use parentheses without 'fn'")
+                    .pos_text("Unexpected 'fn' here")
+                    .help("Use `(args) -> Type` instead of `fn(args) -> Type`")
+                    .build()
+            }
+            SyntaxError::UnknownElement { element, line, help_data } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name.clone(), text)
+                    .pos((help_data.get_offset(), element.len()))
+                    .text(format!(
+                        "Unknown element `{}` in `{}` at `{}`",
+                        element, file_name, line
+                    ))
+                    .pos_text("Here")
                     .build()
             }
             SyntaxError::WithNode(_, inner) => return inner.display(),

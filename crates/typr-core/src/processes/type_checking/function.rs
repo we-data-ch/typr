@@ -1,6 +1,6 @@
 use crate::components::error_message::syntax_error::SyntaxError;
-use crate::components::error_message::typr_error::TypRError;
 use crate::components::error_message::type_error::TypeError;
+use crate::components::error_message::typr_error::TypRError;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::ArgumentType;
@@ -381,17 +381,22 @@ mod tests {
 
     #[test]
     fn test_empty_function_body_produces_error() {
+        use crate::components::context::Context;
         use crate::components::error_message::syntax_error::SyntaxError;
         use crate::components::error_message::typr_error::TypRError;
-        use crate::components::context::Context;
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
         let code = parse2("fn(): Any {}".into()).unwrap();
         let tc = TypeChecker::new(Context::empty()).typing_no_panic(&code);
-        assert!(tc.has_errors(), "Expected at least one error for empty function body");
+        assert!(
+            tc.has_errors(),
+            "Expected at least one error for empty function body"
+        );
         let errors = tc.get_errors();
         assert!(
-            errors.iter().any(|e| matches!(e, TypRError::Syntax(SyntaxError::EmptyFunctionBody(_)))),
+            errors
+                .iter()
+                .any(|e| matches!(e, TypRError::Syntax(SyntaxError::EmptyFunctionBody(_)))),
             "Expected EmptyFunctionBody error, got: {:?}",
             errors
         );
@@ -435,11 +440,19 @@ mod tests {
 
         let code1 = parse2("let f <- fn(...xs: num): num { xs };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
-        assert!(!tc1.has_errors(), "variadic decl errors: {:?}", tc1.get_errors());
+        assert!(
+            !tc1.has_errors(),
+            "variadic decl errors: {:?}",
+            tc1.get_errors()
+        );
 
         let code2 = parse2("f(1.0, 2.0, 3.0)".into()).unwrap();
         let tc2 = tc1.typing_no_panic(&code2);
-        assert!(!tc2.has_errors(), "variadic call errors: {:?}", tc2.get_errors());
+        assert!(
+            !tc2.has_errors(),
+            "variadic call errors: {:?}",
+            tc2.get_errors()
+        );
     }
 
     #[test]
@@ -453,7 +466,11 @@ mod tests {
 
         let code2 = parse2("f()".into()).unwrap();
         let tc2 = tc1.typing_no_panic(&code2);
-        assert!(!tc2.has_errors(), "zero-arg variadic call errors: {:?}", tc2.get_errors());
+        assert!(
+            !tc2.has_errors(),
+            "zero-arg variadic call errors: {:?}",
+            tc2.get_errors()
+        );
     }
 
     #[test]
@@ -476,13 +493,22 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
 
-        let code1 = parse2("let concat <- fn(sep: char, ...args: char): char { args };".into()).unwrap();
+        let code1 =
+            parse2("let concat <- fn(sep: char, ...args: char): char { args };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
-        assert!(!tc1.has_errors(), "variadic with fixed param errors: {:?}", tc1.get_errors());
+        assert!(
+            !tc1.has_errors(),
+            "variadic with fixed param errors: {:?}",
+            tc1.get_errors()
+        );
 
         let code2 = parse2("concat(\"-\", \"a\", \"b\", \"c\")".into()).unwrap();
         let tc2 = tc1.typing_no_panic(&code2);
-        assert!(!tc2.has_errors(), "call with fixed+variadic errors: {:?}", tc2.get_errors());
+        assert!(
+            !tc2.has_errors(),
+            "call with fixed+variadic errors: {:?}",
+            tc2.get_errors()
+        );
     }
 
     #[test]
@@ -491,7 +517,9 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
 
-        let code1 = parse2("type Character <- list { name: char, attack: int, health: int };".into()).unwrap();
+        let code1 =
+            parse2("type Character <- list { name: char, attack: int, health: int };".into())
+                .unwrap();
         let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
 
         let code2 = parse2(

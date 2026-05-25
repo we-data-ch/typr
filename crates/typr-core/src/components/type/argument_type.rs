@@ -131,7 +131,12 @@ impl fmt::Display for ArgumentType {
 
 impl From<(String, Type)> for ArgumentType {
     fn from(val: (String, Type)) -> Self {
-        ArgumentType(Type::Char(val.0.into(), val.1.clone().into()), val.1, false, false)
+        ArgumentType(
+            Type::Char(val.0.into(), val.1.clone().into()),
+            val.1,
+            false,
+            false,
+        )
     }
 }
 

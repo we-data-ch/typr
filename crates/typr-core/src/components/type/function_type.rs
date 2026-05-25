@@ -8,8 +8,8 @@
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
-use crate::components::r#type::Type;
 use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::Type;
 use crate::components::r#type::VecType;
 use crate::processes::type_checking::unification_map::UnificationMap;
 use crate::utils::builder;
@@ -57,7 +57,11 @@ impl FunctionType {
         let arguments = if self.is_variadic {
             let fixed_count = self.arguments.len().saturating_sub(1);
             if nb >= fixed_count {
-                let variadic_type = self.arguments.last().cloned().unwrap_or(builder::any_type());
+                let variadic_type = self
+                    .arguments
+                    .last()
+                    .cloned()
+                    .unwrap_or(builder::any_type());
                 let mut expanded = self.arguments[..fixed_count].to_vec();
                 for _ in fixed_count..nb {
                     expanded.push(variadic_type.clone());

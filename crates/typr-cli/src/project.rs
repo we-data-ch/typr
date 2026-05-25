@@ -60,7 +60,9 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
         Integer { value, .. } => format!("{}Integer({})", pad, value),
         Bool { value, .. } => format!("{}Bool({})", pad, value),
         Char { value, .. } => format!("{}Char({:?})", pad, value),
-        Variable { name, is_opaque, .. } => {
+        Variable {
+            name, is_opaque, ..
+        } => {
             let op = if *is_opaque { " (opaque)" } else { "" };
             format!("{}Variable({}{})", pad, name, op)
         }
@@ -109,11 +111,10 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
                 print_ast(body, indent + 1)
             )
         }
-        Lambda { parameters, body, .. } => {
-            let params: Vec<String> = parameters
-                .iter()
-                .map(|p| p.simple_print())
-                .collect();
+        Lambda {
+            parameters, body, ..
+        } => {
+            let params: Vec<String> = parameters.iter().map(|p| p.simple_print()).collect();
             format!(
                 "{}fn({}) {{ ... }}\n{}",
                 pad,
@@ -122,7 +123,9 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
             )
         }
         FunctionApp {
-            identifier, arguments, ..
+            identifier,
+            arguments,
+            ..
         } => {
             let name = match identifier.as_ref() {
                 Variable { name, .. } => name.clone(),
@@ -150,7 +153,11 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
             };
             format!(
                 "{}{}type {}{} <- {}",
-                pad, pub_, name, params_str, target_type.pretty()
+                pad,
+                pub_,
+                name,
+                params_str,
+                target_type.pretty()
             )
         }
         Lines { value, .. } => {
@@ -161,7 +168,9 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
             let items: Vec<String> = body.iter().map(|l| print_ast(l, indent + 1)).collect();
             format!("{}Scope\n{}", pad, items.join("\n"))
         }
-        Operator { operator, rhs, lhs, .. } => {
+        Operator {
+            operator, rhs, lhs, ..
+        } => {
             let op_str = format!("{}", operator);
             let rhs_str = print_ast(rhs, indent + 1);
             let lhs_str = print_ast(lhs, indent + 1);
@@ -210,9 +219,7 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
             format!("{}module {}\n{}", pad, name, items.join("\n"))
         }
         ConstructorCall {
-            type_name,
-            fields,
-            ..
+            type_name, fields, ..
         } => {
             let args: Vec<String> = fields
                 .iter()
@@ -257,8 +264,10 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
     // Step 1: Parse
     if show_all || opts.show_ast {
         print_step("Parsing");
-        let result =
-            typr_core::processes::parsing::parse_from_string_with_errors(&source, &path.to_string_lossy());
+        let result = typr_core::processes::parsing::parse_from_string_with_errors(
+            &source,
+            &path.to_string_lossy(),
+        );
         println!("  AST ({:?} nodes):", path);
         println!("{}", print_ast(&result.ast, 1));
 
@@ -274,7 +283,8 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
     if show_all || opts.show_types || opts.show_r || opts.show_files {
         print_step("Type Checking + Transpilation");
         let context = Context::default();
-        let ast = typr_core::processes::parsing::parse_from_string(&source, &path.to_string_lossy());
+        let ast =
+            typr_core::processes::parsing::parse_from_string(&source, &path.to_string_lossy());
         let type_checker = TypeChecker::new(context).typing_no_panic(&ast);
 
         if type_checker.has_errors() {
@@ -413,7 +423,9 @@ pub fn write_to_r_lang(
     .unwrap();
     let source = match environment {
         Environment::Project | Environment::Repl | Environment::Wasm => "",
-        Environment::StandAlone => "source('a_std.R', echo = FALSE)\nsource('b_generic_functions.R')\nsource('c_types.R')",
+        Environment::StandAlone => {
+            "source('a_std.R', echo = FALSE)\nsource('b_generic_functions.R')\nsource('c_types.R')"
+        }
     };
     app.write_all(format!("{}\n{}", source, content).as_bytes())
         .unwrap();
@@ -610,11 +622,7 @@ pub fn run_project() {
     build_project();
     let r_command = "devtools::load_all(); source('R/d_main.R')";
     println!("Executing: Rscript -e \"{}\"", r_command);
-    match Command::new("Rscript")
-        .arg("-e")
-        .arg(r_command)
-        .output()
-    {
+    match Command::new("Rscript").arg("-e").arg(r_command).output() {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);

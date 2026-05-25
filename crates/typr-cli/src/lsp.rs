@@ -704,7 +704,9 @@ fn collect_symbols_from_ast(
             }
         }
 
-        Lang::Signature { identifier: var, .. } => {
+        Lang::Signature {
+            identifier: var, ..
+        } => {
             let name = var.get_name();
             let help_data = var.get_help_data();
             let offset = help_data.get_offset();

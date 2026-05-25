@@ -216,7 +216,9 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             } else {
                 var.clone()
             };
-            let alias_context = context.clone().push_alias(effective_var.get_name(), typ.to_owned());
+            let alias_context = context
+                .clone()
+                .push_alias(effective_var.get_name(), typ.to_owned());
             let new_context =
                 context
                     .clone()
@@ -259,10 +261,11 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let final_context = if let Type::Operator(TypeOperator::Union, _, _, _) = typ {
                 let alias_type = Type::Alias(effective_var.get_name(), vec![], false, h.clone());
                 let members = flatten_operator_union(typ);
-                let new_subtypes = members.iter().fold(
-                    ctx_with_alias.subtypes.clone(),
-                    |graph, member| graph.cache_subtype(member.clone(), alias_type.clone(), true),
-                );
+                let new_subtypes = members
+                    .iter()
+                    .fold(ctx_with_alias.subtypes.clone(), |graph, member| {
+                        graph.cache_subtype(member.clone(), alias_type.clone(), true)
+                    });
                 ctx_with_alias.with_subtypes(new_subtypes)
             } else {
                 ctx_with_alias
@@ -440,8 +443,9 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             // Register only the module itself — members must be imported explicitly via `use`
             let module_type = Type::Module(pub_arg_types, h.clone());
             let module_var = Var::from_name(module_name);
-            let final_context =
-                context.clone().push_var_type(module_var, module_type, context);
+            let final_context = context
+                .clone()
+                .push_var_type(module_var, module_type, context);
 
             TypeContext::new(builder::empty_type(), expr.clone(), final_context)
                 .with_errors(typing_context.errors)
@@ -1815,11 +1819,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .collect();
             let sub_context = params.iter().zip(fresh_param_types.iter()).fold(
                 context.clone(),
-                |ctx: Context, (param, typ): (&Lang, &Type)| {
-                    match Var::from_language(param.clone()) {
-                        Some(var) => ctx.clone().push_var_type(var, typ.clone(), &ctx),
-                        None => ctx,
-                    }
+                |ctx: Context, (param, typ): (&Lang, &Type)| match Var::from_language(param.clone())
+                {
+                    Some(var) => ctx.clone().push_var_type(var, typ.clone(), &ctx),
+                    None => ctx,
                 },
             );
             let body_tc = typing(&sub_context, body);
@@ -1831,16 +1834,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     ArgumentType::new(&arg_name, typ)
                 })
                 .collect();
-            let func_type = Type::Function(
-                fresh_arg_types,
-                Box::new(body_tc.value.clone()),
-                h.clone(),
-            );
+            let func_type =
+                Type::Function(fresh_arg_types, Box::new(body_tc.value.clone()), h.clone());
             // Don't propagate errors from the initial lambda typing:
             // the body will be re-typed after specialization in apply_from_variable
             // with concrete types substituted for the fresh type variables.
             TypeContext::new(func_type, expr.clone(), context.clone())
-        },
+        }
         Lang::Dots(h) => Type::Any(h.clone()).with_lang(expr, context).into(),
         Lang::UseModule {
             module_path,
@@ -1888,8 +1888,12 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                     help_data: help_data.clone(),
                                 },
                             )));
-                            return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
-                                .with_errors(errors);
+                            return TypeContext::new(
+                                builder::empty_type(),
+                                expr.clone(),
+                                context.clone(),
+                            )
+                            .with_errors(errors);
                         }
                     },
                     Err(_) => {
@@ -1901,8 +1905,12 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                 help_data: help_data.clone(),
                             },
                         )));
-                        return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
-                            .with_errors(errors);
+                        return TypeContext::new(
+                            builder::empty_type(),
+                            expr.clone(),
+                            context.clone(),
+                        )
+                        .with_errors(errors);
                     }
                 }
             }
@@ -1932,15 +1940,20 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     for member in mod_type.get_public_members() {
                         let local_name = member.get_argument_str();
                         // Conflict with local declaration
-                        if context.get_type_from_variable(&Var::from_name(&local_name)).is_ok() {
+                        if context
+                            .get_type_from_variable(&Var::from_name(&local_name))
+                            .is_ok()
+                        {
                             errors.push(TypRError::Type(TypeError::ImmutableVariable(
                                 Var::from_name(&local_name),
                                 Var::from_name(&local_name),
                             )));
                         } else {
-                            new_context = new_context
-                                .clone()
-                                .push_var_type(Var::from_name(&local_name), member.get_type(), &new_context);
+                            new_context = new_context.clone().push_var_type(
+                                Var::from_name(&local_name),
+                                member.get_type(),
+                                &new_context,
+                            );
                         }
                     }
                 }
@@ -1959,7 +1972,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         }
 
                         // Conflict with existing local
-                        if context.get_type_from_variable(&Var::from_name(&local_name)).is_ok() {
+                        if context
+                            .get_type_from_variable(&Var::from_name(&local_name))
+                            .is_ok()
+                        {
                             errors.push(TypRError::Type(TypeError::ImmutableVariable(
                                 Var::from_name(&local_name),
                                 Var::from_name(&local_name),
@@ -1991,8 +2007,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 }
             }
 
-            TypeContext::new(builder::empty_type(), expr.clone(), new_context)
-                .with_errors(errors)
+            TypeContext::new(builder::empty_type(), expr.clone(), new_context).with_errors(errors)
         }
         Lang::ConstructorCall {
             type_name,
@@ -2046,9 +2061,11 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         | Lang::Use { help_data: h, .. } => {
             TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
         }
-        Lang::GenFunc { help_data: h, .. } => {
-            TypeContext::new(builder::unknown_function_type(), expr.clone(), context.clone())
-        }
+        Lang::GenFunc { help_data: h, .. } => TypeContext::new(
+            builder::unknown_function_type(),
+            expr.clone(),
+            context.clone(),
+        ),
         Lang::KeyValue { value, .. } => typing(context, value),
         _ => builder::any_type().with_lang(expr, context).into(),
     }
@@ -2419,10 +2436,10 @@ mod tests {
             "Expected AliasNotFound for private type geo::Meters"
         );
         assert!(
-            result.get_errors().iter().any(|e| matches!(
-                e,
-                TypRError::Type(TypeError::AliasNotFound(_))
-            )),
+            result
+                .get_errors()
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::AliasNotFound(_)))),
             "Expected AliasNotFound error but got: {:?}",
             result.get_errors()
         );
@@ -2493,7 +2510,10 @@ mod tests {
                 ret
             );
         } else {
-            panic!("Expected function type for make_unit, got {:?}", make_unit_type);
+            panic!(
+                "Expected function type for make_unit, got {:?}",
+                make_unit_type
+            );
         }
     }
 
@@ -2519,11 +2539,13 @@ mod tests {
             .parse_type_next();
         let ctx = fp.context.clone();
         assert!(
-            ctx.get_type_from_variable(&Var::from_name("new_person")).is_ok(),
+            ctx.get_type_from_variable(&Var::from_name("new_person"))
+                .is_ok(),
             "new_person should be in context after 'use person::new_person'"
         );
         assert!(
-            ctx.get_type_from_variable(&Var::from_name("is_minor")).is_err(),
+            ctx.get_type_from_variable(&Var::from_name("is_minor"))
+                .is_err(),
             "is_minor should NOT be in context (not imported)"
         );
     }
@@ -2543,29 +2565,56 @@ p"#;
         let lang = parse_from_string(src, "test_app");
 
         // Step 1: check module alone
-        let module_expr = if let Lang::Lines { value: exprs, .. } = &lang { exprs[0].clone() } else { unreachable!() };
-        let use_expr = if let Lang::Lines { value: exprs, .. } = &lang { exprs[1].clone() } else { unreachable!() };
+        let module_expr = if let Lang::Lines { value: exprs, .. } = &lang {
+            exprs[0].clone()
+        } else {
+            unreachable!()
+        };
+        let use_expr = if let Lang::Lines { value: exprs, .. } = &lang {
+            exprs[1].clone()
+        } else {
+            unreachable!()
+        };
 
         let ctx0 = Context::default();
         let tc_after_module = TypeChecker::new(ctx0).typing_no_panic(&module_expr);
         let ctx_after_module = tc_after_module.get_context();
 
         // Check person is in context
-        assert!(ctx_after_module.get_type_from_variable(&Var::from_name("person")).is_ok(),
-            "person module should be in context after module definition");
+        assert!(
+            ctx_after_module
+                .get_type_from_variable(&Var::from_name("person"))
+                .is_ok(),
+            "person module should be in context after module definition"
+        );
 
         // Check person's module type has new_person
-        let person_type = ctx_after_module.get_type_from_variable(&Var::from_name("person")).unwrap();
-        let mod_type = person_type.to_module_type().expect("person should be a module type");
+        let person_type = ctx_after_module
+            .get_type_from_variable(&Var::from_name("person"))
+            .unwrap();
+        let mod_type = person_type
+            .to_module_type()
+            .expect("person should be a module type");
         let new_person_exported = mod_type.get_type_from_name("new_person");
-        assert!(new_person_exported.is_ok(), "new_person should be exported by person module, got members: {:?}",
-            mod_type.get_public_members().iter().map(|m| m.get_argument_str()).collect::<Vec<_>>());
+        assert!(
+            new_person_exported.is_ok(),
+            "new_person should be exported by person module, got members: {:?}",
+            mod_type
+                .get_public_members()
+                .iter()
+                .map(|m| m.get_argument_str())
+                .collect::<Vec<_>>()
+        );
 
         // Step 2: check use expression updates context
         let tc_after_use = TypeChecker::new(ctx_after_module).typing_no_panic(&use_expr);
         let ctx_after_use = tc_after_use.get_context();
-        assert!(ctx_after_use.get_type_from_variable(&Var::from_name("new_person")).is_ok(),
-            "new_person should be in context after use person::new_person");
+        assert!(
+            ctx_after_use
+                .get_type_from_variable(&Var::from_name("new_person"))
+                .is_ok(),
+            "new_person should be in context after use person::new_person"
+        );
 
         // Step 3: check supertypes and function matching
         if let Lang::Lines { value: exprs, .. } = &lang {
@@ -2574,37 +2623,72 @@ p"#;
             let ctx_after_module = tc1.get_context();
 
             // Print what member_type is returned for new_person from module type
-            let person_type = ctx_after_module.get_type_from_variable(&Var::from_name("person")).unwrap();
+            let person_type = ctx_after_module
+                .get_type_from_variable(&Var::from_name("person"))
+                .unwrap();
             let mod_type = person_type.to_module_type().unwrap();
             let new_person_type = mod_type.get_type_from_name("new_person").unwrap();
             println!("new_person type from module: {:?}", new_person_type);
             println!("new_person type pretty: {}", new_person_type.pretty());
             // Check extract_types
             let extracted = new_person_type.extract_types();
-            println!("extracted types: {:?}", extracted.iter().map(|t| t.pretty()).collect::<Vec<_>>());
+            println!(
+                "extracted types: {:?}",
+                extracted.iter().map(|t| t.pretty()).collect::<Vec<_>>()
+            );
 
             let tc2 = tc1.typing_helper_pub(&exprs[1]);
             let ctx_after_use = tc2.get_context();
 
-            let anna_type = Type::Char(crate::components::r#type::tchar::Tchar::Val("Anna".to_string()), crate::components::error_message::help_data::HelpData::default());
+            let anna_type = Type::Char(
+                crate::components::r#type::tchar::Tchar::Val("Anna".to_string()),
+                crate::components::error_message::help_data::HelpData::default(),
+            );
             let char_unknown = builder::character_type_default();
 
             // Check if Char(Unknown) is in the graph after module
-            let in_graph_after_module = ctx_after_module.subtypes.get_ordered_supertypes(&char_unknown, &ctx_after_module);
-            println!("supertypes of Char(Unknown) after module: {:?}", in_graph_after_module.iter().map(|t| t.pretty()).collect::<Vec<_>>());
+            let in_graph_after_module = ctx_after_module
+                .subtypes
+                .get_ordered_supertypes(&char_unknown, &ctx_after_module);
+            println!(
+                "supertypes of Char(Unknown) after module: {:?}",
+                in_graph_after_module
+                    .iter()
+                    .map(|t| t.pretty())
+                    .collect::<Vec<_>>()
+            );
 
             // Check if Char(Unknown) is in graph after use
-            let in_graph_after_use = ctx_after_use.subtypes.get_ordered_supertypes(&char_unknown, &ctx_after_use);
-            println!("supertypes of Char(Unknown) after use: {:?}", in_graph_after_use.iter().map(|t| t.pretty()).collect::<Vec<_>>());
+            let in_graph_after_use = ctx_after_use
+                .subtypes
+                .get_ordered_supertypes(&char_unknown, &ctx_after_use);
+            println!(
+                "supertypes of Char(Unknown) after use: {:?}",
+                in_graph_after_use
+                    .iter()
+                    .map(|t| t.pretty())
+                    .collect::<Vec<_>>()
+            );
 
             // Check supertypes of Char(Val("Anna"))
-            let supertypes = ctx_after_use.subtypes.get_ordered_supertypes(&anna_type, &ctx_after_use);
-            println!("supertypes of Char(Val('Anna')): {:?}", supertypes.iter().map(|t| t.pretty()).collect::<Vec<_>>());
+            let supertypes = ctx_after_use
+                .subtypes
+                .get_ordered_supertypes(&anna_type, &ctx_after_use);
+            println!(
+                "supertypes of Char(Val('Anna')): {:?}",
+                supertypes.iter().map(|t| t.pretty()).collect::<Vec<_>>()
+            );
 
             // Print memory entries that are char-related
             let hierarchy = ctx_after_use.subtypes.get_hierarchy();
-            let level1_lines: Vec<&str> = hierarchy.lines().filter(|l| l.trim_start_matches(' ').starts_with("char") || *l == "  char").collect();
-            println!("Char top-level hierarchy entries: {:?}", &level1_lines[..level1_lines.len().min(10)]);
+            let level1_lines: Vec<&str> = hierarchy
+                .lines()
+                .filter(|l| l.trim_start_matches(' ').starts_with("char") || *l == "  char")
+                .collect();
+            println!(
+                "Char top-level hierarchy entries: {:?}",
+                &level1_lines[..level1_lines.len().min(10)]
+            );
         }
     }
 
@@ -2617,8 +2701,15 @@ p"#;
         let graph = Graph::new();
         let graph = graph.add_type(char_unknown.clone(), &ctx);
         let supertypes = graph.get_ordered_supertypes(&char_anna, &ctx);
-        println!("After adding Char(Unknown), supertypes of Char(Val('Anna')): {:?}", supertypes.iter().map(|t| t.pretty()).collect::<Vec<_>>());
-        assert!(supertypes.iter().any(|t| t == &char_unknown), "Char(Unknown) should be a supertype of Char(Val('Anna')), got: {:?}", supertypes);
+        println!(
+            "After adding Char(Unknown), supertypes of Char(Val('Anna')): {:?}",
+            supertypes.iter().map(|t| t.pretty()).collect::<Vec<_>>()
+        );
+        assert!(
+            supertypes.iter().any(|t| t == &char_unknown),
+            "Char(Unknown) should be a supertype of Char(Val('Anna')), got: {:?}",
+            supertypes
+        );
     }
 
     #[test]
@@ -2636,7 +2727,9 @@ p"#;
             .expect("machin should be in context")
             .to_module_type()
             .expect("machin should be a module type");
-        let get_a_type = machin_type.get_type_from_name("get_a").expect("get_a should be exported");
+        let get_a_type = machin_type
+            .get_type_from_name("get_a")
+            .expect("get_a should be exported");
         println!("get_a type in module: {:?}", get_a_type);
         // The parameter should NOT be Any — it should be Truc or Record, not Any
         if let Type::Function(args, _, _) = &get_a_type {
@@ -2656,7 +2749,12 @@ p"#;
         let fp = FluentParser::new()
             .push("type Point <- list { x: int, y: int };")
             .run();
-        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(
             r_code.contains("Point <- function("),
             "Expected constructor function for Point, got:\n{}",
@@ -2681,7 +2779,12 @@ p"#;
             .run()
             .push("let p <- Point:{ x = 1, y = 2 };")
             .run();
-        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(
             r_code.contains("Point("),
             "Expected Point(...) call from constructor syntax, got:\n{}",
@@ -2699,9 +2802,17 @@ p"#;
 
     #[test]
     fn test_union_record_constructor_parsing() {
-        let res = "Color.Rgb:{ r = 10, g = 20, b = 30 }".parse::<Lang>().unwrap();
+        let res = "Color.Rgb:{ r = 10, g = 20, b = 30 }"
+            .parse::<Lang>()
+            .unwrap();
         assert_eq!(res.simple_print(), "UnionConstructor(Color.Rgb)");
-        if let Lang::UnionConstructor { union_name, variant_name, fields, .. } = &res {
+        if let Lang::UnionConstructor {
+            union_name,
+            variant_name,
+            fields,
+            ..
+        } = &res
+        {
             assert_eq!(union_name, "Color");
             assert_eq!(variant_name, "Rgb");
             assert_eq!(fields.len(), 3);
@@ -2732,7 +2843,12 @@ p"#;
             .run()
             .push("Color.Red")
             .run();
-        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(
             r_code.contains("Red()"),
             "Expected Red() in transpiled code, got:\n{}",
@@ -2749,7 +2865,12 @@ p"#;
             .run()
             .push("Color.Rgb:{ r = 10, g = 20, b = 30 }")
             .run();
-        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(
             r_code.contains("Rgb("),
             "Expected Rgb(...) call, got:\n{}",
@@ -2762,7 +2883,12 @@ p"#;
         let fp = FluentParser::new()
             .push("type Color <- .Red | .Blue;")
             .run();
-        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(
             r_code.contains("Red <- function()"),
             "Expected Red constructor, got:\n{}",
@@ -2787,7 +2913,12 @@ p"#;
             .run()
             .push("type Color <- .Red | Rgb;")
             .run();
-        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(
             r_code.contains(r#"class = c("Rgb", "Color", "list")"#),
             "Expected S3 class hierarchy for Rgb, got:\n{}",

@@ -580,11 +580,12 @@ impl RTranslatable<(String, Context)> for Lang {
                     (s, cont.clone())
                 } else {
                     let (exp_str, cont1) = exp.to_r(cont);
-                    let fn_t =
-                        FunctionType::try_from(cont1.get_type_from_variable(&var).unwrap_or_else(
-                            |_| panic!("variable {} don't have a related type", var),
-                        ))
-                        .expect("vector function application identifier should have a function type");
+                    let fn_t = FunctionType::try_from(
+                        cont1.get_type_from_variable(&var).unwrap_or_else(|_| {
+                            panic!("variable {} don't have a related type", var)
+                        }),
+                    )
+                    .expect("vector function application identifier should have a function type");
                     let new_args = fn_t
                         .get_param_types()
                         .iter()
@@ -1072,10 +1073,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             let typed_name = v.clone().display_type(cont).get_name();
 
                             // Export the (possibly type-suffixed) member into the module env
-                            exports.push(format!(
-                                "{}${} <- {}",
-                                name_str, typed_name, typed_name
-                            ));
+                            exports.push(format!("{}${} <- {}", name_str, typed_name, typed_name));
 
                             // For typed functions: register as S3 method and create generic
                             let var_type = v.get_type();
@@ -1092,10 +1090,8 @@ impl RTranslatable<(String, Context)> for Lang {
                                 );
                                 if !generics.contains(&generic_def) {
                                     generics.push(generic_def);
-                                    generic_exports.push(format!(
-                                        "{}${} <- {}",
-                                        name_str, raw_name, raw_name
-                                    ));
+                                    generic_exports
+                                        .push(format!("{}${} <- {}", name_str, raw_name, raw_name));
                                 }
                             }
                         }
@@ -1109,10 +1105,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     {
                         if let Some(v) = Var::from_language(*var.clone()) {
                             let alias_name = v.get_name();
-                            exports.push(format!(
-                                "{}${} <- {}",
-                                name_str, alias_name, alias_name
-                            ));
+                            exports.push(format!("{}${} <- {}", name_str, alias_name, alias_name));
                         }
                     }
                 }
@@ -1178,7 +1171,11 @@ impl RTranslatable<(String, Context)> for Lang {
                         .ok()?;
                     let mut current = root;
                     for seg in module_path.iter().skip(1) {
-                        current = current.to_module_type().ok()?.get_type_from_name(seg).ok()?;
+                        current = current
+                            .to_module_type()
+                            .ok()?
+                            .get_type_from_name(seg)
+                            .ok()?;
                     }
                     current.to_module_type().ok()
                 })();
@@ -1208,9 +1205,7 @@ impl RTranslatable<(String, Context)> for Lang {
             }
             Lang::ModuleImport { .. } => ("".to_string(), cont.clone()),
             Lang::ConstructorCall {
-                type_name,
-                fields,
-                ..
+                type_name, fields, ..
             } => {
                 let (body, current_cont) = Translatable::from(cont.clone())
                     .join_arg_val(fields, ", ")
@@ -1248,7 +1243,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Import { .. } | Lang::Test { .. } | Lang::Use { .. } => {
                 ("".to_string(), cont.clone())
             }
-            _ => ("".to_string(), cont.clone())
+            _ => ("".to_string(), cont.clone()),
         };
 
         result
@@ -1269,10 +1264,26 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(r_code.contains("Math <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
-        assert!(r_code.contains("local({"), "missing local block: {}", r_code);
-        assert!(r_code.contains("Math$pi <- pi"), "missing public export: {}", r_code);
-        assert!(!r_code.contains("Math$sq"), "private member should not be exported: {}", r_code);
+        assert!(
+            r_code.contains("Math <- new.env(parent = emptyenv())"),
+            "missing env init: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("local({"),
+            "missing local block: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("Math$pi <- pi"),
+            "missing public export: {}",
+            r_code
+        );
+        assert!(
+            !r_code.contains("Math$sq"),
+            "private member should not be exported: {}",
+            r_code
+        );
     }
 
     #[test]
@@ -1285,9 +1296,21 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(r_code.contains("Empty <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
-        assert!(r_code.contains("local({"), "missing local block: {}", r_code);
-        assert!(!r_code.contains("Empty$x"), "private member should not be exported: {}", r_code);
+        assert!(
+            r_code.contains("Empty <- new.env(parent = emptyenv())"),
+            "missing env init: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("local({"),
+            "missing local block: {}",
+            r_code
+        );
+        assert!(
+            !r_code.contains("Empty$x"),
+            "private member should not be exported: {}",
+            r_code
+        );
     }
 
     #[test]
@@ -1300,10 +1323,26 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(r_code.contains("Math <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
-        assert!(r_code.contains("registerS3method(\"double\", \"integer\", double.integer)"), "missing S3 registration: {}", r_code);
-        assert!(r_code.contains("double <- function(x, ...) UseMethod(\"double\")"), "missing generic: {}", r_code);
-        assert!(r_code.contains("Math$double <- double"), "missing generic export: {}", r_code);
+        assert!(
+            r_code.contains("Math <- new.env(parent = emptyenv())"),
+            "missing env init: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("registerS3method(\"double\", \"integer\", double.integer)"),
+            "missing S3 registration: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("double <- function(x, ...) UseMethod(\"double\")"),
+            "missing generic: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("Math$double <- double"),
+            "missing generic export: {}",
+            r_code
+        );
     }
 
     #[test]
@@ -1316,8 +1355,16 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(r_code.contains("Geo <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
-        assert!(r_code.contains("Geo$pi <- pi"), "missing public export: {}", r_code);
+        assert!(
+            r_code.contains("Geo <- new.env(parent = emptyenv())"),
+            "missing env init: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("Geo$pi <- pi"),
+            "missing public export: {}",
+            r_code
+        );
     }
 
     #[test]
@@ -1332,7 +1379,11 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(r_code.contains("Math <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
+        assert!(
+            r_code.contains("Math <- new.env(parent = emptyenv())"),
+            "missing env init: {}",
+            r_code
+        );
     }
 
     #[test]
@@ -1347,8 +1398,16 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(r_code.contains("Math <- new.env(parent = emptyenv())"), "missing env init: {}", r_code);
-        assert!(r_code.contains("Maths <- Math") || r_code.contains("`Maths` <- Math"), "missing alias assignment: {}", r_code);
+        assert!(
+            r_code.contains("Math <- new.env(parent = emptyenv())"),
+            "missing env init: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("Maths <- Math") || r_code.contains("`Maths` <- Math"),
+            "missing alias assignment: {}",
+            r_code
+        );
     }
 
     #[test]
@@ -1363,8 +1422,16 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(r_code.contains("pi <- Math$pi"), "missing pi binding: {}", r_code);
-        assert!(r_code.contains("euler <- Math$e"), "missing euler binding: {}", r_code);
+        assert!(
+            r_code.contains("pi <- Math$pi"),
+            "missing pi binding: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("euler <- Math$e"),
+            "missing euler binding: {}",
+            r_code
+        );
     }
 
     #[test]
@@ -1379,9 +1446,21 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(r_code.contains("pi <- Math$pi"), "missing pi binding: {}", r_code);
-        assert!(r_code.contains("e <- Math$e"), "missing e binding: {}", r_code);
-        assert!(!r_code.contains("secret <- Math$secret"), "private member must not be imported: {}", r_code);
+        assert!(
+            r_code.contains("pi <- Math$pi"),
+            "missing pi binding: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("e <- Math$e"),
+            "missing e binding: {}",
+            r_code
+        );
+        assert!(
+            !r_code.contains("secret <- Math$secret"),
+            "private member must not be imported: {}",
+            r_code
+        );
     }
 
     #[test]
@@ -1396,8 +1475,16 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(r_code.contains("Bits(typed_vec("), "expected Bits(...) constructor: {}", r_code);
-        assert!(r_code.contains("dim = c(3)"), "expected dimension annotation: {}", r_code);
+        assert!(
+            r_code.contains("Bits(typed_vec("),
+            "expected Bits(...) constructor: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("dim = c(3)"),
+            "expected dimension annotation: {}",
+            r_code
+        );
     }
 
     #[test]
@@ -1429,4 +1516,3 @@ mod tests {
         );
     }
 }
-

@@ -303,7 +303,7 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
         ltype,
         opt(terminated(tag(","), multispace0)),
     )
-    .parse(s.clone());
+        .parse(s.clone());
     if let Ok((s2, (_, e1, _, e2, _))) = variadic {
         return Ok((s2, ArgumentType(e1, e2, false, true)));
     }
@@ -589,7 +589,7 @@ fn constructor_call(s: Span) -> IResult<Span, Lang> {
         many0(argument_val),
         terminated(tag("}"), multispace0),
     )
-    .parse(s);
+        .parse(s);
     match res {
         Ok((s, ((name, h), _, _, args, _))) => Ok((
             s,
@@ -611,7 +611,7 @@ fn array_constructor_call(s: Span) -> IResult<Span, Lang> {
         values,
         terminated(tag("]"), multispace0),
     )
-    .parse(s);
+        .parse(s);
     match res {
         Ok((s, ((name, h), _, _, elems, _))) => Ok((
             s,
@@ -681,7 +681,7 @@ fn union_constructor(s: Span) -> IResult<Span, Lang> {
             terminated(tag("}"), multispace0),
         )),
     )
-    .parse(s);
+        .parse(s);
     match res {
         Ok((s, ((union_name, h), _, (variant_name, _), None))) => Ok((
             s,
@@ -1214,7 +1214,7 @@ pub fn scope(s: Span) -> IResult<Span, Lang> {
         opt(base_parse),
         terminated(alt((tag(")"), tag("}"))), multispace0),
     )
-    .parse(s);
+        .parse(s);
     match res {
         Ok((s, (open, Some(v), _))) if v.is_empty() => Ok((
             s,
@@ -1600,7 +1600,11 @@ mod tests {
             res.simple_print().starts_with("TypePattern"),
             "Should parse 'x as int' as TypePattern"
         );
-        if let Lang::TypePattern { variable_name: name, .. } = &res {
+        if let Lang::TypePattern {
+            variable_name: name,
+            ..
+        } = &res
+        {
             assert_eq!(name, "x");
         } else {
             panic!("Expected TypePattern variant");
@@ -1611,7 +1615,11 @@ mod tests {
     fn test_type_pattern_bool() {
         let input = "y as bool ";
         let res = type_pattern(input.into()).unwrap().1;
-        if let Lang::TypePattern { variable_name: name, .. } = &res {
+        if let Lang::TypePattern {
+            variable_name: name,
+            ..
+        } = &res
+        {
             assert_eq!(name, "y");
         } else {
             panic!("Expected TypePattern variant");
@@ -1622,7 +1630,11 @@ mod tests {
     fn test_type_pattern_num() {
         let input = "val as num ";
         let res = type_pattern(input.into()).unwrap().1;
-        if let Lang::TypePattern { variable_name: name, .. } = &res {
+        if let Lang::TypePattern {
+            variable_name: name,
+            ..
+        } = &res
+        {
             assert_eq!(name, "val");
         } else {
             panic!("Expected TypePattern variant");
@@ -1633,7 +1645,11 @@ mod tests {
     fn test_type_pattern_char() {
         let input = "s as char ";
         let res = type_pattern(input.into()).unwrap().1;
-        if let Lang::TypePattern { variable_name: name, .. } = &res {
+        if let Lang::TypePattern {
+            variable_name: name,
+            ..
+        } = &res
+        {
             assert_eq!(name, "s");
         } else {
             panic!("Expected TypePattern variant");
@@ -1892,7 +1908,11 @@ mod tests {
         match &res {
             Ok((remaining, _)) => {
                 println!("SUCCESS, remaining: {:?}", **remaining);
-                assert!(remaining.is_empty(), "Should consume entire input, remaining: {:?}", **remaining);
+                assert!(
+                    remaining.is_empty(),
+                    "Should consume entire input, remaining: {:?}",
+                    **remaining
+                );
             }
             Err(e) => panic!("Parse failed: {:?}", e),
         }
@@ -1916,7 +1936,11 @@ mod tests {
         use crate::processes::parsing::base_parse;
         let input = ":{ name: name, attack: attack, health: health }";
         let res = base_parse(input.into());
-        println!("base_parse result: {:?}", res.as_ref().map(|(r, v): &(_, Vec<_>)| (*r.fragment(), v.len())));
+        println!(
+            "base_parse result: {:?}",
+            res.as_ref()
+                .map(|(r, v): &(_, Vec<_>)| (*r.fragment(), v.len()))
+        );
         assert!(res.is_ok());
         let (remaining, elems) = res.unwrap();
         println!("  remaining: {:?}", *remaining.fragment());
@@ -1931,7 +1955,11 @@ mod tests {
         let input = ":{ name: name, attack: attack, health: health }";
         let res = parse_elements(input.into());
         match &res {
-            Ok((remaining, lang)) => println!("parse_elements OK: {}, remaining: {:?}", lang.simple_print(), **remaining),
+            Ok((remaining, lang)) => println!(
+                "parse_elements OK: {}, remaining: {:?}",
+                lang.simple_print(),
+                **remaining
+            ),
             Err(e) => println!("parse_elements FAILED: {:?}", e),
         }
         assert!(res.is_ok(), "parse_elements should succeed on record");
@@ -1942,7 +1970,11 @@ mod tests {
         let input = ":{ name: name, attack: attack, health: health }";
         let res = single_element(input.into());
         match &res {
-            Ok((remaining, lang)) => println!("single_element OK: {}, remaining: {:?}", lang.simple_print(), **remaining),
+            Ok((remaining, lang)) => println!(
+                "single_element OK: {}, remaining: {:?}",
+                lang.simple_print(),
+                **remaining
+            ),
             Err(e) => println!("single_element FAILED: {:?}", e),
         }
         assert!(res.is_ok(), "single_element should succeed on record");
@@ -1953,7 +1985,11 @@ mod tests {
         let input = ":{ name: name, attack: attack, health: health }";
         let res = record(input.into());
         match &res {
-            Ok((remaining, lang)) => println!("record OK: {}, remaining: {:?}", lang.simple_print(), **remaining),
+            Ok((remaining, lang)) => println!(
+                "record OK: {}, remaining: {:?}",
+                lang.simple_print(),
+                **remaining
+            ),
             Err(e) => println!("record FAILED: {:?}", e),
         }
         assert!(res.is_ok(), "record should succeed");

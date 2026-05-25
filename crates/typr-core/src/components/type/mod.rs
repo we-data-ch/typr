@@ -166,10 +166,14 @@ impl TypeSystem for Type {
                 n1.is_subtype_raw(n2, context) && t1.is_subtype_raw(t2, context)
             }
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
-                let args1_types: Vec<(String, Type)> = args1.iter()
-                    .map(|arg| (arg.get_argument_str(), arg.get_type())).collect();
-                let args2_types: Vec<(String, Type)> = args2.iter()
-                    .map(|arg| (arg.get_argument_str(), arg.get_type())).collect();
+                let args1_types: Vec<(String, Type)> = args1
+                    .iter()
+                    .map(|arg| (arg.get_argument_str(), arg.get_type()))
+                    .collect();
+                let args2_types: Vec<(String, Type)> = args2
+                    .iter()
+                    .map(|arg| (arg.get_argument_str(), arg.get_type()))
+                    .collect();
                 if args1_types.len() != args2_types.len() {
                     false
                 } else {
@@ -427,7 +431,9 @@ impl Type {
                 let res = args
                     .iter()
                     .enumerate()
-                    .map(|(i, arg)| format!("{}: {}", generate_arg(i), arg.get_type().to_typescript()))
+                    .map(|(i, arg)| {
+                        format!("{}: {}", generate_arg(i), arg.get_type().to_typescript())
+                    })
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("({}) => {}", res, ret.to_typescript())
@@ -468,7 +474,9 @@ impl Type {
                 let res = args
                     .iter()
                     .enumerate()
-                    .map(|(i, arg)| format!("{}: {}", generate_arg(i), arg.get_type().to_typescript()))
+                    .map(|(i, arg)| {
+                        format!("{}: {}", generate_arg(i), arg.get_type().to_typescript())
+                    })
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("({}) => {}", res, ret.to_typescript())
@@ -1269,11 +1277,7 @@ impl From<FunctionType> for Type {
                 ArgumentType::new(&arg_name, typ)
             })
             .collect();
-        Type::Function(
-            args,
-            Box::new(val.get_return_type()),
-            val.get_help_data(),
-        )
+        Type::Function(args, Box::new(val.get_return_type()), val.get_help_data())
     }
 }
 

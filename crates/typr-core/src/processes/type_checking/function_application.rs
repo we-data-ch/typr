@@ -113,21 +113,27 @@ fn try_interface_subtype_match(
 
         // Collect interface-param → concrete-arg mappings while verifying all params match.
         let mut interface_to_concrete: Vec<(Type, Type)> = Vec::new();
-        let all_match = param_types.iter().zip(arg_types.iter()).all(|(param, arg)| {
-            let reduced_param = reduce_type(context, param);
-            if matches!(&reduced_param, Type::Interface(_, _)) {
-                if arg.is_subtype_raw(&reduced_param, context) {
-                    if !interface_to_concrete.iter().any(|(k, _)| k == &reduced_param) {
-                        interface_to_concrete.push((reduced_param, arg.clone()));
+        let all_match = param_types
+            .iter()
+            .zip(arg_types.iter())
+            .all(|(param, arg)| {
+                let reduced_param = reduce_type(context, param);
+                if matches!(&reduced_param, Type::Interface(_, _)) {
+                    if arg.is_subtype_raw(&reduced_param, context) {
+                        if !interface_to_concrete
+                            .iter()
+                            .any(|(k, _)| k == &reduced_param)
+                        {
+                            interface_to_concrete.push((reduced_param, arg.clone()));
+                        }
+                        true
+                    } else {
+                        false
                     }
-                    true
                 } else {
-                    false
+                    arg.is_subtype_raw(&reduced_param, context)
                 }
-            } else {
-                arg.is_subtype_raw(&reduced_param, context)
-            }
-        });
+            });
 
         if !all_match {
             continue;

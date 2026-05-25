@@ -8,21 +8,21 @@ pub mod type_token;
 pub mod types;
 pub mod vector_priority;
 
-use crate::components::error_message::syntax_error::SyntaxError;
-use crate::components::error_message::help_data::HelpData;
-use crate::processes::parsing::elements::parse_elements;
-use crate::processes::parsing::elements::single_element;
-use crate::components::language::operators::custom_op;
-use crate::processes::parsing::elements::return_exp;
-use crate::processes::parsing::elements::break_exp;
-use crate::components::language::ModulePosition;
 use crate::components::context::config::Config;
+use crate::components::error_message::help_data::HelpData;
+use crate::components::error_message::syntax_error::SyntaxError;
+use crate::components::language::operators::custom_op;
 use crate::components::language::operators::Op;
-use crate::processes::parsing::elements::chars;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
+use crate::components::language::ModulePosition;
 use crate::components::r#type::Type;
+use crate::processes::parsing::elements::break_exp;
+use crate::processes::parsing::elements::chars;
+use crate::processes::parsing::elements::parse_elements;
+use crate::processes::parsing::elements::return_exp;
 use crate::processes::parsing::elements::scope;
+use crate::processes::parsing::elements::single_element;
 use crate::processes::parsing::elements::tag_exp;
 use crate::processes::parsing::elements::tuple_exp;
 use crate::processes::parsing::elements::variable;
@@ -792,7 +792,9 @@ fn use_item_exp(s: Span) -> IResult<Span, crate::components::language::use_lang:
     }
 }
 
-fn use_items_selector(s: Span) -> IResult<Span, crate::components::language::use_lang::UseSelector> {
+fn use_items_selector(
+    s: Span,
+) -> IResult<Span, crate::components::language::use_lang::UseSelector> {
     use crate::components::language::use_lang::UseSelector;
     let res = (
         pair(tag("{"), multispace0),
@@ -843,30 +845,28 @@ fn use_module_directive(s: Span) -> IResult<Span, Vec<Lang>> {
                 current_s = s2;
                 break;
             }
-            Err(_) => {
-                match terminated(variable_recognizer, multispace0).parse(current_s.clone()) {
-                    Ok((s2, (seg, _))) => {
-                        let colon_res: IResult<Span, (Span, Span)> =
-                            pair(tag("::"), multispace0).parse(s2.clone());
-                        match colon_res {
-                            Ok((s3, _)) => {
-                                path.push(seg);
-                                current_s = s3;
-                            }
-                            Err(_) => {
-                                use crate::components::language::use_lang::UseItem;
-                                selector = UseSelector::Items(vec![UseItem {
-                                    name: seg,
-                                    alias: None,
-                                }]);
-                                current_s = s2;
-                                break;
-                            }
+            Err(_) => match terminated(variable_recognizer, multispace0).parse(current_s.clone()) {
+                Ok((s2, (seg, _))) => {
+                    let colon_res: IResult<Span, (Span, Span)> =
+                        pair(tag("::"), multispace0).parse(s2.clone());
+                    match colon_res {
+                        Ok((s3, _)) => {
+                            path.push(seg);
+                            current_s = s3;
+                        }
+                        Err(_) => {
+                            use crate::components::language::use_lang::UseItem;
+                            selector = UseSelector::Items(vec![UseItem {
+                                name: seg,
+                                alias: None,
+                            }]);
+                            current_s = s2;
+                            break;
                         }
                     }
-                    Err(e) => return Err(e),
                 }
-            }
+                Err(e) => return Err(e),
+            },
         }
     }
 
@@ -1110,10 +1110,24 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
 pub fn parse(s: Span) -> ParseResult {
     let res = base_parse(s.clone());
     match res {
-        Ok((_, v)) => ParseResult::new(Lang::Lines {
-            value: v.clone(),
-            help_data: v.into(),
-        }),
+        Ok((remaining, v)) => {
+            if !remaining.fragment().is_empty() {
+                let element = remaining
+                    .fragment()
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                let line = remaining.location_line();
+                let help_data = HelpData::from(remaining);
+                push_parse_error(SyntaxError::UnknownElement { element, line, help_data });
+            }
+            ParseResult::new(Lang::Lines {
+                value: v.clone(),
+                help_data: v.into(),
+            })
+        }
         Err(_) => panic!("Can't parse string {}", s),
     }
 }
@@ -1128,6 +1142,8 @@ pub fn parse_legacy(s: Span) -> Lang {
 
 pub fn parse2(s: Span) -> Result<Lang, String> {
     let res = base_parse(s.clone());
+    // Drain any parse errors collected during parsing (e.g. ForgottenSemicolon, FunctionTypeSyntax)
+    let _ = take_parse_errors();
     match res {
         Ok((_, v)) => Ok(v[0].clone()),
         Err(_) => Err(format!("Can't parse string {}", s)),
@@ -1406,11 +1422,26 @@ mod tesus {
     }
 
     #[test]
+    fn test_fn_function_type_syntax_error() {
+        let res = parse("let f: fn(a: int) -> int <- fn(x: int): int { x };".into());
+        assert!(
+            res.has_errors(),
+            "Using 'fn(...)' in type position should produce a syntax error"
+        );
+        let fn_type_error = res.errors.iter().any(|e| matches!(e, SyntaxError::FunctionTypeSyntax(_)));
+        assert!(fn_type_error, "Expected FunctionTypeSyntax error, got: {:?}", res.errors);
+    }
+
+    #[test]
     fn test_use_wildcard_parses() {
         use crate::components::language::use_lang::UseSelector;
         let lang = parse2("use Math::*;".into()).expect("parse failed");
         match lang {
-            Lang::UseModule { module_path, selector, .. } => {
+            Lang::UseModule {
+                module_path,
+                selector,
+                ..
+            } => {
                 assert_eq!(module_path, vec!["Math".to_string()]);
                 assert_eq!(selector, UseSelector::Wildcard);
             }
@@ -1423,13 +1454,23 @@ mod tesus {
         use crate::components::language::use_lang::{UseItem, UseSelector};
         let lang = parse2("use Math::{pi, sin as s};".into()).expect("parse failed");
         match lang {
-            Lang::UseModule { module_path, selector, .. } => {
+            Lang::UseModule {
+                module_path,
+                selector,
+                ..
+            } => {
                 assert_eq!(module_path, vec!["Math".to_string()]);
                 assert_eq!(
                     selector,
                     UseSelector::Items(vec![
-                        UseItem { name: "pi".to_string(), alias: None },
-                        UseItem { name: "sin".to_string(), alias: Some("s".to_string()) },
+                        UseItem {
+                            name: "pi".to_string(),
+                            alias: None
+                        },
+                        UseItem {
+                            name: "sin".to_string(),
+                            alias: Some("s".to_string())
+                        },
                     ])
                 );
             }
@@ -1442,8 +1483,15 @@ mod tesus {
         use crate::components::language::use_lang::UseSelector;
         let lang = parse2("use Aa::Bb::Cc::*;".into()).expect("parse failed");
         match lang {
-            Lang::UseModule { module_path, selector, .. } => {
-                assert_eq!(module_path, vec!["Aa".to_string(), "Bb".to_string(), "Cc".to_string()]);
+            Lang::UseModule {
+                module_path,
+                selector,
+                ..
+            } => {
+                assert_eq!(
+                    module_path,
+                    vec!["Aa".to_string(), "Bb".to_string(), "Cc".to_string()]
+                );
                 assert_eq!(selector, UseSelector::Wildcard);
             }
             other => panic!("Expected UseModule, got {:?}", other),

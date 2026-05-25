@@ -1,0 +1,5 @@
+type KeyFrames <- .None;
+
+type Animatable <- interface {
+	parse: (self: Self) -> KeyFrames
+};

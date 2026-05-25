@@ -6,16 +6,16 @@
 use typr_core::utils::fluent_parser::FluentParser;
 
 fn c_types(lines: &[&str]) -> String {
-    let fp = lines.iter().fold(FluentParser::new(), |acc, line| {
-        acc.push(line).run()
-    });
+    let fp = lines
+        .iter()
+        .fold(FluentParser::new(), |acc, line| acc.push(line).run());
     fp.get_context().get_type_anotations()
 }
 
 fn b_generic_functions(lines: &[&str]) -> String {
-    let fp = lines.iter().fold(FluentParser::new(), |acc, line| {
-        acc.push(line).run()
-    });
+    let fp = lines
+        .iter()
+        .fold(FluentParser::new(), |acc, line| acc.push(line).run());
     fp.get_context()
         .get_all_generic_functions()
         .iter()
@@ -44,9 +44,9 @@ fn transpile(code: &str) -> String {
 }
 
 fn transpile_all(lines: &[&str]) -> String {
-    let fp = lines.iter().fold(FluentParser::new(), |acc, line| {
-        acc.push(line).run()
-    });
+    let fp = lines
+        .iter()
+        .fold(FluentParser::new(), |acc, line| acc.push(line).run());
     fp.get_r_code()
         .iter()
         .cloned()
@@ -120,10 +120,7 @@ mod transpilation {
 
     #[test]
     fn module_and_use() {
-        let r = transpile_all(&[
-            "module Math { @pub let pi <- 3.14159; };",
-            "use Math::pi;",
-        ]);
+        let r = transpile_all(&["module Math { @pub let pi <- 3.14159; };", "use Math::pi;"]);
         insta::assert_snapshot!(r);
     }
 
@@ -166,7 +163,10 @@ mod generated_files {
             "let double <- fn(i: Incrementable): Incrementable { i.incr().incr() };",
             "let incr <- fn(s: int): int { s + 1 };",
         ]);
-        assert!(result.contains("double <- function"), "double generic missing");
+        assert!(
+            result.contains("double <- function"),
+            "double generic missing"
+        );
         assert!(result.contains("incr <- function"), "incr generic missing");
     }
 }

@@ -112,5 +112,4 @@ impl TypeChecker {
             .join("\n");
         format!("\n{}", code)
     }
-
 }

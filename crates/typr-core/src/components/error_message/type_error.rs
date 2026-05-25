@@ -278,12 +278,10 @@ impl ErrorMsg for TypeError {
                 let var = var.clone().set_type(var.get_type().generalize());
                 let help_data1 = var_assign.get_help_data();
                 let help_data2 = var.get_help_data();
-                let (file_name1, text1) = help_data1
-                    .get_file_data()
-                    .unwrap_or_else(default_file_data);
-                let (file_name2, text2) = help_data2
-                    .get_file_data()
-                    .unwrap_or_else(default_file_data);
+                let (file_name1, text1) =
+                    help_data1.get_file_data().unwrap_or_else(default_file_data);
+                let (file_name2, text2) =
+                    help_data2.get_file_data().unwrap_or_else(default_file_data);
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
@@ -297,12 +295,10 @@ impl ErrorMsg for TypeError {
                 let var = var.clone().set_type(var.get_type().generalize());
                 let help_data1 = var_used.get_help_data();
                 let help_data2 = var.get_help_data();
-                let (file_name1, text1) = help_data1
-                    .get_file_data()
-                    .unwrap_or_else(default_file_data);
-                let (file_name2, text2) = help_data2
-                    .get_file_data()
-                    .unwrap_or_else(default_file_data);
+                let (file_name1, text1) =
+                    help_data1.get_file_data().unwrap_or_else(default_file_data);
+                let (file_name2, text2) =
+                    help_data2.get_file_data().unwrap_or_else(default_file_data);
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1((help_data1.get_offset(), 0))
                     .pos2((help_data2.get_offset(), 1))
@@ -327,8 +323,20 @@ impl ErrorMsg for TypeError {
             }
             TypeError::WrongExpression(help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
-                SingleBuilder::new(file_name, text)
-                    .pos((help_data.get_offset(), 0))
+                let offset = help_data.get_offset().min(text.len());
+                let line = (text[..offset].lines().count() + 1) as u32;
+                let element = text[offset..]
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                SingleBuilder::new(file_name.clone(), text)
+                    .pos((offset, 0))
+                    .text(format!(
+                        "Unknown element `{}` in `{}` at `{}`",
+                        element, file_name, line
+                    ))
                     .build()
             }
             TypeError::WrongIndexing(t1, t2) => {
@@ -350,8 +358,7 @@ impl ErrorMsg for TypeError {
             }
             TypeError::InterfaceReturnOnly(typ) => {
                 let help_data = typ.get_help_data();
-                let (file_name, text) =
-                    help_data.get_file_data().unwrap_or_else(default_file_data);
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
                     .pos((help_data.get_offset(), 0))
                     .text(format!(
@@ -362,7 +369,7 @@ impl ErrorMsg for TypeError {
                     .help(
                         "An interface in return position (without a matching parameter) \
                          acts as an existential type, which is not supported. \
-                         Use an opaque type to hide the implementation: `opaque MyType <- ...`."
+                         Use an opaque type to hide the implementation: `opaque MyType <- ...`.",
                     )
                     .build()
             }

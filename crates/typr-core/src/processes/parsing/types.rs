@@ -1,4 +1,5 @@
 use crate::components::error_message::help_data::HelpData;
+use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::language::operators::{op, Op};
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
@@ -11,6 +12,7 @@ use crate::processes::parsing::elements;
 use crate::processes::parsing::elements::variable2;
 use crate::processes::parsing::elements::variable_exp;
 use crate::processes::parsing::operation_priority::PriorityTokens;
+use crate::processes::parsing::push_parse_error;
 use crate::processes::parsing::type_token::TypeToken;
 use crate::processes::parsing::vector_priority::VectorPriority;
 use crate::utils::builder;
@@ -42,7 +44,7 @@ fn labeled_ltype(s: Span) -> IResult<Span, Type> {
         terminated(tag(":"), multispace0),
         alt((embedded_ltype, ltype)),
     )
-    .parse(s);
+        .parse(s);
     match res {
         Ok((s, (_, _, typ))) => Ok((s, typ)),
         Err(r) => Err(r),
@@ -56,7 +58,7 @@ fn ltype_arg(s: Span) -> IResult<Span, (bool, Type)> {
         terminated(alt((labeled_ltype, ltype)), multispace0),
         opt(terminated(tag(","), multispace0)),
     )
-    .parse(s.clone());
+        .parse(s.clone());
     if let Ok((s2, (_, typ, _))) = variadic {
         return Ok((s2, (true, typ)));
     }
@@ -92,6 +94,36 @@ fn function_type(s: Span) -> IResult<Span, Type> {
                 })
                 .collect();
             Ok((s, Type::Function(args, Box::new(t), start.into())))
+        }
+        Err(r) => Err(r),
+    }
+}
+
+/// Catches `fn(args) -> Type` in type context and produces a helpful error.
+/// This is identical to `function_type` but with an extra leading `fn` tag.
+fn fn_function_type_error(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(tag("fn"), multispace0),
+        terminated(tag("("), multispace0),
+        many0(ltype_arg),
+        terminated(tag(")"), multispace0),
+        terminated(tag("->"), multispace0),
+        terminated(alt((if_type, ltype)), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (fn_span, _, v, _, _, t))) => {
+            let args: Vec<ArgumentType> = v
+                .iter()
+                .enumerate()
+                .map(|(i, (is_variadic, typ))| {
+                    let arg_name = crate::components::r#type::generate_arg(i);
+                    ArgumentType::new(&arg_name, typ).set_variadic(*is_variadic)
+                })
+                .collect();
+            let help_data: HelpData = fn_span.clone().into();
+            push_parse_error(SyntaxError::FunctionTypeSyntax(help_data));
+            Ok((s, Type::Function(args, Box::new(t), fn_span.into())))
         }
         Err(r) => Err(r),
     }
@@ -373,7 +405,9 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
     )
         .parse(s);
     match res {
-        Ok((s, (e1, _, Type::Embedded(ty, _), _))) => Ok((s, ArgumentType(e1, *ty.clone(), true, false))),
+        Ok((s, (e1, _, Type::Embedded(ty, _), _))) => {
+            Ok((s, ArgumentType(e1, *ty.clone(), true, false)))
+        }
         Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false, false))),
         Err(r) => Err(r),
     }
@@ -486,7 +520,7 @@ fn interface_function(s: Span) -> IResult<Span, ArgumentType> {
     let res = (
         terminated(label, multispace0),
         terminated(tag(":"), multispace0),
-        function_type,
+        alt((function_type, fn_function_type_error)),
         opt(terminated(tag(","), multispace0)),
     )
         .parse(s);
@@ -790,7 +824,7 @@ fn tag_type(s: Span) -> IResult<Span, Type> {
 pub fn single_type(s: Span) -> IResult<Span, Type> {
     terminated(
         alt((
-            function_type,
+            alt((function_type, fn_function_type_error)),
             self_type,
             r_class,
             unknown_function,
@@ -1145,7 +1179,10 @@ mod tests {
     #[test]
     fn test_named_param_function_type_parses() {
         let res = ltype("(a: char) -> .None".into());
-        assert!(res.is_ok(), "Should parse (a: char) -> .None as a function type");
+        assert!(
+            res.is_ok(),
+            "Should parse (a: char) -> .None as a function type"
+        );
     }
 
     #[test]
@@ -1169,6 +1206,9 @@ mod tests {
     #[test]
     fn test_named_param_multi_args() {
         let res = ltype("(a: int, b: int) -> int".into());
-        assert!(res.is_ok(), "Should parse (a: int, b: int) -> int as a function type");
+        assert!(
+            res.is_ok(),
+            "Should parse (a: int, b: int) -> int as a function type"
+        );
     }
 }

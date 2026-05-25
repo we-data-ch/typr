@@ -11,8 +11,10 @@ use crate::processes::type_checking::Var;
 fn collect_undefined_aliases(context: &Context, ty: &Type) -> Vec<TypRError> {
     match ty {
         Type::Alias(name, params, is_opaque, _) => {
-            let is_builtin =
-                matches!(name.as_str(), "Integer" | "Character" | "Boolean" | "Number");
+            let is_builtin = matches!(
+                name.as_str(),
+                "Integer" | "Character" | "Boolean" | "Number"
+            );
             let is_defined = Var::from_type(ty.clone())
                 .and_then(|var| context.get_matching_alias_signature(&var))
                 .is_some();
@@ -129,8 +131,8 @@ mod tests {
     #[test]
     fn test_let_undefined_type_annotation_produces_error() {
         use crate::components::context::Context;
-        use crate::processes::type_checking::typing_with_errors;
         use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::typing_with_errors;
 
         let expr = parse2("let v: Hey <- false;".into()).unwrap();
         let result = typing_with_errors(&Context::default(), &expr);
@@ -142,7 +144,9 @@ mod tests {
         assert!(
             result.get_errors().iter().any(|e| matches!(
                 e,
-                TypRError::Type(crate::components::error_message::type_error::TypeError::AliasNotFound(_))
+                TypRError::Type(
+                    crate::components::error_message::type_error::TypeError::AliasNotFound(_)
+                )
             )),
             "Expected AliasNotFound error but got: {:?}",
             result.get_errors()

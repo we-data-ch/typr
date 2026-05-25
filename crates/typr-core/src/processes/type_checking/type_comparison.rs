@@ -17,7 +17,12 @@ pub fn reduce_param(
 
     // Reduce the type part of each parameter
     let reduced_type = reduce_type_helper(context, &param.get_type(), memory);
-    ArgumentType(param.get_argument(), reduced_type, param.2.to_owned(), param.3.to_owned())
+    ArgumentType(
+        param.get_argument(),
+        reduced_type,
+        param.2.to_owned(),
+        param.3.to_owned(),
+    )
 }
 
 fn is_in_memory(name: &str, memory: &Vector<String>) -> bool {
@@ -58,32 +63,28 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
         Type::Alias(name, concret_types, is_opaque, h) => {
             match (is_opaque, is_in_memory(name, &memory)) {
                 (true, _) | (_, true) => type_.clone(),
-                (false, _) => {
-                    match Var::from_type(type_.clone()) {
-                        Some(var) => {
-                            context
-                                .get_matching_alias_signature(&var)
-                                .map(|(aliased_type, generics)| {
-                                    reduce_alias(
-                                        aliased_type,
-                                        &generics,
-                                        concret_types,
-                                        name,
-                                        memory,
-                                        context,
-                                    )
-                                })
-                                .unwrap_or_else(|| match name.as_str() {
-                                    "Integer" => builder::integer_type_default(),
-                                    "Character" => builder::character_type_default(),
-                                    "Boolean" => builder::boolean_type(),
-                                    "Number" => builder::number_type(),
-                                    _ => Type::Any(h.clone()),
-                                })
-                        }
-                        None => Type::Any(h.clone()),
-                    }
-                }
+                (false, _) => match Var::from_type(type_.clone()) {
+                    Some(var) => context
+                        .get_matching_alias_signature(&var)
+                        .map(|(aliased_type, generics)| {
+                            reduce_alias(
+                                aliased_type,
+                                &generics,
+                                concret_types,
+                                name,
+                                memory,
+                                context,
+                            )
+                        })
+                        .unwrap_or_else(|| match name.as_str() {
+                            "Integer" => builder::integer_type_default(),
+                            "Character" => builder::character_type_default(),
+                            "Boolean" => builder::boolean_type(),
+                            "Number" => builder::number_type(),
+                            _ => Type::Any(h.clone()),
+                        }),
+                    None => Type::Any(h.clone()),
+                },
             }
         }
         Type::Tag(name, inner, h) => Type::Tag(
