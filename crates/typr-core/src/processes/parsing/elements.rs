@@ -1212,7 +1212,10 @@ pub fn scope(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(alt((tag("("), tag("{"))), multispace0),
         opt(base_parse),
-        terminated(alt((tag(")"), tag("}"))), multispace0),
+        terminated(
+            preceded(multispace0, alt((tag(")"), tag("}")))),
+            multispace0,
+        ),
     )
         .parse(s);
     match res {

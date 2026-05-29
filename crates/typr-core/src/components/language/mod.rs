@@ -186,6 +186,10 @@ pub enum Lang {
         body: Box<Lang>,
         help_data: HelpData,
     },
+    Loop {
+        body: Box<Lang>,
+        help_data: HelpData,
+    },
     Sequence {
         body: Vec<Lang>,
         help_data: HelpData,
@@ -566,6 +570,7 @@ impl PartialEq for Lang {
                     ..
                 },
             ) => a1 == b1 && a2 == b2,
+            (Lang::Loop { body: a1, .. }, Lang::Loop { body: b1, .. }) => a1 == b1,
             (Lang::Break(_), Lang::Break(_)) => true,
             (
                 Lang::Operator {
@@ -872,6 +877,7 @@ impl Lang {
             Lang::JSBlock(_, _, h) => h,
             Lang::Use { help_data: h, .. } => h,
             Lang::WhileLoop { help_data: h, .. } => h,
+            Lang::Loop { help_data: h, .. } => h,
             Lang::Break(h) => h,
             Lang::Operator { help_data: h, .. } => h,
             Lang::TypePattern { help_data: h, .. } => h,
@@ -975,6 +981,7 @@ impl Lang {
             Lang::JSBlock(_, _, _) => "JSBlock".to_string(),
             Lang::Use { .. } => "Use".to_string(),
             Lang::WhileLoop { .. } => "WhileLoop".to_string(),
+            Lang::Loop { .. } => "Loop".to_string(),
             Lang::Break(_) => "Break".to_string(),
             Lang::Operator { .. } => "Operator".to_string(),
             Lang::TypePattern {
@@ -1401,6 +1408,7 @@ impl From<Lang> for HelpData {
             Lang::JSBlock(_, _, h) => h,
             Lang::Use { help_data: h, .. } => h,
             Lang::WhileLoop { help_data: h, .. } => h,
+            Lang::Loop { help_data: h, .. } => h,
             Lang::Break(h) => h,
             Lang::Operator { help_data: h, .. } => h,
             Lang::TypePattern { help_data: h, .. } => h,

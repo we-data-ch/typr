@@ -1035,6 +1035,10 @@ impl RTranslatable<(String, Context)> for Lang {
                 ),
                 cont.clone(),
             ),
+            Lang::Loop { body, .. } => (
+                format!("while (TRUE) {{\n{}\n}}", body.to_r(cont).0),
+                cont.clone(),
+            ),
             Lang::Break(_) => ("break".to_string(), cont.clone()),
             Lang::NA(_) => ("NA".to_string(), cont.clone()),
             Lang::Module {

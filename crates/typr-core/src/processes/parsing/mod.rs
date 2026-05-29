@@ -1035,6 +1035,25 @@ fn while_loop(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+fn loop_loop(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+        terminated(tag("loop"), multispace0),
+        scope,
+        terminated(tag(";"), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (_loop, scop, _semi))) => Ok((
+            s,
+            vec![Lang::Loop {
+                body: Box::new(scop),
+                help_data: _loop.into(),
+            }],
+        )),
+        Err(r) => Err(r),
+    }
+}
+
 fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (terminated(tag("Test"), multispace0), scope).parse(s);
     //parse_block).parse(s);
@@ -1062,6 +1081,7 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
                 use_exp,
                 test_block,
                 while_loop,
+                loop_loop,
                 for_loop,
                 signature,
                 tests,
@@ -1121,7 +1141,11 @@ pub fn parse(s: Span) -> ParseResult {
                     .to_string();
                 let line = remaining.location_line();
                 let help_data = HelpData::from(remaining);
-                push_parse_error(SyntaxError::UnknownElement { element, line, help_data });
+                push_parse_error(SyntaxError::UnknownElement {
+                    element,
+                    line,
+                    help_data,
+                });
             }
             ParseResult::new(Lang::Lines {
                 value: v.clone(),
@@ -1428,8 +1452,15 @@ mod tesus {
             res.has_errors(),
             "Using 'fn(...)' in type position should produce a syntax error"
         );
-        let fn_type_error = res.errors.iter().any(|e| matches!(e, SyntaxError::FunctionTypeSyntax(_)));
-        assert!(fn_type_error, "Expected FunctionTypeSyntax error, got: {:?}", res.errors);
+        let fn_type_error = res
+            .errors
+            .iter()
+            .any(|e| matches!(e, SyntaxError::FunctionTypeSyntax(_)));
+        assert!(
+            fn_type_error,
+            "Expected FunctionTypeSyntax error, got: {:?}",
+            res.errors
+        );
     }
 
     #[test]

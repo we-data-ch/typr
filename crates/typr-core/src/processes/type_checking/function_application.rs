@@ -52,7 +52,14 @@ fn filter_by_first_param(
         .iter()
         .filter(|sig| {
             sig.get_first_param()
-                .map(|p| reduce_type(context, &p) == reduced_arg)
+                .map(|p| {
+                    let reduced_p = reduce_type(context, &p);
+                    reduced_p == reduced_arg
+                        || matches!(
+                            reduced_p,
+                            Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _)
+                        )
+                })
                 .unwrap_or(false)
         })
         .cloned()
@@ -396,6 +403,10 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             help_data: h,
         } => Lang::WhileLoop {
             condition: Box::new(substitute_type_in_lang(cond, subs)),
+            body: Box::new(substitute_type_in_lang(body, subs)),
+            help_data: h.clone(),
+        },
+        Lang::Loop { body, help_data: h } => Lang::Loop {
             body: Box::new(substitute_type_in_lang(body, subs)),
             help_data: h.clone(),
         },

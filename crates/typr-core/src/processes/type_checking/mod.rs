@@ -686,6 +686,16 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             .into(),
         Lang::Null(h) => (Type::Null(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Empty(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()).into(),
+        Lang::Break(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()).into(),
+        Lang::Loop {
+            body, help_data: h, ..
+        } => {
+            let tc = typing(context, body);
+            let errors = tc.errors.clone();
+            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
+                .with_errors(errors)
+                .into()
+        }
         Lang::Operator {
             operator: Op::And(_),
             rhs: e1,

@@ -60,7 +60,7 @@ let len <- fn(a: char): int {
 
 @plot: (a: [#N, num], b: [#N, num], type: char) -> .None;
 
-@get: (a: {}, b: char) -> T;
+@get: (a: Any, b: char) -> T;
 
 @print: (a: char) -> .None;
 

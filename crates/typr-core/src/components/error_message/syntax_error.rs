@@ -133,7 +133,11 @@ impl ErrorMsg for SyntaxError {
                     .help("Use `(args) -> Type` instead of `fn(args) -> Type`")
                     .build()
             }
-            SyntaxError::UnknownElement { element, line, help_data } => {
+            SyntaxError::UnknownElement {
+                element,
+                line,
+                help_data,
+            } => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name.clone(), text)
                     .pos((help_data.get_offset(), element.len()))
