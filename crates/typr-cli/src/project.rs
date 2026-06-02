@@ -6,7 +6,7 @@
 //! - Running tests
 //! - Package management
 
-use crate::engine::{parse_code, write_std_for_type_checking};
+use crate::engine::{parse_code, parse_code_from_str, write_std_for_type_checking};
 use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -639,41 +639,68 @@ pub fn run_project() {
     }
 }
 
-pub fn run_file(path: &Path) {
-    let lang = parse_code(path, Environment::StandAlone);
-    let dir = PathBuf::from(".");
+fn strip_shebang(content: &str) -> &str {
+    if content.starts_with("#!") {
+        content.find('\n').map_or("", |i| &content[i + 1..])
+    } else {
+        content
+    }
+}
 
-    write_std_for_type_checking(&dir);
+pub fn run_file(path: &Path) {
+    let raw = fs::read_to_string(path).unwrap_or_else(|e| {
+        eprintln!("Cannot read {:?}: {}", path, e);
+        std::process::exit(1);
+    });
+    let content = strip_shebang(&raw);
+    let file_name = path.to_str().unwrap().to_string();
+    let lang = parse_code_from_str(content, &file_name, Environment::StandAlone);
+
+    // Use a temp directory so intermediate R files don't pollute the working dir
+    let temp_dir = std::env::temp_dir().join(format!("typr_{}", std::process::id()));
+    fs::create_dir_all(&temp_dir).unwrap();
+
+    write_std_for_type_checking(&temp_dir);
     let context = Context::default();
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     if type_checker.has_errors() {
         type_checker.show_errors();
+        let _ = fs::remove_dir_all(&temp_dir);
         std::process::exit(1);
     }
-    println!("Type: {}\n", type_checker.get_last_type().pretty());
-    let r_file_name = path
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .replace(".ty", ".R");
-    let content = type_checker.clone().transpile();
-    write_header(type_checker.get_context(), &dir, Environment::StandAlone);
-    write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
-    let r_path = dir.join(&r_file_name);
-    match Command::new("Rscript").arg(&r_path).output() {
+
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("script");
+    let r_file_name = format!("{}.R", stem);
+
+    let r_content = type_checker.clone().transpile();
+    write_header(type_checker.get_context(), &temp_dir, Environment::StandAlone);
+    write_to_r_lang(r_content, &temp_dir, &r_file_name, context.get_environment());
+
+    let r_path = temp_dir.join(&r_file_name);
+    let result = Command::new("Rscript")
+        .current_dir(&temp_dir)
+        .arg(&r_path)
+        .output();
+
+    let _ = fs::remove_dir_all(&temp_dir);
+
+    match result {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
             if output.status.success() {
                 if !stdout.is_empty() {
-                    println!("{}", stdout);
+                    print!("{}", stdout);
                 }
             } else {
                 eprintln!("Error (code {}):\n{}", output.status, stderr);
                 if !stdout.is_empty() {
-                    println!("{}", stdout);
+                    print!("{}", stdout);
                 }
+                std::process::exit(1);
             }
         }
         Err(e) => eprintln!("Failed to execute Rscript: {}", e),

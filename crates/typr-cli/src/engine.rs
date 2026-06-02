@@ -59,6 +59,13 @@ pub fn parse_code(path: &Path, environment: Environment) -> Lang {
     metaprogrammation(parse_result.ast, environment)
 }
 
+/// Parse code from a string (content already loaded, e.g. after shebang stripping)
+pub fn parse_code_from_str(content: &str, file_name: &str, environment: Environment) -> Lang {
+    let base_file = TypRFile::new(content, file_name.to_string());
+    let parse_result = base_file.parse_with_errors();
+    metaprogrammation(parse_result.ast, environment)
+}
+
 /// Complete result of compiling a TypR file (parsing + type checking)
 pub struct CompileResult {
     /// The parsed and type-checked AST
