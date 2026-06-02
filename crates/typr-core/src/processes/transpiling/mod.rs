@@ -1154,7 +1154,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     (ModulePosition::External, Environment::Project) => {
                         let file_path = format!("R/{}.R", name_str);
                         let _ = write_output_file(&file_path, &content);
-                        ("".to_string(), cont.clone())
+                        (format!("#' @include {}.R", name_str), cont.clone())
                     }
                 }
             }
@@ -1257,6 +1257,25 @@ impl RTranslatable<(String, Context)> for Lang {
 #[cfg(test)]
 mod tests {
     use crate::utils::fluent_parser::FluentParser;
+    use crate::components::language::{Lang, ModulePosition};
+    use crate::components::context::config::{Config, Environment};
+    use crate::components::context::Context;
+    use crate::components::error_message::help_data::HelpData;
+    use crate::processes::transpiling::translatable::RTranslatable;
+
+    #[test]
+    fn test_external_module_project_generates_include() {
+        let module = Lang::Module {
+            name: "MyModule".to_string(),
+            body: vec![],
+            module_position: ModulePosition::External,
+            config: Config::default().set_environment(Environment::Project),
+            help_data: HelpData::default(),
+        };
+        let context = Context::default().set_environment(Environment::Project);
+        let (r_code, _) = module.to_r(&context);
+        assert_eq!(r_code, "#' @include MyModule.R", "got: {}", r_code);
+    }
 
     #[test]
     fn test_module_transpilation_with_pub() {

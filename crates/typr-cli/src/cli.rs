@@ -11,7 +11,8 @@
 
 use crate::project::{
     build_file, build_project, check_file, check_project, clean, cran, debug_file, document, load,
-    new, pkg_install, pkg_uninstall, run_file, run_project, test, use_package, DebugOptions,
+    new, pkg_install, pkg_uninstall, run_file, run_file_keep, run_project, test, use_package,
+    DebugOptions,
 };
 use crate::repl;
 use crate::standard_library::standard_library;
@@ -111,7 +112,7 @@ pub fn start() {
             _ => build_project(),
         },
         Some(Commands::Run { file }) => match file {
-            Some(path) => run_file(&path),
+            Some(path) => run_file_keep(&path),
             _ => run_project(),
         },
         Some(Commands::Debug {

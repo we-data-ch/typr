@@ -479,7 +479,7 @@ impl TypRExecutor {
             .truncate(true)
             .open(r_file_name)
             .unwrap();
-        let _ = file.write_all("source('a_std.R')\n".as_bytes());
+        let _ = file.write_all("source('std.R')\n".as_bytes());
         write_header(context, &dir, Environment::Repl);
         write_to_r_lang(r_code.to_string(), &dir, r_file_name, Environment::Repl);
         println!("{}{}{}", colors::NUMBER, r_type, colors::RESET);

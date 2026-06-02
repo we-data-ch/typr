@@ -304,7 +304,7 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
         if show_all || opts.show_r {
             print_step("Full R File (as executed)");
             let transpiled = type_checker.clone().transpile();
-            let preamble = "source('a_std.R', echo = FALSE)\nsource('b_generic_functions.R')\nsource('c_types.R')";
+            let preamble = "source('std.R', echo = FALSE)\nsource('generic_functions.R')\nsource('types.R')";
             println!("{}\n{}", preamble, transpiled);
         }
 
@@ -326,10 +326,10 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
                 .collect::<Vec<_>>()
                 .join("\n");
 
-            print_step("b_generic_functions.R");
+            print_step("generic_functions.R");
             println!("{}", generic_functions);
 
-            print_step("c_types.R");
+            print_step("types.R");
             println!("{}", type_annotations);
         }
 
@@ -342,6 +342,11 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
 
 pub fn write_header(context: Context, output_dir: &Path, environment: Environment) {
     let type_anotations = context.get_type_anotations();
+    let c_types_include = if environment.is_project() {
+        "#' @include generic_functions.R\n"
+    } else {
+        ""
+    };
     let mut app = match environment {
         Environment::Repl => OpenOptions::new()
             .append(true)
@@ -354,13 +359,19 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
             .open(
                 output_dir
                     .join(context.get_environment().to_base_path())
-                    .join("c_types.R"),
+                    .join("types.R"),
             ),
     }
     .unwrap();
 
-    app.write_all(type_anotations.as_bytes()).unwrap();
+    app.write_all(format!("{}{}", c_types_include, type_anotations).as_bytes())
+        .unwrap();
 
+    let include_tag = if environment.is_project() {
+        "#' @include std.R\n"
+    } else {
+        ""
+    };
     let generic_functions = context
         .get_all_generic_functions()
         .iter()
@@ -395,12 +406,12 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
             .open(
                 output_dir
                     .join(context.get_environment().to_string())
-                    .join("b_generic_functions.R"),
+                    .join("generic_functions.R"),
             ),
     }
     .unwrap();
 
-    app.write_all((generic_functions + "\n").as_bytes())
+    app.write_all(format!("{}{}\n", include_tag, generic_functions).as_bytes())
         .unwrap();
 }
 
@@ -411,7 +422,7 @@ pub fn write_to_r_lang(
     environment: Environment,
 ) {
     let rstd = include_str!("../configs/src/std.R");
-    let std_path = output_dir.join("a_std.R");
+    let std_path = output_dir.join("std.R");
     let mut rstd_file = File::create(std_path).unwrap();
     rstd_file.write_all(rstd.as_bytes()).unwrap();
 
@@ -421,13 +432,14 @@ pub fn write_to_r_lang(
         _ => File::create(app_path),
     }
     .unwrap();
-    let source = match environment {
-        Environment::Project | Environment::Repl | Environment::Wasm => "",
+    let preamble = match environment {
+        Environment::Project => "#' @include types.R\n",
+        Environment::Repl | Environment::Wasm => "",
         Environment::StandAlone => {
-            "source('a_std.R', echo = FALSE)\nsource('b_generic_functions.R')\nsource('c_types.R')"
+            "source('std.R', echo = FALSE)\nsource('generic_functions.R')\nsource('types.R')\n"
         }
     };
-    app.write_all(format!("{}\n{}", source, content).as_bytes())
+    app.write_all(format!("{}{}", preamble, content).as_bytes())
         .unwrap();
 }
 
@@ -592,7 +604,7 @@ pub fn build_project() {
     write_to_r_lang(
         content,
         &PathBuf::from("R"),
-        "d_main.R",
+        "main.R",
         context.get_environment(),
     );
     document();
@@ -620,7 +632,7 @@ pub fn build_file(path: &Path) {
 
 pub fn run_project() {
     build_project();
-    let r_command = "devtools::load_all(); source('R/d_main.R')";
+    let r_command = "devtools::load_all(); source('R/main.R')";
     println!("Executing: Rscript -e \"{}\"", r_command);
     match Command::new("Rscript").arg("-e").arg(r_command).output() {
         Ok(output) => {
@@ -648,6 +660,14 @@ fn strip_shebang(content: &str) -> &str {
 }
 
 pub fn run_file(path: &Path) {
+    run_file_impl(path, false);
+}
+
+pub fn run_file_keep(path: &Path) {
+    run_file_impl(path, true);
+}
+
+fn run_file_impl(path: &Path, keep_files: bool) {
     let raw = fs::read_to_string(path).unwrap_or_else(|e| {
         eprintln!("Cannot read {:?}: {}", path, e);
         std::process::exit(1);
@@ -656,16 +676,22 @@ pub fn run_file(path: &Path) {
     let file_name = path.to_str().unwrap().to_string();
     let lang = parse_code_from_str(content, &file_name, Environment::StandAlone);
 
-    // Use a temp directory so intermediate R files don't pollute the working dir
-    let temp_dir = std::env::temp_dir().join(format!("typr_{}", std::process::id()));
-    fs::create_dir_all(&temp_dir).unwrap();
+    let work_dir = if keep_files {
+        PathBuf::from(".")
+    } else {
+        let tmp = std::env::temp_dir().join(format!("typr_{}", std::process::id()));
+        fs::create_dir_all(&tmp).unwrap();
+        tmp
+    };
 
-    write_std_for_type_checking(&temp_dir);
+    write_std_for_type_checking(&work_dir);
     let context = Context::default();
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     if type_checker.has_errors() {
         type_checker.show_errors();
-        let _ = fs::remove_dir_all(&temp_dir);
+        if !keep_files {
+            let _ = fs::remove_dir_all(&work_dir);
+        }
         std::process::exit(1);
     }
 
@@ -676,16 +702,18 @@ pub fn run_file(path: &Path) {
     let r_file_name = format!("{}.R", stem);
 
     let r_content = type_checker.clone().transpile();
-    write_header(type_checker.get_context(), &temp_dir, Environment::StandAlone);
-    write_to_r_lang(r_content, &temp_dir, &r_file_name, context.get_environment());
+    write_header(type_checker.get_context(), &work_dir, Environment::StandAlone);
+    write_to_r_lang(r_content, &work_dir, &r_file_name, context.get_environment());
 
-    let r_path = temp_dir.join(&r_file_name);
+    let r_path = work_dir.join(&r_file_name);
     let result = Command::new("Rscript")
-        .current_dir(&temp_dir)
+        .current_dir(&work_dir)
         .arg(&r_path)
         .output();
 
-    let _ = fs::remove_dir_all(&temp_dir);
+    if !keep_files {
+        let _ = fs::remove_dir_all(&work_dir);
+    }
 
     match result {
         Ok(output) => {
