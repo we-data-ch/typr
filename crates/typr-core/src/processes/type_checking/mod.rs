@@ -2064,6 +2064,16 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             expr.clone(),
             context.clone(),
         ),
+        Lang::ValidatingCast {
+            expression,
+            type_name,
+            help_data: h,
+        } => {
+            let expr_tc = typing(context, expression);
+            let alias_type = Type::Alias(type_name.clone(), vec![], false, h.clone());
+            TypeContext::new(alias_type, expr.clone(), context.clone())
+                .with_errors(expr_tc.errors)
+        }
         Lang::Comment { help_data: h, .. }
         | Lang::ModuleImport { help_data: h, .. }
         | Lang::Import { help_data: h, .. }

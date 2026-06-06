@@ -50,6 +50,7 @@ pub enum Op {
     Dollar2(HelpData),
     Custom(String, HelpData),
     Empty(HelpData),
+    AsExcl(HelpData),
 }
 
 impl Op {
@@ -66,6 +67,7 @@ impl Op {
 
     pub fn get_binding_power(&self) -> i32 {
         match self {
+            Op::AsExcl(_) => 4,
             Op::Dot(_)
             | Op::Dot2(_)
             | Op::Pipe(_)
@@ -87,6 +89,17 @@ impl Op {
     }
 
     pub fn combine(self, left: Lang, right: Lang) -> Lang {
+        if let Op::AsExcl(_) = self {
+            let type_name = match &right {
+                Lang::Variable { name, .. } => name.clone(),
+                _ => "Unknown".to_string(),
+            };
+            return Lang::ValidatingCast {
+                expression: Box::new(left.clone()),
+                type_name,
+                help_data: left.get_help_data(),
+            };
+        }
         Lang::Operator {
             operator: self,
             rhs: Box::new(left.clone()),
@@ -97,6 +110,7 @@ impl Op {
 
     pub fn get_help_data(&self) -> HelpData {
         match self {
+            Op::AsExcl(h) => h.clone(),
             Op::Empty(h) => h.clone(),
             Op::Custom(_, h) => h.clone(),
             Op::Dollar(h) => h.clone(),
@@ -242,6 +256,7 @@ pub fn op(s: Span) -> IResult<Span, Op> {
 
 pub fn get_string(op: &Op) -> String {
     match op {
+        Op::AsExcl(_) => "as!".to_string(),
         Op::In(_) => "in".to_string(),
         Op::And(_) => "&".to_string(),
         Op::And2(_) => "&&".to_string(),

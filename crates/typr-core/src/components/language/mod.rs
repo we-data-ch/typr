@@ -278,6 +278,12 @@ pub enum Lang {
         elements: Vec<Lang>,
         help_data: HelpData,
     },
+    /// Validating cast: `expr as! TypeName` — calls .validate_TypeName(expr) at runtime
+    ValidatingCast {
+        expression: Box<Lang>,
+        type_name: String,
+        help_data: HelpData,
+    },
     /// Union constructor: `Union.Variant` or `Union.Variant:{ field = val, ... }`
     UnionConstructor {
         union_name: String,
@@ -626,6 +632,18 @@ impl PartialEq for Lang {
                     ..
                 },
             ) => a1 == b1 && a2 == b2 && a3 == b3,
+            (
+                Lang::ValidatingCast {
+                    expression: a1,
+                    type_name: a2,
+                    ..
+                },
+                Lang::ValidatingCast {
+                    expression: b1,
+                    type_name: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
             _ => false,
         }
     }
@@ -888,6 +906,7 @@ impl Lang {
             Lang::ConstructorCall { help_data: h, .. } => h,
             Lang::UnionConstructor { help_data: h, .. } => h,
             Lang::ArrayConstructorCall { help_data: h, .. } => h,
+            Lang::ValidatingCast { help_data: h, .. } => h,
         }
         .clone()
     }
@@ -1005,6 +1024,9 @@ impl Lang {
             }
             Lang::ArrayConstructorCall { type_name, .. } => {
                 format!("ArrayConstructorCall({})", type_name)
+            }
+            Lang::ValidatingCast { type_name, .. } => {
+                format!("ValidatingCast({})", type_name)
             }
         }
     }
@@ -1419,6 +1441,7 @@ impl From<Lang> for HelpData {
             Lang::ConstructorCall { help_data: h, .. } => h,
             Lang::UnionConstructor { help_data: h, .. } => h,
             Lang::ArrayConstructorCall { help_data: h, .. } => h,
+            Lang::ValidatingCast { help_data: h, .. } => h,
         }
         .clone()
     }

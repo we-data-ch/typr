@@ -887,10 +887,27 @@ impl RTranslatable<(String, Context)> for Lang {
                             })
                             .collect::<Vec<_>>()
                             .join(", ");
+                        let constructor = format!(
+                            "{name} <- function({params}) {{\n  structure(list({field_args}), class = c(\"{name}\", \"list\"))\n}}"
+                        );
+                        let fields_quoted = sorted_fields
+                            .iter()
+                            .map(|f| format!("\"{}\"", f.get_argument_str()))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        let field_access = sorted_fields
+                            .iter()
+                            .map(|f| {
+                                let n = f.get_argument_str();
+                                format!("{n} = x[[\"{n}\"]]")
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        let validator = format!(
+                            ".validate_{name} <- function(x) {{\n  required_fields <- c({fields_quoted})\n  missing_fields <- setdiff(required_fields, names(x))\n  if (length(missing_fields) > 0) {{\n    stop(paste0(\"Validation failed for type {name}: missing fields: \", paste(missing_fields, collapse = \", \")))\n  }}\n  {name}({field_access})\n}}"
+                        );
                         (
-                            format!(
-                                "{name} <- function({params}) {{\n  structure(list({field_args}), class = c(\"{name}\", \"list\"))\n}}"
-                            ),
+                            format!("{constructor}\n{validator}"),
                             cont.clone(),
                         )
                     }
@@ -1247,6 +1264,14 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Import { .. } | Lang::Test { .. } | Lang::Use { .. } => {
                 ("".to_string(), cont.clone())
             }
+            Lang::ValidatingCast {
+                expression,
+                type_name,
+                ..
+            } => {
+                let expr_r = expression.to_r(cont).0;
+                (format!(".validate_{}({})", type_name, expr_r), cont.clone())
+            }
             _ => ("".to_string(), cont.clone()),
         };
 
@@ -1262,6 +1287,50 @@ mod tests {
     use crate::components::context::Context;
     use crate::components::error_message::help_data::HelpData;
     use crate::processes::transpiling::translatable::RTranslatable;
+
+    #[test]
+    fn test_validating_cast_transpiles_to_validate_call() {
+        let r_code = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .run()
+            .check_transpiling("x as! Person");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Person(x)"),
+            "expected .validate_Person(x), got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_validating_cast_type_is_alias() {
+        let typ = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .run()
+            .check_typing("x as! Person");
+        assert!(
+            typ.pretty2().contains("Person"),
+            "expected Alias(Person), got: {}",
+            typ.pretty2()
+        );
+    }
+
+    #[test]
+    fn test_alias_record_generates_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type Person <- list { name: char, age: int };");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Person <- function(x)"),
+            "expected validator function, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("required_fields"),
+            "expected field validation, got: {}",
+            r_str
+        );
+    }
 
     #[test]
     fn test_external_module_project_generates_include() {

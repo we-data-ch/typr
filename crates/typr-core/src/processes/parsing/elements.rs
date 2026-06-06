@@ -1258,8 +1258,16 @@ fn single_element_token(s: Span) -> IResult<Span, LangToken> {
     }
 }
 
+fn as_excl_operator_token(s: Span) -> IResult<Span, LangToken> {
+    let res = terminated(tag("as!"), multispace0).parse(s);
+    match res {
+        Ok((s, tok)) => Ok((s, LangToken::Operator(Op::AsExcl(tok.into())))),
+        Err(r) => Err(r),
+    }
+}
+
 pub fn elements(s: Span) -> IResult<Span, Lang> {
-    let res = many1(alt((single_element_token, element_operator_token))).parse(s);
+    let res = many1(alt((as_excl_operator_token, single_element_token, element_operator_token))).parse(s);
     match res {
         Ok((s, v)) => {
             if v.len() == 1 {
