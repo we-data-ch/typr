@@ -155,8 +155,8 @@ fn to_pattern_match_statement(
 fn type_to_r_check(typ: &Type) -> Option<&'static str> {
     match typ {
         Type::Integer(_, _) => Some("is.integer"),
-        Type::Boolean(_) => Some("is.logical"),
-        Type::Number(_) => Some("is.numeric"),
+        Type::Boolean(_, _) => Some("is.logical"),
+        Type::Number(_, _) => Some("is.numeric"),
         Type::Char(_, _) => Some("is.character"),
         Type::Null(_) => Some("is.null"),
         _ => None,
@@ -975,6 +975,107 @@ impl RTranslatable<(String, Context)> for Lang {
                             .collect();
                         (constructors.join("\n"), cont.clone())
                     }
+                    Type::Integer(tint, _) => {
+                        use crate::components::r#type::tint::Tint;
+                        let validator = match tint {
+                            Tint::Val(i) => format!(
+                                ".validate_{name} <- function(x) {{\n  if (!is.integer(x)) stop(\"Validation failed for type {name}: expected int\")\n  if (x != {i}L) stop(\"Validation failed for type {name}: expected literal {i}\")\n  x\n}}"
+                            ),
+                            Tint::Unknown => format!(
+                                ".validate_{name} <- function(x) {{\n  if (!is.integer(x)) stop(\"Validation failed for type {name}: expected int\")\n  x\n}}"
+                            ),
+                        };
+                        (validator, cont.clone())
+                    }
+                    Type::Char(tchar, _) => {
+                        use crate::components::r#type::tchar::Tchar;
+                        let validator = match tchar {
+                            Tchar::Val(s) => format!(
+                                ".validate_{name} <- function(x) {{\n  if (!is.character(x)) stop(\"Validation failed for type {name}: expected char\")\n  if (x != '{s}') stop(\"Validation failed for type {name}: expected literal '{s}'\")\n  x\n}}"
+                            ),
+                            Tchar::Unknown => format!(
+                                ".validate_{name} <- function(x) {{\n  if (!is.character(x)) stop(\"Validation failed for type {name}: expected char\")\n  x\n}}"
+                            ),
+                        };
+                        (validator, cont.clone())
+                    }
+                    Type::Boolean(tbool, _) => {
+                        use crate::components::r#type::tbool::Tbool;
+                        let validator = match tbool {
+                            Tbool::Val(b) => {
+                                let r_val = if *b { "TRUE" } else { "FALSE" };
+                                format!(
+                                    ".validate_{name} <- function(x) {{\n  if (!is.logical(x)) stop(\"Validation failed for type {name}: expected bool\")\n  if (x != {r_val}) stop(\"Validation failed for type {name}: expected literal {r_val}\")\n  x\n}}"
+                                )
+                            }
+                            Tbool::Unknown => format!(
+                                ".validate_{name} <- function(x) {{\n  if (!is.logical(x)) stop(\"Validation failed for type {name}: expected bool\")\n  x\n}}"
+                            ),
+                        };
+                        (validator, cont.clone())
+                    }
+                    Type::Number(tnum, _) => {
+                        use crate::components::r#type::tnumber::Tnum;
+                        let validator = match tnum {
+                            Tnum::Val(v) => format!(
+                                ".validate_{name} <- function(x) {{\n  if (!is.numeric(x)) stop(\"Validation failed for type {name}: expected num\")\n  if (x != {v}) stop(\"Validation failed for type {name}: expected literal {v}\")\n  x\n}}"
+                            ),
+                            Tnum::Unknown => format!(
+                                ".validate_{name} <- function(x) {{\n  if (!is.numeric(x)) stop(\"Validation failed for type {name}: expected num\")\n  x\n}}"
+                            ),
+                        };
+                        (validator, cont.clone())
+                    }
+                    Type::Tag(tag_name, inner_type, _) => {
+                        let body_validation = match inner_type.as_ref() {
+                            Type::Empty(_) => String::new(),
+                            Type::Integer(tint, _) => {
+                                use crate::components::r#type::tint::Tint;
+                                let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.integer(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be int\")");
+                                match tint {
+                                    Tint::Val(i) => format!("{null_check}\n  if (x[[\"body\"]] != {i}L) stop(\"Validation failed for type {name}: body must be literal {i}\")"),
+                                    Tint::Unknown => null_check,
+                                }
+                            }
+                            Type::Char(tchar, _) => {
+                                use crate::components::r#type::tchar::Tchar;
+                                let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.character(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be char\")");
+                                match tchar {
+                                    Tchar::Val(s) => format!("{null_check}\n  if (x[[\"body\"]] != '{s}') stop(\"Validation failed for type {name}: body must be literal '{s}'\")"),
+                                    Tchar::Unknown => null_check,
+                                }
+                            }
+                            Type::Boolean(tbool, _) => {
+                                use crate::components::r#type::tbool::Tbool;
+                                let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.logical(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be bool\")");
+                                match tbool {
+                                    Tbool::Val(b) => {
+                                        let r_val = if *b { "TRUE" } else { "FALSE" };
+                                        format!("{null_check}\n  if (x[[\"body\"]] != {r_val}) stop(\"Validation failed for type {name}: body must be literal {r_val}\")")
+                                    }
+                                    Tbool::Unknown => null_check,
+                                }
+                            }
+                            Type::Number(tnum, _) => {
+                                use crate::components::r#type::tnumber::Tnum;
+                                let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.numeric(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be num\")");
+                                match tnum {
+                                    Tnum::Val(v) => format!("{null_check}\n  if (x[[\"body\"]] != {v}) stop(\"Validation failed for type {name}: body must be literal {v}\")"),
+                                    Tnum::Unknown => null_check,
+                                }
+                            }
+                            Type::Alias(alias_name, _, _, _) => format!(
+                                "\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  .validate_{alias_name}(x[[\"body\"]])"
+                            ),
+                            _ => format!(
+                                "\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")"
+                            ),
+                        };
+                        let validator = format!(
+                            ".validate_{name} <- function(x) {{\n  if (x[[1]] != '{tag_name}') stop(\"Validation failed for type {name}: expected tag '{tag_name}'\")\n{body_validation}\n  x\n}}"
+                        );
+                        (validator, cont.clone())
+                    }
                     _ => ("".to_string(), cont.clone()),
                 }
             }
@@ -1605,6 +1706,241 @@ mod tests {
             r_code.contains("|> Generic()") || r_code.contains("|> Function"),
             "function type annotation should still be applied: {}",
             r_code
+        );
+    }
+
+    #[test]
+    fn test_alias_int_generates_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type Meters <- int;");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Meters <- function(x)"),
+            "expected validator function, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("is.integer"),
+            "expected is.integer check, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_alias_char_generates_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type Name <- char;");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Name <- function(x)"),
+            "expected validator function, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("is.character"),
+            "expected is.character check, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_alias_bool_generates_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type Flag <- bool;");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Flag <- function(x)"),
+            "expected validator function, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("is.logical"),
+            "expected is.logical check, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_alias_num_generates_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type Real <- num;");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Real <- function(x)"),
+            "expected validator function, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("is.numeric"),
+            "expected is.numeric check, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_validating_cast_int() {
+        let r_code = FluentParser::new()
+            .push("type Meters <- int;")
+            .run()
+            .check_transpiling("x as! Meters");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Meters(x)"),
+            "expected .validate_Meters(x), got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_tag_alias_char_generates_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type Hello <- .Hello(char);");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Hello <- function(x)"),
+            "expected validator function, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("x[[1]] != 'Hello'"),
+            "expected tag name check, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("x[[\"body\"]]"),
+            "expected body field check, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("is.character"),
+            "expected is.character check on body, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_tag_alias_int_generates_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type Count <- .Count(int);");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Count <- function(x)"),
+            "expected validator, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("x[[1]] != 'Count'"),
+            "expected tag name check, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("is.integer"),
+            "expected is.integer check on body, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_tag_alias_with_alias_body_calls_nested_validator() {
+        let r_code = FluentParser::new()
+            .push("type Name <- char;")
+            .run()
+            .check_transpiling("type Tagged <- .Tagged(Name);");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Tagged <- function(x)"),
+            "expected validator, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains(".validate_Name(x[[\"body\"]])"),
+            "expected nested validator call, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_literal_char_alias_generates_exact_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type Hello <- \"hello\";");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Hello <- function(x)"),
+            "expected validator function, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("x != 'hello'"),
+            "expected literal equality check, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_literal_int_alias_generates_exact_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type Byte <- 89;");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Byte <- function(x)"),
+            "expected validator function, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("x != 89L"),
+            "expected literal equality check, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_literal_num_alias_generates_exact_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type Pi <- 3.14;");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Pi <- function(x)"),
+            "expected validator function, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("x != 3.14"),
+            "expected literal equality check, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_literal_bool_true_alias_generates_exact_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type Yes <- true;");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_Yes <- function(x)"),
+            "expected validator function, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("x != TRUE"),
+            "expected literal TRUE check, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_literal_bool_false_alias_generates_exact_validator() {
+        let r_code = FluentParser::new()
+            .check_transpiling("type No <- false;");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains(".validate_No <- function(x)"),
+            "expected validator function, got: {}",
+            r_str
+        );
+        assert!(
+            r_str.contains("x != FALSE"),
+            "expected literal FALSE check, got: {}",
+            r_str
         );
     }
 }

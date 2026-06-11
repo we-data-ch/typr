@@ -266,8 +266,8 @@ impl VarType {
         let res = match t {
             Type::Integer(_, _) => "integer".to_string(),
             Type::Char(_, _) => "character".to_string(),
-            Type::Boolean(_) => "logical".to_string(),
-            Type::Number(_) => "numeric".to_string(),
+            Type::Boolean(_, _) => "logical".to_string(),
+            Type::Number(_, _) => "numeric".to_string(),
             Type::Any(_) => "Any".to_string(),
             _ => self
                 .aliases
@@ -287,9 +287,9 @@ impl VarType {
 
     pub fn get_type_anotation(&self, t: &Type) -> String {
         let res = match t {
-            Type::Boolean(_) => "Boolean".to_string(),
+            Type::Boolean(_, _) => "Boolean".to_string(),
             Type::Integer(_, _) => "Integer".to_string(),
-            Type::Number(_) => "Number".to_string(),
+            Type::Number(_, _) => "Number".to_string(),
             Type::Char(_, _) => "Character".to_string(),
             Type::Vec(vtype, _, _, _) if vtype.is_vector() => "".to_string(),
             Type::Alias(name, _, _, _) => name.to_string(),
@@ -305,9 +305,9 @@ impl VarType {
 
     pub fn get_type_anotation_no_parentheses(&self, t: &Type) -> String {
         match t {
-            Type::Boolean(_) => "logical".to_string(),
+            Type::Boolean(_, _) => "logical".to_string(),
             Type::Integer(_, _) => "integer".to_string(),
-            Type::Number(_) => "number".to_string(),
+            Type::Number(_, _) => "number".to_string(),
             Type::Char(_, _) => "character".to_string(),
             Type::Alias(name, _, _, _) => name.to_string(),
             _ => self
@@ -323,8 +323,8 @@ impl VarType {
         match t {
             Type::Integer(_, _) => "integer".to_string(),
             Type::Char(_, _) => "character".to_string(),
-            Type::Boolean(_) => "logical".to_string(),
-            Type::Number(_) => "numeric".to_string(),
+            Type::Boolean(_, _) => "logical".to_string(),
+            Type::Number(_, _) => "numeric".to_string(),
             Type::Any(_) => "Any".to_string(),
             _ => self
                 .aliases

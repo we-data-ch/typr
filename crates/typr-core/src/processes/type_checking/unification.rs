@@ -51,7 +51,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
-                (Type::Number(h), Type::Number(_)) => Type::Number(h),
+                (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 + i2, h),
                 _ => Type::Add(Box::new(v1), Box::new(v2), h.clone()),
             }
@@ -61,7 +61,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
-                (Type::Number(h), Type::Number(_)) => Type::Number(h),
+                (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 - i2, h),
                 _ => Type::Minus(Box::new(v1), Box::new(v2), h.clone()),
             }
@@ -71,7 +71,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
-                (Type::Number(h), Type::Number(_)) => Type::Number(h),
+                (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 * i2, h),
                 _ => Type::Mul(Box::new(v1), Box::new(v2), h.clone()),
             }
@@ -81,7 +81,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
-                (Type::Number(h), Type::Number(_)) => Type::Number(h),
+                (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 / i2, h),
                 _ => Type::Div(Box::new(v1), Box::new(v2), h.clone()),
             }

@@ -661,7 +661,7 @@ fn typing_container(
 pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
     match expr {
         Lang::Number { help_data: h, .. } => {
-            (Type::Number(h.clone()), expr.clone(), context.clone()).into()
+            (Type::Number(crate::components::r#type::tnumber::Tnum::Unknown, h.clone()), expr.clone(), context.clone()).into()
         }
         Lang::Integer {
             value: i,
@@ -673,7 +673,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         )
             .into(),
         Lang::Bool { help_data: h, .. } => {
-            (Type::Boolean(h.clone()), expr.clone(), context.clone()).into()
+            (Type::Boolean(crate::components::r#type::tbool::Tbool::Unknown, h.clone()), expr.clone(), context.clone()).into()
         }
         Lang::Char {
             value: s,
@@ -1786,8 +1786,8 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let mut errors = tc.errors.clone();
 
             match tc.value {
-                Type::Boolean(_) => {
-                    TypeContext::new(Type::Boolean(h.clone()), expr.clone(), context.clone())
+                Type::Boolean(_, _) => {
+                    TypeContext::new(Type::Boolean(crate::components::r#type::tbool::Tbool::Unknown, h.clone()), expr.clone(), context.clone())
                         .with_errors(errors)
                 }
                 _ => {
@@ -2323,7 +2323,7 @@ mod tests {
         );
         if let Type::Vec(VecType::Vector, _, inner, _) = &typ {
             assert!(
-                matches!(**inner, Type::Number(_)),
+                matches!(**inner, Type::Number(_, _)),
                 "Expected inner type to be Number but got {:?}",
                 inner
             );

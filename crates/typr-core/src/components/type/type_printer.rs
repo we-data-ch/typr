@@ -81,8 +81,15 @@ pub fn format(ty: &Type) -> String {
         }
         Type::Generic(name, _) => name.to_uppercase(),
         Type::Integer(_, _) => "int".to_string(),
-        Type::Number(_) => "num".to_string(),
-        Type::Boolean(_) => "bool".to_string(),
+        Type::Number(tnum, _) => match tnum {
+            crate::components::r#type::tnumber::Tnum::Val(v) => format!("{}", v),
+            _ => "num".to_string(),
+        },
+        Type::Boolean(tbool, _) => match tbool {
+            crate::components::r#type::tbool::Tbool::Val(true) => "true".to_string(),
+            crate::components::r#type::tbool::Tbool::Val(false) => "false".to_string(),
+            _ => "bool".to_string(),
+        },
         Type::Char(tchar, _) => match tchar {
             Tchar::Val(c) => c.to_string(),
             _ => "char".to_string(),
@@ -144,8 +151,8 @@ pub fn verbose(t: &Type) -> String {
             Tint::Val(i) => format!("int({})", i),
             _ => "int".to_string(),
         },
-        Type::Number(_) => "num".to_string(),
-        Type::Boolean(_) => "bool".to_string(),
+        Type::Number(_, _) => "num".to_string(),
+        Type::Boolean(_, _) => "bool".to_string(),
         Type::Null(_) => "null".to_string(),
         Type::Char(_tchar, _) => "char".to_string(),
         Type::Record(fields, _) => {

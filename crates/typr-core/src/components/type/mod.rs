@@ -6,8 +6,10 @@ pub mod function_type;
 pub mod generic;
 pub mod index;
 pub mod module_type;
+pub mod tbool;
 pub mod tchar;
 pub mod tint;
+pub mod tnumber;
 pub mod type_category;
 pub mod type_operator;
 pub mod type_printer;
@@ -23,8 +25,10 @@ use crate::components::r#type::alias_type::Alias;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::module_type::ModuleType;
+use crate::components::r#type::tbool::Tbool;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
+use crate::components::r#type::tnumber::Tnum;
 use crate::components::r#type::type_category::TypeCategory;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_printer::litteral;
@@ -86,9 +90,9 @@ pub fn pretty(hs: HashSet<ArgumentType>) -> String {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq)]
 pub enum Type {
-    Number(HelpData),
+    Number(Tnum, HelpData),
     Integer(Tint, HelpData),
-    Boolean(HelpData),
+    Boolean(Tbool, HelpData),
     Char(Tchar, HelpData),
     Embedded(Box<Type>, HelpData),
     Function(Vec<ArgumentType>, Box<Type>, HelpData),
@@ -327,8 +331,8 @@ impl Type {
     pub fn is_primitive(&self) -> bool {
         matches!(
             self,
-            Type::Boolean(_)
-                | Type::Number(_)
+            Type::Boolean(_, _)
+                | Type::Number(_, _)
                 | Type::Integer(_, _)
                 | Type::Char(_, _)
                 | Type::Null(_)
@@ -412,9 +416,9 @@ impl Type {
 
     pub fn to_typescript(&self) -> String {
         match self {
-            Type::Boolean(_) => "boolean".to_string(),
+            Type::Boolean(_, _) => "boolean".to_string(),
             Type::Integer(_, _) => "number".to_string(),
-            Type::Number(_) => "number".to_string(),
+            Type::Number(_, _) => "number".to_string(),
             Type::Char(_, _) => "string".to_string(),
             Type::Record(body, _) => {
                 let res = body
@@ -455,9 +459,9 @@ impl Type {
 
     pub fn to_assemblyscript(&self) -> String {
         match self {
-            Type::Boolean(_) => "bool".to_string(),
+            Type::Boolean(_, _) => "bool".to_string(),
             Type::Integer(_, _) => "i32".to_string(),
-            Type::Number(_) => "f64".to_string(),
+            Type::Number(_, _) => "f64".to_string(),
             Type::Char(_, _) => "string".to_string(),
             Type::Record(body, _) => {
                 let res = body
@@ -632,7 +636,7 @@ impl Type {
     }
 
     pub fn is_boolean(&self) -> bool {
-        matches!(self, Type::Boolean(_))
+        matches!(self, Type::Boolean(_, _))
     }
 
     pub fn dependent_type(&self, dep_typ: &Type) -> bool {
@@ -693,8 +697,8 @@ impl Type {
             Type::Tuple(_, _) => TypeCategory::Tuple,
             Type::Tag(_, _, _) => TypeCategory::Tag,
             Type::Interface(_, _) => TypeCategory::Interface,
-            Type::Boolean(_) => TypeCategory::Boolean,
-            Type::Number(_) => TypeCategory::Number,
+            Type::Boolean(_, _) => TypeCategory::Boolean,
+            Type::Number(_, _) => TypeCategory::Number,
             Type::Char(_, _) => TypeCategory::Char,
             Type::Generic(_, _) => TypeCategory::Generic,
             Type::IndexGen(_, _) => TypeCategory::Generic,
@@ -747,9 +751,9 @@ impl Type {
     pub fn get_help_data(&self) -> HelpData {
         match self {
             Type::Integer(_, h) => h.clone(),
-            Type::Number(h) => h.clone(),
+            Type::Number(_, h) => h.clone(),
             Type::Char(_, h) => h.clone(),
-            Type::Boolean(h) => h.clone(),
+            Type::Boolean(_, h) => h.clone(),
             Type::Embedded(_, h) => h.clone(),
             Type::Function(_, _, h) => h.clone(),
             Type::Generic(_, h) => h.clone(),
@@ -788,9 +792,9 @@ impl Type {
     pub fn set_help_data(self, h2: HelpData) -> Type {
         match self {
             Type::Integer(i, _) => Type::Integer(i, h2),
-            Type::Number(_) => Type::Number(h2),
+            Type::Number(n, _) => Type::Number(n, h2),
             Type::Char(a, _) => Type::Char(a, h2),
-            Type::Boolean(_) => Type::Boolean(h2),
+            Type::Boolean(b, _) => Type::Boolean(b, h2),
             Type::Embedded(a, _) => Type::Embedded(a, h2),
             Type::Function(a2, a3, _) => Type::Function(a2, a3, h2),
             Type::Generic(a, _) => Type::Generic(a, h2),
@@ -1055,9 +1059,9 @@ impl From<Type> for HelpData {
             Type::Char(_, h) => h,
             Type::Integer(_, h) => h,
             Type::Record(_, h) => h,
-            Type::Boolean(h) => h,
+            Type::Boolean(_, h) => h,
             Type::Vec(_, _, _, h) => h,
-            Type::Number(h) => h,
+            Type::Number(_, h) => h,
             Type::Intersection(_, h) => h,
             Type::Any(h) => h,
             Type::UnknownFunction(h) => h,
@@ -1072,9 +1076,9 @@ impl From<Type> for HelpData {
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Type::Number(_), Type::Number(_)) => true,
+            (Type::Number(n1, _), Type::Number(n2, _)) => n1 == n2,
             (Type::Integer(_, _), Type::Integer(_, _)) => true,
-            (Type::Boolean(_), Type::Boolean(_)) => true,
+            (Type::Boolean(b1, _), Type::Boolean(b2, _)) => b1 == b2,
             (Type::Char(t1, _), Type::Char(t2, _)) => t1 == t2,
             (Type::Embedded(e1, _), Type::Embedded(e2, _)) => e1 == e2,
             (Type::Function(b1, c1, _), Type::Function(b2, c2, _)) => b1 == b2 && c1 == c2,
@@ -1222,9 +1226,9 @@ impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // Utiliser un discriminant pour différencier les variantes
         match self {
-            Type::Number(_) => 0.hash(state),
+            Type::Number(n, _) => { 0.hash(state); n.hash(state); },
             Type::Integer(_, _) => 1.hash(state),
-            Type::Boolean(_) => 2.hash(state),
+            Type::Boolean(b, _) => { 2.hash(state); b.hash(state); },
             Type::Char(_, _) => 3.hash(state),
             Type::Embedded(_, _) => 4.hash(state),
             Type::Function(_, _, _) => 5.hash(state),

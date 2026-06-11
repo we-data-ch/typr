@@ -3,8 +3,10 @@ use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::language::operators::{op, Op};
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::tbool::Tbool;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
+use crate::components::r#type::tnumber::Tnum;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
@@ -432,7 +434,28 @@ fn record_type(s: Span) -> IResult<Span, Type> {
 fn number(s: Span) -> IResult<Span, Type> {
     let res = (tag("num"), multispace0).parse(s);
     match res {
-        Ok((s, (numtype, _))) => Ok((s, Type::Number(numtype.into()))),
+        Ok((s, (numtype, _))) => Ok((s, Type::Number(Tnum::Unknown, numtype.into()))),
+        Err(r) => Err(r),
+    }
+}
+
+fn number_literal(s: Span) -> IResult<Span, Type> {
+    use nom::character::complete::char as nchar;
+    use nom::combinator::recognize;
+    let res = terminated(
+        recognize((
+            opt(nchar('-')),
+            digit1,
+            nchar('.'),
+            digit1,
+        )),
+        multispace0,
+    ).parse(s);
+    match res {
+        Ok((s, span)) => {
+            let val: f64 = (*span).parse().unwrap_or(0.0);
+            Ok((s, Type::Number(Tnum::Val(val), span.into())))
+        }
         Err(r) => Err(r),
     }
 }
@@ -440,7 +463,32 @@ fn number(s: Span) -> IResult<Span, Type> {
 fn boolean(s: Span) -> IResult<Span, Type> {
     let res = terminated(tag("bool"), multispace0).parse(s);
     match res {
-        Ok((s, b)) => Ok((s, Type::Boolean(b.into()))),
+        Ok((s, b)) => Ok((s, Type::Boolean(Tbool::Unknown, b.into()))),
+        Err(r) => Err(r),
+    }
+}
+
+fn boolean_literal(s: Span) -> IResult<Span, Type> {
+    let res = alt((
+        terminated(tag("true"), multispace0),
+        terminated(tag("false"), multispace0),
+    )).parse(s);
+    match res {
+        Ok((s, span)) => {
+            let val = *span == "true";
+            Ok((s, Type::Boolean(Tbool::Val(val), span.into())))
+        }
+        Err(r) => Err(r),
+    }
+}
+
+fn integer_literal(s: Span) -> IResult<Span, Type> {
+    let res = terminated(digit1, multispace0).parse(s);
+    match res {
+        Ok((s, span)) => {
+            let val: i32 = (*span).parse().unwrap_or(0);
+            Ok((s, Type::Integer(Tint::Val(val), span.into())))
+        }
         Err(r) => Err(r),
     }
 }
@@ -717,7 +765,7 @@ fn r_class(s: Span) -> IResult<Span, Type> {
 }
 
 pub fn primitive_types(s: Span) -> IResult<Span, Type> {
-    alt((number, integer, boolean, null_type, na_type, chars)).parse(s)
+    alt((number_literal, number, integer_literal, integer, boolean_literal, boolean, null_type, na_type, chars)).parse(s)
 }
 
 fn type_operator(s: Span) -> IResult<Span, TypeToken> {
@@ -839,8 +887,8 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             interface,
             label_generic,
             char_litteral,
-            index_algebra,
             primitive_types,
+            index_algebra,
             type_alias,
             type_variable,
             generic,
@@ -1090,7 +1138,7 @@ mod tests {
                     other => panic!("Expected Any index, got {:?}", other),
                 }
                 match body.as_ref() {
-                    Type::Number(_) => {}
+                    Type::Number(_, _) => {}
                     other => panic!("Expected Number body, got {:?}", other),
                 }
             }
@@ -1150,7 +1198,7 @@ mod tests {
                     other => panic!("Expected Any index, got {:?}", other),
                 }
                 match body.as_ref() {
-                    Type::Number(_) => {}
+                    Type::Number(_, _) => {}
                     other => panic!("Expected Number body, got {:?}", other),
                 }
             }
