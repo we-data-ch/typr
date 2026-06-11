@@ -105,7 +105,7 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
             Type::Function(typs2, Box::new(ret_typ2), h.to_owned())
         }
         Type::Vec(vtype, ind, typ, h) => Type::Vec(
-            *vtype,
+            vtype.clone(),
             ind.clone(),
             Box::new(reduce_type_helper(context, typ, memory.clone())),
             h.clone(),

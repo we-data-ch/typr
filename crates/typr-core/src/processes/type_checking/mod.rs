@@ -29,6 +29,7 @@ use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::processes::type_checking::function::function;
@@ -183,6 +184,21 @@ fn install_package(_name: &str) {
     // No-op in WASM mode - packages must be pre-registered
 }
 
+/// Validate that every `Name[N]{...}` record-constructor usage in `typ` refers to a
+/// constructor declared (via `typeconstructor`) with the `Record` category.
+fn validate_named_constructors(context: &Context, typ: &Type) -> Vec<TypRError> {
+    typ.collect_named_constructors()
+        .into_iter()
+        .filter(|(name, _)| {
+            !matches!(
+                context.get_type_constructor(name),
+                Some((_, _, ConstructorCategory::Record))
+            )
+        })
+        .map(|(name, hd)| TypRError::Type(TypeError::UnknownTypeConstructor(name, hd)))
+        .collect()
+}
+
 pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
     match expr {
         Lang::Let {
@@ -253,6 +269,8 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                     typ.clone(),
                 )));
             }
+
+            errors.extend(validate_named_constructors(context, typ));
 
             let ctx_with_alias = new_context.push_alias(effective_var.get_name(), typ.to_owned());
 
@@ -338,6 +356,18 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             target_type: typ,
             ..
         } => signature_expression(context, expr, var, typ),
+        Lang::TypeConstructor {
+            name,
+            parameters,
+            category,
+            ..
+        } => {
+            let new_context =
+                context
+                    .clone()
+                    .push_type_constructor(name.clone(), parameters.to_vec(), *category);
+            (builder::empty_type(), expr.clone(), new_context).into()
+        }
         Lang::TestBlock { value: body, .. } => {
             //Needed to be type checked
             let tc = typing(context, body);
@@ -660,9 +690,12 @@ fn typing_container(
 //main
 pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
     match expr {
-        Lang::Number { help_data: h, .. } => {
-            (Type::Number(crate::components::r#type::tnumber::Tnum::Unknown, h.clone()), expr.clone(), context.clone()).into()
-        }
+        Lang::Number { help_data: h, .. } => (
+            Type::Number(crate::components::r#type::tnumber::Tnum::Unknown, h.clone()),
+            expr.clone(),
+            context.clone(),
+        )
+            .into(),
         Lang::Integer {
             value: i,
             help_data: h,
@@ -672,9 +705,12 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             context.clone(),
         )
             .into(),
-        Lang::Bool { help_data: h, .. } => {
-            (Type::Boolean(crate::components::r#type::tbool::Tbool::Unknown, h.clone()), expr.clone(), context.clone()).into()
-        }
+        Lang::Bool { help_data: h, .. } => (
+            Type::Boolean(crate::components::r#type::tbool::Tbool::Unknown, h.clone()),
+            expr.clone(),
+            context.clone(),
+        )
+            .into(),
         Lang::Char {
             value: s,
             help_data: h,
@@ -1786,10 +1822,12 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let mut errors = tc.errors.clone();
 
             match tc.value {
-                Type::Boolean(_, _) => {
-                    TypeContext::new(Type::Boolean(crate::components::r#type::tbool::Tbool::Unknown, h.clone()), expr.clone(), context.clone())
-                        .with_errors(errors)
-                }
+                Type::Boolean(_, _) => TypeContext::new(
+                    Type::Boolean(crate::components::r#type::tbool::Tbool::Unknown, h.clone()),
+                    expr.clone(),
+                    context.clone(),
+                )
+                .with_errors(errors),
                 _ => {
                     errors.push(TypRError::Type(TypeError::WrongExpression(
                         not_exp.get_help_data(),
@@ -1815,6 +1853,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Library { .. } => eval(context, expr).with_lang(expr),
         Lang::TestBlock { .. } => eval(context, expr).with_lang(expr),
         Lang::Signature { .. } => eval(context, expr).with_lang(expr),
+        Lang::TypeConstructor { .. } => eval(context, expr).with_lang(expr),
         Lang::Return { value: exp, .. } => typing(context, exp),
         Lang::Module { .. } => eval(context, expr).with_lang(expr),
         Lang::Lambda {
@@ -2071,8 +2110,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         } => {
             let expr_tc = typing(context, expression);
             let alias_type = Type::Alias(type_name.clone(), vec![], false, h.clone());
-            TypeContext::new(alias_type, expr.clone(), context.clone())
-                .with_errors(expr_tc.errors)
+            TypeContext::new(alias_type, expr.clone(), context.clone()).with_errors(expr_tc.errors)
         }
         Lang::Comment { help_data: h, .. }
         | Lang::ModuleImport { help_data: h, .. }
@@ -2943,6 +2981,49 @@ p"#;
             r_code.contains(r#"class = c("Rgb", "Color", "list")"#),
             "Expected S3 class hierarchy for Rgb, got:\n{}",
             r_code
+        );
+    }
+
+    #[test]
+    fn test_typeconstructor_declared_record_validates() {
+        use crate::processes::parsing::parse_from_string;
+        let src = "typeconstructor Tibble[N] record;\n@t: Tibble[3]{ id: int, active: bool };";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result
+                .display_errors()
+                .iter()
+                .any(|e| e.contains("not declared")),
+            "Declared record constructor should validate, errors: {:?}",
+            result.display_errors()
+        );
+    }
+
+    #[test]
+    fn test_typeconstructor_registered_in_context() {
+        use crate::components::r#type::vector_type::ConstructorCategory;
+        use crate::processes::parsing::parse_from_string;
+        let src = "typeconstructor Tibble[N] record;\n@t: Tibble[3]{ id: int };";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        let decl = result.type_context.context.get_type_constructor("Tibble");
+        assert!(
+            matches!(decl, Some((_, _, ConstructorCategory::Record))),
+            "Tibble should be registered as a record constructor, got {:?}",
+            decl
+        );
+    }
+
+    #[test]
+    fn test_undeclared_record_constructor_errors() {
+        use crate::processes::parsing::parse_from_string;
+        let src = "@g: Ghost[2]{ x: int };";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "Using an undeclared record constructor should produce an error"
         );
     }
 }

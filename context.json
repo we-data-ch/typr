@@ -17270,10 +17270,13 @@
                 ]
               },
               {
-                "Number": {
-                  "offset": 40,
-                  "file_name": "plot.ty"
-                }
+                "Number": [
+                  "Unknown",
+                  {
+                    "offset": 40,
+                    "file_name": "plot.ty"
+                  }
+                ]
               },
               {
                 "offset": 35,
@@ -17314,10 +17317,13 @@
                       ]
                     },
                     {
-                      "Number": {
-                        "offset": 40,
-                        "file_name": "plot.ty"
-                      }
+                      "Number": [
+                        "Unknown",
+                        {
+                          "offset": 40,
+                          "file_name": "plot.ty"
+                        }
+                      ]
                     },
                     {
                       "offset": 35,
@@ -17353,10 +17359,13 @@
                       ]
                     },
                     {
-                      "Number": {
-                        "offset": 51,
-                        "file_name": "plot.ty"
-                      }
+                      "Number": [
+                        "Unknown",
+                        {
+                          "offset": 51,
+                          "file_name": "plot.ty"
+                        }
+                      ]
                     },
                     {
                       "offset": 46,
@@ -17418,10 +17427,13 @@
                       ]
                     },
                     {
-                      "Number": {
-                        "offset": 67,
-                        "file_name": "plot.ty"
-                      }
+                      "Number": [
+                        "Unknown",
+                        {
+                          "offset": 67,
+                          "file_name": "plot.ty"
+                        }
+                      ]
                     },
                     {
                       "offset": 63,
@@ -17459,10 +17471,13 @@
                       ]
                     },
                     {
-                      "Number": {
-                        "offset": 77,
-                        "file_name": "plot.ty"
-                      }
+                      "Number": [
+                        "Unknown",
+                        {
+                          "offset": 77,
+                          "file_name": "plot.ty"
+                        }
+                      ]
                     },
                     {
                       "offset": 73,
@@ -17606,10 +17621,13 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 113,
-                    "file_name": "plot.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 113,
+                      "file_name": "plot.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -17627,10 +17645,13 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 119,
-                    "file_name": "plot.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 119,
+                      "file_name": "plot.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -17764,10 +17785,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 367,
-                "file_name": "file.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 367,
+                  "file_name": "file.ty"
+                }
+              ]
             },
             {
               "offset": 357,
@@ -17847,10 +17871,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 341,
-                "file_name": "file.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 341,
+                  "file_name": "file.ty"
+                }
+              ]
             },
             {
               "offset": 325,
@@ -17930,10 +17957,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 304,
-                "file_name": "file.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 304,
+                  "file_name": "file.ty"
+                }
+              ]
             },
             {
               "offset": 288,
@@ -18013,10 +18043,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 268,
-                "file_name": "file.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 268,
+                  "file_name": "file.ty"
+                }
+              ]
             },
             {
               "offset": 252,
@@ -18072,10 +18105,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 230,
-                "file_name": "file.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 230,
+                  "file_name": "file.ty"
+                }
+              ]
             },
             {
               "offset": 220,
@@ -18131,10 +18167,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 198,
-                "file_name": "file.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 198,
+                  "file_name": "file.ty"
+                }
+              ]
             },
             {
               "offset": 188,
@@ -18190,10 +18229,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 166,
-                "file_name": "file.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 166,
+                  "file_name": "file.ty"
+                }
+              ]
             },
             {
               "offset": 156,
@@ -18473,10 +18515,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 1556,
-                "file_name": "default.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 1556,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 1540,
@@ -18556,10 +18601,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 1522,
-                "file_name": "default.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 1522,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 1506,
@@ -18639,10 +18687,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 1491,
-                "file_name": "default.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 1491,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 1475,
@@ -18722,10 +18773,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 1457,
-                "file_name": "default.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 1457,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 1441,
@@ -19729,10 +19783,13 @@
           "name": "div",
           "is_opaque": false,
           "related_type": {
-            "Number": {
-              "offset": 803,
-              "file_name": "default.ty"
-            }
+            "Number": [
+              "Unknown",
+              {
+                "offset": 803,
+                "file_name": "default.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 798,
@@ -19755,10 +19812,13 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 803,
-                    "file_name": "default.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 803,
+                      "file_name": "default.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -19776,20 +19836,26 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 808,
-                    "file_name": "default.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 808,
+                      "file_name": "default.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Number": {
-                "offset": 816,
-                "file_name": "default.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 816,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 802,
@@ -19889,10 +19955,13 @@
           "name": "mul",
           "is_opaque": false,
           "related_type": {
-            "Number": {
-              "offset": 751,
-              "file_name": "default.ty"
-            }
+            "Number": [
+              "Unknown",
+              {
+                "offset": 751,
+                "file_name": "default.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 746,
@@ -19915,10 +19984,13 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 751,
-                    "file_name": "default.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 751,
+                      "file_name": "default.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -19936,20 +20008,26 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 756,
-                    "file_name": "default.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 756,
+                      "file_name": "default.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Number": {
-                "offset": 764,
-                "file_name": "default.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 764,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 750,
@@ -20049,10 +20127,13 @@
           "name": "minus",
           "is_opaque": false,
           "related_type": {
-            "Number": {
-              "offset": 699,
-              "file_name": "default.ty"
-            }
+            "Number": [
+              "Unknown",
+              {
+                "offset": 699,
+                "file_name": "default.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 692,
@@ -20075,10 +20156,13 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 699,
-                    "file_name": "default.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 699,
+                      "file_name": "default.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -20096,20 +20180,26 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 704,
-                    "file_name": "default.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 704,
+                      "file_name": "default.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Number": {
-                "offset": 712,
-                "file_name": "default.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 712,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 698,
@@ -20209,10 +20299,13 @@
           "name": "add",
           "is_opaque": false,
           "related_type": {
-            "Number": {
-              "offset": 643,
-              "file_name": "default.ty"
-            }
+            "Number": [
+              "Unknown",
+              {
+                "offset": 643,
+                "file_name": "default.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 638,
@@ -20235,10 +20328,13 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 643,
-                    "file_name": "default.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 643,
+                      "file_name": "default.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -20256,20 +20352,26 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 648,
-                    "file_name": "default.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 648,
+                      "file_name": "default.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Number": {
-                "offset": 656,
-                "file_name": "default.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 656,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 642,
@@ -21217,10 +21319,13 @@
               ]
             ],
             {
-              "Number": {
-                "offset": 390,
-                "file_name": "default.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 390,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 383,
@@ -22039,10 +22144,13 @@
           "name": "expect_true",
           "is_opaque": false,
           "related_type": {
-            "Boolean": {
-              "offset": 504,
-              "file_name": "std_R.ty"
-            }
+            "Boolean": [
+              "Unknown",
+              {
+                "offset": 504,
+                "file_name": "std_R.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 491,
@@ -22065,10 +22173,13 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 504,
-                    "file_name": "std_R.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 504,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -22863,10 +22974,13 @@
           "name": "`||`",
           "is_opaque": false,
           "related_type": {
-            "Boolean": {
-              "offset": 237,
-              "file_name": "std_R.ty"
-            }
+            "Boolean": [
+              "Unknown",
+              {
+                "offset": 237,
+                "file_name": "std_R.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 231,
@@ -22889,10 +23003,13 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 237,
-                    "file_name": "std_R.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 237,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -22910,20 +23027,26 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 243,
-                    "file_name": "std_R.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 243,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Boolean": {
-                "offset": 252,
-                "file_name": "std_R.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 252,
+                  "file_name": "std_R.ty"
+                }
+              ]
             },
             {
               "offset": 236,
@@ -22937,10 +23060,13 @@
           "name": "`&&`",
           "is_opaque": false,
           "related_type": {
-            "Boolean": {
-              "offset": 208,
-              "file_name": "std_R.ty"
-            }
+            "Boolean": [
+              "Unknown",
+              {
+                "offset": 208,
+                "file_name": "std_R.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 202,
@@ -22963,10 +23089,13 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 208,
-                    "file_name": "std_R.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 208,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -22984,20 +23113,26 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 214,
-                    "file_name": "std_R.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 214,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Boolean": {
-                "offset": 223,
-                "file_name": "std_R.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 223,
+                  "file_name": "std_R.ty"
+                }
+              ]
             },
             {
               "offset": 207,
@@ -23011,10 +23146,13 @@
           "name": "`*`",
           "is_opaque": false,
           "related_type": {
-            "Number": {
-              "offset": 182,
-              "file_name": "std_R.ty"
-            }
+            "Number": [
+              "Unknown",
+              {
+                "offset": 182,
+                "file_name": "std_R.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 177,
@@ -23037,10 +23175,13 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 182,
-                    "file_name": "std_R.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 182,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -23058,20 +23199,26 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 187,
-                    "file_name": "std_R.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 187,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Number": {
-                "offset": 195,
-                "file_name": "std_R.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 195,
+                  "file_name": "std_R.ty"
+                }
+              ]
             },
             {
               "offset": 181,
@@ -23171,10 +23318,13 @@
           "name": "`/`",
           "is_opaque": false,
           "related_type": {
-            "Number": {
-              "offset": 132,
-              "file_name": "std_R.ty"
-            }
+            "Number": [
+              "Unknown",
+              {
+                "offset": 132,
+                "file_name": "std_R.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 127,
@@ -23197,10 +23347,13 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 132,
-                    "file_name": "std_R.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 132,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -23218,20 +23371,26 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 137,
-                    "file_name": "std_R.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 137,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Number": {
-                "offset": 145,
-                "file_name": "std_R.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 145,
+                  "file_name": "std_R.ty"
+                }
+              ]
             },
             {
               "offset": 131,
@@ -23331,10 +23490,13 @@
           "name": "`-`",
           "is_opaque": false,
           "related_type": {
-            "Number": {
-              "offset": 82,
-              "file_name": "std_R.ty"
-            }
+            "Number": [
+              "Unknown",
+              {
+                "offset": 82,
+                "file_name": "std_R.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 77,
@@ -23357,10 +23519,13 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 82,
-                    "file_name": "std_R.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 82,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -23378,20 +23543,26 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 87,
-                    "file_name": "std_R.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 87,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Number": {
-                "offset": 95,
-                "file_name": "std_R.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 95,
+                  "file_name": "std_R.ty"
+                }
+              ]
             },
             {
               "offset": 81,
@@ -23491,10 +23662,13 @@
           "name": "`+`",
           "is_opaque": false,
           "related_type": {
-            "Number": {
-              "offset": 32,
-              "file_name": "std_R.ty"
-            }
+            "Number": [
+              "Unknown",
+              {
+                "offset": 32,
+                "file_name": "std_R.ty"
+              }
+            ]
           },
           "help_data": {
             "offset": 27,
@@ -23517,10 +23691,13 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 32,
-                    "file_name": "std_R.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 32,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -23538,20 +23715,26 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 37,
-                    "file_name": "std_R.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 37,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Number": {
-                "offset": 45,
-                "file_name": "std_R.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 45,
+                  "file_name": "std_R.ty"
+                }
+              ]
             },
             {
               "offset": 31,
@@ -24678,10 +24861,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 515,
-                "file_name": "option.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 515,
+                  "file_name": "option.ty"
+                }
+              ]
             },
             {
               "offset": 0,
@@ -24761,10 +24947,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 618,
-                "file_name": "option.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 618,
+                  "file_name": "option.ty"
+                }
+              ]
             },
             {
               "offset": 0,
@@ -25108,6 +25297,319 @@
             }
           ]
         }
+      ],
+      [
+        {
+          "name": "incr",
+          "is_opaque": false,
+          "related_type": {
+            "Generic": [
+              "Self",
+              {
+                "offset": 41,
+                "file_name": "/tmp/t5.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 35,
+            "file_name": "/tmp/t5.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "Incrementable_",
+                    [],
+                    true,
+                    {
+                      "offset": 79,
+                      "file_name": "/tmp/t5.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "Incrementable_",
+                [],
+                true,
+                {
+                  "offset": 79,
+                  "file_name": "/tmp/t5.ty"
+                }
+              ]
+            },
+            {
+              "offset": 40,
+              "file_name": "/tmp/t5.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "i",
+          "is_opaque": false,
+          "related_type": {
+            "Interface": [
+              [
+                [
+                  {
+                    "Char": [
+                      {
+                        "Val": "incr"
+                      },
+                      {
+                        "offset": 35,
+                        "file_name": "/tmp/t5.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "Function": [
+                      [
+                        [
+                          {
+                            "Char": [
+                              {
+                                "Val": "a"
+                              },
+                              {
+                                "offset": 0,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "Generic": [
+                              "Self",
+                              {
+                                "offset": 41,
+                                "file_name": "/tmp/t5.ty"
+                              }
+                            ]
+                          },
+                          false,
+                          false
+                        ]
+                      ],
+                      {
+                        "Generic": [
+                          "Self",
+                          {
+                            "offset": 50,
+                            "file_name": "/tmp/t5.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 40,
+                        "file_name": "/tmp/t5.ty"
+                      }
+                    ]
+                  },
+                  false,
+                  false
+                ]
+              ],
+              {
+                "offset": 22,
+                "file_name": "/tmp/t5.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 76,
+            "file_name": "/tmp/t5.ty"
+          }
+        },
+        {
+          "Alias": [
+            "Incrementable_",
+            [],
+            true,
+            {
+              "offset": 79,
+              "file_name": "/tmp/t5.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "double",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "Incrementable",
+              [],
+              false,
+              {
+                "offset": 79,
+                "file_name": "/tmp/t5.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 63,
+            "file_name": "/tmp/t5.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "i"
+                    },
+                    {
+                      "offset": 76,
+                      "file_name": "/tmp/t5.ty"
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "Incrementable",
+                    [],
+                    false,
+                    {
+                      "offset": 79,
+                      "file_name": "/tmp/t5.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "Incrementable",
+                [],
+                false,
+                {
+                  "offset": 95,
+                  "file_name": "/tmp/t5.ty"
+                }
+              ]
+            },
+            {
+              "offset": 0,
+              "file_name": ""
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "i",
+          "is_opaque": false,
+          "related_type": {
+            "Integer": [
+              "Unknown",
+              {
+                "offset": 147,
+                "file_name": "/tmp/t5.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 145,
+            "file_name": "/tmp/t5.ty"
+          }
+        },
+        {
+          "Integer": [
+            "Unknown",
+            {
+              "offset": 147,
+              "file_name": "/tmp/t5.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "incr",
+          "is_opaque": false,
+          "related_type": {
+            "Integer": [
+              "Unknown",
+              {
+                "offset": 147,
+                "file_name": "/tmp/t5.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 134,
+            "file_name": "/tmp/t5.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "i"
+                    },
+                    {
+                      "offset": 145,
+                      "file_name": "/tmp/t5.ty"
+                    }
+                  ]
+                },
+                {
+                  "Integer": [
+                    "Unknown",
+                    {
+                      "offset": 147,
+                      "file_name": "/tmp/t5.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Integer": [
+                "Unknown",
+                {
+                  "offset": 153,
+                  "file_name": "/tmp/t5.ty"
+                }
+              ]
+            },
+            {
+              "offset": 0,
+              "file_name": ""
+            }
+          ]
+        }
       ]
     ],
     "aliases": [
@@ -25259,10 +25761,13 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 32,
-                    "file_name": "std_R.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 32,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -25280,20 +25785,26 @@
                   ]
                 },
                 {
-                  "Number": {
-                    "offset": 37,
-                    "file_name": "std_R.ty"
-                  }
+                  "Number": [
+                    "Unknown",
+                    {
+                      "offset": 37,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Number": {
-                "offset": 45,
-                "file_name": "std_R.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 45,
+                  "file_name": "std_R.ty"
+                }
+              ]
             },
             {
               "offset": 31,
@@ -25336,10 +25847,13 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 208,
-                    "file_name": "std_R.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 208,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -25357,20 +25871,26 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 214,
-                    "file_name": "std_R.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 214,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
               ]
             ],
             {
-              "Boolean": {
-                "offset": 223,
-                "file_name": "std_R.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 223,
+                  "file_name": "std_R.ty"
+                }
+              ]
             },
             {
               "offset": 207,
@@ -26272,10 +26792,13 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 504,
-                    "file_name": "std_R.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 504,
+                      "file_name": "std_R.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -27053,10 +27576,13 @@
               ]
             ],
             {
-              "Number": {
-                "offset": 390,
-                "file_name": "default.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 390,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 383,
@@ -27474,10 +28000,13 @@
               ]
             },
             {
-              "Number": {
-                "offset": 835,
-                "file_name": "default.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 835,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 830,
@@ -27532,10 +28061,13 @@
                       ]
                     },
                     {
-                      "Number": {
-                        "offset": 835,
-                        "file_name": "default.ty"
-                      }
+                      "Number": [
+                        "Unknown",
+                        {
+                          "offset": 835,
+                          "file_name": "default.ty"
+                        }
+                      ]
                     },
                     {
                       "offset": 830,
@@ -27571,10 +28103,13 @@
                       ]
                     },
                     {
-                      "Number": {
-                        "offset": 846,
-                        "file_name": "default.ty"
-                      }
+                      "Number": [
+                        "Unknown",
+                        {
+                          "offset": 846,
+                          "file_name": "default.ty"
+                        }
+                      ]
                     },
                     {
                       "offset": 841,
@@ -28634,10 +29169,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 1457,
-                "file_name": "default.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 1457,
+                  "file_name": "default.ty"
+                }
+              ]
             },
             {
               "offset": 1441,
@@ -28693,10 +29231,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 166,
-                "file_name": "file.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 166,
+                  "file_name": "file.ty"
+                }
+              ]
             },
             {
               "offset": 156,
@@ -29189,10 +29730,13 @@
               ]
             ],
             {
-              "Boolean": {
-                "offset": 515,
-                "file_name": "option.ty"
-              }
+              "Boolean": [
+                "Unknown",
+                {
+                  "offset": 515,
+                  "file_name": "option.ty"
+                }
+              ]
             },
             {
               "offset": 0,
@@ -29234,10 +29778,13 @@
               ]
             },
             {
-              "Number": {
-                "offset": 67,
-                "file_name": "plot.ty"
-              }
+              "Number": [
+                "Unknown",
+                {
+                  "offset": 67,
+                  "file_name": "plot.ty"
+                }
+              ]
             },
             {
               "offset": 63,
@@ -29292,10 +29839,13 @@
                       ]
                     },
                     {
-                      "Number": {
-                        "offset": 40,
-                        "file_name": "plot.ty"
-                      }
+                      "Number": [
+                        "Unknown",
+                        {
+                          "offset": 40,
+                          "file_name": "plot.ty"
+                        }
+                      ]
                     },
                     {
                       "offset": 35,
@@ -29331,10 +29881,13 @@
                       ]
                     },
                     {
-                      "Number": {
-                        "offset": 51,
-                        "file_name": "plot.ty"
-                      }
+                      "Number": [
+                        "Unknown",
+                        {
+                          "offset": 51,
+                          "file_name": "plot.ty"
+                        }
+                      ]
                     },
                     {
                       "offset": 46,
@@ -29396,10 +29949,13 @@
                       ]
                     },
                     {
-                      "Number": {
-                        "offset": 67,
-                        "file_name": "plot.ty"
-                      }
+                      "Number": [
+                        "Unknown",
+                        {
+                          "offset": 67,
+                          "file_name": "plot.ty"
+                        }
+                      ]
                     },
                     {
                       "offset": 63,
@@ -29437,10 +29993,13 @@
                       ]
                     },
                     {
-                      "Number": {
-                        "offset": 77,
-                        "file_name": "plot.ty"
-                      }
+                      "Number": [
+                        "Unknown",
+                        {
+                          "offset": 77,
+                          "file_name": "plot.ty"
+                        }
+                      ]
                     },
                     {
                       "offset": 73,
@@ -29584,10 +30143,13 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 113,
-                    "file_name": "plot.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 113,
+                      "file_name": "plot.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -29605,10 +30167,13 @@
                   ]
                 },
                 {
-                  "Boolean": {
-                    "offset": 119,
-                    "file_name": "plot.ty"
-                  }
+                  "Boolean": [
+                    "Unknown",
+                    {
+                      "offset": 119,
+                      "file_name": "plot.ty"
+                    }
+                  ]
                 },
                 false,
                 false
@@ -30632,6 +31197,335 @@
             {
               "offset": 41,
               "file_name": "system.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Incrementable",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 6,
+                "file_name": "/tmp/t5.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Interface": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "incr"
+                    },
+                    {
+                      "offset": 35,
+                      "file_name": "/tmp/t5.ty"
+                    }
+                  ]
+                },
+                {
+                  "Function": [
+                    [
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "a"
+                            },
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Generic": [
+                            "Self",
+                            {
+                              "offset": 41,
+                              "file_name": "/tmp/t5.ty"
+                            }
+                          ]
+                        },
+                        false,
+                        false
+                      ]
+                    ],
+                    {
+                      "Generic": [
+                        "Self",
+                        {
+                          "offset": 50,
+                          "file_name": "/tmp/t5.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 40,
+                      "file_name": "/tmp/t5.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "offset": 22,
+              "file_name": "/tmp/t5.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function0",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "i"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Interface": [
+                    [
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "incr"
+                            },
+                            {
+                              "offset": 35,
+                              "file_name": "/tmp/t5.ty"
+                            }
+                          ]
+                        },
+                        {
+                          "Function": [
+                            [
+                              [
+                                {
+                                  "Char": [
+                                    {
+                                      "Val": "a"
+                                    },
+                                    {
+                                      "offset": 0,
+                                      "file_name": ""
+                                    }
+                                  ]
+                                },
+                                {
+                                  "Generic": [
+                                    "Self",
+                                    {
+                                      "offset": 41,
+                                      "file_name": "/tmp/t5.ty"
+                                    }
+                                  ]
+                                },
+                                false,
+                                false
+                              ]
+                            ],
+                            {
+                              "Generic": [
+                                "Self",
+                                {
+                                  "offset": 50,
+                                  "file_name": "/tmp/t5.ty"
+                                }
+                              ]
+                            },
+                            {
+                              "offset": 40,
+                              "file_name": "/tmp/t5.ty"
+                            }
+                          ]
+                        },
+                        false,
+                        false
+                      ]
+                    ],
+                    {
+                      "offset": 22,
+                      "file_name": "/tmp/t5.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Interface": [
+                [
+                  [
+                    {
+                      "Char": [
+                        {
+                          "Val": "incr"
+                        },
+                        {
+                          "offset": 35,
+                          "file_name": "/tmp/t5.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Function": [
+                        [
+                          [
+                            {
+                              "Char": [
+                                {
+                                  "Val": "a"
+                                },
+                                {
+                                  "offset": 0,
+                                  "file_name": ""
+                                }
+                              ]
+                            },
+                            {
+                              "Generic": [
+                                "Self",
+                                {
+                                  "offset": 41,
+                                  "file_name": "/tmp/t5.ty"
+                                }
+                              ]
+                            },
+                            false,
+                            false
+                          ]
+                        ],
+                        {
+                          "Generic": [
+                            "Self",
+                            {
+                              "offset": 50,
+                              "file_name": "/tmp/t5.ty"
+                            }
+                          ]
+                        },
+                        {
+                          "offset": 40,
+                          "file_name": "/tmp/t5.ty"
+                        }
+                      ]
+                    },
+                    false,
+                    false
+                  ]
+                ],
+                {
+                  "offset": 22,
+                  "file_name": "/tmp/t5.ty"
+                }
+              ]
+            },
+            {
+              "offset": 0,
+              "file_name": ""
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function1",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "i"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Integer": [
+                    "Unknown",
+                    {
+                      "offset": 147,
+                      "file_name": "/tmp/t5.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Integer": [
+                "Unknown",
+                {
+                  "offset": 153,
+                  "file_name": "/tmp/t5.ty"
+                }
+              ]
+            },
+            {
+              "offset": 0,
+              "file_name": ""
             }
           ]
         }
@@ -47317,7 +48211,289 @@
     ]
   },
   "subtypes": {
-    "memory": [],
+    "memory": [
+      {
+        "Function": [
+          [
+            [
+              {
+                "Char": [
+                  {
+                    "Val": "i"
+                  },
+                  {
+                    "offset": 0,
+                    "file_name": ""
+                  }
+                ]
+              },
+              {
+                "Interface": [
+                  [
+                    [
+                      {
+                        "Char": [
+                          {
+                            "Val": "incr"
+                          },
+                          {
+                            "offset": 35,
+                            "file_name": "/tmp/t5.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Function": [
+                          [
+                            [
+                              {
+                                "Char": [
+                                  {
+                                    "Val": "a"
+                                  },
+                                  {
+                                    "offset": 0,
+                                    "file_name": ""
+                                  }
+                                ]
+                              },
+                              {
+                                "Generic": [
+                                  "Self",
+                                  {
+                                    "offset": 41,
+                                    "file_name": "/tmp/t5.ty"
+                                  }
+                                ]
+                              },
+                              false,
+                              false
+                            ]
+                          ],
+                          {
+                            "Generic": [
+                              "Self",
+                              {
+                                "offset": 50,
+                                "file_name": "/tmp/t5.ty"
+                              }
+                            ]
+                          },
+                          {
+                            "offset": 40,
+                            "file_name": "/tmp/t5.ty"
+                          }
+                        ]
+                      },
+                      false,
+                      false
+                    ]
+                  ],
+                  {
+                    "offset": 22,
+                    "file_name": "/tmp/t5.ty"
+                  }
+                ]
+              },
+              false,
+              false
+            ]
+          ],
+          {
+            "Interface": [
+              [
+                [
+                  {
+                    "Char": [
+                      {
+                        "Val": "incr"
+                      },
+                      {
+                        "offset": 35,
+                        "file_name": "/tmp/t5.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "Function": [
+                      [
+                        [
+                          {
+                            "Char": [
+                              {
+                                "Val": "a"
+                              },
+                              {
+                                "offset": 0,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "Generic": [
+                              "Self",
+                              {
+                                "offset": 41,
+                                "file_name": "/tmp/t5.ty"
+                              }
+                            ]
+                          },
+                          false,
+                          false
+                        ]
+                      ],
+                      {
+                        "Generic": [
+                          "Self",
+                          {
+                            "offset": 50,
+                            "file_name": "/tmp/t5.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 40,
+                        "file_name": "/tmp/t5.ty"
+                      }
+                    ]
+                  },
+                  false,
+                  false
+                ]
+              ],
+              {
+                "offset": 22,
+                "file_name": "/tmp/t5.ty"
+              }
+            ]
+          },
+          {
+            "offset": 0,
+            "file_name": ""
+          }
+        ]
+      },
+      {
+        "Function": [
+          [
+            [
+              {
+                "Char": [
+                  {
+                    "Val": "i"
+                  },
+                  {
+                    "offset": 0,
+                    "file_name": ""
+                  }
+                ]
+              },
+              {
+                "Integer": [
+                  "Unknown",
+                  {
+                    "offset": 147,
+                    "file_name": "/tmp/t5.ty"
+                  }
+                ]
+              },
+              false,
+              false
+            ]
+          ],
+          {
+            "Integer": [
+              "Unknown",
+              {
+                "offset": 153,
+                "file_name": "/tmp/t5.ty"
+              }
+            ]
+          },
+          {
+            "offset": 0,
+            "file_name": ""
+          }
+        ]
+      },
+      {
+        "Interface": [
+          [
+            [
+              {
+                "Char": [
+                  {
+                    "Val": "incr"
+                  },
+                  {
+                    "offset": 35,
+                    "file_name": "/tmp/t5.ty"
+                  }
+                ]
+              },
+              {
+                "Function": [
+                  [
+                    [
+                      {
+                        "Char": [
+                          {
+                            "Val": "a"
+                          },
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      },
+                      {
+                        "Generic": [
+                          "Self",
+                          {
+                            "offset": 41,
+                            "file_name": "/tmp/t5.ty"
+                          }
+                        ]
+                      },
+                      false,
+                      false
+                    ]
+                  ],
+                  {
+                    "Generic": [
+                      "Self",
+                      {
+                        "offset": 50,
+                        "file_name": "/tmp/t5.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "offset": 40,
+                    "file_name": "/tmp/t5.ty"
+                  }
+                ]
+              },
+              false,
+              false
+            ]
+          ],
+          {
+            "offset": 22,
+            "file_name": "/tmp/t5.ty"
+          }
+        ]
+      },
+      {
+        "Integer": [
+          "Unknown",
+          {
+            "offset": 147,
+            "file_name": "/tmp/t5.ty"
+          }
+        ]
+      }
+    ],
     "root": {
       "value": {
         "Any": {
@@ -47325,9 +48501,304 @@
           "file_name": ""
         }
       },
-      "subtypes": []
+      "subtypes": [
+        {
+          "value": {
+            "Interface": [
+              [
+                [
+                  {
+                    "Char": [
+                      {
+                        "Val": "incr"
+                      },
+                      {
+                        "offset": 35,
+                        "file_name": "/tmp/t5.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "Function": [
+                      [
+                        [
+                          {
+                            "Char": [
+                              {
+                                "Val": "a"
+                              },
+                              {
+                                "offset": 0,
+                                "file_name": ""
+                              }
+                            ]
+                          },
+                          {
+                            "Generic": [
+                              "Self",
+                              {
+                                "offset": 41,
+                                "file_name": "/tmp/t5.ty"
+                              }
+                            ]
+                          },
+                          false,
+                          false
+                        ]
+                      ],
+                      {
+                        "Generic": [
+                          "Self",
+                          {
+                            "offset": 50,
+                            "file_name": "/tmp/t5.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 40,
+                        "file_name": "/tmp/t5.ty"
+                      }
+                    ]
+                  },
+                  false,
+                  false
+                ]
+              ],
+              {
+                "offset": 22,
+                "file_name": "/tmp/t5.ty"
+              }
+            ]
+          },
+          "subtypes": []
+        },
+        {
+          "value": {
+            "Function": [
+              [
+                [
+                  {
+                    "Char": [
+                      {
+                        "Val": "i"
+                      },
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
+                  },
+                  {
+                    "Interface": [
+                      [
+                        [
+                          {
+                            "Char": [
+                              {
+                                "Val": "incr"
+                              },
+                              {
+                                "offset": 35,
+                                "file_name": "/tmp/t5.ty"
+                              }
+                            ]
+                          },
+                          {
+                            "Function": [
+                              [
+                                [
+                                  {
+                                    "Char": [
+                                      {
+                                        "Val": "a"
+                                      },
+                                      {
+                                        "offset": 0,
+                                        "file_name": ""
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "Generic": [
+                                      "Self",
+                                      {
+                                        "offset": 41,
+                                        "file_name": "/tmp/t5.ty"
+                                      }
+                                    ]
+                                  },
+                                  false,
+                                  false
+                                ]
+                              ],
+                              {
+                                "Generic": [
+                                  "Self",
+                                  {
+                                    "offset": 50,
+                                    "file_name": "/tmp/t5.ty"
+                                  }
+                                ]
+                              },
+                              {
+                                "offset": 40,
+                                "file_name": "/tmp/t5.ty"
+                              }
+                            ]
+                          },
+                          false,
+                          false
+                        ]
+                      ],
+                      {
+                        "offset": 22,
+                        "file_name": "/tmp/t5.ty"
+                      }
+                    ]
+                  },
+                  false,
+                  false
+                ]
+              ],
+              {
+                "Interface": [
+                  [
+                    [
+                      {
+                        "Char": [
+                          {
+                            "Val": "incr"
+                          },
+                          {
+                            "offset": 35,
+                            "file_name": "/tmp/t5.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Function": [
+                          [
+                            [
+                              {
+                                "Char": [
+                                  {
+                                    "Val": "a"
+                                  },
+                                  {
+                                    "offset": 0,
+                                    "file_name": ""
+                                  }
+                                ]
+                              },
+                              {
+                                "Generic": [
+                                  "Self",
+                                  {
+                                    "offset": 41,
+                                    "file_name": "/tmp/t5.ty"
+                                  }
+                                ]
+                              },
+                              false,
+                              false
+                            ]
+                          ],
+                          {
+                            "Generic": [
+                              "Self",
+                              {
+                                "offset": 50,
+                                "file_name": "/tmp/t5.ty"
+                              }
+                            ]
+                          },
+                          {
+                            "offset": 40,
+                            "file_name": "/tmp/t5.ty"
+                          }
+                        ]
+                      },
+                      false,
+                      false
+                    ]
+                  ],
+                  {
+                    "offset": 22,
+                    "file_name": "/tmp/t5.ty"
+                  }
+                ]
+              },
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "subtypes": []
+        },
+        {
+          "value": {
+            "Integer": [
+              "Unknown",
+              {
+                "offset": 147,
+                "file_name": "/tmp/t5.ty"
+              }
+            ]
+          },
+          "subtypes": []
+        },
+        {
+          "value": {
+            "Function": [
+              [
+                [
+                  {
+                    "Char": [
+                      {
+                        "Val": "i"
+                      },
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
+                  },
+                  {
+                    "Integer": [
+                      "Unknown",
+                      {
+                        "offset": 147,
+                        "file_name": "/tmp/t5.ty"
+                      }
+                    ]
+                  },
+                  false,
+                  false
+                ]
+              ],
+              {
+                "Integer": [
+                  "Unknown",
+                  {
+                    "offset": 153,
+                    "file_name": "/tmp/t5.ty"
+                  }
+                ]
+              },
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "subtypes": []
+        }
+      ]
     }
   },
+  "type_constructors": [],
   "config": {
     "environment": "Project",
     "file_type": "Main",

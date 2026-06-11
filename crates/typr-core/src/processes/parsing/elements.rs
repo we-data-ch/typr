@@ -1267,7 +1267,12 @@ fn as_excl_operator_token(s: Span) -> IResult<Span, LangToken> {
 }
 
 pub fn elements(s: Span) -> IResult<Span, Lang> {
-    let res = many1(alt((as_excl_operator_token, single_element_token, element_operator_token))).parse(s);
+    let res = many1(alt((
+        as_excl_operator_token,
+        single_element_token,
+        element_operator_token,
+    )))
+    .parse(s);
     match res {
         Ok((s, v)) => {
             if v.len() == 1 {

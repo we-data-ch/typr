@@ -287,7 +287,7 @@ impl Type {
         }
     }
 
-    pub fn lift(self, max_index: (VecType, i32)) -> Type {
+    pub fn lift(self, max_index: &(VecType, i32)) -> Type {
         match self.clone() {
             Type::Vec(_, i, _, _) if i.equal(max_index.1) => self,
             Type::Vec(v, _, t, h) => Type::Vec(
@@ -297,7 +297,7 @@ impl Type {
                 h.clone(),
             ),
             t => Type::Vec(
-                max_index.0,
+                max_index.0.clone(),
                 Box::new(builder::integer_type(max_index.1)),
                 Box::new(t.clone()),
                 t.get_help_data(),
@@ -544,7 +544,7 @@ impl Type {
             Type::Mul(a, b, _) => a.index_calculation().mul_index(&b.index_calculation()),
             Type::Div(a, b, _) => a.index_calculation().div_index(&b.index_calculation()),
             Type::Vec(vtype, ind, typ, h) => Type::Vec(
-                *vtype,
+                vtype.clone(),
                 Box::new(ind.index_calculation()),
                 Box::new(typ.index_calculation()),
                 h.clone(),
@@ -1009,8 +1009,55 @@ impl Type {
     /// [3, T] -> rank: 3, vector type: Array, Type T
     pub fn get_size_type(&self) -> (i32, VecType, Type) {
         match self {
-            Type::Vec(v, i, t, _) => (i.get_index().unwrap() as i32, *v, (**t).clone()),
+            Type::Vec(v, i, t, _) => (i.get_index().unwrap() as i32, v.clone(), (**t).clone()),
             typ => (1, VecType::Empty, typ.clone()),
+        }
+    }
+
+    /// Recursively collect every `VecType::Named` record-constructor usage in this
+    /// type, returning each `(constructor_name, location)`. Used to validate usages
+    /// against the declared `typeconstructor` registry.
+    pub fn collect_named_constructors(&self) -> Vec<(String, HelpData)> {
+        let mut acc = Vec::new();
+        self.collect_named_constructors_into(&mut acc);
+        acc
+    }
+
+    fn collect_named_constructors_into(&self, acc: &mut Vec<(String, HelpData)>) {
+        match self {
+            Type::Vec(vtype, idx, body, h) => {
+                if let VecType::Named(name) = vtype {
+                    acc.push((name.clone(), h.clone()));
+                }
+                idx.collect_named_constructors_into(acc);
+                body.collect_named_constructors_into(acc);
+            }
+            Type::Function(args, ret, _) => {
+                args.iter()
+                    .for_each(|a| a.get_type().collect_named_constructors_into(acc));
+                ret.collect_named_constructors_into(acc);
+            }
+            Type::Record(fields, _) | Type::Interface(fields, _) => fields
+                .iter()
+                .for_each(|a| a.get_type().collect_named_constructors_into(acc)),
+            Type::Tag(_, inner, _) | Type::Embedded(inner, _) | Type::Multi(inner, _) => {
+                inner.collect_named_constructors_into(acc)
+            }
+            Type::Operator(_, a, b, _)
+            | Type::Add(a, b, _)
+            | Type::Mul(a, b, _)
+            | Type::Minus(a, b, _)
+            | Type::Div(a, b, _) => {
+                a.collect_named_constructors_into(acc);
+                b.collect_named_constructors_into(acc);
+            }
+            Type::Params(ts, _) | Type::Tuple(ts, _) => ts
+                .iter()
+                .for_each(|t| t.collect_named_constructors_into(acc)),
+            Type::Alias(_, params, _, _) => params
+                .iter()
+                .for_each(|t| t.collect_named_constructors_into(acc)),
+            _ => {}
         }
     }
 
@@ -1226,9 +1273,15 @@ impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // Utiliser un discriminant pour différencier les variantes
         match self {
-            Type::Number(n, _) => { 0.hash(state); n.hash(state); },
+            Type::Number(n, _) => {
+                0.hash(state);
+                n.hash(state);
+            }
             Type::Integer(_, _) => 1.hash(state),
-            Type::Boolean(b, _) => { 2.hash(state); b.hash(state); },
+            Type::Boolean(b, _) => {
+                2.hash(state);
+                b.hash(state);
+            }
             Type::Char(_, _) => 3.hash(state),
             Type::Embedded(_, _) => 4.hash(state),
             Type::Function(_, _, _) => 5.hash(state),

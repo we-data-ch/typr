@@ -26,6 +26,7 @@ pub enum TypeError {
     FunctionNotFound(Var),
     AliasMissingGenerics(String, Vec<String>, Type),
     InterfaceReturnOnly(Type),
+    UnknownTypeConstructor(String, HelpData),
 }
 
 impl TypeError {
@@ -47,6 +48,7 @@ impl TypeError {
             TypeError::FunctionNotFound(var) => Some(var.get_help_data()),
             TypeError::AliasMissingGenerics(_, _, typ) => Some(typ.get_help_data()),
             TypeError::InterfaceReturnOnly(typ) => Some(typ.get_help_data()),
+            TypeError::UnknownTypeConstructor(_, h) => Some(h.clone()),
         }
     }
 
@@ -121,6 +123,12 @@ impl TypeError {
                 format!(
                     "Interface type '{}' appears only in return position. Use an opaque type instead: `opaque MyType <- ...`.",
                     typ.pretty()
+                )
+            }
+            TypeError::UnknownTypeConstructor(name, _) => {
+                format!(
+                    "'{}' is used as a record constructor `{}[N]{{...}}` but is not declared. Add `typeconstructor {}[N] record;`.",
+                    name, name, name
                 )
             }
         }
@@ -371,6 +379,21 @@ impl ErrorMsg for TypeError {
                          acts as an existential type, which is not supported. \
                          Use an opaque type to hide the implementation: `opaque MyType <- ...`.",
                     )
+                    .build()
+            }
+            TypeError::UnknownTypeConstructor(name, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "'{}' is used as a record constructor but is not declared",
+                        name
+                    ))
+                    .pos_text("Undeclared type constructor")
+                    .help(format!(
+                        "Declare it first: `typeconstructor {}[N] record;`",
+                        name
+                    ))
                     .build()
             }
         };

@@ -26,7 +26,7 @@ pub struct FunctionType {
     is_variadic: bool,
 }
 
-fn lift(max_index: (VecType, i32), types: &[Type]) -> Vec<Type> {
+fn lift(max_index: &(VecType, i32), types: &[Type]) -> Vec<Type> {
     types
         .iter()
         .map(|typ| typ.clone().lift(max_index))
@@ -110,8 +110,8 @@ impl FunctionType {
             .map(|(index, vectyp, _)| (vectyp, index))
             .and_then(|max_index| {
                 context
-                    .get_unification_map(&lift(max_index, types), &lift(max_index, param_types))
-                    .map(|um| um.set_vectorized(max_index.0, max_index.1))
+                    .get_unification_map(&lift(&max_index, types), &lift(&max_index, param_types))
+                    .map(|um| um.set_vectorized(max_index.0.clone(), max_index.1))
             })
     }
 
@@ -162,9 +162,9 @@ impl FunctionType {
             arguments: self
                 .arguments
                 .iter()
-                .map(|typ| typ.clone().lift(index))
+                .map(|typ| typ.clone().lift(&index))
                 .collect(),
-            return_type: self.return_type.lift(index),
+            return_type: self.return_type.lift(&index),
             vec_type: index.0,
             ..self
         }

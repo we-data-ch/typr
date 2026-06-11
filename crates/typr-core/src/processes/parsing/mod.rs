@@ -16,6 +16,7 @@ use crate::components::language::operators::Op;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
 use crate::components::language::ModulePosition;
+use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::Type;
 use crate::processes::parsing::elements::break_exp;
 use crate::processes::parsing::elements::chars;
@@ -32,6 +33,7 @@ use crate::processes::parsing::elements::variable_recognizer;
 use crate::processes::parsing::elements::vector;
 use crate::processes::parsing::elements::Case;
 use crate::processes::parsing::types::ltype;
+use crate::processes::parsing::types::pascal_case_no_space;
 use crate::processes::parsing::types::type_alias;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -357,6 +359,45 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 })
                 .collect();
             Ok((s, new_le))
+        }
+        Err(r) => Err(r),
+    }
+}
+
+/// Parses a `typeconstructor` declaration that registers a new type constructor:
+///   `typeconstructor Tibble[N] record;`
+///   `typeconstructor Matrix[N, M, T] recursive;`
+fn typeconstructor_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+        terminated(tag("typeconstructor"), multispace0),
+        pascal_case_no_space,
+        delimited(
+            terminated(tag("["), multispace0),
+            separated_list0(
+                terminated(tag(","), multispace0),
+                terminated(ltype, multispace0),
+            ),
+            terminated(tag("]"), multispace0),
+        ),
+        terminated(alt((tag("recursive"), tag("record"))), multispace0),
+        terminated(tag(";"), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (_kw, (name, h), params, category, _semi))) => {
+            let category = match *category.fragment() {
+                "recursive" => ConstructorCategory::Recursive,
+                _ => ConstructorCategory::Record,
+            };
+            Ok((
+                s,
+                vec![Lang::TypeConstructor {
+                    name,
+                    parameters: params,
+                    category,
+                    help_data: h,
+                }],
+            ))
         }
         Err(r) => Err(r),
     }
@@ -1093,6 +1134,7 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
                 import_var,
                 mod_imp,
                 comment,
+                typeconstructor_exp,
                 type_exp,
                 opaque_exp,
                 let_tuple_exp,

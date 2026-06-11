@@ -89,7 +89,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
 
         // Array type substitution
         Type::Vec(vtype, size, element_type, h) => Type::Vec(
-            *vtype,
+            vtype.clone(),
             Box::new(type_substitution(size, substitutions)),
             Box::new(type_substitution(element_type, substitutions)),
             h.clone(),

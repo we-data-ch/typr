@@ -300,7 +300,7 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             arguments: args,
             help_data: h,
         } => Lang::VecFunctionApp {
-            vector_type: *vec_type,
+            vector_type: vec_type.clone(),
             identifier: Box::new(substitute_type_in_lang(func, subs)),
             arguments: args
                 .iter()

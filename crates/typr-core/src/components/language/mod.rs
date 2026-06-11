@@ -18,6 +18,7 @@ use crate::components::language::use_lang::UseSelector;
 use crate::components::language::var::Var;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::processes::parsing::elements::elements;
@@ -222,6 +223,12 @@ pub enum Lang {
     Signature {
         identifier: Var,
         target_type: Type,
+        help_data: HelpData,
+    },
+    TypeConstructor {
+        name: String,
+        parameters: Vec<Type>,
+        category: ConstructorCategory,
         help_data: HelpData,
     },
     ForLoop {
@@ -885,6 +892,7 @@ impl Lang {
             Lang::Exp { help_data: h, .. } => h,
             Lang::Empty(h) => h,
             Lang::Signature { help_data: h, .. } => h,
+            Lang::TypeConstructor { help_data: h, .. } => h,
             Lang::ForLoop { help_data: h, .. } => h,
             Lang::RFunction { help_data: h, .. } => h,
             Lang::KeyValue { help_data: h, .. } => h,
@@ -990,6 +998,7 @@ impl Lang {
             Lang::Exp { .. } => "Exp".to_string(),
             Lang::Empty(_) => "Empty".to_string(),
             Lang::Signature { .. } => "Signature".to_string(),
+            Lang::TypeConstructor { .. } => "TypeConstructor".to_string(),
             Lang::ForLoop { .. } => "ForLoop".to_string(),
             Lang::RFunction { .. } => "RFunction".to_string(),
             Lang::KeyValue { .. } => "KeyValue".to_string(),
@@ -1420,6 +1429,7 @@ impl From<Lang> for HelpData {
             Lang::Library { help_data: h, .. } => h,
             Lang::Exp { help_data: h, .. } => h,
             Lang::Signature { help_data: h, .. } => h,
+            Lang::TypeConstructor { help_data: h, .. } => h,
             Lang::ForLoop { help_data: h, .. } => h,
             Lang::RFunction { help_data: h, .. } => h,
             Lang::KeyValue { help_data: h, .. } => h,

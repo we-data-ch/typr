@@ -14,6 +14,8 @@ pub enum SyntaxError {
     MissingListPrefix(HelpData),
     EmptyFunctionBody(HelpData),
     FunctionTypeSyntax(HelpData),
+    RecordConstructorIndex(HelpData),
+    RecordInRecursiveParams(HelpData),
     UnknownElement {
         element: String,
         line: u32,
@@ -32,6 +34,8 @@ impl SyntaxError {
             SyntaxError::MissingListPrefix(h) => Some(h.clone()),
             SyntaxError::EmptyFunctionBody(h) => Some(h.clone()),
             SyntaxError::FunctionTypeSyntax(h) => Some(h.clone()),
+            SyntaxError::RecordConstructorIndex(h) => Some(h.clone()),
+            SyntaxError::RecordInRecursiveParams(h) => Some(h.clone()),
             SyntaxError::UnknownElement { help_data, .. } => Some(help_data.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
@@ -57,6 +61,12 @@ impl SyntaxError {
             }
             SyntaxError::FunctionTypeSyntax(_) => {
                 "Function types use parentheses without 'fn': use `(args) -> Type` instead of `fn(args) -> Type`".to_string()
+            }
+            SyntaxError::RecordConstructorIndex(_) => {
+                "A record constructor takes exactly one integer length: `Name[N]{ ... }`".to_string()
+            }
+            SyntaxError::RecordInRecursiveParams(_) => {
+                "Record blocks `{ ... }` are not allowed inside recursive type parameters".to_string()
             }
             SyntaxError::UnknownElement { element, line, help_data } => {
                 format!(
@@ -131,6 +141,26 @@ impl ErrorMsg for SyntaxError {
                     .text("Function types use parentheses without 'fn'")
                     .pos_text("Unexpected 'fn' here")
                     .help("Use `(args) -> Type` instead of `fn(args) -> Type`")
+                    .build()
+            }
+            SyntaxError::RecordConstructorIndex(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text("A record constructor takes exactly one integer length")
+                    .pos_text("Here")
+                    .help("Use `Name[N]{ field: Type, ... }` with a single integer N")
+                    .build()
+            }
+            SyntaxError::RecordInRecursiveParams(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(
+                        "Record blocks `{ ... }` are not allowed inside recursive type parameters",
+                    )
+                    .pos_text("Here")
+                    .help("Recursive types only take types or integers, e.g. `Matrix[3, 4, num]`")
                     .build()
             }
             SyntaxError::UnknownElement {

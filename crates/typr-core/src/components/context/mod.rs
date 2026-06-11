@@ -13,6 +13,7 @@ use crate::components::language::var_function::VarFunction;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::Type;
 use crate::processes::type_checking::match_types_to_generic;
 use crate::processes::type_checking::type_comparison::reduce_type;
@@ -30,6 +31,9 @@ use tap::Pipe;
 pub struct Context {
     pub typing_context: VarType,
     pub subtypes: Graph<Type>,
+    /// Registry of user-declared `typeconstructor`s: (name, parameter signature, category).
+    #[serde(default)]
+    pub type_constructors: Vec<(String, Vec<Type>, ConstructorCategory)>,
     config: Config,
 }
 
@@ -40,6 +44,7 @@ impl Default for Context {
             config: config.clone(),
             typing_context: VarType::from_config(config),
             subtypes: Graph::new(),
+            type_constructors: Vec::new(),
         }
     }
 }
@@ -70,6 +75,7 @@ impl Context {
             config: Config::default(),
             typing_context: VarType::new(),
             subtypes: Graph::new(),
+            type_constructors: Vec::new(),
         }
     }
 
@@ -537,6 +543,31 @@ impl Context {
         }
     }
 
+    /// Register a user-declared `typeconstructor` in the registry.
+    pub fn push_type_constructor(
+        self,
+        name: String,
+        parameters: Vec<Type>,
+        category: ConstructorCategory,
+    ) -> Self {
+        let mut type_constructors = self.type_constructors.clone();
+        // Last declaration wins: drop any previous entry with the same name.
+        type_constructors.retain(|(n, _, _)| n != &name);
+        type_constructors.push((name, parameters, category));
+        Context {
+            type_constructors,
+            ..self
+        }
+    }
+
+    /// Look up a declared `typeconstructor` by name.
+    pub fn get_type_constructor(
+        &self,
+        name: &str,
+    ) -> Option<&(String, Vec<Type>, ConstructorCategory)> {
+        self.type_constructors.iter().find(|(n, _, _)| n == name)
+    }
+
     pub fn push_alias2(self, alias_var: Var, typ: Type) -> Self {
         Context {
             typing_context: self.typing_context.push_alias2(alias_var, typ),
@@ -726,9 +757,15 @@ impl Add for Context {
     type Output = Self;
 
     fn add(self, other: Self) -> Self::Output {
+        let mut type_constructors = self.type_constructors;
+        for (name, params, cat) in other.type_constructors {
+            type_constructors.retain(|(n, _, _)| n != &name);
+            type_constructors.push((name, params, cat));
+        }
         Context {
             typing_context: self.typing_context + other.typing_context,
             subtypes: self.subtypes + other.subtypes,
+            type_constructors,
             config: self.config,
         }
     }

@@ -86,7 +86,7 @@ impl UnificationMap {
     }
 
     pub fn get_vectorization(&self) -> Option<(VecType, i32)> {
-        self.vectorized
+        self.vectorized.clone()
     }
 
     pub fn superficial_substitution(&self, ret_ty: &Type) -> Type {

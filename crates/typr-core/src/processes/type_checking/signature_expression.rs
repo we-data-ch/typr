@@ -1,4 +1,5 @@
 use crate::processes::type_checking::r#Type;
+use crate::processes::type_checking::validate_named_constructors;
 use crate::processes::type_checking::Context;
 use crate::processes::type_checking::FunctionType;
 use crate::processes::type_checking::Lang;
@@ -7,7 +8,8 @@ use crate::processes::type_checking::Var;
 use crate::utils::builder;
 
 pub fn signature_expression(context: &Context, expr: &Lang, var: &Var, typ: &Type) -> TypeContext {
-    if var.is_variable() {
+    let constructor_errors = validate_named_constructors(context, typ);
+    let tc: TypeContext = if var.is_variable() {
         let new_var = FunctionType::try_from(typ.clone())
             .map(|ft| {
                 var.clone().set_type(
@@ -34,7 +36,8 @@ pub fn signature_expression(context: &Context, expr: &Lang, var: &Var, typ: &Typ
                 .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context),
         )
             .into()
-    }
+    };
+    tc.with_errors(constructor_errors)
 }
 
 #[cfg(test)]

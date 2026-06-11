@@ -57,11 +57,17 @@ pub fn character_type_default() -> Type {
 }
 
 pub fn number_type() -> Type {
-    Type::Number(crate::components::r#type::tnumber::Tnum::Unknown, HelpData::default())
+    Type::Number(
+        crate::components::r#type::tnumber::Tnum::Unknown,
+        HelpData::default(),
+    )
 }
 
 pub fn boolean_type() -> Type {
-    Type::Boolean(crate::components::r#type::tbool::Tbool::Unknown, HelpData::default())
+    Type::Boolean(
+        crate::components::r#type::tbool::Tbool::Unknown,
+        HelpData::default(),
+    )
 }
 
 pub fn record_type(params: &[(String, Type)]) -> Type {

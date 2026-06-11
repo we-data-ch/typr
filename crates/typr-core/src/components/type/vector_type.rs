@@ -2,7 +2,26 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::fmt;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Hash, Default)]
+/// Category of a declared `typeconstructor`.
+/// - `Recursive`: homogeneous, indexed types (`Vec[N, T]`, `Array[N, T]`, `Matrix[...]`).
+/// - `Record`: heterogeneous, named-field types (`Df[N]{...}`, `Tibble[N]{...}`).
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum ConstructorCategory {
+    Recursive,
+    Record,
+}
+
+impl fmt::Display for ConstructorCategory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let res = match self {
+            ConstructorCategory::Recursive => "recursive",
+            ConstructorCategory::Record => "record",
+        };
+        write!(f, "{}", res)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Hash, Default)]
 pub enum VecType {
     Vector,
     #[default]
@@ -10,6 +29,9 @@ pub enum VecType {
     Array,
     DataFrame,
     Empty,
+    /// User-declared record constructor (e.g. `Tibble`, `Table`), keeping its name
+    /// so it can be transpiled to a distinct R S3 class.
+    Named(String),
 }
 
 impl fmt::Display for VecType {
@@ -20,6 +42,7 @@ impl fmt::Display for VecType {
             VecType::Array => "Array",
             VecType::DataFrame => "DataFrame",
             VecType::Empty => "Empty",
+            VecType::Named(name) => name,
         };
         write!(f, "{}", res)
     }

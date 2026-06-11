@@ -1,0 +1,9 @@
+typeconstructor Tibble[N] record;
+typeconstructor Table[N] record;
+
+@make_people: (int) -> Tibble[3]{ name: char, active: bool };
+@make_scores: (int) -> Table[2]{ id: int, score: num };
+
+let main <- fn(): int {
+  42
+};

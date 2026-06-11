@@ -304,7 +304,8 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
         if show_all || opts.show_r {
             print_step("Full R File (as executed)");
             let transpiled = type_checker.clone().transpile();
-            let preamble = "source('std.R', echo = FALSE)\nsource('generic_functions.R')\nsource('types.R')";
+            let preamble =
+                "source('std.R', echo = FALSE)\nsource('generic_functions.R')\nsource('types.R')";
             println!("{}\n{}", preamble, transpiled);
         }
 
@@ -702,8 +703,17 @@ fn run_file_impl(path: &Path, keep_files: bool) {
     let r_file_name = format!("{}.R", stem);
 
     let r_content = type_checker.clone().transpile();
-    write_header(type_checker.get_context(), &work_dir, Environment::StandAlone);
-    write_to_r_lang(r_content, &work_dir, &r_file_name, context.get_environment());
+    write_header(
+        type_checker.get_context(),
+        &work_dir,
+        Environment::StandAlone,
+    );
+    write_to_r_lang(
+        r_content,
+        &work_dir,
+        &r_file_name,
+        context.get_environment(),
+    );
 
     let r_path = work_dir.join(&r_file_name);
     let result = Command::new("Rscript")

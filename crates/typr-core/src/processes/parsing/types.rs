@@ -369,6 +369,104 @@ fn dataframe_type(s: Span) -> IResult<Span, Type> {
     alt((dataframe_type_full, dataframe_type_short)).parse(s)
 }
 
+/// Generic record constructor usage following the golden rule:
+/// `Name[N]{ field: Type, ... }` — a `{ ... }` block makes it a record type.
+/// Produces `Type::Vec(VecType::Named(name), index, Record(fields), h)`.
+fn named_record_type(s: Span) -> IResult<Span, Type> {
+    let res = (
+        pascal_case_no_space,
+        terminated(tag("["), multispace0),
+        index_algebra,
+        terminated(tag("]"), multispace0),
+        terminated(tag("{"), multispace0),
+        many1(argument),
+        terminated(tag("}"), multispace0),
+    )
+        .parse(s);
+
+    match res {
+        Ok((s, ((name, h), _, num, _, _, columns, _))) => Ok((
+            s,
+            Type::Vec(
+                VecType::Named(name),
+                Box::new(num),
+                Box::new(Type::Record(columns.iter().cloned().collect(), h.clone())),
+                h,
+            ),
+        )),
+        Err(r) => Err(r),
+    }
+}
+
+/// Golden-rule violation: a record constructor with more than one index parameter,
+/// e.g. `Df[8, int]{ ... }`. Emits a syntax error and recovers using the first index.
+fn named_record_bad_index(s: Span) -> IResult<Span, Type> {
+    let res = (
+        pascal_case_no_space,
+        terminated(tag("["), multispace0),
+        index_algebra,
+        many1((terminated(tag(","), multispace0), ltype)),
+        terminated(tag("]"), multispace0),
+        terminated(tag("{"), multispace0),
+        many1(argument),
+        terminated(tag("}"), multispace0),
+    )
+        .parse(s);
+
+    match res {
+        Ok((s, ((name, h), _, first, _extra, _, _, columns, _))) => {
+            push_parse_error(SyntaxError::RecordConstructorIndex(h.clone()));
+            Ok((
+                s,
+                Type::Vec(
+                    VecType::Named(name),
+                    Box::new(first),
+                    Box::new(Type::Record(columns.iter().cloned().collect(), h.clone())),
+                    h,
+                ),
+            ))
+        }
+        Err(r) => Err(r),
+    }
+}
+
+fn record_constructor_type(s: Span) -> IResult<Span, Type> {
+    alt((named_record_type, named_record_bad_index)).parse(s)
+}
+
+/// Golden-rule violation: a record block `{ ... }` appearing inside the parameters
+/// of a recursive constructor, e.g. `Array[5, { a: int }]`. Emits a syntax error
+/// and recovers by treating the block as the element record.
+fn recursive_with_record_error(s: Span) -> IResult<Span, Type> {
+    let res = (
+        alt((tag("Array["), tag("Vec["), tag("["))),
+        index_algebra,
+        terminated(tag(","), multispace0),
+        terminated(tag("{"), multispace0),
+        many1(argument),
+        terminated(tag("}"), multispace0),
+        terminated(tag("]"), multispace0),
+    )
+        .parse(s);
+
+    match res {
+        Ok((s, (start, num, _, _, columns, _, _))) => {
+            let h: HelpData = start.into();
+            push_parse_error(SyntaxError::RecordInRecursiveParams(h.clone()));
+            Ok((
+                s,
+                Type::Vec(
+                    VecType::S3,
+                    Box::new(num),
+                    Box::new(Type::Record(columns.iter().cloned().collect(), h.clone())),
+                    h,
+                ),
+            ))
+        }
+        Err(r) => Err(r),
+    }
+}
+
 fn embedded_ltype(s: Span) -> IResult<Span, Type> {
     let res = (tag("@"), ltype).parse(s);
     match res {
@@ -443,14 +541,10 @@ fn number_literal(s: Span) -> IResult<Span, Type> {
     use nom::character::complete::char as nchar;
     use nom::combinator::recognize;
     let res = terminated(
-        recognize((
-            opt(nchar('-')),
-            digit1,
-            nchar('.'),
-            digit1,
-        )),
+        recognize((opt(nchar('-')), digit1, nchar('.'), digit1)),
         multispace0,
-    ).parse(s);
+    )
+    .parse(s);
     match res {
         Ok((s, span)) => {
             let val: f64 = (*span).parse().unwrap_or(0.0);
@@ -472,7 +566,8 @@ fn boolean_literal(s: Span) -> IResult<Span, Type> {
     let res = alt((
         terminated(tag("true"), multispace0),
         terminated(tag("false"), multispace0),
-    )).parse(s);
+    ))
+    .parse(s);
     match res {
         Ok((s, span)) => {
             let val = *span == "true";
@@ -765,7 +860,18 @@ fn r_class(s: Span) -> IResult<Span, Type> {
 }
 
 pub fn primitive_types(s: Span) -> IResult<Span, Type> {
-    alt((number_literal, number, integer_literal, integer, boolean_literal, boolean, null_type, na_type, chars)).parse(s)
+    alt((
+        number_literal,
+        number,
+        integer_literal,
+        integer,
+        boolean_literal,
+        boolean,
+        null_type,
+        na_type,
+        chars,
+    ))
+    .parse(s)
 }
 
 fn type_operator(s: Span) -> IResult<Span, TypeToken> {
@@ -868,6 +974,20 @@ fn tag_type(s: Span) -> IResult<Span, Type> {
     }
 }
 
+/// All bracketed/record-vec forms, ordered to respect the golden rule
+/// (a `{ ... }` block makes a type a record). Grouped into a single parser so
+/// `single_type` stays within nom's 21-alternative limit.
+fn composite_vec_type(s: Span) -> IResult<Span, Type> {
+    alt((
+        recursive_with_record_error,
+        vector_type,
+        dataframe_type,
+        record_constructor_type,
+        array_type,
+    ))
+    .parse(s)
+}
+
 // main
 pub fn single_type(s: Span) -> IResult<Span, Type> {
     terminated(
@@ -876,8 +996,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             self_type,
             r_class,
             unknown_function,
-            vector_type,
-            dataframe_type,
+            composite_vec_type,
             record_type,
             tuple_type,
             parenthese_value,
@@ -892,7 +1011,6 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             type_alias,
             type_variable,
             generic,
-            array_type,
         )),
         multispace0,
     )
@@ -1257,6 +1375,67 @@ mod tests {
         assert!(
             res.is_ok(),
             "Should parse (a: int, b: int) -> int as a function type"
+        );
+    }
+
+    // ==================== Generic record constructors (typeconstructor) ====================
+
+    #[test]
+    fn test_named_record_constructor_parses() {
+        let typ = ltype("Tibble[3]{ id: int, active: bool }".into())
+            .unwrap()
+            .1;
+        match &typ {
+            Type::Vec(VecType::Named(name), idx, body, _) => {
+                assert_eq!(name, "Tibble");
+                assert!(matches!(idx.as_ref(), Type::Integer(_, _)));
+                match body.as_ref() {
+                    Type::Record(fields, _) => assert_eq!(fields.len(), 2),
+                    other => panic!("Expected Record body, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Vec(Named(\"Tibble\"), ...), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_named_record_without_brace_is_not_record() {
+        // Golden rule: no `{ ... }` block ⇒ not a record constructor.
+        let typ = ltype("Tibble".into()).unwrap().1;
+        assert!(
+            matches!(typ, Type::Alias(ref n, _, _, _) if n == "Tibble"),
+            "Bare PascalCase should be a type alias, got {:?}",
+            typ
+        );
+    }
+
+    #[test]
+    fn test_record_constructor_multi_index_errors() {
+        // `Df[8, int]{...}` is invalid: a record constructor takes exactly one index.
+        let _ = crate::processes::parsing::take_parse_errors();
+        let _ = ltype("Df[8, int]{ name: char }".into());
+        let errors = crate::processes::parsing::take_parse_errors();
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, SyntaxError::RecordConstructorIndex(_))),
+            "Expected RecordConstructorIndex error, got {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_record_in_recursive_params_errors() {
+        // `Array[5, { a: int }]` is invalid: record block inside recursive params.
+        let _ = crate::processes::parsing::take_parse_errors();
+        let _ = ltype("Array[5, { a: int }]".into());
+        let errors = crate::processes::parsing::take_parse_errors();
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, SyntaxError::RecordInRecursiveParams(_))),
+            "Expected RecordInRecursiveParams error, got {:?}",
+            errors
         );
     }
 }

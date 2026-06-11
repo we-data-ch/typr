@@ -862,6 +862,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 .add("\n")
                 .into(),
             Lang::Signature { .. } => ("".to_string(), cont.clone()),
+            Lang::TypeConstructor { .. } => ("".to_string(), cont.clone()),
             Lang::Alias {
                 identifier: ident,
                 target_type: typ,
@@ -906,10 +907,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         let validator = format!(
                             ".validate_{name} <- function(x) {{\n  required_fields <- c({fields_quoted})\n  missing_fields <- setdiff(required_fields, names(x))\n  if (length(missing_fields) > 0) {{\n    stop(paste0(\"Validation failed for type {name}: missing fields: \", paste(missing_fields, collapse = \", \")))\n  }}\n  {name}({field_access})\n}}"
                         );
-                        (
-                            format!("{constructor}\n{validator}"),
-                            cont.clone(),
-                        )
+                        (format!("{constructor}\n{validator}"), cont.clone())
                     }
                     Type::Operator(_, _, _, _) => {
                         // Union alias: generate constructors for each variant
@@ -1382,12 +1380,12 @@ impl RTranslatable<(String, Context)> for Lang {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::fluent_parser::FluentParser;
-    use crate::components::language::{Lang, ModulePosition};
     use crate::components::context::config::{Config, Environment};
     use crate::components::context::Context;
     use crate::components::error_message::help_data::HelpData;
+    use crate::components::language::{Lang, ModulePosition};
     use crate::processes::transpiling::translatable::RTranslatable;
+    use crate::utils::fluent_parser::FluentParser;
 
     #[test]
     fn test_validating_cast_transpiles_to_validate_call() {
@@ -1418,8 +1416,8 @@ mod tests {
 
     #[test]
     fn test_alias_record_generates_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type Person <- list { name: char, age: int };");
+        let r_code =
+            FluentParser::new().check_transpiling("type Person <- list { name: char, age: int };");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_Person <- function(x)"),
@@ -1711,8 +1709,7 @@ mod tests {
 
     #[test]
     fn test_alias_int_generates_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type Meters <- int;");
+        let r_code = FluentParser::new().check_transpiling("type Meters <- int;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_Meters <- function(x)"),
@@ -1728,8 +1725,7 @@ mod tests {
 
     #[test]
     fn test_alias_char_generates_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type Name <- char;");
+        let r_code = FluentParser::new().check_transpiling("type Name <- char;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_Name <- function(x)"),
@@ -1745,8 +1741,7 @@ mod tests {
 
     #[test]
     fn test_alias_bool_generates_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type Flag <- bool;");
+        let r_code = FluentParser::new().check_transpiling("type Flag <- bool;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_Flag <- function(x)"),
@@ -1762,8 +1757,7 @@ mod tests {
 
     #[test]
     fn test_alias_num_generates_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type Real <- num;");
+        let r_code = FluentParser::new().check_transpiling("type Real <- num;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_Real <- function(x)"),
@@ -1793,8 +1787,7 @@ mod tests {
 
     #[test]
     fn test_tag_alias_char_generates_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type Hello <- .Hello(char);");
+        let r_code = FluentParser::new().check_transpiling("type Hello <- .Hello(char);");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_Hello <- function(x)"),
@@ -1820,8 +1813,7 @@ mod tests {
 
     #[test]
     fn test_tag_alias_int_generates_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type Count <- .Count(int);");
+        let r_code = FluentParser::new().check_transpiling("type Count <- .Count(int);");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_Count <- function(x)"),
@@ -1861,8 +1853,7 @@ mod tests {
 
     #[test]
     fn test_literal_char_alias_generates_exact_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type Hello <- \"hello\";");
+        let r_code = FluentParser::new().check_transpiling("type Hello <- \"hello\";");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_Hello <- function(x)"),
@@ -1878,8 +1869,7 @@ mod tests {
 
     #[test]
     fn test_literal_int_alias_generates_exact_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type Byte <- 89;");
+        let r_code = FluentParser::new().check_transpiling("type Byte <- 89;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_Byte <- function(x)"),
@@ -1895,8 +1885,7 @@ mod tests {
 
     #[test]
     fn test_literal_num_alias_generates_exact_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type Pi <- 3.14;");
+        let r_code = FluentParser::new().check_transpiling("type Pi <- 3.14;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_Pi <- function(x)"),
@@ -1912,8 +1901,7 @@ mod tests {
 
     #[test]
     fn test_literal_bool_true_alias_generates_exact_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type Yes <- true;");
+        let r_code = FluentParser::new().check_transpiling("type Yes <- true;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_Yes <- function(x)"),
@@ -1929,8 +1917,7 @@ mod tests {
 
     #[test]
     fn test_literal_bool_false_alias_generates_exact_validator() {
-        let r_code = FluentParser::new()
-            .check_transpiling("type No <- false;");
+        let r_code = FluentParser::new().check_transpiling("type No <- false;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains(".validate_No <- function(x)"),
