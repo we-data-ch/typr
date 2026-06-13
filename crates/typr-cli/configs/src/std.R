@@ -41,12 +41,19 @@ as_vec <- function(x, ...) UseMethod("as_vec")
 max <- function(a, ...) UseMethod("max")
 min <- function(a, ...) UseMethod("min")
 replace <- function(a, ...) UseMethod("replace")
+append <- function(a, ...) UseMethod("append")
+
+# User validator hook for record types: `as.T` calls validate() after the
+# internal validate_T. Default is identity; users extend it with validate.T.
+validate <- function(x, ...) UseMethod("validate")
+validate.default <- function(x) x
 
 # --- Méthodes par défaut et types de base ---
 
 max.default <- function(a, ...) base::max(a, ...)
 min.default <- function(a, ...) base::min(a, ...)
 replace.default <- function(a, ...) base::replace(a, ...)
+append.default <- function(a, ...) base::append(a, ...)
 
 apply.default <- function(X, ...) {
   # Si MARGIN est présent, c'est probablement un appel à base::apply

@@ -424,7 +424,7 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
         terminated(tag("("), multispace0),
         many0(argument),
         terminated(tag(")"), multispace0),
-        opt(terminated(tag(":"), multispace0)),
+        opt(terminated(alt((tag("->"), tag(":"))), multispace0)),
         opt(terminated(alt((if_type, ltype)), multispace0)),
         //alt((scope, parse_elements))
         scope,
@@ -665,7 +665,7 @@ fn record_identifier(s: Span) -> IResult<Span, Span> {
 
 pub fn record(s: Span) -> IResult<Span, Lang> {
     let res = (
-        opt(record_identifier),
+        opt(terminated(record_identifier, multispace0)),
         terminated(alt((tag("{"), tag("("))), multispace0),
         many0(argument_val),
         terminated(alt((tag("}"), tag(")"))), multispace0),
@@ -681,7 +681,10 @@ pub fn record(s: Span) -> IResult<Span, Lang> {
         )),
         Ok((_s, (None, _ob, args, _))) => {
             if args.is_empty() {
-                panic!("Error: the scope shouldn't be empty")
+                Err(nom::Err::Error(nom::error::Error::new(
+                    _s,
+                    nom::error::ErrorKind::Many1,
+                )))
             } else {
                 eprintln!("{}", _s);
                 panic!("You forgot to put a record identifier before the bracket: ':{{...}}'");
@@ -1338,9 +1341,9 @@ mod tests {
     use crate::utils::fluent_parser::FluentParser;
 
     #[test]
-    #[should_panic]
     fn test_empty_scope() {
-        let _ = "{  }".parse::<Lang>();
+        let res = "{  }".parse::<Lang>().unwrap();
+        assert!(matches!(res, Lang::Scope { body, .. } if body.is_empty()));
     }
 
     #[test]
@@ -1358,10 +1361,7 @@ mod tests {
         let from_double = r#""say \"hi\"""#.parse::<Lang>().unwrap();
         let from_single = r#"'say "hi"'"#.parse::<Lang>().unwrap();
         match (from_double, from_single) {
-            (
-                Lang::Char { value: d, .. },
-                Lang::Char { value: s, .. },
-            ) => {
+            (Lang::Char { value: d, .. }, Lang::Char { value: s, .. }) => {
                 assert_eq!(d, r#"say "hi""#);
                 assert_eq!(s, r#"say "hi""#);
             }

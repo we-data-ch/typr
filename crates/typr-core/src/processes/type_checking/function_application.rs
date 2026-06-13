@@ -164,6 +164,158 @@ fn try_variadic_match(
         .next()
 }
 
+// ── Tuple-spread unification (FILTERING 5) ──────────────────────────────────
+//
+// The SafeHashMap used by the normal generic-inference path treats every
+// Type::Generic as equal (by design), so two distinct generic variables T and U
+// cannot both be bound at the same time.  Spread signatures like
+//   @append: (tuple{T...}, U) -> tuple{T..., U};
+// need TWO distinct bindings (T→sequence, U→scalar).  We bypass SafeHashMap
+// entirely and use a String-keyed map instead.
+
+enum SpreadSub {
+    Scalar(Type),
+    Seq(Vec<Type>),
+}
+
+fn has_tuple_spread(param_types: &[Type]) -> bool {
+    param_types.iter().any(|p| {
+        matches!(p, Type::Tuple(elems, _) if elems.iter().any(|e| {
+            matches!(e, Type::Multi(inner, _) if matches!(inner.as_ref(), Type::Generic(_, _)))
+        }))
+    })
+}
+
+fn collect_tuple_spread(
+    subs: &mut std::collections::HashMap<String, SpreadSub>,
+    concrete: &[Type],
+    params: &[Type],
+) -> Option<()> {
+    let spread_pos = params.iter().position(
+        |p| matches!(p, Type::Multi(inner, _) if matches!(inner.as_ref(), Type::Generic(_, _))),
+    );
+
+    match spread_pos {
+        None => {
+            if concrete.len() != params.len() {
+                return None;
+            }
+            for (c, p) in concrete.iter().zip(params.iter()) {
+                if let Type::Generic(name, _) = p {
+                    subs.insert(name.clone(), SpreadSub::Scalar(c.clone()));
+                }
+            }
+            Some(())
+        }
+        Some(pos) => {
+            let suffix_len = params.len() - pos - 1;
+            if concrete.len() < pos + suffix_len {
+                return None;
+            }
+            let spread_end = concrete.len() - suffix_len;
+            for (c, p) in concrete[..pos].iter().zip(params[..pos].iter()) {
+                if let Type::Generic(name, _) = p {
+                    subs.insert(name.clone(), SpreadSub::Scalar(c.clone()));
+                }
+            }
+            if let Type::Multi(inner, _) = &params[pos] {
+                if let Type::Generic(name, _) = inner.as_ref() {
+                    subs.insert(
+                        name.clone(),
+                        SpreadSub::Seq(concrete[pos..spread_end].to_vec()),
+                    );
+                }
+            }
+            for (c, p) in concrete[spread_end..].iter().zip(params[pos + 1..].iter()) {
+                if let Type::Generic(name, _) = p {
+                    subs.insert(name.clone(), SpreadSub::Scalar(c.clone()));
+                }
+            }
+            Some(())
+        }
+    }
+}
+
+fn collect_spread_subs(
+    arg_types: &[Type],
+    param_types: &[Type],
+) -> Option<std::collections::HashMap<String, SpreadSub>> {
+    let mut subs = std::collections::HashMap::new();
+    for (arg, param) in arg_types.iter().zip(param_types.iter()) {
+        match (arg, param) {
+            (Type::Tuple(concrete, _), Type::Tuple(params, _)) => {
+                collect_tuple_spread(&mut subs, concrete, params)?;
+            }
+            (arg, Type::Generic(name, _)) => {
+                subs.insert(name.clone(), SpreadSub::Scalar(arg.clone()));
+            }
+            _ => {}
+        }
+    }
+    Some(subs)
+}
+
+fn apply_spread_subs(ret: &Type, subs: &std::collections::HashMap<String, SpreadSub>) -> Type {
+    match ret {
+        Type::Tuple(elems, h) => {
+            let mut new_elems: Vec<Type> = vec![];
+            for elem in elems {
+                match elem {
+                    Type::Multi(inner, _) => {
+                        if let Type::Generic(name, _) = inner.as_ref() {
+                            match subs.get(name) {
+                                Some(SpreadSub::Seq(seq)) => {
+                                    new_elems.extend(seq.clone());
+                                    continue;
+                                }
+                                Some(SpreadSub::Scalar(t)) => {
+                                    new_elems.push(t.clone());
+                                    continue;
+                                }
+                                None => {}
+                            }
+                        }
+                        new_elems.push(apply_spread_subs(elem, subs));
+                    }
+                    Type::Generic(name, _) => match subs.get(name) {
+                        Some(SpreadSub::Scalar(t)) => new_elems.push(t.clone()),
+                        Some(SpreadSub::Seq(seq)) => new_elems.extend(seq.clone()),
+                        None => new_elems.push(elem.clone()),
+                    },
+                    _ => new_elems.push(apply_spread_subs(elem, subs)),
+                }
+            }
+            Type::Tuple(new_elems, h.clone())
+        }
+        Type::Generic(name, _) => match subs.get(name) {
+            Some(SpreadSub::Scalar(t)) => t.clone(),
+            _ => ret.clone(),
+        },
+        _ => ret.clone(),
+    }
+}
+
+fn try_spread_tuple_match(
+    all_signatures: &[FunctionType],
+    types: &[Type],
+    context: &Context,
+) -> Option<FunctionType> {
+    for sig in all_signatures {
+        let param_types = sig.get_param_types();
+        if param_types.len() != types.len() {
+            continue;
+        }
+        if !has_tuple_spread(&param_types) {
+            continue;
+        }
+        if let Some(subs) = collect_spread_subs(types, &param_types) {
+            let new_return = apply_spread_subs(&sig.get_return_type(), &subs);
+            return Some(sig.clone().set_infered_return_type(new_return));
+        }
+    }
+    None
+}
+
 /// Interface subtyping match with universal generic return-type inference.
 ///
 /// For each candidate, checks that every argument satisfies its corresponding
@@ -803,6 +955,21 @@ fn apply_from_variable_inner(
 
     // === FILTERING 4 : Variadic function (handles 0-arg calls and arity mismatch) ===
     if let Some(fun_typ) = try_variadic_match(&all_signatures, &types, context) {
+        let (final_params, final_types) =
+            specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
+        return build_success(
+            &var,
+            &fun_typ,
+            final_params,
+            &final_types,
+            param_errors,
+            context,
+            h,
+        );
+    }
+
+    // === FILTERING 5 : Tuple spread (Ts...) ===
+    if let Some(fun_typ) = try_spread_tuple_match(&all_signatures, &types, context) {
         let (final_params, final_types) =
             specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
         return build_success(
@@ -1521,6 +1688,42 @@ mod tests {
             builder::integer_type_default(),
             "Expected int, got: {:?}",
             fp.get_last_type()
+        );
+    }
+
+    #[test]
+    fn test_tuple_spread_append_basic() {
+        // @append: (tuple{T...}, U) -> tuple{T..., U};
+        // list("apple", "banana") has type tuple{apple, banana}
+        // append(fruits, "kiwi") should return tuple{apple, banana, kiwi}
+        let fp = FluentParser::new()
+            .push("@append: (tuple{T...}, U) -> tuple{T..., U};")
+            .run()
+            .push("let fruits <- list(\"apple\", \"banana\");")
+            .run()
+            .push("fruits.append(\"kiwi\")")
+            .parse_type_next();
+
+        let result = fp.get_last_type();
+        // Result should be tuple{apple, banana, kiwi}
+        assert!(
+            matches!(&result, Type::Tuple(elems, _) if elems.len() == 3),
+            "Expected tuple with 3 elements, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_tuple_spread_append_ufc_syntax() {
+        let fp = FluentParser::new()
+            .push("@append: (tuple{T...}, U) -> tuple{T..., U};")
+            .run()
+            .push("append(list(\"a\", \"b\", \"c\"), \"d\")")
+            .parse_type_next();
+
+        let result = fp.get_last_type();
+        assert!(
+            matches!(&result, Type::Tuple(elems, _) if elems.len() == 4),
+            "Expected tuple with 4 elements, got: {result:?}"
         );
     }
 }

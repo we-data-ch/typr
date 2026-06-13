@@ -101,7 +101,7 @@ pub fn format(ty: &Type) -> String {
         Type::LabelGen(l, _) => format!("%{}", l),
         Type::Tuple(elements, _) => {
             let body = elements.iter().map(format).collect::<Vec<_>>().join(", ");
-            format!("{{{}}}", body)
+            format!("tuple{{{}}}", body)
         }
         Type::Add(a, b, _) => format!("{}+{}", a, b),
         Type::Minus(a, b, _) => format!("{}-{}", a, b),

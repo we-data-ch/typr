@@ -971,6 +971,44 @@ fn stmt_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+fn head_lang(lang: &Lang) -> Option<Lang> {
+    match lang {
+        Lang::Variable { .. } => Some(lang.clone()),
+        Lang::Operator {
+            operator: Op::Pipe(_) | Op::Dot(_),
+            rhs,
+            ..
+        } => head_lang(rhs),
+        _ => None,
+    }
+}
+
+fn implicit_mutate(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (parse_elements, terminated(tag("!;"), multispace0)).parse(s);
+    match res {
+        Ok((s, (expr, excl))) => match head_lang(&expr) {
+            Some(lhs) => Ok((
+                s,
+                vec![Lang::Assign {
+                    identifier: Box::new(lhs),
+                    expression: Box::new(expr),
+                    help_data: excl.into(),
+                }],
+            )),
+            None => {
+                push_parse_error(SyntaxError::MutationTargetNotAssignable(
+                    expr.clone().into(),
+                ));
+                Err(nom::Err::Error(nom::error::Error::new(
+                    s,
+                    nom::error::ErrorKind::Tag,
+                )))
+            }
+        },
+        Err(r) => Err(r),
+    }
+}
+
 fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         tag("@"),
@@ -1144,6 +1182,7 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
                 module,
                 assign,
                 return_stmt,
+                implicit_mutate,
                 stmt_exp,
             )),
         ))),
@@ -1571,5 +1610,87 @@ mod tesus {
             }
             other => panic!("Expected UseModule, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_implicit_mutate_simple_variable() {
+        let res = implicit_mutate("x!;".into()).unwrap().1;
+        assert_eq!(res.len(), 1);
+        match &res[0] {
+            Lang::Assign {
+                identifier,
+                expression,
+                ..
+            } => {
+                assert!(matches!(identifier.as_ref(), Lang::Variable { .. }));
+                assert!(matches!(expression.as_ref(), Lang::Variable { .. }));
+            }
+            other => panic!("Expected Assign, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_implicit_mutate_pipeline() {
+        let res = implicit_mutate("x |> f()!;".into()).unwrap().1;
+        assert_eq!(res.len(), 1);
+        match &res[0] {
+            Lang::Assign {
+                identifier,
+                expression,
+                ..
+            } => {
+                assert!(matches!(identifier.as_ref(), Lang::Variable { .. }));
+                assert!(matches!(expression.as_ref(), Lang::Operator { .. }));
+            }
+            other => panic!("Expected Assign, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_implicit_mutate_ufc() {
+        let res = implicit_mutate("obj.method()!;".into()).unwrap().1;
+        assert_eq!(res.len(), 1);
+        match &res[0] {
+            Lang::Assign { identifier, .. } => match identifier.as_ref() {
+                Lang::Variable { name, .. } => assert_eq!(name, "obj"),
+                other => panic!("Expected Variable identifier, got {:?}", other),
+            },
+            other => panic!("Expected Assign, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_implicit_mutate_pipeline_chained() {
+        let res = implicit_mutate("x |> f() |> g()!;".into()).unwrap().1;
+        assert_eq!(res.len(), 1);
+        match &res[0] {
+            Lang::Assign { identifier, .. } => match identifier.as_ref() {
+                Lang::Variable { name, .. } => assert_eq!(name, "x"),
+                other => panic!("Expected Variable identifier, got {:?}", other),
+            },
+            other => panic!("Expected Assign, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_implicit_mutate_ufc_pipeline() {
+        let res = implicit_mutate("shape.scale(2) |> rotate(90)!;".into())
+            .unwrap()
+            .1;
+        assert_eq!(res.len(), 1);
+        match &res[0] {
+            Lang::Assign { identifier, .. } => match identifier.as_ref() {
+                Lang::Variable { name, .. } => assert_eq!(name, "shape"),
+                other => panic!("Expected Variable identifier, got {:?}", other),
+            },
+            other => panic!("Expected Assign, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_implicit_mutate_invalid_literal_fails() {
+        // 3!; — literal, not assignable: parser should fail (return Err)
+        let res = implicit_mutate("3!;".into());
+        assert!(res.is_err(), "Literal mutation should fail to parse");
     }
 }

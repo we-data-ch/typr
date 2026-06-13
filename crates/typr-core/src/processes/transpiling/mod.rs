@@ -177,6 +177,33 @@ fn type_to_r_check(typ: &Type) -> Option<&'static str> {
     }
 }
 
+/// R class a value of `typ` is expected to carry at runtime, used by record
+/// validators to check field types via `inherits`. Relies on monomorphisation:
+/// every value already carries its type's class. Returns `None` for types with
+/// no reliable nominal class (generics, functions, unions…), in which case the
+/// field is only checked for presence.
+fn record_field_class(typ: &Type, cont: &Context) -> Option<String> {
+    match typ {
+        Type::Integer(_, _) => Some("integer".to_string()),
+        Type::Number(_, _) => Some("numeric".to_string()),
+        Type::Char(_, _) => Some("character".to_string()),
+        Type::Boolean(_, _) => Some("logical".to_string()),
+        Type::Alias(name, _, _, _) => match cont
+            .aliases()
+            .find(|(var, _)| var.get_name() == *name)
+            .map(|(_, t)| t)
+        {
+            // Record aliases carry their alias name as the S3 class.
+            Some(Type::Record(_, _)) => Some(name.clone()),
+            // Primitive aliases (e.g. `type Meters <- int`) carry the underlying
+            // R class — no constructor adds the alias name as a class.
+            Some(inner) => record_field_class(&inner, cont),
+            None => None,
+        },
+        _ => None,
+    }
+}
+
 fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> (String, String) {
     match pattern {
         // Tag with a binding variable: .Some(a)
@@ -909,26 +936,52 @@ impl RTranslatable<(String, Context)> for Lang {
                             })
                             .collect::<Vec<_>>()
                             .join(", ");
+                        // Constructor: build the raw value, then delegate entirely
+                        // to the annotator. It neither adds classes nor validates.
                         let constructor = format!(
-                            "{name} <- function({params}) {{\n  structure(list({field_args}), class = c(\"{name}\", \"list\"))\n}}"
+                            "{name} <- function({params}) {{\n  x <- list({field_args})\n  as.{name}(x)\n}}"
+                        );
+                        // Annotator: the single entry point that adds the class
+                        // (idempotently), runs the internal validator, then the
+                        // user validator (`validate` S3 generic, default = identity).
+                        let annotator = format!(
+                            "as.{name} <- function(x) {{\n  if (!inherits(x, \"{name}\")) class(x) <- c(\"{name}\", \"list\")\n  x <- validate_{name}(x)\n  x <- validate(x)\n  x\n}}"
                         );
                         let fields_quoted = sorted_fields
                             .iter()
                             .map(|f| format!("\"{}\"", f.get_argument_str()))
                             .collect::<Vec<_>>()
                             .join(", ");
-                        let field_access = sorted_fields
+                        // Per-field type invariants, checked by class (`inherits`).
+                        // Fields whose type has no reliable nominal class are only
+                        // checked for presence (above).
+                        let field_checks = sorted_fields
                             .iter()
-                            .map(|f| {
+                            .filter_map(|f| {
                                 let n = f.get_argument_str();
-                                format!("{n} = x[[\"{n}\"]]")
+                                record_field_class(&f.body_type(), cont).map(|cls| {
+                                    format!(
+                                        "  if (!inherits(x[[\"{n}\"]], \"{cls}\")) stop(\"Validation failed for type {name}: field '{n}' must be of class {cls}\")"
+                                    )
+                                })
                             })
                             .collect::<Vec<_>>()
-                            .join(", ");
+                            .join("\n");
+                        let field_checks_block = if field_checks.is_empty() {
+                            String::new()
+                        } else {
+                            format!("{field_checks}\n")
+                        };
+                        // Internal validator: pure structural invariants only.
+                        // It must not reconstruct the value (that would recurse
+                        // back through the constructor / annotator).
                         let validator = format!(
-                            ".validate_{name} <- function(x) {{\n  required_fields <- c({fields_quoted})\n  missing_fields <- setdiff(required_fields, names(x))\n  if (length(missing_fields) > 0) {{\n    stop(paste0(\"Validation failed for type {name}: missing fields: \", paste(missing_fields, collapse = \", \")))\n  }}\n  {name}({field_access})\n}}"
+                            "validate_{name} <- function(x) {{\n  required_fields <- c({fields_quoted})\n  missing_fields <- setdiff(required_fields, names(x))\n  if (length(missing_fields) > 0) {{\n    stop(paste0(\"Validation failed for type {name}: missing fields: \", paste(missing_fields, collapse = \", \")))\n  }}\n{field_checks_block}  x\n}}"
                         );
-                        (format!("{constructor}\n{validator}"), cont.clone())
+                        (
+                            format!("{constructor}\n{annotator}\n{validator}"),
+                            cont.clone(),
+                        )
                     }
                     Type::Operator(_, _, _, _) => {
                         // Union alias: generate constructors for each variant
@@ -998,10 +1051,10 @@ impl RTranslatable<(String, Context)> for Lang {
                         use crate::components::r#type::tint::Tint;
                         let validator = match tint {
                             Tint::Val(i) => format!(
-                                ".validate_{name} <- function(x) {{\n  if (!is.integer(x)) stop(\"Validation failed for type {name}: expected int\")\n  if (x != {i}L) stop(\"Validation failed for type {name}: expected literal {i}\")\n  x\n}}"
+                                "validate_{name} <- function(x) {{\n  if (!is.integer(x)) stop(\"Validation failed for type {name}: expected int\")\n  if (x != {i}L) stop(\"Validation failed for type {name}: expected literal {i}\")\n  x\n}}"
                             ),
                             Tint::Unknown => format!(
-                                ".validate_{name} <- function(x) {{\n  if (!is.integer(x)) stop(\"Validation failed for type {name}: expected int\")\n  x\n}}"
+                                "validate_{name} <- function(x) {{\n  if (!is.integer(x)) stop(\"Validation failed for type {name}: expected int\")\n  x\n}}"
                             ),
                         };
                         (validator, cont.clone())
@@ -1010,10 +1063,10 @@ impl RTranslatable<(String, Context)> for Lang {
                         use crate::components::r#type::tchar::Tchar;
                         let validator = match tchar {
                             Tchar::Val(s) => format!(
-                                ".validate_{name} <- function(x) {{\n  if (!is.character(x)) stop(\"Validation failed for type {name}: expected char\")\n  if (x != '{s}') stop(\"Validation failed for type {name}: expected literal '{s}'\")\n  x\n}}"
+                                "validate_{name} <- function(x) {{\n  if (!is.character(x)) stop(\"Validation failed for type {name}: expected char\")\n  if (x != '{s}') stop(\"Validation failed for type {name}: expected literal '{s}'\")\n  x\n}}"
                             ),
                             Tchar::Unknown => format!(
-                                ".validate_{name} <- function(x) {{\n  if (!is.character(x)) stop(\"Validation failed for type {name}: expected char\")\n  x\n}}"
+                                "validate_{name} <- function(x) {{\n  if (!is.character(x)) stop(\"Validation failed for type {name}: expected char\")\n  x\n}}"
                             ),
                         };
                         (validator, cont.clone())
@@ -1024,11 +1077,11 @@ impl RTranslatable<(String, Context)> for Lang {
                             Tbool::Val(b) => {
                                 let r_val = if *b { "TRUE" } else { "FALSE" };
                                 format!(
-                                    ".validate_{name} <- function(x) {{\n  if (!is.logical(x)) stop(\"Validation failed for type {name}: expected bool\")\n  if (x != {r_val}) stop(\"Validation failed for type {name}: expected literal {r_val}\")\n  x\n}}"
+                                    "validate_{name} <- function(x) {{\n  if (!is.logical(x)) stop(\"Validation failed for type {name}: expected bool\")\n  if (x != {r_val}) stop(\"Validation failed for type {name}: expected literal {r_val}\")\n  x\n}}"
                                 )
                             }
                             Tbool::Unknown => format!(
-                                ".validate_{name} <- function(x) {{\n  if (!is.logical(x)) stop(\"Validation failed for type {name}: expected bool\")\n  x\n}}"
+                                "validate_{name} <- function(x) {{\n  if (!is.logical(x)) stop(\"Validation failed for type {name}: expected bool\")\n  x\n}}"
                             ),
                         };
                         (validator, cont.clone())
@@ -1037,10 +1090,10 @@ impl RTranslatable<(String, Context)> for Lang {
                         use crate::components::r#type::tnumber::Tnum;
                         let validator = match tnum {
                             Tnum::Val(v) => format!(
-                                ".validate_{name} <- function(x) {{\n  if (!is.numeric(x)) stop(\"Validation failed for type {name}: expected num\")\n  if (x != {v}) stop(\"Validation failed for type {name}: expected literal {v}\")\n  x\n}}"
+                                "validate_{name} <- function(x) {{\n  if (!is.numeric(x)) stop(\"Validation failed for type {name}: expected num\")\n  if (x != {v}) stop(\"Validation failed for type {name}: expected literal {v}\")\n  x\n}}"
                             ),
                             Tnum::Unknown => format!(
-                                ".validate_{name} <- function(x) {{\n  if (!is.numeric(x)) stop(\"Validation failed for type {name}: expected num\")\n  x\n}}"
+                                "validate_{name} <- function(x) {{\n  if (!is.numeric(x)) stop(\"Validation failed for type {name}: expected num\")\n  x\n}}"
                             ),
                         };
                         (validator, cont.clone())
@@ -1084,14 +1137,14 @@ impl RTranslatable<(String, Context)> for Lang {
                                 }
                             }
                             Type::Alias(alias_name, _, _, _) => format!(
-                                "\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  .validate_{alias_name}(x[[\"body\"]])"
+                                "\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  validate_{alias_name}(x[[\"body\"]])"
                             ),
                             _ => format!(
                                 "\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")"
                             ),
                         };
                         let validator = format!(
-                            ".validate_{name} <- function(x) {{\n  if (x[[1]] != '{tag_name}') stop(\"Validation failed for type {name}: expected tag '{tag_name}'\")\n{body_validation}\n  x\n}}"
+                            "validate_{name} <- function(x) {{\n  if (x[[1]] != '{tag_name}') stop(\"Validation failed for type {name}: expected tag '{tag_name}'\")\n{body_validation}\n  x\n}}"
                         );
                         (validator, cont.clone())
                     }
@@ -1391,7 +1444,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 ..
             } => {
                 let expr_r = expression.to_r(cont).0;
-                (format!(".validate_{}({})", type_name, expr_r), cont.clone())
+                (format!("validate_{}({})", type_name, expr_r), cont.clone())
             }
             _ => ("".to_string(), cont.clone()),
         };
@@ -1426,8 +1479,8 @@ mod tests {
             .check_transpiling("x as! Person");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Person(x)"),
-            "expected .validate_Person(x), got: {}",
+            r_str.contains("validate_Person(x)"),
+            "expected validate_Person(x), got: {}",
             r_str
         );
     }
@@ -1451,7 +1504,7 @@ mod tests {
             FluentParser::new().check_transpiling("type Person <- list { name: char, age: int };");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Person <- function(x)"),
+            r_str.contains("validate_Person <- function(x)"),
             "expected validator function, got: {}",
             r_str
         );
@@ -1743,7 +1796,7 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("type Meters <- int;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Meters <- function(x)"),
+            r_str.contains("validate_Meters <- function(x)"),
             "expected validator function, got: {}",
             r_str
         );
@@ -1759,7 +1812,7 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("type Name <- char;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Name <- function(x)"),
+            r_str.contains("validate_Name <- function(x)"),
             "expected validator function, got: {}",
             r_str
         );
@@ -1775,7 +1828,7 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("type Flag <- bool;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Flag <- function(x)"),
+            r_str.contains("validate_Flag <- function(x)"),
             "expected validator function, got: {}",
             r_str
         );
@@ -1791,7 +1844,7 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("type Real <- num;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Real <- function(x)"),
+            r_str.contains("validate_Real <- function(x)"),
             "expected validator function, got: {}",
             r_str
         );
@@ -1810,8 +1863,8 @@ mod tests {
             .check_transpiling("x as! Meters");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Meters(x)"),
-            "expected .validate_Meters(x), got: {}",
+            r_str.contains("validate_Meters(x)"),
+            "expected validate_Meters(x), got: {}",
             r_str
         );
     }
@@ -1821,7 +1874,7 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("type Hello <- .Hello(char);");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Hello <- function(x)"),
+            r_str.contains("validate_Hello <- function(x)"),
             "expected validator function, got: {}",
             r_str
         );
@@ -1847,7 +1900,7 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("type Count <- .Count(int);");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Count <- function(x)"),
+            r_str.contains("validate_Count <- function(x)"),
             "expected validator, got: {}",
             r_str
         );
@@ -1871,12 +1924,12 @@ mod tests {
             .check_transpiling("type Tagged <- .Tagged(Name);");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Tagged <- function(x)"),
+            r_str.contains("validate_Tagged <- function(x)"),
             "expected validator, got: {}",
             r_str
         );
         assert!(
-            r_str.contains(".validate_Name(x[[\"body\"]])"),
+            r_str.contains("validate_Name(x[[\"body\"]])"),
             "expected nested validator call, got: {}",
             r_str
         );
@@ -1887,7 +1940,7 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("type Hello <- \"hello\";");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Hello <- function(x)"),
+            r_str.contains("validate_Hello <- function(x)"),
             "expected validator function, got: {}",
             r_str
         );
@@ -1903,7 +1956,7 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("type Byte <- 89;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Byte <- function(x)"),
+            r_str.contains("validate_Byte <- function(x)"),
             "expected validator function, got: {}",
             r_str
         );
@@ -1919,7 +1972,7 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("type Pi <- 3.14;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Pi <- function(x)"),
+            r_str.contains("validate_Pi <- function(x)"),
             "expected validator function, got: {}",
             r_str
         );
@@ -1935,7 +1988,7 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("type Yes <- true;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_Yes <- function(x)"),
+            r_str.contains("validate_Yes <- function(x)"),
             "expected validator function, got: {}",
             r_str
         );
@@ -1951,7 +2004,7 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("type No <- false;");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains(".validate_No <- function(x)"),
+            r_str.contains("validate_No <- function(x)"),
             "expected validator function, got: {}",
             r_str
         );

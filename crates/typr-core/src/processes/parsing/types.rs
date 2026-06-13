@@ -517,7 +517,7 @@ fn record_type(s: Span) -> IResult<Span, Type> {
     let res = (
         terminated(tag("list"), multispace0),
         terminated(tag("{"), multispace0),
-        many1(argument),
+        many0(argument),
         terminated(tag("}"), multispace0),
     )
         .parse(s);
@@ -711,6 +711,137 @@ fn tuple_type(s: Span) -> IResult<Span, Type> {
         Ok((s, (ope, _, v, _cl))) => Ok((s, Type::Tuple(v, ope.into()))),
         Err(r) => Err(r),
     }
+}
+
+/// `tuple{T1, T2, ...}` or `tuple{T..., U}` — explicit tuple type (spec §2.1)
+/// Uses `tuple_bracket_param` so that variadic seq-vars (`T...`) are recognised.
+fn explicit_tuple_type(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(tag("tuple"), multispace0),
+        terminated(tag("{"), multispace0),
+        many0(tuple_bracket_param),
+        terminated(tag("}"), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (start, _, v, _))) => Ok((s, Type::Tuple(v, start.into()))),
+        Err(r) => Err(r),
+    }
+}
+
+/// `record{name: T, ...}` or `record{Fs..., name: T}` — explicit record type (spec §2.2)
+/// Uses `variadic_field_seq` so that field seq-vars (`Fs...`) are recognised.
+fn explicit_record_type(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(tag("record"), multispace0),
+        terminated(tag("{"), multispace0),
+        many0(alt((variadic_field_seq, argument))),
+        terminated(tag("}"), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (start, _, v, _))) => {
+            Ok((s, Type::Record(v.iter().cloned().collect(), start.into())))
+        }
+        Err(r) => Err(r),
+    }
+}
+
+/// `T...` or `Ts...` — variadic type-sequence variable (spec §1.1, §4.1)
+/// Produces `Type::Multi(Generic(name))`.
+fn type_seq_var(s: Span) -> IResult<Span, Type> {
+    let res = (
+        one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+        opt(alphanumeric1),
+        terminated(tag("..."), multispace0),
+        opt(terminated(tag(","), multispace0)),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (first, rest, _, _))) => {
+            let tail = rest.map(|r| r.to_string()).unwrap_or_default();
+            let name = format!("{}{}", first, tail);
+            let h = HelpData::default();
+            Ok((s, Type::Multi(Box::new(Type::Generic(name, h.clone())), h)))
+        }
+        Err(r) => Err(r),
+    }
+}
+
+/// A single element inside `Tuple[...]`: either a variadic seq-var or a regular type.
+fn tuple_bracket_param(s: Span) -> IResult<Span, Type> {
+    alt((type_seq_var, ltype_parameter)).parse(s)
+}
+
+/// `Tuple[T1, T2, ...]` or `Tuple[T..., U]` — bracket tuple type (spec §2.1)
+fn tuple_bracket_type(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(tag("Tuple"), multispace0),
+        terminated(tag("["), multispace0),
+        many0(tuple_bracket_param),
+        terminated(tag("]"), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (start, _, v, _))) => Ok((s, Type::Tuple(v, start.into()))),
+        Err(r) => Err(r),
+    }
+}
+
+/// `Fs...` inside `Record[...]` — variadic field-sequence variable (spec §1.2, §4.2)
+fn variadic_field_seq(s: Span) -> IResult<Span, ArgumentType> {
+    let res = (
+        one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+        opt(alphanumeric1),
+        terminated(tag("..."), multispace0),
+        opt(terminated(tag(","), multispace0)),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (first, rest, _, _))) => {
+            let tail = rest.map(|r| r.to_string()).unwrap_or_default();
+            let name = format!("{}{}", first, tail);
+            let h = HelpData::default();
+            let label = Type::Char(name.clone().into(), h.clone());
+            let typ = Type::Generic(name, h.clone());
+            Ok((s, ArgumentType(label, typ, false, true)))
+        }
+        Err(r) => Err(r),
+    }
+}
+
+/// `Record[name: T, ...]` or `Record[Fs..., name: T]` — bracket record type (spec §2.2)
+fn record_bracket_type(s: Span) -> IResult<Span, Type> {
+    let res = (
+        terminated(tag("Record"), multispace0),
+        terminated(tag("["), multispace0),
+        many0(alt((variadic_field_seq, argument))),
+        terminated(tag("]"), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (start, _, v, _))) => {
+            Ok((s, Type::Record(v.iter().cloned().collect(), start.into())))
+        }
+        Err(r) => Err(r),
+    }
+}
+
+/// Groups all `list`/`tuple`/`record` brace-delimited types (spec §2).
+fn list_types(s: Span) -> IResult<Span, Type> {
+    alt((
+        explicit_tuple_type,
+        explicit_record_type,
+        record_type,
+        tuple_type,
+    ))
+    .parse(s)
+}
+
+/// `Tuple[...]` and `Record[...]` bracket notation — must be tried before `type_alias`
+/// so that `Tuple`/`Record` are not swallowed as bare alias names.
+fn bracket_tuple_record(s: Span) -> IResult<Span, Type> {
+    alt((tuple_bracket_type, record_bracket_type)).parse(s)
 }
 
 fn index_generic(s: Span) -> IResult<Span, Type> {
@@ -996,9 +1127,9 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             self_type,
             r_class,
             unknown_function,
+            bracket_tuple_record, // Tuple[...] / Record[...] — before type_alias
             composite_vec_type,
-            record_type,
-            tuple_type,
+            list_types, // tuple{}/record{}/list{} brace forms
             parenthese_value,
             tag_type,
             any,
@@ -1436,6 +1567,214 @@ mod tests {
                 .any(|e| matches!(e, SyntaxError::RecordInRecursiveParams(_))),
             "Expected RecordInRecursiveParams error, got {:?}",
             errors
+        );
+    }
+
+    // ── Spec §2 : explicit tuple/record keyword syntax ───────────────────────
+
+    #[test]
+    fn test_explicit_tuple_non_empty() {
+        let typ = ltype("tuple{int, char}".into()).unwrap().1;
+        assert!(matches!(typ, Type::Tuple(ref v, _) if v.len() == 2));
+    }
+
+    #[test]
+    fn test_explicit_tuple_empty() {
+        let typ = ltype("tuple{}".into()).unwrap().1;
+        assert!(matches!(typ, Type::Tuple(ref v, _) if v.is_empty()));
+    }
+
+    #[test]
+    fn test_explicit_record_non_empty() {
+        let typ = ltype("record{x: int, y: char}".into()).unwrap().1;
+        assert!(matches!(typ, Type::Record(ref f, _) if f.len() == 2));
+    }
+
+    #[test]
+    fn test_explicit_record_empty() {
+        let typ = ltype("record{}".into()).unwrap().1;
+        assert!(matches!(typ, Type::Record(ref f, _) if f.is_empty()));
+    }
+
+    // ── Spec §2.1 : Tuple[...] bracket notation ──────────────────────────────
+
+    #[test]
+    fn test_tuple_bracket_concrete() {
+        let typ = ltype("Tuple[int, char]".into()).unwrap().1;
+        assert!(matches!(typ, Type::Tuple(ref v, _) if v.len() == 2));
+    }
+
+    #[test]
+    fn test_tuple_bracket_empty() {
+        let typ = ltype("Tuple[]".into()).unwrap().1;
+        assert!(matches!(typ, Type::Tuple(ref v, _) if v.is_empty()));
+    }
+
+    #[test]
+    fn test_tuple_bracket_single_seq_var() {
+        // Tuple[T...] — variadic sequence variable
+        let typ = ltype("Tuple[T...]".into()).unwrap().1;
+        match &typ {
+            Type::Tuple(elems, _) => {
+                assert_eq!(elems.len(), 1);
+                assert!(
+                    matches!(&elems[0], Type::Multi(inner, _) if matches!(inner.as_ref(), Type::Generic(n, _) if n == "T"))
+                );
+            }
+            other => panic!("Expected Tuple, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_tuple_bracket_seq_var_then_concrete() {
+        // Tuple[T..., U] — variadic prefix then concrete type
+        let typ = ltype("Tuple[T..., U]".into()).unwrap().1;
+        match &typ {
+            Type::Tuple(elems, _) => {
+                assert_eq!(elems.len(), 2);
+                assert!(matches!(&elems[0], Type::Multi(_, _)));
+                assert!(matches!(&elems[1], Type::Generic(n, _) if n == "U"));
+            }
+            other => panic!("Expected Tuple, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_tuple_bracket_multichar_seq_var() {
+        // Tuple[Ts...] — two-char sequence variable
+        let typ = ltype("Tuple[Ts...]".into()).unwrap().1;
+        match &typ {
+            Type::Tuple(elems, _) => {
+                assert_eq!(elems.len(), 1);
+                assert!(
+                    matches!(&elems[0], Type::Multi(inner, _) if matches!(inner.as_ref(), Type::Generic(n, _) if n == "Ts"))
+                );
+            }
+            other => panic!("Expected Tuple, got {:?}", other),
+        }
+    }
+
+    // ── Spec §2.2 : Record[...] bracket notation ─────────────────────────────
+
+    #[test]
+    fn test_record_bracket_concrete() {
+        let typ = ltype("Record[x: int, y: char]".into()).unwrap().1;
+        assert!(matches!(typ, Type::Record(ref f, _) if f.len() == 2));
+    }
+
+    #[test]
+    fn test_record_bracket_empty() {
+        let typ = ltype("Record[]".into()).unwrap().1;
+        assert!(matches!(typ, Type::Record(ref f, _) if f.is_empty()));
+    }
+
+    #[test]
+    fn test_record_bracket_variadic_seq() {
+        // Record[Fs...] — variadic field-sequence variable
+        let typ = ltype("Record[Fs...]".into()).unwrap().1;
+        match &typ {
+            Type::Record(fields, _) => {
+                assert_eq!(fields.len(), 1);
+                let field = fields.iter().next().unwrap();
+                assert!(field.is_variadic());
+            }
+            other => panic!("Expected Record, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_record_bracket_seq_then_concrete() {
+        // Record[Fs..., z: bool]
+        let typ = ltype("Record[Fs..., z: bool]".into()).unwrap().1;
+        match &typ {
+            Type::Record(fields, _) => assert_eq!(fields.len(), 2),
+            other => panic!("Expected Record, got {:?}", other),
+        }
+    }
+
+    // ── Variadic seq-vars inside brace-delimited forms (the reported bug) ────
+
+    #[test]
+    fn test_explicit_tuple_with_seq_var() {
+        // tuple{T...} must parse — this was the reported bug
+        let typ = ltype("tuple{T...}".into()).unwrap().1;
+        match &typ {
+            Type::Tuple(elems, _) => {
+                assert_eq!(elems.len(), 1);
+                assert!(matches!(&elems[0], Type::Multi(_, _)));
+            }
+            other => panic!("Expected Tuple, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_explicit_tuple_seq_var_then_concrete() {
+        // tuple{T..., U}
+        let typ = ltype("tuple{T..., U}".into()).unwrap().1;
+        match &typ {
+            Type::Tuple(elems, _) => {
+                assert_eq!(elems.len(), 2);
+                assert!(matches!(&elems[0], Type::Multi(_, _)));
+                assert!(matches!(&elems[1], Type::Generic(n, _) if n == "U"));
+            }
+            other => panic!("Expected Tuple, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_explicit_record_with_field_seq_var() {
+        // record{Fs...} — variadic field sequence inside brace form
+        let typ = ltype("record{Fs...}".into()).unwrap().1;
+        match &typ {
+            Type::Record(fields, _) => {
+                assert_eq!(fields.len(), 1);
+                let f = fields.iter().next().unwrap();
+                assert!(f.is_variadic());
+            }
+            other => panic!("Expected Record, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_function_type_with_variadic_tuple_params() {
+        // @append: (tuple{T...}, U) -> tuple{T..., U}
+        let typ = ltype("(tuple{T...}, U) -> tuple{T..., U}".into())
+            .unwrap()
+            .1;
+        assert!(
+            matches!(&typ, Type::Function(params, ret, _)
+                if params.len() == 2
+                && matches!(params[0].get_type(), Type::Tuple(ref v, _) if v.len() == 1)
+                && matches!(ret.as_ref(), Type::Tuple(ref v, _) if v.len() == 2)
+            ),
+            "Unexpected function type: {:?}",
+            typ
+        );
+    }
+
+    // ── Spec §3.2 : subtyping rules ──────────────────────────────────────────
+
+    #[test]
+    fn test_empty_tuple_subtype_of_empty_record() {
+        // tuple{} <: list{} (where list{} == record{} == Type::Record({}))
+        let ctx = Context::default();
+        let empty_tuple = Type::Tuple(vec![], HelpData::default());
+        let empty_record = Type::Record(std::collections::HashSet::new(), HelpData::default());
+        assert!(
+            empty_tuple.is_subtype(&empty_record, &ctx).0,
+            "empty tuple should be a subtype of empty record"
+        );
+    }
+
+    #[test]
+    fn test_empty_record_subtype_of_empty_tuple() {
+        // record{} <: list{} (where list{} == tuple{} == Type::Tuple([]))
+        let ctx = Context::default();
+        let empty_tuple = Type::Tuple(vec![], HelpData::default());
+        let empty_record = Type::Record(std::collections::HashSet::new(), HelpData::default());
+        assert!(
+            empty_record.is_subtype(&empty_tuple, &ctx).0,
+            "empty record should be a subtype of empty tuple"
         );
     }
 }

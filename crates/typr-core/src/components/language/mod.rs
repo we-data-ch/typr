@@ -286,7 +286,7 @@ pub enum Lang {
         elements: Vec<Lang>,
         help_data: HelpData,
     },
-    /// Validating cast: `expr as! TypeName` — calls .validate_TypeName(expr) at runtime
+    /// Validating cast: `expr as! TypeName` — calls validate_TypeName(expr) at runtime
     ValidatingCast {
         expression: Box<Lang>,
         type_name: String,

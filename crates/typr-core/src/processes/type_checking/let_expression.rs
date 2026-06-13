@@ -92,6 +92,34 @@ pub fn let_expression(
         .clone()
         .push_types(&exp.extract_types_from_expression(context));
 
+    // Pre-inject the function's own type so the body can call it recursively.
+    let new_context = if let Lang::Function {
+        parameters,
+        return_type,
+        help_data,
+        ..
+    } = exp.as_ref()
+    {
+        if !matches!(return_type, Type::Empty(_)) {
+            if let Ok(var) = Var::try_from(name) {
+                let fn_type = Type::Function(
+                    parameters.to_vec(),
+                    Box::new(return_type.clone()),
+                    help_data.clone(),
+                );
+                new_context
+                    .clone()
+                    .push_var_type(var.set_type(fn_type.clone()), fn_type, context)
+            } else {
+                new_context
+            }
+        } else {
+            new_context
+        }
+    } else {
+        new_context
+    };
+
     let alias_errors = collect_undefined_aliases(context, ty);
 
     let res = exp
@@ -149,6 +177,25 @@ mod tests {
                 )
             )),
             "Expected AliasNotFound error but got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_recursive_function_no_error() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::typing_with_errors;
+
+        let expr = parse2(
+            "let factorial <- fn(n: int): int { if (n <= 1) { 1 } else { n * factorial(n - 1) } };"
+                .into(),
+        )
+        .unwrap();
+        let result = typing_with_errors(&Context::default(), &expr);
+        assert!(
+            !result.has_errors(),
+            "Recursive function should type-check without errors, got: {:?}",
             result.get_errors()
         );
     }

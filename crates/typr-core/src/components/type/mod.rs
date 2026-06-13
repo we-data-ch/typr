@@ -233,6 +233,9 @@ impl TypeSystem for Type {
                 .iter()
                 .zip(types2.iter())
                 .all(|(typ1, typ2)| typ1.is_subtype_raw(typ2, context)),
+            // Empty tuple <: empty record (spec §3.2: tuple{} <: list{})
+            (Type::Tuple(ts, _), Type::Record(fs, _)) if ts.is_empty() && fs.is_empty() => true,
+            (Type::Record(fs, _), Type::Tuple(ts, _)) if fs.is_empty() && ts.is_empty() => true,
             (typ, Type::Operator(TypeOperator::Intersection, t1, t2, _)) => {
                 typ.is_subtype_raw(t1, context) && typ.is_subtype_raw(t2, context)
             }

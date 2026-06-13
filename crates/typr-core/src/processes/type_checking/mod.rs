@@ -1715,6 +1715,36 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let tc = typing(context, arr_exp);
             let mut errors = tc.errors.clone();
             let typ1 = tc.value;
+
+            // Scalar indexing on a Tuple: list(a, b, c)[2] → element type at position 2
+            if let Type::Tuple(types, _) = &typ1 {
+                let scalar_idx = index.get_members_if_array().and_then(|members| {
+                    if members.len() == 1 {
+                        if let Lang::Integer { value: i, .. } = &members[0] {
+                            Some(*i)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                });
+                if let Some(i) = scalar_idx {
+                    let i = i as usize;
+                    return if i >= 1 && i <= types.len() {
+                        TypeContext::new(types[i - 1].clone(), expr.clone(), context.clone())
+                            .with_errors(errors)
+                    } else {
+                        errors.push(TypRError::Type(TypeError::WrongIndexing(
+                            typ1.clone(),
+                            builder::integer_type(i as i32),
+                        )));
+                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                            .with_errors(errors)
+                    };
+                }
+            }
+
             let args_target = typ1.clone().linearize();
 
             match index.get_members_if_array() {
@@ -1794,11 +1824,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let mut errors = iter_tc.errors.clone();
 
             // A type is *iterable* if it can be materialised into an array `[T]`.
-            // Two cases:
+            // Three cases:
             //   - concrete array (`τ.to_array()` succeeds): iterate natively, the
             //     iterable expression is emitted as-is (`as_vec` elision).
             //   - any other type: it is iterable iff `as_vec(it)` type-checks to an
             //     array `[T]`. The loop is then desugared to `for (x in as_vec(it))`.
+            //   - Record (named or anonymous): iterate natively; element type is the
+            //     union of all field types. R's list is natively iterable, no conversion.
             let resolved = match iter_tc.value.to_array() {
                 Some(arr) => Some((arr.base_type, (**iter).clone())),
                 None => {
@@ -1815,6 +1847,28 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         .value
                         .to_array()
                         .map(|arr| (arr.base_type, as_vec_call))
+                        .or_else(|| {
+                            let record_fields = match &iter_tc.value {
+                                Type::Record(fields, _) => Some(fields.clone()),
+                                Type::Alias(name, _, _, _) => context
+                                    .aliases()
+                                    .find(|(var, _)| &var.name == name)
+                                    .and_then(|(_, t)| {
+                                        if let Type::Record(fields, _) = t {
+                                            Some(fields.clone())
+                                        } else {
+                                            None
+                                        }
+                                    }),
+                                _ => None,
+                            };
+                            record_fields.map(|fields| {
+                                let types: Vec<Type> =
+                                    fields.iter().map(|f| f.get_type()).collect();
+                                let element_type = builder::union_type(&types);
+                                (element_type, iter_tc.lang.clone())
+                            })
+                        })
                 }
             };
 
@@ -2852,13 +2906,18 @@ p"#;
             r_code
         );
         assert!(
-            r_code.contains("structure(list("),
-            "Expected structure(list(...)) in constructor, got:\n{}",
+            r_code.contains("as.Point(x)"),
+            "Expected constructor to delegate to the annotator as.Point, got:\n{}",
             r_code
         );
         assert!(
-            r_code.contains("class = c(\"Point\", \"list\")"),
-            "Expected S3 class annotation in constructor, got:\n{}",
+            r_code.contains("as.Point <- function(x)"),
+            "Expected annotator function for Point, got:\n{}",
+            r_code
+        );
+        assert!(
+            r_code.contains("class(x) <- c(\"Point\", \"list\")"),
+            "Expected S3 class annotation in annotator, got:\n{}",
             r_code
         );
     }
@@ -3164,6 +3223,104 @@ p"#;
         assert!(
             result.has_errors(),
             "iterating over a non-iterable (int) should produce a typing error"
+        );
+    }
+
+    #[test]
+    fn test_for_loop_anonymous_record_binds_union_type() {
+        // Iterating over an anonymous record binds x to the union of field types.
+        let fp = FluentParser::new()
+            .push("let r <- :{ x = 1, y = 2 };")
+            .run()
+            .push("for (item in r) { item; };")
+            .parse_type_next();
+        assert!(
+            !fp.get_last_log().contains("WrongExpression"),
+            "iterating over an anonymous record should not produce a type error, got: {}",
+            fp.get_last_log()
+        );
+    }
+
+    #[test]
+    fn test_for_loop_named_record_alias_iterates_natively() {
+        // Iterating over a named record alias (e.g. Point) emits no `as_vec` wrapper.
+        let r = FluentParser::new()
+            .push("type Point <- list { x: int, y: int };")
+            .run()
+            .push("let p <- Point:{ x = 1, y = 2 };")
+            .run()
+            .check_transpiling("for (item in p) { item; };")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            !r.contains("as_vec"),
+            "named record iteration should not desugar to as_vec, got: {}",
+            r
+        );
+        assert!(
+            r.contains("for (item in p)"),
+            "named record iteration should emit 'for (item in p)', got: {}",
+            r
+        );
+    }
+
+    #[test]
+    fn test_for_loop_heterogeneous_record_binds_union() {
+        // Fields of different types → element type is the union; body type-checks fine.
+        let fp = FluentParser::new()
+            .push("let r <- :{ n = 1, s = \"hello\" };")
+            .run()
+            .push("for (item in r) { item; };")
+            .parse_type_next();
+        assert!(
+            !fp.get_last_log().contains("WrongExpression"),
+            "heterogeneous record iteration should not produce a type error, got: {}",
+            fp.get_last_log()
+        );
+    }
+
+    #[test]
+    fn test_tuple_scalar_indexing() {
+        let fp = FluentParser::new()
+            .push("let a <- list(\"un\", \"deux\", \"trois\");")
+            .run()
+            .push("a[2]")
+            .parse_type_next();
+        let t = fp.get_last_type();
+        assert!(
+            matches!(t, Type::Char(..)),
+            "a[2] on tuple should return char, got {:?}",
+            t
+        );
+    }
+
+    #[test]
+    fn test_tuple_indexing_out_of_bounds() {
+        use crate::processes::parsing::parse_from_string;
+        let src = "let a <- list(\"un\", \"deux\"); a[5];";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "out-of-bounds tuple index should produce a typing error"
+        );
+    }
+
+    #[test]
+    fn test_tuple_indexing_transpilation() {
+        let r = FluentParser::new()
+            .push("let a <- list(\"un\", \"deux\");")
+            .run()
+            .push("a[1]")
+            .run()
+            .get_r_code();
+        let code = r.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            code.contains("a[["),
+            "should transpile using double-bracket indexing, got: {}",
+            code
         );
     }
 }

@@ -21,6 +21,7 @@ pub enum SyntaxError {
         line: u32,
         help_data: HelpData,
     },
+    MutationTargetNotAssignable(HelpData),
     WithNode(Box<Lang>, Box<SyntaxError>),
 }
 
@@ -37,6 +38,7 @@ impl SyntaxError {
             SyntaxError::RecordConstructorIndex(h) => Some(h.clone()),
             SyntaxError::RecordInRecursiveParams(h) => Some(h.clone()),
             SyntaxError::UnknownElement { help_data, .. } => Some(help_data.clone()),
+            SyntaxError::MutationTargetNotAssignable(h) => Some(h.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
     }
@@ -75,6 +77,9 @@ impl SyntaxError {
                     help_data.get_file_name(),
                     line
                 )
+            }
+            SyntaxError::MutationTargetNotAssignable(_) => {
+                "Mutation target is not assignable: `!;` requires a variable or pipeline/UFC starting with a variable".to_string()
             }
             SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
@@ -176,6 +181,15 @@ impl ErrorMsg for SyntaxError {
                         element, file_name, line
                     ))
                     .pos_text("Here")
+                    .build()
+            }
+            SyntaxError::MutationTargetNotAssignable(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text("Mutation target is not assignable")
+                    .pos_text("Here")
+                    .help("`!;` can only be applied to a variable, pipeline (`x |> f()!;`), or UFC (`obj.method()!;`) whose head is a variable")
                     .build()
             }
             SyntaxError::WithNode(_, inner) => return inner.display(),
