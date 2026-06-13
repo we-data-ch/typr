@@ -82,6 +82,20 @@ mod transpilation {
     }
 
     #[test]
+    fn string_literal_with_double_quotes() {
+        let r = transpile(r#""say \"hi\"""#);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn string_literal_single_quoted_source() {
+        // A single-quoted TypR literal containing a double quote must still
+        // produce a valid, properly escaped R double-quoted string.
+        let r = transpile(r#"'a "b" c'"#);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
     fn simple_let() {
         let r = transpile("let x <- 5;");
         insta::assert_snapshot!(r);

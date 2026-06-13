@@ -32,6 +32,20 @@ use std::path::PathBuf;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+/// Render a string value as an R double-quoted literal (R's canonical string
+/// form). The value is assumed to be already decoded (see
+/// `parsing::elements::decode_escapes`), so this is the single place that knows
+/// how to escape for the R target: backslashes and double quotes must be
+/// escaped, control characters are emitted as escape sequences.
+pub fn escape_r_string(s: &str) -> String {
+    let escaped = s
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\t', "\\t");
+    format!("\"{}\"", escaped)
+}
+
 // Thread-local storage for generated files (used in WASM mode)
 thread_local! {
     static GENERATED_FILES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
@@ -316,7 +330,10 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Char { value: s, .. } => {
                 let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
-                (format!("'{}' |> {}", s, anotation), cont.clone())
+                (
+                    format!("{} |> {}", escape_r_string(s), anotation),
+                    cont.clone(),
+                )
             }
             Lang::Operator {
                 operator: Op::Dot(_),
@@ -464,11 +481,11 @@ impl RTranslatable<(String, Context)> for Lang {
                 let has_variadic = params.last().map(|p| p.is_variadic()).unwrap_or(false);
                 let list_of_types = params
                     .iter()
-                    .map(ArgumentType::get_type)
+                    .map(ArgumentType::body_type)
                     .collect::<Vec<_>>();
                 let sub_context = params
                     .iter()
-                    .map(|arg_typ| arg_typ.clone().to_var(cont))
+                    .map(|arg_typ| arg_typ.clone().set_type(arg_typ.body_type()).to_var(cont))
                     .zip(list_of_types.clone())
                     .fold(cont.clone(), |context: Context, (var, typ)| {
                         context.clone().push_var_type(var, typ, &context)
@@ -481,9 +498,13 @@ impl RTranslatable<(String, Context)> for Lang {
                 let body_r = body.to_r(&sub_context).0;
                 let final_body_r = if has_variadic {
                     let vname = params.last().unwrap().get_argument_str();
-                    // inject `vname <- list(...)` after opening `{`
+                    // The body sees the variadic param as `[#N, T]`, so collect
+                    // the R `...` into a `typed_vec` to match the S3 dispatch the
+                    // stdlib array functions (`sum`, `map`, `length`, …) rely on.
+                    let collector = "typed_vec(..., dim = c(...length()))";
+                    // inject `vname <- typed_vec(...)` after opening `{`
                     if body_r.starts_with('{') {
-                        format!("{{\n{} <- list(...){}", vname, &body_r[1..])
+                        format!("{{\n{} <- {}{}", vname, collector, &body_r[1..])
                     } else {
                         body_r
                     }
@@ -1156,6 +1177,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 cont.clone(),
             ),
             Lang::Break(_) => ("break".to_string(), cont.clone()),
+            Lang::Next(_) => ("next".to_string(), cont.clone()),
             Lang::NA(_) => ("NA".to_string(), cont.clone()),
             Lang::Module {
                 name,
@@ -1386,6 +1408,15 @@ mod tests {
     use crate::components::language::{Lang, ModulePosition};
     use crate::processes::transpiling::translatable::RTranslatable;
     use crate::utils::fluent_parser::FluentParser;
+
+    #[test]
+    fn test_escape_r_string() {
+        use super::escape_r_string;
+        assert_eq!(escape_r_string("hello"), r#""hello""#);
+        assert_eq!(escape_r_string(r#"say "hi""#), r#""say \"hi\"""#);
+        assert_eq!(escape_r_string(r"a\b"), r#""a\\b""#);
+        assert_eq!(escape_r_string("line1\nline2"), r#""line1\nline2""#);
+    }
 
     #[test]
     fn test_validating_cast_transpiles_to_validate_call() {

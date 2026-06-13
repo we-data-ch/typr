@@ -30,9 +30,19 @@ let len <- fn(a: char): int {
 
 @as__logical: (a: A) -> int;
 
+# A type is iterable (usable in `for ... in`) if it can materialise itself
+# into an array [T] via as_vec. No impl syntax: any free as_vec whose first
+# parameter is the type makes it iterable (structural typeclass-via-S3).
+type Iterable<T> <- interface { as_vec: (Self) -> [T] };
+
+# Base implementation: an array is iterable, as_vec is the identity.
+@as_vec: (a: [#N, T]) -> [#N, T];
+
 @map: (a: [#N, T], f: (T) -> U) -> [#N, U];
 
 @rev: (a: [#N, T]) -> [#N, T];
+
+@set_at: (a: [#N, T], i: int, val: T) -> [#N, T];
 
 @mean: (a: [#N, T]) -> T;
 
@@ -64,7 +74,7 @@ let len <- fn(a: char): int {
 
 @print: (a: char) -> .None;
 
-@seq: (a: #I, b: #J, c: #K) -> [#J-#I/#K, int];
+@seq: (a: #I, b: #J, c: #K) -> Vec[#J-#I/#K+1, int];
 
 @substr: (a: char, b: int, e: int) -> char;
 

@@ -1,6 +1,7 @@
 use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
+use crate::components::language::var::Var;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::ArgumentType;
@@ -31,6 +32,21 @@ fn is_interface_return_only(params: &[ArgumentType], ret_ty: &Type, context: &Co
     !params
         .iter()
         .any(|p| reduce_type(context, &p.get_type()) == reduced_ret)
+}
+
+/// Check if a type is a constrained rigid generic that satisfies the declared return type.
+/// This handles the case where the body returns a rigid variable `A` and the declared return
+/// is the interface `I` that constrains `A`.
+fn is_rigid_compatible(body_type: &Type, declared_ret: &Type, context: &Context) -> bool {
+    let name = match body_type {
+        Type::Generic(name, _) => name,
+        _ => return false,
+    };
+    let Some(interface) = context.get_interface_constraint(name) else {
+        return false;
+    };
+    let reduced_ret = reduce_type(context, declared_ret);
+    *interface == reduced_ret || interface.is_subtype_raw(&reduced_ret, context)
 }
 
 pub fn function(
@@ -72,23 +88,44 @@ pub fn function(
         ))]);
     }
 
-    let sub_context = params
-        .iter()
-        .map(|arg_typ| arg_typ.clone().to_var(context))
-        .zip(list_of_types.iter().map(|arg| arg.get_type()))
-        .fold(context.clone(), |cont, (var, typ)| {
-            cont.clone().push_var_type(var, typ, &cont)
-        });
+    // Build sub-context: interface parameters become rigid generic variables
+    // with interface constraints, instead of being decomposed via push_interface.
+    let mut sub_context = context.clone();
+    for arg_typ in params {
+        let param_type = arg_typ.body_type();
+        let reduced = reduce_type(&sub_context, &param_type);
+        if matches!(&reduced, Type::Interface(_, _)) {
+            let (rigid_name, new_ctx) = sub_context.clone().fresh_rigid_name();
+            let rigid_type = Type::Generic(rigid_name.clone(), h.clone());
+            sub_context = new_ctx
+                .add_interface_constraint(rigid_name, reduced)
+                .push_var_type(
+                    Var::from_name(&arg_typ.get_argument_str()).set_type(rigid_type.clone()),
+                    rigid_type,
+                    &sub_context,
+                );
+        } else {
+            let var = arg_typ
+                .clone()
+                .set_type(param_type.clone())
+                .to_var(&sub_context);
+            sub_context = sub_context
+                .clone()
+                .push_var_type(var, param_type.clone(), &sub_context);
+        }
+    }
+
     let body_type = body.typing(&sub_context);
     let mut errors = body_type.errors.clone();
     let is_compatible = is_opaque_of(&body_type.value, ret_ty)
-        || body_type.value.reduce_and_subtype(ret_ty, &sub_context).0;
+        || body_type.value.reduce_and_subtype(ret_ty, &sub_context).0
+        || is_rigid_compatible(&body_type.value, ret_ty, &sub_context);
     (!is_compatible)
         .then(|| errors.push(builder::unmatching_return_type(ret_ty, &body_type.value)));
     TypeContext::new(
         Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone()),
         expr.clone(),
-        sub_context,
+        context.clone(),
     )
     .with_errors(errors)
 }
@@ -418,7 +455,9 @@ mod tests {
 
     #[test]
     fn test_variadic_function_type() {
-        let res = FluentParser::new().check_typing("fn(...xs: num): num { xs }");
+        // Inside the body the variadic param is a vector, so it can be
+        // returned as `[#N, num]`.
+        let res = FluentParser::new().check_typing("fn(...xs: num): [#N, num] { xs }");
         let expected = Type::Function(
             vec![ArgumentType(
                 Type::Char("xs".to_string().into(), HelpData::default()),
@@ -426,7 +465,10 @@ mod tests {
                 false,
                 true,
             )],
-            Box::new(builder::number_type()),
+            Box::new(builder::array_type(
+                Type::IndexGen("N".to_string(), HelpData::default()),
+                builder::number_type(),
+            )),
             HelpData::default(),
         );
         assert_eq!(res, expected);
@@ -438,7 +480,7 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
 
-        let code1 = parse2("let f <- fn(...xs: num): num { xs };".into()).unwrap();
+        let code1 = parse2("let f <- fn(...xs: num): num { sum(xs) };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
         assert!(
             !tc1.has_errors(),
@@ -461,7 +503,7 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
 
-        let code1 = parse2("let f <- fn(...xs: num): num { xs };".into()).unwrap();
+        let code1 = parse2("let f <- fn(...xs: num): num { sum(xs) };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
 
         let code2 = parse2("f()".into()).unwrap();
@@ -479,7 +521,7 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
 
-        let code1 = parse2("let f <- fn(...xs: num): num { xs };".into()).unwrap();
+        let code1 = parse2("let f <- fn(...xs: num): num { sum(xs) };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
 
         let code2 = parse2("f(\"hello\", \"world\")".into()).unwrap();
@@ -494,7 +536,8 @@ mod tests {
         use crate::processes::type_checking::type_checker::TypeChecker;
 
         let code1 =
-            parse2("let concat <- fn(sep: char, ...args: char): char { args };".into()).unwrap();
+            parse2("let concat <- fn(sep: char, ...args: char): [#N, char] { args };".into())
+                .unwrap();
         let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
         assert!(
             !tc1.has_errors(),

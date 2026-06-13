@@ -263,6 +263,7 @@ pub enum Lang {
     Union(Box<Lang>, Box<Lang>, HelpData),
     JSBlock(Box<Lang>, u32, HelpData),
     Break(HelpData),
+    Next(HelpData),
     Null(HelpData),
     NA(HelpData),
     Empty(HelpData),
@@ -585,6 +586,7 @@ impl PartialEq for Lang {
             ) => a1 == b1 && a2 == b2,
             (Lang::Loop { body: a1, .. }, Lang::Loop { body: b1, .. }) => a1 == b1,
             (Lang::Break(_), Lang::Break(_)) => true,
+            (Lang::Next(_), Lang::Next(_)) => true,
             (
                 Lang::Operator {
                     operator: a1,
@@ -905,6 +907,7 @@ impl Lang {
             Lang::WhileLoop { help_data: h, .. } => h,
             Lang::Loop { help_data: h, .. } => h,
             Lang::Break(h) => h,
+            Lang::Next(h) => h,
             Lang::Operator { help_data: h, .. } => h,
             Lang::TypePattern { help_data: h, .. } => h,
             Lang::Null(h) => h,
@@ -1011,6 +1014,7 @@ impl Lang {
             Lang::WhileLoop { .. } => "WhileLoop".to_string(),
             Lang::Loop { .. } => "Loop".to_string(),
             Lang::Break(_) => "Break".to_string(),
+            Lang::Next(_) => "Next".to_string(),
             Lang::Operator { .. } => "Operator".to_string(),
             Lang::TypePattern {
                 variable_name: name,
@@ -1442,6 +1446,7 @@ impl From<Lang> for HelpData {
             Lang::WhileLoop { help_data: h, .. } => h,
             Lang::Loop { help_data: h, .. } => h,
             Lang::Break(h) => h,
+            Lang::Next(h) => h,
             Lang::Operator { help_data: h, .. } => h,
             Lang::TypePattern { help_data: h, .. } => h,
             Lang::Null(h) => h,

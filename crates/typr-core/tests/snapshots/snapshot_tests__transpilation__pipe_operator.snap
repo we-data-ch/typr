@@ -5,6 +5,14 @@ expression: r
 Point <- function(x, y) {
   structure(list(x = x, y = y), class = c("Point", "list"))
 }
+.validate_Point <- function(x) {
+  required_fields <- c("x", "y")
+  missing_fields <- setdiff(required_fields, names(x))
+  if (length(missing_fields) > 0) {
+    stop(paste0("Validation failed for type Point: missing fields: ", paste(missing_fields, collapse = ", ")))
+  }
+  Point(x = x[["x"]], y = x[["y"]])
+}
 `incr.Point` <- (function(p) {
 Point(x = {
 p$x + 1L |> Integer()

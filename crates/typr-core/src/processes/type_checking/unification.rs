@@ -5,6 +5,26 @@ use crate::components::r#type::Type;
 use crate::processes::type_checking::type_comparison;
 use std::collections::HashSet;
 
+/// Compare two index/label keys by *name*.
+///
+/// `Type`'s `PartialEq` treats every `IndexGen`/`LabelGen` as equal regardless
+/// of its name (e.g. `IndexGen("I") == IndexGen("J")`). That is fine for
+/// structural subtyping but disastrous for substitution-map lookups: it makes
+/// every index variable resolve to the *first* binding in the map. Index/label
+/// lookups must therefore match on the variable name so that, for example,
+/// `[#J-#I/#K, int]` with `{I→1, J→20, K→1}` resolves correctly.
+///
+/// NB: `Generic` is intentionally *not* handled here. Several inference paths
+/// (notably untyped-lambda return-type inference) still rely on the loose
+/// `Generic` equality, so reworking it is out of scope for this fix.
+pub fn same_generic_key(key: &Type, var: &Type) -> bool {
+    match (key, var) {
+        (Type::IndexGen(a, _), Type::IndexGen(b, _)) => a == b,
+        (Type::LabelGen(a, _), Type::LabelGen(b, _)) => a == b,
+        _ => false,
+    }
+}
+
 pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     if substitutions.is_empty() {
         return type_.clone();
@@ -23,10 +43,10 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         }
 
         // Index generic substitution
-        Type::IndexGen(name, h) => {
+        Type::IndexGen(_, _) => {
             if let Some((_, replacement)) = substitutions
                 .iter()
-                .find(|(idx_name, _)| idx_name == &Type::IndexGen(name.clone(), h.clone()))
+                .find(|(idx_name, _)| same_generic_key(idx_name, type_))
             {
                 replacement.clone()
             } else {
@@ -35,10 +55,10 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         }
 
         // Label generic substitution
-        Type::LabelGen(name, h) => {
+        Type::LabelGen(_, _) => {
             if let Some((_, replacement)) = substitutions
                 .iter()
-                .find(|(idx_name, _)| idx_name == &Type::LabelGen(name.clone(), h.clone()))
+                .find(|(idx_name, _)| same_generic_key(idx_name, type_))
             {
                 replacement.clone()
             } else {

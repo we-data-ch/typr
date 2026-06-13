@@ -37,8 +37,16 @@ let_type <- function(x, new_class) {
 get <- function(a, ...) UseMethod("get")
 apply <- function(X, ...) UseMethod("apply")
 reduce <- function(vec, ...) UseMethod("reduce")
+as_vec <- function(x, ...) UseMethod("as_vec")
+max <- function(a, ...) UseMethod("max")
+min <- function(a, ...) UseMethod("min")
+replace <- function(a, ...) UseMethod("replace")
 
 # --- Méthodes par défaut et types de base ---
+
+max.default <- function(a, ...) base::max(a, ...)
+min.default <- function(a, ...) base::min(a, ...)
+replace.default <- function(a, ...) base::replace(a, ...)
 
 apply.default <- function(X, ...) {
   # Si MARGIN est présent, c'est probablement un appel à base::apply
@@ -52,6 +60,12 @@ apply.default <- function(X, ...) {
 get.default <- function(a, name, ...) {
   if (is.list(a)) a[[name]] else base::get(name, pos = a, ...)
 }
+
+# Arrays (and atomic vectors) are already iterable: `as_vec` is the identity,
+# R iterates them natively in `for (x in ...)`.
+as_vec.default <- function(x, ...) x
+
+set_at.default <- function(a, i, val) replace(a, i, val)
 
 get.data <- function(a, name) {
   a$data[[1]]

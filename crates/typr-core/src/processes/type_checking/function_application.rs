@@ -11,6 +11,7 @@ use crate::components::language::set_related_type_if_variable;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::processes::type_checking::match_types_to_generic;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
 use crate::processes::type_checking::Context;
@@ -22,6 +23,59 @@ use crate::processes::type_checking::TypeError;
 use crate::processes::type_checking::Var;
 use crate::processes::type_checking::VecType;
 use crate::utils::builder;
+
+/// Try to resolve a method call on a constrained rigid generic variable.
+/// §5 elimination rule: when the receiver has type `A` with constraint `A: I`,
+/// and `m: (Self, …) -> T` is a method of `I`, then `e.m(x₁, …, xⱼ) : T[Self ↦ A]`.
+fn try_constrained_variable_match(
+    var: &Var,
+    types: &[Type],
+    context: &Context,
+) -> Option<FunctionType> {
+    let first_type = types.first()?;
+    let rigid_name = match first_type {
+        Type::Generic(name, _) => name,
+        _ => return None,
+    };
+    let interface = context.get_interface_constraint(rigid_name)?;
+    let methods = match interface {
+        Type::Interface(methods, _) => methods,
+        _ => return None,
+    };
+    let method = methods
+        .iter()
+        .find(|m| m.get_argument_str() == var.get_name())?;
+    let method_type = method.get_type(); // e.g. Function([Self], Self) or Function([Self, Self], Self)
+
+    // Substitute Self → receiver type in the method signature
+    let substituted = method_type
+        .clone()
+        .replace_function_types(builder::self_generic_type(), first_type.clone());
+
+    // Convert to FunctionType and infer return type
+    let mut fun_typ = FunctionType::try_from(substituted).ok()?;
+    let param_types = fun_typ.get_param_types();
+    if param_types.len() != types.len() {
+        return None;
+    }
+
+    // Verify all arguments match their parameters
+    let all_match = param_types.iter().zip(types.iter()).all(|(param, arg)| {
+        if let Type::Generic(_, _) = param {
+            // Substituted Self or other generic — accept matching types
+            arg.is_subtype_raw(param, context)
+        } else {
+            arg.is_subtype_raw(param, context)
+        }
+    });
+    if !all_match {
+        return None;
+    }
+
+    let return_type = fun_typ.get_return_type();
+    fun_typ = fun_typ.set_infered_return_type(return_type);
+    Some(fun_typ)
+}
 
 fn build_success(
     var: &Var,
@@ -48,9 +102,8 @@ fn filter_by_first_param(
     context: &Context,
 ) -> Vec<FunctionType> {
     let reduced_arg = reduce_type(context, first_arg_type);
-    signatures
-        .iter()
-        .filter(|sig| {
+    let (exact, rest): (Vec<&FunctionType>, Vec<&FunctionType>) =
+        signatures.iter().partition(|sig| {
             sig.get_first_param()
                 .map(|p| {
                     let reduced_p = reduce_type(context, &p);
@@ -61,9 +114,20 @@ fn filter_by_first_param(
                         )
                 })
                 .unwrap_or(false)
-        })
-        .cloned()
-        .collect()
+        });
+    // Composite generic params (e.g. `[#N, T]` against an argument `[#N, num]`)
+    // don't pass the equality test above but can still unify. They are appended
+    // after the exact matches so they don't steal overload resolution.
+    let unifiable = rest.into_iter().filter(|sig| {
+        sig.get_first_param()
+            .map(|p| {
+                match_types_to_generic(context, &reduced_arg, &p)
+                    .map(|bindings| !bindings.is_empty())
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false)
+    });
+    exact.into_iter().chain(unifiable).cloned().collect()
 }
 
 fn try_direct_match(
@@ -588,10 +652,51 @@ pub fn apply_from_variable(
     parameters: &[Lang],
     h: &HelpData,
 ) -> TypeContext {
+    thread_local! {
+        static DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    }
+    let prev = DEPTH.with(|d| {
+        let v = d.get();
+        d.set(v + 1);
+        v
+    });
+    if prev > 200 {
+        DEPTH.with(|d| d.set(d.get() - 1));
+        return TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
+            .with_errors(vec![TypRError::Type(TypeError::FunctionNotFound(
+                var.clone(),
+            ))]);
+    }
+    let result = apply_from_variable_inner(var, context, parameters, h);
+    DEPTH.with(|d| d.set(d.get() - 1));
+    result
+}
+
+fn apply_from_variable_inner(
+    var: Var,
+    context: &Context,
+    parameters: &[Lang],
+    h: &HelpData,
+) -> TypeContext {
     let (expanded_parameters, types, param_errors) =
         get_expanded_parameters_with_their_types(context, parameters);
 
     let all_signatures = var.get_functions_from_name(context);
+
+    // === FILTERING 0 : Constrained rigid variable method resolution (§5 elimination) ===
+    // When the receiver (first argument) is a constrained generic rigid variable,
+    // resolve the method directly from the interface constraint.
+    if let Some(fun_typ) = try_constrained_variable_match(&var, &types, context) {
+        return build_success(
+            &var,
+            &fun_typ,
+            expanded_parameters,
+            &types,
+            param_errors,
+            context,
+            h,
+        );
+    }
 
     // === FILTERING 1 : First equality of the first param, then complet match (unification) ===
     if let Some(first_arg_type) = types.first() {

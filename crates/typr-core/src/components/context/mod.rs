@@ -22,6 +22,7 @@ use crate::utils::builder;
 use crate::utils::standard_library::not_in_blacklist;
 use serde::Deserialize;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::iter::Rev;
 use std::ops::Add;
@@ -34,6 +35,14 @@ pub struct Context {
     /// Registry of user-declared `typeconstructor`s: (name, parameter signature, category).
     #[serde(default)]
     pub type_constructors: Vec<(String, Vec<Type>, ConstructorCategory)>,
+    /// Constraints mapping a rigid generic variable name to its interface.
+    /// Introduced when an interface type appears in parameter position:
+    /// fn(i: I): R  ⇒  i : A  with A: I  stored here.
+    #[serde(default)]
+    pub interface_constraints: HashMap<String, Type>,
+    /// Counter for generating unique rigid generic variable names.
+    #[serde(default)]
+    pub rigid_counter: u64,
     config: Config,
 }
 
@@ -45,6 +54,8 @@ impl Default for Context {
             typing_context: VarType::from_config(config),
             subtypes: Graph::new(),
             type_constructors: Vec::new(),
+            interface_constraints: HashMap::new(),
+            rigid_counter: 0,
         }
     }
 }
@@ -76,6 +87,8 @@ impl Context {
             typing_context: VarType::new(),
             subtypes: Graph::new(),
             type_constructors: Vec::new(),
+            interface_constraints: HashMap::new(),
+            rigid_counter: 0,
         }
     }
 
@@ -188,6 +201,34 @@ impl Context {
 
     pub fn aliases(&self) -> Rev<std::vec::IntoIter<&(Var, Type)>> {
         self.typing_context.aliases()
+    }
+
+    /// Generate a fresh rigid generic variable name (immutable builder pattern).
+    pub fn fresh_rigid_name(self) -> (String, Self) {
+        let name = format!("__rigid_{}", self.rigid_counter);
+        (
+            name,
+            Self {
+                rigid_counter: self.rigid_counter + 1,
+                ..self
+            },
+        )
+    }
+
+    /// Register a constraint: rigid variable → interface type.
+    pub fn add_interface_constraint(mut self, rigid_name: String, interface: Type) -> Context {
+        self.interface_constraints.insert(rigid_name, interface);
+        self
+    }
+
+    /// Look up the interface constraint for a rigid variable.
+    pub fn get_interface_constraint(&self, name: &str) -> Option<&Type> {
+        self.interface_constraints.get(name)
+    }
+
+    /// Check if a name is a constrained rigid variable.
+    pub fn is_rigid_constrained(&self, name: &str) -> bool {
+        self.interface_constraints.contains_key(name)
     }
 
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
@@ -762,10 +803,15 @@ impl Add for Context {
             type_constructors.retain(|(n, _, _)| n != &name);
             type_constructors.push((name, params, cat));
         }
+        let mut interface_constraints = self.interface_constraints;
+        interface_constraints.extend(other.interface_constraints);
+        let rigid_counter = self.rigid_counter.max(other.rigid_counter);
         Context {
             typing_context: self.typing_context + other.typing_context,
             subtypes: self.subtypes + other.subtypes,
             type_constructors,
+            interface_constraints,
+            rigid_counter,
             config: self.config,
         }
     }

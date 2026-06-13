@@ -723,6 +723,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Null(h) => (Type::Null(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Empty(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Break(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()).into(),
+        Lang::Next(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Loop {
             body, help_data: h, ..
         } => {
@@ -1792,25 +1793,57 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let iter_tc = typing(context, iter);
             let mut errors = iter_tc.errors.clone();
 
-            match iter_tc.value.to_array() {
-                Some(arr) => {
-                    let base_type = arr.base_type;
-                    let var = var.clone().set_type(base_type.clone());
-                    TypeContext::new(
-                        builder::unknown_function_type(),
-                        expr.clone(),
-                        context.clone(),
-                    )
-                    .with_errors(errors)
+            // A type is *iterable* if it can be materialised into an array `[T]`.
+            // Two cases:
+            //   - concrete array (`τ.to_array()` succeeds): iterate natively, the
+            //     iterable expression is emitted as-is (`as_vec` elision).
+            //   - any other type: it is iterable iff `as_vec(it)` type-checks to an
+            //     array `[T]`. The loop is then desugared to `for (x in as_vec(it))`.
+            let resolved = match iter_tc.value.to_array() {
+                Some(arr) => Some((arr.base_type, (**iter).clone())),
+                None => {
+                    let as_vec_call = Lang::FunctionApp {
+                        identifier: Box::new(
+                            Var::from_name("as_vec")
+                                .set_help_data(h.clone())
+                                .to_language(),
+                        ),
+                        arguments: vec![iter_tc.lang.clone()],
+                        help_data: h.clone(),
+                    };
+                    typing(context, &as_vec_call)
+                        .value
+                        .to_array()
+                        .map(|arr| (arr.base_type, as_vec_call))
+                }
+            };
+
+            match resolved {
+                Some((base_type, iter_expr)) => {
+                    // The iterable implements `Iterable<T>`: bind `x : T` in the
+                    // block scope (T = element type) and type-check the body.
+                    let body_context = context.clone().push_var_type(
+                        var.clone().set_type(base_type.clone()),
+                        base_type.clone(),
+                        context,
+                    );
+                    let body_tc = typing(&body_context, body);
+                    errors.extend(body_tc.errors);
+                    let new_for = Lang::ForLoop {
+                        identifier: var.clone(),
+                        expression: Box::new(iter_expr),
+                        body: body.clone(),
+                        help_data: h.clone(),
+                    };
+                    TypeContext::new(Type::Empty(h.clone()), new_for, context.clone())
+                        .with_errors(errors)
                 }
                 None => {
+                    // `it` is not of a type implementing `Iterable<T>`: typing error,
+                    // no coercion.
                     errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
-                    TypeContext::new(
-                        builder::unknown_function_type(),
-                        expr.clone(),
-                        context.clone(),
-                    )
-                    .with_errors(errors)
+                    TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
+                        .with_errors(errors)
                 }
             }
         }
@@ -3024,6 +3057,113 @@ p"#;
         assert!(
             result.has_errors(),
             "Using an undeclared record constructor should produce an error"
+        );
+    }
+
+    #[test]
+    fn test_for_loop_binds_element_type() {
+        // `x` must be bound to the element type of the iterable (int here),
+        // so `let y: int <- x;` type-checks without error.
+        use crate::processes::parsing::parse_from_string;
+        let src = "for (x in [1, 2, 3]) { let y: int <- x; };";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "for-loop body should type-check with `x: int`, got errors: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_for_loop_body_type_error_detected() {
+        // The body is type-checked: binding `x` (int) to a `char` is an error.
+        use crate::processes::parsing::parse_from_string;
+        let src = "for (x in [1, 2, 3]) { let z: char <- x; };";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "for-loop body type error (int bound to char) should be detected"
+        );
+    }
+
+    #[test]
+    fn test_for_loop_non_iterable_errors() {
+        // No coercion: iterating over a non-iterable value is a typing error.
+        use crate::processes::parsing::parse_from_string;
+        let src = "for (x in 42) { x; };";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "iterating over a non-iterable (int) should produce a typing error"
+        );
+    }
+
+    #[test]
+    fn test_for_loop_type_is_empty() {
+        // A `for` loop is a statement: its type is Unit (`Empty`).
+        let fp = FluentParser::new()
+            .push("for (x in [1, 2, 3]) { x; };")
+            .parse_type_next();
+        assert!(
+            matches!(fp.get_last_type(), Type::Empty(_)),
+            "for-loop should have type Empty, got: {:?}",
+            fp.get_last_type()
+        );
+    }
+
+    #[test]
+    fn test_for_loop_array_elides_as_vec() {
+        // A concrete array iterates natively: no `as_vec` is emitted.
+        let r = FluentParser::new()
+            .check_transpiling("for (x in [1, 2, 3]) { x; };")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            !r.contains("as_vec"),
+            "array iteration should elide as_vec, got: {}",
+            r
+        );
+        assert!(r.contains("for (x in"), "expected a for loop, got: {}", r);
+    }
+
+    #[test]
+    fn test_for_loop_custom_iterable_desugars_to_as_vec() {
+        // A custom type that provides `as_vec: (Self) -> [T]` is iterable.
+        // The loop is desugared to `for (x in as_vec(it))` and `x` is bound to T.
+        let r = FluentParser::new()
+            .push("type Stack <- list { items: [#N, int] };")
+            .run()
+            .push("@as_vec: (a: Stack) -> [#N, int];")
+            .run()
+            .push("let s <- Stack:{ items = [1, 2, 3] };")
+            .run()
+            .check_transpiling("for (x in s) { let y: int <- x; };")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r.contains("as_vec(s)"),
+            "custom iterable should desugar to as_vec(s), got: {}",
+            r
+        );
+    }
+
+    #[test]
+    fn test_for_loop_non_iterable_no_as_vec() {
+        // A non-iterable value is rejected: no `as_vec` desugaring is produced.
+        use crate::processes::parsing::parse_from_string;
+        let src = "for (x in 42) { x; };";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "iterating over a non-iterable (int) should produce a typing error"
         );
     }
 }

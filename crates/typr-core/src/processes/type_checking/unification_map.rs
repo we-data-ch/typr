@@ -17,9 +17,20 @@ impl SafeHashMap {
         SafeHashMap { map: vec![] }
     }
 
+    /// Key equality for the substitution map. For index/label variables this
+    /// compares the variable *name* (since `Type`'s `PartialEq` treats all such
+    /// variables as equal, which would merge distinct variables like `#I` and
+    /// `#J`). For any other key (including `Generic`), falls back to `==`.
+    fn key_eq(a: &Type, b: &Type) -> bool {
+        match b {
+            Type::IndexGen(_, _) | Type::LabelGen(_, _) => unification::same_generic_key(a, b),
+            _ => a == b,
+        }
+    }
+
     fn insert(&mut self, key: Type, value: Type) {
         let resolved_value = Self::resolve_generic(&self.map, &value);
-        match self.map.iter().find(|(k, _v)| k == &key) {
+        match self.map.iter().find(|(k, _v)| Self::key_eq(k, &key)) {
             Some((Type::Generic(old_key_name, _), existing_val)) => {
                 let final_value = Self::resolve_generic(&self.map, existing_val);
                 if final_value.exact_equality(&resolved_value)
@@ -37,7 +48,7 @@ impl SafeHashMap {
         let mut current = typ.clone();
         let mut seen = HashSet::new();
         loop {
-            let found = map.iter().find(|(k, _)| k == &current);
+            let found = map.iter().find(|(k, _)| Self::key_eq(k, &current));
             match found {
                 Some((_, next)) => {
                     if next == &current || !seen.insert(current.clone()) {
@@ -93,7 +104,16 @@ impl UnificationMap {
         let mut current = ret_ty.clone();
         let mut seen = HashSet::new();
         loop {
-            let found = self.mapping.iter().find(|(typ1, _)| *typ1 == current);
+            // For index/label variables, match on the variable *name*: `Type`'s
+            // `PartialEq` treats all such variables as equal, which would otherwise
+            // make `current` resolve to the first binding in the map. `Generic` is
+            // intentionally left on the loose `==` path (see `same_generic_key`).
+            let found = self.mapping.iter().find(|(typ1, _)| match &current {
+                Type::IndexGen(_, _) | Type::LabelGen(_, _) => {
+                    unification::same_generic_key(typ1, &current)
+                }
+                _ => *typ1 == current,
+            });
             match found {
                 Some((_, typ2)) => {
                     if typ2 == &current || !seen.insert(current.clone()) {

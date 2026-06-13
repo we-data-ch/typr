@@ -20,6 +20,7 @@ use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::Type;
 use crate::processes::parsing::elements::break_exp;
 use crate::processes::parsing::elements::chars;
+use crate::processes::parsing::elements::next_exp;
 use crate::processes::parsing::elements::parse_elements;
 use crate::processes::parsing::elements::return_exp;
 use crate::processes::parsing::elements::scope;
@@ -1119,6 +1120,7 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
             alt((
                 library,
                 break_exp,
+                next_exp,
                 use_exp,
                 test_block,
                 while_loop,

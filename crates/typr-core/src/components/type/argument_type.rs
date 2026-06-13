@@ -3,6 +3,7 @@ use crate::components::error_message::help_data::HelpData;
 use crate::components::language::var::Var;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use serde::{Deserialize, Serialize};
@@ -62,6 +63,23 @@ impl ArgumentType {
 
     pub fn get_type(&self) -> Type {
         self.1.clone()
+    }
+
+    /// Type of the parameter as seen inside the function body.
+    /// A variadic `...xs: T` collects its arguments into a vector at runtime,
+    /// so the body sees `[#N, T]` instead of `T`.
+    pub fn body_type(&self) -> Type {
+        if self.3 {
+            let h = self.1.get_help_data();
+            Type::Vec(
+                VecType::S3,
+                Box::new(Type::IndexGen("N".to_string(), h.clone())),
+                Box::new(self.1.clone()),
+                h,
+            )
+        } else {
+            self.1.clone()
+        }
     }
 
     pub fn get_argument(&self) -> Type {

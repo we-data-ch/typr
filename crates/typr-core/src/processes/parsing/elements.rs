@@ -154,6 +154,34 @@ pub fn chars(s: Span) -> IResult<Span, Lang> {
     terminated(alt((double_quotes, single_quotes)), multispace0).parse(s)
 }
 
+/// Decode the backslash escape sequences kept verbatim by `escaped(...)` into
+/// their literal characters, so that `Lang::Char.value` holds the true semantic
+/// value of the string, independent of the source quoting style. Re-encoding for
+/// a given target (R, JS, ...) is the transpiler's responsibility.
+pub fn decode_escapes(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('"') => out.push('"'),
+                Some('\'') => out.push('\''),
+                Some('\\') => out.push('\\'),
+                Some('n') => out.push('\n'),
+                Some('t') => out.push('\t'),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
 pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
     let res = delimited(
         char('"'),
@@ -163,7 +191,10 @@ pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
     .parse(input);
     match res {
         Ok((s, st)) => {
-            let content = st.clone().map(|span| span.to_string()).unwrap_or_default();
+            let content = st
+                .clone()
+                .map(|span| decode_escapes(&span.to_string()))
+                .unwrap_or_default();
             let location = st
                 .map(|span| span.into())
                 .unwrap_or_else(|| s.clone().into());
@@ -188,7 +219,10 @@ pub fn single_quotes(input: Span) -> IResult<Span, Lang> {
     .parse(input);
     match res {
         Ok((s, st)) => {
-            let content = st.clone().map(|span| span.to_string()).unwrap_or_default();
+            let content = st
+                .clone()
+                .map(|span| decode_escapes(&span.to_string()))
+                .unwrap_or_default();
             let location = st
                 .map(|span| span.into())
                 .unwrap_or_else(|| s.clone().into());
@@ -1173,6 +1207,14 @@ pub fn break_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+pub fn next_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = tag("next;").parse(s);
+    match res {
+        Ok((s, el)) => Ok((s, vec![Lang::Next(el.into())])),
+        Err(r) => Err(r),
+    }
+}
+
 // main
 pub fn single_element(s: Span) -> IResult<Span, Lang> {
     alt((
@@ -1299,6 +1341,32 @@ mod tests {
     #[should_panic]
     fn test_empty_scope() {
         let _ = "{  }".parse::<Lang>();
+    }
+
+    #[test]
+    fn test_decode_escapes() {
+        assert_eq!(decode_escapes("hello"), "hello");
+        assert_eq!(decode_escapes(r#"say \"hi\""#), r#"say "hi""#);
+        assert_eq!(decode_escapes(r"it\'s"), "it's");
+        assert_eq!(decode_escapes(r"a\\b"), r"a\b");
+        assert_eq!(decode_escapes(r"line1\nline2"), "line1\nline2");
+    }
+
+    #[test]
+    fn test_char_value_is_decoded() {
+        // Both quoting styles store the same decoded semantic value.
+        let from_double = r#""say \"hi\"""#.parse::<Lang>().unwrap();
+        let from_single = r#"'say "hi"'"#.parse::<Lang>().unwrap();
+        match (from_double, from_single) {
+            (
+                Lang::Char { value: d, .. },
+                Lang::Char { value: s, .. },
+            ) => {
+                assert_eq!(d, r#"say "hi""#);
+                assert_eq!(s, r#"say "hi""#);
+            }
+            other => panic!("expected two Lang::Char, got {:?}", other),
+        }
     }
 
     #[test]
