@@ -3050,7 +3050,7 @@ p"#;
             r_code
         );
         assert!(
-            r_code.contains(r#"class = c("Red", "Color", "list")"#),
+            r_code.contains(r#"c("Red", "Color", "Tag", "list")"#),
             "Expected S3 class hierarchy for Red, got:\n{}",
             r_code
         );

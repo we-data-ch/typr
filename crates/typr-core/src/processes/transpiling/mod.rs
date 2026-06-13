@@ -204,6 +204,118 @@ fn record_field_class(typ: &Type, cont: &Context) -> Option<String> {
     }
 }
 
+/// Find the name of a union alias that declares a tag variant called
+/// `tag_name`. Used by the `Lang::Tag` literal to enrich its runtime class
+/// with the union name (canonical representation, see
+/// `validation_variant_d_union.md` §2). Returns `None` for standalone tags
+/// (no declared union).
+fn find_union_for_tag(tag_name: &str, cont: &Context) -> Option<String> {
+    cont.aliases().find_map(|(var, typ)| {
+        let is_union = matches!(
+            typ,
+            Type::Operator(
+                crate::components::r#type::type_operator::TypeOperator::Union,
+                _,
+                _,
+                _
+            )
+        );
+        if !is_union {
+            return None;
+        }
+        let declares_tag = flatten_operator_union(typ)
+            .iter()
+            .any(|m| matches!(m, Type::Tag(n, _, _) if n == tag_name));
+        if declares_tag {
+            Some(var.get_name())
+        } else {
+            None
+        }
+    })
+}
+
+/// Build the structural body-validation block for a tag's payload, shared by
+/// standalone tag aliases (`type Hello <- .Hello(char)`) and union variants.
+/// `name` is the type/variant name used in error messages; `inner_type` is the
+/// declared payload type. An empty payload (`.Nothing`) yields an empty block.
+fn tag_body_validation(name: &str, inner_type: &Type) -> String {
+    match inner_type {
+        Type::Empty(_) => String::new(),
+        Type::Integer(tint, _) => {
+            use crate::components::r#type::tint::Tint;
+            let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.integer(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be int\")");
+            match tint {
+                Tint::Val(i) => format!("{null_check}\n  if (x[[\"body\"]] != {i}L) stop(\"Validation failed for type {name}: body must be literal {i}\")"),
+                Tint::Unknown => null_check,
+            }
+        }
+        Type::Char(tchar, _) => {
+            use crate::components::r#type::tchar::Tchar;
+            let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.character(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be char\")");
+            match tchar {
+                Tchar::Val(s) => format!("{null_check}\n  if (x[[\"body\"]] != '{s}') stop(\"Validation failed for type {name}: body must be literal '{s}'\")"),
+                Tchar::Unknown => null_check,
+            }
+        }
+        Type::Boolean(tbool, _) => {
+            use crate::components::r#type::tbool::Tbool;
+            let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.logical(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be bool\")");
+            match tbool {
+                Tbool::Val(b) => {
+                    let r_val = if *b { "TRUE" } else { "FALSE" };
+                    format!("{null_check}\n  if (x[[\"body\"]] != {r_val}) stop(\"Validation failed for type {name}: body must be literal {r_val}\")")
+                }
+                Tbool::Unknown => null_check,
+            }
+        }
+        Type::Number(tnum, _) => {
+            use crate::components::r#type::tnumber::Tnum;
+            let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.numeric(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be num\")");
+            match tnum {
+                Tnum::Val(v) => format!("{null_check}\n  if (x[[\"body\"]] != {v}) stop(\"Validation failed for type {name}: body must be literal {v}\")"),
+                Tnum::Unknown => null_check,
+            }
+        }
+        Type::Alias(alias_name, _, _, _) => format!(
+            "\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  validate_{alias_name}(x[[\"body\"]])"
+        ),
+        _ => format!(
+            "\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")"
+        ),
+    }
+}
+
+/// Emit the full constructor/annotator/validator pipeline for a single tag
+/// variant `V` of union `U`, in the canonical representation
+/// (`structure(list("V", body = p), class = c("V", "U", "Tag", "list"))`).
+/// Mirrors the record pipeline (see `Lang::Alias` / `Type::Record`).
+fn tag_variant_pipeline(variant_name: &str, union_name: &str, inner_type: &Type) -> String {
+    let is_empty = matches!(inner_type, Type::Empty(_));
+    // Constructor: build the raw value, then delegate entirely to the
+    // annotator. It neither sets the class nor validates.
+    let constructor = if is_empty {
+        format!(
+            "{variant_name} <- function() {{\n  x <- list(\"{variant_name}\")\n  as.{variant_name}(x)\n}}"
+        )
+    } else {
+        format!(
+            "{variant_name} <- function(x) {{\n  v <- list(\"{variant_name}\", body = x)\n  as.{variant_name}(v)\n}}"
+        )
+    };
+    // Annotator: single entry point. Sets the class idempotently, then runs
+    // the internal validator and the user validator (`validate` S3 generic,
+    // which dispatches to `validate.{variant_name}` then `validate.{union_name}`).
+    let annotator = format!(
+        "as.{variant_name} <- function(x) {{\n  if (!inherits(x, \"{variant_name}\")) class(x) <- c(\"{variant_name}\", \"{union_name}\", \"Tag\", \"list\")\n  x <- validate_{variant_name}(x)\n  x <- validate(x)\n  x\n}}"
+    );
+    // Internal validator: pure structural invariants (tag identity + payload).
+    let body_validation = tag_body_validation(variant_name, inner_type);
+    let validator = format!(
+        "validate_{variant_name} <- function(x) {{\n  if (x[[1]] != '{variant_name}') stop(\"Validation failed for type {variant_name}: expected tag '{variant_name}'\")\n{body_validation}\n  x\n}}"
+    );
+    format!("{constructor}\n{annotator}\n{validator}")
+}
+
 fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> (String, String) {
     match pattern {
         // Tag with a binding variable: .Some(a)
@@ -833,15 +945,26 @@ impl RTranslatable<(String, Context)> for Lang {
                 name: s, value: t, ..
             } => {
                 let (t_str, new_cont) = t.to_r(cont);
-                let (typ, _, _) = typing(cont, self).to_tuple();
-                let anotation = cont.get_type_anotation(&typ);
-                (
+                let is_empty = matches!(t.as_ref(), Lang::Empty(_));
+                // Canonical representation (see validation_variant_d_union.md §2):
+                // tag identity in position 1, payload under `body`, class enriched
+                // with the union name (when the tag belongs to a declared union)
+                // plus `Tag`/`list`. This makes the literal interchangeable with
+                // the value produced by the variant constructor `V(...)`, so
+                // `match` and the variant validators apply to both origins.
+                let class = match find_union_for_tag(s, cont) {
+                    Some(union_name) => format!("c('{}', '{}', 'Tag', 'list')", s, union_name),
+                    None => format!("c('{}', 'Tag', 'list')", s),
+                };
+                let value = if is_empty {
+                    format!("structure(list('{}'), class = {})", s, class)
+                } else {
                     format!(
-                        "structure(list('{}', body = {}), class = c('.{}', 'Tag')) |> {}",
-                        s, t_str, s, anotation
-                    ),
-                    new_cont,
-                )
+                        "structure(list('{}', body = {}), class = {})",
+                        s, t_str, class
+                    )
+                };
+                (value, new_cont)
             }
             Lang::Null(_) => ("NULL".to_string(), cont.clone()),
             Lang::Empty(_) => ("NA".to_string(), cont.clone()),
@@ -984,7 +1107,9 @@ impl RTranslatable<(String, Context)> for Lang {
                         )
                     }
                     Type::Operator(_, _, _, _) => {
-                        // Union alias: generate constructors for each variant
+                        // Union alias: generate the full constructor/annotator/
+                        // validator pipeline for each variant (see
+                        // validation_variant_d_union.md).
                         let union_name = &name;
                         let members = flatten_operator_union(typ);
                         // Sort for deterministic output
@@ -993,19 +1118,11 @@ impl RTranslatable<(String, Context)> for Lang {
                         let constructors: Vec<String> = members_vec
                             .iter()
                             .filter_map(|member| match member {
-                                Type::Tag(variant_name, inner, _) => {
-                                    match inner.as_ref() {
-                                        Type::Empty(_) => Some(format!(
-                                            "{variant_name} <- function() {{\n  structure(list(), class = c(\"{variant_name}\", \"{union_name}\", \"list\"))\n}}"
-                                        )),
-                                        _ => {
-                                            // Tag with payload: wrap as single-field constructor
-                                            Some(format!(
-                                                "{variant_name} <- function(x) {{\n  structure(list(x), class = c(\"{variant_name}\", \"{union_name}\", \"list\"))\n}}"
-                                            ))
-                                        }
-                                    }
-                                }
+                                Type::Tag(variant_name, inner, _) => Some(tag_variant_pipeline(
+                                    variant_name,
+                                    union_name,
+                                    inner.as_ref(),
+                                )),
                                 Type::Alias(alias_name, _, _, _) => {
                                     // Look up the record fields for this alias
                                     let record_fields = cont
@@ -1099,50 +1216,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         (validator, cont.clone())
                     }
                     Type::Tag(tag_name, inner_type, _) => {
-                        let body_validation = match inner_type.as_ref() {
-                            Type::Empty(_) => String::new(),
-                            Type::Integer(tint, _) => {
-                                use crate::components::r#type::tint::Tint;
-                                let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.integer(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be int\")");
-                                match tint {
-                                    Tint::Val(i) => format!("{null_check}\n  if (x[[\"body\"]] != {i}L) stop(\"Validation failed for type {name}: body must be literal {i}\")"),
-                                    Tint::Unknown => null_check,
-                                }
-                            }
-                            Type::Char(tchar, _) => {
-                                use crate::components::r#type::tchar::Tchar;
-                                let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.character(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be char\")");
-                                match tchar {
-                                    Tchar::Val(s) => format!("{null_check}\n  if (x[[\"body\"]] != '{s}') stop(\"Validation failed for type {name}: body must be literal '{s}'\")"),
-                                    Tchar::Unknown => null_check,
-                                }
-                            }
-                            Type::Boolean(tbool, _) => {
-                                use crate::components::r#type::tbool::Tbool;
-                                let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.logical(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be bool\")");
-                                match tbool {
-                                    Tbool::Val(b) => {
-                                        let r_val = if *b { "TRUE" } else { "FALSE" };
-                                        format!("{null_check}\n  if (x[[\"body\"]] != {r_val}) stop(\"Validation failed for type {name}: body must be literal {r_val}\")")
-                                    }
-                                    Tbool::Unknown => null_check,
-                                }
-                            }
-                            Type::Number(tnum, _) => {
-                                use crate::components::r#type::tnumber::Tnum;
-                                let null_check = format!("\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  if (!is.numeric(x[[\"body\"]])) stop(\"Validation failed for type {name}: body must be num\")");
-                                match tnum {
-                                    Tnum::Val(v) => format!("{null_check}\n  if (x[[\"body\"]] != {v}) stop(\"Validation failed for type {name}: body must be literal {v}\")"),
-                                    Tnum::Unknown => null_check,
-                                }
-                            }
-                            Type::Alias(alias_name, _, _, _) => format!(
-                                "\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")\n  validate_{alias_name}(x[[\"body\"]])"
-                            ),
-                            _ => format!(
-                                "\n  if (is.null(x[[\"body\"]])) stop(\"Validation failed for type {name}: missing 'body' field\")"
-                            ),
-                        };
+                        let body_validation = tag_body_validation(&name, inner_type.as_ref());
                         let validator = format!(
                             "validate_{name} <- function(x) {{\n  if (x[[1]] != '{tag_name}') stop(\"Validation failed for type {name}: expected tag '{tag_name}'\")\n{body_validation}\n  x\n}}"
                         );
@@ -1932,6 +2006,82 @@ mod tests {
             r_str.contains("validate_Name(x[[\"body\"]])"),
             "expected nested validator call, got: {}",
             r_str
+        );
+    }
+
+    #[test]
+    fn test_union_variant_generates_full_pipeline() {
+        // Each union variant gets the same constructor/annotator/validator
+        // contract as records (validation_variant_d_union.md §3).
+        let r_str = FluentParser::new()
+            .check_transpiling("type Shape <- .Circle(num) | .Nothing;")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        // Constructor (payload variant) builds the canonical value then delegates.
+        assert!(
+            r_str.contains("Circle <- function(x) {")
+                && r_str.contains("v <- list(\"Circle\", body = x)")
+                && r_str.contains("as.Circle(v)"),
+            "expected Circle constructor, got: {r_str}"
+        );
+        // Annotator sets the enriched class idempotently and validates.
+        assert!(
+            r_str.contains("as.Circle <- function(x) {")
+                && r_str.contains("class(x) <- c(\"Circle\", \"Shape\", \"Tag\", \"list\")")
+                && r_str.contains("x <- validate_Circle(x)")
+                && r_str.contains("x <- validate(x)"),
+            "expected Circle annotator, got: {r_str}"
+        );
+        // Internal validator checks tag identity and payload type.
+        assert!(
+            r_str.contains("validate_Circle <- function(x) {")
+                && r_str.contains("x[[1]] != 'Circle'")
+                && r_str.contains("is.numeric(x[[\"body\"]])"),
+            "expected Circle validator, got: {r_str}"
+        );
+        // Empty variant has a zero-arg constructor and no body.
+        assert!(
+            r_str.contains("Nothing <- function() {") && r_str.contains("x <- list(\"Nothing\")"),
+            "expected Nothing constructor, got: {r_str}"
+        );
+    }
+
+    #[test]
+    fn test_tag_literal_canonical_representation() {
+        // A `.Circle(..)` literal must produce the same runtime shape as the
+        // variant constructor: tag in position 1, payload under `body`, class
+        // enriched with the union name (validation_variant_d_union.md §2).
+        let r_str = FluentParser::new()
+            .push("type Shape <- .Circle(num) | .Square(num);")
+            .run()
+            .check_transpiling(".Circle(3.14)")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_str.contains("structure(list('Circle', body =")
+                && r_str.contains("class = c('Circle', 'Shape', 'Tag', 'list')"),
+            "expected canonical tag literal with union class, got: {r_str}"
+        );
+    }
+
+    #[test]
+    fn test_tag_literal_without_union_omits_union_class() {
+        // A tag with no declared union still uses the canonical shape, but the
+        // class carries no union name.
+        let r_str = FluentParser::new()
+            .check_transpiling(".Loose(1)")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_str.contains("structure(list('Loose', body =")
+                && r_str.contains("class = c('Loose', 'Tag', 'list')"),
+            "expected canonical tag literal without union class, got: {r_str}"
         );
     }
 
