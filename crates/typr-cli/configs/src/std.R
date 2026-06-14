@@ -43,6 +43,7 @@ min <- function(a, ...) UseMethod("min")
 replace <- function(a, ...) UseMethod("replace")
 append <- function(a, ...) UseMethod("append")
 plot <- function(a, ...) UseMethod("append")
+expect_equal <- function(a, ...) UseMethod("append")
 
 # User validator hook for record types: `as.T` calls validate() after the
 # internal validate_T. Default is identity; users extend it with validate.T.
@@ -56,6 +57,7 @@ min.default <- function(a, ...) base::min(a, ...)
 replace.default <- function(a, ...) base::replace(a, ...)
 append.default <- function(a, ...) base::append(a, ...)
 plot.default <- function(a, ...) base::plot(a, ...)
+expect_equal.default <- function(a, ...) testthat::expect_equal(a, ...)
 
 apply.default <- function(X, ...) {
   # Si MARGIN est présent, c'est probablement un appel à base::apply

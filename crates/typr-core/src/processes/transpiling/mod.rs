@@ -51,6 +51,57 @@ thread_local! {
     static GENERATED_FILES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
 }
 
+// Thread-local stack of roxygen2 `@include` dependencies, scoped per output file.
+//
+// In Project mode, `mod foo;` dependencies must surface as top-level
+// `#' @include foo.R` tags in the *header* of the file that references them — a
+// `#'` comment buried inside a `local({ ... })` block is not attached to any
+// top-level object, so roxygen2 ignores it. Instead of emitting the tag inline,
+// each external module registers its filename into the current frame; the file
+// that owns that frame drains it into its header.
+//
+// The stack mirrors the `to_r` recursion: a new frame is pushed before
+// transpiling the body of a module that writes its own file, and drained when
+// that file is written. The bottom frame collects top-level (`main`) includes.
+thread_local! {
+    static INCLUDE_STACK: RefCell<Vec<Vec<String>>> = RefCell::new(vec![Vec::new()]);
+}
+
+/// Reset the include stack to a single empty bottom frame (call before a build).
+pub fn reset_include_stack() {
+    INCLUDE_STACK.with(|s| *s.borrow_mut() = vec![Vec::new()]);
+}
+
+/// Push a new frame for the body of a module that writes its own file.
+fn push_include_frame() {
+    INCLUDE_STACK.with(|s| s.borrow_mut().push(Vec::new()));
+}
+
+/// Pop the current frame, returning the includes collected within it.
+fn pop_include_frame() -> Vec<String> {
+    INCLUDE_STACK.with(|s| s.borrow_mut().pop().unwrap_or_default())
+}
+
+/// Register an `@include` target (e.g. "foo.R") into the current frame.
+fn register_include(file: &str) {
+    INCLUDE_STACK.with(|s| {
+        if let Some(top) = s.borrow_mut().last_mut() {
+            top.push(file.to_string());
+        }
+    });
+}
+
+/// Drain the bottom (main) frame — the top-level includes for `main.R`.
+pub fn take_main_includes() -> Vec<String> {
+    INCLUDE_STACK.with(|s| {
+        let mut stack = s.borrow_mut();
+        match stack.first_mut() {
+            Some(bottom) => std::mem::take(bottom),
+            None => Vec::new(),
+        }
+    })
+}
+
 /// Register a generated file (used for WASM mode to capture file outputs)
 pub fn register_generated_file(path: &str, content: &str) {
     GENERATED_FILES.with(|files| {
@@ -1343,6 +1394,15 @@ impl RTranslatable<(String, Context)> for Lang {
                     name
                 };
 
+                // A module that writes its own roxygen2 file (External in Project)
+                // gets a dedicated frame so the `@include` deps generated inside its
+                // body land in *its* header rather than the enclosing file's.
+                let writes_own_file = matches!(position, ModulePosition::External)
+                    && config.environment == Environment::Project;
+                if writes_own_file {
+                    push_include_frame();
+                }
+
                 let body_content = body
                     .iter()
                     .map(|lang| lang.to_r(cont).0)
@@ -1442,8 +1502,22 @@ impl RTranslatable<(String, Context)> for Lang {
                     }
                     (ModulePosition::External, Environment::Project) => {
                         let file_path = format!("R/{}.R", name_str);
-                        let _ = write_output_file(&file_path, &content);
-                        (format!("#' @include {}.R", name_str), cont.clone())
+                        // Drain the deps collected within this module's body and emit
+                        // them as top-level `@include` tags in this file's header.
+                        let nested = pop_include_frame();
+                        let nested_includes = nested
+                            .iter()
+                            .map(|f| format!("#' @include {}\n", f))
+                            .collect::<String>();
+                        let project_preamble = "#' @include std.R\n#' @include generic_functions.R\n#' @include types.R\n";
+                        let _ = write_output_file(
+                            &file_path,
+                            &format!("{}{}{}", project_preamble, nested_includes, content),
+                        );
+                        // The enclosing file depends on this one: hoist the tag to its
+                        // header instead of emitting it inline inside a `local({...})`.
+                        register_include(&format!("{}.R", name_str));
+                        (String::new(), cont.clone())
                     }
                 }
             }
@@ -1623,6 +1697,8 @@ mod tests {
 
     #[test]
     fn test_external_module_project_generates_include() {
+        use super::{reset_include_stack, take_main_includes};
+        reset_include_stack();
         let module = Lang::Module {
             name: "MyModule".to_string(),
             body: vec![],
@@ -1632,7 +1708,15 @@ mod tests {
         };
         let context = Context::default().set_environment(Environment::Project);
         let (r_code, _) = module.to_r(&context);
-        assert_eq!(r_code, "#' @include MyModule.R", "got: {}", r_code);
+        // The include is no longer emitted inline; it is hoisted to the enclosing
+        // file's header via the include stack.
+        assert_eq!(r_code, "", "got: {}", r_code);
+        let includes = take_main_includes();
+        assert!(
+            includes.contains(&"MyModule.R".to_string()),
+            "expected MyModule.R to be registered, got: {:?}",
+            includes
+        );
     }
 
     #[test]

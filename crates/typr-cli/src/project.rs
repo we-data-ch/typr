@@ -434,10 +434,22 @@ pub fn write_to_r_lang(
     }
     .unwrap();
     let preamble = match environment {
-        Environment::Project => "#' @include types.R\n",
-        Environment::Repl | Environment::Wasm => "",
+        Environment::Project => {
+            // Top-level `mod foo;` deps collected during transpilation surface here
+            // as `@include` tags in main.R's header so roxygen2 can order Collate.
+            let main_includes = typr_core::processes::transpiling::take_main_includes()
+                .iter()
+                .map(|f| format!("#' @include {}\n", f))
+                .collect::<String>();
+            format!(
+                "#' @include std.R\n#' @include generic_functions.R\n#' @include types.R\n{}",
+                main_includes
+            )
+        }
+        Environment::Repl | Environment::Wasm => String::new(),
         Environment::StandAlone => {
             "source('std.R', echo = FALSE)\nsource('generic_functions.R')\nsource('types.R')\n"
+                .to_string()
         }
     };
     app.write_all(format!("{}{}", preamble, content).as_bytes())
@@ -600,6 +612,7 @@ pub fn build_project() {
         type_checker.show_errors();
     }
 
+    typr_core::processes::transpiling::reset_include_stack();
     let content = type_checker.clone().transpile();
     write_header(type_checker.get_context(), &dir, Environment::Project);
     write_to_r_lang(
