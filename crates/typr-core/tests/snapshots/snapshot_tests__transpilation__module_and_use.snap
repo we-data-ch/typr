@@ -1,10 +1,11 @@
 ---
 source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 138
 expression: r
 ---
 Math <- new.env(parent = emptyenv())
 local({
-`pi` <- 3.14159 |> Number()
+`pi` <- 3.14159 |> as.Number()
 
 Math$pi <- pi
 })

@@ -1,5 +1,6 @@
 ---
 source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 81
 expression: r
 ---
-"hello" |> Character()
+"hello" |> as.Character()

@@ -1,5 +1,6 @@
 ---
 source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 132
 expression: r
 ---
 Point <- function(x, y) {
@@ -24,10 +25,10 @@ validate_Point <- function(x) {
 }
 `incr.Point` <- (function(p) {
 Point(x = {
-p$x + 1L |> Integer()
+p$x + 1L |> as.Integer()
 }, y = {
-p$y + 1L |> Integer()
+p$y + 1L |> as.Integer()
 })
 }) |> Generic()
 
-incr(Point(x = 5L |> Integer(), y = 12L |> Integer()))
+incr(Point(x = 5L |> as.Integer(), y = 12L |> as.Integer()))

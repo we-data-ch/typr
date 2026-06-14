@@ -287,17 +287,17 @@ impl VarType {
 
     pub fn get_type_anotation(&self, t: &Type) -> String {
         let res = match t {
-            Type::Boolean(_, _) => "Boolean".to_string(),
-            Type::Integer(_, _) => "Integer".to_string(),
-            Type::Number(_, _) => "Number".to_string(),
-            Type::Char(_, _) => "Character".to_string(),
+            Type::Boolean(_, _) => "as.Boolean".to_string(),
+            Type::Integer(_, _) => "as.Integer".to_string(),
+            Type::Number(_, _) => "as.Number".to_string(),
+            Type::Char(_, _) => "as.Character".to_string(),
             Type::Vec(vtype, _, _, _) if vtype.is_vector() => "".to_string(),
-            Type::Alias(name, _, _, _) => name.to_string(),
+            Type::Alias(name, _, _, _) => format!("as.{}", name),
             _ => self
                 .aliases
                 .iter()
                 .find(|(_, typ)| typ == t)
-                .map(|(var, _)| var.get_name())
+                .map(|(var, _)| format!("as.{}", var.get_name()))
                 .unwrap_or("Generic".to_string()),
         };
         format!("{}()", res)

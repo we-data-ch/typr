@@ -27,6 +27,7 @@ use crate::components::language::var::Var;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::tint::Tint;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::ConstructorCategory;
@@ -687,6 +688,154 @@ fn typing_container(
     .with_errors(errors)
 }
 
+/// A type is *scalar* (in the `c(...)` sense) when it is not a container,
+/// i.e. neither a vector/array, a record (`list { ... }`) nor a tuple.
+fn is_scalar_type(t: &Type) -> bool {
+    !matches!(t, Type::Vec(..) | Type::Record(..) | Type::Tuple(..))
+}
+
+/// Statically add the sizes of vectors being concatenated.
+/// When every index is a concrete integer the sum is computed; otherwise the
+/// symbolic sum is preserved through nested `Type::Add` nodes.
+fn vec_index_sum(indices: &[Type], h: &HelpData) -> Type {
+    let concrete: Option<i32> = indices.iter().try_fold(0i32, |acc, t| match t {
+        Type::Integer(Tint::Val(n), _) => Some(acc + n),
+        _ => None,
+    });
+    match concrete {
+        Some(sum) => Type::Integer(Tint::Val(sum), h.clone()),
+        None => indices
+            .iter()
+            .cloned()
+            .reduce(|a, b| Type::Add(Box::new(a), Box::new(b), h.clone()))
+            .unwrap_or_else(|| Type::Integer(Tint::Unknown, h.clone())),
+    }
+}
+
+/// Rule 1 — vector concatenation: every argument is a vector/array sharing the
+/// same element type `T`. Result: `Vec[Σ nᵢ, T]`.
+fn try_concat_vectors(types: &[Type], h: &HelpData) -> Option<Type> {
+    let mut indices = Vec::new();
+    let mut elem: Option<Type> = None;
+    for t in types {
+        match t {
+            Type::Vec(vt, idx, el, _) if vt.is_vector() || vt.is_array() => {
+                let el_gen = (**el).clone().generalize();
+                match &elem {
+                    None => elem = Some(el_gen),
+                    Some(e) if *e == el_gen => {}
+                    _ => return None, // heterogeneous element types
+                }
+                indices.push((**idx).clone());
+            }
+            _ => return None,
+        }
+    }
+    let elem = elem?;
+    Some(Type::Vec(
+        VecType::Vector,
+        Box::new(vec_index_sum(&indices, h)),
+        Box::new(elem),
+        h.clone(),
+    ))
+}
+
+/// Rule 2 (records) — list concatenation: every argument is a record. Result is
+/// the structural union of all fields (no renaming, no merging).
+fn try_concat_records(types: &[Type], h: &HelpData) -> Option<Type> {
+    let mut merged: HashSet<ArgumentType> = HashSet::new();
+    for t in types {
+        match t {
+            Type::Record(fields, _) => merged.extend(fields.iter().cloned()),
+            _ => return None,
+        }
+    }
+    Some(Type::Record(merged, h.clone()))
+}
+
+/// Rule 2 (tuples) — tuple concatenation: every argument is a tuple. Result is
+/// the positional concatenation of all element types.
+fn try_concat_tuples(types: &[Type], h: &HelpData) -> Option<Type> {
+    let mut merged: Vec<Type> = Vec::new();
+    for t in types {
+        match t {
+            Type::Tuple(items, _) => merged.extend(items.iter().cloned()),
+            _ => return None,
+        }
+    }
+    Some(Type::Tuple(merged, h.clone()))
+}
+
+/// Rule 3 — homogeneous scalar vector: every argument is a scalar of the same
+/// type `T`. Result: `Vec[n, T]`. Never captures vectors, records or tuples.
+fn try_homogeneous_scalars(types: &[Type], n: usize, h: &HelpData) -> Option<Type> {
+    if !types.iter().all(is_scalar_type) {
+        return None;
+    }
+    if !are_homogenous_types(types) {
+        return None;
+    }
+    let elem = types[0].clone().generalize();
+    Some(Type::Vec(
+        VecType::Vector,
+        Box::new(builder::integer_type(n as i32)),
+        Box::new(elem),
+        h.clone(),
+    ))
+}
+
+/// Type-check a `c(...)` expression (`Lang::Vector`) following the polymorphic
+/// resolution order of the `c(...)` specification:
+///   1. vector concatenation,
+///   2. list (record) / tuple concatenation,
+///   3. homogeneous scalar vector,
+///   4. type error.
+fn typing_vector(context: &Context, expr: &Lang, exprs: &[Lang], h: &HelpData) -> TypeContext {
+    let type_contexts: Vec<_> = exprs.iter().map(|e| typing(context, e)).collect();
+    let mut errors: Vec<TypRError> = type_contexts
+        .iter()
+        .flat_map(|tc| tc.errors.clone())
+        .collect();
+    let types: Vec<Type> = type_contexts
+        .iter()
+        .map(|tc| tc.value.clone().reduce(context))
+        .collect();
+
+    let new_type = if types.is_empty() {
+        // c() -> Vec[0, Any]
+        Type::Vec(
+            VecType::Vector,
+            Box::new(builder::integer_type(0)),
+            Box::new(builder::any_type()),
+            h.clone(),
+        )
+    } else if let Some(t) = try_concat_vectors(&types, h) {
+        t
+    } else if let Some(t) = try_concat_records(&types, h) {
+        t
+    } else if let Some(t) = try_concat_tuples(&types, h) {
+        t
+    } else if let Some(t) = try_homogeneous_scalars(&types, exprs.len(), h) {
+        t
+    } else {
+        // Rule 4 — no rule applies: incompatible arguments for c(...).
+        errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
+        Type::Vec(
+            VecType::Vector,
+            Box::new(builder::integer_type(exprs.len() as i32)),
+            Box::new(builder::any_type()),
+            h.clone(),
+        )
+    };
+
+    TypeContext::new(
+        new_type.clone(),
+        expr.clone(),
+        context.clone().push_types(&[new_type]),
+    )
+    .with_errors(errors)
+}
+
 //main
 pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
     match expr {
@@ -819,6 +968,24 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             lhs: e2,
             ..
         } => {
+            // Uniform function call over the native `c(...)` vector constructor:
+            // `receiver.c(args)` desugars to `c(receiver, args)` (a Lang::Vector,
+            // not a FunctionApp), so handle it before the generic method case.
+            if let Lang::Vector {
+                value: v,
+                help_data: h,
+            } = (**e2).clone()
+            {
+                let new_vec = Lang::Vector {
+                    value: [(**e1).clone()]
+                        .iter()
+                        .chain(v.iter())
+                        .cloned()
+                        .collect::<Vec<_>>(),
+                    help_data: h.clone(),
+                };
+                return typing(context, &new_vec);
+            }
             if let Lang::FunctionApp {
                 identifier: exp,
                 arguments: v,
@@ -1514,7 +1681,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Vector {
             value: exprs,
             help_data: h,
-        } => typing_container(context, expr, exprs, h, "Vec", "Any", false, true),
+        } => typing_vector(context, expr, exprs, h),
         Lang::Sequence {
             body: exprs,
             help_data: h,
@@ -1743,6 +1910,27 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                             .with_errors(errors)
                     };
                 }
+            }
+
+            // v[-n] means "count from the end": v[-1] = last, v[-2] = second-to-last, etc.
+            let negative_idx = index.get_members_if_array().and_then(|members| {
+                if members.len() == 1 {
+                    if let Lang::Integer { value: i, .. } = &members[0] {
+                        if *i < 0 { Some(*i) } else { None }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            });
+            if negative_idx.is_some() {
+                let element_type = match &typ1 {
+                    Type::Vec(_, _, t2, _) => *t2.clone(),
+                    _ => builder::any_type(),
+                };
+                return TypeContext::new(element_type, expr.clone(), context.clone())
+                    .with_errors(errors);
             }
 
             let args_target = typ1.clone().linearize();
@@ -2266,6 +2454,65 @@ mod tests {
 
         // The inferred type should be Any when the function is not found
         assert_eq!(result.get_type().clone(), builder::any_type());
+    }
+
+    // --- c(...) polymorphic resolution (see c_constructor spec) ---
+
+    #[test]
+    fn test_c_homogeneous_scalars() {
+        // Rule 3: c(1, 2, 3) : Vec[3, int]
+        let typ = FluentParser::new().check_typing("c(1, 2, 3)");
+        assert_eq!(typ.pretty(), "Vec[3, int]");
+    }
+
+    #[test]
+    fn test_c_concat_vectors() {
+        // Rule 1: c(c(1, 2), c(3, 4, 5)) : Vec[5, int]
+        let typ = FluentParser::new().check_typing("c(c(1, 2), c(3, 4, 5))");
+        assert_eq!(typ.pretty(), "Vec[5, int]");
+    }
+
+    #[test]
+    fn test_c_concat_records() {
+        // Rule 2: c(:{a = 1}, :{b = "x"}) : list{a: int, b: ...}
+        let typ = FluentParser::new().check_typing("c(:{a = 1}, :{b = 2})");
+        match typ {
+            Type::Record(fields, _) => {
+                let names: std::collections::HashSet<String> = fields
+                    .iter()
+                    .map(|f| f.get_argument_str().to_string())
+                    .collect();
+                assert!(names.contains("a") && names.contains("b"));
+            }
+            other => panic!("Expected a record, got {}", other.pretty()),
+        }
+    }
+
+    #[test]
+    fn test_c_empty() {
+        // c() : Vec[0, Any]
+        let typ = FluentParser::new().check_typing("c()");
+        assert_eq!(typ.pretty(), "Vec[0, any]");
+    }
+
+    #[test]
+    fn test_c_scalar_with_vector_is_error() {
+        // Rule 4: c(1, c(2, 3)) is a type error (no rule applies)
+        let fp = FluentParser::new().push("c(1, c(2, 3))").parse_type_next();
+        assert!(
+            !fp.get_last_log().is_empty(),
+            "Expected a type error for c(1, c(2, 3))"
+        );
+    }
+
+    #[test]
+    fn test_c_record_with_scalar_is_error() {
+        // Rule 4: c(:{a = 1}, 3) is a type error
+        let fp = FluentParser::new().push("c(:{a = 1}, 3)").parse_type_next();
+        assert!(
+            !fp.get_last_log().is_empty(),
+            "Expected a type error for a record concatenated with a scalar"
+        );
     }
 
     #[test]

@@ -370,6 +370,6 @@ mod tests {
     #[test]
     fn test_fluent_transpiler1() {
         let fp = FluentParser::new().push("8").run();
-        assert_eq!(fp.next_r_code().unwrap().0, "8L |> Integer()")
+        assert_eq!(fp.next_r_code().unwrap().0, "8L |> as.Integer()")
     }
 }

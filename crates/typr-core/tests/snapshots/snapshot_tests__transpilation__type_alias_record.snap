@@ -1,5 +1,6 @@
 ---
 source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 122
 expression: r
 ---
 Point <- function(x, y) {
@@ -22,4 +23,4 @@ validate_Point <- function(x) {
   if (!inherits(x[["y"]], "integer")) stop("Validation failed for type Point: field 'y' must be of class integer")
   x
 }
-Point(x = 1L |> Integer(), y = 2L |> Integer())
+Point(x = 1L |> as.Integer(), y = 2L |> as.Integer())

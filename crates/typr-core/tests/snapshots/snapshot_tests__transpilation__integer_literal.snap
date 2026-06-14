@@ -1,5 +1,6 @@
 ---
 source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 63
 expression: r
 ---
-8L |> Integer()
+8L |> as.Integer()

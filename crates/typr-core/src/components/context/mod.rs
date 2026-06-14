@@ -28,6 +28,15 @@ use std::iter::Rev;
 use std::ops::Add;
 use tap::Pipe;
 
+/// True for the auto-generated names given to anonymous record types
+/// (`Record0`, `Record1`, …), as produced by `VarType::push_alias_increment`
+/// (`format!("{}{}", TypeCategory::Record, count)`).
+fn is_anonymous_record_name(name: &str) -> bool {
+    name.strip_prefix("Record")
+        .map(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
+        .unwrap_or(false)
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Context {
     pub typing_context: VarType,
@@ -372,7 +381,13 @@ impl Context {
             .cloned()
             .chain(self.module_aliases())
             .filter(|(_, typ)| typ.clone().to_module_type().is_err())
-            .filter(|(_, typ)| !matches!(typ, Type::Record(_, _)))
+            // Records that have a user-given alias are excluded: their `as.X` cast
+            // is emitted by the inline constructor/validator pipeline. Anonymous
+            // records (auto-named `Record0`, `Record1`, …) have no constructor, so
+            // they still need their `as.RecordN` annotation generated here.
+            .filter(|(var, typ)| {
+                !matches!(typ, Type::Record(_, _)) || is_anonymous_record_name(&var.get_name())
+            })
             .map(|(var, typ)| (typ, var.get_name()))
             .map(|(typ, name)| {
                 let name0 = if ["Integer", "Character", "Boolean", "Number"]
@@ -390,7 +405,7 @@ impl Context {
                     name0
                 };
                 format!(
-                    "{} <- function(x) x |> struct(c({}{}, {}))",
+                    "as.{} <- function(x) x |> struct(c({}{}, {}))",
                     name,
                     prefix,
                     class_str,

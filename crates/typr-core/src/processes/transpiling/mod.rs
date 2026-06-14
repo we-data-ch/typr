@@ -780,10 +780,30 @@ impl RTranslatable<(String, Context)> for Lang {
                 ..
             } => {
                 let (exp_str, _) = exp.to_r(cont);
-                let (val_str, _) = val.to_simple_r(cont);
-                let (typ, _, _) = typing(cont, exp).to_tuple();
-                let res = match typ {
-                    _ => format!("{}[[{}]]", exp_str, val_str),
+                // v[-n] → v[[length(v) + (1 - n)]] (count from end)
+                let negative_idx = val.get_members_if_array().and_then(|members| {
+                    if members.len() == 1 {
+                        if let Lang::Integer { value: i, .. } = &members[0] {
+                            if *i < 0 { Some(*i) } else { None }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                });
+                let res = if let Some(neg) = negative_idx {
+                    let offset = 1 + neg; // e.g. -1 → 0, -2 → -1
+                    if offset == 0 {
+                        format!("{}[[length({})]]", exp_str, exp_str)
+                    } else if offset < 0 {
+                        format!("{}[[length({}) - {}L]]", exp_str, exp_str, -offset)
+                    } else {
+                        format!("{}[[length({}) + {}L]]", exp_str, exp_str, offset)
+                    }
+                } else {
+                    let (val_str, _) = val.to_simple_r(cont);
+                    format!("{}[[{}]]", exp_str, val_str)
                 };
                 (res, cont.clone())
             }

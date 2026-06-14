@@ -161,7 +161,7 @@ mod generated_files {
         ]);
         let integer_line = result
             .lines()
-            .find(|l| l.starts_with("Integer <-"))
+            .find(|l| l.starts_with("as.Integer <-"))
             .expect("Integer constructor not found in c_types output");
         assert!(
             integer_line.contains("'Incrementable'"),
