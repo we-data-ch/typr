@@ -29,6 +29,6 @@ p$x + 1L |> as.Integer()
 }, y = {
 p$y + 1L |> as.Integer()
 })
-}) |> Generic()
+}) |> as.Generic()
 
 incr(Point(x = 5L |> as.Integer(), y = 12L |> as.Integer()))

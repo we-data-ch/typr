@@ -1,0 +1,13 @@
+@pub
+type Person <- list {
+	name: char,
+	age: int
+};
+
+@pub
+let plus_one_year <- fn(self: Person): Person {
+	Person:{
+		name: (self$name), 
+		age: (self$age + 1)
+	}
+};

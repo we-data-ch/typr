@@ -1,0 +1,5 @@
+module person {
+    @pub type Person <- list { age: int, name: char };
+};
+
+let p <- person$Person:{ age = 12, name = "Bob" };

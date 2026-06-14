@@ -617,6 +617,7 @@ fn sequence(s: Span) -> IResult<Span, Lang> {
 
 fn constructor_call(s: Span) -> IResult<Span, Lang> {
     let res = (
+        many0(terminated(variable_exp, tag("$"))),
         pascal_case,
         terminated(tag(":"), multispace0),
         terminated(tag("{"), multispace0),
@@ -625,9 +626,10 @@ fn constructor_call(s: Span) -> IResult<Span, Lang> {
     )
         .parse(s);
     match res {
-        Ok((s, ((name, h), _, _, args, _))) => Ok((
+        Ok((s, (path, (name, h), _, _, args, _))) => Ok((
             s,
             Lang::ConstructorCall {
+                module_path: path.into_iter().map(|(seg, _)| seg).collect(),
                 type_name: name,
                 fields: args,
                 help_data: h,
@@ -2077,5 +2079,25 @@ mod tests {
             Err(e) => println!("record FAILED: {:?}", e),
         }
         assert!(res.is_ok(), "record should succeed");
+    }
+
+    #[test]
+    fn test_module_constructor_parsing() {
+        let (_, lang) = constructor_call("person$Person:{ age = 12, name = \"Bob\" }".into())
+            .expect("Should parse module constructor call");
+        match lang {
+            Lang::ConstructorCall { module_path, type_name, .. } => {
+                assert_eq!(module_path, vec!["person".to_string()]);
+                assert_eq!(type_name, "Person");
+            }
+            other => panic!("Expected ConstructorCall, got: {}", other.simple_print()),
+        }
+
+        let fp = FluentParser::new()
+            .push("module person { @pub type Person <- list { age: int, name: char }; };")
+            .run()
+            .push("let p <- person$Person:{ age = 12, name = \"Bob\" };")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
     }
 }

@@ -298,7 +298,7 @@ impl VarType {
                 .iter()
                 .find(|(_, typ)| typ == t)
                 .map(|(var, _)| format!("as.{}", var.get_name()))
-                .unwrap_or("Generic".to_string()),
+                .unwrap_or("as.Generic".to_string()),
         };
         format!("{}()", res)
     }

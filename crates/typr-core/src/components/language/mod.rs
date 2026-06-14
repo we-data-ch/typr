@@ -274,8 +274,9 @@ pub enum Lang {
         selector: UseSelector,
         help_data: HelpData,
     },
-    /// Explicit constructor call: `TypeName:{ field1 = val1, field2 = val2 }`
+    /// Explicit constructor call: `TypeName:{ field1 = val1, field2 = val2 }` or `mod$TypeName:{ ... }`
     ConstructorCall {
+        module_path: Vec<String>,
         type_name: String,
         fields: Vec<ArgumentValue>,
         help_data: HelpData,

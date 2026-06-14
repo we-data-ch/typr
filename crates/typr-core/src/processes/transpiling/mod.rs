@@ -1498,12 +1498,20 @@ impl RTranslatable<(String, Context)> for Lang {
             }
             Lang::ModuleImport { .. } => ("".to_string(), cont.clone()),
             Lang::ConstructorCall {
-                type_name, fields, ..
+                module_path,
+                type_name,
+                fields,
+                ..
             } => {
                 let (body, current_cont) = Translatable::from(cont.clone())
                     .join_arg_val(fields, ", ")
                     .into();
-                (format!("{}({})", type_name, body), current_cont)
+                let qualified = if module_path.is_empty() {
+                    type_name.clone()
+                } else {
+                    format!("{}${}", module_path.join("$"), type_name)
+                };
+                (format!("{}({})", qualified, body), current_cont)
             }
             Lang::ArrayConstructorCall {
                 type_name,
@@ -1881,9 +1889,9 @@ mod tests {
             "record alias output conversion should not be added: {}",
             r_code
         );
-        // The method should still be wrapped by Generic() for S3 dispatch
+        // The method should still be wrapped by as.Generic() or as.FunctionN() for S3 dispatch
         assert!(
-            r_code.contains("|> Generic()") || r_code.contains("|> Function"),
+            r_code.contains("|> as.Generic()") || r_code.contains("|> Function"),
             "function type annotation should still be applied: {}",
             r_code
         );

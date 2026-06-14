@@ -2286,11 +2286,19 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                 Var::from_name(&local_name),
                             )));
                         } else {
+                            let member_type = member.get_type();
                             new_context = new_context.clone().push_var_type(
                                 Var::from_name(&local_name),
-                                member.get_type(),
+                                member_type.clone(),
                                 &new_context,
                             );
+                            // Record types imported from a module must also be registered as
+                            // aliases so that ConstructorCall (TypeName:{...}) can find them.
+                            if !matches!(member_type, Type::Function(..)) {
+                                new_context = new_context
+                                    .clone()
+                                    .push_alias(local_name.clone(), member_type);
+                            }
                         }
                     }
                 }
@@ -2325,9 +2333,16 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                 imported_names.insert(local_name.clone());
                                 new_context = new_context.clone().push_var_type(
                                     Var::from_name(&local_name),
-                                    member_type,
+                                    member_type.clone(),
                                     &new_context,
                                 );
+                                // Record types imported from a module must also be registered
+                                // as aliases so that ConstructorCall (TypeName:{...}) can find them.
+                                if !matches!(member_type, Type::Function(..)) {
+                                    new_context = new_context
+                                        .clone()
+                                        .push_alias(local_name.clone(), member_type);
+                                }
                             }
                             Err(_) => {
                                 errors.push(TypRError::Type(TypeError::UndefinedVariable(
@@ -2347,13 +2362,40 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             TypeContext::new(builder::empty_type(), expr.clone(), new_context).with_errors(errors)
         }
         Lang::ConstructorCall {
+            module_path,
             type_name,
             fields: _,
             help_data: h,
         } => {
-            let alias_exists = context
-                .aliases()
-                .any(|(var, _)| var.get_name() == *type_name);
+            let alias_exists = if module_path.is_empty() {
+                context
+                    .aliases()
+                    .any(|(var, _)| var.get_name() == *type_name)
+            } else {
+                let module_type = context
+                    .get_types_from_name(&module_path[0])
+                    .into_iter()
+                    .next();
+                let resolved = module_path[1..].iter().fold(module_type, |acc, seg| {
+                    acc.and_then(|t| {
+                        if let Type::Module(fields, _) = t.reduce(context) {
+                            fields
+                                .iter()
+                                .find(|f| f.get_argument_str() == *seg)
+                                .map(|f| f.get_type())
+                        } else {
+                            None
+                        }
+                    })
+                });
+                resolved.is_some_and(|t| {
+                    if let Type::Module(fields, _) = t.reduce(context) {
+                        fields.iter().any(|f| f.get_argument_str() == *type_name)
+                    } else {
+                        false
+                    }
+                })
+            };
             if alias_exists {
                 TypeContext::new(
                     Type::Alias(type_name.clone(), vec![], false, h.clone()),

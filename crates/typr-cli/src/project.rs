@@ -702,6 +702,17 @@ fn run_file_impl(path: &Path, keep_files: bool) {
         .unwrap_or("script");
     let r_file_name = format!("{}.R", stem);
 
+    // Change CWD to work_dir before transpiling so that write_output_file
+    // (used for external module .R files) writes relative to work_dir,
+    // matching where Rscript will look for source() calls.
+    if !keep_files {
+        if let Err(e) = std::env::set_current_dir(&work_dir) {
+            eprintln!("Cannot set working directory: {}", e);
+            let _ = fs::remove_dir_all(&work_dir);
+            std::process::exit(1);
+        }
+    }
+
     let r_content = type_checker.clone().transpile();
     write_header(
         type_checker.get_context(),
