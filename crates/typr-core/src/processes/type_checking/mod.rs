@@ -600,13 +600,22 @@ pub fn match_types_to_generic(
     type1: &Type,
     type2: &Type,
 ) -> Option<Vec<(Type, Type)>> {
-    let type1 = reduce_type(ctx, type1);
-    let type2 = reduce_type(ctx, type2);
-    get_gen_type(&type1, &type2).map(|vec| {
+    // Try unification on the unreduced types first so that alias type parameters
+    // are preserved (e.g. Factor<[2, char]> vs Factor<L> → L = [2, char]).
+    // Reducing non-opaque aliases first would collapse both to `int`, losing L.
+    let collect = |vec: Vec<(Type, Type)>| -> Vec<(Type, Type)> {
         vec.iter()
             .flat_map(|(arg, par)| unification::unify(ctx, arg, par))
-            .collect::<Vec<_>>()
-    })
+            .collect()
+    };
+    if let Some(result) = get_gen_type(type1, type2).map(collect.clone()) {
+        return Some(result);
+    }
+    // Fall back to reduced types (handles cases where aliases must be expanded
+    // to discover compatibility, e.g. opaque aliases vs primitives).
+    let type1 = reduce_type(ctx, type1);
+    let type2 = reduce_type(ctx, type2);
+    get_gen_type(&type1, &type2).map(collect)
 }
 
 fn are_homogenous_types(types: &[Type]) -> bool {
@@ -1916,7 +1925,11 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let negative_idx = index.get_members_if_array().and_then(|members| {
                 if members.len() == 1 {
                     if let Lang::Integer { value: i, .. } = &members[0] {
-                        if *i < 0 { Some(*i) } else { None }
+                        if *i < 0 {
+                            Some(*i)
+                        } else {
+                            None
+                        }
                     } else {
                         None
                     }
@@ -3568,6 +3581,74 @@ p"#;
             code.contains("a[["),
             "should transpile using double-bracket indexing, got: {}",
             code
+        );
+    }
+
+    // === Factor type tests (RFC-TR-014) ===
+
+    #[test]
+    fn test_factor_type_parses() {
+        let t = "Factor<[3, char]>".parse::<Type>();
+        assert!(t.is_ok(), "Factor<[3, char]> should parse as a type");
+    }
+
+    #[test]
+    fn test_factor_constructor_stdlib() {
+        let typ = FluentParser::new()
+            .set_context(Context::default())
+            .push(r#"factor("A", c("A", "B", "C"))"#)
+            .parse_type_next()
+            .get_last_type();
+        assert!(
+            matches!(&typ, Type::Alias(name, params, _, _) if name == "Factor" && !params.is_empty()),
+            "factor(x, levels) should return Factor<L>, got: {:?}",
+            typ
+        );
+    }
+
+    #[test]
+    fn test_factor_annotate_stdlib() {
+        let typ = FluentParser::new()
+            .set_context(Context::default())
+            .push(r#"annotate_factor(2, c("A", "B", "C"))"#)
+            .parse_type_next()
+            .get_last_type();
+        assert!(
+            matches!(&typ, Type::Alias(name, _, _, _) if name == "Factor"),
+            "annotate_factor should return Factor<L>, got: {:?}",
+            typ
+        );
+    }
+
+    #[test]
+    fn test_factor_levels_accessor_stdlib() {
+        let typ = FluentParser::new()
+            .set_context(Context::default())
+            .push(r#"let f <- factor("A", c("A", "B"));"#)
+            .run()
+            .push("levels(f)")
+            .parse_type_next()
+            .get_last_type();
+        assert!(
+            matches!(&typ, Type::Vec(..)),
+            "levels(f) should return a vector type, got: {:?}",
+            typ
+        );
+    }
+
+    #[test]
+    fn test_factor_opaque_prevents_int_coercion() {
+        let fp = FluentParser::new()
+            .set_context(Context::default())
+            .push(r#"let f: Factor<[3, char]> <- 1;"#)
+            .run();
+        let log = fp.get_last_log();
+        assert!(
+            !log.is_empty() || {
+                let t = fp.get_last_type();
+                !matches!(&t, Type::Alias(name, _, _, _) if name == "Factor")
+            },
+            "Assigning int to Factor<L> should produce a type error or not type as Factor"
         );
     }
 }

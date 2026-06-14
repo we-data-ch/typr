@@ -118,12 +118,20 @@ fn filter_by_first_param(
     // Composite generic params (e.g. `[#N, T]` against an argument `[#N, num]`)
     // don't pass the equality test above but can still unify. They are appended
     // after the exact matches so they don't steal overload resolution.
+    // Also include signatures where the arg is a primitive subtype of the param
+    // (e.g. Char(Val("A")) <: Char(Unknown)), excluding Any so that Any-param
+    // functions still fall through to FILTERING 3 vectorization as before.
     let unifiable = rest.into_iter().filter(|sig| {
         sig.get_first_param()
             .map(|p| {
-                match_types_to_generic(context, &reduced_arg, &p)
-                    .map(|bindings| !bindings.is_empty())
-                    .unwrap_or(false)
+                let reduced_p = reduce_type(context, &p);
+                // Exclude Any (belongs to FILTERING 3) and Interface (belongs to
+                // FILTERING 2.5) from the is_subtype_raw fast path.
+                (!matches!(&reduced_p, Type::Any(_) | Type::Interface(_, _))
+                    && reduced_arg.is_subtype_raw(&reduced_p, context))
+                    || match_types_to_generic(context, &reduced_arg, &p)
+                        .map(|bindings| !bindings.is_empty())
+                        .unwrap_or(false)
             })
             .unwrap_or(false)
     });

@@ -784,7 +784,11 @@ impl RTranslatable<(String, Context)> for Lang {
                 let negative_idx = val.get_members_if_array().and_then(|members| {
                     if members.len() == 1 {
                         if let Lang::Integer { value: i, .. } = &members[0] {
-                            if *i < 0 { Some(*i) } else { None }
+                            if *i < 0 {
+                                Some(*i)
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }

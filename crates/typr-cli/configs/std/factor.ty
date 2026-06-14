@@ -1,0 +1,21 @@
+# Factor type — RFC-TR-014
+# Parametric type for R categorical data.
+# L is the type of the levels vector ([#N, char]).
+# Opaque: prevents implicit int <-> Factor conversions.
+opaque Factor<L> <- int;
+
+# Standard constructor: checks x ∈ levels and returns 1-based index.
+@factor: (x: char, levels: [#N, char]) -> Factor<[#N, char]>;
+
+# Annotator: wraps an already-valid integer index as a Factor.
+@annotate_factor: (x: int, levels: [#N, char]) -> Factor<[#N, char]>;
+
+# Coerce any value to a Factor using existing R levels.
+@as__factor: (x: Any, levels: [#N, char]) -> Factor<[#N, char]>;
+
+# Level accessors.
+@levels: (f: Factor<L>) -> L;
+@nlevels: (f: Factor<L>) -> int;
+
+# Convert back to character label.
+@as__character: (f: Factor<L>) -> char;

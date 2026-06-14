@@ -397,3 +397,14 @@ print.typed_vec <- function(x, ...) {
 
   invisible(x)
 }
+
+# --- Factor ---
+
+# Annotator: wraps an integer index as an R factor with the given levels.
+# Validates that 1 <= x <= length(levels).
+annotate_factor <- function(x, levels) {
+  if (x < 1L || x > length(levels)) {
+    stop(paste0("index ", x, " out of bounds for Factor[", paste(levels, collapse = ", "), "]"))
+  }
+  structure(x, class = "factor", levels = levels)
+}
