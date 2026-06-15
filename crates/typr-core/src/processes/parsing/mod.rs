@@ -209,6 +209,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         help_data: h,
                     }),
                     is_public: false,
+                    is_testable: false,
                     help_data: _let.into(),
                 }],
             ))
@@ -220,6 +221,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 r#type: typ.clone().unwrap_or(Type::Empty(HelpData::default())),
                 expression: Box::new(body),
                 is_public: false,
+                is_testable: false,
                 help_data: _let.into(),
             }],
         )),
@@ -240,6 +242,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                             help_data: pat_var.into(),
                         }),
                         is_public: false,
+                        is_testable: false,
                         help_data: _let.into(),
                     }],
                 ))
@@ -253,6 +256,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                             r#type: typ.clone().unwrap_or(Type::Empty(HelpData::default())),
                             expression: Box::new(body.clone()),
                             is_public: false,
+                            is_testable: false,
                             help_data: HelpData::default(),
                         })
                         .collect::<Vec<_>>(),
@@ -295,6 +299,7 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 r#type: typ.unwrap_or(Type::Empty(HelpData::default())),
                 expression: Box::new(body),
                 is_public: false,
+                is_testable: false,
                 help_data: _let.into(),
             };
 
@@ -319,6 +324,7 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         help_data: HelpData::default(),
                     }),
                     is_public: false,
+                    is_testable: false,
                     help_data: HelpData::default(),
                 });
             }
@@ -331,10 +337,22 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (opt(terminated(tag("@pub"), multispace0)), base_let_exp).parse(s);
+    let res = (
+        opt(terminated(
+            alt((tag("@pub"), tag("@testable"))),
+            multispace0,
+        )),
+        base_let_exp,
+    )
+        .parse(s);
     match res {
         Ok((s, (None, le))) => Ok((s, le)),
-        Ok((s, (Some(_pu), le))) => {
+        Ok((s, (Some(annotation), le))) => {
+            // `@pub` exposes publicly; `@testable` keeps the binding private but
+            // flags it for conditional exposure as `M$.test_<name>` in a test
+            // build (see RFC-TR-031).
+            let is_pub = *annotation.fragment() == "@pub";
+            let is_test = *annotation.fragment() == "@testable";
             let new_le = le
                 .iter()
                 .map(|x| match x {
@@ -343,6 +361,7 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         r#type: typ,
                         expression: body,
                         is_public: _,
+                        is_testable: _,
                         help_data: h,
                     } => {
                         let vari = Var::from_language(var.deref().clone())
@@ -352,7 +371,8 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                             variable: Box::new(vari),
                             r#type: typ.clone(),
                             expression: body.clone(),
-                            is_public: true,
+                            is_public: is_pub,
+                            is_testable: is_test,
                             help_data: h.clone(),
                         }
                     }
@@ -650,6 +670,7 @@ fn import_module(s: Span) -> IResult<Span, Vec<Lang>> {
                     r#type: Type::Empty(HelpData::default()),
                     expression: Box::new(module_var),
                     is_public: false,
+                    is_testable: false,
                     help_data: h,
                 }],
             ))

@@ -2086,7 +2086,11 @@ mod tests {
         let (_, lang) = constructor_call("person$Person:{ age = 12, name = \"Bob\" }".into())
             .expect("Should parse module constructor call");
         match lang {
-            Lang::ConstructorCall { module_path, type_name, .. } => {
+            Lang::ConstructorCall {
+                module_path,
+                type_name,
+                ..
+            } => {
                 assert_eq!(module_path, vec!["person".to_string()]);
                 assert_eq!(type_name, "Person");
             }

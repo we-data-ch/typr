@@ -871,6 +871,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 r#type: ttype,
                 expression: body,
                 is_public: _,
+                is_testable: _,
                 help_data: _,
             } => {
                 let (body_str, new_cont) = body.to_r(cont);
@@ -1354,7 +1355,15 @@ impl RTranslatable<(String, Context)> for Lang {
                     .replace(".ty", ".R");
 
                 let file_path = format!("tests/testthat/{}", file_name);
-                let content = body.to_r(cont).0;
+                let body_str = body.to_r(cont).0;
+                // RFC-TR-031: bring `@testable` private members of the enclosing
+                // module into scope (e.g. `sq <- Math$.test_sq`) so the test body
+                // can call them by their bare names.
+                let content = if cont.test_preamble.is_empty() {
+                    body_str
+                } else {
+                    format!("{}\n{}", cont.test_preamble.join("\n"), body_str)
+                };
 
                 let _ = write_output_file(&file_path, &content);
                 ("".to_string(), cont.clone())
@@ -1413,9 +1422,34 @@ impl RTranslatable<(String, Context)> for Lang {
                         help_data: HelpData::default(),
                     }
                 } else {
-                    body.first().cloned().unwrap_or(Lang::Empty(HelpData::default()))
+                    body.first()
+                        .cloned()
+                        .unwrap_or(Lang::Empty(HelpData::default()))
                 };
-                let inner_cont = typing(&cont.clone().set_in_module_body(), &module_expr).context;
+                let mut inner_cont =
+                    typing(&cont.clone().set_in_module_body(), &module_expr).context;
+
+                // RFC-TR-031: in a test build, give any `Test { ... }` block in this
+                // module access to its `@testable` private members by binding their
+                // bare names to the exposed `M$.test_<name>` aliases at the top of the
+                // generated test file (see `Lang::TestBlock` below).
+                if cont.get_test_mode() {
+                    let preamble: Vec<String> = body
+                        .iter()
+                        .filter_map(|lang| match lang {
+                            Lang::Let {
+                                variable: var,
+                                is_testable: true,
+                                ..
+                            } => Var::from_language(*var.clone()).map(|v| {
+                                let raw = v.get_name();
+                                format!("{} <- {}$`.test_{}`", raw, name_str, raw)
+                            }),
+                            _ => None,
+                        })
+                        .collect();
+                    inner_cont = inner_cont.set_test_preamble(preamble);
+                }
 
                 let body_content = body
                     .iter()
@@ -1460,6 +1494,29 @@ impl RTranslatable<(String, Context)> for Lang {
                                     generic_exports
                                         .push(format!("{}${} <- {}", name_str, raw_name, raw_name));
                                 }
+                            }
+                        }
+                    }
+                    // RFC-TR-031: in a test build, expose `@testable` private
+                    // members as `M$.test_<name>` while keeping them private in
+                    // the module's regular API. The binding stays inside the
+                    // closed environment; only an extra alias is added.
+                    if cont.get_test_mode() {
+                        if let Lang::Let {
+                            variable: var,
+                            is_testable: true,
+                            ..
+                        } = lang
+                        {
+                            if let Some(v) = Var::from_language(*var.clone()) {
+                                let raw_name = v.get_name();
+                                // Reference the actual (possibly type-suffixed)
+                                // binding emitted in the module body.
+                                let typed_name = v.clone().display_type(cont).get_name();
+                                exports.push(format!(
+                                    "{}$`.test_{}` <- {}",
+                                    name_str, raw_name, typed_name
+                                ));
                             }
                         }
                     }
@@ -1761,6 +1818,43 @@ mod tests {
         assert!(
             !r_code.contains("Math$sq"),
             "private member should not be exported: {}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_testable_member_hidden_in_normal_build() {
+        // Without --test, a @testable member stays fully private.
+        let r_code = FluentParser::new()
+            .push("module Math { @testable let sq <- fn(x: int): int { x * x }; };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            !r_code.contains(".test_sq"),
+            "testable member must not be exposed in a normal build: {}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_testable_member_exposed_in_test_build() {
+        // With test_mode on, a @testable member is exposed as M$.test_<name>.
+        let r_code = FluentParser::new()
+            .set_context(Context::empty().set_test_mode(true))
+            .push("module Math { @testable let sq <- fn(x: int): int { x * x }; };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("Math$`.test_sq` <- sq"),
+            "testable member must be exposed in a test build: {}",
             r_code
         );
     }

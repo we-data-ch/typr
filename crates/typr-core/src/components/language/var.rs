@@ -319,6 +319,7 @@ impl Var {
             r#type: builder::unknown_function_type(),
             expression: Box::default(),
             is_public: false,
+            is_testable: false,
             help_data: self.get_help_data(),
         }
     }

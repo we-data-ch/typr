@@ -86,6 +86,7 @@ pub fn let_expression(
     ty: &Type,
     exp: &Box<Lang>,
     is_public: bool,
+    is_testable: bool,
     h: &HelpData,
 ) -> TypeContext {
     let new_context = context
@@ -132,6 +133,7 @@ pub fn let_expression(
         r#type: ty.clone(),
         expression: Box::new(res.get_expr()),
         is_public,
+        is_testable,
         help_data: h.clone(),
     };
 

@@ -46,6 +46,9 @@ enum Commands {
     Build {
         #[arg(value_name = "FILE")]
         file: Option<PathBuf>,
+        /// Test build: expose `@testable` private members as `M$.test_<name>`.
+        #[arg(long)]
+        test: bool,
     },
     Run {
         #[arg(value_name = "FILE")]
@@ -107,9 +110,9 @@ pub fn start() {
             Some(path) => check_file(&path),
             _ => check_project(),
         },
-        Some(Commands::Build { file }) => match file {
-            Some(path) => build_file(&path),
-            _ => build_project(),
+        Some(Commands::Build { file, test }) => match file {
+            Some(path) => build_file(&path, test),
+            _ => build_project(test),
         },
         Some(Commands::Run { file }) => match file {
             Some(path) => run_file_keep(&path),

@@ -603,9 +603,11 @@ pub fn check_file(path: &PathBuf) {
     println!("File verification {:?} successful!", path);
 }
 
-pub fn build_project() {
+pub fn build_project(test_mode: bool) {
     let dir = PathBuf::from(".");
-    let context = Context::default().set_environment(Environment::Project);
+    let context = Context::default()
+        .set_environment(Environment::Project)
+        .set_test_mode(test_mode);
     let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     if type_checker.has_errors() {
@@ -625,12 +627,12 @@ pub fn build_project() {
     println!("R code successfully generated in the R/ folder");
 }
 
-pub fn build_file(path: &Path) {
+pub fn build_file(path: &Path, test_mode: bool) {
     let lang = parse_code(path, Environment::StandAlone);
     let dir = PathBuf::from(".");
 
     write_std_for_type_checking(&dir);
-    let context = Context::default();
+    let context = Context::default().set_test_mode(test_mode);
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     let r_file_name = path
         .file_name()
@@ -645,7 +647,7 @@ pub fn build_file(path: &Path) {
 }
 
 pub fn run_project() {
-    build_project();
+    build_project(false);
     let r_command = "devtools::load_all(); source('R/main.R')";
     println!("Executing: Rscript -e \"{}\"", r_command);
     match Command::new("Rscript").arg("-e").arg(r_command).output() {
@@ -778,7 +780,7 @@ fn write_context_json(context: &Context, output_dir: &Path) {
 }
 
 pub fn test() {
-    build_project();
+    build_project(true);
     let r_command = "devtools::test()".to_string();
 
     println!("Execution of: R -e \"{}\"", r_command);

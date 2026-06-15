@@ -67,6 +67,10 @@ pub struct Config {
     /// Set to true when type-checking a module body so internal functions
     /// can see through opaque types they declare.
     pub in_module_body: bool,
+    /// When true, this is a test build (`--test`): `@testable` private members
+    /// are additionally exposed as `M$.test_<name>` (see RFC-TR-031).
+    #[serde(default)]
+    pub test_mode: bool,
 }
 
 //main
@@ -99,6 +103,13 @@ impl Config {
         }
     }
 
+    pub fn set_test_mode(self, val: bool) -> Self {
+        Self {
+            test_mode: val,
+            ..self
+        }
+    }
+
     pub fn get_target_language(&self) -> TargetLanguage {
         self.target_language
     }
@@ -115,6 +126,7 @@ impl Default for Config {
             environment: Environment::StandAlone,
             file_type: FileType::Main,
             in_module_body: false,
+            test_mode: false,
         }
     }
 }

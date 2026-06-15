@@ -52,6 +52,12 @@ pub struct Context {
     /// Counter for generating unique rigid generic variable names.
     #[serde(default)]
     pub rigid_counter: u64,
+    /// RFC-TR-031: lines injected at the top of a `Test { ... }` file so the
+    /// test body can reach `@testable` private members of the enclosing module
+    /// (e.g. `sq <- Math$.test_sq`). Set while transpiling a module body in a
+    /// test build; empty otherwise. Not serialised.
+    #[serde(skip)]
+    pub test_preamble: Vec<String>,
     config: Config,
 }
 
@@ -65,6 +71,7 @@ impl Default for Context {
             type_constructors: Vec::new(),
             interface_constraints: HashMap::new(),
             rigid_counter: 0,
+            test_preamble: Vec::new(),
         }
     }
 }
@@ -98,6 +105,7 @@ impl Context {
             type_constructors: Vec::new(),
             interface_constraints: HashMap::new(),
             rigid_counter: 0,
+            test_preamble: Vec::new(),
         }
     }
 
@@ -108,6 +116,24 @@ impl Context {
     pub fn set_as_module_context(self) -> Context {
         Self {
             config: self.config.set_as_module(),
+            ..self
+        }
+    }
+
+    pub fn set_test_mode(self, val: bool) -> Context {
+        Self {
+            config: self.config.set_test_mode(val),
+            ..self
+        }
+    }
+
+    pub fn get_test_mode(&self) -> bool {
+        self.config.test_mode
+    }
+
+    pub fn set_test_preamble(self, lines: Vec<String>) -> Context {
+        Self {
+            test_preamble: lines,
             ..self
         }
     }
@@ -840,12 +866,15 @@ impl Add for Context {
         let mut interface_constraints = self.interface_constraints;
         interface_constraints.extend(other.interface_constraints);
         let rigid_counter = self.rigid_counter.max(other.rigid_counter);
+        let mut test_preamble = self.test_preamble;
+        test_preamble.extend(other.test_preamble);
         Context {
             typing_context: self.typing_context + other.typing_context,
             subtypes: self.subtypes + other.subtypes,
             type_constructors,
             interface_constraints,
             rigid_counter,
+            test_preamble,
             config: self.config,
         }
     }

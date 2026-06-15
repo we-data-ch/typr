@@ -104,6 +104,10 @@ pub enum Lang {
         r#type: Type,
         expression: Box<Lang>,
         is_public: bool,
+        /// When true, the `@testable` annotation was applied: the binding stays
+        /// private in a normal build but is exposed as `M$.test_<name>` in a
+        /// test build (see RFC-TR-031 and `Config::test_mode`).
+        is_testable: bool,
         help_data: HelpData,
     },
     Alias {
@@ -399,6 +403,7 @@ impl PartialEq for Lang {
                     r#type: a2,
                     expression: a3,
                     is_public: _,
+                    is_testable: _,
                     help_data: _,
                 },
                 Lang::Let {
@@ -406,6 +411,7 @@ impl PartialEq for Lang {
                     r#type: b2,
                     expression: b3,
                     is_public: _,
+                    is_testable: _,
                     help_data: _,
                 },
             ) => a1 == b1 && a2 == b2 && a3 == b3,
@@ -757,6 +763,7 @@ impl Lang {
                 r#type: ty,
                 expression: _,
                 is_public: _,
+                is_testable: _,
                 help_data: _,
             } => Some(ArgumentType::new(
                 &Var::from_language((**var).clone()).unwrap().get_name(),
@@ -1062,6 +1069,7 @@ impl Lang {
                 r#type: _,
                 expression: body,
                 is_public: _,
+                is_testable: _,
                 help_data: _,
             } => (
                 format!(
@@ -1260,6 +1268,7 @@ impl Lang {
                 r#type: typ,
                 expression: lang,
                 is_public: is_pub,
+                is_testable: is_test,
                 help_data: h,
             } => {
                 let expr = Lang::Operator {
@@ -1273,6 +1282,7 @@ impl Lang {
                     r#type: typ,
                     expression: lang,
                     is_public: is_pub,
+                    is_testable: is_test,
                     help_data: h,
                 }
             }
@@ -1330,6 +1340,7 @@ impl Lang {
                 r#type: _,
                 expression: body,
                 is_public: _,
+                is_testable: _,
                 help_data: h,
             } if Var::from_language(*lang.clone()).is_some() => {
                 let var = Var::from_language(*lang).unwrap();
