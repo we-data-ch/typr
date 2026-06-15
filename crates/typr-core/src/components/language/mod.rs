@@ -106,8 +106,13 @@ pub enum Lang {
         is_public: bool,
         /// When true, the `@testable` annotation was applied: the binding stays
         /// private in a normal build but is exposed as `M$.test_<name>` in a
-        /// test build (see RFC-TR-031 and `Config::test_mode`).
+        /// test build (see RFC-TR-032 and `Config::test_mode`).
         is_testable: bool,
+        /// When true, the `@export` annotation was applied: the binding is
+        /// emitted with `#' @export` (package API) and implies `is_public` and
+        /// `is_testable` (see RFC-TR-032).
+        #[serde(default)]
+        is_export: bool,
         help_data: HelpData,
     },
     Alias {
@@ -404,6 +409,7 @@ impl PartialEq for Lang {
                     expression: a3,
                     is_public: _,
                     is_testable: _,
+                    is_export: _,
                     help_data: _,
                 },
                 Lang::Let {
@@ -412,6 +418,7 @@ impl PartialEq for Lang {
                     expression: b3,
                     is_public: _,
                     is_testable: _,
+                    is_export: _,
                     help_data: _,
                 },
             ) => a1 == b1 && a2 == b2 && a3 == b3,
@@ -764,6 +771,7 @@ impl Lang {
                 expression: _,
                 is_public: _,
                 is_testable: _,
+                is_export: _,
                 help_data: _,
             } => Some(ArgumentType::new(
                 &Var::from_language((**var).clone()).unwrap().get_name(),
@@ -1070,6 +1078,7 @@ impl Lang {
                 expression: body,
                 is_public: _,
                 is_testable: _,
+                is_export: _,
                 help_data: _,
             } => (
                 format!(
@@ -1269,6 +1278,7 @@ impl Lang {
                 expression: lang,
                 is_public: is_pub,
                 is_testable: is_test,
+                is_export: is_exp,
                 help_data: h,
             } => {
                 let expr = Lang::Operator {
@@ -1283,6 +1293,7 @@ impl Lang {
                     expression: lang,
                     is_public: is_pub,
                     is_testable: is_test,
+                    is_export: is_exp,
                     help_data: h,
                 }
             }
@@ -1341,6 +1352,7 @@ impl Lang {
                 expression: body,
                 is_public: _,
                 is_testable: _,
+                is_export: _,
                 help_data: h,
             } if Var::from_language(*lang.clone()).is_some() => {
                 let var = Var::from_language(*lang).unwrap();

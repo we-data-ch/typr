@@ -208,8 +208,9 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             expression: exp,
             is_public,
             is_testable,
+            is_export,
             help_data: h,
-        } => let_expression(context, name, ty, exp, *is_public, *is_testable, h),
+        } => let_expression(context, name, ty, exp, *is_public, *is_testable, *is_export, h),
         Lang::Alias {
             identifier: exp,
             parameters: params,

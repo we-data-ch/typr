@@ -210,6 +210,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     }),
                     is_public: false,
                     is_testable: false,
+                    is_export: false,
                     help_data: _let.into(),
                 }],
             ))
@@ -222,6 +223,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 expression: Box::new(body),
                 is_public: false,
                 is_testable: false,
+                is_export: false,
                 help_data: _let.into(),
             }],
         )),
@@ -243,6 +245,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         }),
                         is_public: false,
                         is_testable: false,
+                        is_export: false,
                         help_data: _let.into(),
                     }],
                 ))
@@ -257,6 +260,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                             expression: Box::new(body.clone()),
                             is_public: false,
                             is_testable: false,
+                            is_export: false,
                             help_data: HelpData::default(),
                         })
                         .collect::<Vec<_>>(),
@@ -300,6 +304,7 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 expression: Box::new(body),
                 is_public: false,
                 is_testable: false,
+                is_export: false,
                 help_data: _let.into(),
             };
 
@@ -325,6 +330,7 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     }),
                     is_public: false,
                     is_testable: false,
+                    is_export: false,
                     help_data: HelpData::default(),
                 });
             }
@@ -339,7 +345,7 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         opt(terminated(
-            alt((tag("@pub"), tag("@testable"))),
+            alt((tag("@export"), tag("@pub"), tag("@testable"))),
             multispace0,
         )),
         base_let_exp,
@@ -348,11 +354,13 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     match res {
         Ok((s, (None, le))) => Ok((s, le)),
         Ok((s, (Some(annotation), le))) => {
-            // `@pub` exposes publicly; `@testable` keeps the binding private but
-            // flags it for conditional exposure as `M$.test_<name>` in a test
-            // build (see RFC-TR-031).
-            let is_pub = *annotation.fragment() == "@pub";
-            let is_test = *annotation.fragment() == "@testable";
+            // `@export` → public + testable + exported in R package (RFC-TR-032).
+            // `@pub`    → public + testable (RFC-TR-032, §3.2).
+            // `@testable` → private but exposed as `M$.test_<name>` in test builds.
+            let frag = *annotation.fragment();
+            let is_pub = frag == "@pub" || frag == "@export";
+            let is_test = frag == "@testable" || frag == "@pub" || frag == "@export";
+            let is_exp = frag == "@export";
             let new_le = le
                 .iter()
                 .map(|x| match x {
@@ -362,6 +370,7 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         expression: body,
                         is_public: _,
                         is_testable: _,
+                        is_export: _,
                         help_data: h,
                     } => {
                         let vari = Var::from_language(var.deref().clone())
@@ -373,6 +382,7 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                             expression: body.clone(),
                             is_public: is_pub,
                             is_testable: is_test,
+                            is_export: is_exp,
                             help_data: h.clone(),
                         }
                     }
@@ -671,6 +681,7 @@ fn import_module(s: Span) -> IResult<Span, Vec<Lang>> {
                     expression: Box::new(module_var),
                     is_public: false,
                     is_testable: false,
+                    is_export: false,
                     help_data: h,
                 }],
             ))

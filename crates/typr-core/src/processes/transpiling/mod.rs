@@ -872,6 +872,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 expression: body,
                 is_public: _,
                 is_testable: _,
+                is_export,
                 help_data: _,
             } => {
                 let (body_str, new_cont) = body.to_r(cont);
@@ -911,6 +912,12 @@ impl RTranslatable<(String, Context)> for Lang {
                     format!("{} |> {}\n", r_code, type_annotation)
                 } else {
                     r_code + "\n"
+                };
+                // RFC-TR-032: @export prepends `#' @export` for R package API
+                let code = if *is_export {
+                    format!("#' @export\n{}", code)
+                } else {
+                    code
                 };
                 (code, new_cont)
             }
@@ -1451,21 +1458,51 @@ impl RTranslatable<(String, Context)> for Lang {
                     inner_cont = inner_cont.set_test_preamble(preamble);
                 }
 
-                let body_content = body
+                // C1: partition body into file-level imports (mod foo; / External sub-modules)
+                // and runtime content. Imports are processed first so their side-effects
+                // (file writes, register_include) happen before the new.env binding, and
+                // their output is emitted outside the local({}) block.
+                let (import_langs, runtime_langs): (Vec<_>, Vec<_>) =
+                    body.iter().partition(|lang| {
+                        matches!(
+                            lang,
+                            Lang::ModuleImport { .. }
+                                | Lang::Module {
+                                    module_position: ModulePosition::External,
+                                    ..
+                                }
+                        )
+                    });
+
+                let imports_parts: Vec<String> = import_langs
+                    .iter()
+                    .map(|lang| lang.to_r(&inner_cont).0)
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                let imports_preamble = if imports_parts.is_empty() {
+                    String::new()
+                } else {
+                    imports_parts.join("\n") + "\n"
+                };
+
+                let body_content = runtime_langs
                     .iter()
                     .map(|lang| lang.to_r(&inner_cont).0)
                     .collect::<Vec<_>>()
                     .join("\n");
 
-                // Build exports (inside local) and generics (outside local) for @pub members
+                // Build exports (inside local) and generics (outside local) for @pub/@export members
                 let mut exports: Vec<String> = Vec::new();
                 let mut generics: Vec<String> = Vec::new();
                 let mut generic_exports: Vec<String> = Vec::new();
+                // RFC-TR-032: @export members also get a top-level #' @export re-export
+                let mut package_exports: Vec<String> = Vec::new();
 
                 for lang in body.iter() {
                     if let Lang::Let {
                         variable: var,
                         is_public: true,
+                        is_export,
                         ..
                     } = lang
                     {
@@ -1475,6 +1512,14 @@ impl RTranslatable<(String, Context)> for Lang {
 
                             // Export the (possibly type-suffixed) member into the module env
                             exports.push(format!("{}${} <- {}", name_str, typed_name, typed_name));
+
+                            // RFC-TR-032: @export also surfaces as a package-level function
+                            if *is_export {
+                                package_exports.push(format!(
+                                    "#' @export\n{} <- {}${}",
+                                    raw_name, name_str, typed_name
+                                ));
+                            }
 
                             // For typed functions: register as S3 method and create generic
                             let var_type = v.get_type();
@@ -1497,10 +1542,9 @@ impl RTranslatable<(String, Context)> for Lang {
                             }
                         }
                     }
-                    // RFC-TR-031: in a test build, expose `@testable` private
-                    // members as `M$.test_<name>` while keeping them private in
-                    // the module's regular API. The binding stays inside the
-                    // closed environment; only an extra alias is added.
+                    // RFC-TR-032: in a test build, expose `@testable` (and implied-testable
+                    // `@pub`/`@export`) members as `M$.test_<name>` while keeping them
+                    // private in the module's regular API.
                     if cont.get_test_mode() {
                         if let Lang::Let {
                             variable: var,
@@ -1552,9 +1596,21 @@ impl RTranslatable<(String, Context)> for Lang {
                     "\n".to_string() + &generic_exports.join("\n")
                 };
 
+                let package_exports_str = if package_exports.is_empty() {
+                    String::new()
+                } else {
+                    "\n".to_string() + &package_exports.join("\n")
+                };
+
                 let content = format!(
-                    "{}{} <- new.env(parent = emptyenv())\nlocal({{\n{}{}\n}}){}",
-                    generics_defs_str, name_str, body_content, exports_str, generic_exports_str
+                    "{}{}{} <- new.env(parent = emptyenv())\nlocal({{\n{}{}\n}}){}{}",
+                    generics_defs_str,
+                    imports_preamble,
+                    name_str,
+                    body_content,
+                    exports_str,
+                    generic_exports_str,
+                    package_exports_str
                 );
 
                 match (position, config.environment) {
@@ -2032,6 +2088,93 @@ mod tests {
         assert!(
             !r_code.contains("secret <- Math$secret"),
             "private member must not be imported: {}",
+            r_code
+        );
+    }
+
+    // RFC-TR-032 @export tests
+
+    #[test]
+    fn test_export_at_top_level_prepends_roxygen_tag() {
+        let r_code = FluentParser::new()
+            .push("@export let answer <- 42;")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("#' @export"),
+            "missing #' @export tag: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("answer"),
+            "missing assignment: {}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_export_in_module_is_public_and_package_exported() {
+        let r_code = FluentParser::new()
+            .push("module Math { @export let norm <- fn(x: int): int { x }; };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("Math$norm <- norm"),
+            "missing module export: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("#' @export"),
+            "missing roxygen export tag: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("norm <- Math$norm"),
+            "missing package-level re-export: {}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_export_in_module_test_build_adds_test_alias() {
+        let r_code = FluentParser::new()
+            .set_context(Context::empty().set_test_mode(true))
+            .push("module Math { @export let norm <- fn(x: int): int { x }; };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("Math$`.test_norm` <- norm"),
+            "export member must get .test_ alias in test build: {}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_pub_in_module_test_build_adds_test_alias() {
+        let r_code = FluentParser::new()
+            .set_context(Context::empty().set_test_mode(true))
+            .push("module Math { @pub let pi <- 3; };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("Math$`.test_pi` <- pi"),
+            "@pub member must get .test_ alias in test build (RFC-TR-032 §3.2): {}",
             r_code
         );
     }

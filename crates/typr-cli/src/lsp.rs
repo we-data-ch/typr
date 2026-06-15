@@ -643,6 +643,7 @@ fn collect_symbols_from_ast(
             expression: body,
             is_public: _,
             is_testable: _,
+            is_export: _,
             help_data: _,
         } => {
             if let Ok(var) = Var::try_from(var_lang) {

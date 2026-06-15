@@ -320,6 +320,7 @@ impl Var {
             expression: Box::default(),
             is_public: false,
             is_testable: false,
+            is_export: false,
             help_data: self.get_help_data(),
         }
     }
