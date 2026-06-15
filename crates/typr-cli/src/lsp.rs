@@ -294,7 +294,7 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
     let span: Span = LocatedSpan::new_extra(content, path.to_string());
     let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
 
-    let ast = match parse_result {
+    let mut ast = match parse_result {
         Ok(result) => {
             // Collect syntax errors from the parsed AST
             for syntax_error in &result.errors {
@@ -334,8 +334,19 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
         }
     };
 
+    // 1b. Resolve module imports the same way the CLI does, so that `use M::x`
+    // and other cross-module references are known to the type checker. Without
+    // this the LSP would flag every imported symbol as an "undefined variable"
+    // even though the code compiles fine. Mirrors `lsp_parser::find_definition_at`.
+    let environment = lsp_parser::detect_environment(path);
+    if let Ok(expanded) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        crate::metaprogramming::metaprogrammation(ast.clone(), environment)
+    })) {
+        ast = expanded;
+    }
+
     // 2. Attempt type checking with error collection
-    let context = Context::default();
+    let context = Context::default().set_environment(environment);
     let typing_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         typr_core::typing_with_errors(&context, &ast)
     }));
@@ -345,6 +356,16 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
             use typr_core::TypRError;
 
             for error in result.get_errors() {
+                // Skip errors that originate from an imported module file: their
+                // offsets are relative to *that* file and would map to bogus
+                // positions in this buffer. Only report errors for the file the
+                // editor is currently showing (empty file name = this buffer).
+                if let Some(help_data) = error.get_help_data() {
+                    let err_file = help_data.get_file_name();
+                    if !err_file.is_empty() && err_file != path {
+                        continue;
+                    }
+                }
                 let msg = error.simple_message();
                 let severity = match error {
                     TypRError::Type(_) => DiagnosticSeverity::ERROR,
@@ -746,4 +767,76 @@ pub async fn run_lsp() {
     });
 
     Server::new(stdin, stdout, socket).serve(service).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `use` of a member from an inline module must not produce an
+    /// "Undefined variable" diagnostic (regression for the editor showing
+    /// false errors on `use` import lines).
+    #[test]
+    fn use_inline_module_member_is_not_undefined() {
+        let content = "\
+module Math {
+    @pub let pi <- 3;
+};
+use Math::pi;
+let x <- pi;
+";
+        let diags = check_code_and_extract_errors(content, "test.ty");
+        let undefined: Vec<_> = diags
+            .iter()
+            .filter(|d| d.message.contains("Undefined"))
+            .collect();
+        assert!(
+            undefined.is_empty(),
+            "unexpected undefined diagnostics: {:?}",
+            undefined
+        );
+    }
+
+    /// A genuine type error in the current file must still be reported (the
+    /// import-aware resolution and cross-file filtering must not silence real
+    /// errors that belong to this buffer).
+    #[test]
+    fn genuine_type_error_in_current_file_is_still_reported() {
+        let content = "let x: int <- \"hello\";\n";
+        let diags = check_code_and_extract_errors(content, "test.ty");
+        assert!(
+            !diags.is_empty(),
+            "expected at least one diagnostic for a type error, got none"
+        );
+    }
+
+    /// A `use` referencing a member of a module imported from another file via
+    /// `mod`/`use` must not be flagged undefined: the diagnostics path resolves
+    /// imports through `metaprogrammation`, like the CLI. This is the core
+    /// regression — the editor previously showed false errors on `use` lines.
+    #[test]
+    fn use_of_module_imported_from_another_file_is_not_undefined() {
+        let dir = std::env::temp_dir().join(format!("typr_lsp_test_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let module_file = dir.join("math.ty");
+        std::fs::write(&module_file, "@pub let pi <- 3;\n").unwrap();
+
+        let main_file = dir.join("main.ty");
+        let content = "mod math;\nuse math::pi;\nlet x <- pi;\n";
+        std::fs::write(&main_file, content).unwrap();
+
+        let diags = check_code_and_extract_errors(content, main_file.to_str().unwrap());
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let undefined: Vec<_> = diags
+            .iter()
+            .filter(|d| d.message.contains("Undefined"))
+            .collect();
+        assert!(
+            undefined.is_empty(),
+            "imported module member wrongly flagged undefined: {:?}",
+            undefined
+        );
+    }
 }

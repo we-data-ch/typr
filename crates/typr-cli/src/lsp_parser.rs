@@ -96,7 +96,7 @@ pub fn find_type_at(content: &str, line: u32, character: u32) -> Option<HoverInf
 
 /// Detect the environment (Project or StandAlone) by looking for DESCRIPTION
 /// and NAMESPACE files in parent directories.
-fn detect_environment(file_path: &str) -> Environment {
+pub fn detect_environment(file_path: &str) -> Environment {
     let path = Path::new(file_path);
     let mut dir = path.parent();
 
