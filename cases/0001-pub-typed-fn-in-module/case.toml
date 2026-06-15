@@ -1,0 +1,6 @@
+title = "@pub fn typée dans un module → R cassé + document() échoue"
+cmd = "build"
+layer = "r-run"
+status = "fixed"
+created = "2026-06-15"
+origin = "perso"

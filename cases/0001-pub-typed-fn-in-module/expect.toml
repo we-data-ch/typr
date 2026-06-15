@@ -1,0 +1,21 @@
+# Oracle = les 3 anomalies de bug.md, transcrites en règles grep sur le R généré.
+
+# Anomalie 1 : le binding doit s'appeler `g`, pas `g`.default (branche type concret).
+[[rule]]
+file = "R/leaf.R"
+must_not_contain = "`g`.default"
+
+# Anomalie 2 : la branche type concret émet le tag #' @method.
+[[rule]]
+file = "R/leaf.R"
+must_contain = "#' @method g"
+
+# Anomalie 1 (positif) : le binding correct existe bien.
+[[rule]]
+file = "R/leaf.R"
+must_contain = "`g` <-"
+
+# Anomalie 3 : l'export du module référence le symbole réellement défini.
+[[rule]]
+file = "R/leaf.R"
+must_contain = "leaf$g <- g"

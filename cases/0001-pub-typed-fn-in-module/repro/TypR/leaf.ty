@@ -1,0 +1,1 @@
+@pub let g <- fn(): int { 1 };

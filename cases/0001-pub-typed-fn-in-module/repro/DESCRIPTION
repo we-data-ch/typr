@@ -1,0 +1,5 @@
+Package: repro
+Title: TypR repro case 0001
+Version: 0.0.0.9000
+Description: Minimal reproduction project for cases.nu.
+Encoding: UTF-8

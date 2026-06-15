@@ -36,6 +36,7 @@
 pub use typr_core;
 
 // CLI modules
+pub mod cases;
 pub mod cli;
 pub mod engine;
 pub mod io;

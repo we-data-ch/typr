@@ -1,0 +1,2 @@
+mod leaf;
+@pub let f <- fn(): int { 42 };

@@ -416,6 +416,16 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
         .unwrap();
 }
 
+/// Write the TypR project loader (load_module.R) to the project root.
+/// Called by build_project so `typr run` can use it without devtools.
+pub fn write_loader(project_root: &Path) {
+    let loader = include_str!("../configs/src/load_module.R");
+    let dest = project_root.join("load_module.R");
+    let mut f = File::create(&dest).expect("Cannot write load_module.R");
+    f.write_all(loader.as_bytes())
+        .expect("Cannot write load_module.R contents");
+}
+
 pub fn write_to_r_lang(
     content: String,
     output_dir: &Path,
@@ -623,6 +633,7 @@ pub fn build_project(test_mode: bool) {
         "main.R",
         context.get_environment(),
     );
+    write_loader(&dir);
     document();
     println!("R code successfully generated in the R/ folder");
 }
@@ -648,22 +659,31 @@ pub fn build_file(path: &Path, test_mode: bool) {
 
 pub fn run_project() {
     build_project(false);
-    let r_command = "devtools::load_all(); source('R/main.R')";
+    // Use the TypR loader instead of devtools to respect module encapsulation.
+    // Convention: the entry point is modules$Main$main().
+    let r_command = concat!(
+        "source('load_module.R'); ",
+        "modules <- load_module('.'); ",
+        "modules$Main$main()"
+    );
     println!("Executing: Rscript -e \"{}\"", r_command);
     match Command::new("Rscript").arg("-e").arg(r_command).output() {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
             if output.status.success() {
-                println!("Execution: \n{}", stdout);
-            } else {
-                println!("Error (code {}): \n{}", output.status, stderr);
                 if !stdout.is_empty() {
-                    println!("Standard output: \n{}", stdout);
+                    print!("{}", stdout);
                 }
+            } else {
+                eprintln!("Error (code {}):\n{}", output.status, stderr);
+                if !stdout.is_empty() {
+                    print!("{}", stdout);
+                }
+                std::process::exit(1);
             }
         }
-        Err(e) => println!("Failed to execute command: {}", e),
+        Err(e) => eprintln!("Failed to execute command: {}", e),
     }
 }
 
@@ -781,11 +801,17 @@ fn write_context_json(context: &Context, output_dir: &Path) {
 
 pub fn test() {
     build_project(true);
-    let r_command = "devtools::test()".to_string();
+    // Load modules in test mode so @testable members are accessible in test files.
+    // Then delegate test discovery to devtools::test().
+    let r_command = concat!(
+        "source('load_module.R'); ",
+        "modules <- load_module('.', test = TRUE); ",
+        "devtools::test()"
+    );
 
     println!("Execution of: R -e \"{}\"", r_command);
 
-    let output = Command::new("R").arg("-e").arg(&r_command).output();
+    let output = Command::new("R").arg("-e").arg(r_command).output();
 
     match output {
         Ok(output) => {

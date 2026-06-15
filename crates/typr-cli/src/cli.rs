@@ -73,6 +73,11 @@ enum Commands {
         #[command(subcommand)]
         pkg_command: PkgCommands,
     },
+    /// Reproducible bug catalog (see cases/ and cases/README.md).
+    Case {
+        #[command(subcommand)]
+        case_command: CaseCommands,
+    },
     Document,
     Use {
         package_name: String,
@@ -83,6 +88,38 @@ enum Commands {
     Clean,
     Repl,
     Lsp,
+}
+
+#[derive(Subcommand, Debug)]
+enum CaseCommands {
+    /// List the catalog (filterable by --status).
+    List {
+        #[arg(long)]
+        status: Option<String>,
+    },
+    /// Replay cases: OPEN/READY (open), PASS/REGRESS (fixed). Exits 1 on REGRESS.
+    Run {
+        filter: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        /// Keep the temp sandboxes (print their path) for inspection.
+        #[arg(long)]
+        keep: bool,
+    },
+    /// Scaffold a new case from a real project + capture observed output.
+    Add {
+        slug: String,
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long, default_value = "build")]
+        cmd: String,
+    },
+    /// Snapshot the current TypR project into a `<slug>.case/` bundle (run from the project root).
+    Snapshot { slug: Option<String> },
+    /// Capture the current generated R as golden and flip status to `fixed`.
+    Freeze { id: String },
+    /// Show a case (case.toml + expect.md + expect.toml).
+    Show { id: String },
 }
 
 #[derive(Subcommand, Debug)]
@@ -139,6 +176,18 @@ pub fn start() {
         Some(Commands::Pkg { pkg_command }) => match pkg_command {
             PkgCommands::Install { packages } => pkg_install(packages.as_deref()),
             PkgCommands::Uninstall => pkg_uninstall(),
+        },
+        Some(Commands::Case { case_command }) => match case_command {
+            CaseCommands::List { status } => crate::cases::list(status),
+            CaseCommands::Run {
+                filter,
+                status,
+                keep,
+            } => crate::cases::run(filter, status, keep),
+            CaseCommands::Add { slug, from, cmd } => crate::cases::add(&slug, from, &cmd),
+            CaseCommands::Snapshot { slug } => crate::cases::snapshot(slug),
+            CaseCommands::Freeze { id } => crate::cases::freeze(&id),
+            CaseCommands::Show { id } => crate::cases::show(&id),
         },
         Some(Commands::Document) => document(),
         Some(Commands::Use { package_name }) => use_package(&package_name),

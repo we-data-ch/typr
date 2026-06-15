@@ -33,6 +33,7 @@ indexmap.workspace = true
 tap.workspace = true
 rand.workspace = true
 anyhow.workspace = true
+toml.workspace = true
 
 # CLI/System dependencies (NOT WASM-compatible)
 clap.workspace = true

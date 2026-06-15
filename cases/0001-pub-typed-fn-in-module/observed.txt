@@ -1,0 +1,22 @@
+# R généré FAUTIF au moment du report (avant correctif) — extrait de bug.md.
+
+## Erreur document() (devtools/roxygen2)
+
+6: `g`.default
+      ^
+Appels : <Anonymous> ... update_namespace_imports -> namespace_imports -> lapply -> FUN
+Exécution arrêtée
+
+## R/leaf.R généré (problématique)
+
+#' @include std.R
+#' @include generic_functions.R
+#' @include types.R
+leaf <- new.env(parent = emptyenv())
+local({
+`g`.default <- (function() {            # (1) suffixe .default indu, (2) pas de #' @method
+1L |> as.Integer()
+} |> as.Integer()) |> as.Function0()
+
+leaf$g <- g                            # (3) référence `g` non défini (seul `g`.default existe)
+})
