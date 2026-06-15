@@ -1403,9 +1403,23 @@ impl RTranslatable<(String, Context)> for Lang {
                     push_include_frame();
                 }
 
+                // Re-derive the module's internal typing context so body elements
+                // can resolve sibling definitions (e.g. a `Test { ... }` block or a
+                // top-level call referencing an internal `let`). The outer `cont`
+                // only knows the module itself, not its private members.
+                let module_expr = if body.len() > 1 {
+                    Lang::Lines {
+                        value: body.to_vec(),
+                        help_data: HelpData::default(),
+                    }
+                } else {
+                    body.first().cloned().unwrap_or(Lang::Empty(HelpData::default()))
+                };
+                let inner_cont = typing(&cont.clone().set_in_module_body(), &module_expr).context;
+
                 let body_content = body
                     .iter()
-                    .map(|lang| lang.to_r(cont).0)
+                    .map(|lang| lang.to_r(&inner_cont).0)
                     .collect::<Vec<_>>()
                     .join("\n");
 
