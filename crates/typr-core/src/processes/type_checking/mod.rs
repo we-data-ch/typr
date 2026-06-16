@@ -397,9 +397,12 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             } else {
                 return TypeContext::new(builder::empty_type(), expr.clone(), context.clone());
             };
-            // Type-check the module body with an internal context where opaque
-            // aliases are transparent — module-internal functions see through them.
-            let internal_context = Context::default().set_in_module_body();
+            // Type-check the module body starting from the *enclosing* context
+            // (so top-level `mod`/`use`/`let` bindings declared earlier in the
+            // same file are visible from inside the module), with opaque
+            // aliases made transparent — module-internal functions see through
+            // them.
+            let internal_context = context.clone().set_in_module_body();
             let typing_context = typing(&internal_context, &module_expr);
 
             // Collect opaque alias names declared in this module so we can

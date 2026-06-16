@@ -1539,6 +1539,17 @@ impl RTranslatable<(String, Context)> for Lang {
                                     generic_exports
                                         .push(format!("{}${} <- {}", name_str, raw_name, raw_name));
                                 }
+
+                                // The method implementation itself (e.g. `do.Object`) is only
+                                // bound inside `local({...})`, so it never becomes a top-level
+                                // binding that load_module.R's dependency-copy step can see.
+                                // `registerS3method` alone doesn't help here either: it relies
+                                // on a real package namespace, which a `sys.source`'d module env
+                                // is not. Re-expose it at top level (outside local) from the
+                                // module env so UseMethod can find `typed_name` via normal
+                                // lexical scoping from any file that imports this module.
+                                generic_exports
+                                    .push(format!("{} <- {}${}", typed_name, name_str, typed_name));
                             }
                         }
                     }

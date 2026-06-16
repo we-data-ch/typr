@@ -666,11 +666,22 @@ pub fn build_file(path: &Path, test_mode: bool) {
 pub fn run_project() {
     build_project_impl(false, true);
     // Use the TypR loader instead of devtools to respect module encapsulation.
-    // Convention: the entry point is modules$Main$main().
+    // Top-level code in main.ty already runs as a side effect of sourcing it
+    // (sys.source() inside load_module()). The `module Main { @pub let main
+    // <- fn() {...} }` convention is optional: if it's present we call it as
+    // the entry point, but a plain main.ty with top-level statements works
+    // out of the box with no boilerplate required.
     let r_command = concat!(
         "source('load_module.R'); ",
         "modules <- load_module('.'); ",
-        "modules$Main$main()"
+        "if (exists('Main', envir = modules, inherits = FALSE)) { ",
+        "  .typr_main_env <- get('Main', envir = modules); ",
+        "  if (is.environment(.typr_main_env) && ",
+        "      exists('main', envir = .typr_main_env, inherits = FALSE)) { ",
+        "    .typr_main_fn <- get('main', envir = .typr_main_env); ",
+        "    if (is.function(.typr_main_fn)) invisible(.typr_main_fn()); ",
+        "  } ",
+        "}"
     );
     match Command::new("Rscript").arg("-e").arg(r_command).output() {
         Ok(output) => {

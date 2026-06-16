@@ -5,10 +5,16 @@
 # own isolated environment; TypR module environments (Math, Main, …) are
 # collected and returned in a single flat `modules` environment.
 #
+# Top-level statements in a .ty file run as a side effect of loading it (no
+# entry point required). The `module Main { @pub let main <- fn() {...} }`
+# convention is optional: `typr run` calls modules$Main$main() automatically
+# *if it exists*, as a convenience for code you want to keep inside a named,
+# callable entry point. Plain top-level code needs nothing extra.
+#
 # Usage:
 #   source("load_module.R")
 #   modules <- load_module(".")
-#   modules$Main$main()
+#   if (!is.null(modules$Main)) modules$Main$main()   # only if you used the convention
 #
 #   # Test mode — exposes @testable members (requires typr build --test)
 #   modules <- load_module(".", test = TRUE)

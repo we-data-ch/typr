@@ -1,0 +1,23 @@
+# Règles oracle (grep sur le R généré).
+#
+# Bug : `do.Object`, l'implémentation S3 générée pour la fonction `@pub`
+# `do` (premier paramètre de type `Object`), n'existait QUE dans le
+# `local({...})` de truc.R. `load_module.R` ne copie vers les fichiers
+# dépendants que les bindings de premier niveau de l'environnement du
+# fichier source ; `registerS3method(...)` ne suffit pas non plus car
+# l'environnement chargé par `sys.source()` n'est pas un vrai namespace de
+# package. Résultat : `do(obj1)` dans main.R levait
+# "no applicable method for 'do' applied to an object of class Object".
+#
+# Le correctif réexporte l'implémentation au niveau supérieur du fichier
+# (hors `local({...})`), au même endroit que le générique `do`, afin que
+# load_module.R la propage normalement vers les fichiers qui importent ce
+# module.
+
+[[rule]]
+file = "R/truc.R"
+must_contain = "do.Object <- truc$do.Object"
+
+[[rule]]
+file = "R/truc.R"
+must_contain = "registerS3method(\"do\", \"Object\", do.Object)"

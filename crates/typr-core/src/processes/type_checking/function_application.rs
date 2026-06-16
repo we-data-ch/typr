@@ -862,6 +862,30 @@ fn apply_from_variable_inner(
         );
     }
 
+    // === FILTERING 0.5 : Zero-argument call to a plain (non-variadic) function ===
+    // FILTERING 1/2/2.5 all key off `types.first()`, so a call like `f()` to a
+    // plain `fn(): T { ... }` (no parameters, not variadic) never reaches a
+    // matching filter and falls through to FunctionNotFound. Handle the
+    // arity-0 case directly here.
+    if types.is_empty() {
+        if let Some(fun_typ) = all_signatures
+            .iter()
+            .find(|sig| !sig.is_variadic() && sig.get_param_types().is_empty())
+            .cloned()
+            .and_then(|sig| sig.infer_return_type_direct(&types, context))
+        {
+            return build_success(
+                &var,
+                &fun_typ,
+                expanded_parameters,
+                &types,
+                param_errors,
+                context,
+                h,
+            );
+        }
+    }
+
     // === FILTERING 1 : First equality of the first param, then complet match (unification) ===
     if let Some(first_arg_type) = types.first() {
         let candidates = filter_by_first_param(&all_signatures, first_arg_type, context);

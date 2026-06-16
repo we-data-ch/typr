@@ -1,0 +1,11 @@
+@pub
+type Object <- list {
+	a: int,
+	b: bool
+};
+
+# @case : public function defined
+@pub
+let do <- fn(self: Object): bool {
+	self$b
+};

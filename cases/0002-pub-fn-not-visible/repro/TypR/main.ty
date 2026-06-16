@@ -1,0 +1,8 @@
+mod truc;
+use truc::Object;
+# @case : public function imported
+use truc::do;
+
+let obj1 <- Object:{a: 1, b: false};
+
+print(obj1.do());
