@@ -284,10 +284,14 @@ pub enum Lang {
         help_data: HelpData,
     },
     /// Explicit constructor call: `TypeName:{ field1 = val1, field2 = val2 }` or `mod$TypeName:{ ... }`
+    ///
+    /// `spread` carries the optional `..source` element (RFC-TR-033): the module path of the
+    /// spread variable (empty if local), its name, and its own `HelpData`.
     ConstructorCall {
         module_path: Vec<String>,
         type_name: String,
         fields: Vec<ArgumentValue>,
+        spread: Option<(Vec<String>, String, HelpData)>,
         help_data: HelpData,
     },
     /// Array constructor call: `TypeName:[expr, expr, ...]`

@@ -210,7 +210,16 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             is_testable,
             is_export,
             help_data: h,
-        } => let_expression(context, name, ty, exp, *is_public, *is_testable, *is_export, h),
+        } => let_expression(
+            context,
+            name,
+            ty,
+            exp,
+            *is_public,
+            *is_testable,
+            *is_export,
+            h,
+        ),
         Lang::Alias {
             identifier: exp,
             parameters: params,
@@ -848,6 +857,46 @@ fn typing_vector(context: &Context, expr: &Lang, exprs: &[Lang], h: &HelpData) -
         context.clone().push_types(&[new_type]),
     )
     .with_errors(errors)
+}
+
+/// Resolves the type of a module member (alias or variable) reached by walking
+/// `module_path` (e.g. `["a", "b"]` for `a$b$<member_name>`) through nested
+/// `Type::Module` values. Returns `None` if `module_path` is empty, or if any
+/// segment (including the final `member_name`) can't be resolved.
+pub fn resolve_module_member_type(
+    context: &Context,
+    module_path: &[String],
+    member_name: &str,
+) -> Option<Type> {
+    if module_path.is_empty() {
+        return None;
+    }
+    let module_type = context
+        .get_types_from_name(&module_path[0])
+        .into_iter()
+        .next();
+    let resolved = module_path[1..].iter().fold(module_type, |acc, seg| {
+        acc.and_then(|t| {
+            if let Type::Module(fields, _) = t.reduce(context) {
+                fields
+                    .iter()
+                    .find(|f| f.get_argument_str() == *seg)
+                    .map(|f| f.get_type())
+            } else {
+                None
+            }
+        })
+    });
+    resolved.and_then(|t| {
+        if let Type::Module(fields, _) = t.reduce(context) {
+            fields
+                .iter()
+                .find(|f| f.get_argument_str() == member_name)
+                .map(|f| f.get_type())
+        } else {
+            None
+        }
+    })
 }
 
 //main
@@ -2369,47 +2418,109 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         Lang::ConstructorCall {
             module_path,
             type_name,
-            fields: _,
+            fields,
+            spread,
             help_data: h,
         } => {
-            let alias_exists = if module_path.is_empty() {
-                context
-                    .aliases()
-                    .any(|(var, _)| var.get_name() == *type_name)
+            let resolved_alias = if module_path.is_empty() {
+                context.get_type_from_aliases(&Var::from_name(type_name))
             } else {
-                let module_type = context
-                    .get_types_from_name(&module_path[0])
-                    .into_iter()
-                    .next();
-                let resolved = module_path[1..].iter().fold(module_type, |acc, seg| {
-                    acc.and_then(|t| {
-                        if let Type::Module(fields, _) = t.reduce(context) {
-                            fields
-                                .iter()
-                                .find(|f| f.get_argument_str() == *seg)
-                                .map(|f| f.get_type())
-                        } else {
-                            None
-                        }
-                    })
-                });
-                resolved.is_some_and(|t| {
-                    if let Type::Module(fields, _) = t.reduce(context) {
-                        fields.iter().any(|f| f.get_argument_str() == *type_name)
-                    } else {
-                        false
-                    }
-                })
+                resolve_module_member_type(context, module_path, type_name)
             };
-            if alias_exists {
-                TypeContext::new(
-                    Type::Alias(type_name.clone(), vec![], false, h.clone()),
-                    expr.clone(),
-                    context.clone(),
-                )
-            } else {
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+            let Some(resolved_alias) = resolved_alias else {
+                return TypeContext::new(builder::any_type(), expr.clone(), context.clone());
+            };
+
+            let mut errors: Vec<TypRError> = Vec::new();
+            let target_type = Type::Alias(type_name.clone(), vec![], false, h.clone());
+
+            // Record-shaped target: validate the field list (this also fixes the
+            // preexisting bug where `fields` was never checked at all, spread or not).
+            if let Type::Record(record_fields, _) = resolved_alias.reduce(context) {
+                let mut seen = std::collections::HashSet::new();
+                for f in fields {
+                    if !seen.insert(f.get_argument()) {
+                        errors.push(TypRError::Type(TypeError::DuplicateField(
+                            f.get_argument(),
+                            h.clone(),
+                        )));
+                    }
+                }
+
+                for f in fields {
+                    let fname = f.get_argument();
+                    match record_fields
+                        .iter()
+                        .find(|rf| rf.get_argument_str() == fname)
+                    {
+                        Some(rf) => {
+                            let value_tc = typing(context, &f.get_value());
+                            errors.extend(value_tc.errors.clone());
+                            if !value_tc.value.is_subtype(&rf.get_type(), context).0 {
+                                errors.push(TypRError::Type(TypeError::Param(
+                                    rf.get_type(),
+                                    value_tc.value,
+                                )));
+                            }
+                        }
+                        None => {
+                            errors.push(TypRError::Type(TypeError::FieldNotFound(
+                                (fname, h.clone()),
+                                target_type.clone(),
+                            )));
+                        }
+                    }
+                }
+
+                match spread {
+                    Some((spread_path, spread_var, spread_h)) => {
+                        let spread_type = if spread_path.is_empty() {
+                            context
+                                .get_type_from_variable(&Var::from_name(spread_var))
+                                .ok()
+                        } else {
+                            resolve_module_member_type(context, spread_path, spread_var)
+                        };
+                        match spread_type {
+                            Some(Type::Alias(name, ..)) if name == *type_name => {}
+                            Some(found) => {
+                                errors.push(TypRError::Type(TypeError::SpreadTypeMismatch(
+                                    target_type.clone(),
+                                    found,
+                                    spread_h.clone(),
+                                )));
+                            }
+                            None => {
+                                errors.push(TypRError::Type(TypeError::UndefinedVariable(
+                                    Lang::Variable {
+                                        name: spread_var.clone(),
+                                        is_opaque: false,
+                                        related_type: builder::any_type(),
+                                        help_data: spread_h.clone(),
+                                    },
+                                )));
+                            }
+                        }
+                    }
+                    None => {
+                        // No spread: every record field must be covered explicitly.
+                        let provided: std::collections::HashSet<String> =
+                            fields.iter().map(|f| f.get_argument()).collect();
+                        for rf in &record_fields {
+                            let rname = rf.get_argument_str();
+                            if !provided.contains(&rname) {
+                                errors.push(TypRError::Type(TypeError::MissingField(
+                                    rname,
+                                    target_type.clone(),
+                                    h.clone(),
+                                )));
+                            }
+                        }
+                    }
+                }
             }
+
+            TypeContext::new(target_type, expr.clone(), context.clone()).with_errors(errors)
         }
         Lang::ArrayConstructorCall {
             type_name,
@@ -3245,6 +3356,137 @@ p"#;
         assert!(
             r_code.contains("Point("),
             "Expected Point(...) call from constructor syntax, got:\n{}",
+            r_code
+        );
+    }
+
+    // ==================== Spread Operator Tests (RFC-TR-033) ====================
+
+    #[test]
+    fn test_constructor_spread_valid() {
+        let fp = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .run()
+            .push("let bob <- Person:{ name = \"Bob\", age = 12 };")
+            .run()
+            .push("let alice <- Person:{ name = \"Alice\", ..bob };")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+    }
+
+    #[test]
+    fn test_constructor_spread_explicit_field_has_priority() {
+        let fp = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .run()
+            .push("let bob <- Person:{ name = \"Bob\", age = 12 };")
+            .run()
+            .push("let alice <- Person:{ name = \"Alice\", age = 99, ..bob };")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("age = 99"),
+            "Explicit field should win over the spread, got:\n{}",
+            r_code
+        );
+        assert!(
+            !r_code.contains("bob$age"),
+            "The spread shouldn't be used for a field provided explicitly, got:\n{}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_constructor_call_missing_field_without_spread_errors() {
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .parse_type_next();
+        let context = fp.context.clone();
+
+        let expr = parse_from_string("let bob <- Person:{ name = \"Bob\" };", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::MissingField(..)))),
+            "Expected a MissingField error, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_constructor_spread_type_mismatch_errors() {
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .run()
+            .push("type Robot <- list { name: char, age: int };")
+            .run()
+            .push("let bob <- Robot:{ name = \"Bob\", age = 12 };")
+            .run();
+        let context = fp.context.clone();
+
+        let expr = parse_from_string("let alice <- Person:{ name = \"Alice\", ..bob };", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::SpreadTypeMismatch(..)))),
+            "Expected a SpreadTypeMismatch error, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_constructor_call_duplicate_field_errors() {
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .parse_type_next();
+        let context = fp.context.clone();
+
+        let expr = parse_from_string(
+            "let bob <- Person:{ name = \"Bob\", name = \"Bobby\", age = 12 };",
+            "test",
+        );
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::DuplicateField(..)))),
+            "Expected a DuplicateField error, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_constructor_spread_transpilation_uses_dollar_access() {
+        let fp = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .run()
+            .push("let bob <- Person:{ name = \"Bob\", age = 12 };")
+            .run()
+            .push("let alice <- Person:{ name = \"Alice\", ..bob };")
+            .run();
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("bob$age"),
+            "Expected the missing field to be expanded to `bob$age`, got:\n{}",
             r_code
         );
     }

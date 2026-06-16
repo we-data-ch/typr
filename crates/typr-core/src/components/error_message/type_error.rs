@@ -27,6 +27,12 @@ pub enum TypeError {
     AliasMissingGenerics(String, Vec<String>, Type),
     InterfaceReturnOnly(Type),
     UnknownTypeConstructor(String, HelpData),
+    /// A field is provided more than once in a `TypeName:{ ... }` constructor call.
+    DuplicateField(String, HelpData),
+    /// A field required by the record type isn't covered by explicit fields nor a spread.
+    MissingField(String, Type, HelpData),
+    /// A `..source` spread variable isn't of the exact same alias as the constructed type.
+    SpreadTypeMismatch(Type, Type, HelpData),
 }
 
 impl TypeError {
@@ -49,6 +55,9 @@ impl TypeError {
             TypeError::AliasMissingGenerics(_, _, typ) => Some(typ.get_help_data()),
             TypeError::InterfaceReturnOnly(typ) => Some(typ.get_help_data()),
             TypeError::UnknownTypeConstructor(_, h) => Some(h.clone()),
+            TypeError::DuplicateField(_, h) => Some(h.clone()),
+            TypeError::MissingField(_, _, h) => Some(h.clone()),
+            TypeError::SpreadTypeMismatch(_, _, h) => Some(h.clone()),
         }
     }
 
@@ -129,6 +138,19 @@ impl TypeError {
                 format!(
                     "'{}' is used as a record constructor `{}[N]{{...}}` but is not declared. Add `typeconstructor {}[N] record;`.",
                     name, name, name
+                )
+            }
+            TypeError::DuplicateField(name, _) => {
+                format!("Field '{}' is provided more than once", name)
+            }
+            TypeError::MissingField(name, typ, _) => {
+                format!("Field '{}' of type {} is missing", name, typ.pretty())
+            }
+            TypeError::SpreadTypeMismatch(expected, found, _) => {
+                format!(
+                    "Spread source has type {}, expected {}",
+                    found.pretty(),
+                    expected.pretty()
                 )
             }
         }
@@ -394,6 +416,40 @@ impl ErrorMsg for TypeError {
                         "Declare it first: `typeconstructor {}[N] record;`",
                         name
                     ))
+                    .build()
+            }
+            TypeError::DuplicateField(name, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!("Field '{}' is provided more than once", name))
+                    .pos_text("Duplicate field")
+                    .build()
+            }
+            TypeError::MissingField(name, typ, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "Field '{}' of type {} is missing in this constructor call",
+                        name,
+                        typ.pretty()
+                    ))
+                    .pos_text(format!("Missing field '{}'", name))
+                    .help("Provide it explicitly, or spread it from another value of the same type with `..source`.")
+                    .build()
+            }
+            TypeError::SpreadTypeMismatch(expected, found, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "Spread source has type {} but {} was expected",
+                        found.pretty(),
+                        expected.pretty()
+                    ))
+                    .pos_text("Spread source type mismatch")
+                    .help("The `..source` value must have exactly the same alias as the constructed type.")
                     .build()
             }
         };

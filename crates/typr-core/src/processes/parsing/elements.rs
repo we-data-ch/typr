@@ -615,26 +615,79 @@ fn sequence(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+/// One element inside a `TypeName:{ ... }` field list: either a regular
+/// `name = value` field or a `..source` spread (RFC-TR-033).
+enum ConstructorElement {
+    Field(Box<ArgumentValue>),
+    Spread(Vec<String>, String, HelpData),
+}
+
+/// Parses `.. <module_path>$<variable> ,?` (the spread element of RFC-TR-033).
+/// `..` is deliberately not allowed to be followed by another `.` so it can't
+/// be confused with the variadic `...` token used in parameter lists.
+fn spread_field(s: Span) -> IResult<Span, ConstructorElement> {
+    let res = (
+        terminated(terminated(tag(".."), not(char('.'))), multispace0),
+        many0(terminated(variable_exp, tag("$"))),
+        terminated(variable_exp, multispace0),
+        opt(terminated(tag(","), multispace0)),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (_, path, (name, h), _))) => Ok((
+            s,
+            ConstructorElement::Spread(path.into_iter().map(|(seg, _)| seg).collect(), name, h),
+        )),
+        Err(r) => Err(r),
+    }
+}
+
+fn constructor_field(s: Span) -> IResult<Span, ConstructorElement> {
+    if let Ok((s2, spread)) = spread_field(s.clone()) {
+        return Ok((s2, spread));
+    }
+    let (s2, field) = argument_val(s)?;
+    Ok((s2, ConstructorElement::Field(Box::new(field))))
+}
+
 fn constructor_call(s: Span) -> IResult<Span, Lang> {
     let res = (
         many0(terminated(variable_exp, tag("$"))),
         pascal_case,
         terminated(tag(":"), multispace0),
         terminated(tag("{"), multispace0),
-        many0(argument_val),
+        many0(constructor_field),
         terminated(tag("}"), multispace0),
     )
         .parse(s);
     match res {
-        Ok((s, (path, (name, h), _, _, args, _))) => Ok((
-            s,
-            Lang::ConstructorCall {
-                module_path: path.into_iter().map(|(seg, _)| seg).collect(),
-                type_name: name,
-                fields: args,
-                help_data: h,
-            },
-        )),
+        Ok((s, (path, (name, h), _, _, elements, _))) => {
+            let mut fields = Vec::new();
+            let mut spreads = Vec::new();
+            for el in elements {
+                match el {
+                    ConstructorElement::Field(f) => fields.push(*f),
+                    ConstructorElement::Spread(p, n, sh) => spreads.push((p, n, sh)),
+                }
+            }
+            // v1 only supports a single spread per constructor call (RFC-TR-033 §2).
+            if spreads.len() > 1 {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    s,
+                    nom::error::ErrorKind::Many1,
+                )));
+            }
+            Ok((
+                s,
+                Lang::ConstructorCall {
+                    module_path: path.into_iter().map(|(seg, _)| seg).collect(),
+                    type_name: name,
+                    fields,
+                    spread: spreads.into_iter().next(),
+                    help_data: h,
+                },
+            ))
+        }
         Err(r) => Err(r),
     }
 }
@@ -2103,5 +2156,27 @@ mod tests {
             .push("let p <- person$Person:{ age = 12, name = \"Bob\" };")
             .run();
         assert_eq!(fp.get_last_log(), "The logs are empty");
+    }
+
+    #[test]
+    fn test_constructor_call_spread_parsing() {
+        let (_, lang) = constructor_call("Person:{ name = \"Alice\", ..bob }".into())
+            .expect("Should parse constructor call with spread");
+        match lang {
+            Lang::ConstructorCall {
+                type_name,
+                fields,
+                spread,
+                ..
+            } => {
+                assert_eq!(type_name, "Person");
+                assert_eq!(fields.len(), 1);
+                assert_eq!(fields[0].get_argument(), "name");
+                let (path, name, _) = spread.expect("Should have a spread");
+                assert!(path.is_empty());
+                assert_eq!(name, "bob");
+            }
+            other => panic!("Expected ConstructorCall, got: {}", other.simple_print()),
+        }
     }
 }

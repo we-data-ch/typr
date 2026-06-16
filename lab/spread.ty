@@ -1,0 +1,7 @@
+type Person <- list { name: char, age: int };
+
+let bob <- Person:{ name = "Bob", age = 12 };
+let alice <- Person:{ name = "Alice", ..bob };
+
+print(alice$name);
+print(alice$age);

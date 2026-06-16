@@ -14,10 +14,12 @@ use crate::components::language::ModulePosition;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::array_type::ArrayType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::processes::transpiling::translatable::Translatable;
 use crate::processes::type_checking::flatten_operator_union;
+use crate::processes::type_checking::resolve_module_member_type;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
 use translatable::RTranslatable;
@@ -1713,10 +1715,68 @@ impl RTranslatable<(String, Context)> for Lang {
                 module_path,
                 type_name,
                 fields,
-                ..
+                spread,
+                help_data: h,
             } => {
+                // With a spread present, statically expand every record field absent
+                // from `fields` into a `source$field` access (RFC-TR-033 §5: static
+                // expansion, no runtime merge so the record's R class is preserved).
+                let all_fields: Vec<ArgumentValue> = match spread {
+                    Some((spread_path, spread_var, _)) => {
+                        let resolved_alias = if module_path.is_empty() {
+                            cont.get_type_from_aliases(&Var::from_name(type_name))
+                        } else {
+                            resolve_module_member_type(cont, module_path, type_name)
+                        };
+                        let record_fields = resolved_alias.and_then(|t| match t.reduce(cont) {
+                            Type::Record(fields, _) => Some(fields),
+                            _ => None,
+                        });
+                        let receiver = {
+                            let qualifier = spread_path.split_first().map(|(first, rest)| {
+                                rest.iter()
+                                    .fold(Var::from_name(first).to_language(), |acc, seg| {
+                                        Lang::Operator {
+                                            operator: Op::Dollar(h.clone()),
+                                            rhs: Box::new(acc),
+                                            lhs: Box::new(Var::from_name(seg).to_language()),
+                                            help_data: h.clone(),
+                                        }
+                                    })
+                            });
+                            match qualifier {
+                                Some(qualifier) => Lang::Operator {
+                                    operator: Op::Dollar(h.clone()),
+                                    rhs: Box::new(qualifier),
+                                    lhs: Box::new(Var::from_name(spread_var).to_language()),
+                                    help_data: h.clone(),
+                                },
+                                None => Var::from_name(spread_var).to_language(),
+                            }
+                        };
+                        let provided: std::collections::HashSet<String> =
+                            fields.iter().map(|f| f.get_argument()).collect();
+                        let synthetic = record_fields
+                            .into_iter()
+                            .flatten()
+                            .filter(|rf| !provided.contains(&rf.get_argument_str()))
+                            .map(|rf| {
+                                let field_access = Lang::Operator {
+                                    operator: Op::Dollar(h.clone()),
+                                    rhs: Box::new(receiver.clone()),
+                                    lhs: Box::new(
+                                        Var::from_name(&rf.get_argument_str()).to_language(),
+                                    ),
+                                    help_data: h.clone(),
+                                };
+                                ArgumentValue(rf.get_argument_str(), field_access)
+                            });
+                        fields.iter().cloned().chain(synthetic).collect()
+                    }
+                    None => fields.clone(),
+                };
                 let (body, current_cont) = Translatable::from(cont.clone())
-                    .join_arg_val(fields, ", ")
+                    .join_arg_val(&all_fields, ", ")
                     .into();
                 let qualified = if module_path.is_empty() {
                     type_name.clone()
@@ -2120,11 +2180,7 @@ mod tests {
             "missing #' @export tag: {}",
             r_code
         );
-        assert!(
-            r_code.contains("answer"),
-            "missing assignment: {}",
-            r_code
-        );
+        assert!(r_code.contains("answer"), "missing assignment: {}", r_code);
     }
 
     #[test]

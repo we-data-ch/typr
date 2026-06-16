@@ -123,6 +123,18 @@ mod transpilation {
     }
 
     #[test]
+    fn constructor_call_spread() {
+        // RFC-TR-033: `..source` expands to a `source$field` access for every
+        // field not given explicitly; explicit fields keep their own value.
+        let r = transpile_all(&[
+            "type Person <- list { name: char, age: int };",
+            "let bob <- Person:{ name = \"Bob\", age = 12 };",
+            "Person:{ name = \"Alice\", ..bob }",
+        ]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
     fn pipe_operator() {
         let r = transpile_all(&[
             "type Point <- list { x: int, y: int };",

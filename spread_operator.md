@@ -1,7 +1,9 @@
 # RFC-TR-033 — Spread operator dans `TypeName:{ ... }`
 
-> Statut : **proposé** (non implémenté). Cette spec a été écrite à l'issue d'une session de
-> design ; elle est destinée à être implémentée lors d'une session ultérieure.
+> Statut : **implémenté**. Voir §6 pour le détail des fichiers touchés ; tests : parsing
+> (`elements.rs::test_constructor_call_spread_parsing`), typing (`type_checking/mod.rs`,
+> tests `test_constructor_spread_*` / `test_constructor_call_*_errors`), transpilation
+> (`snapshot_tests.rs::transpilation::constructor_call_spread`), et `lab/spread.ty`.
 
 ## 1. Motivation
 
