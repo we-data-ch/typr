@@ -21,6 +21,10 @@ pub enum SyntaxError {
         line: u32,
         help_data: HelpData,
     },
+    LetInsteadOfType {
+        name: String,
+        help_data: HelpData,
+    },
     MutationTargetNotAssignable(HelpData),
     WithNode(Box<Lang>, Box<SyntaxError>),
 }
@@ -38,6 +42,7 @@ impl SyntaxError {
             SyntaxError::RecordConstructorIndex(h) => Some(h.clone()),
             SyntaxError::RecordInRecursiveParams(h) => Some(h.clone()),
             SyntaxError::UnknownElement { help_data, .. } => Some(help_data.clone()),
+            SyntaxError::LetInsteadOfType { help_data, .. } => Some(help_data.clone()),
             SyntaxError::MutationTargetNotAssignable(h) => Some(h.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
@@ -76,6 +81,11 @@ impl SyntaxError {
                     element,
                     help_data.get_file_name(),
                     line
+                )
+            }
+            SyntaxError::LetInsteadOfType { name, .. } => {
+                format!(
+                    "Use `type` instead of `let` to create a type alias: `type {name} <- ...`"
                 )
             }
             SyntaxError::MutationTargetNotAssignable(_) => {
@@ -181,6 +191,15 @@ impl ErrorMsg for SyntaxError {
                         element, file_name, line
                     ))
                     .pos_text("Here")
+                    .build()
+            }
+            SyntaxError::LetInsteadOfType { name, help_data } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text("Use `type` instead of `let` to create a type alias")
+                    .pos_text("`let` used here")
+                    .help(format!("Did you mean `type {name}`?"))
                     .build()
             }
             SyntaxError::MutationTargetNotAssignable(help_data) => {

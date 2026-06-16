@@ -197,6 +197,14 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             let newvar = Var::from_language(pat_var[0].clone())
                 .unwrap()
                 .set_type(params[0].1.clone());
+            if let Lang::Variable { name, help_data, .. } = &pat_var[0] {
+                if name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    push_parse_error(SyntaxError::LetInsteadOfType {
+                        name: name.clone(),
+                        help_data: help_data.clone(),
+                    });
+                }
+            }
             Ok((
                 s,
                 vec![Lang::Let {
@@ -215,18 +223,28 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 }],
             ))
         }
-        Ok((s, (_let, (pat_var, None), typ, _eq, body))) => Ok((
-            s,
-            vec![Lang::Let {
-                variable: Box::new(pat_var[0].clone()),
-                r#type: typ.clone().unwrap_or(Type::Empty(HelpData::default())),
-                expression: Box::new(body),
-                is_public: false,
-                is_testable: false,
-                is_export: false,
-                help_data: _let.into(),
-            }],
-        )),
+        Ok((s, (_let, (pat_var, None), typ, _eq, body))) => {
+            if let Lang::Variable { name, help_data, .. } = &pat_var[0] {
+                if name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    push_parse_error(SyntaxError::LetInsteadOfType {
+                        name: name.clone(),
+                        help_data: help_data.clone(),
+                    });
+                }
+            }
+            Ok((
+                s,
+                vec![Lang::Let {
+                    variable: Box::new(pat_var[0].clone()),
+                    r#type: typ.clone().unwrap_or(Type::Empty(HelpData::default())),
+                    expression: Box::new(body),
+                    is_public: false,
+                    is_testable: false,
+                    is_export: false,
+                    help_data: _let.into(),
+                }],
+            ))
+        }
         Ok((s, (_let, (pat_var, Some(_)), typ, eq, body))) => {
             if pat_var.len() == 1 {
                 Ok((
@@ -1370,6 +1388,43 @@ mod tesus {
             "Assign",
             res[0].simple_print(),
             "The expression 'a <- 12;' should be identified as an assignation"
+        );
+    }
+
+    // ==================== Let vs Type Alias Tests ====================
+
+    #[test]
+    fn test_let_instead_of_type() {
+        let res = parse("let MyType <- int;".into());
+        assert!(
+            res.has_errors(),
+            "let with PascalCase should produce a syntax error"
+        );
+        assert_eq!(res.errors.len(), 1, "Should have exactly one error");
+        match &res.errors[0] {
+            SyntaxError::LetInsteadOfType { name, .. } => {
+                assert_eq!(name, "MyType", "Error should reference the type name");
+            }
+            _ => panic!("Expected LetInsteadOfType error"),
+        }
+    }
+
+    #[test]
+    fn test_let_instead_of_type_with_pub() {
+        let res = parse("@pub let MyAlias <- num;".into());
+        assert!(
+            res.has_errors(),
+            "@pub let with PascalCase should produce a syntax error"
+        );
+        assert!(res.errors.iter().any(|e| matches!(e, SyntaxError::LetInsteadOfType { .. })));
+    }
+
+    #[test]
+    fn test_let_with_lowercase_is_fine() {
+        let res = parse("let my_var <- 42;".into());
+        assert!(
+            !res.has_errors(),
+            "let with snake_case should not produce a syntax error"
         );
     }
 
