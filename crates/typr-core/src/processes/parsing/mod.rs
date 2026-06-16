@@ -544,6 +544,46 @@ fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+/// Detects `type <lowercase_var> <- <expr>` which should be `let` instead.
+/// Parses the full expression and returns a `Lang::Let` with a push_parse_error.
+fn type_instead_of_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+        opt(terminated(tag("@pub"), multispace0)),
+        terminated(tag("type"), multispace0),
+        terminated(variable_exp, multispace0),
+        equality_operator,
+        single_parse,
+    )
+        .parse(s);
+    match res {
+        Ok((s, (pub_ann, type_kw, (name, h), _eq, body))) => {
+            push_parse_error(SyntaxError::TypeInsteadOfLet {
+                name: name.clone(),
+                help_data: h.clone(),
+            });
+            let is_pub = pub_ann.is_some();
+            Ok((
+                s,
+                vec![Lang::Let {
+                    variable: Box::new(Lang::Variable {
+                        name,
+                        is_opaque: false,
+                        related_type: Type::Empty(HelpData::default()),
+                        help_data: h,
+                    }),
+                    r#type: Type::Empty(type_kw.clone().into()),
+                    expression: Box::new(body),
+                    is_public: is_pub,
+                    is_testable: is_pub,
+                    is_export: false,
+                    help_data: type_kw.into(),
+                }],
+            ))
+        }
+        Err(r) => Err(r),
+    }
+}
+
 fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("opaque"), multispace0),
@@ -1226,6 +1266,7 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
                 comment,
                 typeconstructor_exp,
                 type_exp,
+                type_instead_of_let_exp,
                 opaque_exp,
                 let_tuple_exp,
                 let_exp,
@@ -1425,6 +1466,41 @@ mod tesus {
         assert!(
             !res.has_errors(),
             "let with snake_case should not produce a syntax error"
+        );
+    }
+
+    #[test]
+    fn test_type_instead_of_let() {
+        let res = parse("type my_var <- 42;".into());
+        assert!(
+            res.has_errors(),
+            "type with snake_case should produce a syntax error"
+        );
+        assert_eq!(res.errors.len(), 1, "Should have exactly one error");
+        match &res.errors[0] {
+            SyntaxError::TypeInsteadOfLet { name, .. } => {
+                assert_eq!(name, "my_var", "Error should reference the variable name");
+            }
+            _ => panic!("Expected TypeInsteadOfLet error"),
+        }
+    }
+
+    #[test]
+    fn test_type_instead_of_let_with_pub() {
+        let res = parse("@pub type my_binding <- num;".into());
+        assert!(
+            res.has_errors(),
+            "@pub type with snake_case should produce a syntax error"
+        );
+        assert!(res.errors.iter().any(|e| matches!(e, SyntaxError::TypeInsteadOfLet { .. })));
+    }
+
+    #[test]
+    fn test_type_with_pascalcase_is_fine() {
+        let res = parse("type MyAlias <- int;".into());
+        assert!(
+            !res.has_errors(),
+            "type with PascalCase should not produce a syntax error"
         );
     }
 

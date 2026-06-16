@@ -25,6 +25,10 @@ pub enum SyntaxError {
         name: String,
         help_data: HelpData,
     },
+    TypeInsteadOfLet {
+        name: String,
+        help_data: HelpData,
+    },
     MutationTargetNotAssignable(HelpData),
     WithNode(Box<Lang>, Box<SyntaxError>),
 }
@@ -43,6 +47,7 @@ impl SyntaxError {
             SyntaxError::RecordInRecursiveParams(h) => Some(h.clone()),
             SyntaxError::UnknownElement { help_data, .. } => Some(help_data.clone()),
             SyntaxError::LetInsteadOfType { help_data, .. } => Some(help_data.clone()),
+            SyntaxError::TypeInsteadOfLet { help_data, .. } => Some(help_data.clone()),
             SyntaxError::MutationTargetNotAssignable(h) => Some(h.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
@@ -86,6 +91,11 @@ impl SyntaxError {
             SyntaxError::LetInsteadOfType { name, .. } => {
                 format!(
                     "Use `type` instead of `let` to create a type alias: `type {name} <- ...`"
+                )
+            }
+            SyntaxError::TypeInsteadOfLet { name, .. } => {
+                format!(
+                    "Use `let` instead of `type` to create a variable binding: `let {name} <- ...`"
                 )
             }
             SyntaxError::MutationTargetNotAssignable(_) => {
@@ -200,6 +210,15 @@ impl ErrorMsg for SyntaxError {
                     .text("Use `type` instead of `let` to create a type alias")
                     .pos_text("`let` used here")
                     .help(format!("Did you mean `type {name}`?"))
+                    .build()
+            }
+            SyntaxError::TypeInsteadOfLet { name, help_data } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text("Use `let` instead of `type` to create a variable binding")
+                    .pos_text("`type` used here")
+                    .help(format!("Did you mean `let {name}`?"))
                     .build()
             }
             SyntaxError::MutationTargetNotAssignable(help_data) => {
