@@ -614,6 +614,10 @@ pub fn check_file(path: &PathBuf) {
 }
 
 pub fn build_project(test_mode: bool) {
+    build_project_impl(test_mode, false);
+}
+
+fn build_project_impl(test_mode: bool, quiet: bool) {
     let dir = PathBuf::from(".");
     let context = Context::default()
         .set_environment(Environment::Project)
@@ -634,8 +638,10 @@ pub fn build_project(test_mode: bool) {
         context.get_environment(),
     );
     write_loader(&dir);
-    document();
-    println!("R code successfully generated in the R/ folder");
+    document_impl(quiet);
+    if !quiet {
+        println!("R code successfully generated in the R/ folder");
+    }
 }
 
 pub fn build_file(path: &Path, test_mode: bool) {
@@ -658,7 +664,7 @@ pub fn build_file(path: &Path, test_mode: bool) {
 }
 
 pub fn run_project() {
-    build_project(false);
+    build_project_impl(false, true);
     // Use the TypR loader instead of devtools to respect module encapsulation.
     // Convention: the entry point is modules$Main$main().
     let r_command = concat!(
@@ -666,7 +672,6 @@ pub fn run_project() {
         "modules <- load_module('.'); ",
         "modules$Main$main()"
     );
-    println!("Executing: Rscript -e \"{}\"", r_command);
     match Command::new("Rscript").arg("-e").arg(r_command).output() {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -1065,7 +1070,13 @@ pub fn pkg_uninstall() {
 }
 
 pub fn document() {
-    println!("Generating package documentation...");
+    document_impl(false);
+}
+
+fn document_impl(quiet: bool) {
+    if !quiet {
+        println!("Generating package documentation...");
+    }
 
     let current_dir = match std::env::current_dir() {
         Ok(dir) => dir,
@@ -1083,10 +1094,12 @@ pub fn document() {
     match output {
         Ok(output) => {
             if output.status.success() {
-                println!("Documentation successfully generated!");
+                if !quiet {
+                    println!("Documentation successfully generated!");
 
-                if !output.stdout.is_empty() {
-                    println!()
+                    if !output.stdout.is_empty() {
+                        println!()
+                    }
                 }
             } else {
                 eprintln!("Error while generating documentation");

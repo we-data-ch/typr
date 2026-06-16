@@ -72,7 +72,7 @@ type Iterable<T> <- interface { as_vec: (Self) -> [T] };
 
 @get: (a: Any, b: char) -> T;
 
-@print: (a: char) -> .None;
+@print: (a: char) -> Empty;
 
 @seq: (a: #I, b: #J, c: #K) -> Vec[#J-#I/#K+1, int];
 

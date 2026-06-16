@@ -2,4 +2,8 @@
 # This will be compiled to R code
 
 # Example function
-print("Hello world");
+module Main {
+  @pub let main <- fn(): Empty {
+	  print("Hello world");
+  };
+};
