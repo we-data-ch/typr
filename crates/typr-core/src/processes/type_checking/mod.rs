@@ -284,7 +284,9 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
 
             errors.extend(validate_named_constructors(context, typ));
 
-            let ctx_with_alias = new_context.push_alias(effective_var.get_name(), typ.to_owned());
+            let ctx_with_alias = new_context
+                .push_alias(effective_var.get_name(), typ.to_owned())
+                .push_record_alias(effective_var.get_name(), typ.to_owned());
 
             // For union aliases, register variant types in the subtype graph so that
             // get_classes() returns the correct hierarchy (e.g. Tag("Red") → Alias("Color"))
@@ -490,7 +492,12 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let module_var = Var::from_name(module_name);
             let final_context = context
                 .clone()
-                .push_var_type(module_var, module_type, context);
+                .push_var_type(module_var, module_type, context)
+                // The module's internal record aliases are otherwise dropped here
+                // for encapsulation, but R's S3 class system has no such privacy
+                // boundary: the whole-program registry must still see them so
+                // sibling modules' structural supertypes are found at codegen time.
+                .merge_record_aliases(&typing_context.context);
 
             TypeContext::new(builder::empty_type(), expr.clone(), final_context)
                 .with_errors(typing_context.errors)
@@ -3645,7 +3652,7 @@ p"#;
     }
 
     #[test]
-    fn test_constructor_runtime_spread_transpiles_to_do_call_spread() {
+    fn test_constructor_runtime_spread_transpiles_to_dot_spread_param() {
         let fp = FluentParser::new()
             .push("type Person <- list { name: char, age: int };")
             .run()
@@ -3660,13 +3667,13 @@ p"#;
             .collect::<Vec<_>>()
             .join("\n");
         assert!(
-            r_code.contains("do.call(Person, spread(bob, list(name = ") && r_code.contains(")[c("),
-            "Expected a do.call/spread-based transpilation, got:\n{}",
+            r_code.contains("Person(name = \"Alice\"") && r_code.contains(", .spread = bob)"),
+            "Expected a `.spread = ...` parameter transpilation, got:\n{}",
             r_code
         );
         assert!(
-            r_code.contains("\"name\"") && r_code.contains("\"age\""),
-            "Expected field selection by name, got:\n{}",
+            r_code.contains("typr_spread_record(explicit, .spread)"),
+            "Expected the generated constructor to merge via typr_spread_record, got:\n{}",
             r_code
         );
     }

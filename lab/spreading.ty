@@ -1,0 +1,21 @@
+type Position <- list {
+	position: Vec[2, int]
+};
+
+let move <- fn(self: Position, direction: Vec[2, int]): Position {
+	Position:{ 
+		position: (self$position + direction),
+		..self
+	}
+};
+
+type Person <- list {
+	name: char,
+	age: int,
+	position: Vec[2, int]
+};
+
+let p1 <- Person:{ name: "Bob", age: 12, position: c(3, 4) };
+
+
+p1.move(c(7, 6))

@@ -41,6 +41,19 @@ spread <- function(base, override) {
   out
 }
 
+#' @title Fusion explicite/spread pour les constructeurs record (`TypeName:{ ...x }`)
+typr_spread_record <- function(explicit, spread) {
+  if (is.null(spread)) {
+    return(explicit)
+  }
+  if (!is.list(spread)) {
+    stop("`.spread` must be a list (record) in TypR constructors.")
+  }
+  merged <- spread
+  merged[names(explicit)] <- explicit
+  merged
+}
+
 # --- Génériques S3 ---
 
 get <- function(a, ...) UseMethod("get")

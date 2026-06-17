@@ -767,6 +767,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     .unwrap_or((format!("{}({})", exp_str, args), current_cont))
             }
             Lang::VecFunctionApp {
+                vector_type,
                 identifier: exp,
                 arguments: vals,
                 ..
@@ -778,7 +779,56 @@ impl RTranslatable<(String, Context)> for Lang {
                     .map(|x| x.to_r(cont).0)
                     .collect::<Vec<_>>()
                     .join(", ");
-                if name == "reduce" {
+                if *vector_type == VecType::Vector {
+                    // `Vec[N, T]` values transpile to plain R atomic vectors (see
+                    // vectors.md): R already vectorizes arithmetic/comparison
+                    // operators and ordinary scalar functions over them natively,
+                    // so no `vec_apply` (typed_vec normalization + manual
+                    // recycling, needed for the `[N, T]` / S3-array mechanism) is
+                    // required here — just call the function plainly.
+                    if cont.is_an_untyped_function(&name) {
+                        let name = name.replace("__", ".");
+                        let new_name = if &name[0..1] == "%" {
+                            format!("`{}`", name)
+                        } else {
+                            name.to_string()
+                        };
+                        (format!("{}({})", new_name, str_vals), cont.clone())
+                    } else {
+                        let (exp_str, cont1) = exp.to_r(cont);
+                        let fn_t = FunctionType::try_from(
+                            cont1.get_type_from_variable(&var).unwrap_or_else(|_| {
+                                panic!("variable {} don't have a related type", var)
+                            }),
+                        )
+                        .expect(
+                            "vector function application identifier should have a function type",
+                        );
+                        let new_args = fn_t
+                            .get_param_types()
+                            .iter()
+                            .map(|arg| reduce_type(&cont1, arg))
+                            .collect::<Vec<_>>();
+                        let new_vals = vals
+                            .iter()
+                            .zip(new_args.iter())
+                            .map(set_related_type_if_variable)
+                            .collect::<Vec<_>>();
+                        let (args, current_cont) =
+                            Translatable::from(cont1).join(&new_vals, ", ").into();
+                        Var::from_language(*exp.clone())
+                            .map(|var| {
+                                let name = var.get_name();
+                                let new_name = if &name[0..1] == "%" {
+                                    format!("`{}`", name.replace("__", "."))
+                                } else {
+                                    name.replace("__", ".")
+                                };
+                                (format!("{}({})", new_name, args), current_cont.clone())
+                            })
+                            .unwrap_or((format!("{}({})", exp_str, args), current_cont))
+                    }
+                } else if name == "reduce" {
                     (format!("vec_reduce({})", str_vals), cont.clone())
                 } else if name == "extend" {
                     (format!("vec_extend({})", str_vals), cont.clone())
@@ -1170,32 +1220,57 @@ impl RTranslatable<(String, Context)> for Lang {
                             .map(|f| f.get_argument_str())
                             .collect::<Vec<_>>()
                             .join(", ");
-                        let field_args = sorted_fields
+                        // Each field is only added to `explicit` when the caller
+                        // actually supplied it (`missing()`, not a NULL default):
+                        // a record-typed `.spread` (spread_operator3.md) may cover
+                        // the field instead, and `missing()` never forces the
+                        // argument promise, so unsupplied fields stay lazy/unevaluated.
+                        let explicit_lines = sorted_fields
                             .iter()
                             .map(|f| {
                                 let n = f.get_argument_str();
-                                format!("{n} = {n}")
+                                format!("  if (!missing({n})) explicit[[\"{n}\"]] <- {n}")
                             })
                             .collect::<Vec<_>>()
-                            .join(", ");
-                        // Constructor: build the raw value, then delegate entirely
-                        // to the annotator. It neither adds classes nor validates.
+                            .join("\n");
+                        // Constructor: collect the explicitly-supplied fields, merge
+                        // them over `.spread` (explicit wins, extra spread fields are
+                        // kept), then delegate entirely to the annotator. It neither
+                        // adds classes nor validates.
                         let constructor = format!(
-                            "{name} <- function({params}) {{\n  x <- list({field_args})\n  as.{name}(x)\n}}"
+                            "{name} <- function({params}, .spread = NULL) {{\n  explicit <- list()\n{explicit_lines}\n  x <- typr_spread_record(explicit, .spread)\n  as.{name}(x)\n}}"
                         );
                         // Structural supertypes: any record alias whose fields are a
                         // strict subset of this alias's fields. They are included in
                         // the S3 class vector so that methods defined on the supertype
                         // dispatch correctly to subtype values.
-                        let mut supertype_entries: Vec<(String, usize)> = cont
+                        //
+                        // Candidates come from the whole-program `record_aliases`
+                        // registry, not just `cont.aliases()`: the latter is scoped
+                        // to the current module body, so a supertype declared in a
+                        // sibling `mod` file (e.g. `Position` while transpiling
+                        // `Circle` in another file) would otherwise never be found,
+                        // even though R's S3 classes have no module privacy.
+                        // Built as an ordered Vec (not a HashMap) and deduplicated by
+                        // first occurrence, so candidate order — and therefore the
+                        // final sort below — stays deterministic across runs.
+                        let mut seen_names: std::collections::HashSet<String> =
+                            std::collections::HashSet::new();
+                        let candidates: Vec<(String, Type)> = cont
                             .aliases()
-                            .filter_map(|(var, typ)| {
-                                let other_name = var.get_name();
+                            .map(|(var, typ)| (var.get_name(), typ.clone()))
+                            .chain(cont.record_aliases.iter().cloned())
+                            .filter(|(other_name, _)| seen_names.insert(other_name.clone()))
+                            .collect();
+                        let mut supertype_entries: Vec<(String, usize)> = candidates
+                            .into_iter()
+                            .filter_map(|(other_name, typ)| {
                                 if other_name == name {
                                     return None;
                                 }
                                 if let Type::Record(other_fields, _) = typ {
-                                    if fields.is_superset(other_fields) && other_fields != fields {
+                                    if fields.is_superset(&other_fields) && other_fields != *fields
+                                    {
                                         Some((other_name, other_fields.len()))
                                     } else {
                                         None
@@ -1206,8 +1281,8 @@ impl RTranslatable<(String, Context)> for Lang {
                             })
                             .collect();
                         // More-specific supertypes (more fields) first for correct S3
-                        // dispatch order.
-                        supertype_entries.sort_by(|a, b| b.1.cmp(&a.1));
+                        // dispatch order; ties broken by name for determinism.
+                        supertype_entries.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
                         let supertype_class_str = if supertype_entries.is_empty() {
                             String::new()
                         } else {
@@ -1328,7 +1403,9 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "validate_{name} <- function(x) {{\n  if (!is.integer(x)) stop(\"Validation failed for type {name}: expected int\")\n  x\n}}"
                             ),
                         };
-                        (validator, cont.clone())
+                        let constructor =
+                            format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
+                        (format!("{constructor}\n{validator}"), cont.clone())
                     }
                     Type::Char(tchar, _) => {
                         use crate::components::r#type::tchar::Tchar;
@@ -1340,7 +1417,9 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "validate_{name} <- function(x) {{\n  if (!is.character(x)) stop(\"Validation failed for type {name}: expected char\")\n  x\n}}"
                             ),
                         };
-                        (validator, cont.clone())
+                        let constructor =
+                            format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
+                        (format!("{constructor}\n{validator}"), cont.clone())
                     }
                     Type::Boolean(tbool, _) => {
                         use crate::components::r#type::tbool::Tbool;
@@ -1355,7 +1434,9 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "validate_{name} <- function(x) {{\n  if (!is.logical(x)) stop(\"Validation failed for type {name}: expected bool\")\n  x\n}}"
                             ),
                         };
-                        (validator, cont.clone())
+                        let constructor =
+                            format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
+                        (format!("{constructor}\n{validator}"), cont.clone())
                     }
                     Type::Number(tnum, _) => {
                         use crate::components::r#type::tnumber::Tnum;
@@ -1367,7 +1448,9 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "validate_{name} <- function(x) {{\n  if (!is.numeric(x)) stop(\"Validation failed for type {name}: expected num\")\n  x\n}}"
                             ),
                         };
-                        (validator, cont.clone())
+                        let constructor =
+                            format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
+                        (format!("{constructor}\n{validator}"), cont.clone())
                     }
                     Type::Tag(tag_name, inner_type, _) => {
                         let body_validation = tag_body_validation(&name, inner_type.as_ref());
@@ -1787,53 +1870,27 @@ impl RTranslatable<(String, Context)> for Lang {
                 spreads,
                 ..
             } if !spreads.is_empty() => {
-                // Runtime `...source` spread(s) (spread_operator2.md): merge via the
-                // runtime `spread()` helper, then select exactly the target record's
-                // fields with `[...]` so unrelated/extra fields on `source` are
-                // dropped instead of being rejected by the constructor's fixed
-                // parameter list (unlike `do.call` with the raw merged list).
-                let resolved_alias = if module_path.is_empty() {
-                    cont.get_type_from_aliases(&Var::from_name(type_name))
-                } else {
-                    resolve_module_member_type(cont, module_path, type_name)
-                };
-                let record_fields = resolved_alias.and_then(|t| match t.reduce(cont) {
-                    Type::Record(fields, _) => Some(fields),
-                    _ => None,
-                });
-
-                let mut spreads_iter = spreads.iter();
-                let first = spreads_iter.next().expect("checked non-empty above");
-                let (mut base, mut current_cont) = first.to_r(cont);
-                for spread_expr in spreads_iter {
-                    let (next, next_cont) = spread_expr.to_r(&current_cont);
-                    base = format!("spread({}, {})", base, next);
-                    current_cont = next_cont;
-                }
-                if !fields.is_empty() {
-                    let (overrides, next_cont) = Translatable::from(current_cont)
-                        .join_arg_val(fields, ", ")
-                        .into();
-                    base = format!("spread({}, list({}))", base, overrides);
-                    current_cont = next_cont;
-                }
-                let merged = match record_fields {
-                    Some(rf) => {
-                        let names = rf
-                            .iter()
-                            .map(|f| format!("\"{}\"", f.get_argument_str()))
-                            .collect::<Vec<_>>()
-                            .join(", ");
-                        format!("{}[c({})]", base, names)
-                    }
-                    None => base,
-                };
+                // Single runtime `...source` spread (spread_operator3.md): pass the
+                // explicit fields plus the spread source straight to the generated
+                // constructor's `.spread` parameter — it merges them at runtime via
+                // `typr_spread_record` (explicit fields win, extra fields on the
+                // source are preserved, unlike the old do.call/spread/select).
+                let spread_expr = spreads.first().expect("checked non-empty above");
+                let (spread_r, current_cont) = spread_expr.to_r(cont);
                 let qualified = if module_path.is_empty() {
                     type_name.clone()
                 } else {
                     format!("{}${}", module_path.join("$"), type_name)
                 };
-                (format!("do.call({}, {})", qualified, merged), current_cont)
+                let (body, current_cont) = if fields.is_empty() {
+                    (format!(".spread = {}", spread_r), current_cont)
+                } else {
+                    let (overrides, next_cont) = Translatable::from(current_cont)
+                        .join_arg_val(fields, ", ")
+                        .into();
+                    (format!("{}, .spread = {}", overrides, spread_r), next_cont)
+                };
+                (format!("{}({})", qualified, body), current_cont)
             }
             Lang::ConstructorCall {
                 module_path,

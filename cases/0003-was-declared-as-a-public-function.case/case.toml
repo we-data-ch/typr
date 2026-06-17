@@ -1,0 +1,6 @@
+title = "Cross-module record subtype missing from generated S3 class vector"
+cmd = "build"
+layer = "r-run"
+status = "fixed"
+created = "2026-06-17"
+origin = "perso"

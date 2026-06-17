@@ -52,6 +52,14 @@ pub struct Context {
     /// Counter for generating unique rigid generic variable names.
     #[serde(default)]
     pub rigid_counter: u64,
+    /// Flat, whole-program registry of every `type X <- list { ... }` record
+    /// alias declared anywhere, including inside `mod` bodies. Unlike
+    /// `typing_context.aliases`, this is never scoped away at a module
+    /// boundary: R's S3 class system has no module privacy, so transpilation
+    /// needs the full picture to compute structural supertypes for the class
+    /// vector (see `record_field_class` callers in `processes::transpiling`).
+    #[serde(default)]
+    pub record_aliases: Vec<(String, Type)>,
     /// RFC-TR-031: lines injected at the top of a `Test { ... }` file so the
     /// test body can reach `@testable` private members of the enclosing module
     /// (e.g. `sq <- Math$.test_sq`). Set while transpiling a module body in a
@@ -71,6 +79,7 @@ impl Default for Context {
             type_constructors: Vec::new(),
             interface_constraints: HashMap::new(),
             rigid_counter: 0,
+            record_aliases: Vec::new(),
             test_preamble: Vec::new(),
         }
     }
@@ -105,6 +114,7 @@ impl Context {
             type_constructors: Vec::new(),
             interface_constraints: HashMap::new(),
             rigid_counter: 0,
+            record_aliases: Vec::new(),
             test_preamble: Vec::new(),
         }
     }
@@ -669,6 +679,39 @@ impl Context {
         self.type_constructors.iter().find(|(n, _, _)| n == name)
     }
 
+    /// Register a `type X <- list { ... }` record alias in the whole-program
+    /// registry, regardless of the current module scope. No-op for non-record
+    /// aliases. Last declaration for a given name wins.
+    pub fn push_record_alias(self, name: String, typ: Type) -> Self {
+        if !matches!(typ, Type::Record(_, _)) {
+            return self;
+        }
+        let mut record_aliases = self.record_aliases.clone();
+        record_aliases.retain(|(n, _)| n != &name);
+        record_aliases.push((name, typ));
+        Context {
+            record_aliases,
+            ..self
+        }
+    }
+
+    /// Merge another context's whole-program record-alias registry into this
+    /// one. Used at module boundaries, where the rest of the inner typing
+    /// context is intentionally discarded for encapsulation but this registry
+    /// must still bubble up (see `Lang::Module` in `processes::type_checking`).
+    pub fn merge_record_aliases(self, other: &Context) -> Self {
+        let mut record_aliases = self.record_aliases.clone();
+        for (name, typ) in &other.record_aliases {
+            if !record_aliases.iter().any(|(n, _)| n == name) {
+                record_aliases.push((name.clone(), typ.clone()));
+            }
+        }
+        Context {
+            record_aliases,
+            ..self
+        }
+    }
+
     pub fn push_alias2(self, alias_var: Var, typ: Type) -> Self {
         Context {
             typing_context: self.typing_context.push_alias2(alias_var, typ),
@@ -868,12 +911,19 @@ impl Add for Context {
         let rigid_counter = self.rigid_counter.max(other.rigid_counter);
         let mut test_preamble = self.test_preamble;
         test_preamble.extend(other.test_preamble);
+        let mut record_aliases = self.record_aliases;
+        for entry in other.record_aliases {
+            if !record_aliases.contains(&entry) {
+                record_aliases.push(entry);
+            }
+        }
         Context {
             typing_context: self.typing_context + other.typing_context,
             subtypes: self.subtypes + other.subtypes,
             type_constructors,
             interface_constraints,
             rigid_counter,
+            record_aliases,
             test_preamble,
             config: self.config,
         }

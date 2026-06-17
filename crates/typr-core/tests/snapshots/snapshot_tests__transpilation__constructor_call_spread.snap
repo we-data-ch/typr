@@ -3,8 +3,11 @@ source: crates/typr-core/tests/snapshot_tests.rs
 assertion_line: 134
 expression: r
 ---
-Person <- function(age, name) {
-  x <- list(age = age, name = name)
+Person <- function(age, name, .spread = NULL) {
+  explicit <- list()
+  if (!missing(age)) explicit[["age"]] <- age
+  if (!missing(name)) explicit[["name"]] <- name
+  x <- typr_spread_record(explicit, .spread)
   as.Person(x)
 }
 as.Person <- function(x) {

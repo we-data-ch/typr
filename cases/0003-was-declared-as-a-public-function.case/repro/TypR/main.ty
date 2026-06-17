@@ -1,0 +1,12 @@
+mod circle;
+mod position;
+
+use circle::new_circle;
+# @case: `move` was imported in the scope
+use position::move;
+
+# @case: `Circle` is a subtype of `Position`, so `move` (defined for `Position`)
+# should dispatch on a `Circle` value via UFCS. A comment line between chained
+# `.method()` calls breaks the parser's dot-chain continuation (separate bug,
+# not the one this case tracks), so the whole chain stays on one block here.
+new_circle(4).move(c(10, 11)).print();

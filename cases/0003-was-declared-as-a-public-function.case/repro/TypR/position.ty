@@ -1,0 +1,14 @@
+# @case: `Position` type publicly defined here
+@pub
+type Position <- list {
+	position: Vec[2, int]
+};
+
+# @case: `move` function publicly defined here
+@pub
+let move <- fn(self: Position, direction: Vec[2, int]): Position {
+	Position:{ 
+		position: (self$position + direction),
+		..self
+	}
+};

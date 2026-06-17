@@ -94,6 +94,10 @@ impl FunctionType {
         !self.vec_type.is_empty()
     }
 
+    pub fn get_vec_type(&self) -> VecType {
+        self.vec_type.clone()
+    }
+
     fn lift_and_unification(
         context: &Context,
         types: &[Type],

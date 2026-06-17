@@ -692,10 +692,11 @@ fn constructor_call(s: Span) -> IResult<Span, Lang> {
                     ConstructorElement::RuntimeSpread(e) => runtime_spreads.push(*e),
                 }
             }
-            // v1 only supports a single static `..` spread per constructor call
-            // (RFC-TR-033 §2). `...` runtime spreads (spread_operator2.md) have no
-            // such limit — they merge sequentially like in a record literal.
-            if spreads.len() > 1 {
+            // Only a single static `..` spread per constructor call (RFC-TR-033
+            // §2). Only a single runtime `...` spread per constructor call
+            // (spread_operator3.md §2.2): it maps to the constructor's one
+            // `.spread` parameter, unlike record literals which allow several.
+            if spreads.len() > 1 || runtime_spreads.len() > 1 {
                 return Err(nom::Err::Error(nom::error::Error::new(
                     s,
                     nom::error::ErrorKind::Many1,

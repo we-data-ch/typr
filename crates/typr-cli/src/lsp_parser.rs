@@ -10,7 +10,6 @@
 
 use crate::metaprogramming::metaprogrammation;
 use nom_locate::LocatedSpan;
-use std::path::Path;
 use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind, Position, Range};
 use typr_core::components::context::config::Environment;
 use typr_core::components::context::Context;
@@ -97,19 +96,10 @@ pub fn find_type_at(content: &str, line: u32, character: u32) -> Option<HoverInf
 /// Detect the environment (Project or StandAlone) by looking for DESCRIPTION
 /// and NAMESPACE files in parent directories.
 pub fn detect_environment(file_path: &str) -> Environment {
-    let path = Path::new(file_path);
-    let mut dir = path.parent();
-
-    while let Some(d) = dir {
-        let description = d.join("DESCRIPTION");
-        let namespace = d.join("NAMESPACE");
-        if description.exists() && namespace.exists() {
-            return Environment::Project;
-        }
-        dir = d.parent();
+    match crate::metaprogramming::find_project_root(file_path) {
+        Some(_) => Environment::Project,
+        None => Environment::StandAlone,
     }
-
-    Environment::StandAlone
 }
 
 /// Main entry-point called by the LSP goto_definition handler.

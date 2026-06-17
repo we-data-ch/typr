@@ -1086,9 +1086,8 @@ fn build_function_lang(
     lang: Lang,
 ) -> Lang {
     if fun_typ.is_vectorized() {
-        // Todo: Should get VecType from fun_typ
         Lang::VecFunctionApp {
-            vector_type: VecType::S3,
+            vector_type: fun_typ.get_vec_type(),
             identifier: Box::new(lang),
             arguments: new_values.clone(),
             help_data: h.clone(),

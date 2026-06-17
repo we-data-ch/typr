@@ -5,9 +5,25 @@
 use crate::io::get_os_file;
 use nom_locate::LocatedSpan;
 use std::path::Path;
+use std::path::PathBuf;
 use typr_core::components::context::config::Environment;
 use typr_core::components::language::Lang;
 use typr_core::processes::parsing::parse;
+
+/// Walk up from `file_path`'s directory looking for a `DESCRIPTION` +
+/// `NAMESPACE` pair, returning the directory that contains them. Works for
+/// both absolute paths (LSP, arbitrary process cwd) and the relative paths
+/// the CLI uses (where it's always invoked from the project root).
+pub fn find_project_root(file_path: &str) -> Option<PathBuf> {
+    let mut dir = Path::new(file_path).parent();
+    while let Some(d) = dir {
+        if d.join("DESCRIPTION").exists() && d.join("NAMESPACE").exists() {
+            return Some(d.to_path_buf());
+        }
+        dir = d.parent();
+    }
+    None
+}
 
 fn import_file_module_code(line: &Lang, environment: Environment) -> Lang {
     match line {
@@ -16,12 +32,20 @@ fn import_file_module_code(line: &Lang, environment: Environment) -> Lang {
             help_data: h,
         } => {
             // Resolve the module file path relative to the importing file's directory.
-            // For Project mode the convention is TypR/{name}.ty; for StandAlone/Repl
-            // we look next to the file that contains the `mod` statement.
+            // For Project mode the convention is TypR/{name}.ty, resolved against the
+            // detected project root (not the process cwd: the LSP server's cwd doesn't
+            // necessarily match the project root, unlike CLI invocations).
+            let importing_file = h.get_file_name();
             let module_path = match environment {
-                Environment::Project => format!("TypR/{}.ty", name),
+                Environment::Project => {
+                    let root =
+                        find_project_root(&importing_file).unwrap_or_else(|| PathBuf::from(""));
+                    root.join("TypR")
+                        .join(format!("{}.ty", name))
+                        .to_string_lossy()
+                        .into_owned()
+                }
                 _ => {
-                    let importing_file = h.get_file_name();
                     let base = Path::new(&importing_file)
                         .parent()
                         .and_then(|p| p.to_str())

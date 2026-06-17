@@ -840,4 +840,40 @@ let x <- pi;
             undefined
         );
     }
+
+    /// In Project mode (DESCRIPTION + NAMESPACE present), `mod foo;` resolves
+    /// to `TypR/foo.ty` relative to the detected project root, not the LSP
+    /// server process's cwd (which doesn't necessarily match the project
+    /// root, unlike CLI invocations that are always run from it).
+    #[test]
+    fn use_of_module_imported_in_project_mode_is_not_undefined() {
+        let dir = std::env::temp_dir().join(format!("typr_lsp_proj_test_{}", std::process::id()));
+        let typr_dir = dir.join("TypR");
+        let _ = std::fs::create_dir_all(&typr_dir);
+        std::fs::write(dir.join("DESCRIPTION"), "Package: x\n").unwrap();
+        std::fs::write(dir.join("NAMESPACE"), "").unwrap();
+        std::fs::write(
+            typr_dir.join("person.ty"),
+            "@pub let make_person <- fn(name: char): char { name };\n",
+        )
+        .unwrap();
+
+        let main_file = typr_dir.join("main.ty");
+        let content = "mod person;\nuse person::make_person;\nlet x <- make_person(\"a\");\n";
+        std::fs::write(&main_file, content).unwrap();
+
+        let diags = check_code_and_extract_errors(content, main_file.to_str().unwrap());
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let undefined: Vec<_> = diags
+            .iter()
+            .filter(|d| d.message.contains("Undefined"))
+            .collect();
+        assert!(
+            undefined.is_empty(),
+            "imported module member wrongly flagged undefined: {:?}",
+            undefined
+        );
+    }
 }

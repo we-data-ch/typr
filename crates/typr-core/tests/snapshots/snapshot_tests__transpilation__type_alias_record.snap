@@ -3,8 +3,11 @@ source: crates/typr-core/tests/snapshot_tests.rs
 assertion_line: 122
 expression: r
 ---
-Point <- function(x, y) {
-  x <- list(x = x, y = y)
+Point <- function(x, y, .spread = NULL) {
+  explicit <- list()
+  if (!missing(x)) explicit[["x"]] <- x
+  if (!missing(y)) explicit[["y"]] <- y
+  x <- typr_spread_record(explicit, .spread)
   as.Point(x)
 }
 as.Point <- function(x) {

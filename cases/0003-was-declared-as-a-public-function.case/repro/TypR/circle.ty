@@ -1,0 +1,26 @@
+mod color;
+
+type Circle <- list {
+	position: Vec[2, int],
+	radius: int,
+	stroke: Color,
+	fill: Color
+};
+
+# @case: Was declared as a public function
+@pub
+let new_circle <- fn(r: int): Circle {
+	Circle:{
+		position: c(0, 0),
+		radius: r,
+		stroke: "#000000",
+		fill: "#ffffff"
+	}
+};
+
+Test {
+	test_that("circle with the right radius", {
+		let c1 <- new_circle(4);
+		expect_equal(c1$radius, 4)
+	})
+}

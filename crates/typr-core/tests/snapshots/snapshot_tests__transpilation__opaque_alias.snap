@@ -1,7 +1,11 @@
 ---
 source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 156
 expression: r
 ---
+Meters <- function(x) {
+  validate_Meters(x)
+}
 validate_Meters <- function(x) {
   if (!is.integer(x)) stop("Validation failed for type Meters: expected int")
   x
