@@ -20,7 +20,6 @@ use typr_core::components::language::var::Var;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::type_system::TypeSystem;
 use typr_core::processes::type_checking::type_checker::TypeChecker;
-use typr_core::typing;
 
 /// Options for the `typr debug` subcommand
 #[derive(Debug, Clone)]
@@ -594,7 +593,12 @@ pub fn new(name: &str, renv: bool) {
 pub fn check_project() {
     let context = Context::default().set_environment(Environment::Project);
     let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
-    let _ = typing(&context, &lang);
+    let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
+    if type_checker.has_errors() {
+        eprintln!("Type errors found:");
+        type_checker.show_errors();
+        std::process::exit(1);
+    }
     println!("Code verification successful!");
 }
 

@@ -49,23 +49,37 @@ pub struct DefinitionInfo {
 /// Returns `None` when:
 ///   - the cursor is not on an identifier/literal, or
 ///   - parsing or type-checking fails (e.g. incomplete code).
-pub fn find_type_at(content: &str, line: u32, character: u32) -> Option<HoverInfo> {
+pub fn find_type_at(
+    content: &str,
+    line: u32,
+    character: u32,
+    file_path: &str,
+) -> Option<HoverInfo> {
     // 1. Extract the word under the cursor.
     let (word, word_range) = extract_word_at(content, line, character)?;
 
     // 2. Parse the whole document.
-    let span: Span = LocatedSpan::new_extra(content, String::new());
+    let span: Span = LocatedSpan::new_extra(content, file_path.to_string());
     let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
     let ast = parse_result.ok()?.ast;
 
-    // 3. Type-check the whole document to build the context.
-    let context = Context::default();
+    // 3. Detect environment and apply metaprogramming to resolve module imports,
+    // so `mod`/`use`-imported symbols keep their real signature instead of
+    // falling back to `Any`.
+    let environment = detect_environment(file_path);
+    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        metaprogrammation(ast, environment)
+    }))
+    .ok()?;
+
+    // 4. Type-check the whole document to build the context.
+    let context = Context::default().set_environment(environment);
     let type_context =
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast)));
     let type_context = type_context.ok()?;
     let final_context = type_context.context;
 
-    // 4. Look up the word in the context.
+    // 5. Look up the word in the context.
     let types = final_context.get_types_from_name(&word);
 
     let typ = if types.is_empty() {
@@ -76,7 +90,7 @@ pub fn find_type_at(content: &str, line: u32, character: u32) -> Option<HoverInf
         types.last().unwrap().clone()
     };
 
-    // 5. Render with Markdown highlighting.
+    // 6. Render with Markdown highlighting.
     let highlighted = highlight_type(&typ.pretty());
     let markdown = format!(
         "**`{}`** : {}\n\n```\n{}\n```",
@@ -407,20 +421,28 @@ pub fn get_completions_at(
     }
 
     // 1. Parse + type-check the document WITHOUT the cursor line
-    let final_context = match parse_document_without_cursor_line(content, line) {
+    let final_context = match parse_document_without_cursor_line(content, line, file_path) {
         Some(ctx) => ctx,
         None => {
-            let span: Span = LocatedSpan::new_extra(content, String::new());
+            let environment = detect_environment(file_path);
+            let span: Span = LocatedSpan::new_extra(content, file_path.to_string());
             let parse_result =
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
-            let context = Context::default();
+            let context = Context::default().set_environment(environment);
             match parse_result {
                 Ok(result) => {
-                    let ast = result.ast;
-                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        typing(&context, &ast)
-                    })) {
-                        Ok(tc) => tc.context,
+                    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        metaprogrammation(result.ast, environment)
+                    }));
+                    match ast {
+                        Ok(ast) => {
+                            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                typing(&context, &ast)
+                            })) {
+                                Ok(tc) => tc.context,
+                                Err(_) => return get_fallback_completions(),
+                            }
+                        }
                         Err(_) => return get_fallback_completions(),
                     }
                 }
@@ -442,7 +464,11 @@ pub fn get_completions_at(
 }
 
 /// Parse the document excluding the line containing the cursor.
-fn parse_document_without_cursor_line(content: &str, cursor_line: u32) -> Option<Context> {
+fn parse_document_without_cursor_line(
+    content: &str,
+    cursor_line: u32,
+    file_path: &str,
+) -> Option<Context> {
     let lines: Vec<&str> = content.lines().collect();
 
     let mut filtered_lines = Vec::new();
@@ -453,13 +479,17 @@ fn parse_document_without_cursor_line(content: &str, cursor_line: u32) -> Option
     }
 
     let filtered_content = filtered_lines.join("\n");
-    let span: Span = LocatedSpan::new_extra(&filtered_content, String::new());
+    let span: Span = LocatedSpan::new_extra(&filtered_content, file_path.to_string());
 
     let parse_result =
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span))).ok()?;
-    let ast = parse_result.ast;
+    let environment = detect_environment(file_path);
+    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        metaprogrammation(parse_result.ast, environment)
+    }))
+    .ok()?;
 
-    let context = Context::default();
+    let context = Context::default().set_environment(environment);
 
     let final_context = if let Lang::Lines { value: exprs, .. } = &ast {
         let mut ctx = context.clone();
@@ -1148,6 +1178,48 @@ fn var_to_completion_item(var: &Var, typ: &Type, kind: CompletionItemKind) -> Co
 }
 
 #[cfg(test)]
+mod hover_project_mode_tests {
+    use super::*;
+
+    /// Hover on a call to a function imported via `mod`/`use` in Project mode
+    /// must resolve the real signature, not fall back to `Any`. Regression
+    /// test for the hover path skipping `metaprogrammation()`.
+    #[test]
+    fn hover_on_imported_function_call_keeps_real_type() {
+        let dir = std::env::temp_dir().join(format!("typr_lsp_hover_proj_{}", std::process::id()));
+        let typr_dir = dir.join("TypR");
+        let _ = std::fs::create_dir_all(&typr_dir);
+        std::fs::write(dir.join("DESCRIPTION"), "Package: x\n").unwrap();
+        std::fs::write(dir.join("NAMESPACE"), "").unwrap();
+        std::fs::write(
+            typr_dir.join("mathmod.ty"),
+            "@pub let add_two <- fn(a: int, b: int): int { a + b };\n",
+        )
+        .unwrap();
+
+        let main_file = typr_dir.join("main.ty");
+        let content = "mod mathmod;\n\nuse mathmod::add_two;\n\nlet x <- add_two(1, 2);\n";
+        std::fs::write(&main_file, content).unwrap();
+
+        let info = find_type_at(content, 4, 4, main_file.to_str().unwrap());
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let info = info.expect("hover should resolve a type for `x`");
+        assert!(
+            info.type_display.contains("int"),
+            "expected the imported function's real return type (int), got: {}",
+            info.type_display
+        );
+        assert!(
+            !info.type_display.to_lowercase().contains("any"),
+            "hover regressed to Any: {}",
+            info.type_display
+        );
+    }
+}
+
+#[cfg(test)]
 mod mod_completion_tests {
     use super::*;
 
@@ -1208,6 +1280,51 @@ mod mod_completion_tests {
 
         let labels: Vec<_> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"person"), "labels: {:?}", labels);
+    }
+
+    /// A function imported via `mod`/`use` in Project mode must show up in
+    /// expression completions with its real signature. Regression test for
+    /// the completion path skipping `metaprogrammation()`, which used to
+    /// leave imported symbols entirely absent from the typing context.
+    #[test]
+    fn completions_include_function_imported_in_project_mode() {
+        let dir =
+            std::env::temp_dir().join(format!("typr_lsp_completion_proj_{}", std::process::id()));
+        let typr_dir = dir.join("TypR");
+        let _ = std::fs::create_dir_all(&typr_dir);
+        std::fs::write(dir.join("DESCRIPTION"), "Package: x\n").unwrap();
+        std::fs::write(dir.join("NAMESPACE"), "").unwrap();
+        std::fs::write(
+            typr_dir.join("mathmod.ty"),
+            "@pub let add_two <- fn(a: int, b: int): int { a + b };\n",
+        )
+        .unwrap();
+
+        let main_file = typr_dir.join("main.ty");
+        let content = "mod mathmod;\n\nuse mathmod::add_two;\n\nlet x <- a";
+        std::fs::write(&main_file, content).unwrap();
+
+        let items = get_completions_at(
+            content,
+            4,
+            content.lines().last().unwrap().len() as u32,
+            main_file.to_str().unwrap(),
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let add_two = items.iter().find(|i| i.label == "add_two");
+        assert!(
+            add_two.is_some(),
+            "imported function missing from completions: {:?}",
+            items.iter().map(|i| &i.label).collect::<Vec<_>>()
+        );
+        let detail = add_two.unwrap().detail.clone().unwrap_or_default();
+        assert!(
+            detail.contains("int"),
+            "expected the imported function's real signature, got: {}",
+            detail
+        );
     }
 
     /// Once the statement is finished (`;` typed), `mod ` completions must not

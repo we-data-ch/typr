@@ -111,11 +111,24 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
 
+        // Extract the file path from the URI so imported `mod`/`use` modules
+        // can be resolved (mirrors `goto_definition`).
+        let file_path = uri
+            .to_file_path()
+            .ok()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
         // Offload parsing + typing to a blocking thread so we don't stall
         // the LSP event loop.
         let content_owned = content.clone();
         let info = tokio::task::spawn_blocking(move || {
-            lsp_parser::find_type_at(&content_owned, position.line, position.character)
+            lsp_parser::find_type_at(
+                &content_owned,
+                position.line,
+                position.character,
+                &file_path,
+            )
         })
         .await
         .ok() // if the blocking task panicked, treat as None
