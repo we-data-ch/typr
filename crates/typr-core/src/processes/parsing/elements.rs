@@ -364,7 +364,7 @@ fn argument_val(s: Span) -> IResult<Span, ArgumentValue> {
     let res = (
         terminated(alphanumeric1, multispace0),
         equality_params,
-        single_element,
+        parse_elements,
         opt(terminated(tag(","), multispace0)),
     )
         .parse(s);
@@ -800,17 +800,10 @@ pub fn record(s: Span) -> IResult<Span, Lang> {
                 },
             ))
         }
-        Ok((_s, (None, _ob, elements, _))) => {
-            if elements.is_empty() {
-                Err(nom::Err::Error(nom::error::Error::new(
-                    _s,
-                    nom::error::ErrorKind::Many1,
-                )))
-            } else {
-                eprintln!("{}", _s);
-                panic!("You forgot to put a record identifier before the bracket: ':{{...}}'");
-            }
-        }
+        Ok((_s, (None, _ob, _elements, _))) => Err(nom::Err::Error(nom::error::Error::new(
+            _s,
+            nom::error::ErrorKind::Many1,
+        ))),
         Err(r) => Err(r),
     }
 }

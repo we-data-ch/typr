@@ -392,7 +392,20 @@ fn is_generic_name(word: &str) -> bool {
 // ══════════════════════════════════════════════════════════════════════════
 
 /// Main entry point for LSP completion requests.
-pub fn get_completions_at(content: &str, line: u32, character: u32) -> Vec<CompletionItem> {
+pub fn get_completions_at(
+    content: &str,
+    line: u32,
+    character: u32,
+    file_path: &str,
+) -> Vec<CompletionItem> {
+    // `mod <name>;` completions only need the file system, not the typing
+    // context, so handle them before the (possibly expensive) parse/type-check.
+    let prefix = extract_multiline_prefix(content, line, character);
+    let ctx = detect_completion_context(&prefix);
+    if let CompletionCtx::ModuleFile = ctx {
+        return get_module_file_completions(file_path);
+    }
+
     // 1. Parse + type-check the document WITHOUT the cursor line
     let final_context = match parse_document_without_cursor_line(content, line) {
         Some(ctx) => ctx,
@@ -416,19 +429,14 @@ pub fn get_completions_at(content: &str, line: u32, character: u32) -> Vec<Compl
         }
     };
 
-    // 2. Extract multi-line prefix up to the cursor.
-    let prefix = extract_multiline_prefix(content, line, character);
-
-    // 3. Detect the completion context.
-    let ctx = detect_completion_context(&prefix);
-
-    // 4. Generate completions based on context.
+    // 2. Generate completions based on the already-detected context.
     match ctx {
         CompletionCtx::Type => get_type_completions(&final_context),
         CompletionCtx::Module(name) => get_module_completions(&final_context, &name),
         CompletionCtx::Pipe(expr) => get_pipe_completions(&final_context, &expr),
         CompletionCtx::RecordField(expr) => get_record_field_completions(&final_context, &expr),
         CompletionCtx::DotAccess(expr) => get_dot_completions(&final_context, &expr),
+        CompletionCtx::ModuleFile => get_module_file_completions(file_path),
         CompletionCtx::Expression => get_expression_completions(&final_context),
     }
 }
@@ -482,6 +490,7 @@ enum CompletionCtx {
     RecordField(String),
     DotAccess(String),
     Expression,
+    ModuleFile,
 }
 
 fn extract_multiline_prefix(content: &str, line: u32, character: u32) -> String {
@@ -506,6 +515,16 @@ fn extract_multiline_prefix(content: &str, line: u32, character: u32) -> String 
 }
 
 fn detect_completion_context(prefix: &str) -> CompletionCtx {
+    // Checked against the raw (un-trimmed) prefix: `trim_end()` would eat the
+    // trailing space right after `mod `, which is the signal that the user
+    // wants module-file completions.
+    let current_line = prefix.rsplit('\n').next().unwrap_or(prefix).trim_start();
+    if let Some(rest) = current_line.strip_prefix("mod ") {
+        if !rest.contains(';') {
+            return CompletionCtx::ModuleFile;
+        }
+    }
+
     let trimmed = prefix.trim_end();
 
     if let Some(before_pipe) = trimmed.strip_suffix("|>") {
@@ -718,6 +737,58 @@ fn get_module_completions(context: &Context, module_name: &str) -> Vec<Completio
             typ,
             CompletionItemKind::INTERFACE,
         ));
+    }
+
+    items
+}
+
+/// Suggest sibling `.ty` files for `mod <name>;`. The directory scanned mirrors
+/// the resolution rule in `metaprogramming::import_file_module_code`: `TypR/`
+/// under the project root in Project mode, the current file's directory otherwise.
+fn get_module_file_completions(file_path: &str) -> Vec<CompletionItem> {
+    if file_path.is_empty() {
+        return Vec::new();
+    }
+
+    let scan_dir = match detect_environment(file_path) {
+        Environment::Project => {
+            crate::metaprogramming::find_project_root(file_path).map(|root| root.join("TypR"))
+        }
+        _ => std::path::Path::new(file_path)
+            .parent()
+            .map(|p| p.to_path_buf()),
+    };
+
+    let Some(dir) = scan_dir else {
+        return Vec::new();
+    };
+
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+
+    let current_stem = std::path::Path::new(file_path)
+        .file_stem()
+        .and_then(|s| s.to_str());
+
+    let mut items = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("ty") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if Some(stem) == current_stem {
+            continue;
+        }
+        items.push(CompletionItem {
+            label: stem.to_string(),
+            kind: Some(CompletionItemKind::MODULE),
+            detail: Some(format!("{}.ty", stem)),
+            ..Default::default()
+        });
     }
 
     items
@@ -1073,5 +1144,80 @@ fn var_to_completion_item(var: &Var, typ: &Type, kind: CompletionItemKind) -> Co
         kind: Some(kind),
         detail: Some(typ.pretty()),
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod mod_completion_tests {
+    use super::*;
+
+    /// In Script/StandAlone mode, `mod ` should suggest sibling `.ty` files
+    /// from the current file's own directory, excluding the current file itself.
+    #[test]
+    fn suggests_sibling_files_in_script_mode() {
+        let dir = std::env::temp_dir().join(format!("typr_lsp_modcomp_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        std::fs::write(dir.join("person.ty"), "").unwrap();
+        std::fs::write(dir.join("animal.ty"), "").unwrap();
+        let main_file = dir.join("main.ty");
+        std::fs::write(&main_file, "").unwrap();
+
+        let content = "mod ";
+        let items = get_completions_at(
+            content,
+            0,
+            content.len() as u32,
+            main_file.to_str().unwrap(),
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let labels: Vec<_> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"person"), "labels: {:?}", labels);
+        assert!(labels.contains(&"animal"), "labels: {:?}", labels);
+        assert!(
+            !labels.contains(&"main"),
+            "should not suggest itself: {:?}",
+            labels
+        );
+    }
+
+    /// In Project mode (DESCRIPTION + NAMESPACE present), `mod ` should scan
+    /// `TypR/` under the detected project root, not the file's own directory.
+    #[test]
+    fn suggests_files_from_typr_dir_in_project_mode() {
+        let dir =
+            std::env::temp_dir().join(format!("typr_lsp_modcomp_proj_{}", std::process::id()));
+        let typr_dir = dir.join("TypR");
+        let _ = std::fs::create_dir_all(&typr_dir);
+        std::fs::write(dir.join("DESCRIPTION"), "Package: x\n").unwrap();
+        std::fs::write(dir.join("NAMESPACE"), "").unwrap();
+        std::fs::write(typr_dir.join("person.ty"), "").unwrap();
+        let main_file = typr_dir.join("main.ty");
+        std::fs::write(&main_file, "").unwrap();
+
+        let content = "mod pe";
+        let items = get_completions_at(
+            content,
+            0,
+            content.len() as u32,
+            main_file.to_str().unwrap(),
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let labels: Vec<_> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"person"), "labels: {:?}", labels);
+    }
+
+    /// Once the statement is finished (`;` typed), `mod ` completions must not
+    /// fire anymore, so the user falls back to normal expression completions.
+    #[test]
+    fn does_not_trigger_after_semicolon() {
+        let prefix = "mod person;\nlet x <- ";
+        match detect_completion_context(prefix) {
+            CompletionCtx::ModuleFile => panic!("should not detect ModuleFile after `;`"),
+            _ => {}
+        }
     }
 }

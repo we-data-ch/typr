@@ -144,10 +144,23 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
 
+        // Extract the file path from the URI so `mod` completions can scan
+        // sibling `.ty` files (same approach as `goto_definition`).
+        let file_path = uri
+            .to_file_path()
+            .ok()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
         // Offload parsing + typing to a blocking thread (same strategy as hover).
         let content_owned = content.clone();
         let items = tokio::task::spawn_blocking(move || {
-            lsp_parser::get_completions_at(&content_owned, position.line, position.character)
+            lsp_parser::get_completions_at(
+                &content_owned,
+                position.line,
+                position.character,
+                &file_path,
+            )
         })
         .await
         .ok()
