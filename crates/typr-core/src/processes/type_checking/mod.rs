@@ -479,7 +479,12 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                         let exported_type = if v.get_opacity() {
                             v.clone().to_alias_type()
                         } else {
-                            typ.clone()
+                            // Resolve the alias against the module's own context
+                            // (where e.g. `Circle` is registered) before exporting:
+                            // otherwise a re-exported alias-to-alias (`type Object <-
+                            // Circle;`) leaks an unresolved reference that importing
+                            // files can't reduce, since they only import `Object`.
+                            reduce_type(&typing_context.context, typ)
                         };
                         ArgumentType::new(&v.get_name(), &exported_type)
                     }),
@@ -2380,11 +2385,12 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 UseSelector::Wildcard => {
                     for member in mod_type.get_public_members() {
                         let local_name = member.get_argument_str();
-                        // Conflict with local declaration
-                        if context
-                            .get_type_from_variable(&Var::from_name(&local_name))
-                            .is_ok()
-                        {
+                        // Conflict with local declaration. Untyped stdlib placeholders
+                        // (e.g. R's base `Position`/`Reduce`/...) are preloaded as
+                        // `(Any, UnknownFunction)` in every context so calling them never
+                        // errors as undefined; they must not count as a real conflict when
+                        // a user type/function happens to share that name.
+                        if has_real_conflict(context, &local_name) {
                             errors.push(TypRError::Type(TypeError::ImmutableVariable(
                                 Var::from_name(&local_name),
                                 Var::from_name(&local_name),
@@ -2420,11 +2426,9 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                             continue;
                         }
 
-                        // Conflict with existing local
-                        if context
-                            .get_type_from_variable(&Var::from_name(&local_name))
-                            .is_ok()
-                        {
+                        // Conflict with existing local (see Wildcard branch above for why
+                        // stdlib placeholders are excluded from this check).
+                        if has_real_conflict(context, &local_name) {
                             errors.push(TypRError::Type(TypeError::ImmutableVariable(
                                 Var::from_name(&local_name),
                                 Var::from_name(&local_name),
@@ -2665,6 +2669,18 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         Lang::KeyValue { value, .. } => typing(context, value),
         _ => builder::any_type().with_lang(expr, context).into(),
     }
+}
+
+/// True if `name` is already bound in `context` to something other than the
+/// generic stdlib placeholder (`Any`-typed variable paired with
+/// `UnknownFunction`) that every untyped R/JS builtin name (`Position`,
+/// `Reduce`, `t`, ...) gets preloaded as. Used by `use module::Name;` to
+/// avoid rejecting a legitimate import just because the name happens to
+/// collide with a base-language function nobody typed a signature for.
+fn has_real_conflict(context: &Context, name: &str) -> bool {
+    context
+        .variables()
+        .any(|(v, t)| v.get_name() == name && !(v.get_type().is_any() && t.is_unknown_function()))
 }
 
 /// Flatten a nested `Type::Operator(Union, ...)` tree into a flat `HashSet<Type>`.

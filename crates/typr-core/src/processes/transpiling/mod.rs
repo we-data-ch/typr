@@ -1459,6 +1459,14 @@ impl RTranslatable<(String, Context)> for Lang {
                         );
                         (validator, cont.clone())
                     }
+                    // Alias-to-alias (`type Object <- Circle;`): transparent, so reuse
+                    // the target's own constructor/validator pipeline under this name
+                    // instead of generating nothing — otherwise the module export step
+                    // below (`module$Object <- Object`) would reference a binding that
+                    // was never created.
+                    Type::Alias(target_name, ..) => {
+                        (format!("{name} <- {target_name}"), cont.clone())
+                    }
                     _ => ("".to_string(), cont.clone()),
                 }
             }

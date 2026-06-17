@@ -1,0 +1,36 @@
+# Règles oracle (grep sur le R généré).
+
+# Bug 2 (alias-to-alias export losing field type across modules): `add`
+# must dispatch on the real `Scene` class and resolve `extend` concretely,
+# not fall back to the untyped generic stub.
+[[rule]]
+file = "R/scene.R"
+must_contain = "`add.Scene` <- (function(self, obj) {"
+[[rule]]
+file = "R/scene.R"
+must_contain = "extend(self$objects, obj)"
+
+# Bug 1 (comment inside a `TypeName:{ ... }` literal broke parsing): `add`
+# must not degenerate into a bare `NA`/`fn` placeholder.
+[[rule]]
+file = "R/scene.R"
+must_not_contain = "`add` <- NA"
+[[rule]]
+file = "R/scene.R"
+must_not_contain = "`add` <- fn"
+
+# Bug 3 (`type Object <- Circle;` alias-to-alias generated no R binding):
+# the module must actually bind `Object` before re-exporting it.
+[[rule]]
+file = "R/object.R"
+must_contain = "Object <- Circle"
+[[rule]]
+file = "R/object.R"
+must_contain = "object$Object <- Object"
+
+# Bug 4 (`Position` collides with R's base `Position()`, preloaded as an
+# untyped stdlib placeholder): `use position::Position;` in main.ty must
+# actually import the real record type, not get rejected as a conflict.
+[[rule]]
+file = "R/main.R"
+must_contain = "Position <- position$Position"

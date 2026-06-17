@@ -28,9 +28,12 @@ use nom::character::complete::alpha1;
 use nom::character::complete::alphanumeric1;
 use nom::character::complete::char;
 use nom::character::complete::digit1;
+use nom::character::complete::line_ending;
 use nom::character::complete::multispace0;
 use nom::character::complete::multispace1;
+use nom::character::complete::not_line_ending;
 use nom::character::complete::one_of;
+use nom::combinator::map;
 use nom::combinator::not;
 use nom::combinator::opt;
 use nom::combinator::recognize;
@@ -615,6 +618,19 @@ fn sequence(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+/// Skips whitespace and `#`-line-comments. Unlike `multispace0`, this lets a
+/// stray `#comment` line survive inside a `{ ... }` field list (record or
+/// constructor literal), where fields aren't part of the statement-level
+/// `many0` that normally absorbs `Lang::Comment` lines.
+fn ws0(s: Span) -> IResult<Span, ()> {
+    many0(alt((
+        map(multispace1, |_| ()),
+        map((char('#'), not_line_ending, opt(line_ending)), |_| ()),
+    )))
+    .parse(s)
+    .map(|(s, _)| (s, ()))
+}
+
 /// One element inside a `TypeName:{ ... }` field list: either a regular
 /// `name = value` field, a `..source` static spread (RFC-TR-033), or a
 /// `...source` runtime spread (spread_operator2.md).
@@ -676,8 +692,8 @@ fn constructor_call(s: Span) -> IResult<Span, Lang> {
         pascal_case,
         terminated(tag(":"), multispace0),
         terminated(tag("{"), multispace0),
-        many0(constructor_field),
-        terminated(tag("}"), multispace0),
+        many0(preceded(ws0, constructor_field)),
+        preceded(ws0, terminated(tag("}"), multispace0)),
     )
         .parse(s);
     match res {
@@ -777,8 +793,8 @@ pub fn record(s: Span) -> IResult<Span, Lang> {
     let res = (
         opt(terminated(record_identifier, multispace0)),
         terminated(alt((tag("{"), tag("("))), multispace0),
-        many0(record_field),
-        terminated(alt((tag("}"), tag(")"))), multispace0),
+        many0(preceded(ws0, record_field)),
+        preceded(ws0, terminated(alt((tag("}"), tag(")"))), multispace0)),
     )
         .parse(s);
     match res {

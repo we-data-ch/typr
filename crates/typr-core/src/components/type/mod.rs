@@ -1012,7 +1012,7 @@ impl Type {
     /// [3, T] -> rank: 3, vector type: Array, Type T
     pub fn get_size_type(&self) -> (i32, VecType, Type) {
         match self {
-            Type::Vec(v, i, t, _) => (i.get_index().unwrap() as i32, v.clone(), (**t).clone()),
+            Type::Vec(v, i, t, _) => (i.get_index().unwrap_or(0) as i32, v.clone(), (**t).clone()),
             typ => (1, VecType::Empty, typ.clone()),
         }
     }
