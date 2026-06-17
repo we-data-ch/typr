@@ -947,7 +947,11 @@ impl RTranslatable<(String, Context)> for Lang {
                     cont.to_owned(),
                 )
             }
-            Lang::List { value: args, .. } => {
+            Lang::List {
+                value: args,
+                spreads,
+                ..
+            } if spreads.is_empty() => {
                 let (body, current_cont) = Translatable::from(cont.clone())
                     .join_arg_val(args, ",\n ")
                     .into();
@@ -970,6 +974,36 @@ impl RTranslatable<(String, Context)> for Lang {
                     .to_some()
                     .map(|s| (s, current_cont))
                     .unwrap()
+            }
+            // Record literal with one or more `...source` spreads
+            // (spread_operator2.md): merge spreads sequentially into `base`
+            // with the runtime `spread()` helper, then apply explicit
+            // fields as the final override — never via static field
+            // expansion, so unknown/row-polymorphic fields carried by the
+            // runtime value of `source` are preserved (§5-§7).
+            Lang::List {
+                value: args,
+                spreads,
+                ..
+            } => {
+                let mut spreads_iter = spreads.iter();
+                let first = spreads_iter.next().expect("checked non-empty above");
+                let (mut base, mut current_cont) = first.to_r(cont);
+                for spread_expr in spreads_iter {
+                    let (next, next_cont) = spread_expr.to_r(&current_cont);
+                    base = format!("spread({}, {})", base, next);
+                    current_cont = next_cont;
+                }
+                if args.is_empty() {
+                    return (base, current_cont);
+                }
+                let (overrides, current_cont) = Translatable::from(current_cont)
+                    .join_arg_val(args, ", ")
+                    .into();
+                (
+                    format!("spread({}, list({}))", base, overrides),
+                    current_cont,
+                )
             }
             Lang::DataFrame { value: args, .. } => {
                 let (body, current_cont) = Translatable::from(cont.clone())
@@ -1149,11 +1183,46 @@ impl RTranslatable<(String, Context)> for Lang {
                         let constructor = format!(
                             "{name} <- function({params}) {{\n  x <- list({field_args})\n  as.{name}(x)\n}}"
                         );
+                        // Structural supertypes: any record alias whose fields are a
+                        // strict subset of this alias's fields. They are included in
+                        // the S3 class vector so that methods defined on the supertype
+                        // dispatch correctly to subtype values.
+                        let mut supertype_entries: Vec<(String, usize)> = cont
+                            .aliases()
+                            .filter_map(|(var, typ)| {
+                                let other_name = var.get_name();
+                                if other_name == name {
+                                    return None;
+                                }
+                                if let Type::Record(other_fields, _) = typ {
+                                    if fields.is_superset(other_fields) && other_fields != fields {
+                                        Some((other_name, other_fields.len()))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        // More-specific supertypes (more fields) first for correct S3
+                        // dispatch order.
+                        supertype_entries.sort_by(|a, b| b.1.cmp(&a.1));
+                        let supertype_class_str = if supertype_entries.is_empty() {
+                            String::new()
+                        } else {
+                            let names = supertype_entries
+                                .iter()
+                                .map(|(n, _)| format!("\"{n}\""))
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            format!(", {names}")
+                        };
                         // Annotator: the single entry point that adds the class
                         // (idempotently), runs the internal validator, then the
                         // user validator (`validate` S3 generic, default = identity).
                         let annotator = format!(
-                            "as.{name} <- function(x) {{\n  if (!inherits(x, \"{name}\")) class(x) <- c(\"{name}\", \"list\")\n  x <- validate_{name}(x)\n  x <- validate(x)\n  x\n}}"
+                            "as.{name} <- function(x) {{\n  if (!inherits(x, \"{name}\")) class(x) <- c(\"{name}\"{supertype_class_str}, \"list\")\n  x <- validate_{name}(x)\n  x <- validate(x)\n  x\n}}"
                         );
                         let fields_quoted = sorted_fields
                             .iter()
@@ -1715,8 +1784,64 @@ impl RTranslatable<(String, Context)> for Lang {
                 module_path,
                 type_name,
                 fields,
+                spreads,
+                ..
+            } if !spreads.is_empty() => {
+                // Runtime `...source` spread(s) (spread_operator2.md): merge via the
+                // runtime `spread()` helper, then select exactly the target record's
+                // fields with `[...]` so unrelated/extra fields on `source` are
+                // dropped instead of being rejected by the constructor's fixed
+                // parameter list (unlike `do.call` with the raw merged list).
+                let resolved_alias = if module_path.is_empty() {
+                    cont.get_type_from_aliases(&Var::from_name(type_name))
+                } else {
+                    resolve_module_member_type(cont, module_path, type_name)
+                };
+                let record_fields = resolved_alias.and_then(|t| match t.reduce(cont) {
+                    Type::Record(fields, _) => Some(fields),
+                    _ => None,
+                });
+
+                let mut spreads_iter = spreads.iter();
+                let first = spreads_iter.next().expect("checked non-empty above");
+                let (mut base, mut current_cont) = first.to_r(cont);
+                for spread_expr in spreads_iter {
+                    let (next, next_cont) = spread_expr.to_r(&current_cont);
+                    base = format!("spread({}, {})", base, next);
+                    current_cont = next_cont;
+                }
+                if !fields.is_empty() {
+                    let (overrides, next_cont) = Translatable::from(current_cont)
+                        .join_arg_val(fields, ", ")
+                        .into();
+                    base = format!("spread({}, list({}))", base, overrides);
+                    current_cont = next_cont;
+                }
+                let merged = match record_fields {
+                    Some(rf) => {
+                        let names = rf
+                            .iter()
+                            .map(|f| format!("\"{}\"", f.get_argument_str()))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        format!("{}[c({})]", base, names)
+                    }
+                    None => base,
+                };
+                let qualified = if module_path.is_empty() {
+                    type_name.clone()
+                } else {
+                    format!("{}${}", module_path.join("$"), type_name)
+                };
+                (format!("do.call({}, {})", qualified, merged), current_cont)
+            }
+            Lang::ConstructorCall {
+                module_path,
+                type_name,
+                fields,
                 spread,
                 help_data: h,
+                ..
             } => {
                 // With a spread present, statically expand every record field absent
                 // from `fields` into a `source$field` access (RFC-TR-033 §5: static
@@ -2596,6 +2721,42 @@ mod tests {
             r_str.contains("x != FALSE"),
             "expected literal FALSE check, got: {}",
             r_str
+        );
+    }
+
+    #[test]
+    fn test_record_subtype_includes_supertype_in_s3_class() {
+        // Person has all fields of Position, so Person <: Position.
+        // The annotator for Person must include "Position" in its class vector
+        // so that S3 methods defined on Position dispatch for Person values.
+        let r_str = FluentParser::new()
+            .push("type Position <- list{ position: int };")
+            .run()
+            .push("type Person <- list{ name: char, age: int, position: int };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_str.contains("class(x) <- c(\"Person\", \"Position\", \"list\")"),
+            "expected Person's annotator to include Position, got: {r_str}"
+        );
+    }
+
+    #[test]
+    fn test_record_without_supertype_keeps_plain_class() {
+        // Position has no other record supertype, so its class stays c("Position", "list").
+        let r_str = FluentParser::new()
+            .check_transpiling("type Position <- list{ position: int };")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_str.contains("class(x) <- c(\"Position\", \"list\")"),
+            "expected Position's annotator with no supertype, got: {r_str}"
         );
     }
 }

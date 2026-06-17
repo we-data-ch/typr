@@ -1,0 +1,9 @@
+let cfg <- :{ a = 1, b = 2 };
+let new <- :{ ...cfg, b = 10, c = 3 };
+
+print(new$a);
+print(new$b);
+print(new$c);
+
+let y <- :{ ...cfg };
+print(y$a);

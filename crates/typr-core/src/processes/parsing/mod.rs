@@ -197,7 +197,10 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             let newvar = Var::from_language(pat_var[0].clone())
                 .unwrap()
                 .set_type(params[0].1.clone());
-            if let Lang::Variable { name, help_data, .. } = &pat_var[0] {
+            if let Lang::Variable {
+                name, help_data, ..
+            } = &pat_var[0]
+            {
                 if name.chars().next().is_some_and(|c| c.is_uppercase()) {
                     push_parse_error(SyntaxError::LetInsteadOfType {
                         name: name.clone(),
@@ -224,7 +227,10 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             ))
         }
         Ok((s, (_let, (pat_var, None), typ, _eq, body))) => {
-            if let Lang::Variable { name, help_data, .. } = &pat_var[0] {
+            if let Lang::Variable {
+                name, help_data, ..
+            } = &pat_var[0]
+            {
                 if name.chars().next().is_some_and(|c| c.is_uppercase()) {
                     push_parse_error(SyntaxError::LetInsteadOfType {
                         name: name.clone(),
@@ -1457,7 +1463,10 @@ mod tesus {
             res.has_errors(),
             "@pub let with PascalCase should produce a syntax error"
         );
-        assert!(res.errors.iter().any(|e| matches!(e, SyntaxError::LetInsteadOfType { .. })));
+        assert!(res
+            .errors
+            .iter()
+            .any(|e| matches!(e, SyntaxError::LetInsteadOfType { .. })));
     }
 
     #[test]
@@ -1492,7 +1501,10 @@ mod tesus {
             res.has_errors(),
             "@pub type with snake_case should produce a syntax error"
         );
-        assert!(res.errors.iter().any(|e| matches!(e, SyntaxError::TypeInsteadOfLet { .. })));
+        assert!(res
+            .errors
+            .iter()
+            .any(|e| matches!(e, SyntaxError::TypeInsteadOfLet { .. })));
     }
 
     #[test]

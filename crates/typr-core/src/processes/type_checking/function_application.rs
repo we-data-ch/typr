@@ -702,9 +702,14 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
         },
         Lang::List {
             value: fields,
+            spreads,
             help_data: h,
         } => Lang::List {
             value: fields.clone(),
+            spreads: spreads
+                .iter()
+                .map(|e| substitute_type_in_lang(e, subs))
+                .collect(),
             help_data: h.clone(),
         },
         Lang::DataFrame {

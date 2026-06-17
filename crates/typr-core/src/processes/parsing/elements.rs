@@ -616,10 +616,27 @@ fn sequence(s: Span) -> IResult<Span, Lang> {
 }
 
 /// One element inside a `TypeName:{ ... }` field list: either a regular
-/// `name = value` field or a `..source` spread (RFC-TR-033).
+/// `name = value` field, a `..source` static spread (RFC-TR-033), or a
+/// `...source` runtime spread (spread_operator2.md).
 enum ConstructorElement {
     Field(Box<ArgumentValue>),
     Spread(Vec<String>, String, HelpData),
+    RuntimeSpread(Box<Lang>),
+}
+
+/// Parses `... <expr> ,?` inside `TypeName:{ ... }` — the runtime-merge
+/// spread (spread_operator2.md), as opposed to `spread_field`'s static `..name`.
+fn runtime_spread_field(s: Span) -> IResult<Span, ConstructorElement> {
+    let res = (
+        terminated(tag("..."), multispace0),
+        single_element,
+        opt(terminated(tag(","), multispace0)),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (_, e, _))) => Ok((s, ConstructorElement::RuntimeSpread(Box::new(e)))),
+        Err(r) => Err(r),
+    }
 }
 
 /// Parses `.. <module_path>$<variable> ,?` (the spread element of RFC-TR-033).
@@ -646,6 +663,9 @@ fn constructor_field(s: Span) -> IResult<Span, ConstructorElement> {
     if let Ok((s2, spread)) = spread_field(s.clone()) {
         return Ok((s2, spread));
     }
+    if let Ok((s2, spread)) = runtime_spread_field(s.clone()) {
+        return Ok((s2, spread));
+    }
     let (s2, field) = argument_val(s)?;
     Ok((s2, ConstructorElement::Field(Box::new(field))))
 }
@@ -664,13 +684,17 @@ fn constructor_call(s: Span) -> IResult<Span, Lang> {
         Ok((s, (path, (name, h), _, _, elements, _))) => {
             let mut fields = Vec::new();
             let mut spreads = Vec::new();
+            let mut runtime_spreads = Vec::new();
             for el in elements {
                 match el {
                     ConstructorElement::Field(f) => fields.push(*f),
                     ConstructorElement::Spread(p, n, sh) => spreads.push((p, n, sh)),
+                    ConstructorElement::RuntimeSpread(e) => runtime_spreads.push(*e),
                 }
             }
-            // v1 only supports a single spread per constructor call (RFC-TR-033 §2).
+            // v1 only supports a single static `..` spread per constructor call
+            // (RFC-TR-033 §2). `...` runtime spreads (spread_operator2.md) have no
+            // such limit — they merge sequentially like in a record literal.
             if spreads.len() > 1 {
                 return Err(nom::Err::Error(nom::error::Error::new(
                     s,
@@ -684,6 +708,7 @@ fn constructor_call(s: Span) -> IResult<Span, Lang> {
                     type_name: name,
                     fields,
                     spread: spreads.into_iter().next(),
+                    spreads: runtime_spreads,
                     help_data: h,
                 },
             ))
@@ -718,24 +743,64 @@ fn record_identifier(s: Span) -> IResult<Span, Span> {
     alt((tag("record"), tag("object"), tag("list"), tag(":"))).parse(s)
 }
 
+/// One element inside a record literal `{ ... }`: either a regular `name =
+/// value` field or a `...source` spread (see spread_operator2.md).
+enum RecordElement {
+    Field(Box<ArgumentValue>),
+    Spread(Box<Lang>),
+}
+
+/// Parses `... <expr> ,?`, the spread element of a record literal.
+fn record_spread_field(s: Span) -> IResult<Span, RecordElement> {
+    let res = (
+        terminated(tag("..."), multispace0),
+        single_element,
+        opt(terminated(tag(","), multispace0)),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (_, e, _))) => Ok((s, RecordElement::Spread(Box::new(e)))),
+        Err(r) => Err(r),
+    }
+}
+
+fn record_field(s: Span) -> IResult<Span, RecordElement> {
+    if let Ok((s2, spread)) = record_spread_field(s.clone()) {
+        return Ok((s2, spread));
+    }
+    let (s2, field) = argument_val(s)?;
+    Ok((s2, RecordElement::Field(Box::new(field))))
+}
+
 pub fn record(s: Span) -> IResult<Span, Lang> {
     let res = (
         opt(terminated(record_identifier, multispace0)),
         terminated(alt((tag("{"), tag("("))), multispace0),
-        many0(argument_val),
+        many0(record_field),
         terminated(alt((tag("}"), tag(")"))), multispace0),
     )
         .parse(s);
     match res {
-        Ok((s, (Some(start), _, args, _))) => Ok((
-            s,
-            Lang::List {
-                value: args.clone(),
-                help_data: start.into(),
-            },
-        )),
-        Ok((_s, (None, _ob, args, _))) => {
-            if args.is_empty() {
+        Ok((s, (Some(start), _, elements, _))) => {
+            let mut fields = Vec::new();
+            let mut spreads = Vec::new();
+            for el in elements {
+                match el {
+                    RecordElement::Field(f) => fields.push(*f),
+                    RecordElement::Spread(e) => spreads.push(*e),
+                }
+            }
+            Ok((
+                s,
+                Lang::List {
+                    value: fields,
+                    spreads,
+                    help_data: start.into(),
+                },
+            ))
+        }
+        Ok((_s, (None, _ob, elements, _))) => {
+            if elements.is_empty() {
                 Err(nom::Err::Error(nom::error::Error::new(
                     _s,
                     nom::error::ErrorKind::Many1,
@@ -2177,6 +2242,69 @@ mod tests {
                 assert_eq!(name, "bob");
             }
             other => panic!("Expected ConstructorCall, got: {}", other.simple_print()),
+        }
+    }
+
+    #[test]
+    fn test_constructor_call_runtime_spread_parsing() {
+        let (_, lang) = constructor_call("Person:{ name = \"Alice\", ...bob }".into())
+            .expect("Should parse constructor call with runtime spread");
+        match lang {
+            Lang::ConstructorCall {
+                type_name,
+                fields,
+                spread,
+                spreads,
+                ..
+            } => {
+                assert_eq!(type_name, "Person");
+                assert_eq!(fields.len(), 1);
+                assert_eq!(fields[0].get_argument(), "name");
+                assert!(spread.is_none());
+                assert_eq!(spreads.len(), 1);
+            }
+            other => panic!("Expected ConstructorCall, got: {}", other.simple_print()),
+        }
+    }
+
+    #[test]
+    fn test_record_literal_spread_parsing() {
+        let (_, lang) =
+            record(":{ ...x, a = 1 }".into()).expect("Should parse record literal with spread");
+        match lang {
+            Lang::List { value, spreads, .. } => {
+                assert_eq!(value.len(), 1);
+                assert_eq!(value[0].get_argument(), "a");
+                assert_eq!(spreads.len(), 1);
+                assert!(matches!(&spreads[0], Lang::Variable { name, .. } if name == "x"));
+            }
+            other => panic!("Expected Lang::List, got: {}", other.simple_print()),
+        }
+    }
+
+    #[test]
+    fn test_record_literal_multiple_spreads_parsing() {
+        let (_, lang) = record(":{ ...x, ...y, a = 1 }".into())
+            .expect("Should parse record literal with multiple spreads");
+        match lang {
+            Lang::List { value, spreads, .. } => {
+                assert_eq!(value.len(), 1);
+                assert_eq!(spreads.len(), 2);
+            }
+            other => panic!("Expected Lang::List, got: {}", other.simple_print()),
+        }
+    }
+
+    #[test]
+    fn test_record_literal_bare_spread_parsing() {
+        let (_, lang) =
+            record(":{ ...x }".into()).expect("Should parse record literal with bare spread");
+        match lang {
+            Lang::List { value, spreads, .. } => {
+                assert!(value.is_empty());
+                assert_eq!(spreads.len(), 1);
+            }
+            other => panic!("Expected Lang::List, got: {}", other.simple_print()),
         }
     }
 }

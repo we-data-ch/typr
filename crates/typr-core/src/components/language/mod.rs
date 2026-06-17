@@ -128,6 +128,11 @@ pub enum Lang {
     },
     List {
         value: Vec<ArgumentValue>,
+        /// `...expr` elements inside a record literal (`{ ...x, a = 1 }`, see
+        /// spread_operator2.md). Merged sequentially (later wins on overlap) to
+        /// form the base, then `value` is applied on top as the override.
+        #[serde(default)]
+        spreads: Vec<Lang>,
         help_data: HelpData,
     },
     DataFrame {
@@ -286,12 +291,17 @@ pub enum Lang {
     /// Explicit constructor call: `TypeName:{ field1 = val1, field2 = val2 }` or `mod$TypeName:{ ... }`
     ///
     /// `spread` carries the optional `..source` element (RFC-TR-033): the module path of the
-    /// spread variable (empty if local), its name, and its own `HelpData`.
+    /// spread variable (empty if local), its name, and its own `HelpData`. `spreads` carries
+    /// zero or more `...source` elements (spread_operator2.md): a runtime structural merge,
+    /// distinct from `spread`'s static nominal expansion — see `merge_record_fields_override`
+    /// in `type_checking/mod.rs` and the `spread()` R helper in `configs/src/std.R`.
     ConstructorCall {
         module_path: Vec<String>,
         type_name: String,
         fields: Vec<ArgumentValue>,
         spread: Option<(Vec<String>, String, HelpData)>,
+        #[serde(default)]
+        spreads: Vec<Lang>,
         help_data: HelpData,
     },
     /// Array constructor call: `TypeName:[expr, expr, ...]`
@@ -453,7 +463,18 @@ impl PartialEq for Lang {
                     ..
                 },
             ) => a1 == b1 && a2 == b2,
-            (Lang::List { value: a, .. }, Lang::List { value: b, .. }) => a == b,
+            (
+                Lang::List {
+                    value: a,
+                    spreads: sa,
+                    ..
+                },
+                Lang::List {
+                    value: b,
+                    spreads: sb,
+                    ..
+                },
+            ) => a == b && sa == sb,
             (Lang::DataFrame { value: a, .. }, Lang::DataFrame { value: b, .. }) => a == b,
             (
                 Lang::Tag {
@@ -1188,16 +1209,19 @@ impl Lang {
                 (res, context.clone())
             }
             Lang::List {
-                value: arg_vals, ..
+                value: arg_vals,
+                spreads,
+                ..
             } => {
+                let spread_parts = spreads.iter().map(|s| format!("...{}", s.to_js(context).0));
+                let field_parts = arg_vals.iter().map(|arg_val: &ArgumentValue| {
+                    arg_val.get_argument().replace("'", "")
+                        + ": "
+                        + &arg_val.get_value().to_js(context).0
+                });
                 let res = "{".to_string()
-                    + &arg_vals
-                        .iter()
-                        .map(|arg_val: &ArgumentValue| {
-                            arg_val.get_argument().replace("'", "")
-                                + ": "
-                                + &arg_val.get_value().to_js(context).0
-                        })
+                    + &spread_parts
+                        .chain(field_parts)
                         .collect::<Vec<_>>()
                         .join(", ")
                     + "}";

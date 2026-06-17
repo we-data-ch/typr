@@ -1751,23 +1751,66 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         } => typing_container(context, expr, exprs, h, "Seq", "Empty", false, false),
         Lang::List {
             value: fields,
+            spreads,
             help_data: h,
         } => {
             let type_contexts: Vec<_> = fields
                 .iter()
                 .map(|arg_val: &ArgumentValue| typing(context, &arg_val.get_value()))
                 .collect();
-            let errors: Vec<TypRError> = type_contexts
+            let mut errors: Vec<TypRError> = type_contexts
                 .iter()
                 .flat_map(|tc| tc.errors.clone())
                 .collect();
-            let field_types = fields
+            let field_types: Vec<ArgumentType> = fields
                 .iter()
                 .zip(type_contexts.iter())
                 .map(|(arg_val, tc)| (arg_val.get_argument(), tc.value.clone()).into())
                 .collect();
+
+            if spreads.is_empty() {
+                return TypeContext::new(
+                    Type::Record(field_types.into_iter().collect(), h.clone()),
+                    expr.clone(),
+                    context.clone(),
+                )
+                .with_errors(errors);
+            }
+
+            // A single bare spread with no override (`{ ...x }`) keeps x's
+            // exact type (alias included): see spread_operator2.md §4.1, and
+            // it lets the transpiler emit `x` directly (§6.3).
+            if spreads.len() == 1 && fields.is_empty() {
+                let tc = typing(context, &spreads[0]);
+                errors.extend(tc.errors.clone());
+                return TypeContext::new(tc.value, expr.clone(), context.clone())
+                    .with_errors(errors);
+            }
+
+            // Several spreads merge sequentially (later wins on overlap, §4.3),
+            // then explicit fields are applied as the final override (§3.1/§4.2).
+            let mut merged: Vec<ArgumentType> = Vec::new();
+            for spread_expr in spreads {
+                let tc = typing(context, spread_expr);
+                errors.extend(tc.errors.clone());
+                match tc.value.reduce(context) {
+                    Type::Record(spread_fields, _) => {
+                        merged = merge_record_fields_override(
+                            &merged,
+                            &spread_fields.into_iter().collect::<Vec<_>>(),
+                        );
+                    }
+                    _ => {
+                        errors.push(TypRError::Type(TypeError::WrongExpression(
+                            spread_expr.get_help_data(),
+                        )));
+                    }
+                }
+            }
+            merged = merge_record_fields_override(&merged, &field_types);
+
             TypeContext::new(
-                Type::Record(field_types, h.clone()),
+                Type::Record(merged.into_iter().collect(), h.clone()),
                 expr.clone(),
                 context.clone(),
             )
@@ -2420,6 +2463,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             type_name,
             fields,
             spread,
+            spreads,
             help_data: h,
         } => {
             let resolved_alias = if module_path.is_empty() {
@@ -2472,6 +2516,30 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     }
                 }
 
+                // Runtime `...source` spread(s) (spread_operator2.md): structural
+                // merge, sequential like in a record literal. Unlike the static `..`
+                // spread below, this doesn't require `source` to be exactly
+                // `Alias(type_name)` — only that the merged result covers every
+                // declared field with a compatible type.
+                let mut spread_merged: Vec<ArgumentType> = Vec::new();
+                for spread_expr in spreads {
+                    let tc = typing(context, spread_expr);
+                    errors.extend(tc.errors.clone());
+                    match tc.value.reduce(context) {
+                        Type::Record(spread_fields, _) => {
+                            spread_merged = merge_record_fields_override(
+                                &spread_merged,
+                                &spread_fields.into_iter().collect::<Vec<_>>(),
+                            );
+                        }
+                        _ => {
+                            errors.push(TypRError::Type(TypeError::WrongExpression(
+                                spread_expr.get_help_data(),
+                            )));
+                        }
+                    }
+                }
+
                 match spread {
                     Some((spread_path, spread_var, spread_h)) => {
                         let spread_type = if spread_path.is_empty() {
@@ -2503,17 +2571,34 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         }
                     }
                     None => {
-                        // No spread: every record field must be covered explicitly.
+                        // No static `..` spread: every record field must be covered
+                        // either explicitly or by a runtime `...` spread above.
                         let provided: std::collections::HashSet<String> =
                             fields.iter().map(|f| f.get_argument()).collect();
                         for rf in &record_fields {
                             let rname = rf.get_argument_str();
-                            if !provided.contains(&rname) {
-                                errors.push(TypRError::Type(TypeError::MissingField(
-                                    rname,
-                                    target_type.clone(),
-                                    h.clone(),
-                                )));
+                            if provided.contains(&rname) {
+                                continue;
+                            }
+                            match spread_merged
+                                .iter()
+                                .find(|mf| mf.get_argument_str() == rname)
+                            {
+                                Some(mf) => {
+                                    if !mf.get_type().is_subtype(&rf.get_type(), context).0 {
+                                        errors.push(TypRError::Type(TypeError::Param(
+                                            rf.get_type(),
+                                            mf.get_type(),
+                                        )));
+                                    }
+                                }
+                                None => {
+                                    errors.push(TypRError::Type(TypeError::MissingField(
+                                        rname,
+                                        target_type.clone(),
+                                        h.clone(),
+                                    )));
+                                }
                             }
                         }
                     }
@@ -2602,6 +2687,23 @@ fn replace_fields_type_if_needed(
             arg_typ2.clone()
         }
     }
+}
+
+/// Shallow merge of record field types by name, override winning on
+/// conflict and order-of-appearance otherwise preserved (spread_operator2.md).
+fn merge_record_fields_override(
+    base: &[ArgumentType],
+    overrides: &[ArgumentType],
+) -> Vec<ArgumentType> {
+    let mut result = base.to_vec();
+    for over in overrides {
+        let name = over.get_argument_str();
+        match result.iter().position(|f| f.get_argument_str() == name) {
+            Some(pos) => result[pos] = over.clone(),
+            None => result.push(over.clone()),
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -3488,6 +3590,212 @@ p"#;
             r_code.contains("bob$age"),
             "Expected the missing field to be expanded to `bob$age`, got:\n{}",
             r_code
+        );
+    }
+
+    // ============== Constructor Call Runtime Spread Tests (spread_operator2.md) ==============
+
+    #[test]
+    fn test_constructor_runtime_spread_valid() {
+        let fp = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .run()
+            .push("let bob <- Person:{ name = \"Bob\", age = 12 };")
+            .run()
+            .push("let alice <- Person:{ name = \"Alice\", ...bob };")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+    }
+
+    #[test]
+    fn test_constructor_runtime_spread_from_wider_record() {
+        // The spread source can have MORE fields than the target record needs
+        // (row-polymorphism) — unlike the static `..` spread, which requires an
+        // exact alias match.
+        let fp = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .run()
+            .push("let raw <- :{ name = \"Bob\", age = 12, extra = 1 };")
+            .run()
+            .push("let bob <- Person:{ ...raw };")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+    }
+
+    #[test]
+    fn test_constructor_runtime_spread_missing_field_errors() {
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .run()
+            .push("let partial <- :{ name = \"Bob\" };")
+            .run();
+        let context = fp.context.clone();
+
+        let expr = parse_from_string("let bob <- Person:{ ...partial };", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::MissingField(..)))),
+            "Expected a MissingField error, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_constructor_runtime_spread_transpiles_to_do_call_spread() {
+        let fp = FluentParser::new()
+            .push("type Person <- list { name: char, age: int };")
+            .run()
+            .push("let bob <- Person:{ name = \"Bob\", age = 12 };")
+            .run()
+            .push("let alice <- Person:{ name = \"Alice\", ...bob };")
+            .run();
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("do.call(Person, spread(bob, list(name = ") && r_code.contains(")[c("),
+            "Expected a do.call/spread-based transpilation, got:\n{}",
+            r_code
+        );
+        assert!(
+            r_code.contains("\"name\"") && r_code.contains("\"age\""),
+            "Expected field selection by name, got:\n{}",
+            r_code
+        );
+    }
+
+    // ==================== Record Literal Spread Tests (spread_operator2.md) ====================
+
+    #[test]
+    fn test_record_spread_bare_passthrough_type() {
+        // `{ ...x }` with no override keeps x's exact type.
+        let fp = FluentParser::new()
+            .push("let cfg <- :{ a = 1, b = 2 };")
+            .run()
+            .push("let y <- :{ ...cfg };")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+        match fp.get_last_type() {
+            Type::Record(fields, _) => assert_eq!(fields.len(), 2),
+            other => panic!("Expected Type::Record, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_record_spread_explicit_field_overrides() {
+        let fp = FluentParser::new()
+            .push("let cfg <- :{ a = 1, b = 2 };")
+            .run()
+            .push("let y <- :{ ...cfg, b = 10, c = 3 };")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+        match fp.get_last_type() {
+            Type::Record(fields, _) => {
+                assert_eq!(fields.len(), 3);
+                let b_type = fields
+                    .iter()
+                    .find(|f| f.get_argument_str() == "b")
+                    .map(|f| f.get_type());
+                assert_eq!(b_type, Some(builder::integer_type(10)));
+            }
+            other => panic!("Expected Type::Record, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_record_spread_transpiles_to_runtime_spread_call() {
+        let fp = FluentParser::new()
+            .push("let cfg <- :{ a = 1, b = 2 };")
+            .run()
+            .push("let y <- :{ ...cfg, b = 10 };")
+            .run();
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("spread(cfg, list(b = "),
+            "Expected a runtime `spread(...)` call, got:\n{}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_record_bare_spread_transpiles_to_passthrough() {
+        let fp = FluentParser::new()
+            .push("let cfg <- :{ a = 1, b = 2 };")
+            .run()
+            .push("let y <- :{ ...cfg };")
+            .run();
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.trim_end().ends_with("`y` <- cfg"),
+            "Expected a bare passthrough (no spread() call), got:\n{}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_record_multiple_spreads_merge_sequentially() {
+        let fp = FluentParser::new()
+            .push("let x1 <- :{ a = 1, b = 1 };")
+            .run()
+            .push("let x2 <- :{ b = 2, c = 2 };")
+            .run()
+            .push("let merged <- :{ ...x1, ...x2 };")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+        match fp.get_last_type() {
+            Type::Record(fields, _) => {
+                assert_eq!(fields.len(), 3);
+                let b_type = fields
+                    .iter()
+                    .find(|f| f.get_argument_str() == "b")
+                    .map(|f| f.get_type());
+                assert_eq!(b_type, Some(builder::integer_type(2)));
+            }
+            other => panic!("Expected Type::Record, got: {:?}", other),
+        }
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("spread(x1, x2)"),
+            "Expected nested spread() merging the two sources, got:\n{}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_record_spread_of_non_record_errors() {
+        use crate::processes::parsing::parse_from_string;
+        let context = Context::default();
+        let expr = parse_from_string("let y <- :{ ...5, a = 1 };", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::WrongExpression(..)))),
+            "Expected a WrongExpression error for spreading a non-record, got: {:?}",
+            result.errors
         );
     }
 

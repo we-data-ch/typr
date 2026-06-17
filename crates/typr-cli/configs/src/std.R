@@ -32,6 +32,15 @@ let_type <- function(x, new_class) {
   unclass(x) |> new_class()
 }
 
+#' @title Fusion shallow pour le spread operator (`{ ...x, a = 1 }`)
+spread <- function(base, override) {
+  out <- base
+  for (nm in names(override)) {
+    out[[nm]] <- override[[nm]]
+  }
+  out
+}
+
 # --- Génériques S3 ---
 
 get <- function(a, ...) UseMethod("get")

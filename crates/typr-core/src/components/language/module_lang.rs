@@ -30,6 +30,7 @@ impl ModuleLang {
             .collect::<Vec<_>>();
         Lang::List {
             value: new_args,
+            spreads: Vec::new(),
             help_data: self.get_help_data(),
         }
     }
