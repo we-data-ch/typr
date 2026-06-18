@@ -571,6 +571,7 @@ sequence
 sequence__default
 serialize
 serverSocket
+set
 set__seed
 setdiff
 setequal
@@ -613,6 +614,7 @@ srcfilecopy
 srcref
 standardGeneric
 startsWith
+state
 stderr
 stdin
 stdout
@@ -725,6 +727,7 @@ unsplit
 untrace
 untracemem
 unz
+update
 upper__tri
 url
 use

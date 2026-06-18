@@ -1,0 +1,13 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 146
+expression: r
+---
+V3 <- function(x) {
+  validate_V3(x)
+}
+validate_V3 <- function(x) {
+  if (!inherits(x, "character")) stop("Validation failed for type V3: expected vector of character")
+  if (length(x) != 3) stop(paste0("Validation failed for type V3: expected length 3, got ", length(x)))
+  x
+}

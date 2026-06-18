@@ -1,0 +1,14 @@
+let counter <- state(0);
+let also_counter <- counter;
+
+set(counter, 5);
+let v1 <- get(also_counter);
+
+update(counter, fn(x: int): int { x + 1 });
+let v2 <- get(counter);
+
+let ver <- version(counter);
+
+let snap <- map(counter, fn(x: int): int { x * 10 });
+set(counter, 999);
+let independent <- get(snap);

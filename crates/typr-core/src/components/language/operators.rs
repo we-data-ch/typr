@@ -1,7 +1,11 @@
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
+use crate::components::r#type::tint::Tint;
+use crate::components::r#type::type_system::TypeSystem;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::processes::parsing::operation_priority::TokenKind;
+use crate::utils::builder;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::bytes::complete::take_until;
@@ -53,6 +57,71 @@ pub enum Op {
     AsExcl(HelpData),
 }
 
+/// Reinterprets the value-level AST produced for a bracket type expression
+/// (`[Any, int]`, `Vec[N, T]`, `Array[N, T]`) appearing as the right-hand side
+/// of `as!` as the `Type` it denotes. These shapes parse as plain `Lang`
+/// values (`Array`/`ArrayIndexing`/`Variable`) since `as!`'s right operand
+/// goes through the ordinary expression grammar, not the type grammar — see
+/// `Op::combine`. The `Vec`/`Array` keyword prefix is not preserved in the
+/// resulting `VecType` since `Type`'s `PartialEq` ignores it anyway (it only
+/// matters for named aliases, which inline literals are not).
+fn lang_to_cast_type(lang: &Lang) -> Option<Type> {
+    match lang {
+        Lang::Variable {
+            name, help_data, ..
+        } => Some(match name.as_str() {
+            "int" => builder::integer_type_default(),
+            "num" => builder::number_type(),
+            "bool" => builder::boolean_type(),
+            "char" => builder::character_type_default(),
+            "Any" => builder::any_type(),
+            _ => Type::Alias(name.clone(), vec![], false, help_data.clone()),
+        }),
+        Lang::Integer { value, help_data } => {
+            Some(Type::Integer(Tint::Val(*value), help_data.clone()))
+        }
+        Lang::Array { value, help_data } => {
+            let (idx, elem) = match value.as_slice() {
+                [elem] => (builder::any_type(), elem),
+                [idx, elem] => (lang_to_cast_type(idx)?, elem),
+                _ => return None,
+            };
+            Some(Type::Vec(
+                VecType::S3,
+                Box::new(idx),
+                Box::new(lang_to_cast_type(elem)?),
+                help_data.clone(),
+            ))
+        }
+        Lang::ArrayIndexing {
+            identifier,
+            indexing,
+            help_data,
+        } => {
+            match identifier.as_ref() {
+                Lang::Variable { name, .. } if name == "Vec" || name == "Array" => {}
+                _ => return None,
+            }
+            let value = match indexing.as_ref() {
+                Lang::Array { value, .. } => value,
+                _ => return None,
+            };
+            let (idx, elem) = match value.as_slice() {
+                [elem] => (builder::any_type(), elem),
+                [idx, elem] => (lang_to_cast_type(idx)?, elem),
+                _ => return None,
+            };
+            Some(Type::Vec(
+                VecType::S3,
+                Box::new(idx),
+                Box::new(lang_to_cast_type(elem)?),
+                help_data.clone(),
+            ))
+        }
+        _ => None,
+    }
+}
+
 impl Op {
     pub fn to_type(&self) -> Option<Type> {
         match self {
@@ -90,13 +159,17 @@ impl Op {
 
     pub fn combine(self, left: Lang, right: Lang) -> Lang {
         if let Op::AsExcl(_) = self {
-            let type_name = match &right {
-                Lang::Variable { name, .. } => name.clone(),
-                _ => "Unknown".to_string(),
+            let (type_name, literal_type) = match &right {
+                Lang::Variable { name, .. } => (name.clone(), None),
+                _ => match lang_to_cast_type(&right) {
+                    Some(t) => (t.pretty(), Some(t)),
+                    None => ("Unknown".to_string(), None),
+                },
             };
             return Lang::ValidatingCast {
                 expression: Box::new(left.clone()),
                 type_name,
+                literal_type,
                 help_data: left.get_help_data(),
             };
         }

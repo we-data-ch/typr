@@ -2624,20 +2624,41 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         }
         Lang::ArrayConstructorCall {
             type_name,
+            elements,
             help_data: h,
-            ..
         } => {
-            let alias_exists = context
-                .aliases()
-                .any(|(var, _)| var.get_name() == *type_name);
-            if alias_exists {
-                TypeContext::new(
+            let resolved_alias = context.get_type_from_aliases(&Var::from_name(type_name));
+            match resolved_alias.as_ref().map(|t| t.reduce(context)) {
+                // Vector alias (`type V <- Vec[#N, T]`): every element must be a
+                // subtype of `T`. Unlike the multi-dimensional `Array[N, T]` case
+                // below, this carries no shape, so it is checked element-wise here
+                // rather than deferred to the transpiler; a literal size mismatch
+                // is left to the generated runtime `validate_{name}` (length check).
+                Some(Type::Vec(VecType::Vector, _size, elem_type, _)) => {
+                    let mut errors: Vec<TypRError> = Vec::new();
+                    for el in elements {
+                        let el_tc = typing(context, el);
+                        errors.extend(el_tc.errors.clone());
+                        if !el_tc.value.is_subtype(&elem_type, context).0 {
+                            errors.push(TypRError::Type(TypeError::Param(
+                                (*elem_type).clone(),
+                                el_tc.value,
+                            )));
+                        }
+                    }
+                    TypeContext::new(
+                        Type::Alias(type_name.clone(), vec![], false, h.clone()),
+                        expr.clone(),
+                        context.clone(),
+                    )
+                    .with_errors(errors)
+                }
+                Some(_) => TypeContext::new(
                     Type::Alias(type_name.clone(), vec![], false, h.clone()),
                     expr.clone(),
                     context.clone(),
-                )
-            } else {
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                ),
+                None => TypeContext::new(builder::any_type(), expr.clone(), context.clone()),
             }
         }
         Lang::UnionConstructor {
@@ -2652,11 +2673,28 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         Lang::ValidatingCast {
             expression,
             type_name,
+            literal_type,
             help_data: h,
         } => {
             let expr_tc = typing(context, expression);
-            let alias_type = Type::Alias(type_name.clone(), vec![], false, h.clone());
-            TypeContext::new(alias_type, expr.clone(), context.clone()).with_errors(expr_tc.errors)
+            match literal_type {
+                // `expr as! [Any, int]` / `Vec[N, T]` / `Array[N, T]`: no
+                // declared alias exists, so the type is registered on the
+                // fly (like an anonymous array/record type appearing in a
+                // signature) so a `validate_<name>`/`as.<name>` cast gets
+                // emitted for the transpiler to call.
+                Some(t) => TypeContext::new(
+                    t.clone(),
+                    expr.clone(),
+                    context.clone().push_types(&[t.clone()]),
+                )
+                .with_errors(expr_tc.errors),
+                None => {
+                    let alias_type = Type::Alias(type_name.clone(), vec![], false, h.clone());
+                    TypeContext::new(alias_type, expr.clone(), context.clone())
+                        .with_errors(expr_tc.errors)
+                }
+            }
         }
         Lang::Comment { help_data: h, .. }
         | Lang::ModuleImport { help_data: h, .. }
@@ -3989,6 +4027,35 @@ p"#;
                 .any(|e| e.contains("not declared")),
             "Declared record constructor should validate, errors: {:?}",
             result.display_errors()
+        );
+    }
+
+    #[test]
+    fn test_vector_alias_constructor_call_typechecks() {
+        use crate::processes::parsing::parse_from_string;
+        let src = "type Binaire <- Vec[Any, bool];\nBinaire:[true, true, false, true];";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "Vector alias constructor call should typecheck, errors: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_vector_alias_constructor_call_element_type_mismatch() {
+        use crate::processes::parsing::parse_from_string;
+        let src = "type Binaire <- Vec[Any, bool];\nBinaire:[true, 1, false];";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::Param(..)))),
+            "Expected a Param type error for a non-bool element, got: {:?}",
+            result.errors
         );
     }
 

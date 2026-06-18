@@ -135,6 +135,27 @@ mod transpilation {
     }
 
     #[test]
+    fn type_alias_vector() {
+        let r = transpile_all(&["type IntVector <- Vec[#N, int];"]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn type_alias_vector_sized() {
+        let r = transpile_all(&["type V3 <- Vec[3, char];"]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn vector_alias_array_constructor_call() {
+        let r = transpile_all(&[
+            "type Binaire <- Vec[Any, bool];",
+            "Binaire:[true, true, false, true]",
+        ]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
     fn constructor_call_spread() {
         // RFC-TR-033: `..source` expands to a `source$field` access for every
         // field not given explicitly; explicit fields keep their own value.
@@ -165,6 +186,26 @@ mod transpilation {
     #[test]
     fn opaque_alias() {
         let r = transpile("opaque Meters <- int;");
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn opaque_state_alias() {
+        let r = transpile("opaque State<T> <- Any;");
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn state_aliasing_is_plain_assignment() {
+        // State<T> gets its shared-mutation semantics entirely from R
+        // environments being reference types, so aliasing (`let b <- a;`)
+        // must transpile to a plain assignment with no copy/clone wrapper.
+        let r = transpile_all(&[
+            "opaque State<T> <- Any;",
+            "@state: (value: T) -> State<T>;",
+            "let a <- state(1);",
+            "let b <- a;",
+        ]);
         insta::assert_snapshot!(r);
     }
 }

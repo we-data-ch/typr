@@ -1766,4 +1766,45 @@ mod tests {
             "Expected tuple with 4 elements, got: {result:?}"
         );
     }
+
+    // --- State<T>: stdlib overload resolution (see configs/std/state.ty) ---
+
+    #[test]
+    fn test_state_get_resolves_against_real_stdlib() {
+        let typ = FluentParser::new()
+            .set_context(Context::default())
+            .push("let s <- state(10);")
+            .run()
+            .push("get(s)")
+            .parse_type_next()
+            .get_last_type();
+        assert!(
+            matches!(&typ, Type::Integer(..)),
+            "get(state(10)) should resolve to an int, got: {typ:?}"
+        );
+    }
+
+    #[test]
+    fn test_state_get_overload_does_not_break_legacy_two_arg_get() {
+        // Regression guard: adding `@get: (s: State<T>) -> T;` must not break
+        // the pre-existing `@get: (a: Any, b: char) -> T;` overload. That
+        // overload's `T` only appears in the return position (never in a
+        // param), so it stays an unresolved Generic — that's the existing,
+        // pre-State behavior; the point here is just that resolution still
+        // picks this 2-arg overload instead of erroring or misfiring on the
+        // new 1-arg State overload.
+        let typ = FluentParser::new()
+            .set_context(Context::default())
+            .push("type Point <- list { x: int, y: int };")
+            .run()
+            .push("let p <- Point:{ x = 1, y = 2 };")
+            .run()
+            .push("get(p, \"x\")")
+            .parse_type_next()
+            .get_last_type();
+        assert!(
+            matches!(&typ, Type::Generic(name, _) if name == "T"),
+            "get(p, \"x\") should still resolve via the legacy 2-arg overload, got: {typ:?}"
+        );
+    }
 }

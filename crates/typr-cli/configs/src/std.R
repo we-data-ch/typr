@@ -66,6 +66,20 @@ replace <- function(a, ...) UseMethod("replace")
 append <- function(a, ...) UseMethod("append")
 plot <- function(a, ...) UseMethod("append")
 expect_equal <- function(a, ...) UseMethod("append")
+set <- function(a, ...) UseMethod("set")
+update <- function(a, ...) UseMethod("update")
+version <- function(a, ...) UseMethod("version")
+state <- function(a, ...) UseMethod("state")
+map <- function(a, ...) UseMethod("map")
+derive <- function(a, ...) UseMethod("derive")
+unwrap <- function(a, ...) UseMethod("unwrap")
+unwrap_or <- function(a, ...) UseMethod("unwrap_or")
+expect <- function(a, ...) UseMethod("expect")
+is_some <- function(a, ...) UseMethod("is_some")
+is_none <- function(a, ...) UseMethod("is_none")
+factor <- function(a, ...) UseMethod("factor")
+annotate_factor <- function(a, ...) UseMethod("annotate_factor")
+nlevels <- function(a, ...) UseMethod("nlevels")
 
 # User validator hook for record types: `as.T` calls validate() after the
 # internal validate_T. Default is identity; users extend it with validate.T.
@@ -426,13 +440,97 @@ print.typed_vec <- function(x, ...) {
   invisible(x)
 }
 
+# --- Option ---
+# .Some(v)/.None transpile to structure(list('Some', body = v), class =
+# c('Some', 'Option', 'Tag', 'list')) / structure(list('None'), class =
+# c('None', 'Option', 'Tag', 'list')) — see the union variant constructor
+# pipeline. Both variants share the 'Option' class, so a single method
+# dispatching on it (rather than separate .Some/.None methods) covers both.
+
+unwrap.Option <- function(value, ...) {
+  if (inherits(value, "Some")) value$body else stop("The value is not unwrappable.")
+}
+
+expect.Option <- function(value, msg, ...) {
+  if (inherits(value, "Some")) value$body else stop(msg)
+}
+
+unwrap_or.Option <- function(value, alternative, ...) {
+  if (inherits(value, "Some")) value$body else alternative
+}
+
+is_some.Option <- function(value, ...) inherits(value, "Some")
+
+is_none.Option <- function(value, ...) inherits(value, "None")
+
 # --- Factor ---
+
+# Standard constructor: looks up `x` in `levels` and returns the matching
+# 1-based index (delegates the bounds check to annotate_factor).
+# `factor` is also a base-R name; without `.default`, generic_functions.R's
+# auto-generated UseMethod stub would shadow it with no fallback method.
+factor.default <- function(x, levels, ...) {
+  idx <- match(x, levels)
+  if (is.na(idx)) {
+    stop(paste0("'", x, "' is not among Factor levels: [", paste(levels, collapse = ", "), "]"))
+  }
+  annotate_factor(idx, levels)
+}
 
 # Annotator: wraps an integer index as an R factor with the given levels.
 # Validates that 1 <= x <= length(levels).
-annotate_factor <- function(x, levels) {
+annotate_factor.default <- function(x, levels, ...) {
   if (x < 1L || x > length(levels)) {
     stop(paste0("index ", x, " out of bounds for Factor[", paste(levels, collapse = ", "), "]"))
   }
   structure(x, class = "factor", levels = levels)
 }
+
+# base::nlevels is a plain function (length(levels(x))), not S3-generic, so
+# it has no registered nlevels.factor method for generic_functions.R's
+# UseMethod stub to dispatch to. .default replicates base's own definition.
+nlevels.default <- function(x, ...) length(levels(x))
+
+# --- State ---
+# Real shared mutable state, backed by an R environment (reference type).
+# `version` auto-increments on every set()/update(). The constructor
+# captures class(value) as a per-instance runtime fingerprint; set/update
+# validate new values against it (defense-in-depth; the TypR static type
+# checker is the real guarantee against misuse in well-typed code).
+#
+# `state` is defined as `state.default` (not a plain function): the project
+# build's generated R/generic_functions.R emits `state <- function(x, ...)
+# UseMethod('state', x)` for every typed stdlib name, which would otherwise
+# shadow a plain `state <- function(value) {...}` definition here. Dispatch
+# on .default catches every input class, since the constructor accepts any T.
+state.default <- function(value, ...) {
+  e <- new.env(parent = emptyenv())
+  e$value <- value
+  e$version <- 0L
+  e$.tag <- class(value)
+  structure(e, class = "State")
+}
+
+get.State <- function(s, ...) s$value
+
+set.State <- function(s, value, ...) {
+  if (!identical(class(value), s$.tag)) {
+    stop(paste0(
+      "State type mismatch: expected ", paste(s$.tag, collapse = "/"),
+      ", got ", paste(class(value), collapse = "/")
+    ))
+  }
+  s$value <- value
+  s$version <- s$version + 1L
+  invisible(NULL)
+}
+
+update.State <- function(s, f, ...) {
+  set.State(s, f(s$value))
+}
+
+version.State <- function(s, ...) s$version
+
+map.State <- function(s, f, ...) state(f(s$value))
+
+derive.State <- function(s, f, ...) state(f(s$value))

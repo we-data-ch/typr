@@ -1,0 +1,12 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 140
+expression: r
+---
+IntVector <- function(x) {
+  validate_IntVector(x)
+}
+validate_IntVector <- function(x) {
+  if (!inherits(x, "integer")) stop("Validation failed for type IntVector: expected vector of integer")
+  x
+}

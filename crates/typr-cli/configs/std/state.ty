@@ -1,0 +1,18 @@
+# State<T> — shared mutable cell.
+# Backed at runtime by an R environment (reference type), so aliasing
+# (`let b <- a;`) gives true shared-mutation semantics with zero transpiler
+# changes. T is a phantom type parameter (erased at the R level, like
+# Factor<L>); runtime validation uses a captured class() fingerprint
+# instead of monomorphization.
+opaque State<T> <- Any;
+
+@state: (value: T) -> State<T>;
+@get: (s: State<T>) -> T;
+@set: (s: State<T>, value: T) -> Empty;
+@update: (s: State<T>, f: (T) -> T) -> Empty;
+@version: (s: State<T>) -> int;
+
+# Pure snapshot transform: reads the current value, applies f, and wraps
+# the result in a brand-new, independent State (no aliasing with s).
+@map: (s: State<T>, f: (T) -> U) -> State<U>;
+@derive: (s: State<T>, f: (T) -> T) -> State<T>;

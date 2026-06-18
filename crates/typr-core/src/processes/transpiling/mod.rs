@@ -1417,6 +1417,34 @@ impl RTranslatable<(String, Context)> for Lang {
                             cont.clone(),
                         )
                     }
+                    // Vector alias (`type V <- Vec[#N, T]` / `Vec[3, T]` /
+                    // `Vec[T]`): no class is added (R already distinguishes
+                    // atomic vector kinds via `is.*`/implicit class), so the
+                    // pipeline is the same shape as a primitive alias —
+                    // constructor delegates straight to the validator — plus
+                    // an optional length check when the size index is a
+                    // concrete literal.
+                    Type::Vec(VecType::Vector, size, elem_type, _) => {
+                        use crate::components::r#type::tint::Tint;
+                        let constructor =
+                            format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
+                        let elem_check = record_field_class(elem_type.as_ref(), cont).map(|cls| {
+                            format!(
+                                "  if (!inherits(x, \"{cls}\")) stop(\"Validation failed for type {name}: expected vector of {cls}\")\n"
+                            )
+                        }).unwrap_or_default();
+                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                            format!(
+                                "  if (length(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected length {n}, got \", length(x)))\n"
+                            )
+                        } else {
+                            String::new()
+                        };
+                        let validator = format!(
+                            "validate_{name} <- function(x) {{\n{elem_check}{size_check}  x\n}}"
+                        );
+                        (format!("{constructor}\n{validator}"), cont.clone())
+                    }
                     Type::Operator(_, _, _, _) => {
                         // Union alias: generate the full constructor/annotator/
                         // validator pipeline for each variant (see
@@ -2062,28 +2090,44 @@ impl RTranslatable<(String, Context)> for Lang {
                 elements,
                 help_data: h,
             } => {
-                let temp_array = Lang::Array {
-                    value: elements.clone(),
-                    help_data: h.clone(),
-                };
-                let typ = temp_array.typing(cont).value;
-                let dimension = ArrayType::try_from(typ)
-                    .expect("array constructor call should have an array type")
-                    .get_shape()
-                    .map(|sha| format!("c({})", sha))
-                    .unwrap_or_else(|| "c(0)".to_string());
-                let lin_array = temp_array
-                    .linearize_array()
-                    .iter()
-                    .map(|lang| lang.to_r(cont).0)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let inner = if lin_array.is_empty() {
-                    "logical(0)".to_string()
+                let resolved_alias = cont
+                    .get_type_from_aliases(&Var::from_name(type_name))
+                    .map(|t| t.reduce(cont));
+                if let Some(Type::Vec(VecType::Vector, ..)) = resolved_alias {
+                    // Plain vector alias (`type V <- Vec[#N, T]`): the runtime
+                    // value is a bare R vector (no `dim`/`typed_vec` wrapper, see
+                    // the Vec constructor pipeline in `Lang::Alias`), so the
+                    // elements are simply collected with `c(...)`.
+                    let inner = elements
+                        .iter()
+                        .map(|el| el.to_r(cont).0)
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    (format!("{}(c({}))", type_name, inner), cont.clone())
                 } else {
-                    format!("typed_vec({}, dim = {})", lin_array, dimension)
-                };
-                (format!("{}({})", type_name, inner), cont.clone())
+                    let temp_array = Lang::Array {
+                        value: elements.clone(),
+                        help_data: h.clone(),
+                    };
+                    let typ = temp_array.typing(cont).value;
+                    let dimension = ArrayType::try_from(typ)
+                        .expect("array constructor call should have an array type")
+                        .get_shape()
+                        .map(|sha| format!("c({})", sha))
+                        .unwrap_or_else(|| "c(0)".to_string());
+                    let lin_array = temp_array
+                        .linearize_array()
+                        .iter()
+                        .map(|lang| lang.to_r(cont).0)
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let inner = if lin_array.is_empty() {
+                        "logical(0)".to_string()
+                    } else {
+                        format!("typed_vec({}, dim = {})", lin_array, dimension)
+                    };
+                    (format!("{}({})", type_name, inner), cont.clone())
+                }
             }
             Lang::Import { .. } | Lang::Test { .. } | Lang::Use { .. } => {
                 ("".to_string(), cont.clone())
@@ -2091,10 +2135,21 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::ValidatingCast {
                 expression,
                 type_name,
+                literal_type,
                 ..
             } => {
                 let expr_r = expression.to_r(cont).0;
-                (format!("validate_{}({})", type_name, expr_r), cont.clone())
+                match literal_type {
+                    // Inline structural type (`as! [Any, int]` and friends):
+                    // call the auto-generated `as.ArrayN`-style cast (see
+                    // `Context::get_type_anotations`) registered for it at
+                    // typing time, instead of a named `validate_<name>`.
+                    Some(t) => (
+                        format!("{} |> {}", expr_r, cont.get_type_anotation(t)),
+                        cont.clone(),
+                    ),
+                    None => (format!("validate_{}({})", type_name, expr_r), cont.clone()),
+                }
             }
             _ => ("".to_string(), cont.clone()),
         };
@@ -2145,6 +2200,49 @@ mod tests {
             typ.pretty2().contains("Person"),
             "expected Alias(Person), got: {}",
             typ.pretty2()
+        );
+    }
+
+    #[test]
+    fn test_validating_cast_literal_array_type() {
+        let r_code = FluentParser::new().check_transpiling("c() as! [Any, int]");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains("c() |> as.Array0()"),
+            "expected c() |> as.Array0(), got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_validating_cast_literal_vec_and_array_keywords() {
+        // `Vec[...]` / `Array[...]` prefixes are equivalent to the bare
+        // `[...]` form for an inline (non-aliased) cast target.
+        let r_code = FluentParser::new().check_transpiling("c() as! Vec[Any, int]");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains("c() |> as.Array0()"),
+            "expected c() |> as.Array0(), got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_validating_cast_literal_type_dedup() {
+        // Two casts to the same structural type reuse the same auto-generated
+        // alias instead of registering a new one each time.
+        let r_code = FluentParser::new()
+            .push("let a <- c() as! [Any, int];")
+            .run()
+            .push("let b <- c() as! [Any, int];")
+            .run()
+            .get_r_code();
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert_eq!(
+            r_str.matches("as.Array0()").count(),
+            2,
+            "expected both casts to reuse as.Array0, got: {}",
+            r_str
         );
     }
 

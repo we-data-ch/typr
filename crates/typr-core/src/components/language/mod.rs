@@ -310,10 +310,17 @@ pub enum Lang {
         elements: Vec<Lang>,
         help_data: HelpData,
     },
-    /// Validating cast: `expr as! TypeName` — calls validate_TypeName(expr) at runtime
+    /// Validating cast: `expr as! TypeName` — calls validate_TypeName(expr) at runtime.
+    /// `expr as! [Any, int]` / `Vec[N, T]` / `Array[N, T]` casts to an inline,
+    /// non-aliased structural type instead: `literal_type` then holds the
+    /// parsed `Type` (registered via `Context::push_types` at typing time so
+    /// it gets an auto-generated `as.ArrayN` cast, called instead of
+    /// `validate_TypeName` at transpile time).
     ValidatingCast {
         expression: Box<Lang>,
         type_name: String,
+        #[serde(default)]
+        literal_type: Option<Type>,
         help_data: HelpData,
     },
     /// Union constructor: `Union.Variant` or `Union.Variant:{ field = val, ... }`
@@ -684,14 +691,16 @@ impl PartialEq for Lang {
                 Lang::ValidatingCast {
                     expression: a1,
                     type_name: a2,
+                    literal_type: a3,
                     ..
                 },
                 Lang::ValidatingCast {
                     expression: b1,
                     type_name: b2,
+                    literal_type: b3,
                     ..
                 },
-            ) => a1 == b1 && a2 == b2,
+            ) => a1 == b1 && a2 == b2 && a3 == b3,
             _ => false,
         }
     }
