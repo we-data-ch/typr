@@ -731,7 +731,7 @@ fn is_scalar_type(t: &Type) -> bool {
 
 /// Statically add the sizes of vectors being concatenated.
 /// When every index is a concrete integer the sum is computed; otherwise the
-/// symbolic sum is preserved through nested `Type::Add` nodes.
+/// symbolic sum is preserved through nested `Type::Operator(Addition, …)` nodes.
 fn vec_index_sum(indices: &[Type], h: &HelpData) -> Type {
     let concrete: Option<i32> = indices.iter().try_fold(0i32, |acc, t| match t {
         Type::Integer(Tint::Val(n), _) => Some(acc + n),
@@ -742,7 +742,9 @@ fn vec_index_sum(indices: &[Type], h: &HelpData) -> Type {
         None => indices
             .iter()
             .cloned()
-            .reduce(|a, b| Type::Add(Box::new(a), Box::new(b), h.clone()))
+            .reduce(|a, b| {
+                Type::Operator(TypeOperator::Addition, Box::new(a), Box::new(b), h.clone())
+            })
             .unwrap_or_else(|| Type::Integer(Tint::Unknown, h.clone())),
     }
 }

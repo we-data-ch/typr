@@ -103,10 +103,15 @@ pub fn format(ty: &Type) -> String {
             let body = elements.iter().map(format).collect::<Vec<_>>().join(", ");
             format!("tuple{{{}}}", body)
         }
-        Type::Add(a, b, _) => format!("{}+{}", a, b),
-        Type::Minus(a, b, _) => format!("{}-{}", a, b),
-        Type::Mul(a, b, _) => format!("{}*{}", a, b),
-        Type::Div(a, b, _) => format!("{}/{}", a, b),
+        Type::Operator(
+            op @ (TypeOperator::Addition
+            | TypeOperator::Substraction
+            | TypeOperator::Multiplication
+            | TypeOperator::Division),
+            a,
+            b,
+            _,
+        ) => format!("{}{}{}", a, op, b),
         Type::UnknownFunction(_) => "UnknownFunction".to_string(),
         Type::RClass(elem, _) => format!(
             "class({})",

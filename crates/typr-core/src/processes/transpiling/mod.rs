@@ -990,7 +990,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     .join(", ")
                     .and_if(|lin_array| !lin_array.is_empty())
                     .map(|lin_array| format!("typed_vec({}, dim = {})", lin_array, dimension))
-                    .unwrap_or("logical(0)".to_string());
+                    .unwrap_or_else(|| format!("typed_vec(dim = {})", dimension));
 
                 (
                     format!("{} |> {}", array, cont.get_type_anotation(&typ)),
@@ -1444,6 +1444,45 @@ impl RTranslatable<(String, Context)> for Lang {
                             "validate_{name} <- function(x) {{\n{elem_check}{size_check}  x\n}}"
                         );
                         (format!("{constructor}\n{validator}"), cont.clone())
+                    }
+                    // Array alias (`type A <- [#N, T]` / `[3, T]` / bare
+                    // brackets, and the explicit `Array[#N, T]` spelling —
+                    // both `VecType::S3` and `VecType::Array` produce the
+                    // same runtime shape): the literal/constructor-call
+                    // transpilation already wraps elements in `typed_vec`
+                    // (see `Lang::Array`/`Lang::ArrayConstructorCall`), so
+                    // this alias just needs to register the alias name as a
+                    // `typed_vec` subclass — same annotator/validator shape
+                    // as a record alias — so generic functions written
+                    // against `typed_vec` dispatch on it.
+                    Type::Vec(VecType::S3, size, elem_type, _)
+                    | Type::Vec(VecType::Array, size, elem_type, _) => {
+                        use crate::components::r#type::tint::Tint;
+                        let constructor = format!(
+                            "{name} <- function(x) {{\n  if (!inherits(x, \"typed_vec\")) x <- typed_vec(x)\n  as.{name}(x)\n}}"
+                        );
+                        let annotator = format!(
+                            "as.{name} <- function(x) {{\n  if (!inherits(x, \"{name}\")) class(x) <- c(\"{name}\", class(x))\n  x <- validate_{name}(x)\n  x <- validate(x)\n  x\n}}"
+                        );
+                        let elem_check = record_field_class(elem_type.as_ref(), cont).map(|cls| {
+                            format!(
+                                "  if (!all(vapply(x$data, inherits, logical(1), \"{cls}\"))) stop(\"Validation failed for type {name}: expected elements of class {cls}\")\n"
+                            )
+                        }).unwrap_or_default();
+                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                            format!(
+                                "  if (length(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected length {n}, got \", length(x)))\n"
+                            )
+                        } else {
+                            String::new()
+                        };
+                        let validator = format!(
+                            "validate_{name} <- function(x) {{\n  if (!inherits(x, \"typed_vec\")) stop(\"Validation failed for type {name}: expected typed_vec\")\n{elem_check}{size_check}  x\n}}"
+                        );
+                        (
+                            format!("{constructor}\n{annotator}\n{validator}"),
+                            cont.clone(),
+                        )
                     }
                     Type::Operator(_, _, _, _) => {
                         // Union alias: generate the full constructor/annotator/
@@ -2122,7 +2161,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         .collect::<Vec<_>>()
                         .join(", ");
                     let inner = if lin_array.is_empty() {
-                        "logical(0)".to_string()
+                        format!("typed_vec(dim = {})", dimension)
                     } else {
                         format!("typed_vec({}, dim = {})", lin_array, dimension)
                     };

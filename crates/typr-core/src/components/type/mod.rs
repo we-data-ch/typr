@@ -107,10 +107,6 @@ pub enum Type {
     Intersection(HashSet<Type>, HelpData),
     Interface(HashSet<ArgumentType>, HelpData),
     Params(Vec<Type>, HelpData),
-    Add(Box<Type>, Box<Type>, HelpData),
-    Mul(Box<Type>, Box<Type>, HelpData),
-    Minus(Box<Type>, Box<Type>, HelpData),
-    Div(Box<Type>, Box<Type>, HelpData),
     Failed(String, HelpData),
     Opaque(String, HelpData),
     Multi(Box<Type>, HelpData),
@@ -452,10 +448,15 @@ impl Type {
             Type::NA(_) => "NA".to_string(),
             Type::Any(_) => "null".to_string(),
             Type::Empty(_) => "null".to_string(),
-            Type::Add(_, _, _) => "T".to_string(),
-            Type::Minus(_, _, _) => "T".to_string(),
-            Type::Div(_, _, _) => "T".to_string(),
-            Type::Mul(_, _, _) => "T".to_string(),
+            Type::Operator(
+                TypeOperator::Addition
+                | TypeOperator::Substraction
+                | TypeOperator::Multiplication
+                | TypeOperator::Division,
+                _,
+                _,
+                _,
+            ) => "T".to_string(),
             _ => format!("the type: {} is not yet in to_typescript()", self),
         }
     }
@@ -495,10 +496,15 @@ impl Type {
             Type::NA(_) => "NA".to_string(),
             Type::Any(_) => "null".to_string(),
             Type::Empty(_) => "null".to_string(),
-            Type::Add(_, _, _) => "T".to_string(),
-            Type::Minus(_, _, _) => "T".to_string(),
-            Type::Div(_, _, _) => "T".to_string(),
-            Type::Mul(_, _, _) => "T".to_string(),
+            Type::Operator(
+                TypeOperator::Addition
+                | TypeOperator::Substraction
+                | TypeOperator::Multiplication
+                | TypeOperator::Division,
+                _,
+                _,
+                _,
+            ) => "T".to_string(),
             _ => format!("the type: {} is not yet in to_typescript()", self),
         }
     }
@@ -542,10 +548,18 @@ impl Type {
 
     pub fn index_calculation(&self) -> Type {
         match self {
-            Type::Add(a, b, _) => a.index_calculation().sum_index(&b.index_calculation()),
-            Type::Minus(a, b, _) => a.index_calculation().minus_index(&b.index_calculation()),
-            Type::Mul(a, b, _) => a.index_calculation().mul_index(&b.index_calculation()),
-            Type::Div(a, b, _) => a.index_calculation().div_index(&b.index_calculation()),
+            Type::Operator(TypeOperator::Addition, a, b, _) => {
+                a.index_calculation().sum_index(&b.index_calculation())
+            }
+            Type::Operator(TypeOperator::Substraction, a, b, _) => {
+                a.index_calculation().minus_index(&b.index_calculation())
+            }
+            Type::Operator(TypeOperator::Multiplication, a, b, _) => {
+                a.index_calculation().mul_index(&b.index_calculation())
+            }
+            Type::Operator(TypeOperator::Division, a, b, _) => {
+                a.index_calculation().div_index(&b.index_calculation())
+            }
             Type::Vec(vtype, ind, typ, h) => Type::Vec(
                 vtype.clone(),
                 Box::new(ind.index_calculation()),
@@ -570,7 +584,8 @@ impl Type {
                 a.iter().chain(b.iter()).cloned().collect::<HashSet<_>>(),
                 h.clone(),
             ),
-            _ => Type::Add(
+            _ => Type::Operator(
+                TypeOperator::Addition,
                 Box::new(self.clone()),
                 Box::new(i.clone()),
                 HelpData::default(),
@@ -713,15 +728,20 @@ impl Type {
             Type::Empty(_) => TypeCategory::Empty,
             Type::RClass(_, _) => TypeCategory::RClass,
             Type::UnknownFunction(_) => TypeCategory::RFunction,
-            Type::Add(_, _, _) => TypeCategory::Template,
-            Type::Minus(_, _, _) => TypeCategory::Template,
-            Type::Mul(_, _, _) => TypeCategory::Template,
-            Type::Div(_, _, _) => TypeCategory::Template,
             Type::Intersection(_, _) => TypeCategory::Intersection,
             Type::Module(_, _) => TypeCategory::Module,
             Type::Null(_) => TypeCategory::Null,
             Type::NA(_) => TypeCategory::Null,
             Type::Operator(TypeOperator::Union, _, _, _) => TypeCategory::Union,
+            Type::Operator(
+                TypeOperator::Addition
+                | TypeOperator::Substraction
+                | TypeOperator::Multiplication
+                | TypeOperator::Division,
+                _,
+                _,
+                _,
+            ) => TypeCategory::Template,
             Type::Operator(_, _, _, _) => TypeCategory::Operator,
             _ => {
                 eprintln!("{:?} return Rest", self);
@@ -769,10 +789,6 @@ impl Type {
             Type::Tag(_, _, h) => h.clone(),
             Type::Interface(_, h) => h.clone(),
             Type::Params(_, h) => h.clone(),
-            Type::Add(_, _, h) => h.clone(),
-            Type::Mul(_, _, h) => h.clone(),
-            Type::Minus(_, _, h) => h.clone(),
-            Type::Div(_, _, h) => h.clone(),
             Type::Failed(_, h) => h.clone(),
             Type::Opaque(_, h) => h.clone(),
             Type::Multi(_, h) => h.clone(),
@@ -810,10 +826,6 @@ impl Type {
             Type::Tag(a1, a2, _) => Type::Tag(a1, a2, h2),
             Type::Interface(a, _) => Type::Interface(a, h2),
             Type::Params(a, _) => Type::Params(a, h2),
-            Type::Add(a1, a2, _) => Type::Add(a1, a2, h2),
-            Type::Mul(a1, a2, _) => Type::Mul(a1, a2, h2),
-            Type::Minus(a1, a2, _) => Type::Minus(a1, a2, h2),
-            Type::Div(a1, a2, _) => Type::Div(a1, a2, h2),
             Type::Failed(a, _) => Type::Failed(a, h2),
             Type::Opaque(a, _) => Type::Opaque(a, h2),
             Type::Multi(a, _) => Type::Multi(a, h2),
@@ -1046,11 +1058,7 @@ impl Type {
             Type::Tag(_, inner, _) | Type::Embedded(inner, _) | Type::Multi(inner, _) => {
                 inner.collect_named_constructors_into(acc)
             }
-            Type::Operator(_, a, b, _)
-            | Type::Add(a, b, _)
-            | Type::Mul(a, b, _)
-            | Type::Minus(a, b, _)
-            | Type::Div(a, b, _) => {
+            Type::Operator(_, a, b, _) => {
                 a.collect_named_constructors_into(acc);
                 b.collect_named_constructors_into(acc);
             }
@@ -1100,10 +1108,7 @@ impl From<Type> for HelpData {
             Type::Empty(h) => h,
             Type::Generic(_, h) => h,
             Type::IndexGen(_, h) => h,
-            Type::Minus(_, _, h) => h,
-            Type::Add(_, _, h) => h,
-            Type::Mul(_, _, h) => h,
-            Type::Div(_, _, h) => h,
+            Type::Operator(_, _, _, h) => h,
             Type::Tag(_, _, h) => h,
             Type::Function(_, _, h) => h,
             Type::Char(_, h) => h,
@@ -1143,10 +1148,6 @@ impl PartialEq for Type {
             (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) => a1 == a2 && b1 == b2,
             (Type::Interface(e1, _), Type::Interface(e2, _)) => e1 == e2,
             (Type::Params(e1, _), Type::Params(e2, _)) => e1 == e2,
-            (Type::Add(a1, b1, _), Type::Add(a2, b2, _)) => a1 == a2 && b1 == b2,
-            (Type::Minus(a1, b1, _), Type::Minus(a2, b2, _)) => a1 == a2 && b1 == b2,
-            (Type::Mul(a1, b1, _), Type::Mul(a2, b2, _)) => a1 == a2 && b1 == b2,
-            (Type::Div(a1, b1, _), Type::Div(a2, b2, _)) => a1 == a2 && b1 == b2,
             (Type::Failed(e1, _), Type::Failed(e2, _)) => e1 == e2,
             (Type::Opaque(e1, _), Type::Opaque(e2, _)) => e1 == e2,
             (Type::Multi(e1, _), Type::Multi(e2, _)) => e1 == e2,
@@ -1170,6 +1171,9 @@ impl PartialEq for Type {
                 Type::Operator(TypeOperator::Union, _, _, _),
                 Type::Operator(TypeOperator::Union, _, _, _),
             ) => true, //Todo: refactor this with a UnionType struct
+            (Type::Operator(op1, a1, b1, _), Type::Operator(op2, a2, b2, _)) => {
+                op1 == op2 && a1 == a2 && b1 == b2
+            }
             (Type::Module(a1, _), Type::Module(a2, _)) => a1 == a2,
             _ => false,
         }
@@ -1297,10 +1301,6 @@ impl Hash for Type {
             Type::Tag(_, _, _) => 12.hash(state),
             Type::Interface(_, _) => 14.hash(state),
             Type::Params(_, _) => 15.hash(state),
-            Type::Add(_, _, _) => 16.hash(state),
-            Type::Minus(_, _, _) => 17.hash(state),
-            Type::Mul(_, _, _) => 18.hash(state),
-            Type::Div(_, _, _) => 19.hash(state),
             Type::Failed(_, _) => 20.hash(state),
             Type::Opaque(_, _) => 21.hash(state),
             Type::Multi(_, _) => 22.hash(state),

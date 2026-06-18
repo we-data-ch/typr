@@ -898,22 +898,42 @@ fn compute_operators(v: &mut Vec<(Type, Op)>) -> Type {
         (p, Op::Add(_)) => {
             let res = compute_operators(v);
             let pp = p;
-            Type::Add(Box::new(res.clone()), Box::new(pp), res.into())
+            Type::Operator(
+                TypeOperator::Addition,
+                Box::new(res.clone()),
+                Box::new(pp),
+                res.into(),
+            )
         }
         (p, Op::Minus(_)) => {
             let res = compute_operators(v);
             let pp = p;
-            Type::Minus(Box::new(res.clone()), Box::new(pp), res.into())
+            Type::Operator(
+                TypeOperator::Substraction,
+                Box::new(res.clone()),
+                Box::new(pp),
+                res.into(),
+            )
         }
         (p, Op::Mul(_)) => {
             let res = compute_operators(v);
             let pp = p;
-            Type::Mul(Box::new(res.clone()), Box::new(pp), res.into())
+            Type::Operator(
+                TypeOperator::Multiplication,
+                Box::new(res.clone()),
+                Box::new(pp),
+                res.into(),
+            )
         }
         (p, Op::Div(_)) => {
             let res = compute_operators(v);
             let pp = p;
-            Type::Div(Box::new(res.clone()), Box::new(pp), res.into())
+            Type::Operator(
+                TypeOperator::Division,
+                Box::new(res.clone()),
+                Box::new(pp),
+                res.into(),
+            )
         }
         (p, Op::Empty(_)) => p,
         _ => panic!(),

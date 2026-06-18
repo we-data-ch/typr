@@ -67,43 +67,63 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         }
 
         // Arithmetic operations
-        Type::Add(t1, t2, h) => {
+        Type::Operator(TypeOperator::Addition, t1, t2, h) => {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 + i2, h),
-                _ => Type::Add(Box::new(v1), Box::new(v2), h.clone()),
+                _ => Type::Operator(
+                    TypeOperator::Addition,
+                    Box::new(v1),
+                    Box::new(v2),
+                    h.clone(),
+                ),
             }
         }
 
-        Type::Minus(t1, t2, h) => {
+        Type::Operator(TypeOperator::Substraction, t1, t2, h) => {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 - i2, h),
-                _ => Type::Minus(Box::new(v1), Box::new(v2), h.clone()),
+                _ => Type::Operator(
+                    TypeOperator::Substraction,
+                    Box::new(v1),
+                    Box::new(v2),
+                    h.clone(),
+                ),
             }
         }
 
-        Type::Mul(t1, t2, h) => {
+        Type::Operator(TypeOperator::Multiplication, t1, t2, h) => {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 * i2, h),
-                _ => Type::Mul(Box::new(v1), Box::new(v2), h.clone()),
+                _ => Type::Operator(
+                    TypeOperator::Multiplication,
+                    Box::new(v1),
+                    Box::new(v2),
+                    h.clone(),
+                ),
             }
         }
 
-        Type::Div(t1, t2, h) => {
+        Type::Operator(TypeOperator::Division, t1, t2, h) => {
             let v1 = type_substitution(t1, substitutions);
             let v2 = type_substitution(t2, substitutions);
             match (v1.clone(), v2.clone()) {
                 (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 / i2, h),
-                _ => Type::Div(Box::new(v1), Box::new(v2), h.clone()),
+                _ => Type::Operator(
+                    TypeOperator::Division,
+                    Box::new(v1),
+                    Box::new(v2),
+                    h.clone(),
+                ),
             }
         }
 
