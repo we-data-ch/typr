@@ -9,6 +9,7 @@ pub mod function;
 pub mod function_application;
 pub mod let_expression;
 pub mod signature_expression;
+pub mod type_arithmetic;
 pub mod type_checker;
 pub mod type_comparison;
 pub mod type_context;
@@ -283,6 +284,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             }
 
             errors.extend(validate_named_constructors(context, typ));
+            errors.extend(type_arithmetic::validate_operator_kinds(context, typ));
 
             let ctx_with_alias = new_context
                 .push_alias(effective_var.get_name(), typ.to_owned())

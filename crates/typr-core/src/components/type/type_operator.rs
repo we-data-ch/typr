@@ -82,7 +82,17 @@ impl TypeOperator {
                     )
                 })
                 .unwrap_or(Type::Empty(help_data)),
-            TypeOperator::Intersection => Type::Intersection(types, help_data),
+            TypeOperator::Intersection => types
+                .into_iter()
+                .reduce(|acc, t| {
+                    Type::Operator(
+                        TypeOperator::Intersection,
+                        Box::new(acc),
+                        Box::new(t),
+                        help_data.clone(),
+                    )
+                })
+                .unwrap_or(Type::Empty(help_data)),
             _ => panic!("We can't combine types with the empty type operator"),
         }
     }

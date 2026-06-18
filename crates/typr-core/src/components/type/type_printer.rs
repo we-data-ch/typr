@@ -1,4 +1,5 @@
 use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::intersection_type::IntersectionType;
 use crate::components::r#type::pretty;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
@@ -117,7 +118,18 @@ pub fn format(ty: &Type) -> String {
             "class({})",
             elem.iter().cloned().collect::<Vec<_>>().join(", ")
         ),
-        Type::Intersection(s, _) => s.iter().map(|x| x.pretty()).collect::<Vec<_>>().join(" & "),
+        Type::Operator(TypeOperator::Intersection, _, _, _) => {
+            IntersectionType::try_from(ty.clone())
+                .map(|intersection| {
+                    intersection
+                        .get_types()
+                        .iter()
+                        .map(|x| x.pretty())
+                        .collect::<Vec<_>>()
+                        .join(" & ")
+                })
+                .unwrap_or_default()
+        }
         Type::Interface(args, _) => {
             format!("interface{{ {} }}", pretty(args.clone()))
         }

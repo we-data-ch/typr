@@ -5,6 +5,7 @@ pub mod array_type;
 pub mod function_type;
 pub mod generic;
 pub mod index;
+pub mod intersection_type;
 pub mod module_type;
 pub mod tbool;
 pub mod tchar;
@@ -24,6 +25,7 @@ use crate::components::language::var::Var;
 use crate::components::r#type::alias_type::Alias;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::intersection_type::IntersectionType;
 use crate::components::r#type::module_type::ModuleType;
 use crate::components::r#type::tbool::Tbool;
 use crate::components::r#type::tchar::Tchar;
@@ -34,6 +36,7 @@ use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_printer::litteral;
 use crate::components::r#type::type_printer::{format, verbose};
 use crate::components::r#type::type_system::TypeSystem;
+use crate::components::r#type::union_type::UnionType;
 use crate::components::r#type::vector_type::VecType;
 use crate::processes::parsing::operation_priority::TokenKind;
 use crate::processes::parsing::type_token::TypeToken;
@@ -104,7 +107,6 @@ pub enum Type {
     Module(Vec<ArgumentType>, HelpData),
     Alias(String, Vec<Type>, bool, HelpData), //for opacity
     Tag(String, Box<Type>, HelpData),
-    Intersection(HashSet<Type>, HelpData),
     Interface(HashSet<ArgumentType>, HelpData),
     Params(Vec<Type>, HelpData),
     Failed(String, HelpData),
@@ -158,8 +160,8 @@ impl TypeSystem for Type {
         match (self, other) {
             (Type::Empty(_), _) => true,
             (typ1, typ2) if typ1 == typ2 => true,
-            (Type::Intersection(types, _), typ) => {
-                types.iter().any(|x| x.is_subtype_raw(typ, context))
+            (Type::Operator(TypeOperator::Intersection, t1, t2, _), typ) => {
+                t1.is_subtype_raw(typ, context) || t2.is_subtype_raw(typ, context)
             }
             (_, Type::Any(_)) => true,
             (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => {
@@ -728,11 +730,11 @@ impl Type {
             Type::Empty(_) => TypeCategory::Empty,
             Type::RClass(_, _) => TypeCategory::RClass,
             Type::UnknownFunction(_) => TypeCategory::RFunction,
-            Type::Intersection(_, _) => TypeCategory::Intersection,
             Type::Module(_, _) => TypeCategory::Module,
             Type::Null(_) => TypeCategory::Null,
             Type::NA(_) => TypeCategory::Null,
             Type::Operator(TypeOperator::Union, _, _, _) => TypeCategory::Union,
+            Type::Operator(TypeOperator::Intersection, _, _, _) => TypeCategory::Intersection,
             Type::Operator(
                 TypeOperator::Addition
                 | TypeOperator::Substraction
@@ -800,7 +802,6 @@ impl Type {
             Type::Empty(h) => h.clone(),
             Type::Any(h) => h.clone(),
             Type::RClass(_, h) => h.clone(),
-            Type::Intersection(_, h) => h.clone(),
             Type::Operator(_, _, _, h) => h.clone(),
             Type::Variable(_, h) => h.clone(),
             Type::Null(h) => h.clone(),
@@ -837,7 +838,6 @@ impl Type {
             Type::Empty(_) => Type::Empty(h2),
             Type::Any(_) => Type::Any(h2),
             Type::RClass(v, _) => Type::RClass(v, h2),
-            Type::Intersection(i, _) => Type::Intersection(i, h2),
             Type::Operator(op, t1, t2, _) => Type::Operator(op, t1, t2, h2),
             Type::Variable(name, _) => Type::Variable(name, h2),
             Type::Null(_) => Type::Null(h2),
@@ -1117,7 +1117,6 @@ impl From<Type> for HelpData {
             Type::Boolean(_, h) => h,
             Type::Vec(_, _, _, h) => h,
             Type::Number(_, h) => h,
-            Type::Intersection(_, h) => h,
             Type::Any(h) => h,
             Type::UnknownFunction(h) => h,
             Type::Null(h) => h,
@@ -1160,7 +1159,6 @@ impl PartialEq for Type {
             (Type::Empty(_), Type::Empty(_)) => true,
             (Type::Any(_), Type::Any(_)) => true,
             (Type::RClass(el1, _), Type::RClass(el2, _)) => el1.difference(el2).next().is_none(),
-            (Type::Intersection(s1, _), Type::Intersection(s2, _)) => s1 == s2,
             (Type::Variable(s1, _), Type::Variable(s2, _)) => s1 == s2,
             (Type::Null(_), Type::Null(_)) => true,
             (Type::NA(_), Type::NA(_)) => true,
@@ -1170,7 +1168,14 @@ impl PartialEq for Type {
             (
                 Type::Operator(TypeOperator::Union, _, _, _),
                 Type::Operator(TypeOperator::Union, _, _, _),
-            ) => true, //Todo: refactor this with a UnionType struct
+            ) => UnionType::try_from(self.clone()).ok() == UnionType::try_from(other.clone()).ok(),
+            (
+                Type::Operator(TypeOperator::Intersection, _, _, _),
+                Type::Operator(TypeOperator::Intersection, _, _, _),
+            ) => {
+                IntersectionType::try_from(self.clone()).ok()
+                    == IntersectionType::try_from(other.clone()).ok()
+            }
             (Type::Operator(op1, a1, b1, _), Type::Operator(op2, a2, b2, _)) => {
                 op1 == op2 && a1 == a2 && b1 == b2
             }
@@ -1267,10 +1272,17 @@ impl PartialOrd for Type {
                 .zip(types2.iter())
                 .all(|(typ1, typ2)| typ1.partial_cmp(typ2).is_some())
                 .then_some(Ordering::Less),
-            (typ, Type::Intersection(types, _)) => types
-                .iter()
-                .all(|typ2| typ.partial_cmp(typ2) == Some(Ordering::Less))
-                .then_some(Ordering::Less),
+            (typ, Type::Operator(TypeOperator::Intersection, _, _, _)) => {
+                IntersectionType::try_from(other.clone())
+                    .map(|intersection| {
+                        intersection
+                            .get_types()
+                            .iter()
+                            .all(|typ2| typ.partial_cmp(typ2) == Some(Ordering::Less))
+                    })
+                    .unwrap_or(false)
+                    .then_some(Ordering::Less)
+            }
             _ => None,
         }
     }
@@ -1312,7 +1324,6 @@ impl Hash for Type {
             Type::Any(_) => 28.hash(state),
             Type::UnknownFunction(_) => 30.hash(state),
             Type::RClass(_, _) => 31.hash(state),
-            Type::Intersection(_, _) => 36.hash(state),
             Type::Module(_, _) => 37.hash(state),
             Type::Operator(_, _, _, _) => 38.hash(state),
             Type::Variable(_, _) => 39.hash(state),
@@ -1532,5 +1543,69 @@ mod tests {
                 .is_subtype(&builder::character_type("h1"), &Context::empty())
                 .0
         );
+    }
+
+    #[test]
+    fn test_intersection_pretty() {
+        let a = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
+        let b = builder::record_type(&[("y".to_string(), builder::character_type_default())]);
+        let inter = builder::intersection_type(&[a, b]);
+        assert!(matches!(
+            inter,
+            Type::Operator(TypeOperator::Intersection, _, _, _)
+        ));
+        let pretty = inter.pretty();
+        assert!(pretty.contains(" & "));
+    }
+
+    #[test]
+    fn test_intersection_equality_is_order_independent() {
+        let a = builder::integer_type_default();
+        let b = builder::character_type_default();
+        let ab = builder::intersection_type(&[a.clone(), b.clone()]);
+        let ba = builder::intersection_type(&[b, a]);
+        assert_eq!(ab, ba);
+    }
+
+    #[test]
+    fn test_intersection_subtype_self_side() {
+        // (Record{x} & Record{y}) <: Record{x}: true if either member is a subtype.
+        let a = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
+        let b = builder::record_type(&[("y".to_string(), builder::character_type_default())]);
+        let inter = builder::intersection_type(&[a.clone(), b]);
+        assert!(inter.is_subtype(&a, &Context::empty()).0);
+    }
+
+    #[test]
+    fn test_intersection_subtype_right_side() {
+        // Record{x, y} <: (Record{x} & Record{y}): true only if subtype of both members.
+        let a = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
+        let b = builder::record_type(&[("y".to_string(), builder::character_type_default())]);
+        let xy = builder::record_type(&[
+            ("x".to_string(), builder::integer_type_default()),
+            ("y".to_string(), builder::character_type_default()),
+        ]);
+        let inter = builder::intersection_type(&[a.clone(), b]);
+        assert!(xy.is_subtype(&inter, &Context::empty()).0);
+        assert!(!a.is_subtype(&inter, &Context::empty()).0);
+    }
+
+    #[test]
+    fn test_union_equality_is_order_independent() {
+        let a = builder::character_type("html");
+        let b = builder::character_type("h1");
+        let ab = builder::union_type(&[a.clone(), b.clone()]);
+        let ba = builder::union_type(&[b, a]);
+        assert_eq!(ab, ba);
+    }
+
+    #[test]
+    fn test_union_inequality_with_different_members() {
+        let a = builder::character_type("html");
+        let b = builder::character_type("h1");
+        let c = builder::character_type("h2");
+        let ab = builder::union_type(&[a.clone(), b]);
+        let ac = builder::union_type(&[a, c]);
+        assert_ne!(ab, ac);
     }
 }

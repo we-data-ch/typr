@@ -151,8 +151,18 @@ pub fn interface_type2(signatures: &[(String, Type)]) -> Type {
 }
 
 pub fn intersection_type(types: &[Type]) -> Type {
-    let type_set = types.iter().cloned().collect::<HashSet<_>>();
-    Type::Intersection(type_set, HelpData::default())
+    types
+        .iter()
+        .cloned()
+        .reduce(|acc, t| {
+            Type::Operator(
+                TypeOperator::Intersection,
+                Box::new(acc),
+                Box::new(t),
+                HelpData::default(),
+            )
+        })
+        .unwrap_or(Type::Empty(HelpData::default()))
 }
 
 pub fn union_type(types: &[Type]) -> Type {

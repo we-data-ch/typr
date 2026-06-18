@@ -4,6 +4,8 @@ use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
+use crate::processes::type_checking::type_arithmetic::norm_arithmetic;
+use crate::processes::type_checking::type_arithmetic::norm_intersection;
 use crate::processes::type_checking::unification::type_substitution;
 use crate::utils::builder;
 use rpds::Vector;
@@ -120,6 +122,24 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
             } else {
                 type_.clone()
             }
+        }
+        Type::Operator(
+            op @ (TypeOperator::Addition
+            | TypeOperator::Substraction
+            | TypeOperator::Multiplication
+            | TypeOperator::Division),
+            t1,
+            t2,
+            h,
+        ) => {
+            let r1 = reduce_type_helper(context, t1, memory.clone());
+            let r2 = reduce_type_helper(context, t2, memory.clone());
+            norm_arithmetic(*op, r1, r2, h.clone())
+        }
+        Type::Operator(TypeOperator::Intersection, t1, t2, h) => {
+            let r1 = reduce_type_helper(context, t1, memory.clone());
+            let r2 = reduce_type_helper(context, t2, memory.clone());
+            norm_intersection(r1, r2, h.clone())
         }
         Type::Operator(TypeOperator::Access, t1, t2, h) => {
             let t1_inner = (**t1).clone();

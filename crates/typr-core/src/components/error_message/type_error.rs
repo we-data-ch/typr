@@ -33,6 +33,9 @@ pub enum TypeError {
     MissingField(String, Type, HelpData),
     /// A `..source` spread variable isn't of the exact same alias as the constructed type.
     SpreadTypeMismatch(Type, Type, HelpData),
+    /// A type-level operator (`+ - * /` or `&`) was applied to operand(s) outside
+    /// its domain of definition (e.g. `+` on a `char`, `&` on an `int`).
+    InvalidTypeOperatorDomain(String, HelpData),
 }
 
 impl TypeError {
@@ -58,6 +61,7 @@ impl TypeError {
             TypeError::DuplicateField(_, h) => Some(h.clone()),
             TypeError::MissingField(_, _, h) => Some(h.clone()),
             TypeError::SpreadTypeMismatch(_, _, h) => Some(h.clone()),
+            TypeError::InvalidTypeOperatorDomain(_, h) => Some(h.clone()),
         }
     }
 
@@ -153,6 +157,7 @@ impl TypeError {
                     expected.pretty()
                 )
             }
+            TypeError::InvalidTypeOperatorDomain(message, _) => message.clone(),
         }
     }
 }
@@ -450,6 +455,14 @@ impl ErrorMsg for TypeError {
                     ))
                     .pos_text("Spread source type mismatch")
                     .help("The `..source` value must have exactly the same alias as the constructed type.")
+                    .build()
+            }
+            TypeError::InvalidTypeOperatorDomain(message, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(message.clone())
+                    .pos_text("Invalid operand for this type-level operator")
                     .build()
             }
         };
