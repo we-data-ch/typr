@@ -1,0 +1,29 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 128
+expression: r
+---
+Df <- function(id, name, .spread = NULL) {
+  explicit <- list()
+  if (!missing(id)) explicit[["id"]] <- id
+  if (!missing(name)) explicit[["name"]] <- name
+  x <- typr_spread_record(explicit, .spread)
+  as.Df(do.call(data.frame, c(x, list(stringsAsFactors = FALSE))))
+}
+as.Df <- function(x) {
+  if (!inherits(x, "Df")) class(x) <- c("Df", "data.frame", "list")
+  x <- validate_Df(x)
+  x <- validate(x)
+  x
+}
+validate_Df <- function(x) {
+  if (!is.data.frame(x)) stop("Validation failed for type Df: expected a data.frame")
+  required_fields <- c("id", "name")
+  missing_fields <- setdiff(required_fields, names(x))
+  if (length(missing_fields) > 0) {
+    stop(paste0("Validation failed for type Df: missing columns: ", paste(missing_fields, collapse = ", ")))
+  }
+  if (!inherits(x[["id"]], "integer")) stop("Validation failed for type Df: column 'id' must be of class integer")
+  if (!inherits(x[["name"]], "character")) stop("Validation failed for type Df: column 'name' must be of class character")
+  x
+}

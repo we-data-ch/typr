@@ -1,0 +1,6 @@
+title = ": Was declared as a public function"
+cmd = "build"
+layer = "transpile"
+status = "fixed"
+created = "2026-06-17"
+origin = "perso"

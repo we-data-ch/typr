@@ -1,0 +1,30 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 134
+expression: r
+---
+Df3 <- function(id, score, .spread = NULL) {
+  explicit <- list()
+  if (!missing(id)) explicit[["id"]] <- id
+  if (!missing(score)) explicit[["score"]] <- score
+  x <- typr_spread_record(explicit, .spread)
+  as.Df3(do.call(data.frame, c(x, list(stringsAsFactors = FALSE))))
+}
+as.Df3 <- function(x) {
+  if (!inherits(x, "Df3")) class(x) <- c("Df3", "data.frame", "list")
+  x <- validate_Df3(x)
+  x <- validate(x)
+  x
+}
+validate_Df3 <- function(x) {
+  if (!is.data.frame(x)) stop("Validation failed for type Df3: expected a data.frame")
+  required_fields <- c("id", "score")
+  missing_fields <- setdiff(required_fields, names(x))
+  if (length(missing_fields) > 0) {
+    stop(paste0("Validation failed for type Df3: missing columns: ", paste(missing_fields, collapse = ", ")))
+  }
+  if (!inherits(x[["id"]], "integer")) stop("Validation failed for type Df3: column 'id' must be of class integer")
+  if (!inherits(x[["score"]], "numeric")) stop("Validation failed for type Df3: column 'score' must be of class numeric")
+  if (nrow(x) != 3) stop(paste0("Validation failed for type Df3: expected 3 rows, got ", nrow(x)))
+  x
+}

@@ -123,6 +123,18 @@ mod transpilation {
     }
 
     #[test]
+    fn type_alias_dataframe() {
+        let r = transpile_all(&["type Df <- dataframe[#N]{ id: int, name: char };"]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn type_alias_dataframe_sized() {
+        let r = transpile_all(&["type Df3 <- df[3]{ id: int, score: num };"]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
     fn constructor_call_spread() {
         // RFC-TR-033: `..source` expands to a `source$field` access for every
         // field not given explicitly; explicit fields keep their own value.

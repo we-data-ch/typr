@@ -2385,18 +2385,20 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 UseSelector::Wildcard => {
                     for member in mod_type.get_public_members() {
                         let local_name = member.get_argument_str();
+                        let member_type = member.get_type();
                         // Conflict with local declaration. Untyped stdlib placeholders
                         // (e.g. R's base `Position`/`Reduce`/...) are preloaded as
                         // `(Any, UnknownFunction)` in every context so calling them never
                         // errors as undefined; they must not count as a real conflict when
-                        // a user type/function happens to share that name.
-                        if has_real_conflict(context, &local_name) {
+                        // a user type/function happens to share that name. Same-named
+                        // function overloads dispatching on different first-parameter
+                        // types are also not a real conflict (see `has_real_conflict`).
+                        if has_real_conflict(context, &local_name, &member_type) {
                             errors.push(TypRError::Type(TypeError::ImmutableVariable(
                                 Var::from_name(&local_name),
                                 Var::from_name(&local_name),
                             )));
                         } else {
-                            let member_type = member.get_type();
                             new_context = new_context.clone().push_var_type(
                                 Var::from_name(&local_name),
                                 member_type.clone(),
@@ -2417,6 +2419,21 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     for item in items {
                         let local_name = item.alias.as_ref().unwrap_or(&item.name).clone();
 
+                        let member_type = match mod_type.get_type_from_name(&item.name) {
+                            Ok(member_type) => member_type,
+                            Err(_) => {
+                                errors.push(TypRError::Type(TypeError::UndefinedVariable(
+                                    Lang::Variable {
+                                        name: item.name.clone(),
+                                        is_opaque: false,
+                                        related_type: builder::any_type(),
+                                        help_data: help_data.clone(),
+                                    },
+                                )));
+                                continue;
+                            }
+                        };
+
                         // Conflict with another import in this directive
                         if imported_names.contains(&local_name) {
                             errors.push(TypRError::Type(TypeError::ImmutableVariable(
@@ -2427,8 +2444,9 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         }
 
                         // Conflict with existing local (see Wildcard branch above for why
-                        // stdlib placeholders are excluded from this check).
-                        if has_real_conflict(context, &local_name) {
+                        // stdlib placeholders / overloadable functions are excluded from
+                        // this check).
+                        if has_real_conflict(context, &local_name, &member_type) {
                             errors.push(TypRError::Type(TypeError::ImmutableVariable(
                                 Var::from_name(&local_name),
                                 Var::from_name(&local_name),
@@ -2436,32 +2454,18 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                             continue;
                         }
 
-                        match mod_type.get_type_from_name(&item.name) {
-                            Ok(member_type) => {
-                                imported_names.insert(local_name.clone());
-                                new_context = new_context.clone().push_var_type(
-                                    Var::from_name(&local_name),
-                                    member_type.clone(),
-                                    &new_context,
-                                );
-                                // Record types imported from a module must also be registered
-                                // as aliases so that ConstructorCall (TypeName:{...}) can find them.
-                                if !matches!(member_type, Type::Function(..)) {
-                                    new_context = new_context
-                                        .clone()
-                                        .push_alias(local_name.clone(), member_type);
-                                }
-                            }
-                            Err(_) => {
-                                errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                                    Lang::Variable {
-                                        name: item.name.clone(),
-                                        is_opaque: false,
-                                        related_type: builder::any_type(),
-                                        help_data: help_data.clone(),
-                                    },
-                                )));
-                            }
+                        imported_names.insert(local_name.clone());
+                        new_context = new_context.clone().push_var_type(
+                            Var::from_name(&local_name),
+                            member_type.clone(),
+                            &new_context,
+                        );
+                        // Record types imported from a module must also be registered
+                        // as aliases so that ConstructorCall (TypeName:{...}) can find them.
+                        if !matches!(member_type, Type::Function(..)) {
+                            new_context = new_context
+                                .clone()
+                                .push_alias(local_name.clone(), member_type);
                         }
                     }
                 }
@@ -2671,16 +2675,32 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
     }
 }
 
-/// True if `name` is already bound in `context` to something other than the
-/// generic stdlib placeholder (`Any`-typed variable paired with
-/// `UnknownFunction`) that every untyped R/JS builtin name (`Position`,
-/// `Reduce`, `t`, ...) gets preloaded as. Used by `use module::Name;` to
-/// avoid rejecting a legitimate import just because the name happens to
-/// collide with a base-language function nobody typed a signature for.
-fn has_real_conflict(context: &Context, name: &str) -> bool {
-    context
-        .variables()
-        .any(|(v, t)| v.get_name() == name && !(v.get_type().is_any() && t.is_unknown_function()))
+/// True if `name` is already bound in `context` to something that genuinely
+/// clashes with the member being imported. Two cases are *not* a real
+/// conflict:
+/// - the generic stdlib placeholder (`Any`-typed variable paired with
+///   `UnknownFunction`) that every untyped R/JS builtin name (`Position`,
+///   `Reduce`, `t`, ...) gets preloaded as;
+/// - an existing function overload of the same name whose first parameter
+///   type differs from the imported function's first parameter type. TypR
+///   dispatches same-named functions structurally on their first parameter
+///   (see `Context::get_functions_from_type`), so importing `add` for a new
+///   first-parameter type (e.g. a user `Scene`) alongside the stdlib
+///   `add(int, int)` / `add(num, num)` overloads is a legitimate overload,
+///   not a redefinition.
+/// Used by `use module::Name;` to avoid rejecting a legitimate import.
+fn has_real_conflict(context: &Context, name: &str, member_type: &Type) -> bool {
+    let new_first_param = member_type.get_first_parameter();
+    context.variables().any(|(v, t)| {
+        v.get_name() == name
+            && !(v.get_type().is_any() && t.is_unknown_function())
+            && !(t.is_function()
+                && member_type.is_function()
+                && match (t.get_first_parameter(), &new_first_param) {
+                    (Some(existing), Some(new)) => existing != *new,
+                    _ => false,
+                })
+    })
 }
 
 /// Flatten a nested `Type::Operator(Union, ...)` tree into a flat `HashSet<Type>`.

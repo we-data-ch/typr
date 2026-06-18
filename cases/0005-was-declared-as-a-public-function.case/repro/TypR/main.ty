@@ -1,0 +1,20 @@
+mod circle;
+mod position;
+mod scene;
+
+use circle::new_circle;
+use circle::Circle;
+use position::Position;
+use position::move;
+use position::right;
+use scene::Scene;
+use scene::new_scene;
+#@case: add is imported here
+use scene::add;
+
+let c1 <- new_circle(2);
+
+let sc <- new_scene();
+
+#@case: it is said that add is not defined in this scope
+sc.add(c1).print()

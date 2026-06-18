@@ -1335,6 +1335,88 @@ impl RTranslatable<(String, Context)> for Lang {
                             cont.clone(),
                         )
                     }
+                    // Dataframe alias (`type Df <- dataframe[#N]{ ... }` /
+                    // `df[3]{ ... }`): same constructor/annotator/validator
+                    // pipeline as a record alias, but columns are assembled
+                    // into a `data.frame` instead of a `list`, the class
+                    // chain carries `"data.frame"`, and a concrete size
+                    // index (`df[3]{...}`) additionally checks `nrow(x)`.
+                    Type::Vec(VecType::DataFrame, size, fields_type, _)
+                        if matches!(fields_type.as_ref(), Type::Record(_, _)) =>
+                    {
+                        use crate::components::r#type::tint::Tint;
+                        let fields = match fields_type.as_ref() {
+                            Type::Record(fields, _) => fields,
+                            _ => unreachable!(),
+                        };
+                        let mut sorted_fields: Vec<&ArgumentType> = fields.iter().collect();
+                        sorted_fields.sort_by_key(|f| f.get_argument_str());
+                        let params = sorted_fields
+                            .iter()
+                            .map(|f| f.get_argument_str())
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        let explicit_lines = sorted_fields
+                            .iter()
+                            .map(|f| {
+                                let n = f.get_argument_str();
+                                format!("  if (!missing({n})) explicit[[\"{n}\"]] <- {n}")
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        // Constructor: collect the explicitly-supplied columns,
+                        // merge them over `.spread`, assemble into a
+                        // `data.frame`, then delegate to the annotator.
+                        let constructor = format!(
+                            "{name} <- function({params}, .spread = NULL) {{\n  explicit <- list()\n{explicit_lines}\n  x <- typr_spread_record(explicit, .spread)\n  as.{name}(do.call(data.frame, c(x, list(stringsAsFactors = FALSE))))\n}}"
+                        );
+                        // Annotator: adds the class (idempotently), runs the
+                        // internal validator, then the user validator.
+                        let annotator = format!(
+                            "as.{name} <- function(x) {{\n  if (!inherits(x, \"{name}\")) class(x) <- c(\"{name}\", \"data.frame\", \"list\")\n  x <- validate_{name}(x)\n  x <- validate(x)\n  x\n}}"
+                        );
+                        let fields_quoted = sorted_fields
+                            .iter()
+                            .map(|f| format!("\"{}\"", f.get_argument_str()))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        // Per-column type invariants, checked by class
+                        // (`inherits`) on the column vector.
+                        let field_checks = sorted_fields
+                            .iter()
+                            .filter_map(|f| {
+                                let n = f.get_argument_str();
+                                record_field_class(&f.body_type(), cont).map(|cls| {
+                                    format!(
+                                        "  if (!inherits(x[[\"{n}\"]], \"{cls}\")) stop(\"Validation failed for type {name}: column '{n}' must be of class {cls}\")"
+                                    )
+                                })
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        let field_checks_block = if field_checks.is_empty() {
+                            String::new()
+                        } else {
+                            format!("{field_checks}\n")
+                        };
+                        // Row-count check: only emitted when the size index is
+                        // a concrete literal (`df[3]{...}`); a generic (`#N`)
+                        // or unconstrained (`df{...}`) size imposes no check.
+                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                            format!(
+                                "  if (nrow(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected {n} rows, got \", nrow(x)))\n"
+                            )
+                        } else {
+                            String::new()
+                        };
+                        let validator = format!(
+                            "validate_{name} <- function(x) {{\n  if (!is.data.frame(x)) stop(\"Validation failed for type {name}: expected a data.frame\")\n  required_fields <- c({fields_quoted})\n  missing_fields <- setdiff(required_fields, names(x))\n  if (length(missing_fields) > 0) {{\n    stop(paste0(\"Validation failed for type {name}: missing columns: \", paste(missing_fields, collapse = \", \")))\n  }}\n{field_checks_block}{size_check}  x\n}}"
+                        );
+                        (
+                            format!("{constructor}\n{annotator}\n{validator}"),
+                            cont.clone(),
+                        )
+                    }
                     Type::Operator(_, _, _, _) => {
                         // Union alias: generate the full constructor/annotator/
                         // validator pipeline for each variant (see
