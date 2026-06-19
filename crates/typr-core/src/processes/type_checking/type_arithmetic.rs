@@ -42,7 +42,7 @@ fn accepts_number_kind(t: &Type) -> bool {
 /// Kinds accepted by the Intersection operator (`&`): `Record`, and
 /// `Interface` per the RFC's "et éventuellement Interface". Same permissive
 /// treatment of not-yet-resolved types as `accepts_number_kind`.
-fn accepts_record_kind(t: &Type) -> bool {
+pub fn accepts_record_kind(t: &Type) -> bool {
     matches!(
         t.to_category(),
         TypeCategory::Record
@@ -196,9 +196,7 @@ fn collect_failed_types(typ: &Type, acc: &mut Vec<(String, HelpData)>) {
             collect_failed_types(idx, acc);
             collect_failed_types(body, acc);
         }
-        Type::Tag(_, inner, _) | Type::Embedded(inner, _) | Type::Multi(inner, _) => {
-            collect_failed_types(inner, acc)
-        }
+        Type::Tag(_, inner, _) | Type::Multi(inner, _) => collect_failed_types(inner, acc),
         Type::Operator(_, a, b, _) => {
             collect_failed_types(a, acc);
             collect_failed_types(b, acc);

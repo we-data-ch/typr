@@ -36,6 +36,16 @@ pub enum TypeError {
     /// A type-level operator (`+ - * /` or `&`) was applied to operand(s) outside
     /// its domain of definition (e.g. `+` on a `char`, `&` on an `int`).
     InvalidTypeOperatorDomain(String, HelpData),
+    /// A field annotated `@Type` (named type embedding, E-EMBED-002) doesn't have
+    /// kind `Record` — `(field_name, embedded_type, position)`.
+    EmbedNonRecord(String, Type, HelpData),
+    /// Two or more embedded fields provide a function with the same name
+    /// (E-EMBED-001) — `(function_name, field_names, position)`.
+    EmbedCollision(String, Vec<String>, HelpData),
+    /// An explicit function definition collides with a function already inherited
+    /// through named type embedding (E-EMBED-003) —
+    /// `(function_name, type_name, source_field_name, position)`.
+    EmbedConflict(String, String, String, HelpData),
 }
 
 impl TypeError {
@@ -62,6 +72,9 @@ impl TypeError {
             TypeError::MissingField(_, _, h) => Some(h.clone()),
             TypeError::SpreadTypeMismatch(_, _, h) => Some(h.clone()),
             TypeError::InvalidTypeOperatorDomain(_, h) => Some(h.clone()),
+            TypeError::EmbedNonRecord(_, _, h) => Some(h.clone()),
+            TypeError::EmbedCollision(_, _, h) => Some(h.clone()),
+            TypeError::EmbedConflict(_, _, _, h) => Some(h.clone()),
         }
     }
 
@@ -158,6 +171,26 @@ impl TypeError {
                 )
             }
             TypeError::InvalidTypeOperatorDomain(message, _) => message.clone(),
+            TypeError::EmbedNonRecord(name, typ, _) => {
+                format!(
+                    "Cannot embed non-record type '{}' in field '{}'",
+                    typ.pretty(),
+                    name
+                )
+            }
+            TypeError::EmbedCollision(name, fields, _) => {
+                format!(
+                    "Function '{}' is provided by multiple embeddings: {}",
+                    name,
+                    fields.join(", ")
+                )
+            }
+            TypeError::EmbedConflict(name, type_name, field, _) => {
+                format!(
+                    "Function '{}' already defined in '{}' through embedded field '{}'",
+                    name, type_name, field
+                )
+            }
         }
     }
 }
@@ -463,6 +496,44 @@ impl ErrorMsg for TypeError {
                     .pos((help_data.get_offset(), 0))
                     .text(message.clone())
                     .pos_text("Invalid operand for this type-level operator")
+                    .build()
+            }
+            TypeError::EmbedNonRecord(name, typ, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "Cannot embed non-record type '{}' in field '{}'",
+                        typ.pretty(),
+                        name
+                    ))
+                    .pos_text("Embedded type must have kind Record")
+                    .help("Only record-kinded types (`list { ... }` aliases) can be embedded with `field: @Type`.")
+                    .build()
+            }
+            TypeError::EmbedCollision(name, fields, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "Function '{}' is provided by multiple embeddings: {}",
+                        name,
+                        fields.join(", ")
+                    ))
+                    .pos_text("Embedding collision")
+                    .help("Rename or remove one of the conflicting embedded fields.")
+                    .build()
+            }
+            TypeError::EmbedConflict(name, type_name, field, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "Function '{}' already defined in '{}' through embedded field '{}'",
+                        name, type_name, field
+                    ))
+                    .pos_text("Conflicts with an inherited embedded function")
+                    .help("No implicit shadowing is allowed between an explicit definition and an embedded function.")
                     .build()
             }
         };

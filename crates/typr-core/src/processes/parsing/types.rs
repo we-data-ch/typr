@@ -23,6 +23,7 @@ use nom::bytes::complete::tag;
 use nom::character::complete::alphanumeric1;
 use nom::character::complete::digit1;
 use nom::character::complete::multispace0;
+use nom::character::complete::multispace1;
 use nom::character::complete::none_of;
 use nom::character::complete::one_of;
 use nom::combinator::opt;
@@ -44,7 +45,7 @@ fn labeled_ltype(s: Span) -> IResult<Span, Type> {
     let res = (
         terminated(label, multispace0),
         terminated(tag(":"), multispace0),
-        alt((embedded_ltype, ltype)),
+        ltype,
     )
         .parse(s);
     match res {
@@ -467,14 +468,6 @@ fn recursive_with_record_error(s: Span) -> IResult<Span, Type> {
     }
 }
 
-fn embedded_ltype(s: Span) -> IResult<Span, Type> {
-    let res = (tag("@"), ltype).parse(s);
-    match res {
-        Ok((s, (at, ty))) => Ok((s, Type::Embedded(Box::new(ty), at.into()))),
-        Err(r) => Err(r),
-    }
-}
-
 fn simple_label(s: Span) -> IResult<Span, Type> {
     let res = variable2(s);
     match res.clone() {
@@ -496,19 +489,26 @@ pub fn label(s: Span) -> IResult<Span, Type> {
     alt((label_generic, simple_label)).parse(s)
 }
 
+/// Named type embedding (RFC: `type_embedding.md`): an `embed` prefix on a
+/// record field, e.g. `embed coords: Position`, makes `ArgumentType::is_embedded()`
+/// true for that field. `embed` is a soft keyword recognized only in this
+/// position; it requires trailing whitespace so a field genuinely named
+/// `embed` (immediately followed by `:`) still parses as a plain field name.
+fn embed_keyword(s: Span) -> IResult<Span, Span> {
+    terminated(tag("embed"), multispace1).parse(s)
+}
+
 pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
     let res = (
+        opt(embed_keyword),
         terminated(label, multispace0),
         terminated(tag(":"), multispace0),
-        alt((ltype, embedded_ltype)),
+        ltype,
         opt(terminated(tag(","), multispace0)),
     )
         .parse(s);
     match res {
-        Ok((s, (e1, _, Type::Embedded(ty, _), _))) => {
-            Ok((s, ArgumentType(e1, *ty.clone(), true, false)))
-        }
-        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false, false))),
+        Ok((s, (embed, e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, embed.is_some(), false))),
         Err(r) => Err(r),
     }
 }
@@ -645,7 +645,7 @@ pub fn type_alias(s: Span) -> IResult<Span, Type> {
 fn parenthese_value(s: Span) -> IResult<Span, Type> {
     delimited(
         terminated(tag("("), multispace0),
-        alt((embedded_ltype, ltype)),
+        ltype,
         terminated(tag(")"), multispace0),
     )
     .parse(s)

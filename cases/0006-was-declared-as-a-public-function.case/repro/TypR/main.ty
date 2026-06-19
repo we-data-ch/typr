@@ -1,0 +1,19 @@
+mod circle;
+mod position;
+mod scene;
+
+use circle::new_circle;
+use circle::Circle;
+use position::Position;
+use position::move;
+use position::right;
+use scene::Scene;
+use scene::new_scene;
+use scene::add;
+
+let c1 <- new_circle(2);
+
+let sc <- new_scene();
+
+#@case: The second application of `add` fail
+sc.add(c1).add(c1).print()

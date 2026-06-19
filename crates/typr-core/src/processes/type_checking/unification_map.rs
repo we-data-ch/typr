@@ -137,12 +137,23 @@ impl UnificationMap {
         // For example: Option<U> with {U→int} → Option<int> (alias kept, not expanded).
         // If substitution changed the type, use that result directly.
         // If nothing changed (e.g. a bare alias like `Int` with no matching generics),
-        // fall back to reducing so that `Int` becomes `int`.
+        // fall back to reducing so that `Int` becomes `int`. But if the alias reduces to
+        // a structural type carrying its own dispatch identity (a record or a tagged
+        // union, e.g. `Scene`), keep the alias instead of expanding it: expanding it here
+        // strips the name that later UFCS calls in a chain rely on to find a matching
+        // overload (`sc.add(c1).add(c2)` — the receiver type of the second `.add` must
+        // still be `Scene`, not its expanded record).
         let substituted = self.type_substitution(ret_ty);
         let new_type = if &substituted != ret_ty {
             substituted.index_calculation()
         } else {
-            ret_ty.reduce(context).index_calculation()
+            let reduced = ret_ty.reduce(context);
+            match reduced {
+                Type::Record(_, _) | Type::Tag(_, _, _) | Type::Operator(_, _, _, _) => {
+                    ret_ty.clone().index_calculation()
+                }
+                _ => reduced.index_calculation(),
+            }
         };
         (new_type, context.clone())
     }

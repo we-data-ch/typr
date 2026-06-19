@@ -1,0 +1,19 @@
+type Position <- list {
+	x: int,
+	y: int
+};
+
+let move <- fn(self: Position, dx: int, dy: int): Position {
+	Position:{ x = self$x + dx, y = self$y + dy }
+};
+
+type Player <- list {
+	embed coords: Position,
+	name: char
+};
+
+let c1 <- Player:{ coords = Position:{ x = 0, y = 0 }, name = "Hero" };
+let c2 <- move(c1, 0, 1);
+
+print(c2$coords$y);
+print(c2$name);

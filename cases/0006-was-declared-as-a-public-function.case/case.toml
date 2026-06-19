@@ -1,0 +1,6 @@
+title = "Chained UFCS call loses record alias on a non-generic function return type"
+cmd = "build"
+layer = "type"
+status = "fixed"
+created = "2026-06-19"
+origin = "perso"

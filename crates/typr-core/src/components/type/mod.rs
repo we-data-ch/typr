@@ -97,7 +97,6 @@ pub enum Type {
     Integer(Tint, HelpData),
     Boolean(Tbool, HelpData),
     Char(Tchar, HelpData),
-    Embedded(Box<Type>, HelpData),
     Function(Vec<ArgumentType>, Box<Type>, HelpData),
     Generic(String, HelpData),
     IndexGen(String, HelpData),
@@ -779,7 +778,6 @@ impl Type {
             Type::Number(_, h) => h.clone(),
             Type::Char(_, h) => h.clone(),
             Type::Boolean(_, h) => h.clone(),
-            Type::Embedded(_, h) => h.clone(),
             Type::Function(_, _, h) => h.clone(),
             Type::Generic(_, h) => h.clone(),
             Type::IndexGen(_, h) => h.clone(),
@@ -815,7 +813,6 @@ impl Type {
             Type::Number(n, _) => Type::Number(n, h2),
             Type::Char(a, _) => Type::Char(a, h2),
             Type::Boolean(b, _) => Type::Boolean(b, h2),
-            Type::Embedded(a, _) => Type::Embedded(a, h2),
             Type::Function(a2, a3, _) => Type::Function(a2, a3, h2),
             Type::Generic(a, _) => Type::Generic(a, h2),
             Type::IndexGen(a, _) => Type::IndexGen(a, h2),
@@ -1055,7 +1052,7 @@ impl Type {
             Type::Record(fields, _) | Type::Interface(fields, _) => fields
                 .iter()
                 .for_each(|a| a.get_type().collect_named_constructors_into(acc)),
-            Type::Tag(_, inner, _) | Type::Embedded(inner, _) | Type::Multi(inner, _) => {
+            Type::Tag(_, inner, _) | Type::Multi(inner, _) => {
                 inner.collect_named_constructors_into(acc)
             }
             Type::Operator(_, a, b, _) => {
@@ -1134,7 +1131,6 @@ impl PartialEq for Type {
             (Type::Integer(_, _), Type::Integer(_, _)) => true,
             (Type::Boolean(b1, _), Type::Boolean(b2, _)) => b1 == b2,
             (Type::Char(t1, _), Type::Char(t2, _)) => t1 == t2,
-            (Type::Embedded(e1, _), Type::Embedded(e2, _)) => e1 == e2,
             (Type::Function(b1, c1, _), Type::Function(b2, c2, _)) => b1 == b2 && c1 == c2,
             (Type::Generic(_, _), Type::Generic(_, _)) => true,
             (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
@@ -1302,7 +1298,6 @@ impl Hash for Type {
                 b.hash(state);
             }
             Type::Char(_, _) => 3.hash(state),
-            Type::Embedded(_, _) => 4.hash(state),
             Type::Function(_, _, _) => 5.hash(state),
             Type::Generic(_, _) => 6.hash(state),
             Type::IndexGen(_, _) => 7.hash(state),

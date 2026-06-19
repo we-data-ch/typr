@@ -5,6 +5,7 @@
     unreachable_code,
     unused_assignments
 )]
+pub mod embedding;
 pub mod function;
 pub mod function_application;
 pub mod let_expression;
@@ -305,12 +306,44 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 ctx_with_alias
             };
 
-            TypeContext::new(
-                builder::unknown_function_type(),
-                expr.clone(),
-                final_context,
-            )
-            .with_errors(errors)
+            // Named type embedding (`embed field: Type`, see `embedding.rs`): for a
+            // record alias with embedded fields, synthesize forwarding functions
+            // for every method discovered on the embedded type(s), and splice them
+            // in right after this declaration via `Lang::Lines`. The `lang` field
+            // returned here must survive unchanged into transpilation — see the
+            // dedicated comment on the `Lang::Alias` arm in `typing()` above.
+            // Deliberately use `typ` as written, not `typ.reduce(...)`: reducing
+            // would resolve an embedded field's alias (e.g. `Position`) down to
+            // its underlying `Type::Record`, which no longer equals the
+            // `Type::Alias("Position", ...)` that candidate methods are keyed on
+            // in `get_functions_from_type`.
+            let (final_lang, final_context) = if let Type::Record(fields, _) = typ {
+                if fields.iter().any(|f| f.is_embedded()) {
+                    let (synthesized, ctx, embed_errors) = embedding::synthesize_embedding(
+                        &final_context,
+                        &effective_var.get_name(),
+                        fields,
+                        h,
+                    );
+                    errors.extend(embed_errors);
+                    let mut lines = vec![expr.clone()];
+                    lines.extend(synthesized);
+                    (
+                        Lang::Lines {
+                            value: lines,
+                            help_data: h.clone(),
+                        },
+                        ctx,
+                    )
+                } else {
+                    (expr.clone(), final_context)
+                }
+            } else {
+                (expr.clone(), final_context)
+            };
+
+            TypeContext::new(builder::unknown_function_type(), final_lang, final_context)
+                .with_errors(errors)
         }
         Lang::Assign {
             identifier: left_expr,
@@ -2250,7 +2283,11 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         }
         Lang::Let { .. } => eval(context, expr),
         Lang::Assign { .. } => eval(context, expr),
-        Lang::Alias { .. } => eval(context, expr).with_lang(expr),
+        // No `.with_lang(expr)` here (unlike the other `eval()`-delegating arms below):
+        // named type embedding (`embed field: Type`) rewrites the returned `lang` into a
+        // `Lang::Lines` that also carries the auto-generated forwarding functions, and
+        // that rewritten value must survive into transpilation. See `embedding.rs`.
+        Lang::Alias { .. } => eval(context, expr),
         Lang::Library { .. } => eval(context, expr).with_lang(expr),
         Lang::TestBlock { .. } => eval(context, expr).with_lang(expr),
         Lang::Signature { .. } => eval(context, expr).with_lang(expr),

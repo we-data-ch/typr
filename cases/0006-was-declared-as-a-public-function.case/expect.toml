@@ -1,0 +1,8 @@
+# Règles oracle (grep sur le R généré).
+[[rule]]
+file = "R/main.R"
+must_contain = "print(add(add(sc, c1), c1))"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "print(NA)"

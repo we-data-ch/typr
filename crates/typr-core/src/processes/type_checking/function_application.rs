@@ -1563,6 +1563,29 @@ mod tests {
         assert_eq!(res, builder::integer_type_default());
     }
 
+    /// A non-generic function returning a named record alias (e.g. `Scene`)
+    /// must keep that alias as the call's inferred type, not the expanded
+    /// structural record. Regression test for case 0006: chaining a second
+    /// UFCS call (`sc.add(c1).add(c1)`) on the result used to lose the alias
+    /// in `UnificationMap::apply_unification_type`, which unconditionally fell
+    /// back to `ret_ty.reduce(context)` whenever no generic substitution
+    /// applied (true for any non-generic function, not just generics).
+    #[test]
+    fn test_chained_call_preserves_record_alias_return_type() {
+        let res = FluentParser::new()
+            .push("type Scene <- list { width: int };")
+            .run()
+            .push("let add <- fn(self: Scene, n: int): Scene { self };")
+            .run()
+            .push("let sc <- Scene:{ width = 1 };")
+            .run()
+            .check_typing("sc.add(1).add(2)");
+        assert_eq!(
+            res,
+            Type::Alias("Scene".to_string(), vec![], false, HelpData::default())
+        );
+    }
+
     /// A function with a concrete `int` parameter should accept a value
     /// whose type is an alias that reduces to `int`.
     #[test]

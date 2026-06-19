@@ -122,7 +122,27 @@ pub fn let_expression(
         new_context
     };
 
-    let alias_errors = collect_undefined_aliases(context, ty);
+    let mut alias_errors = collect_undefined_aliases(context, ty);
+
+    // E-EMBED-003 (named type embedding, `embedding.rs`): an explicit function
+    // can only collide with an inherited embedded method by being declared after
+    // the embedding type alias (a type must exist before anything can reference
+    // it, so the reverse order can't happen — see type_embedding.md §12.4).
+    if let Lang::Function { parameters, .. } = exp.as_ref() {
+        if let (Some(first_param), Ok(fn_var)) = (parameters.first(), Var::try_from(name)) {
+            if let Type::Alias(type_name, _, _, _) = first_param.get_type() {
+                let fn_name = fn_var.get_name();
+                if let Some(field_name) = context.get_embedded_method(&type_name, &fn_name) {
+                    alias_errors.push(TypRError::type_error(TypeError::EmbedConflict(
+                        fn_name,
+                        type_name,
+                        field_name,
+                        h.clone(),
+                    )));
+                }
+            }
+        }
+    }
 
     let res = exp
         .typing(&new_context)
