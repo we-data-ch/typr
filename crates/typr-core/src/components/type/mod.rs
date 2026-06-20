@@ -6,6 +6,7 @@ pub mod function_type;
 pub mod generic;
 pub mod index;
 pub mod intersection_type;
+pub mod kind;
 pub mod module_type;
 pub mod tbool;
 pub mod tchar;
@@ -26,6 +27,7 @@ use crate::components::r#type::alias_type::Alias;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::intersection_type::IntersectionType;
+use crate::components::r#type::kind::Kind;
 use crate::components::r#type::module_type::ModuleType;
 use crate::components::r#type::tbool::Tbool;
 use crate::components::r#type::tchar::Tchar;
@@ -123,6 +125,7 @@ pub enum Type {
     Variable(String, HelpData),
     Null(HelpData),
     NA(HelpData),
+    KindedGen(Kind, String, HelpData),
 }
 
 impl TypeSystem for Type {
@@ -208,6 +211,8 @@ impl TypeSystem for Type {
             (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
             (Type::Char(_, _), Type::LabelGen(_, _)) => true,
             (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
+            (concrete, Type::KindedGen(k, _, _)) if kind::type_kind(concrete) == Some(*k) => true,
+            (Type::KindedGen(k1, _, _), Type::KindedGen(k2, _, _)) => k1 == k2,
             // Params subtyping
             (Type::Params(p1, _), Type::Params(p2, _)) => {
                 p1.len() == p2.len()
@@ -431,6 +436,7 @@ impl Type {
             Type::Vec(_, _size, body, _) => format!("{}[]", body.to_typescript()),
             Type::IndexGen(id, _) => id.to_uppercase(),
             Type::Generic(val, _) => val.to_uppercase(),
+            Type::KindedGen(_, name, _) => name.to_uppercase(),
             Type::Function(args, ret, _) => {
                 let res = args
                     .iter()
@@ -479,6 +485,7 @@ impl Type {
             Type::Vec(_, _size, body, _) => format!("{}[]", body.to_typescript()),
             Type::IndexGen(id, _) => id.to_uppercase(),
             Type::Generic(val, _) => val.to_uppercase(),
+            Type::KindedGen(_, name, _) => name.to_uppercase(),
             Type::Function(args, ret, _) => {
                 let res = args
                     .iter()
@@ -512,7 +519,10 @@ impl Type {
 
     pub fn extract_generics(&self) -> Vec<Type> {
         match self {
-            Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _) => vec![self.clone()],
+            Type::Generic(_, _)
+            | Type::IndexGen(_, _)
+            | Type::LabelGen(_, _)
+            | Type::KindedGen(_, _, _) => vec![self.clone()],
             Type::Function(args, ret_typ, _) => args
                 .iter()
                 .flat_map(|arg| arg.get_type().extract_generics())
@@ -535,7 +545,8 @@ impl Type {
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect::<Vec<_>>(),
-            Type::Operator(TypeOperator::Union, t1, t2, _) => t1
+            Type::Operator(TypeOperator::Union, t1, t2, _)
+            | Type::Operator(TypeOperator::Intersection, t1, t2, _) => t1
                 .extract_generics()
                 .into_iter()
                 .chain(t2.extract_generics())
@@ -680,7 +691,10 @@ impl Type {
     pub fn is_generic(&self) -> bool {
         matches!(
             self,
-            Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _)
+            Type::Generic(_, _)
+                | Type::IndexGen(_, _)
+                | Type::LabelGen(_, _)
+                | Type::KindedGen(_, _, _)
         )
     }
 
@@ -691,6 +705,7 @@ impl Type {
             (Type::Generic(e1, _), Type::Generic(e2, _)) => e1 == e2,
             (Type::IndexGen(e1, _), Type::IndexGen(e2, _)) => e1 == e2,
             (Type::LabelGen(e1, _), Type::LabelGen(e2, _)) => e1 == e2,
+            (Type::KindedGen(k1, e1, _), Type::KindedGen(k2, e2, _)) => k1 == k2 && e1 == e2,
             _ => self == other,
         }
     }
@@ -722,6 +737,7 @@ impl Type {
             Type::Generic(_, _) => TypeCategory::Generic,
             Type::IndexGen(_, _) => TypeCategory::Generic,
             Type::LabelGen(_, _) => TypeCategory::Generic,
+            Type::KindedGen(_, _, _) => TypeCategory::Generic,
             Type::Integer(_, _) => TypeCategory::Integer,
             Type::Alias(_, _, false, _) => TypeCategory::Alias,
             Type::Alias(name, _, _, _) => TypeCategory::Opaque(name.clone()),
@@ -804,6 +820,7 @@ impl Type {
             Type::Variable(_, h) => h.clone(),
             Type::Null(h) => h.clone(),
             Type::NA(h) => h.clone(),
+            Type::KindedGen(_, _, h) => h.clone(),
         }
     }
 
@@ -839,6 +856,7 @@ impl Type {
             Type::Variable(name, _) => Type::Variable(name, h2),
             Type::Null(_) => Type::Null(h2),
             Type::NA(_) => Type::NA(h2),
+            Type::KindedGen(k, a, _) => Type::KindedGen(k, a, h2),
         }
     }
 
@@ -1118,6 +1136,7 @@ impl From<Type> for HelpData {
             Type::UnknownFunction(h) => h,
             Type::Null(h) => h,
             Type::NA(h) => h,
+            Type::KindedGen(_, _, h) => h,
             e => panic!("The type element {:?} is not yet implemented", e),
         }
         .clone()
@@ -1135,6 +1154,7 @@ impl PartialEq for Type {
             (Type::Generic(_, _), Type::Generic(_, _)) => true,
             (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
             (Type::LabelGen(_, _), Type::LabelGen(_, _)) => true,
+            (Type::KindedGen(k1, _, _), Type::KindedGen(k2, _, _)) => k1 == k2,
             (Type::Vec(_, a1, b1, _), Type::Vec(_, a2, b2, _)) => a1 == a2 && b1 == b2,
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
             (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) => {
@@ -1249,6 +1269,12 @@ impl PartialOrd for Type {
             (Type::Integer(_, _), Type::IndexGen(_, _)) => Some(Ordering::Less),
             (Type::Char(_, _), Type::LabelGen(_, _)) => Some(Ordering::Less),
             (Type::IndexGen(_, _), Type::IndexGen(_, _)) => Some(Ordering::Less),
+            (concrete, Type::KindedGen(k, _, _)) if kind::type_kind(concrete) == Some(*k) => {
+                Some(Ordering::Less)
+            }
+            (Type::KindedGen(k1, _, _), Type::KindedGen(k2, _, _)) if k1 == k2 => {
+                Some(Ordering::Less)
+            }
 
             // Params subtyping
             (Type::Params(p1, _), Type::Params(p2, _)) => (p1.len() == p2.len()
@@ -1324,6 +1350,10 @@ impl Hash for Type {
             Type::Variable(_, _) => 39.hash(state),
             Type::Null(_) => 40.hash(state),
             Type::NA(_) => 41.hash(state),
+            Type::KindedGen(k, _, _) => {
+                42.hash(state);
+                k.hash(state);
+            }
         }
     }
 }

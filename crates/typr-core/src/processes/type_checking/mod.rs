@@ -29,6 +29,7 @@ use crate::components::language::var::Var;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::kind::Kind;
 use crate::components::r#type::tint::Tint;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
@@ -577,6 +578,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         (_, Type::Generic(_, _))
         | (_, Type::IndexGen(_, _))
         | (_, Type::LabelGen(_, _))
+        | (_, Type::KindedGen(_, _, _))
         | (_, Type::Interface(_, _)) => Some(vec![(type1.clone(), type2.clone())]),
         (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
             let args1_types: Vec<Type> = args1.iter().map(|arg| arg.get_type()).collect();
@@ -620,7 +622,10 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         (Type::Tag(name1, inner1, _), Type::Tag(name2, inner2, _)) if name1 == name2 => {
             if matches!(
                 inner2.as_ref(),
-                Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _)
+                Type::Generic(_, _)
+                    | Type::IndexGen(_, _)
+                    | Type::LabelGen(_, _)
+                    | Type::KindedGen(_, _, _)
             ) {
                 let inner_type: Type = (**inner2).clone();
                 Some(vec![(type1.clone(), inner_type)])
@@ -1838,7 +1843,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
 
             // Several spreads merge sequentially (later wins on overlap, §4.3),
             // then explicit fields are applied as the final override (§3.1/§4.2).
+            // A spread source whose type is a record-kinded generic (`%T`)
+            // can't be expanded field-by-field (its fields aren't known
+            // statically) but is guaranteed record-shaped by its kind
+            // constraint, so it's folded into the result as an `Intersection`
+            // component instead of being rejected as a type error.
             let mut merged: Vec<ArgumentType> = Vec::new();
+            let mut unresolved: Vec<Type> = Vec::new();
             for spread_expr in spreads {
                 let tc = typing(context, spread_expr);
                 errors.extend(tc.errors.clone());
@@ -1849,6 +1860,9 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                             &spread_fields.into_iter().collect::<Vec<_>>(),
                         );
                     }
+                    kinded @ Type::KindedGen(Kind::Record, _, _) => {
+                        unresolved.push(kinded);
+                    }
                     _ => {
                         errors.push(TypRError::Type(TypeError::WrongExpression(
                             spread_expr.get_help_data(),
@@ -1858,12 +1872,31 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             }
             merged = merge_record_fields_override(&merged, &field_types);
 
-            TypeContext::new(
-                Type::Record(merged.into_iter().collect(), h.clone()),
-                expr.clone(),
-                context.clone(),
-            )
-            .with_errors(errors)
+            let result_type = if unresolved.is_empty() {
+                Type::Record(merged.into_iter().collect(), h.clone())
+            } else {
+                let mut parts = unresolved.into_iter();
+                let mut combined = parts.next().expect("checked non-empty above");
+                for t in parts {
+                    combined = Type::Operator(
+                        TypeOperator::Intersection,
+                        Box::new(combined),
+                        Box::new(t),
+                        h.clone(),
+                    );
+                }
+                if !merged.is_empty() {
+                    combined = Type::Operator(
+                        TypeOperator::Intersection,
+                        Box::new(combined),
+                        Box::new(Type::Record(merged.into_iter().collect(), h.clone())),
+                        h.clone(),
+                    );
+                }
+                combined
+            };
+
+            TypeContext::new(result_type, expr.clone(), context.clone()).with_errors(errors)
         }
         Lang::DataFrame {
             value: fields,
@@ -3919,6 +3952,54 @@ p"#;
             "Expected a WrongExpression error for spreading a non-record, got: {:?}",
             result.errors
         );
+    }
+
+    #[test]
+    fn test_record_spread_of_record_kinded_generic_yields_intersection() {
+        // Only type-checks (not transpiles): a function returning a bare `%T`
+        // hits an unrelated, pre-existing transpilation gap (no R class name
+        // for a record-kinded generic), out of scope for this fix.
+        let fp = FluentParser::new()
+            .push("let combine <- fn(target: %T): %T { let extra <- :{ a = 1 }; :{ ...target, ...extra } };")
+            .parse_type_next();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+    }
+
+    #[test]
+    fn test_record_spread_of_bare_record_kinded_generic_stays_generic() {
+        use crate::processes::parsing::parse_from_string;
+        let context = Context::default();
+        let context = context.clone().push_var_type(
+            Var::from_name("target"),
+            Type::KindedGen(Kind::Record, "T".to_string(), HelpData::default()),
+            &context,
+        );
+        let expr = parse_from_string("let extra <- :{ a = 1 }; :{ ...target, ...extra }", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert_eq!(
+            result.errors.len(),
+            0,
+            "Expected no errors, got: {:?}",
+            result.errors
+        );
+        match result.type_context.value.reduce(&context) {
+            Type::Operator(TypeOperator::Intersection, t1, t2, _) => {
+                assert!(
+                    matches!(*t1, Type::KindedGen(Kind::Record, ref name, _) if name == "T"),
+                    "Expected left side to stay the record-kinded generic, got: {:?}",
+                    t1
+                );
+                assert!(
+                    matches!(*t2, Type::Record(..)),
+                    "Expected right side to be the merged concrete record, got: {:?}",
+                    t2
+                );
+            }
+            other => panic!(
+                "Expected Type::Operator(Intersection, ..), got: {:?}",
+                other
+            ),
+        }
     }
 
     // ==================== Union Constructor Tests ====================

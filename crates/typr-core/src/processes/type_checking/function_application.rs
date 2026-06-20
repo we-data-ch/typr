@@ -110,7 +110,10 @@ fn filter_by_first_param(
                     reduced_p == reduced_arg
                         || matches!(
                             reduced_p,
-                            Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _)
+                            Type::Generic(_, _)
+                                | Type::IndexGen(_, _)
+                                | Type::LabelGen(_, _)
+                                | Type::KindedGen(_, _, _)
                         )
                 })
                 .unwrap_or(false)

@@ -46,6 +46,10 @@ pub enum TypeError {
     /// through named type embedding (E-EMBED-003) —
     /// `(function_name, type_name, source_field_name, position)`.
     EmbedConflict(String, String, String, HelpData),
+    /// A generic's kind sigil conflicts with another occurrence of the same
+    /// generic name within the same function signature (sigils.md §7) —
+    /// `(established_kind_desc, conflicting_kind_desc, position)`.
+    KindMismatch(String, String, HelpData),
 }
 
 impl TypeError {
@@ -75,6 +79,7 @@ impl TypeError {
             TypeError::EmbedNonRecord(_, _, h) => Some(h.clone()),
             TypeError::EmbedCollision(_, _, h) => Some(h.clone()),
             TypeError::EmbedConflict(_, _, _, h) => Some(h.clone()),
+            TypeError::KindMismatch(_, _, h) => Some(h.clone()),
         }
     }
 
@@ -189,6 +194,12 @@ impl TypeError {
                 format!(
                     "Function '{}' already defined in '{}' through embedded field '{}'",
                     name, type_name, field
+                )
+            }
+            TypeError::KindMismatch(expected, actual, _) => {
+                format!(
+                    "Kind mismatch: generic established as kind `{}` elsewhere but used as kind `{}` here",
+                    expected, actual
                 )
             }
         }
@@ -534,6 +545,18 @@ impl ErrorMsg for TypeError {
                     ))
                     .pos_text("Conflicts with an inherited embedded function")
                     .help("No implicit shadowing is allowed between an explicit definition and an embedded function.")
+                    .build()
+            }
+            TypeError::KindMismatch(expected, actual, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "This generic is used as kind `{}` here, but as kind `{}` elsewhere in the same signature",
+                        actual, expected
+                    ))
+                    .pos_text(format!("Expected kind `{}`", expected))
+                    .help("A generic name must denote the same kind everywhere in a single function signature.")
                     .build()
             }
         };

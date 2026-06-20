@@ -269,18 +269,15 @@ impl VarType {
             Type::Boolean(_, _) => "logical".to_string(),
             Type::Number(_, _) => "numeric".to_string(),
             Type::Any(_) => "Any".to_string(),
+            // Unresolved type variables (`T`, `%T`, `#N`, `$L`, …) have no
+            // fixed runtime class — same fallback as `get_type_anotation`'s
+            // `as.Generic` default just below, instead of panicking.
             _ => self
                 .aliases
                 .iter()
                 .find(|(_, typ)| typ == t)
                 .map(|(var, _)| var.get_name())
-                .unwrap_or_else(|| {
-                    panic!(
-                        "{} has no class equivalent:\n {:?}",
-                        t.pretty(),
-                        self.aliases
-                    )
-                }),
+                .unwrap_or("Generic".to_string()),
         };
         "'".to_string() + &res + "'"
     }

@@ -99,7 +99,8 @@ pub fn format(ty: &Type) -> String {
         Type::Empty(_) => "Empty".to_string(),
         Type::Any(_) => "any".to_string(),
         Type::IndexGen(i, _) => format!("#{}", i),
-        Type::LabelGen(l, _) => format!("%{}", l),
+        Type::LabelGen(l, _) => format!("${}", l),
+        Type::KindedGen(k, name, _) => format!("{}{}", k, name),
         Type::Tuple(elements, _) => {
             let body = elements.iter().map(format).collect::<Vec<_>>().join(", ");
             format!("tuple{{{}}}", body)
@@ -186,6 +187,7 @@ pub fn verbose(t: &Type) -> String {
             format!("list{{{}}}", formatted_fields.join(", "))
         }
         Type::IndexGen(idgen, _) => format!("#{}", idgen),
+        Type::KindedGen(k, name, _) => format!("{}{}", k, name),
         Type::Vec(vtype, i, t, _) => {
             format!("{}[{}, {}]", vtype, i.pretty(), t.pretty2())
         }
@@ -224,5 +226,32 @@ mod tests {
         );
         dbg!(&typ.pretty());
         assert!(true)
+    }
+
+    #[test]
+    fn test_label_gen_prints_with_dollar_sigil() {
+        let typ = Type::LabelGen("L".to_string(), HelpData::default());
+        assert_eq!(typ.pretty(), "$L");
+    }
+
+    #[test]
+    fn test_kinded_gen_prints_with_its_sigil() {
+        use crate::components::r#type::kind::Kind;
+        assert_eq!(
+            Type::KindedGen(Kind::Record, "R".to_string(), HelpData::default()).pretty(),
+            "%R"
+        );
+        assert_eq!(
+            Type::KindedGen(Kind::Interface, "T".to_string(), HelpData::default()).pretty(),
+            "@T"
+        );
+        assert_eq!(
+            Type::KindedGen(Kind::String, "S".to_string(), HelpData::default()).pretty(),
+            "^S"
+        );
+        assert_eq!(
+            Type::KindedGen(Kind::Boolean, "B".to_string(), HelpData::default()).pretty(),
+            "?B"
+        );
     }
 }

@@ -3,6 +3,7 @@ use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::language::operators::{op, Op};
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::kind::Kind;
 use crate::components::r#type::tbool::Tbool;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
@@ -862,6 +863,63 @@ fn label_generic(s: Span) -> IResult<Span, Type> {
     }
 }
 
+fn record_kinded_generic(s: Span) -> IResult<Span, Type> {
+    let res = (tag("%"), generic).parse(s);
+    match res {
+        Ok((s, (tag, Type::Generic(r#gen, _)))) => {
+            Ok((s, Type::KindedGen(Kind::Record, r#gen, tag.into())))
+        }
+        Err(r) => Err(r),
+        _ => todo!(),
+    }
+}
+
+fn interface_kinded_generic(s: Span) -> IResult<Span, Type> {
+    let res = (tag("@"), generic).parse(s);
+    match res {
+        Ok((s, (tag, Type::Generic(r#gen, _)))) => {
+            Ok((s, Type::KindedGen(Kind::Interface, r#gen, tag.into())))
+        }
+        Err(r) => Err(r),
+        _ => todo!(),
+    }
+}
+
+fn string_kinded_generic(s: Span) -> IResult<Span, Type> {
+    let res = (tag("^"), generic).parse(s);
+    match res {
+        Ok((s, (tag, Type::Generic(r#gen, _)))) => {
+            Ok((s, Type::KindedGen(Kind::String, r#gen, tag.into())))
+        }
+        Err(r) => Err(r),
+        _ => todo!(),
+    }
+}
+
+fn boolean_kinded_generic(s: Span) -> IResult<Span, Type> {
+    let res = (tag("?"), generic).parse(s);
+    match res {
+        Ok((s, (tag, Type::Generic(r#gen, _)))) => {
+            Ok((s, Type::KindedGen(Kind::Boolean, r#gen, tag.into())))
+        }
+        Err(r) => Err(r),
+        _ => todo!(),
+    }
+}
+
+/// Groups the four kind-sigil generic parsers (`%`/`@`/`^`/`?`) into one
+/// alternative so `single_type`'s outer `alt()` stays within nom's
+/// 21-alternative limit (mirrors how `label_generic`'s slot is reused below).
+fn kinded_generic(s: Span) -> IResult<Span, Type> {
+    alt((
+        record_kinded_generic,
+        interface_kinded_generic,
+        string_kinded_generic,
+        boolean_kinded_generic,
+    ))
+    .parse(s)
+}
+
 fn integer(s: Span) -> IResult<Span, Type> {
     let res = (tag("int"), multispace0).parse(s);
     match res {
@@ -1155,7 +1213,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             any,
             empty,
             interface,
-            label_generic,
+            alt((label_generic, kinded_generic)),
             char_litteral,
             primitive_types,
             index_algebra,
@@ -1795,6 +1853,44 @@ mod tests {
         assert!(
             empty_record.is_subtype(&empty_tuple, &ctx).0,
             "empty record should be a subtype of empty tuple"
+        );
+    }
+
+    // ── sigils.md : kind sigils for generic parameters ──────────────────────
+
+    #[test]
+    fn test_record_kinded_generic_parses() {
+        let typ = ltype("%R".into()).unwrap().1;
+        assert!(matches!(typ, Type::KindedGen(Kind::Record, ref n, _) if n == "R"));
+    }
+
+    #[test]
+    fn test_interface_kinded_generic_parses() {
+        let typ = ltype("@T".into()).unwrap().1;
+        assert!(matches!(typ, Type::KindedGen(Kind::Interface, ref n, _) if n == "T"));
+    }
+
+    #[test]
+    fn test_string_kinded_generic_parses() {
+        let typ = ltype("^S".into()).unwrap().1;
+        assert!(matches!(typ, Type::KindedGen(Kind::String, ref n, _) if n == "S"));
+    }
+
+    #[test]
+    fn test_boolean_kinded_generic_parses() {
+        let typ = ltype("?B".into()).unwrap().1;
+        assert!(matches!(typ, Type::KindedGen(Kind::Boolean, ref n, _) if n == "B"));
+    }
+
+    #[test]
+    fn test_kinded_generic_inside_vec() {
+        // `[dim, element]` — the dimension slot stays Number-kinded (`#N`,
+        // pre-existing `IndexGen`); the new sigils appear in the element slot.
+        let typ = ltype("[#N, %R]".into()).unwrap().1;
+        assert!(
+            matches!(&typ, Type::Vec(_, _, elem, _) if matches!(elem.as_ref(), Type::KindedGen(Kind::Record, n, _) if n == "R")),
+            "Unexpected type: {:?}",
+            typ
         );
     }
 }

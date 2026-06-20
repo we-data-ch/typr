@@ -25,6 +25,11 @@ use std::collections::HashSet;
 /// since e.g. array-index arithmetic combines `IndexGen` (kind `Generic`)
 /// with concrete integers and must stay valid until the generic is resolved.
 fn accepts_number_kind(t: &Type) -> bool {
+    // A kind-sigiled generic (`%`/`@`/`^`/`?`) is never Number-kind by
+    // construction — sigils.md §4.3: "Vec[%R, A] ✗ (Record n'est pas Number)".
+    if matches!(t, Type::KindedGen(_, _, _)) {
+        return false;
+    }
     matches!(
         t.to_category(),
         TypeCategory::Number
@@ -43,6 +48,13 @@ fn accepts_number_kind(t: &Type) -> bool {
 /// `Interface` per the RFC's "et éventuellement Interface". Same permissive
 /// treatment of not-yet-resolved types as `accepts_number_kind`.
 pub fn accepts_record_kind(t: &Type) -> bool {
+    if let Type::KindedGen(k, _, _) = t {
+        return matches!(
+            k,
+            crate::components::r#type::kind::Kind::Record
+                | crate::components::r#type::kind::Kind::Interface
+        );
+    }
     matches!(
         t.to_category(),
         TypeCategory::Record
@@ -293,6 +305,50 @@ mod tests {
             res,
             Type::Operator(TypeOperator::Addition, _, _, _)
         ));
+    }
+
+    #[test]
+    fn test_arithmetic_rejects_record_kinded_generic() {
+        // sigils.md §4.3: a `%R`-kinded generic is Record-kind, never Number.
+        let record_gen = Type::KindedGen(
+            crate::components::r#type::kind::Kind::Record,
+            "R".to_string(),
+            HelpData::default(),
+        );
+        let res = norm_arithmetic(
+            TypeOperator::Addition,
+            record_gen,
+            int(1),
+            HelpData::default(),
+        );
+        assert!(matches!(res, Type::Failed(_, _)));
+    }
+
+    #[test]
+    fn test_intersection_accepts_record_kinded_generic() {
+        let record_gen = Type::KindedGen(
+            crate::components::r#type::kind::Kind::Record,
+            "R".to_string(),
+            HelpData::default(),
+        );
+        let record = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
+        let res = norm_intersection(record_gen, record, HelpData::default());
+        assert!(!matches!(res, Type::Failed(_, _)));
+    }
+
+    #[test]
+    fn test_intersection_rejects_string_kinded_generic() {
+        let string_gen = Type::KindedGen(
+            crate::components::r#type::kind::Kind::String,
+            "S".to_string(),
+            HelpData::default(),
+        );
+        let res = norm_intersection(
+            string_gen,
+            builder::character_type_default(),
+            HelpData::default(),
+        );
+        assert!(matches!(res, Type::Failed(_, _)));
     }
 
     #[test]

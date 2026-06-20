@@ -12609,6 +12609,28 @@
       ],
       [
         {
+          "name": "set",
+          "is_opaque": false,
+          "related_type": {
+            "Any": {
+              "offset": 0,
+              "file_name": ""
+            }
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "UnknownFunction": {
+            "offset": 0,
+            "file_name": ""
+          }
+        }
+      ],
+      [
+        {
           "name": "set__seed",
           "is_opaque": false,
           "related_type": {
@@ -13512,6 +13534,28 @@
       [
         {
           "name": "startsWith",
+          "is_opaque": false,
+          "related_type": {
+            "Any": {
+              "offset": 0,
+              "file_name": ""
+            }
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "UnknownFunction": {
+            "offset": 0,
+            "file_name": ""
+          }
+        }
+      ],
+      [
+        {
+          "name": "state",
           "is_opaque": false,
           "related_type": {
             "Any": {
@@ -15997,6 +16041,28 @@
       ],
       [
         {
+          "name": "update",
+          "is_opaque": false,
+          "related_type": {
+            "Any": {
+              "offset": 0,
+              "file_name": ""
+            }
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "UnknownFunction": {
+            "offset": 0,
+            "file_name": ""
+          }
+        }
+      ],
+      [
+        {
           "name": "upper__tri",
           "is_opaque": false,
           "related_type": {
@@ -16675,6 +16741,1466 @@
             "offset": 0,
             "file_name": ""
           }
+        }
+      ],
+      [
+        {
+          "name": "derive",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "State",
+              [
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              false,
+              {
+                "offset": 718,
+                "file_name": "state.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 709,
+            "file_name": "state.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "State",
+                    [
+                      {
+                        "Generic": [
+                          "T",
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      }
+                    ],
+                    false,
+                    {
+                      "offset": 718,
+                      "file_name": "state.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Function": [
+                    [
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "a"
+                            },
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Generic": [
+                            "T",
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        false,
+                        false
+                      ]
+                    ],
+                    {
+                      "Generic": [
+                        "T",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 727,
+                      "file_name": "state.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "State",
+                [
+                  {
+                    "Generic": [
+                      "T",
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
+                  }
+                ],
+                false,
+                {
+                  "offset": 741,
+                  "file_name": "state.ty"
+                }
+              ]
+            },
+            {
+              "offset": 716,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "map",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "State",
+              [
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              false,
+              {
+                "offset": 675,
+                "file_name": "state.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 669,
+            "file_name": "state.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "State",
+                    [
+                      {
+                        "Generic": [
+                          "T",
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      }
+                    ],
+                    false,
+                    {
+                      "offset": 675,
+                      "file_name": "state.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Function": [
+                    [
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "a"
+                            },
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Generic": [
+                            "T",
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        false,
+                        false
+                      ]
+                    ],
+                    {
+                      "Generic": [
+                        "U",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 684,
+                      "file_name": "state.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "State",
+                [
+                  {
+                    "Generic": [
+                      "U",
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
+                  }
+                ],
+                false,
+                {
+                  "offset": 698,
+                  "file_name": "state.ty"
+                }
+              ]
+            },
+            {
+              "offset": 673,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "version",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "State",
+              [
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              false,
+              {
+                "offset": 507,
+                "file_name": "state.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 497,
+            "file_name": "state.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "State",
+                    [
+                      {
+                        "Generic": [
+                          "T",
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      }
+                    ],
+                    false,
+                    {
+                      "offset": 507,
+                      "file_name": "state.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Integer": [
+                "Unknown",
+                {
+                  "offset": 519,
+                  "file_name": "state.ty"
+                }
+              ]
+            },
+            {
+              "offset": 505,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "update",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "State",
+              [
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              false,
+              {
+                "offset": 466,
+                "file_name": "state.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 457,
+            "file_name": "state.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "State",
+                    [
+                      {
+                        "Generic": [
+                          "T",
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      }
+                    ],
+                    false,
+                    {
+                      "offset": 466,
+                      "file_name": "state.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Function": [
+                    [
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "a"
+                            },
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Generic": [
+                            "T",
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        false,
+                        false
+                      ]
+                    ],
+                    {
+                      "Generic": [
+                        "T",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 475,
+                      "file_name": "state.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Empty": {
+                "offset": 488,
+                "file_name": "state.ty"
+              }
+            },
+            {
+              "offset": 464,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "set",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "State",
+              [
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              false,
+              {
+                "offset": 433,
+                "file_name": "state.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 427,
+            "file_name": "state.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "State",
+                    [
+                      {
+                        "Generic": [
+                          "T",
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      }
+                    ],
+                    false,
+                    {
+                      "offset": 433,
+                      "file_name": "state.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Empty": {
+                "offset": 448,
+                "file_name": "state.ty"
+              }
+            },
+            {
+              "offset": 431,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "get",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "State",
+              [
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              false,
+              {
+                "offset": 410,
+                "file_name": "state.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 404,
+            "file_name": "state.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "State",
+                    [
+                      {
+                        "Generic": [
+                          "T",
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      }
+                    ],
+                    false,
+                    {
+                      "offset": 410,
+                      "file_name": "state.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Generic": [
+                "T",
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
+            },
+            {
+              "offset": 408,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "state",
+          "is_opaque": false,
+          "related_type": {
+            "Generic": [
+              "T",
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 379,
+            "file_name": "state.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "State",
+                [
+                  {
+                    "Generic": [
+                      "T",
+                      {
+                        "offset": 0,
+                        "file_name": ""
+                      }
+                    ]
+                  }
+                ],
+                false,
+                {
+                  "offset": 393,
+                  "file_name": "state.ty"
+                }
+              ]
+            },
+            {
+              "offset": 385,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "as__character",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "Factor",
+              [
+                {
+                  "Generic": [
+                    "L",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              false,
+              {
+                "offset": 691,
+                "file_name": "factor.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 675,
+            "file_name": "factor.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "Factor",
+                    [
+                      {
+                        "Generic": [
+                          "L",
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      }
+                    ],
+                    false,
+                    {
+                      "offset": 691,
+                      "file_name": "factor.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Char": [
+                "Unknown",
+                {
+                  "offset": 704,
+                  "file_name": "factor.ty"
+                }
+              ]
+            },
+            {
+              "offset": 689,
+              "file_name": "factor.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "nlevels",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "Factor",
+              [
+                {
+                  "Generic": [
+                    "L",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              false,
+              {
+                "offset": 619,
+                "file_name": "factor.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 609,
+            "file_name": "factor.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "Factor",
+                    [
+                      {
+                        "Generic": [
+                          "L",
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      }
+                    ],
+                    false,
+                    {
+                      "offset": 619,
+                      "file_name": "factor.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Integer": [
+                "Unknown",
+                {
+                  "offset": 632,
+                  "file_name": "factor.ty"
+                }
+              ]
+            },
+            {
+              "offset": 617,
+              "file_name": "factor.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "levels",
+          "is_opaque": false,
+          "related_type": {
+            "Alias": [
+              "Factor",
+              [
+                {
+                  "Generic": [
+                    "L",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              false,
+              {
+                "offset": 591,
+                "file_name": "factor.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 582,
+            "file_name": "factor.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "Factor",
+                    [
+                      {
+                        "Generic": [
+                          "L",
+                          {
+                            "offset": 0,
+                            "file_name": ""
+                          }
+                        ]
+                      }
+                    ],
+                    false,
+                    {
+                      "offset": 591,
+                      "file_name": "factor.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Generic": [
+                "L",
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
+            },
+            {
+              "offset": 589,
+              "file_name": "factor.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "as__factor",
+          "is_opaque": false,
+          "related_type": {
+            "Any": {
+              "offset": 520,
+              "file_name": "factor.ty"
+            }
+          },
+          "help_data": {
+            "offset": 508,
+            "file_name": "factor.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Any": {
+                    "offset": 520,
+                    "file_name": "factor.ty"
+                  }
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Vec": [
+                    "S3",
+                    {
+                      "IndexGen": [
+                        "N",
+                        {
+                          "offset": 526,
+                          "file_name": "factor.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Char": [
+                        "Unknown",
+                        {
+                          "offset": 530,
+                          "file_name": "factor.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 525,
+                      "file_name": "factor.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "Factor",
+                [
+                  {
+                    "Vec": [
+                      "S3",
+                      {
+                        "IndexGen": [
+                          "N",
+                          {
+                            "offset": 548,
+                            "file_name": "factor.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Char": [
+                          "Unknown",
+                          {
+                            "offset": 552,
+                            "file_name": "factor.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 547,
+                        "file_name": "factor.ty"
+                      }
+                    ]
+                  }
+                ],
+                false,
+                {
+                  "offset": 541,
+                  "file_name": "factor.ty"
+                }
+              ]
+            },
+            {
+              "offset": 519,
+              "file_name": "factor.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "annotate_factor",
+          "is_opaque": false,
+          "related_type": {
+            "Integer": [
+              "Unknown",
+              {
+                "offset": 409,
+                "file_name": "factor.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 392,
+            "file_name": "factor.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Integer": [
+                    "Unknown",
+                    {
+                      "offset": 409,
+                      "file_name": "factor.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Vec": [
+                    "S3",
+                    {
+                      "IndexGen": [
+                        "N",
+                        {
+                          "offset": 415,
+                          "file_name": "factor.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Char": [
+                        "Unknown",
+                        {
+                          "offset": 419,
+                          "file_name": "factor.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 414,
+                      "file_name": "factor.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "Factor",
+                [
+                  {
+                    "Vec": [
+                      "S3",
+                      {
+                        "IndexGen": [
+                          "N",
+                          {
+                            "offset": 437,
+                            "file_name": "factor.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Char": [
+                          "Unknown",
+                          {
+                            "offset": 441,
+                            "file_name": "factor.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 436,
+                        "file_name": "factor.ty"
+                      }
+                    ]
+                  }
+                ],
+                false,
+                {
+                  "offset": 430,
+                  "file_name": "factor.ty"
+                }
+              ]
+            },
+            {
+              "offset": 408,
+              "file_name": "factor.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "factor",
+          "is_opaque": false,
+          "related_type": {
+            "Char": [
+              "Unknown",
+              {
+                "offset": 285,
+                "file_name": "factor.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 277,
+            "file_name": "factor.ty"
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Char": [
+                    "Unknown",
+                    {
+                      "offset": 285,
+                      "file_name": "factor.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Vec": [
+                    "S3",
+                    {
+                      "IndexGen": [
+                        "N",
+                        {
+                          "offset": 292,
+                          "file_name": "factor.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Char": [
+                        "Unknown",
+                        {
+                          "offset": 296,
+                          "file_name": "factor.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 291,
+                      "file_name": "factor.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "Factor",
+                [
+                  {
+                    "Vec": [
+                      "S3",
+                      {
+                        "IndexGen": [
+                          "N",
+                          {
+                            "offset": 314,
+                            "file_name": "factor.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Char": [
+                          "Unknown",
+                          {
+                            "offset": 318,
+                            "file_name": "factor.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 313,
+                        "file_name": "factor.ty"
+                      }
+                    ]
+                  }
+                ],
+                false,
+                {
+                  "offset": 307,
+                  "file_name": "factor.ty"
+                }
+              ]
+            },
+            {
+              "offset": 284,
+              "file_name": "factor.ty"
+            }
+          ]
         }
       ],
       [
@@ -19566,11 +21092,14 @@
               "Vec": [
                 "Vector",
                 {
-                  "Add": [
+                  "Operator": [
+                    "Addition",
                     {
-                      "Div": [
+                      "Operator": [
+                        "Division",
                         {
-                          "Minus": [
+                          "Operator": [
+                            "Substraction",
                             {
                               "IndexGen": [
                                 "J",
@@ -19696,19 +21225,10 @@
               ]
             ],
             {
-              "Tag": [
-                "None",
-                {
-                  "Empty": {
-                    "offset": 1337,
-                    "file_name": "default.ty"
-                  }
-                },
-                {
-                  "offset": 1335,
-                  "file_name": "default.ty"
-                }
-              ]
+              "Empty": {
+                "offset": 1335,
+                "file_name": "default.ty"
+              }
             },
             {
               "offset": 1325,
@@ -25266,156 +26786,45 @@
       ],
       [
         {
-          "name": "p",
+          "name": "animate",
           "is_opaque": false,
           "related_type": {
-            "Alias": [
-              "Point",
-              [],
-              false,
+            "KindedGen": [
+              "Record",
+              "T",
               {
-                "offset": 54,
-                "file_name": "lab/test_anon_record.ty"
+                "offset": 154,
+                "file_name": "/tmp/test_animate3.ty"
               }
             ]
           },
           "help_data": {
-            "offset": 45,
-            "file_name": "lab/test_anon_record.ty"
+            "offset": 133,
+            "file_name": "/tmp/test_animate3.ty"
           }
         },
         {
-          "Alias": [
-            "Point",
-            [],
-            false,
-            {
-              "offset": 54,
-              "file_name": "lab/test_anon_record.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
-          "name": "q",
-          "is_opaque": false,
-          "related_type": {
-            "Record": [
-              [
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "a"
-                      },
-                      {
-                        "offset": 90,
-                        "file_name": "lab/test_anon_record.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      {
-                        "Val": 10
-                      },
-                      {
-                        "offset": 90,
-                        "file_name": "lab/test_anon_record.ty"
-                      }
-                    ]
-                  },
-                  false,
-                  false
-                ],
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "b"
-                      },
-                      {
-                        "offset": 98,
-                        "file_name": "lab/test_anon_record.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      {
-                        "Val": 20
-                      },
-                      {
-                        "offset": 98,
-                        "file_name": "lab/test_anon_record.ty"
-                      }
-                    ]
-                  },
-                  false,
-                  false
-                ]
-              ],
-              {
-                "offset": 83,
-                "file_name": "lab/test_anon_record.ty"
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 79,
-            "file_name": "lab/test_anon_record.ty"
-          }
-        },
-        {
-          "Record": [
+          "Function": [
             [
               [
                 {
                   "Char": [
                     {
-                      "Val": "a"
+                      "Val": "target"
                     },
                     {
-                      "offset": 90,
-                      "file_name": "lab/test_anon_record.ty"
+                      "offset": 147,
+                      "file_name": "/tmp/test_animate3.ty"
                     }
                   ]
                 },
                 {
-                  "Integer": [
+                  "KindedGen": [
+                    "Record",
+                    "T",
                     {
-                      "Val": 10
-                    },
-                    {
-                      "offset": 90,
-                      "file_name": "lab/test_anon_record.ty"
-                    }
-                  ]
-                },
-                false,
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "b"
-                    },
-                    {
-                      "offset": 98,
-                      "file_name": "lab/test_anon_record.ty"
-                    }
-                  ]
-                },
-                {
-                  "Integer": [
-                    {
-                      "Val": 20
-                    },
-                    {
-                      "offset": 98,
-                      "file_name": "lab/test_anon_record.ty"
+                      "offset": 154,
+                      "file_name": "/tmp/test_animate3.ty"
                     }
                   ]
                 },
@@ -25424,8 +26833,30 @@
               ]
             ],
             {
-              "offset": 83,
-              "file_name": "lab/test_anon_record.ty"
+              "Alias": [
+                "Animator",
+                [
+                  {
+                    "KindedGen": [
+                      "Record",
+                      "T",
+                      {
+                        "offset": 168,
+                        "file_name": "/tmp/test_animate3.ty"
+                      }
+                    ]
+                  }
+                ],
+                false,
+                {
+                  "offset": 160,
+                  "file_name": "/tmp/test_animate3.ty"
+                }
+              ]
+            },
+            {
+              "offset": 0,
+              "file_name": ""
             }
           ]
         }
@@ -28329,74 +29760,6 @@
       ],
       [
         {
-          "name": "Function30",
-          "is_opaque": false,
-          "related_type": {
-            "Params": [
-              [],
-              {
-                "offset": 0,
-                "file_name": ""
-              }
-            ]
-          },
-          "help_data": {
-            "offset": 0,
-            "file_name": ""
-          }
-        },
-        {
-          "Function": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "a"
-                    },
-                    {
-                      "offset": 0,
-                      "file_name": ""
-                    }
-                  ]
-                },
-                {
-                  "Char": [
-                    "Unknown",
-                    {
-                      "offset": 1326,
-                      "file_name": "default.ty"
-                    }
-                  ]
-                },
-                false,
-                false
-              ]
-            ],
-            {
-              "Tag": [
-                "None",
-                {
-                  "Empty": {
-                    "offset": 1337,
-                    "file_name": "default.ty"
-                  }
-                },
-                {
-                  "offset": 1335,
-                  "file_name": "default.ty"
-                }
-              ]
-            },
-            {
-              "offset": 1325,
-              "file_name": "default.ty"
-            }
-          ]
-        }
-      ],
-      [
-        {
           "name": "Array3",
           "is_opaque": false,
           "related_type": {
@@ -28417,11 +29780,14 @@
           "Vec": [
             "Vector",
             {
-              "Add": [
+              "Operator": [
+                "Addition",
                 {
-                  "Div": [
+                  "Operator": [
+                    "Division",
                     {
-                      "Minus": [
+                      "Operator": [
+                        "Substraction",
                         {
                           "IndexGen": [
                             "J",
@@ -28496,7 +29862,7 @@
       ],
       [
         {
-          "name": "Function31",
+          "name": "Function30",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -28592,11 +29958,14 @@
               "Vec": [
                 "Vector",
                 {
-                  "Add": [
+                  "Operator": [
+                    "Addition",
                     {
-                      "Div": [
+                      "Operator": [
+                        "Division",
                         {
-                          "Minus": [
+                          "Operator": [
+                            "Substraction",
                             {
                               "IndexGen": [
                                 "J",
@@ -28677,7 +30046,7 @@
       ],
       [
         {
-          "name": "Function32",
+          "name": "Function31",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -28787,7 +30156,7 @@
       ],
       [
         {
-          "name": "Function33",
+          "name": "Function32",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -28897,7 +30266,7 @@
       ],
       [
         {
-          "name": "Function34",
+          "name": "Function33",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -29007,7 +30376,7 @@
       ],
       [
         {
-          "name": "Function35",
+          "name": "Function34",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -29111,7 +30480,7 @@
       ],
       [
         {
-          "name": "Function36",
+          "name": "Function35",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -29215,7 +30584,7 @@
       ],
       [
         {
-          "name": "Function37",
+          "name": "Function36",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -29301,7 +30670,7 @@
       ],
       [
         {
-          "name": "Function38",
+          "name": "Function37",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -29434,7 +30803,7 @@
       ],
       [
         {
-          "name": "Function39",
+          "name": "Function38",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -29529,7 +30898,7 @@
       ],
       [
         {
-          "name": "Function40",
+          "name": "Function39",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -29648,7 +31017,7 @@
       ],
       [
         {
-          "name": "Function41",
+          "name": "Function40",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -29767,7 +31136,7 @@
       ],
       [
         {
-          "name": "Function42",
+          "name": "Function41",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -29910,7 +31279,7 @@
       ],
       [
         {
-          "name": "Function43",
+          "name": "Function42",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -30382,7 +31751,7 @@
       ],
       [
         {
-          "name": "Function44",
+          "name": "Function43",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -30640,7 +32009,7 @@
       ],
       [
         {
-          "name": "Function45",
+          "name": "Function44",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -30840,7 +32209,7 @@
       ],
       [
         {
-          "name": "Function46",
+          "name": "Function45",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -31024,7 +32393,7 @@
       ],
       [
         {
-          "name": "Function47",
+          "name": "Function46",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -31142,7 +32511,7 @@
       ],
       [
         {
-          "name": "Function48",
+          "name": "Function47",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -31318,14 +32687,24 @@
       ],
       [
         {
-          "name": "Point",
-          "is_opaque": false,
+          "name": "Factor",
+          "is_opaque": true,
           "related_type": {
             "Params": [
-              [],
+              [
+                {
+                  "Generic": [
+                    "L",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
               {
-                "offset": 6,
-                "file_name": "lab/test_anon_record.ty"
+                "offset": 186,
+                "file_name": "factor.ty"
               }
             ]
           },
@@ -31335,67 +32714,18 @@
           }
         },
         {
-          "Record": [
-            [
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "x"
-                    },
-                    {
-                      "offset": 22,
-                      "file_name": "lab/test_anon_record.ty"
-                    }
-                  ]
-                },
-                {
-                  "Integer": [
-                    "Unknown",
-                    {
-                      "offset": 24,
-                      "file_name": "lab/test_anon_record.ty"
-                    }
-                  ]
-                },
-                false,
-                false
-              ],
-              [
-                {
-                  "Char": [
-                    {
-                      "Val": "y"
-                    },
-                    {
-                      "offset": 30,
-                      "file_name": "lab/test_anon_record.ty"
-                    }
-                  ]
-                },
-                {
-                  "Integer": [
-                    "Unknown",
-                    {
-                      "offset": 32,
-                      "file_name": "lab/test_anon_record.ty"
-                    }
-                  ]
-                },
-                false,
-                false
-              ]
-            ],
+          "Integer": [
+            "Unknown",
             {
-              "offset": 19,
-              "file_name": "lab/test_anon_record.ty"
+              "offset": 198,
+              "file_name": "factor.ty"
             }
           ]
         }
       ],
       [
         {
-          "name": "Record0",
+          "name": "Factor0",
           "is_opaque": false,
           "related_type": {
             "Params": [
@@ -31412,7 +32742,37 @@
           }
         },
         {
-          "Record": [
+          "Alias": [
+            "Factor",
+            [],
+            true,
+            {
+              "offset": 0,
+              "file_name": ""
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function48",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
             [
               [
                 {
@@ -31421,19 +32781,17 @@
                       "Val": "a"
                     },
                     {
-                      "offset": 90,
-                      "file_name": "lab/test_anon_record.ty"
+                      "offset": 0,
+                      "file_name": ""
                     }
                   ]
                 },
                 {
-                  "Integer": [
+                  "Char": [
+                    "Unknown",
                     {
-                      "Val": 10
-                    },
-                    {
-                      "offset": 90,
-                      "file_name": "lab/test_anon_record.ty"
+                      "offset": 285,
+                      "file_name": "factor.ty"
                     }
                   ]
                 },
@@ -31447,19 +32805,35 @@
                       "Val": "b"
                     },
                     {
-                      "offset": 98,
-                      "file_name": "lab/test_anon_record.ty"
+                      "offset": 0,
+                      "file_name": ""
                     }
                   ]
                 },
                 {
-                  "Integer": [
+                  "Vec": [
+                    "S3",
                     {
-                      "Val": 20
+                      "IndexGen": [
+                        "N",
+                        {
+                          "offset": 292,
+                          "file_name": "factor.ty"
+                        }
+                      ]
                     },
                     {
-                      "offset": 98,
-                      "file_name": "lab/test_anon_record.ty"
+                      "Char": [
+                        "Unknown",
+                        {
+                          "offset": 296,
+                          "file_name": "factor.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 291,
+                      "file_name": "factor.ty"
                     }
                   ]
                 },
@@ -31468,8 +32842,1519 @@
               ]
             ],
             {
-              "offset": 83,
-              "file_name": "lab/test_anon_record.ty"
+              "Alias": [
+                "Factor",
+                [],
+                true,
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
+            },
+            {
+              "offset": 284,
+              "file_name": "factor.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function49",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Integer": [
+                    "Unknown",
+                    {
+                      "offset": 409,
+                      "file_name": "factor.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Vec": [
+                    "S3",
+                    {
+                      "IndexGen": [
+                        "N",
+                        {
+                          "offset": 415,
+                          "file_name": "factor.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Char": [
+                        "Unknown",
+                        {
+                          "offset": 419,
+                          "file_name": "factor.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 414,
+                      "file_name": "factor.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "Factor",
+                [],
+                true,
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
+            },
+            {
+              "offset": 408,
+              "file_name": "factor.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function50",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Any": {
+                    "offset": 520,
+                    "file_name": "factor.ty"
+                  }
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Vec": [
+                    "S3",
+                    {
+                      "IndexGen": [
+                        "N",
+                        {
+                          "offset": 526,
+                          "file_name": "factor.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Char": [
+                        "Unknown",
+                        {
+                          "offset": 530,
+                          "file_name": "factor.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 525,
+                      "file_name": "factor.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "Factor",
+                [],
+                true,
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
+            },
+            {
+              "offset": 519,
+              "file_name": "factor.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function51",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "Factor",
+                    [],
+                    true,
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Generic": [
+                "L",
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
+            },
+            {
+              "offset": 589,
+              "file_name": "factor.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function52",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "Factor",
+                    [],
+                    true,
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Integer": [
+                "Unknown",
+                {
+                  "offset": 632,
+                  "file_name": "factor.ty"
+                }
+              ]
+            },
+            {
+              "offset": 617,
+              "file_name": "factor.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function53",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "Factor",
+                    [],
+                    true,
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Char": [
+                "Unknown",
+                {
+                  "offset": 704,
+                  "file_name": "factor.ty"
+                }
+              ]
+            },
+            {
+              "offset": 689,
+              "file_name": "factor.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "State",
+          "is_opaque": true,
+          "related_type": {
+            "Params": [
+              [
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                }
+              ],
+              {
+                "offset": 360,
+                "file_name": "state.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Any": {
+            "offset": 371,
+            "file_name": "state.ty"
+          }
+        }
+      ],
+      [
+        {
+          "name": "State0",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Alias": [
+            "State",
+            [],
+            true,
+            {
+              "offset": 0,
+              "file_name": ""
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function54",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "State",
+                [],
+                true,
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
+            },
+            {
+              "offset": 385,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function55",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "State",
+                    [],
+                    true,
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Generic": [
+                "T",
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
+            },
+            {
+              "offset": 408,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function56",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "State",
+                    [],
+                    true,
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Generic": [
+                    "T",
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Empty": {
+                "offset": 448,
+                "file_name": "state.ty"
+              }
+            },
+            {
+              "offset": 431,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function57",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "State",
+                    [],
+                    true,
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Function": [
+                    [
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "a"
+                            },
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Generic": [
+                            "T",
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        false,
+                        false
+                      ]
+                    ],
+                    {
+                      "Generic": [
+                        "T",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 475,
+                      "file_name": "state.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Empty": {
+                "offset": 488,
+                "file_name": "state.ty"
+              }
+            },
+            {
+              "offset": 464,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function58",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "State",
+                    [],
+                    true,
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Integer": [
+                "Unknown",
+                {
+                  "offset": 519,
+                  "file_name": "state.ty"
+                }
+              ]
+            },
+            {
+              "offset": 505,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function59",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "a"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Alias": [
+                    "State",
+                    [],
+                    true,
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                false,
+                false
+              ],
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "b"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "Function": [
+                    [
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "a"
+                            },
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Generic": [
+                            "T",
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        false,
+                        false
+                      ]
+                    ],
+                    {
+                      "Generic": [
+                        "U",
+                        {
+                          "offset": 0,
+                          "file_name": ""
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 684,
+                      "file_name": "state.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Alias": [
+                "State",
+                [],
+                true,
+                {
+                  "offset": 0,
+                  "file_name": ""
+                }
+              ]
+            },
+            {
+              "offset": 673,
+              "file_name": "state.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Animation",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 6,
+                "file_name": "/tmp/test_animate3.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Interface": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "render"
+                    },
+                    {
+                      "offset": 35,
+                      "file_name": "/tmp/test_animate3.ty"
+                    }
+                  ]
+                },
+                {
+                  "Function": [
+                    [
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "a"
+                            },
+                            {
+                              "offset": 0,
+                              "file_name": ""
+                            }
+                          ]
+                        },
+                        {
+                          "Generic": [
+                            "Self",
+                            {
+                              "offset": 49,
+                              "file_name": "/tmp/test_animate3.ty"
+                            }
+                          ]
+                        },
+                        false,
+                        false
+                      ]
+                    ],
+                    {
+                      "Boolean": [
+                        "Unknown",
+                        {
+                          "offset": 58,
+                          "file_name": "/tmp/test_animate3.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "offset": 42,
+                      "file_name": "/tmp/test_animate3.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "offset": 18,
+              "file_name": "/tmp/test_animate3.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Animator",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [
+                {
+                  "KindedGen": [
+                    "Record",
+                    "T",
+                    {
+                      "offset": 81,
+                      "file_name": "/tmp/test_animate3.ty"
+                    }
+                  ]
+                }
+              ],
+              {
+                "offset": 73,
+                "file_name": "/tmp/test_animate3.ty"
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Operator": [
+            "Intersection",
+            {
+              "KindedGen": [
+                "Record",
+                "T",
+                {
+                  "offset": 88,
+                  "file_name": "/tmp/test_animate3.ty"
+                }
+              ]
+            },
+            {
+              "Record": [
+                [
+                  [
+                    {
+                      "Char": [
+                        {
+                          "Val": "animations"
+                        },
+                        {
+                          "offset": 101,
+                          "file_name": "/tmp/test_animate3.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Vec": [
+                        "S3",
+                        {
+                          "Any": {
+                            "offset": 112,
+                            "file_name": "/tmp/test_animate3.ty"
+                          }
+                        },
+                        {
+                          "Alias": [
+                            "Animation",
+                            [],
+                            false,
+                            {
+                              "offset": 114,
+                              "file_name": "/tmp/test_animate3.ty"
+                            }
+                          ]
+                        },
+                        {
+                          "offset": 112,
+                          "file_name": "/tmp/test_animate3.ty"
+                        }
+                      ]
+                    },
+                    false,
+                    false
+                  ]
+                ],
+                {
+                  "offset": 98,
+                  "file_name": "/tmp/test_animate3.ty"
+                }
+              ]
+            },
+            {
+              "offset": 88,
+              "file_name": "/tmp/test_animate3.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Intersection0",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Operator": [
+            "Intersection",
+            {
+              "KindedGen": [
+                "Record",
+                "T",
+                {
+                  "offset": 88,
+                  "file_name": "/tmp/test_animate3.ty"
+                }
+              ]
+            },
+            {
+              "Record": [
+                [
+                  [
+                    {
+                      "Char": [
+                        {
+                          "Val": "animations"
+                        },
+                        {
+                          "offset": 101,
+                          "file_name": "/tmp/test_animate3.ty"
+                        }
+                      ]
+                    },
+                    {
+                      "Vec": [
+                        "S3",
+                        {
+                          "Any": {
+                            "offset": 112,
+                            "file_name": "/tmp/test_animate3.ty"
+                          }
+                        },
+                        {
+                          "Interface": [
+                            [
+                              [
+                                {
+                                  "Char": [
+                                    {
+                                      "Val": "render"
+                                    },
+                                    {
+                                      "offset": 35,
+                                      "file_name": "/tmp/test_animate3.ty"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "Function": [
+                                    [
+                                      [
+                                        {
+                                          "Char": [
+                                            {
+                                              "Val": "a"
+                                            },
+                                            {
+                                              "offset": 0,
+                                              "file_name": ""
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "Generic": [
+                                            "Self",
+                                            {
+                                              "offset": 49,
+                                              "file_name": "/tmp/test_animate3.ty"
+                                            }
+                                          ]
+                                        },
+                                        false,
+                                        false
+                                      ]
+                                    ],
+                                    {
+                                      "Boolean": [
+                                        "Unknown",
+                                        {
+                                          "offset": 58,
+                                          "file_name": "/tmp/test_animate3.ty"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "offset": 42,
+                                      "file_name": "/tmp/test_animate3.ty"
+                                    }
+                                  ]
+                                },
+                                false,
+                                false
+                              ]
+                            ],
+                            {
+                              "offset": 18,
+                              "file_name": "/tmp/test_animate3.ty"
+                            }
+                          ]
+                        },
+                        {
+                          "offset": 112,
+                          "file_name": "/tmp/test_animate3.ty"
+                        }
+                      ]
+                    },
+                    false,
+                    false
+                  ]
+                ],
+                {
+                  "offset": 98,
+                  "file_name": "/tmp/test_animate3.ty"
+                }
+              ]
+            },
+            {
+              "offset": 88,
+              "file_name": "/tmp/test_animate3.ty"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "name": "Function0",
+          "is_opaque": false,
+          "related_type": {
+            "Params": [
+              [],
+              {
+                "offset": 0,
+                "file_name": ""
+              }
+            ]
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "Function": [
+            [
+              [
+                {
+                  "Char": [
+                    {
+                      "Val": "target"
+                    },
+                    {
+                      "offset": 0,
+                      "file_name": ""
+                    }
+                  ]
+                },
+                {
+                  "KindedGen": [
+                    "Record",
+                    "T",
+                    {
+                      "offset": 154,
+                      "file_name": "/tmp/test_animate3.ty"
+                    }
+                  ]
+                },
+                false,
+                false
+              ]
+            ],
+            {
+              "Operator": [
+                "Intersection",
+                {
+                  "KindedGen": [
+                    "Record",
+                    "T",
+                    {
+                      "offset": 168,
+                      "file_name": "/tmp/test_animate3.ty"
+                    }
+                  ]
+                },
+                {
+                  "Record": [
+                    [
+                      [
+                        {
+                          "Char": [
+                            {
+                              "Val": "animations"
+                            },
+                            {
+                              "offset": 101,
+                              "file_name": "/tmp/test_animate3.ty"
+                            }
+                          ]
+                        },
+                        {
+                          "Vec": [
+                            "S3",
+                            {
+                              "Any": {
+                                "offset": 112,
+                                "file_name": "/tmp/test_animate3.ty"
+                              }
+                            },
+                            {
+                              "Interface": [
+                                [
+                                  [
+                                    {
+                                      "Char": [
+                                        {
+                                          "Val": "render"
+                                        },
+                                        {
+                                          "offset": 35,
+                                          "file_name": "/tmp/test_animate3.ty"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "Function": [
+                                        [
+                                          [
+                                            {
+                                              "Char": [
+                                                {
+                                                  "Val": "a"
+                                                },
+                                                {
+                                                  "offset": 0,
+                                                  "file_name": ""
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "Generic": [
+                                                "Self",
+                                                {
+                                                  "offset": 49,
+                                                  "file_name": "/tmp/test_animate3.ty"
+                                                }
+                                              ]
+                                            },
+                                            false,
+                                            false
+                                          ]
+                                        ],
+                                        {
+                                          "Boolean": [
+                                            "Unknown",
+                                            {
+                                              "offset": 58,
+                                              "file_name": "/tmp/test_animate3.ty"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "offset": 42,
+                                          "file_name": "/tmp/test_animate3.ty"
+                                        }
+                                      ]
+                                    },
+                                    false,
+                                    false
+                                  ]
+                                ],
+                                {
+                                  "offset": 18,
+                                  "file_name": "/tmp/test_animate3.ty"
+                                }
+                              ]
+                            },
+                            {
+                              "offset": 112,
+                              "file_name": "/tmp/test_animate3.ty"
+                            }
+                          ]
+                        },
+                        false,
+                        false
+                      ]
+                    ],
+                    {
+                      "offset": 98,
+                      "file_name": "/tmp/test_animate3.ty"
+                    }
+                  ]
+                },
+                {
+                  "offset": 88,
+                  "file_name": "/tmp/test_animate3.ty"
+                }
+              ]
+            },
+            {
+              "offset": 0,
+              "file_name": ""
             }
           ]
         }
@@ -44084,6 +46969,28 @@
       ],
       [
         {
+          "name": "set",
+          "is_opaque": false,
+          "related_type": {
+            "Any": {
+              "offset": 0,
+              "file_name": ""
+            }
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "UnknownFunction": {
+            "offset": 0,
+            "file_name": ""
+          }
+        }
+      ],
+      [
+        {
           "name": "set__seed",
           "is_opaque": false,
           "related_type": {
@@ -44987,6 +47894,28 @@
       [
         {
           "name": "startsWith",
+          "is_opaque": false,
+          "related_type": {
+            "Any": {
+              "offset": 0,
+              "file_name": ""
+            }
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "UnknownFunction": {
+            "offset": 0,
+            "file_name": ""
+          }
+        }
+      ],
+      [
+        {
+          "name": "state",
           "is_opaque": false,
           "related_type": {
             "Any": {
@@ -47472,6 +50401,28 @@
       ],
       [
         {
+          "name": "update",
+          "is_opaque": false,
+          "related_type": {
+            "Any": {
+              "offset": 0,
+              "file_name": ""
+            }
+          },
+          "help_data": {
+            "offset": 0,
+            "file_name": ""
+          }
+        },
+        {
+          "UnknownFunction": {
+            "offset": 0,
+            "file_name": ""
+          }
+        }
+      ],
+      [
+        {
           "name": "upper__tri",
           "is_opaque": false,
           "related_type": {
@@ -48157,112 +51108,164 @@
   "subtypes": {
     "memory": [
       {
-        "Record": [
-          [
-            [
-              {
-                "Char": [
-                  {
-                    "Val": "x"
-                  },
-                  {
-                    "offset": 22,
-                    "file_name": "lab/test_anon_record.ty"
-                  }
-                ]
-              },
-              {
-                "Integer": [
-                  "Unknown",
-                  {
-                    "offset": 24,
-                    "file_name": "lab/test_anon_record.ty"
-                  }
-                ]
-              },
-              false,
-              false
-            ],
-            [
-              {
-                "Char": [
-                  {
-                    "Val": "y"
-                  },
-                  {
-                    "offset": 30,
-                    "file_name": "lab/test_anon_record.ty"
-                  }
-                ]
-              },
-              {
-                "Integer": [
-                  "Unknown",
-                  {
-                    "offset": 32,
-                    "file_name": "lab/test_anon_record.ty"
-                  }
-                ]
-              },
-              false,
-              false
-            ]
-          ],
+        "Operator": [
+          "Intersection",
           {
-            "offset": 19,
-            "file_name": "lab/test_anon_record.ty"
+            "KindedGen": [
+              "Record",
+              "T",
+              {
+                "offset": 88,
+                "file_name": "/tmp/test_animate3.ty"
+              }
+            ]
+          },
+          {
+            "Record": [
+              [
+                [
+                  {
+                    "Char": [
+                      {
+                        "Val": "animations"
+                      },
+                      {
+                        "offset": 101,
+                        "file_name": "/tmp/test_animate3.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "Vec": [
+                      "S3",
+                      {
+                        "Any": {
+                          "offset": 112,
+                          "file_name": "/tmp/test_animate3.ty"
+                        }
+                      },
+                      {
+                        "Interface": [
+                          [
+                            [
+                              {
+                                "Char": [
+                                  {
+                                    "Val": "render"
+                                  },
+                                  {
+                                    "offset": 35,
+                                    "file_name": "/tmp/test_animate3.ty"
+                                  }
+                                ]
+                              },
+                              {
+                                "Function": [
+                                  [
+                                    [
+                                      {
+                                        "Char": [
+                                          {
+                                            "Val": "a"
+                                          },
+                                          {
+                                            "offset": 0,
+                                            "file_name": ""
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "Generic": [
+                                          "Self",
+                                          {
+                                            "offset": 49,
+                                            "file_name": "/tmp/test_animate3.ty"
+                                          }
+                                        ]
+                                      },
+                                      false,
+                                      false
+                                    ]
+                                  ],
+                                  {
+                                    "Boolean": [
+                                      "Unknown",
+                                      {
+                                        "offset": 58,
+                                        "file_name": "/tmp/test_animate3.ty"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "offset": 42,
+                                    "file_name": "/tmp/test_animate3.ty"
+                                  }
+                                ]
+                              },
+                              false,
+                              false
+                            ]
+                          ],
+                          {
+                            "offset": 18,
+                            "file_name": "/tmp/test_animate3.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "offset": 112,
+                        "file_name": "/tmp/test_animate3.ty"
+                      }
+                    ]
+                  },
+                  false,
+                  false
+                ]
+              ],
+              {
+                "offset": 98,
+                "file_name": "/tmp/test_animate3.ty"
+              }
+            ]
+          },
+          {
+            "offset": 88,
+            "file_name": "/tmp/test_animate3.ty"
           }
         ]
       },
       {
-        "Record": [
+        "KindedGen": [
+          "Record",
+          "T",
+          {
+            "offset": 154,
+            "file_name": "/tmp/test_animate3.ty"
+          }
+        ]
+      },
+      {
+        "Function": [
           [
             [
               {
                 "Char": [
                   {
-                    "Val": "a"
+                    "Val": "target"
                   },
                   {
-                    "offset": 90,
-                    "file_name": "lab/test_anon_record.ty"
+                    "offset": 0,
+                    "file_name": ""
                   }
                 ]
               },
               {
-                "Integer": [
+                "KindedGen": [
+                  "Record",
+                  "T",
                   {
-                    "Val": 10
-                  },
-                  {
-                    "offset": 90,
-                    "file_name": "lab/test_anon_record.ty"
-                  }
-                ]
-              },
-              false,
-              false
-            ],
-            [
-              {
-                "Char": [
-                  {
-                    "Val": "b"
-                  },
-                  {
-                    "offset": 98,
-                    "file_name": "lab/test_anon_record.ty"
-                  }
-                ]
-              },
-              {
-                "Integer": [
-                  {
-                    "Val": 20
-                  },
-                  {
-                    "offset": 98,
-                    "file_name": "lab/test_anon_record.ty"
+                    "offset": 154,
+                    "file_name": "/tmp/test_animate3.ty"
                   }
                 ]
               },
@@ -48271,8 +51274,135 @@
             ]
           ],
           {
-            "offset": 83,
-            "file_name": "lab/test_anon_record.ty"
+            "Operator": [
+              "Intersection",
+              {
+                "KindedGen": [
+                  "Record",
+                  "T",
+                  {
+                    "offset": 168,
+                    "file_name": "/tmp/test_animate3.ty"
+                  }
+                ]
+              },
+              {
+                "Record": [
+                  [
+                    [
+                      {
+                        "Char": [
+                          {
+                            "Val": "animations"
+                          },
+                          {
+                            "offset": 101,
+                            "file_name": "/tmp/test_animate3.ty"
+                          }
+                        ]
+                      },
+                      {
+                        "Vec": [
+                          "S3",
+                          {
+                            "Any": {
+                              "offset": 112,
+                              "file_name": "/tmp/test_animate3.ty"
+                            }
+                          },
+                          {
+                            "Interface": [
+                              [
+                                [
+                                  {
+                                    "Char": [
+                                      {
+                                        "Val": "render"
+                                      },
+                                      {
+                                        "offset": 35,
+                                        "file_name": "/tmp/test_animate3.ty"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "Function": [
+                                      [
+                                        [
+                                          {
+                                            "Char": [
+                                              {
+                                                "Val": "a"
+                                              },
+                                              {
+                                                "offset": 0,
+                                                "file_name": ""
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "Generic": [
+                                              "Self",
+                                              {
+                                                "offset": 49,
+                                                "file_name": "/tmp/test_animate3.ty"
+                                              }
+                                            ]
+                                          },
+                                          false,
+                                          false
+                                        ]
+                                      ],
+                                      {
+                                        "Boolean": [
+                                          "Unknown",
+                                          {
+                                            "offset": 58,
+                                            "file_name": "/tmp/test_animate3.ty"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "offset": 42,
+                                        "file_name": "/tmp/test_animate3.ty"
+                                      }
+                                    ]
+                                  },
+                                  false,
+                                  false
+                                ]
+                              ],
+                              {
+                                "offset": 18,
+                                "file_name": "/tmp/test_animate3.ty"
+                              }
+                            ]
+                          },
+                          {
+                            "offset": 112,
+                            "file_name": "/tmp/test_animate3.ty"
+                          }
+                        ]
+                      },
+                      false,
+                      false
+                    ]
+                  ],
+                  {
+                    "offset": 98,
+                    "file_name": "/tmp/test_animate3.ty"
+                  }
+                ]
+              },
+              {
+                "offset": 88,
+                "file_name": "/tmp/test_animate3.ty"
+              }
+            ]
+          },
+          {
+            "offset": 0,
+            "file_name": ""
           }
         ]
       }
@@ -48287,115 +51417,171 @@
       "subtypes": [
         {
           "value": {
-            "Record": [
-              [
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "x"
-                      },
-                      {
-                        "offset": 22,
-                        "file_name": "lab/test_anon_record.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      "Unknown",
-                      {
-                        "offset": 24,
-                        "file_name": "lab/test_anon_record.ty"
-                      }
-                    ]
-                  },
-                  false,
-                  false
-                ],
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "y"
-                      },
-                      {
-                        "offset": 30,
-                        "file_name": "lab/test_anon_record.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      "Unknown",
-                      {
-                        "offset": 32,
-                        "file_name": "lab/test_anon_record.ty"
-                      }
-                    ]
-                  },
-                  false,
-                  false
-                ]
-              ],
+            "KindedGen": [
+              "Record",
+              "T",
               {
-                "offset": 19,
-                "file_name": "lab/test_anon_record.ty"
+                "offset": 154,
+                "file_name": "/tmp/test_animate3.ty"
               }
             ]
           },
-          "subtypes": []
+          "subtypes": [
+            {
+              "value": {
+                "Operator": [
+                  "Intersection",
+                  {
+                    "KindedGen": [
+                      "Record",
+                      "T",
+                      {
+                        "offset": 88,
+                        "file_name": "/tmp/test_animate3.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "Record": [
+                      [
+                        [
+                          {
+                            "Char": [
+                              {
+                                "Val": "animations"
+                              },
+                              {
+                                "offset": 101,
+                                "file_name": "/tmp/test_animate3.ty"
+                              }
+                            ]
+                          },
+                          {
+                            "Vec": [
+                              "S3",
+                              {
+                                "Any": {
+                                  "offset": 112,
+                                  "file_name": "/tmp/test_animate3.ty"
+                                }
+                              },
+                              {
+                                "Interface": [
+                                  [
+                                    [
+                                      {
+                                        "Char": [
+                                          {
+                                            "Val": "render"
+                                          },
+                                          {
+                                            "offset": 35,
+                                            "file_name": "/tmp/test_animate3.ty"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "Function": [
+                                          [
+                                            [
+                                              {
+                                                "Char": [
+                                                  {
+                                                    "Val": "a"
+                                                  },
+                                                  {
+                                                    "offset": 0,
+                                                    "file_name": ""
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "Generic": [
+                                                  "Self",
+                                                  {
+                                                    "offset": 49,
+                                                    "file_name": "/tmp/test_animate3.ty"
+                                                  }
+                                                ]
+                                              },
+                                              false,
+                                              false
+                                            ]
+                                          ],
+                                          {
+                                            "Boolean": [
+                                              "Unknown",
+                                              {
+                                                "offset": 58,
+                                                "file_name": "/tmp/test_animate3.ty"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "offset": 42,
+                                            "file_name": "/tmp/test_animate3.ty"
+                                          }
+                                        ]
+                                      },
+                                      false,
+                                      false
+                                    ]
+                                  ],
+                                  {
+                                    "offset": 18,
+                                    "file_name": "/tmp/test_animate3.ty"
+                                  }
+                                ]
+                              },
+                              {
+                                "offset": 112,
+                                "file_name": "/tmp/test_animate3.ty"
+                              }
+                            ]
+                          },
+                          false,
+                          false
+                        ]
+                      ],
+                      {
+                        "offset": 98,
+                        "file_name": "/tmp/test_animate3.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "offset": 88,
+                    "file_name": "/tmp/test_animate3.ty"
+                  }
+                ]
+              },
+              "subtypes": []
+            }
+          ]
         },
         {
           "value": {
-            "Record": [
+            "Function": [
               [
                 [
                   {
                     "Char": [
                       {
-                        "Val": "a"
+                        "Val": "target"
                       },
                       {
-                        "offset": 90,
-                        "file_name": "lab/test_anon_record.ty"
+                        "offset": 0,
+                        "file_name": ""
                       }
                     ]
                   },
                   {
-                    "Integer": [
+                    "KindedGen": [
+                      "Record",
+                      "T",
                       {
-                        "Val": 10
-                      },
-                      {
-                        "offset": 90,
-                        "file_name": "lab/test_anon_record.ty"
-                      }
-                    ]
-                  },
-                  false,
-                  false
-                ],
-                [
-                  {
-                    "Char": [
-                      {
-                        "Val": "b"
-                      },
-                      {
-                        "offset": 98,
-                        "file_name": "lab/test_anon_record.ty"
-                      }
-                    ]
-                  },
-                  {
-                    "Integer": [
-                      {
-                        "Val": 20
-                      },
-                      {
-                        "offset": 98,
-                        "file_name": "lab/test_anon_record.ty"
+                        "offset": 154,
+                        "file_name": "/tmp/test_animate3.ty"
                       }
                     ]
                   },
@@ -48404,8 +51590,135 @@
                 ]
               ],
               {
-                "offset": 83,
-                "file_name": "lab/test_anon_record.ty"
+                "Operator": [
+                  "Intersection",
+                  {
+                    "KindedGen": [
+                      "Record",
+                      "T",
+                      {
+                        "offset": 168,
+                        "file_name": "/tmp/test_animate3.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "Record": [
+                      [
+                        [
+                          {
+                            "Char": [
+                              {
+                                "Val": "animations"
+                              },
+                              {
+                                "offset": 101,
+                                "file_name": "/tmp/test_animate3.ty"
+                              }
+                            ]
+                          },
+                          {
+                            "Vec": [
+                              "S3",
+                              {
+                                "Any": {
+                                  "offset": 112,
+                                  "file_name": "/tmp/test_animate3.ty"
+                                }
+                              },
+                              {
+                                "Interface": [
+                                  [
+                                    [
+                                      {
+                                        "Char": [
+                                          {
+                                            "Val": "render"
+                                          },
+                                          {
+                                            "offset": 35,
+                                            "file_name": "/tmp/test_animate3.ty"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "Function": [
+                                          [
+                                            [
+                                              {
+                                                "Char": [
+                                                  {
+                                                    "Val": "a"
+                                                  },
+                                                  {
+                                                    "offset": 0,
+                                                    "file_name": ""
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "Generic": [
+                                                  "Self",
+                                                  {
+                                                    "offset": 49,
+                                                    "file_name": "/tmp/test_animate3.ty"
+                                                  }
+                                                ]
+                                              },
+                                              false,
+                                              false
+                                            ]
+                                          ],
+                                          {
+                                            "Boolean": [
+                                              "Unknown",
+                                              {
+                                                "offset": 58,
+                                                "file_name": "/tmp/test_animate3.ty"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "offset": 42,
+                                            "file_name": "/tmp/test_animate3.ty"
+                                          }
+                                        ]
+                                      },
+                                      false,
+                                      false
+                                    ]
+                                  ],
+                                  {
+                                    "offset": 18,
+                                    "file_name": "/tmp/test_animate3.ty"
+                                  }
+                                ]
+                              },
+                              {
+                                "offset": 112,
+                                "file_name": "/tmp/test_animate3.ty"
+                              }
+                            ]
+                          },
+                          false,
+                          false
+                        ]
+                      ],
+                      {
+                        "offset": 98,
+                        "file_name": "/tmp/test_animate3.ty"
+                      }
+                    ]
+                  },
+                  {
+                    "offset": 88,
+                    "file_name": "/tmp/test_animate3.ty"
+                  }
+                ]
+              },
+              {
+                "offset": 0,
+                "file_name": ""
               }
             ]
           },
@@ -48417,10 +51730,13 @@
   "type_constructors": [],
   "interface_constraints": {},
   "rigid_counter": 0,
+  "record_aliases": [],
+  "embedded_methods": [],
   "config": {
     "environment": "Project",
     "file_type": "Main",
     "target_language": "R",
-    "in_module_body": false
+    "in_module_body": false,
+    "test_mode": false
   }
 }

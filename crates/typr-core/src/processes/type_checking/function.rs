@@ -2,6 +2,7 @@ use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::var::Var;
+use crate::components::r#type::kind::Kind;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::ArgumentType;
@@ -11,6 +12,116 @@ use crate::utils::builder;
 use crate::Context;
 use crate::Lang;
 use crate::Type;
+
+/// RFC sigils.md §7 — the kind a generic name's occurrence implies, used
+/// only by the intra-signature consistency pass below. Distinguishes "no
+/// sigil" (`Any`) from "Number sigil" (`#`, `IndexGen`) from one of the four
+/// `Kind`-enum sigils. Kept local: `Kind` itself has no `Number`/`Any`
+/// variant by design (Number stays `IndexGen`-based).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ObservedKind {
+    Any,
+    Number,
+    Sigil(Kind),
+}
+
+impl ObservedKind {
+    fn describe(&self) -> String {
+        match self {
+            ObservedKind::Any => "Any".to_string(),
+            ObservedKind::Number => "Number".to_string(),
+            ObservedKind::Sigil(Kind::Record) => "Record".to_string(),
+            ObservedKind::Sigil(Kind::Interface) => "Interface".to_string(),
+            ObservedKind::Sigil(Kind::String) => "String".to_string(),
+            ObservedKind::Sigil(Kind::Boolean) => "Boolean".to_string(),
+        }
+    }
+}
+
+/// Collects `(generic_name, observed_kind, position)` for every occurrence of
+/// every bare-name generic reachable inside `typ`. Mirrors the recursion
+/// shape of `Type::extract_generics`, but records one entry per occurrence
+/// (not deduplicated) together with the kind implied by that occurrence.
+fn collect_generic_kind_occurrences(typ: &Type, acc: &mut Vec<(String, ObservedKind, HelpData)>) {
+    match typ {
+        Type::Generic(name, h) => acc.push((name.clone(), ObservedKind::Any, h.clone())),
+        Type::IndexGen(name, h) => acc.push((name.clone(), ObservedKind::Number, h.clone())),
+        Type::KindedGen(k, name, h) => acc.push((name.clone(), ObservedKind::Sigil(*k), h.clone())),
+        Type::Function(args, ret, _) => {
+            args.iter()
+                .for_each(|a| collect_generic_kind_occurrences(&a.get_type(), acc));
+            collect_generic_kind_occurrences(ret, acc);
+        }
+        Type::Vec(_, idx, body, _) => {
+            collect_generic_kind_occurrences(idx, acc);
+            collect_generic_kind_occurrences(body, acc);
+        }
+        Type::Record(fields, _) | Type::Interface(fields, _) => fields
+            .iter()
+            .for_each(|a| collect_generic_kind_occurrences(&a.get_type(), acc)),
+        Type::Tag(_, inner, _) | Type::Multi(inner, _) => {
+            collect_generic_kind_occurrences(inner, acc)
+        }
+        Type::Operator(_, a, b, _) => {
+            collect_generic_kind_occurrences(a, acc);
+            collect_generic_kind_occurrences(b, acc);
+        }
+        Type::Params(ts, _) | Type::Tuple(ts, _) => ts
+            .iter()
+            .for_each(|t| collect_generic_kind_occurrences(t, acc)),
+        Type::Alias(_, params, _, _) => params
+            .iter()
+            .for_each(|t| collect_generic_kind_occurrences(t, acc)),
+        _ => {}
+    }
+}
+
+/// RFC sigils.md §7 — intra-signature kind-consistency pass. For every
+/// generic name occurring across `params` + `ret_ty`, the first non-Any
+/// occurrence establishes that name's kind; any later occurrence with a
+/// different non-Any kind raises one `TypeError::KindMismatch`. Bare/Any
+/// occurrences never conflict with anything. Bounded to a single function
+/// signature — not whole-program inference.
+fn check_kind_consistency(params: &[ArgumentType], ret_ty: &Type) -> Vec<TypRError> {
+    let mut occurrences: Vec<(String, ObservedKind, HelpData)> = Vec::new();
+    for p in params {
+        collect_generic_kind_occurrences(&p.get_type(), &mut occurrences);
+    }
+    collect_generic_kind_occurrences(ret_ty, &mut occurrences);
+
+    let mut seen_names: Vec<String> = Vec::new();
+    for (name, _, _) in &occurrences {
+        if !seen_names.contains(name) {
+            seen_names.push(name.clone());
+        }
+    }
+
+    // Per RFC §7.2: a bare occurrence (`Any`) is itself a kind commitment
+    // (the type-checker must accept any concrete type there), so it
+    // conflicts with a sigiled occurrence of the same name just as much as
+    // two different sigils conflict with each other. So: every occurrence of
+    // a given name must share the exact same `ObservedKind`; the first
+    // occurrence establishes it, anything that differs is an error.
+    let mut errors = Vec::new();
+    for name in seen_names {
+        let for_name: Vec<&(String, ObservedKind, HelpData)> =
+            occurrences.iter().filter(|(n, _, _)| n == &name).collect();
+        let Some((_, established, _)) = for_name.first() else {
+            continue;
+        };
+        let established = *established;
+        for (_, k, h) in &for_name {
+            if *k != established {
+                errors.push(TypRError::Type(TypeError::KindMismatch(
+                    established.describe(),
+                    k.describe(),
+                    h.clone(),
+                )));
+            }
+        }
+    }
+    errors
+}
 
 fn is_opaque_of(body_type: &Type, declared_ret: &Type) -> bool {
     match (body_type, declared_ret) {
@@ -88,6 +199,9 @@ pub fn function(
         ))]);
     }
 
+    // RFC sigils.md §7 — intra-signature kind-consistency pass.
+    let kind_consistency_errors = check_kind_consistency(params, ret_ty);
+
     // Build sub-context: interface parameters become rigid generic variables
     // with interface constraints, instead of being decomposed via push_interface.
     let mut sub_context = context.clone();
@@ -117,6 +231,7 @@ pub fn function(
 
     let body_type = body.typing(&sub_context);
     let mut errors = body_type.errors.clone();
+    errors.extend(kind_consistency_errors);
     let is_compatible = is_opaque_of(&body_type.value, ret_ty)
         || body_type.value.reduce_and_subtype(ret_ty, &sub_context).0
         || is_rigid_compatible(&body_type.value, ret_ty, &sub_context);
@@ -450,6 +565,79 @@ mod tests {
             !tc.has_errors(),
             "fn(): Any {{ ... }} should not produce errors, got: {:?}",
             tc.get_errors()
+        );
+    }
+
+    // ── sigils.md §7 : intra-signature kind-consistency pass ────────────────
+
+    /// RFC §9.1 — a Number-sigil-only signature, the pre-existing `#N`
+    /// (IndexGen) case, must keep working unchanged.
+    #[test]
+    fn test_rfc_example_zeros_number_sigil() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let code = parse2("fn(n: #N): [#N, int] { [1] }".into()).unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(!tc.has_errors(), "errors: {:?}", tc.get_errors());
+    }
+
+    /// RFC §9.2 — Record + String sigils in the same signature.
+    #[test]
+    fn test_rfc_example_select_record_string_sigils() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let code = parse2("fn(r: %R, field: ^S): ^S { field }".into()).unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(!tc.has_errors(), "errors: {:?}", tc.get_errors());
+    }
+
+    /// RFC §9.3 — Interface sigil over a vector element type.
+    #[test]
+    fn test_rfc_example_sort_interface_sigil() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let code = parse2("fn(items: [#N, @T]): [#N, @T] { items }".into()).unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(!tc.has_errors(), "errors: {:?}", tc.get_errors());
+    }
+
+    /// RFC §7.2 — the same generic name used bare (`A`, Any-kind) and with a
+    /// Number sigil (`#A`) in the same signature is a kind conflict.
+    #[test]
+    fn test_intra_signature_kind_conflict_bare_then_number_sigil() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let code = parse2("fn(x: A): [#A, int] { [1] }".into()).unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(tc.has_errors(), "Expected a kind-conflict error");
+        assert!(
+            tc.get_errors().iter().any(|e| matches!(
+                e,
+                crate::components::error_message::typr_error::TypRError::Type(
+                    crate::components::error_message::type_error::TypeError::KindMismatch(_, _, _)
+                )
+            )),
+            "Expected KindMismatch error, got: {:?}",
+            tc.get_errors()
+        );
+    }
+
+    /// Same generic name `R` used once as `%R` (Record) and once as `@R`
+    /// (Interface) in the same signature — a direct sigil clash.
+    #[test]
+    fn test_intra_signature_kind_conflict_record_vs_interface_sigil() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let code = parse2("fn(a: %R, b: @R): %R { a }".into()).unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(
+            tc.has_errors(),
+            "Expected a kind-conflict error for %R vs @R"
         );
     }
 

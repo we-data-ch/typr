@@ -14,6 +14,7 @@ use crate::components::language::ModulePosition;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::array_type::ArrayType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
@@ -1211,7 +1212,30 @@ impl RTranslatable<(String, Context)> for Lang {
                 let name = Var::from_language(*ident.clone())
                     .map(|v| v.get_name())
                     .unwrap_or_default();
-                match typ {
+                // An alias mixing a record-kinded generic with a concrete
+                // record (e.g. `type Animator<%T> <- %T & list { animations:
+                // [Animation] }`) has no fixed runtime shape on the generic
+                // side — TypR doesn't monomorphize, and R has no class for
+                // "any record" — so only the concrete `Record` side carries
+                // fields worth validating. Substitute the alias's type with
+                // that concrete side so it falls into the existing
+                // `Type::Record` pipeline below (constructor/annotator/
+                // validator), instead of the unrelated union-alias
+                // `Type::Operator` catch-all, which doesn't apply here and
+                // previously produced no R code at all for this shape,
+                // leaving `validate_Animator`/`as.Animator` referenced
+                // elsewhere but never defined.
+                let typ_for_dispatch: Type = match typ {
+                    Type::Operator(TypeOperator::Intersection, t1, t2, _) => {
+                        match (t1.reduce(cont), t2.reduce(cont)) {
+                            (record @ Type::Record(_, _), other) if other.has_generic() => record,
+                            (other, record @ Type::Record(_, _)) if other.has_generic() => record,
+                            _ => typ.clone(),
+                        }
+                    }
+                    _ => typ.clone(),
+                };
+                match &typ_for_dispatch {
                     Type::Record(fields, _) => {
                         let mut sorted_fields: Vec<&ArgumentType> = fields.iter().collect();
                         sorted_fields.sort_by_key(|f| f.get_argument_str());
@@ -2298,6 +2322,64 @@ mod tests {
         assert!(
             r_str.contains("required_fields"),
             "expected field validation, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_record_kinded_generic_param_transpiles_without_panic() {
+        // Regression for a `get_class` panic ("%T has no class equivalent")
+        // when a function parameter/alias is typed with a record-kinded
+        // generic (`%T`), e.g. `type Animator<%T> <- %T & list {...}` plus
+        // a function spreading a `%T`-typed parameter. `%T` has no fixed
+        // runtime R class, so it must fall back to the same `Generic`
+        // convention used for plain `T`, never panic.
+        let fp = FluentParser::new()
+            .push("type Animator<%T> <- %T & list { extra: int };")
+            .run()
+            .push("let combine <- fn(target: %T): %T { let more <- :{ extra = 1 }; :{ ...target, ...more } };")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("spread(target, more)"),
+            "expected the spread merge to transpile, got:\n{}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_generic_intersection_alias_generates_validator() {
+        // An alias mixing a record-kinded generic with a concrete record
+        // (`%T & list {...}`) used to produce no R code at all for itself
+        // (it fell into the union-alias `Type::Operator` catch-all), while
+        // `as! Animator` elsewhere still emitted a call to `validate_Animator`
+        // — a dangling reference at actual R runtime. The concrete side's
+        // fields are the only part with a fixed runtime shape, so the
+        // constructor/annotator/validator pipeline should be generated from
+        // them, exactly like a plain `Type::Record` alias.
+        let r_code = FluentParser::new()
+            .check_transpiling("type Animator<%T> <- %T & list { animations: int };");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains("Animator <- function(animations, .spread = NULL)"),
+            "expected a constructor for the concrete side's fields, got:\n{}",
+            r_str
+        );
+        assert!(
+            r_str.contains("as.Animator <- function(x)"),
+            "expected an annotator, got:\n{}",
+            r_str
+        );
+        assert!(
+            r_str.contains("validate_Animator <- function(x)")
+                && r_str.contains("required_fields <- c(\"animations\")"),
+            "expected a validator checking the concrete field, got:\n{}",
             r_str
         );
     }

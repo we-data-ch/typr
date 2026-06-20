@@ -451,6 +451,12 @@ impl Context {
             .filter(|(var, typ)| {
                 !matches!(typ, Type::Record(_, _)) || is_anonymous_record_name(&var.get_name())
             })
+            // Aliases whose underlying type still mentions an unresolved generic
+            // (e.g. `type Animator<%T> <- %T & list { ... }`) have no single
+            // fixed runtime class — there's no monomorphization, so a static
+            // `as.Animator` cast can't be generated. Without this, get_class
+            // panics trying to render `%T` as an R class name.
+            .filter(|(_, typ)| !typ.has_generic())
             .map(|(var, typ)| (typ, var.get_name()))
             .map(|(typ, name)| {
                 let name0 = if ["Integer", "Character", "Boolean", "Number"]
@@ -494,6 +500,11 @@ impl Context {
             .iter()
             .filter(|typ| (*typ).clone().to_module_type().is_err())
             .filter(|typ| !typ.is_empty())
+            // A supertype that still mentions an unresolved generic (e.g. a
+            // record-kinded `%T` picked up structurally from a generic alias
+            // like `Animator<%T> <- %T & list {...}`) has no R class name —
+            // it's a compile-time-only constraint, never render it.
+            .filter(|typ| !typ.has_generic())
             .map(|typ| self.get_class(typ))
             .collect::<Vec<_>>()
             .join(", ");
