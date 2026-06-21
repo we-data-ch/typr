@@ -1077,80 +1077,73 @@ fn try_normalize_rightmost_dot_call(context: &Context, expr: &str) -> Option<Str
         i -= 1;
         match chars[i] {
             ')' => paren_depth += 1,
-            '(' => {
-                if paren_depth > 0 {
-                    paren_depth -= 1;
-                }
+            '(' if paren_depth > 0 => {
+                paren_depth -= 1;
             }
             ']' => bracket_depth += 1,
-            '[' => {
-                if bracket_depth > 0 {
-                    bracket_depth -= 1;
-                }
+            '[' if bracket_depth > 0 => {
+                bracket_depth -= 1;
             }
-            '.' if paren_depth == 0 && bracket_depth == 0 => {
-                if i + 1 < len && (chars[i + 1].is_alphabetic() || chars[i + 1] == '_') {
-                    let mut method_end = i + 1;
-                    while method_end < len
-                        && (chars[method_end].is_alphanumeric() || chars[method_end] == '_')
-                    {
-                        method_end += 1;
-                    }
-                    let method_name: String = chars[i + 1..method_end].iter().collect();
+            '.' if paren_depth == 0
+                && bracket_depth == 0
+                && i + 1 < len
+                && (chars[i + 1].is_alphabetic() || chars[i + 1] == '_') =>
+            {
+                let mut method_end = i + 1;
+                while method_end < len
+                    && (chars[method_end].is_alphanumeric() || chars[method_end] == '_')
+                {
+                    method_end += 1;
+                }
+                let method_name: String = chars[i + 1..method_end].iter().collect();
 
-                    let types = context.get_types_from_name(&method_name);
-                    let is_known_function = types.iter().any(|t| t.is_function());
+                let types = context.get_types_from_name(&method_name);
+                let is_known_function = types.iter().any(|t| t.is_function());
 
-                    let is_std_function = context
-                        .typing_context
-                        .standard_library()
-                        .iter()
-                        .any(|(v, t)| v.get_name() == method_name && t.is_function());
+                let is_std_function = context
+                    .typing_context
+                    .standard_library()
+                    .iter()
+                    .any(|(v, t)| v.get_name() == method_name && t.is_function());
 
-                    if is_known_function || is_std_function {
-                        let receiver: String = chars[..i].iter().collect();
-                        let after_method: String = chars[method_end..].iter().collect();
+                if is_known_function || is_std_function {
+                    let receiver: String = chars[..i].iter().collect();
+                    let after_method: String = chars[method_end..].iter().collect();
 
-                        if after_method.starts_with('(') {
-                            let after_chars: Vec<char> = after_method.chars().collect();
-                            let mut depth = 0;
-                            let mut close_idx = 0;
-                            for (j, &c) in after_chars.iter().enumerate() {
-                                match c {
-                                    '(' => depth += 1,
-                                    ')' => {
-                                        depth -= 1;
-                                        if depth == 0 {
-                                            close_idx = j;
-                                            break;
-                                        }
+                    if after_method.starts_with('(') {
+                        let after_chars: Vec<char> = after_method.chars().collect();
+                        let mut depth = 0;
+                        let mut close_idx = 0;
+                        for (j, &c) in after_chars.iter().enumerate() {
+                            match c {
+                                '(' => depth += 1,
+                                ')' => {
+                                    depth -= 1;
+                                    if depth == 0 {
+                                        close_idx = j;
+                                        break;
                                     }
-                                    _ => {}
                                 }
+                                _ => {}
                             }
-
-                            let args_content: String = after_chars[1..close_idx].iter().collect();
-                            let rest: String = after_chars[close_idx + 1..].iter().collect();
-
-                            if args_content.trim().is_empty() {
-                                return Some(format!(
-                                    "{}({}){}",
-                                    method_name,
-                                    receiver.trim(),
-                                    rest
-                                ));
-                            } else {
-                                return Some(format!(
-                                    "{}({}, {}){}",
-                                    method_name,
-                                    receiver.trim(),
-                                    args_content.trim(),
-                                    rest
-                                ));
-                            }
-                        } else {
-                            return None;
                         }
+
+                        let args_content: String = after_chars[1..close_idx].iter().collect();
+                        let rest: String = after_chars[close_idx + 1..].iter().collect();
+
+                        if args_content.trim().is_empty() {
+                            return Some(format!("{}({}){}", method_name, receiver.trim(), rest));
+                        } else {
+                            return Some(format!(
+                                "{}({}, {}){}",
+                                method_name,
+                                receiver.trim(),
+                                args_content.trim(),
+                                rest
+                            ));
+                        }
+                    } else {
+                        return None;
                     }
                 }
             }

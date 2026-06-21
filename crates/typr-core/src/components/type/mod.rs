@@ -760,10 +760,7 @@ impl Type {
                 _,
             ) => TypeCategory::Template,
             Type::Operator(_, _, _, _) => TypeCategory::Operator,
-            _ => {
-                eprintln!("{:?} return Rest", self);
-                TypeCategory::Rest
-            }
+            _ => TypeCategory::Rest,
         }
     }
 

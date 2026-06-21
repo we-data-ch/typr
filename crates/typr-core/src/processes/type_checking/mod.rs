@@ -674,7 +674,7 @@ pub fn match_types_to_generic(
             .flat_map(|(arg, par)| unification::unify(ctx, arg, par))
             .collect()
     };
-    if let Some(result) = get_gen_type(type1, type2).map(collect.clone()) {
+    if let Some(result) = get_gen_type(type1, type2).map(collect) {
         return Some(result);
     }
     // Fall back to reduced types (handles cases where aliases must be expanded
@@ -883,7 +883,7 @@ fn typing_vector(context: &Context, expr: &Lang, exprs: &[Lang], h: &HelpData) -
         Type::Vec(
             VecType::Vector,
             Box::new(builder::integer_type(0)),
-            Box::new(builder::any_type()),
+            Box::default(),
             h.clone(),
         )
     } else if let Some(t) = try_concat_vectors(&types, h) {
@@ -900,7 +900,7 @@ fn typing_vector(context: &Context, expr: &Lang, exprs: &[Lang], h: &HelpData) -
         Type::Vec(
             VecType::Vector,
             Box::new(builder::integer_type(exprs.len() as i32)),
-            Box::new(builder::any_type()),
+            Box::default(),
             h.clone(),
         )
     };
@@ -997,7 +997,6 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let errors = tc.errors.clone();
             TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
                 .with_errors(errors)
-                .into()
         }
         Lang::Operator {
             operator: Op::And(_),
@@ -2008,7 +2007,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                             .as_ref()
                                             .and_then(|types| types.get(i).cloned())
                                             .unwrap_or_else(builder::any_type);
-                                        let var = Var::from_name(&var_name);
+                                        let var = Var::from_name(var_name);
                                         ctx.push_var_type(var, elem_type, context)
                                     } else {
                                         ctx
@@ -2038,7 +2037,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                             })
                                             .map(|at| at.get_type())
                                             .unwrap_or_else(builder::any_type);
-                                        let var = Var::from_name(&var_name);
+                                        let var = Var::from_name(var_name);
                                         ctx.push_var_type(var, field_type, context)
                                     } else {
                                         ctx
@@ -2774,7 +2773,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 Some(t) => TypeContext::new(
                     t.clone(),
                     expr.clone(),
-                    context.clone().push_types(&[t.clone()]),
+                    context.clone().push_types(std::slice::from_ref(t)),
                 )
                 .with_errors(expr_tc.errors),
                 None => {
@@ -2814,6 +2813,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
 ///   first-parameter type (e.g. a user `Scene`) alongside the stdlib
 ///   `add(int, int)` / `add(num, num)` overloads is a legitimate overload,
 ///   not a redefinition.
+///
 /// Used by `use module::Name;` to avoid rejecting a legitimate import.
 fn has_real_conflict(context: &Context, name: &str, member_type: &Type) -> bool {
     let new_first_param = member_type.get_first_parameter();
@@ -3053,30 +3053,6 @@ mod tests {
             .push_var_type(lang.clone(), typ.clone(), &context);
         let _ = context2.get_type_from_variable(&lang);
         assert!(true)
-    }
-
-    #[test]
-    fn test_let2() {
-        //let context = Context::default();
-        //let let_exps = parse("let a: int <- 8;".into());
-        //let let_exp = let_exps.clone();
-        //let var = Var::default().set_name("a");
-        //let new_context = typing(&context, &let_exp).context;
-        //let res = new_context.get_type_from_variable(&var);
-        //let typ = builder::integer_type_default();
-        assert!(true);
-    }
-
-    #[test]
-    fn test_let2_0() {
-        //let context = Context::default();
-        //let let_exps = parse("a".into());
-        //let let_exp = let_exps.clone();
-        //let var = Var::default().set_name("a");
-        //let new_context = typing(&context, &let_exp).context;
-        //let res = new_context.get_type_from_variable(&var);
-        //let typ = builder::integer_type_default();
-        assert!(true);
     }
 
     #[test]

@@ -84,10 +84,7 @@ impl FunctionType {
     }
 
     pub fn set_vectorized(self, vec_type: VecType) -> Self {
-        Self {
-            vec_type: vec_type,
-            ..self
-        }
+        Self { vec_type, ..self }
     }
 
     pub fn is_vectorized(&self) -> bool {

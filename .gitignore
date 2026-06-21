@@ -6,7 +6,6 @@
 # Dependency directories
 /vendor
 /cargo/
-Cargo.lock
 
 # IDE-specific files
 ## VSCode
@@ -85,3 +84,7 @@ CLAUDE.md
 
 # Documentation
 function_type_checking.md
+
+# Generated debug artifacts
+context.json
+problem/

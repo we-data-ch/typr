@@ -475,7 +475,7 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
                         if let Some(related_type) = subs.get(name.as_str()) {
                             Lang::Variable {
                                 name: name.clone(),
-                                is_opaque: mutable_.clone(),
+                                is_opaque: *mutable_,
                                 related_type: related_type.clone(),
                                 help_data: h2.clone(),
                             }

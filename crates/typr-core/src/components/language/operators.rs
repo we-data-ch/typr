@@ -360,10 +360,7 @@ pub fn get_string(op: &Op) -> String {
         Op::Eq(_) => "==".to_string(),
         Op::Eq2(_) => "=".to_string(),
         Op::NotEq(_) => "!=".to_string(),
-        n => {
-            dbg!(n);
-            todo!()
-        }
+        n => todo!("operator to_string not implemented for {:?}", n),
     }
 }
 

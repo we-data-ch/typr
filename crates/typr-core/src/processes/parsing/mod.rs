@@ -59,7 +59,7 @@ type Span<'a> = LocatedSpan<&'a str, String>;
 use std::cell::RefCell;
 
 thread_local! {
-    static PARSE_ERRORS: RefCell<Vec<SyntaxError>> = RefCell::new(Vec::new());
+    static PARSE_ERRORS: RefCell<Vec<SyntaxError>> = const { RefCell::new(Vec::new()) };
 }
 
 fn push_parse_error(err: SyntaxError) {
@@ -967,10 +967,7 @@ fn use_module_directive(s: Span) -> IResult<Span, Vec<Lang>> {
     )
         .parse(s);
 
-    let (s, (use_kw, (first_seg, _), _)) = match res {
-        Ok(r) => r,
-        Err(r) => return Err(r),
-    };
+    let (s, (use_kw, (first_seg, _), _)) = res?;
 
     let mut path = vec![first_seg];
     let mut current_s = s;
@@ -1009,10 +1006,7 @@ fn use_module_directive(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 
     let res = terminated(tag(";"), multispace0).parse(current_s);
-    let (s, _) = match res {
-        Ok(r) => r,
-        Err(r) => return Err(r),
-    };
+    let (s, _) = res?;
 
     Ok((
         s,

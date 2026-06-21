@@ -385,10 +385,6 @@ impl VarType {
             .join("\n")
     }
 
-    pub fn print_aliases(&self) {
-        eprintln!("{}", self.get_aliases());
-    }
-
     pub fn variable_exist(&self, var: Var) -> Option<Var> {
         self.variables
             .iter()

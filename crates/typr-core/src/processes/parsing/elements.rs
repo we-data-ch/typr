@@ -196,7 +196,7 @@ pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
         Ok((s, st)) => {
             let content = st
                 .clone()
-                .map(|span| decode_escapes(&span.to_string()))
+                .map(|span| decode_escapes(span.as_ref()))
                 .unwrap_or_default();
             let location = st
                 .map(|span| span.into())
@@ -224,7 +224,7 @@ pub fn single_quotes(input: Span) -> IResult<Span, Lang> {
         Ok((s, st)) => {
             let content = st
                 .clone()
-                .map(|span| decode_escapes(&span.to_string()))
+                .map(|span| decode_escapes(span.as_ref()))
                 .unwrap_or_default();
             let location = st
                 .map(|span| span.into())
@@ -1520,21 +1520,18 @@ mod tests {
     #[test]
     fn test_addition1() {
         let res = "1 + 2".parse::<Lang>().unwrap();
-        dbg!(&res);
         assert_eq!(res.simple_print(), "Operator", "Should parse 1 + 2");
     }
 
     #[test]
     fn test_addition2() {
         let res = "1 + 2 + 3".parse::<Lang>().unwrap();
-        dbg!(&res);
         assert_eq!(res.simple_print(), "Operator", "Should parse 1 + 2 + 3");
     }
 
     #[test]
     fn test_multiplication1() {
         let res = "1 + 2 * 3".parse::<Lang>().unwrap();
-        dbg!(&res);
         assert_eq!(
             res.simple_print(),
             "Operator",
@@ -1545,7 +1542,6 @@ mod tests {
     #[test]
     fn test_multiplication2() {
         let res = "1 * 2 + 3".parse::<Lang>().unwrap();
-        dbg!(&res);
         assert_eq!(
             res.simple_print(),
             "Operator",
@@ -1556,7 +1552,6 @@ mod tests {
     #[test]
     fn test_multiplication3() {
         let res = "1 * 2 + 3 * 4".parse::<Lang>().unwrap();
-        dbg!(&res);
         assert_eq!(
             res.simple_print(),
             "Operator",
@@ -1567,7 +1562,6 @@ mod tests {
     #[test]
     fn test_accessor1() {
         let res = "3 + personne$age ".parse::<Lang>().unwrap();
-        dbg!(&res);
         assert_eq!(
             res.simple_print(),
             "Operator",
@@ -1578,21 +1572,18 @@ mod tests {
     #[test]
     fn test_and1() {
         let res = "true & true".parse::<Lang>().unwrap();
-        dbg!(&res);
         assert_eq!(res.simple_print(), "Operator", "Should accept '&&'");
     }
 
     #[test]
     fn test_array_indexing0() {
         let res = array_indexing("name[1, 2, 3]".into()).unwrap().1;
-        dbg!(&res);
         assert!(true);
     }
 
     #[test]
     fn test_array_indexing() {
         let fp = FluentParser::new().push("name[1, 2, 3]").parse_next();
-        println!("fp: {}", fp);
         assert!(true);
     }
 
@@ -1605,35 +1596,30 @@ mod tests {
     #[test]
     fn test_uniform_function_call() {
         let res = FluentParser::new().push("true.not()").parse_next();
-        dbg!(&res.next_code());
         assert!(true);
     }
 
     #[test]
     fn test_key_value1() {
         let res = key_value("sep = '3'".into()).unwrap().1;
-        dbg!(&res);
         assert!(true);
     }
 
     #[test]
     fn test_empty_char0() {
         let res = single_element("''".into()).unwrap().1;
-        dbg!(&res);
         assert!(true);
     }
 
     #[test]
     fn test_empty_char1() {
         let res = primitive("''".into()).unwrap().1;
-        dbg!(&res);
         assert!(true);
     }
 
     #[test]
     fn test_empty_char2() {
         let res = chars("''".into()).unwrap().1;
-        dbg!(&res);
         assert!(true);
     }
 
@@ -1685,7 +1671,6 @@ mod tests {
     fn test_match_pattern_tag_with_binding() {
         let input = "match x { .Some(a) => a, .None => 0 }";
         let res = match_exp(input.into()).unwrap().1;
-        dbg!(&res);
         assert_eq!(res.simple_print(), "Match");
     }
 
@@ -1693,7 +1678,6 @@ mod tests {
     fn test_match_pattern_with_wildcard() {
         let input = "match x { .Some(a) => a, _ => 0 }";
         let res = match_exp(input.into()).unwrap().1;
-        dbg!(&res);
         assert_eq!(res.simple_print(), "Match");
     }
 

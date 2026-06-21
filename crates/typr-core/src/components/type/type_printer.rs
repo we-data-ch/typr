@@ -224,7 +224,6 @@ mod tests {
             Box::new(builder::number_type()),
             HelpData::default(),
         );
-        dbg!(&typ.pretty());
         assert!(true)
     }
 

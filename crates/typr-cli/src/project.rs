@@ -22,7 +22,7 @@ use typr_core::components::r#type::type_system::TypeSystem;
 use typr_core::processes::type_checking::type_checker::TypeChecker;
 
 /// Options for the `typr debug` subcommand
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DebugOptions {
     pub show_ast: bool,
     pub show_types: bool,
@@ -31,22 +31,10 @@ pub struct DebugOptions {
     pub show_files: bool,
 }
 
-impl Default for DebugOptions {
-    fn default() -> Self {
-        DebugOptions {
-            show_ast: false,
-            show_types: false,
-            show_r: false,
-            write_json: false,
-            show_files: false,
-        }
-    }
-}
-
 /// Render a pipeline step heading with consistent formatting
 fn print_step(title: &str) {
     println!("\n{}", "─".repeat(60));
-    println!("  {} {}", "▶", title);
+    println!("  ▶ {}", title);
     println!("{}", "─".repeat(60));
 }
 

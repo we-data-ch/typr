@@ -71,47 +71,28 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
         if self.is_empty() {
             E::default()
         } else {
-            //println!("START SESSION");
-            //println!("END SESSION");
             E::from(self.run_helper(0))
         }
     }
 
     fn run_helper(&mut self, binding_power: i32) -> T {
-        //println!("--------------------");
-        //println!("binding_power: {}", binding_power);
-        //println!("{}", self.display_state());
         let mut left = self.get_expression().unwrap_or_else(|_| {
             panic!(
                 "{}",
                 TypeError::WrongExpression(self.get_initial_expression()).display()
             )
         });
-        //println!("left: {}", left);
         loop {
             let op = match self.peak_operator() {
-                Ok(op) => {
-                    //println!("Peaked operator: {}", op);
-                    op
-                }
-                Err(_) => {
-                    //println!("Peaked operator: None");
-                    //println!("No more symbol. Going back.");
-                    //println!("--------------------");
-                    break;
-                }
+                Ok(op) => op,
+                Err(_) => break,
             };
             if op.get_binding_power() <= binding_power {
-                //println!("{} is less important. return {}", op, left);
-                //println!("--------------------");
                 break;
             }
-            //else { println!("{} is more important. Go with next", op); }
             let op = self.get_operator().unwrap();
             let right = self.run_helper(op.get_binding_power());
             left = op.combine(left, right);
-            //println!("Combined {}", left.to_string());
-            //println!("--------------------");
         }
         left
     }

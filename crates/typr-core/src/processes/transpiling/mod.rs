@@ -251,7 +251,7 @@ fn record_field_class(typ: &Type, cont: &Context) -> Option<String> {
             Some(Type::Record(_, _)) => Some(name.clone()),
             // Primitive aliases (e.g. `type Meters <- int`) carry the underlying
             // R class — no constructor adds the alias name as a class.
-            Some(inner) => record_field_class(&inner, cont),
+            Some(inner) => record_field_class(inner, cont),
             None => None,
         },
         _ => None,
@@ -711,8 +711,8 @@ impl RTranslatable<(String, Context)> for Lang {
                     // stdlib array functions (`sum`, `map`, `length`, …) rely on.
                     let collector = "typed_vec(..., dim = c(...length()))";
                     // inject `vname <- typed_vec(...)` after opening `{`
-                    if body_r.starts_with('{') {
-                        format!("{{\n{} <- {}{}", vname, collector, &body_r[1..])
+                    if let Some(rest) = body_r.strip_prefix('{') {
+                        format!("{{\n{} <- {}{}", vname, collector, rest)
                     } else {
                         body_r
                     }
@@ -1125,7 +1125,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 .add(" <- ")
                 .to_r(exp)
                 .into(),
-            Lang::Comment { value: txt, .. } => ("#".to_string() + &txt, cont.clone()),
+            Lang::Comment { value: txt, .. } => ("#".to_string() + txt, cont.clone()),
             Lang::Tag {
                 name: s, value: t, ..
             } => {
