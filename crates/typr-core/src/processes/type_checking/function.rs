@@ -229,6 +229,18 @@ pub fn function(
         }
     }
 
+    // `Self:{ ... }` (generic_constructor.md §4.1): bind `Self` to whatever
+    // type the first parameter ended up with in `sub_context` (the declared
+    // type, or a fresh rigid generic for an interface param), so it's only
+    // valid for the duration of typing this body.
+    if let Some(first_param) = params.first() {
+        if let Ok(first_type) =
+            sub_context.get_type_from_variable(&Var::from_name(&first_param.get_argument_str()))
+        {
+            sub_context = sub_context.set_self_type(Some(first_type));
+        }
+    }
+
     let body_type = body.typing(&sub_context);
     let mut errors = body_type.errors.clone();
     errors.extend(kind_consistency_errors);

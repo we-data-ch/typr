@@ -50,6 +50,10 @@ pub enum TypeError {
     /// generic name within the same function signature (sigils.md §7) —
     /// `(established_kind_desc, conflicting_kind_desc, position)`.
     KindMismatch(String, String, HelpData),
+    /// `Self:{ ... }` (generic_constructor.md §8.1) used with no enclosing
+    /// function parameter to anchor it, or without the required `...base`
+    /// spread.
+    SelfOutsideContext(HelpData),
 }
 
 impl TypeError {
@@ -80,6 +84,7 @@ impl TypeError {
             TypeError::EmbedCollision(_, _, h) => Some(h.clone()),
             TypeError::EmbedConflict(_, _, _, h) => Some(h.clone()),
             TypeError::KindMismatch(_, _, h) => Some(h.clone()),
+            TypeError::SelfOutsideContext(h) => Some(h.clone()),
         }
     }
 
@@ -201,6 +206,9 @@ impl TypeError {
                     "Kind mismatch: generic established as kind `{}` elsewhere but used as kind `{}` here",
                     expected, actual
                 )
+            }
+            TypeError::SelfOutsideContext(_) => {
+                "Self is not defined here: no enclosing function parameter to anchor it".to_string()
             }
         }
     }
@@ -557,6 +565,15 @@ impl ErrorMsg for TypeError {
                     ))
                     .pos_text(format!("Expected kind `{}`", expected))
                     .help("A generic name must denote the same kind everywhere in a single function signature.")
+                    .build()
+            }
+            TypeError::SelfOutsideContext(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text("Self is not defined in this context".to_string())
+                    .pos_text("Self has no anchoring parameter")
+                    .help("Self:{ ... } must appear inside a function body and include a `...base` spread (e.g. `Self:{ x = 1, ...a }`).")
                     .build()
             }
         };

@@ -529,17 +529,26 @@ impl RTranslatable<(String, Context)> for Lang {
                 )
             }
             Lang::Operator {
-                operator: Op::Dot(_),
-                rhs: e1,
-                lhs: e2,
-                ..
-            }
-            | Lang::Operator {
-                operator: Op::Pipe(_),
+                operator: op @ (Op::Dot(_) | Op::Pipe(_)),
                 rhs: e1,
                 lhs: e2,
                 ..
             } => {
+                // `rhs` is the syntactic-left operand, `lhs` is the
+                // syntactic-right operand (same convention as `Op::Dollar`
+                // and the generic operator case below: `e1.to_r() <op>
+                // e2.to_r()`). For plain field access (`p.x`, `e2` a bare
+                // `Lang::Variable` field name and `e1` not an `Integer`),
+                // that means the receiver `e1` must render first:
+                // `e1[['e2']]`, not `e2[['e1']]`. The `Lang::Integer`
+                // sub-case is the synthetic tuple-destructuring node built
+                // in `parsing/mod.rs` (`rhs: Integer(index), lhs: tmp_var`),
+                // which already has the receiver/index roles swapped
+                // relative to that convention on purpose — left as-is, and
+                // `Op::Pipe` keeps its prior (separate, untouched) ordering
+                // since a bare-variable pipe target (`a |> f`) means
+                // something else entirely (`f(a)`, not field indexing).
+                let is_dot = matches!(op, Op::Dot(_));
                 let e1 = (**e1).clone();
                 let e2 = (**e2).clone();
                 match e2.clone() {
@@ -549,6 +558,12 @@ impl RTranslatable<(String, Context)> for Lang {
                             .add("[[")
                             .to_r(&e1)
                             .add("]]")
+                            .into(),
+                        _ if is_dot => Translatable::from(cont.clone())
+                            .to_r(&e1)
+                            .add("[['")
+                            .to_r(&e2)
+                            .add("']]")
                             .into(),
                         _ => Translatable::from(cont.clone())
                             .to_r(&e2)
@@ -2044,6 +2059,68 @@ impl RTranslatable<(String, Context)> for Lang {
                 (bindings.join("\n"), cont.clone())
             }
             Lang::ModuleImport { .. } => ("".to_string(), cont.clone()),
+            // `Self:{ field = expr, ...base }` (generic_constructor.md §5):
+            // resolve the actual R constructor straight from `base`'s type
+            // rather than from the literal name "Self" — by the
+            // type-checking rule `base`'s type is always Self or a subtype
+            // of it, so this is exactly the constructor that should run.
+            Lang::ConstructorCall {
+                type_name,
+                fields,
+                spreads,
+                ..
+            } if type_name == "Self" => {
+                let base_typ = spreads
+                    .first()
+                    .map(|e| typing(cont, e).value)
+                    .unwrap_or_else(|| Type::Any(HelpData::default()));
+                let resolved_name = match &base_typ {
+                    Type::Alias(alias_name, ..) => cont
+                        .aliases()
+                        .find(|(var, _)| var.get_name() == *alias_name)
+                        .map(|(_, t)| matches!(t, Type::Record(_, _)))
+                        .unwrap_or(false)
+                        .then(|| alias_name.clone()),
+                    _ => None,
+                };
+                match (resolved_name, spreads.first()) {
+                    (Some(name), Some(spread_expr)) => {
+                        // Same codegen as the plain runtime-spread
+                        // ConstructorCall path below, with the resolved
+                        // alias name substituted for "Self".
+                        let (spread_r, current_cont) = spread_expr.to_r(cont);
+                        let (body, current_cont) = if fields.is_empty() {
+                            (format!(".spread = {}", spread_r), current_cont)
+                        } else {
+                            let (overrides, next_cont) = Translatable::from(current_cont)
+                                .join_arg_val(fields, ", ")
+                                .into();
+                            (format!("{}, .spread = {}", overrides, spread_r), next_cont)
+                        };
+                        (format!("{}({})", name, body), current_cont)
+                    }
+                    (None, Some(spread_expr)) => {
+                        // No nominal constructor to call: fall back to the
+                        // generic spread()-merge used for plain `{ f=e, ...x }`
+                        // record literals.
+                        let (base, current_cont) = spread_expr.to_r(cont);
+                        if fields.is_empty() {
+                            (base, current_cont)
+                        } else {
+                            let (overrides, current_cont) = Translatable::from(current_cont)
+                                .join_arg_val(fields, ", ")
+                                .into();
+                            (
+                                format!("spread({}, list({}))", base, overrides),
+                                current_cont,
+                            )
+                        }
+                    }
+                    // No spread: ill-typed (type-checking already reports
+                    // SelfOutsideContext); nothing sensible to emit.
+                    (_, None) => ("NULL".to_string(), cont.clone()),
+                }
+            }
             Lang::ConstructorCall {
                 module_path,
                 type_name,

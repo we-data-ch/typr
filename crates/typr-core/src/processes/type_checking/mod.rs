@@ -2345,6 +2345,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     None => ctx,
                 },
             );
+            // `Self:{ ... }` (generic_constructor.md §4.1): bind `Self` to
+            // the lambda's first parameter type for the duration of typing
+            // its body.
+            let sub_context = match fresh_param_types.first() {
+                Some(first_type) => sub_context.set_self_type(Some(first_type.clone())),
+                None => sub_context,
+            };
             let body_tc = typing(&sub_context, body);
             let fresh_arg_types: Vec<ArgumentType> = fresh_param_types
                 .iter()
@@ -2547,6 +2554,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
 
             TypeContext::new(builder::empty_type(), expr.clone(), new_context).with_errors(errors)
         }
+        Lang::ConstructorCall {
+            type_name,
+            fields,
+            spreads,
+            help_data: h,
+            ..
+        } if type_name == "Self" => typing_self_constructor(context, expr, fields, spreads, h),
         Lang::ConstructorCall {
             module_path,
             type_name,
@@ -2842,6 +2856,92 @@ fn replace_fields_type_if_needed(
             arg_typ2.clone()
         }
     }
+}
+
+/// `Self:{ field = expr, ...base }` (generic_constructor.md §3-§4): builds a
+/// value of the same concrete type as the enclosing function's first
+/// parameter (`context.self_type`), validating `fields` against that type's
+/// shape when known, and always returning `Self` itself as the result type
+/// (never a recomputed merge) so the concrete type survives untouched.
+fn typing_self_constructor(
+    context: &Context,
+    expr: &Lang,
+    fields: &[ArgumentValue],
+    spreads: &[Lang],
+    h: &HelpData,
+) -> TypeContext {
+    let mut errors: Vec<TypRError> = Vec::new();
+
+    let Some(self_type) = context.self_type.clone() else {
+        errors.push(TypRError::Type(TypeError::SelfOutsideContext(h.clone())));
+        return TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+            .with_errors(errors);
+    };
+    let Some(base_expr) = spreads.first() else {
+        errors.push(TypRError::Type(TypeError::SelfOutsideContext(h.clone())));
+        return TypeContext::new(self_type, expr.clone(), context.clone()).with_errors(errors);
+    };
+
+    // RFC §4.2 condition 2: `base` must be typed as `Self`, or a
+    // structurally compatible subtype of it.
+    let base_tc = typing(context, base_expr);
+    errors.extend(base_tc.errors.clone());
+    if !base_tc.value.is_subtype(&self_type, context).0 {
+        errors.push(TypRError::Type(TypeError::SpreadTypeMismatch(
+            self_type.clone(),
+            base_tc.value.clone(),
+            base_expr.get_help_data(),
+        )));
+    }
+
+    let mut seen = std::collections::HashSet::new();
+    for f in fields {
+        if !seen.insert(f.get_argument()) {
+            errors.push(TypRError::Type(TypeError::DuplicateField(
+                f.get_argument(),
+                h.clone(),
+            )));
+        }
+    }
+
+    match self_type.reduce(context) {
+        Type::Record(record_fields, _) => {
+            for f in fields {
+                let fname = f.get_argument();
+                match record_fields
+                    .iter()
+                    .find(|rf| rf.get_argument_str() == fname)
+                {
+                    Some(rf) => {
+                        let value_tc = typing(context, &f.get_value());
+                        errors.extend(value_tc.errors.clone());
+                        if !value_tc.value.is_subtype(&rf.get_type(), context).0 {
+                            errors.push(TypRError::Type(TypeError::Param(
+                                rf.get_type(),
+                                value_tc.value,
+                            )));
+                        }
+                    }
+                    None => {
+                        errors.push(TypRError::Type(TypeError::FieldNotFound(
+                            (fname, h.clone()),
+                            self_type.clone(),
+                        )));
+                    }
+                }
+            }
+        }
+        // Record-kinded generic, interface, or anything else without a
+        // statically known field set: skip shape validation but still type
+        // each field value so internal errors surface (RFC §7.1/§7.2).
+        _ => {
+            for f in fields {
+                errors.extend(typing(context, &f.get_value()).errors);
+            }
+        }
+    }
+
+    TypeContext::new(self_type, expr.clone(), context.clone()).with_errors(errors)
 }
 
 /// Shallow merge of record field types by name, override winning on
@@ -4000,6 +4100,147 @@ p"#;
                 other
             ),
         }
+    }
+
+    // ==================== Self:{ ... } Constructor Tests (generic_constructor.md) ====================
+
+    #[test]
+    fn test_self_constructor_record_example() {
+        // RFC §6.1: Self resolves to the first parameter's concrete type.
+        let fp = FluentParser::new()
+            .push("type Point <- list { x: int, y: int };")
+            .run()
+            .push("let translateX <- fn(p: Point, dx: int): Point { Self:{ x = p.x + dx, ...p } };")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+    }
+
+    #[test]
+    fn test_self_constructor_structural_example_keeps_alias() {
+        // RFC §6.2: even with explicit field overrides + a spread, Self's
+        // result type stays the declared alias (no decay to a plain Record,
+        // unlike a bare `{ field = ..., ...a }`).
+        let fp = FluentParser::new()
+            .push("type HasTruc <- list { truc: int };")
+            .run()
+            .push("let incrTruc <- fn(a: HasTruc): HasTruc { Self:{ truc = a.truc + 1, ...a } };")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+    }
+
+    #[test]
+    fn test_self_constructor_outside_function_errors() {
+        // RFC §8.1: no enclosing function parameter to anchor Self.
+        use crate::processes::parsing::parse_from_string;
+        let context = Context::default();
+        let expr = parse_from_string("let x <- Self:{ x = 1 };", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::SelfOutsideContext(..)))),
+            "Expected a SelfOutsideContext error, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_self_constructor_unknown_field_errors() {
+        // RFC §8.2: a field not present on Self's record.
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("type HasX <- list { x: int };")
+            .run();
+        let context = fp.context.clone();
+        let expr = parse_from_string(
+            "let f <- fn(a: HasX): HasX { Self:{ y = 1, ...a } };",
+            "test",
+        );
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::FieldNotFound(..)))),
+            "Expected a FieldNotFound error, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_self_constructor_field_type_mismatch_errors() {
+        // RFC §8.3: an override value incompatible with the field's declared type.
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("type HasX <- list { x: int };")
+            .run();
+        let context = fp.context.clone();
+        let expr = parse_from_string(
+            "let f <- fn(a: HasX): HasX { Self:{ x = \"hello\", ...a } };",
+            "test",
+        );
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::Param(..)))),
+            "Expected a Param error, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_self_constructor_transpiles_to_concrete_constructor() {
+        let fp = FluentParser::new()
+            .push("type Point <- list { x: int, y: int };")
+            .run()
+            .push("let translateX <- fn(p: Point, dx: int): Point { Self:{ x = p.x + dx, ...p } };")
+            .run();
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("Point(x = ") && r_code.contains(".spread = p"),
+            "Expected Self:{{...}} to transpile via Point's constructor with .spread = p, got:\n{}",
+            r_code
+        );
+        assert!(
+            !r_code.contains("Self("),
+            "Self should never appear literally as an R function name, got:\n{}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_self_constructor_with_embedding_preserves_other_fields() {
+        // RFC §6.4 style: Self preserves fields untouched by the override
+        // (here `name`), on a type that also has an embedded field.
+        let fp = FluentParser::new()
+            .push("type Position <- list { x: int, y: int };")
+            .run()
+            .push("type Character <- list { embed coords: Position, name: char };")
+            .run()
+            .push(
+                "let setCoords <- fn(self: Character, newCoords: Position): Character { Self:{ coords = newCoords, ...self } };",
+            )
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("Character(coords = newCoords, .spread = self)"),
+            "Expected Self:{{...}} to preserve `name` via Character's .spread, got:\n{}",
+            r_code
+        );
     }
 
     // ==================== Union Constructor Tests ====================

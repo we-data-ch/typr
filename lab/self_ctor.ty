@@ -1,0 +1,11 @@
+type Point <- list { x: int, y: int };
+
+let translateX <- fn(p: Point, dx: int): Point {
+    Self:{ x = p.x + dx, ...p }
+};
+
+type HasTruc <- list { truc: int };
+
+let incrTruc <- fn(a: HasTruc): HasTruc {
+    Self:{ truc = a.truc + 1, ...a }
+};

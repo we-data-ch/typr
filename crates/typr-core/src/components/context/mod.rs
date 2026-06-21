@@ -72,6 +72,12 @@ pub struct Context {
     /// test build; empty otherwise. Not serialised.
     #[serde(skip)]
     pub test_preamble: Vec<String>,
+    /// `Self:{ ... }` (generic_constructor.md): the type bound to the
+    /// enclosing function/method's first parameter, set only while
+    /// type-checking that function's body. `None` everywhere else, which is
+    /// what makes `Self` invalid outside a function body.
+    #[serde(skip)]
+    pub self_type: Option<Type>,
     config: Config,
 }
 
@@ -88,6 +94,7 @@ impl Default for Context {
             record_aliases: Vec::new(),
             embedded_methods: Vec::new(),
             test_preamble: Vec::new(),
+            self_type: None,
         }
     }
 }
@@ -124,6 +131,7 @@ impl Context {
             record_aliases: Vec::new(),
             embedded_methods: Vec::new(),
             test_preamble: Vec::new(),
+            self_type: None,
         }
     }
 
@@ -154,6 +162,12 @@ impl Context {
             test_preamble: lines,
             ..self
         }
+    }
+
+    /// `Self:{ ... }` (generic_constructor.md §4.1): bind/clear the type
+    /// denoted by `Self` for the duration of typing a function body.
+    pub fn set_self_type(self, self_type: Option<Type>) -> Context {
+        Self { self_type, ..self }
     }
 
     pub fn set_in_module_body(self) -> Self {
@@ -977,6 +991,7 @@ impl Add for Context {
             record_aliases,
             embedded_methods,
             test_preamble,
+            self_type: None,
             config: self.config,
         }
     }
