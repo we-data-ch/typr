@@ -181,21 +181,26 @@ pub fn find_definition_at(
     })
 }
 
-/// Convert a character offset to a Position (line, column).
-fn offset_to_position(offset: usize, content: &str) -> Position {
+/// Convert a byte offset (as produced by `nom_locate`'s `location_offset`) to
+/// an LSP `Position`. LSP positions use UTF-16 code units for the character
+/// column by default (no `positionEncoding` is negotiated), so `col` is
+/// accumulated in UTF-16 units rather than bytes or Unicode scalar values.
+pub fn offset_to_position(offset: usize, content: &str) -> Position {
     let mut line = 0u32;
     let mut col = 0u32;
+    let mut byte_pos = 0usize;
 
-    for (i, ch) in content.chars().enumerate() {
-        if i >= offset {
+    for ch in content.chars() {
+        if byte_pos >= offset {
             break;
         }
         if ch == '\n' {
             line += 1;
             col = 0;
         } else {
-            col += 1;
+            col += ch.len_utf16() as u32;
         }
+        byte_pos += ch.len_utf8();
     }
 
     Position::new(line, col)
@@ -1167,6 +1172,41 @@ fn var_to_completion_item(var: &Var, typ: &Type, kind: CompletionItemKind) -> Co
         kind: Some(kind),
         detail: Some(typ.pretty()),
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod offset_to_position_tests {
+    use super::*;
+
+    /// A French accented char (`é`, 2 UTF-8 bytes, 1 UTF-16 unit) before the
+    /// target offset must shift the column by its UTF-16 width, not its byte
+    /// width: byte-width accounting would overshoot the column.
+    #[test]
+    fn accented_char_before_offset_uses_utf16_width() {
+        let content = "café x";
+        // byte offset of 'x' (after "café "): "café ".len() == 6 bytes.
+        let offset = "café ".len();
+        let pos = offset_to_position(offset, content);
+        assert_eq!(pos, Position::new(0, 5));
+    }
+
+    /// An emoji (4 UTF-8 bytes, 2 UTF-16 units, 1 Unicode scalar value) must
+    /// count as 2 columns, not 1 (scalar-value counting) or 4 (byte counting).
+    #[test]
+    fn emoji_before_offset_counts_as_two_utf16_units() {
+        let content = "😀x";
+        let offset = "😀".len();
+        let pos = offset_to_position(offset, content);
+        assert_eq!(pos, Position::new(0, 2));
+    }
+
+    #[test]
+    fn newline_resets_column_and_advances_line() {
+        let content = "café\nx";
+        let offset = content.find('x').unwrap();
+        let pos = offset_to_position(offset, content);
+        assert_eq!(pos, Position::new(1, 0));
     }
 }
 

@@ -12,6 +12,7 @@ use crate::components::error_message::typr_error::TypRError;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::tint::Tint;
 use crate::components::r#type::tnumber::Tnum;
+use crate::components::r#type::type_category::GKind;
 use crate::components::r#type::type_category::TypeCategory;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
@@ -35,6 +36,10 @@ fn accepts_number_kind(t: &Type) -> bool {
         TypeCategory::Number
             | TypeCategory::Integer
             | TypeCategory::Generic
+            // IndexGen (`#N`) is now categorized as GenericKinded(Number); it
+            // stays valid in number arithmetic exactly as it did when it mapped
+            // to the bare `Generic` category.
+            | TypeCategory::GenericKinded(GKind::Number)
             | TypeCategory::Any
             | TypeCategory::Empty
             | TypeCategory::Template
@@ -60,6 +65,10 @@ pub fn accepts_record_kind(t: &Type) -> bool {
         TypeCategory::Record
             | TypeCategory::Interface
             | TypeCategory::Generic
+            // IndexGen (`#N`) → GenericKinded(Number): keep the same permissive
+            // treatment it had via the bare `Generic` category before kinded
+            // categories existed.
+            | TypeCategory::GenericKinded(GKind::Number)
             | TypeCategory::Any
             | TypeCategory::Empty
             | TypeCategory::Template

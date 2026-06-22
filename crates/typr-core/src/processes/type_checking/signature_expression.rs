@@ -83,13 +83,6 @@ mod tests {
     }
 
     #[test]
-    fn test_signature_expression_context() {
-        let res = FluentParser::new().push("@a: int;").run().display_context();
-        println!("{}", res);
-        assert!(true)
-    }
-
-    #[test]
     fn test_signature_expression_saved() {
         let res = FluentParser::new().push("@a: int;").run().check_typing("a");
         assert_eq!(res, builder::integer_type_default())

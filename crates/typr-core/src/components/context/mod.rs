@@ -8,10 +8,12 @@ use crate::components::context::config::TargetLanguage;
 use crate::components::context::graph::Graph;
 use crate::components::context::unification_map::UnificationMap;
 use crate::components::context::vartype::VarType;
+use crate::components::error_message::help_data::HelpData;
 use crate::components::language::var::Var;
 use crate::components::language::var_function::VarFunction;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::kind::Kind;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::Type;
@@ -81,13 +83,44 @@ pub struct Context {
     config: Config,
 }
 
+/// The canonical sentinel nodes seeded into every subtype `Graph` so the
+/// kind-sigil generic categories materialize as intermediate levels of the
+/// lattice. Because `is_subtype_raw` already gives `RecordN <: %_ <: Generic
+/// <: Any` (a concrete Record is a subtype of a record-kinded `KindedGen`, and
+/// any generic is a subtype of the bare `Generic`), seeding one anchor per
+/// kind makes every monomorphized record/interface/char/bool/number auto-nest
+/// under its `G*` node. These sentinels all answer `has_generic() == true`, so
+/// `get_classes` filters them out of generated R `class = c(...)` vectors —
+/// they are a compile-time organisation of the hierarchy only.
+fn generic_sentinels() -> Vec<Type> {
+    let h = HelpData::default();
+    let name = "_".to_string();
+    vec![
+        Type::Generic(name.clone(), h.clone()),
+        Type::KindedGen(Kind::Record, name.clone(), h.clone()),
+        Type::KindedGen(Kind::Interface, name.clone(), h.clone()),
+        Type::KindedGen(Kind::String, name.clone(), h.clone()),
+        Type::KindedGen(Kind::Boolean, name.clone(), h.clone()),
+        Type::IndexGen(name, h),
+    ]
+}
+
+/// A fresh subtype graph pre-seeded with the kind-sigil generic sentinels
+/// (see [`generic_sentinels`]). Built against `Context::empty()` since the
+/// sentinel ordering only exercises the structural `is_subtype_raw` arms
+/// (`(_, Generic)`, `(_, Any)`, the `KindedGen`/`IndexGen` arms) and needs no
+/// typing context.
+fn seeded_subtype_graph() -> Graph<Type> {
+    Graph::new().add_types(&generic_sentinels(), &Context::empty())
+}
+
 impl Default for Context {
     fn default() -> Self {
         let config = Config::default();
         Context {
             config: config.clone(),
             typing_context: VarType::from_config(config),
-            subtypes: Graph::new(),
+            subtypes: seeded_subtype_graph(),
             type_constructors: Vec::new(),
             interface_constraints: HashMap::new(),
             rigid_counter: 0,
@@ -1004,7 +1037,40 @@ mod tests {
     #[test]
     fn test_default_context1() {
         let context = Context::default();
-        println!("{}", context.display_typing_context());
-        assert!(true)
+        assert!(!context.display_typing_context().is_empty());
+    }
+
+    #[test]
+    fn test_record_nests_under_grecord_sentinel() {
+        let ctx = Context::default();
+        let rec = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
+        let graph = ctx.subtypes.clone().add_type(rec.clone(), &ctx);
+        let supers = graph.get_supertypes(&rec, &ctx);
+        assert!(
+            supers
+                .iter()
+                .any(|t| matches!(t, Type::KindedGen(Kind::Record, _, _))),
+            "a record must nest under the GRecord (%_) sentinel; supers = {:?}",
+            supers
+        );
+        assert!(
+            supers.iter().any(|t| matches!(t, Type::Generic(_, _))),
+            "GRecord must itself sit under the bare Generic sentinel; supers = {:?}",
+            supers
+        );
+    }
+
+    #[test]
+    fn test_generic_sentinels_absent_from_r_classes() {
+        let ctx = Context::default();
+        let rec = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
+        let graph = ctx.subtypes.clone().add_type(rec.clone(), &ctx);
+        let ctx = ctx.with_subtypes(graph);
+        let classes = ctx.get_classes(&rec).unwrap();
+        assert!(
+            !classes.contains("GRecord") && !classes.contains('%') && !classes.contains("Generic"),
+            "generic sentinels must be filtered out of generated R classes, got: {}",
+            classes
+        );
     }
 }

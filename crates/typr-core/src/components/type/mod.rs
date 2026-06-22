@@ -33,6 +33,7 @@ use crate::components::r#type::tbool::Tbool;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
 use crate::components::r#type::tnumber::Tnum;
+use crate::components::r#type::type_category::GKind;
 use crate::components::r#type::type_category::TypeCategory;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_printer::litteral;
@@ -735,9 +736,9 @@ impl Type {
             Type::Number(_, _) => TypeCategory::Number,
             Type::Char(_, _) => TypeCategory::Char,
             Type::Generic(_, _) => TypeCategory::Generic,
-            Type::IndexGen(_, _) => TypeCategory::Generic,
             Type::LabelGen(_, _) => TypeCategory::Generic,
-            Type::KindedGen(_, _, _) => TypeCategory::Generic,
+            Type::IndexGen(_, _) => TypeCategory::GenericKinded(GKind::Number),
+            Type::KindedGen(k, _, _) => TypeCategory::GenericKinded(GKind::from_kind(*k)),
             Type::Integer(_, _) => TypeCategory::Integer,
             Type::Alias(_, _, false, _) => TypeCategory::Alias,
             Type::Alias(name, _, _, _) => TypeCategory::Opaque(name.clone()),
@@ -1414,6 +1415,39 @@ mod tests {
     use crate::utils::fluent_parser::FluentParser;
 
     #[test]
+    fn test_sigil_generics_get_kinded_category() {
+        let h = HelpData::default();
+        let n = "T".to_string();
+        assert_eq!(
+            Type::KindedGen(Kind::Record, n.clone(), h.clone()).to_category(),
+            TypeCategory::GenericKinded(GKind::Record)
+        );
+        assert_eq!(
+            Type::KindedGen(Kind::Interface, n.clone(), h.clone()).to_category(),
+            TypeCategory::GenericKinded(GKind::Interface)
+        );
+        assert_eq!(
+            Type::KindedGen(Kind::String, n.clone(), h.clone()).to_category(),
+            TypeCategory::GenericKinded(GKind::String)
+        );
+        assert_eq!(
+            Type::KindedGen(Kind::Boolean, n.clone(), h.clone()).to_category(),
+            TypeCategory::GenericKinded(GKind::Boolean)
+        );
+        // `#N` / IndexGen is the Number-kinded generic category.
+        assert_eq!(
+            Type::IndexGen(n.clone(), h.clone()).to_category(),
+            TypeCategory::GenericKinded(GKind::Number)
+        );
+        // bare `T` and label generics stay plain Generic.
+        assert_eq!(
+            Type::Generic(n.clone(), h.clone()).to_category(),
+            TypeCategory::Generic
+        );
+        assert_eq!(Type::LabelGen(n, h).to_category(), TypeCategory::Generic);
+    }
+
+    #[test]
     fn test_record_hierarchy1() {
         let p1 = builder::record_type(&[
             ("age".to_string(), builder::integer_type_default()),
@@ -1479,8 +1513,7 @@ mod tests {
             .push_alias("Model".to_string(), interface.clone());
         let let_expression = parse("let a: Model <- 10;".into()).ast;
         let _ = typing(&context, &let_expression).value;
-        assert!(true)
-        //assert_eq!(int_type.is_subtype(&interface, &context), true);
+        assert!(int_type.is_subtype(&interface, &context).0);
     }
 
     #[test]
@@ -1490,8 +1523,13 @@ mod tests {
             builder::function_type(&[int_type.clone()], builder::character_type_default());
 
         let new_type = fn_type.replace_function_types(int_type, builder::self_generic_type());
-        println!("new_type.pretty(): {:?}", new_type.pretty());
-        assert!(true);
+        assert_eq!(
+            new_type,
+            builder::function_type(
+                &[builder::self_generic_type()],
+                builder::character_type_default()
+            )
+        );
     }
 
     #[test]
@@ -1504,6 +1542,11 @@ mod tests {
 
     #[test]
     fn test_array_apply1() {
+        // BUG: with `@apply: ([#N, T], (T) -> U) -> [#N, U];`, `apply(v1, toto)`
+        // where `toto: (int) -> bool` should return `[3, bool]` (U bound to
+        // toto's return type), but U incorrectly resolves to T instead, giving
+        // `[3, int]`. This assertion documents the current (buggy) behavior;
+        // update it once the generic-return-type resolution is fixed.
         let fp = FluentParser::new()
             .push("let v1 <- [1, 2, 3];")
             .parse_type_next()
@@ -1513,8 +1556,10 @@ mod tests {
             .parse_type_next()
             .push("apply(v1, toto)")
             .parse_type_next();
-        println!("fp: {}", fp);
-        assert!(true);
+        assert_eq!(
+            fp.get_last_type(),
+            builder::array_type2(3, builder::integer_type_default())
+        );
     }
 
     #[test]

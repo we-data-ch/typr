@@ -178,6 +178,7 @@ impl VarType {
         let (category, typ) = vt;
         match category {
             TypeCategory::Generic
+            | TypeCategory::GenericKinded(_)
             | TypeCategory::Char
             | TypeCategory::Integer
             | TypeCategory::Alias

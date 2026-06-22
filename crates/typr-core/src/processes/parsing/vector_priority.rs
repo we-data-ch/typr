@@ -141,7 +141,7 @@ mod tests {
             builder::boolean_type().into(),
         ];
         let res = VectorPriority::from(exp);
-        println!("{}", PriorityTokens::<TypeToken, Type>::display_state(&res));
-        assert!(true)
+        let state = PriorityTokens::<TypeToken, Type>::display_state(&res);
+        assert!(!state.is_empty());
     }
 }

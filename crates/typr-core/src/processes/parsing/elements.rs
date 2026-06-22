@@ -1578,13 +1578,13 @@ mod tests {
     #[test]
     fn test_array_indexing0() {
         let res = array_indexing("name[1, 2, 3]".into()).unwrap().1;
-        assert!(true);
+        assert_eq!(res.simple_print(), "ArrayIndexing");
     }
 
     #[test]
     fn test_array_indexing() {
         let fp = FluentParser::new().push("name[1, 2, 3]").parse_next();
-        assert!(true);
+        assert_eq!(fp.get_last_log(), "The logs are empty");
     }
 
     #[test]
@@ -1595,32 +1595,32 @@ mod tests {
 
     #[test]
     fn test_uniform_function_call() {
-        let res = FluentParser::new().push("true.not()").parse_next();
-        assert!(true);
+        let fp = FluentParser::new().push("true.not()").parse_next();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
     }
 
     #[test]
     fn test_key_value1() {
         let res = key_value("sep = '3'".into()).unwrap().1;
-        assert!(true);
+        assert_eq!(res.simple_print(), "KeyValue");
     }
 
     #[test]
     fn test_empty_char0() {
         let res = single_element("''".into()).unwrap().1;
-        assert!(true);
+        assert_eq!(res.simple_print(), "Char");
     }
 
     #[test]
     fn test_empty_char1() {
         let res = primitive("''".into()).unwrap().1;
-        assert!(true);
+        assert_eq!(res.simple_print(), "Char");
     }
 
     #[test]
     fn test_empty_char2() {
         let res = chars("''".into()).unwrap().1;
-        assert!(true);
+        assert_eq!(res.simple_print(), "Char");
     }
 
     // ==================== Null Tests ====================

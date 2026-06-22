@@ -574,44 +574,30 @@ fn extract_error_length(message: &str, content: &str, line: u32) -> u32 {
     1
 }
 
-/// Convert a character offset to a Position (line, column).
-fn offset_to_position(offset: usize, content: &str) -> Position {
-    let mut line = 0u32;
-    let mut col = 0u32;
+/// Convert a byte offset to a Position. Delegates to `lsp_parser`'s
+/// implementation so there is a single, UTF-16-correct source of truth
+/// (see its doc comment for why UTF-16 code units are used).
+use lsp_parser::offset_to_position;
 
-    for (i, ch) in content.chars().enumerate() {
-        if i >= offset {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            col = 0;
-        } else {
-            col += 1;
-        }
-    }
-
-    Position::new(line, col)
-}
-
-/// Find the end column of a token starting at the given offset.
+/// Find the end column of a token starting at the given byte offset.
+/// Scans by `char`, not by byte, so a multi-byte UTF-8 sequence is never
+/// split mid-character; the resulting length is in UTF-16 code units to
+/// match `start_pos.character` (see `offset_to_position`).
 fn find_token_end(content: &str, offset: usize, start_pos: Position) -> u32 {
-    let bytes = content.as_bytes();
-    let mut end_offset = offset;
+    let rest = &content[offset..];
+    let mut token_len_utf16 = 0u32;
 
-    while end_offset < bytes.len() {
-        let ch = bytes[end_offset] as char;
+    for ch in rest.chars() {
         if ch.is_whitespace() || ch == ';' || ch == ',' || ch == ')' || ch == ']' || ch == '}' {
             break;
         }
-        end_offset += 1;
+        token_len_utf16 += ch.len_utf16() as u32;
     }
 
-    let token_len = (end_offset - offset) as u32;
-    if token_len == 0 {
+    if token_len_utf16 == 0 {
         start_pos.character + 1
     } else {
-        start_pos.character + token_len
+        start_pos.character + token_len_utf16
     }
 }
 
@@ -799,6 +785,30 @@ pub async fn run_lsp() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A token containing a multi-byte char must not have its scan split
+    /// mid-character, and its length must be reported in UTF-16 units (not
+    /// bytes) to stay consistent with `offset_to_position`'s start column.
+    #[test]
+    fn find_token_end_handles_multibyte_token() {
+        let content = "café;";
+        let pos = offset_to_position(0, content);
+        let end_col = find_token_end(content, 0, pos);
+        // "café" is 4 Unicode scalar values, all 1 UTF-16 unit each.
+        assert_eq!(end_col, 4);
+    }
+
+    /// 'Å' (U+00C5) encodes to UTF-8 bytes `0xC3 0x85`; its second byte,
+    /// `0x85`, is U+0085 (NEL) when cast directly to `char` — and NEL is
+    /// Unicode whitespace. Byte-casting scanning would therefore truncate
+    /// the token mid-character; scanning by `char` must not.
+    #[test]
+    fn find_token_end_does_not_truncate_inside_multibyte_char() {
+        let content = "wÅrd;";
+        let pos = offset_to_position(0, content);
+        let end_col = find_token_end(content, 0, pos);
+        assert_eq!(end_col, 4, "token 'wÅrd' must not be cut short at 'Å'");
+    }
 
     /// `use` of a member from an inline module must not produce an
     /// "Undefined variable" diagnostic (regression for the editor showing

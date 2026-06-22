@@ -1194,7 +1194,13 @@ mod tests {
             .push("let f3 <- fn(a: \"html\" | \"h1\"): char { \"hello\" };")
             .run()
             .check_transpiling("f3(\"h1\")");
-        assert!(true);
+        assert_eq!(
+            res.iter().cloned().collect::<Vec<_>>(),
+            vec![
+                "`f3.Union0` <- (function(a) {\n\"hello\" |> as.Character()\n} |> as.Character()) |> as.Function0()\n".to_string(),
+                "f3(\"h1\" |> as.Character())".to_string(),
+            ]
+        );
     }
 
     // =====================================================================

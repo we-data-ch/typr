@@ -224,7 +224,7 @@ mod tests {
             Box::new(builder::number_type()),
             HelpData::default(),
         );
-        assert!(true)
+        assert_eq!(typ.pretty(), "(bool | num)");
     }
 
     #[test]

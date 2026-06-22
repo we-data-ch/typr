@@ -3051,8 +3051,7 @@ mod tests {
         let context2 = context
             .clone()
             .push_var_type(lang.clone(), typ.clone(), &context);
-        let _ = context2.get_type_from_variable(&lang);
-        assert!(true)
+        assert_eq!(context2.get_type_from_variable(&lang), Ok(typ));
     }
 
     #[test]
@@ -3062,8 +3061,7 @@ mod tests {
             .parse_type_next()
             .push("n")
             .parse_next();
-        println!("{}", fp);
-        assert!(true)
+        assert_eq!(fp.get_last_type(), builder::integer_type(8));
     }
 
     #[test]
@@ -3074,8 +3072,7 @@ mod tests {
             .push("as__character(3)")
             .parse_type_next()
             .get_last_type();
-        println!("{}", val);
-        assert!(true);
+        assert_eq!(val, builder::character_type_default());
     }
 
     #[test]
@@ -3087,12 +3084,22 @@ mod tests {
             .push("incr([1, 2])")
             .parse_type_next()
             .get_last_type();
-        println!("{}", typ.pretty());
-        assert!(true);
+        assert_eq!(
+            typ,
+            builder::array_type2(2, builder::integer_type_default())
+        );
     }
 
     #[test]
     fn test_function_return_type2() {
+        // BUG: `scale` collides with the untyped base-R builtin name preloaded
+        // as `UnknownFunction` (see `functions_R.txt`). The locally declared
+        // `@scale: (bool, int) -> bool;` signature should win, giving
+        // `scale([true, false], 2)` the array-broadcast type `[2, bool]` (same
+        // pattern as `test_vectorization_binary_function` with a non-colliding
+        // name). Instead the placeholder leaks through, giving `[2,
+        // UnknownFunction]`. This assertion documents the current (buggy)
+        // behavior; update it once builtin-name shadowing is fixed.
         let typ = FluentParser::new()
             .set_context(Context::default())
             .push("@scale: (bool, int) -> bool;")
@@ -3100,8 +3107,10 @@ mod tests {
             .push("scale([true, false], 2)")
             .parse_type_next()
             .get_last_type();
-        println!("{}", typ.pretty());
-        assert!(true);
+        assert_eq!(
+            typ,
+            builder::array_type2(2, builder::unknown_function_type())
+        );
     }
 
     // DataFrame tests
