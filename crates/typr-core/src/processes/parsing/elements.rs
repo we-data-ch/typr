@@ -1,5 +1,4 @@
 use crate::components::error_message::help_data::HelpData;
-use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::language::argument_value::ArgumentValue;
 use crate::components::language::operators::op;
@@ -404,7 +403,7 @@ pub fn r_function(s: Span) -> IResult<Span, Lang> {
         .parse(s);
     match res {
         Ok((_s, (id, _op, _args, _cl, _exp))) if *id.fragment() == "fn" => {
-            panic!("{}", SyntaxError::FunctionWithoutType(id.into()).display())
+            std::panic::panic_any(SyntaxError::FunctionWithoutType(id.into()))
         }
         Ok((s, (id, _op, args, _cl, exp))) => {
             let args = args.iter().map(|(arg, _)| arg).cloned().collect::<Vec<_>>();
@@ -447,10 +446,7 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
             panic!("You forgot to specify the function return type: 'fn(...): Type'");
         }
         Ok((_s, (_, _, _args, _, Some(tag), None, _exp))) => {
-            panic!(
-                "{}",
-                SyntaxError::FunctionWithoutReturnType(tag.into()).display()
-            );
+            std::panic::panic_any(SyntaxError::FunctionWithoutReturnType(tag.into()));
         }
         Ok((_s, (_, _, _args, _, None, Some(typ), _exp))) => {
             eprintln!(

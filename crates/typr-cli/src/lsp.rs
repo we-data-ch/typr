@@ -8,6 +8,7 @@
 //!     - Diagnostics are published on `didOpen` and `didChange` events
 //!   - **Go to Definition** provider: jump to symbol definitions (variables, functions, type aliases)
 //!   - **Workspace Symbol** provider: search for symbols across all open documents
+//!   - **Document Symbol** provider: outline/breadcrumbs for the current document
 //!
 //! Launch with `typr lsp`.  The server communicates over stdin/stdout using
 //! the standard LSP JSON-RPC protocol.
@@ -21,6 +22,9 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use typr_core::components::context::Context;
+use typr_core::components::error_message::help_data::HelpData;
+use typr_core::components::error_message::syntax_error::SyntaxError;
+use typr_core::components::error_message::type_error::TypeError;
 use typr_core::components::language::var::Var;
 use typr_core::components::language::Lang;
 use typr_core::processes::parsing::parse;
@@ -49,6 +53,7 @@ impl LanguageServer for Backend {
                     ..Default::default()
                 }),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
+                document_symbol_provider: Some(OneOf::Left(true)),
                 definition_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
@@ -220,6 +225,31 @@ impl LanguageServer for Backend {
             Ok(None)
         } else {
             Ok(Some(all_symbols))
+        }
+    }
+
+    // ── textDocument/documentSymbol ─────────────────────────────────────────
+    async fn document_symbol(
+        &self,
+        params: DocumentSymbolParams,
+    ) -> Result<Option<DocumentSymbolResponse>> {
+        let uri = params.text_document.uri;
+        let docs = self.documents.read().await;
+        let content = match docs.get(&uri) {
+            Some(c) => c.clone(),
+            None => return Ok(None),
+        };
+        drop(docs);
+
+        let symbols = tokio::task::spawn_blocking(move || get_document_symbols(&content))
+            .await
+            .ok()
+            .unwrap_or_default();
+
+        if symbols.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(DocumentSymbolResponse::Nested(symbols)))
         }
     }
 
@@ -433,10 +463,35 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
 }
 
 /// Extract an LSP diagnostic from a panic payload.
+///
+/// A handful of production panic sites in `typr-core` panic with a structured
+/// `SyntaxError`/`TypeError` value (via `std::panic::panic_any`) rather than a
+/// rendered string, so that the LSP can recover an exact `HelpData` offset
+/// instead of reverse-engineering one out of miette's ANSI report text. Try
+/// those first; only fall back to the brittle text-scraping path
+/// (`extract_position_from_error`) for panics that carry a plain string
+/// (e.g. `.unwrap()`/`panic!("...")` with no structured payload).
 fn extract_diagnostic_from_panic(
     panic_info: &Box<dyn std::any::Any + Send>,
     content: &str,
 ) -> Option<Diagnostic> {
+    if let Some(err) = panic_info.downcast_ref::<SyntaxError>() {
+        return Some(diagnostic_from_help_data(
+            err.get_help_data(),
+            err.simple_message(),
+            DiagnosticSeverity::WARNING,
+            content,
+        ));
+    }
+    if let Some(err) = panic_info.downcast_ref::<TypeError>() {
+        return Some(diagnostic_from_help_data(
+            err.get_help_data(),
+            err.simple_message(),
+            DiagnosticSeverity::ERROR,
+            content,
+        ));
+    }
+
     let message = if let Some(s) = panic_info.downcast_ref::<String>() {
         s.as_str()
     } else if let Some(s) = panic_info.downcast_ref::<&str>() {
@@ -455,6 +510,34 @@ fn extract_diagnostic_from_panic(
         source: Some("typr".to_string()),
         ..Default::default()
     })
+}
+
+/// Build a `Diagnostic` from an optional `HelpData` offset, falling back to
+/// `(0,0)-(0,1)` when the error carries no position (matches the convention
+/// already used for the non-panic error paths above).
+fn diagnostic_from_help_data(
+    help_data: Option<HelpData>,
+    message: String,
+    severity: DiagnosticSeverity,
+    content: &str,
+) -> Diagnostic {
+    let range = match help_data {
+        Some(help_data) => {
+            let offset = help_data.get_offset();
+            let pos = offset_to_position(offset, content);
+            let end_col = find_token_end(content, offset, pos);
+            Range::new(pos, Position::new(pos.line, end_col))
+        }
+        None => Range::new(Position::new(0, 0), Position::new(0, 1)),
+    };
+
+    Diagnostic {
+        range,
+        severity: Some(severity),
+        message,
+        source: Some("typr".to_string()),
+        ..Default::default()
+    }
 }
 
 /// Clean an error message for display in the LSP.
@@ -769,6 +852,175 @@ fn collect_symbols_from_ast(
     }
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// ── DOCUMENT SYMBOLS ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+
+/// Get the (nested) document-outline symbols for a single document.
+fn get_document_symbols(content: &str) -> Vec<DocumentSymbol> {
+    let mut symbols = Vec::new();
+
+    let span: Span = LocatedSpan::new_extra(content, String::new());
+    let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
+
+    let ast = match parse_result {
+        Ok(result) => result.ast,
+        Err(_) => return symbols,
+    };
+
+    collect_document_symbols_from_ast(&ast, content, &mut symbols);
+
+    symbols
+}
+
+/// Recursively collect a nested `DocumentSymbol` tree from an AST node.
+/// Mirrors `collect_symbols_from_ast`, but nests children under their
+/// enclosing `let`/`module` instead of flattening with a `container_name`.
+#[allow(deprecated)]
+fn collect_document_symbols_from_ast(
+    lang: &Lang,
+    content: &str,
+    symbols: &mut Vec<DocumentSymbol>,
+) {
+    match lang {
+        Lang::Lines {
+            value: statements, ..
+        } => {
+            for stmt in statements {
+                collect_document_symbols_from_ast(stmt, content, symbols);
+            }
+        }
+
+        Lang::Scope {
+            body: statements, ..
+        } => {
+            for stmt in statements {
+                collect_document_symbols_from_ast(stmt, content, symbols);
+            }
+        }
+
+        Lang::Let {
+            variable: var_lang,
+            r#type: typ,
+            expression: body,
+            is_public: _,
+            is_testable: _,
+            is_export: _,
+            help_data: _,
+        } => {
+            if let Ok(var) = Var::try_from(var_lang) {
+                let name = var.get_name();
+                let help_data = var.get_help_data();
+                let offset = help_data.get_offset();
+                let pos = offset_to_position(offset, content);
+                let end_col = find_token_end(content, offset, pos);
+                let range = Range::new(pos, Position::new(pos.line, end_col));
+
+                let kind = if typ.is_function() || body.is_function() {
+                    SymbolKind::FUNCTION
+                } else {
+                    SymbolKind::VARIABLE
+                };
+
+                let mut children = Vec::new();
+                collect_document_symbols_from_ast(body, content, &mut children);
+
+                symbols.push(DocumentSymbol {
+                    name,
+                    detail: None,
+                    kind,
+                    tags: None,
+                    deprecated: None,
+                    range,
+                    selection_range: range,
+                    children: (!children.is_empty()).then_some(children),
+                });
+            }
+        }
+
+        Lang::Alias {
+            identifier: var_lang,
+            ..
+        } => {
+            if let Ok(var) = Var::try_from(var_lang) {
+                let name = var.get_name();
+                let help_data = var.get_help_data();
+                let offset = help_data.get_offset();
+                let pos = offset_to_position(offset, content);
+                let end_col = find_token_end(content, offset, pos);
+                let range = Range::new(pos, Position::new(pos.line, end_col));
+
+                symbols.push(DocumentSymbol {
+                    name,
+                    detail: None,
+                    kind: SymbolKind::TYPE_PARAMETER,
+                    tags: None,
+                    deprecated: None,
+                    range,
+                    selection_range: range,
+                    children: None,
+                });
+            }
+        }
+
+        Lang::Module {
+            name,
+            body: members,
+            help_data,
+            ..
+        } => {
+            let offset = help_data.get_offset();
+            let pos = offset_to_position(offset, content);
+            let end_col = pos.character + name.len() as u32;
+            let range = Range::new(pos, Position::new(pos.line, end_col));
+
+            let mut children = Vec::new();
+            for member in members {
+                collect_document_symbols_from_ast(member, content, &mut children);
+            }
+
+            symbols.push(DocumentSymbol {
+                name: name.clone(),
+                detail: None,
+                kind: SymbolKind::MODULE,
+                tags: None,
+                deprecated: None,
+                range,
+                selection_range: range,
+                children: (!children.is_empty()).then_some(children),
+            });
+        }
+
+        Lang::Signature {
+            identifier: var, ..
+        } => {
+            let name = var.get_name();
+            let help_data = var.get_help_data();
+            let offset = help_data.get_offset();
+            let pos = offset_to_position(offset, content);
+            let end_col = find_token_end(content, offset, pos);
+            let range = Range::new(pos, Position::new(pos.line, end_col));
+
+            symbols.push(DocumentSymbol {
+                name,
+                detail: None,
+                kind: SymbolKind::FUNCTION,
+                tags: None,
+                deprecated: None,
+                range,
+                selection_range: range,
+                children: None,
+            });
+        }
+
+        Lang::Function { body, .. } => {
+            collect_document_symbols_from_ast(body, content, symbols);
+        }
+
+        _ => {}
+    }
+}
+
 /// Start the LSP server.  Blocks until the client disconnects.
 pub async fn run_lsp() {
     let stdin = tokio::io::stdin();
@@ -910,6 +1162,57 @@ let x <- pi;
             undefined.is_empty(),
             "imported module member wrongly flagged undefined: {:?}",
             undefined
+        );
+    }
+
+    /// `documentSymbol` must report top-level `let`/`module`/`type` symbols,
+    /// and nest a module's members under it as `children` rather than
+    /// flattening them (the tree shape `documentSymbol` is expected to return,
+    /// unlike `workspace/symbol`'s flat `SymbolInformation` list).
+    #[test]
+    fn document_symbols_nest_module_members() {
+        let content = "\
+type Point <- list { x: int, y: int };
+module Math {
+    @pub let pi <- 3;
+};
+let x <- 5;
+";
+        let symbols = get_document_symbols(content);
+
+        let names: Vec<&str> = symbols.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, vec!["Point", "Math", "x"]);
+
+        let math = symbols.iter().find(|s| s.name == "Math").unwrap();
+        assert_eq!(math.kind, SymbolKind::MODULE);
+        let children = math.children.as_ref().expect("Math should have children");
+        assert_eq!(children.len(), 1);
+        assert_eq!(children[0].name, "pi");
+    }
+
+    /// A missing function return type (`fn(...): { ... }` with no type after
+    /// the `:`) panics inside `typr-core`'s parser with a structured
+    /// `SyntaxError::FunctionWithoutReturnType` payload (via
+    /// `std::panic::panic_any`), not a rendered miette string. The LSP must
+    /// recover the exact `HelpData` offset from that payload rather than
+    /// falling back to the `(0,0)-(0,1)` default used when no position can
+    /// be recovered at all.
+    #[test]
+    fn missing_return_type_panic_yields_precise_position() {
+        let content = "let f <- fn(x: int): { x };\n";
+        let diags = check_code_and_extract_errors(content, "test.ty");
+
+        assert!(!diags.is_empty(), "expected a diagnostic, got none");
+        let diag = &diags[0];
+        assert_ne!(
+            diag.range.start,
+            Position::new(0, 0),
+            "position should be recovered from the panic's structured SyntaxError, not defaulted"
+        );
+        assert!(
+            diag.message.contains("return type"),
+            "unexpected message: {}",
+            diag.message
         );
     }
 }

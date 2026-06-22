@@ -77,10 +77,7 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
 
     fn run_helper(&mut self, binding_power: i32) -> T {
         let mut left = self.get_expression().unwrap_or_else(|_| {
-            panic!(
-                "{}",
-                TypeError::WrongExpression(self.get_initial_expression()).display()
-            )
+            std::panic::panic_any(TypeError::WrongExpression(self.get_initial_expression()))
         });
         loop {
             let op = match self.peak_operator() {
