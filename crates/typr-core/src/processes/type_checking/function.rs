@@ -123,6 +123,59 @@ fn check_kind_consistency(params: &[ArgumentType], ret_ty: &Type) -> Vec<TypRErr
     errors
 }
 
+/// Validates default-parameter declarations on a function signature:
+/// once a parameter has a default value, every later non-variadic
+/// parameter must also have one (`NonTrailingDefaultParam`), and each
+/// default expression must type-check against its declared parameter type.
+/// Defaults are closed expressions — typed against the function's
+/// *enclosing* `context`, not a scope where sibling parameters are bound —
+/// so a default referencing another parameter surfaces as the ordinary
+/// `UndefinedVariable` error, no special-casing needed.
+fn check_default_params(params: &[ArgumentType], context: &Context) -> Vec<TypRError> {
+    let mut errors = Vec::new();
+    let mut seen_default = false;
+    for arg_typ in params {
+        if arg_typ.is_variadic() {
+            continue;
+        }
+        match arg_typ.get_default() {
+            Some(default_lang) => {
+                seen_default = true;
+                let declared_type = arg_typ.get_type();
+                let default_tc = default_lang.typing(context);
+                errors.extend(default_tc.errors.clone());
+                let reduced_declared = reduce_type(context, &declared_type);
+                let is_bare_generic = matches!(
+                    reduced_declared,
+                    Type::Generic(_, _)
+                        | Type::IndexGen(_, _)
+                        | Type::LabelGen(_, _)
+                        | Type::KindedGen(_, _, _)
+                );
+                if !is_bare_generic
+                    && !default_tc
+                        .value
+                        .reduce_and_subtype(&declared_type, context)
+                        .0
+                {
+                    errors.push(TypRError::Type(TypeError::Param(
+                        declared_type,
+                        default_tc.value.clone(),
+                    )));
+                }
+            }
+            None if seen_default => {
+                errors.push(TypRError::Type(TypeError::NonTrailingDefaultParam(
+                    arg_typ.get_argument_str(),
+                    arg_typ.get_type().get_help_data(),
+                )));
+            }
+            None => {}
+        }
+    }
+    errors
+}
+
 fn is_opaque_of(body_type: &Type, declared_ret: &Type) -> bool {
     match (body_type, declared_ret) {
         (Type::Alias(name1, _, true, _), Type::Alias(name2, _, false, _)) => {
@@ -201,6 +254,7 @@ pub fn function(
 
     // RFC sigils.md §7 — intra-signature kind-consistency pass.
     let kind_consistency_errors = check_kind_consistency(params, ret_ty);
+    let default_param_errors = check_default_params(params, context);
 
     // Build sub-context: interface parameters become rigid generic variables
     // with interface constraints, instead of being decomposed via push_interface.
@@ -244,6 +298,7 @@ pub fn function(
     let body_type = body.typing(&sub_context);
     let mut errors = body_type.errors.clone();
     errors.extend(kind_consistency_errors);
+    errors.extend(default_param_errors);
     let is_compatible = is_opaque_of(&body_type.value, ret_ty)
         || body_type.value.reduce_and_subtype(ret_ty, &sub_context).0
         || is_rigid_compatible(&body_type.value, ret_ty, &sub_context);
@@ -263,6 +318,7 @@ mod tests {
     use crate::components::r#type::argument_type::ArgumentType;
     use crate::utils::builder;
     use crate::utils::fluent_parser::FluentParser;
+    use crate::Lang;
     use crate::Type;
 
     // =====================================================================
@@ -664,6 +720,7 @@ mod tests {
                 builder::number_type(),
                 false,
                 true,
+                None,
             )],
             Box::new(builder::array_type(
                 Type::IndexGen("N".to_string(), HelpData::default()),
@@ -751,6 +808,151 @@ mod tests {
             !tc2.has_errors(),
             "call with fixed+variadic errors: {:?}",
             tc2.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_default_param_parses_with_default_attached() {
+        let res = FluentParser::new().check_typing("fn(a: int, b: int = 10): int { a + b }");
+        let expected = Type::Function(
+            vec![
+                ArgumentType(
+                    Type::Char("a".to_string().into(), HelpData::default()),
+                    builder::integer_type_default(),
+                    false,
+                    false,
+                    None,
+                ),
+                ArgumentType(
+                    Type::Char("b".to_string().into(), HelpData::default()),
+                    builder::integer_type_default(),
+                    false,
+                    false,
+                    Some(Box::new(Lang::Integer {
+                        value: 10,
+                        help_data: HelpData::default(),
+                    })),
+                ),
+            ],
+            Box::new(builder::integer_type_default()),
+            HelpData::default(),
+        );
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_default_param_call_with_and_without_optional_arg() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 = parse2("let f <- fn(a: int, b: int = 10): int { a + b };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
+        assert!(!tc1.has_errors(), "decl errors: {:?}", tc1.get_errors());
+
+        let code2 = parse2("f(1)".into()).unwrap();
+        let tc2 = tc1.clone().typing_no_panic(&code2);
+        assert!(
+            !tc2.has_errors(),
+            "call with omitted default arg errors: {:?}",
+            tc2.get_errors()
+        );
+
+        let code3 = parse2("f(1, 2)".into()).unwrap();
+        let tc3 = tc1.typing_no_panic(&code3);
+        assert!(
+            !tc3.has_errors(),
+            "call with all args errors: {:?}",
+            tc3.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_default_param_call_with_zero_args_when_all_defaulted() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 = parse2("let f <- fn(a: int = 1, b: int = 2): int { a + b };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
+        assert!(!tc1.has_errors(), "decl errors: {:?}", tc1.get_errors());
+
+        let code2 = parse2("f()".into()).unwrap();
+        let tc2 = tc1.typing_no_panic(&code2);
+        assert!(
+            !tc2.has_errors(),
+            "zero-arg call errors: {:?}",
+            tc2.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_missing_required_arg_without_default_is_an_error() {
+        // Regression test: a call with too few arguments must be rejected
+        // when the missing trailing parameter has no default — without
+        // `FunctionType::infer_return_type_direct`'s arity guard, this used
+        // to silently succeed (the unification zip ignored the unmatched
+        // trailing parameter), producing R that crashes at runtime with
+        // "argument b is missing, with no default".
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 = parse2("let f <- fn(a: int, b: int): int { a + b };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
+        assert!(!tc1.has_errors(), "decl errors: {:?}", tc1.get_errors());
+
+        let code2 = parse2("f(1)".into()).unwrap();
+        let tc2 = tc1.typing_no_panic(&code2);
+        assert!(
+            tc2.has_errors(),
+            "expected FunctionNotFound for too-few-args call with no default"
+        );
+    }
+
+    #[test]
+    fn test_non_trailing_default_param_is_an_error() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code = parse2("fn(a: int = 1, b: int): int { a + b }".into()).unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(
+            tc.has_errors(),
+            "expected NonTrailingDefaultParam for a required param after a defaulted one"
+        );
+    }
+
+    #[test]
+    fn test_default_value_type_mismatch_is_an_error() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code = parse2("fn(a: int = \"x\"): int { a }".into()).unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(
+            tc.has_errors(),
+            "expected a Param type mismatch for a default value of the wrong type"
+        );
+    }
+
+    #[test]
+    fn test_default_referencing_sibling_param_is_an_error() {
+        // Defaults are closed expressions, type-checked against the
+        // function's enclosing context — not a scope where sibling
+        // parameters are bound — so referencing another parameter surfaces
+        // as the ordinary UndefinedVariable error.
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code = parse2("fn(a: int, b: int = a): int { a + b }".into()).unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(
+            tc.has_errors(),
+            "expected UndefinedVariable for a default referencing a sibling parameter"
         );
     }
 

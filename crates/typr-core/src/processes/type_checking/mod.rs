@@ -9,6 +9,7 @@ pub mod embedding;
 pub mod function;
 pub mod function_application;
 pub mod let_expression;
+pub mod partial_application;
 pub mod signature_expression;
 pub mod type_arithmetic;
 pub mod type_checker;
@@ -39,6 +40,7 @@ use crate::components::r#type::Type;
 use crate::processes::type_checking::function::function;
 use crate::processes::type_checking::function_application::function_application;
 use crate::processes::type_checking::let_expression::let_expression;
+use crate::processes::type_checking::partial_application::partial_application;
 use crate::processes::type_checking::signature_expression::signature_expression;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::type_context::TypeContext;
@@ -1705,6 +1707,11 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             body,
             help_data: h,
         } => function(context, expr, params, ret_ty, body, h),
+        Lang::PartialApp {
+            function: target,
+            arguments,
+            help_data: h,
+        } => partial_application(context, expr, target, arguments, h),
         Lang::Lines {
             value: exprs,
             help_data: _h,
@@ -3092,14 +3099,16 @@ mod tests {
 
     #[test]
     fn test_function_return_type2() {
-        // BUG: `scale` collides with the untyped base-R builtin name preloaded
-        // as `UnknownFunction` (see `functions_R.txt`). The locally declared
-        // `@scale: (bool, int) -> bool;` signature should win, giving
-        // `scale([true, false], 2)` the array-broadcast type `[2, bool]` (same
-        // pattern as `test_vectorization_binary_function` with a non-colliding
-        // name). Instead the placeholder leaks through, giving `[2,
-        // UnknownFunction]`. This assertion documents the current (buggy)
-        // behavior; update it once builtin-name shadowing is fixed.
+        // `scale` collides with the untyped base-R builtin name preloaded as
+        // `UnknownFunction` (see `functions_R.txt`). The locally declared
+        // `@scale: (bool, int) -> bool;` signature wins, giving
+        // `scale([true, false], 2)` the array-broadcast type `[2, bool]`
+        // (same pattern as `test_vectorization_binary_function` with a
+        // non-colliding name). Previously the 0-arg `UnknownFunction`
+        // placeholder leaked through via a vectorization match that ignored
+        // arity (`FunctionType::infer_return_type_vectorized` zipped a
+        // 2-argument call against its empty parameter list); that path now
+        // requires matching arity, so the real signature is the only match.
         let typ = FluentParser::new()
             .set_context(Context::default())
             .push("@scale: (bool, int) -> bool;")
@@ -3107,10 +3116,7 @@ mod tests {
             .push("scale([true, false], 2)")
             .parse_type_next()
             .get_last_type();
-        assert_eq!(
-            typ,
-            builder::array_type2(2, builder::unknown_function_type())
-        );
+        assert_eq!(typ, builder::array_type2(2, builder::boolean_type()));
     }
 
     // DataFrame tests

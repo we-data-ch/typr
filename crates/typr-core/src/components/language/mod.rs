@@ -330,6 +330,16 @@ pub enum Lang {
         fields: Vec<ArgumentValue>,
         help_data: HelpData,
     },
+    /// Partial application: `\f(arg1 = val1, ...)`. `arguments` holds only the
+    /// fixed `Lang::KeyValue` entries; parameters of `function` not named here
+    /// become the holes of the generated function. Desugared into a
+    /// `Lang::Function` during type-checking (see
+    /// `type_checking::partial_application`) — never reaches transpilation.
+    PartialApp {
+        function: Box<Lang>,
+        arguments: Vec<Lang>,
+        help_data: HelpData,
+    },
 }
 
 impl PartialEq for Lang {
@@ -701,6 +711,18 @@ impl PartialEq for Lang {
                     ..
                 },
             ) => a1 == b1 && a2 == b2 && a3 == b3,
+            (
+                Lang::PartialApp {
+                    function: a1,
+                    arguments: a2,
+                    ..
+                },
+                Lang::PartialApp {
+                    function: b1,
+                    arguments: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
             _ => false,
         }
     }
@@ -968,6 +990,7 @@ impl Lang {
             Lang::UnionConstructor { help_data: h, .. } => h,
             Lang::ArrayConstructorCall { help_data: h, .. } => h,
             Lang::ValidatingCast { help_data: h, .. } => h,
+            Lang::PartialApp { help_data: h, .. } => h,
         }
         .clone()
     }
@@ -1091,6 +1114,7 @@ impl Lang {
             Lang::ValidatingCast { type_name, .. } => {
                 format!("ValidatingCast({})", type_name)
             }
+            Lang::PartialApp { function, .. } => format!("PartialApp({})", function.simple_print()),
         }
     }
 
@@ -1518,6 +1542,7 @@ impl From<Lang> for HelpData {
             Lang::UnionConstructor { help_data: h, .. } => h,
             Lang::ArrayConstructorCall { help_data: h, .. } => h,
             Lang::ValidatingCast { help_data: h, .. } => h,
+            Lang::PartialApp { help_data: h, .. } => h,
         }
         .clone()
     }

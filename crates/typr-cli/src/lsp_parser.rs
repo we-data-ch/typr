@@ -10,9 +10,13 @@
 
 use crate::metaprogramming::metaprogrammation;
 use nom_locate::LocatedSpan;
-use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind, Position, Range};
+use tower_lsp_server::ls_types::{
+    CompletionItem, CompletionItemKind, ParameterInformation, ParameterLabel, Position, Range,
+    SignatureHelp, SignatureInformation,
+};
 use typr_core::components::context::config::Environment;
 use typr_core::components::context::Context;
+use typr_core::components::error_message::help_data::HelpData;
 use typr_core::components::language::var::Var;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::type_system::TypeSystem;
@@ -33,6 +37,46 @@ pub struct HoverInfo {
     pub range: Range,
 }
 
+/// The result of parsing + metaprogramming + type-checking a whole document
+/// once. Hover, go-to-definition and signature-help all only need the final
+/// `Context` — they previously each ran this same parse→metaprogram→typing
+/// pipeline from scratch. `Backend` caches this per-URI keyed by a content
+/// hash (see `lsp.rs`) so repeated requests against unchanged text skip
+/// straight to the cheap position-specific lookup below.
+#[derive(Debug, Clone)]
+pub struct DocumentAnalysis {
+    pub context: Context,
+    /// The parsed (post-metaprogrammation) AST. Go-to-definition needs this
+    /// alongside `context`: module field exports and function parameters
+    /// either lose their precise `HelpData` or disappear entirely by the time
+    /// the final `Context` is built (see `resolve_definition`'s module-field
+    /// and parameter branches for why each needs the AST specifically).
+    pub ast: Lang,
+}
+
+/// Parse, resolve `mod`/`use` imports, and type-check `content` once. Returns
+/// `None` if parsing or type-checking panics (e.g. incomplete/invalid code
+/// mid-edit) — callers treat that the same way the old per-feature pipelines
+/// did (silently produce no result rather than surfacing an error).
+pub fn analyze_document(content: &str, file_path: &str) -> Option<DocumentAnalysis> {
+    let span: Span = LocatedSpan::new_extra(content, file_path.to_string());
+    let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
+    let ast = parse_result.ok()?.ast;
+
+    let environment = detect_environment(file_path);
+    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        metaprogrammation(ast, environment)
+    }))
+    .ok()?;
+
+    let context = Context::default().set_environment(environment);
+    let type_context =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast)));
+    let context = type_context.ok()?.context;
+
+    Some(DocumentAnalysis { context, ast })
+}
+
 /// A resolved definition result: the location where a symbol is defined.
 #[derive(Debug, Clone)]
 pub struct DefinitionInfo {
@@ -44,43 +88,23 @@ pub struct DefinitionInfo {
 
 // ── public entry-point ─────────────────────────────────────────────────────
 
-/// Main entry-point called by the LSP hover handler.
+/// Main entry-point called by the LSP hover handler: resolve the type of the
+/// word under the cursor against an already-built [`DocumentAnalysis`] (see
+/// `analyze_document`; `Backend` caches it per-URI so unedited text doesn't
+/// pay for a fresh parse + type-check on every hover).
 ///
-/// Returns `None` when:
-///   - the cursor is not on an identifier/literal, or
-///   - parsing or type-checking fails (e.g. incomplete code).
-pub fn find_type_at(
+/// Returns `None` when the cursor is not on an identifier/literal.
+pub fn resolve_hover(
+    analysis: &DocumentAnalysis,
     content: &str,
     line: u32,
     character: u32,
-    file_path: &str,
 ) -> Option<HoverInfo> {
     // 1. Extract the word under the cursor.
     let (word, word_range) = extract_word_at(content, line, character)?;
 
-    // 2. Parse the whole document.
-    let span: Span = LocatedSpan::new_extra(content, file_path.to_string());
-    let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
-    let ast = parse_result.ok()?.ast;
-
-    // 3. Detect environment and apply metaprogramming to resolve module imports,
-    // so `mod`/`use`-imported symbols keep their real signature instead of
-    // falling back to `Any`.
-    let environment = detect_environment(file_path);
-    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        metaprogrammation(ast, environment)
-    }))
-    .ok()?;
-
-    // 4. Type-check the whole document to build the context.
-    let context = Context::default().set_environment(environment);
-    let type_context =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast)));
-    let type_context = type_context.ok()?;
-    let final_context = type_context.context;
-
-    // 5. Look up the word in the context.
-    let types = final_context.get_types_from_name(&word);
+    // 2. Look up the word in the context.
+    let types = analysis.context.get_types_from_name(&word);
 
     let typ = if types.is_empty() {
         // Fallback: try to infer the type of the word as a literal.
@@ -116,51 +140,149 @@ pub fn detect_environment(file_path: &str) -> Environment {
     }
 }
 
-/// Main entry-point called by the LSP goto_definition handler.
-pub fn find_definition_at(
+/// Main entry-point called by the LSP goto_definition handler: resolve the
+/// definition of the word under the cursor against an already-built
+/// [`DocumentAnalysis`] (see `analyze_document`).
+///
+/// Beyond plain `let`/`type` names (looked up in `Context::variables`/
+/// `aliases`), this also resolves:
+/// - **union tag variants** (`.Circle` in `match s { .Circle(r) => ... }` or
+///   a `.Circle(3.14)` construction) — found by walking the AST for a
+///   `type X <- .Circle(..) | ...;` declaration containing a matching
+///   `Type::Tag` (see `find_tag_definition_in_ast` for why this walks the
+///   AST rather than `Context::aliases()`). Detected by checking the
+///   character just *before* the plain identifier, since `.` isn't itself
+///   an identifier character (unlike hover's `extract_word_at`, this never
+///   swallows the dot into the token).
+/// - **module fields** (`Math$pi_approx` — `$`, not `.`, is TypR's
+///   field/module-member-access operator; `.` is reserved for UFCS sugar,
+///   see the comment on `Op::Dollar` in `embedding.rs`) — found by walking
+///   the AST for the `module Math { ... }` declaration and its public
+///   `let`/`type` members, because the `Context`'s exported `Type::Module`
+///   field names carry no real `HelpData` (`ArgumentType::new` in
+///   typr-core stamps them with `HelpData::default()` — only the field's
+///   *type* keeps a real one);
+/// - **function parameters** — resolved textually (see
+///   `find_param_declaration`) since a parameter only lives in the
+///   *sub-context* used to type its function's body and never reaches the
+///   final `Context` (`processes/type_checking/function.rs`).
+pub fn resolve_definition(
+    analysis: &DocumentAnalysis,
     content: &str,
     line: u32,
     character: u32,
     file_path: &str,
 ) -> Option<DefinitionInfo> {
-    // 1. Extract the word under the cursor.
-    let (word, _word_range) = extract_word_at(content, line, character)?;
+    let (word, word_range) = extract_plain_word_at(content, line, character)?;
 
-    // 2. Parse the whole document with the file path.
-    let span: Span = LocatedSpan::new_extra(content, file_path.to_string());
-    let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
-    let ast = parse_result.ok()?.ast;
+    // Union tag variant, e.g. `.Circle`. Trying this first is harmless even
+    // when the preceding `.` is actually UFCS/record access (`p.foo`) —
+    // `find_tag_definition_in_ast` simply returns `None` and the lookup
+    // falls through to the plain-identifier path below.
+    if preceded_by(content, line, word_range.start.character, '.') {
+        if let Some(help_data) = find_tag_definition_in_ast(&analysis.ast, &word) {
+            return Some(definition_info_from_help_data(
+                &help_data,
+                word.len(),
+                content,
+                file_path,
+            ));
+        }
+    }
 
-    // 3. Detect environment and apply metaprogramming to resolve module imports.
-    let environment = detect_environment(file_path);
-    let ast = metaprogrammation(ast, environment);
+    // Module field access, e.g. `Math$pi_approx`. Same reasoning: if the
+    // qualifier isn't actually a module (e.g. record `$` access like
+    // `personne$age`), this just finds nothing and falls through.
+    if let Some(qualifier) = preceding_dollar_qualifier(content, line, word_range.start.character) {
+        if let Some(help_data) = find_module_in_ast(&analysis.ast, &qualifier)
+            .and_then(|members| find_field_help_data(members, &word))
+        {
+            return Some(definition_info_from_help_data(
+                &help_data,
+                word.len(),
+                content,
+                file_path,
+            ));
+        }
+    }
 
-    // 4. Type-check the whole document to build the context.
-    let context = Context::default();
-    let type_context =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast)));
-    let type_context = type_context.ok()?;
-    let final_context = type_context.context;
-
-    // 5. Look up the variable in the context to find its definition.
-    let definition_var = final_context
+    // Plain `let`/`type` lookup.
+    let definition_var = analysis
+        .context
         .variables()
         .find(|(var, _)| var.get_name() == word)
-        .map(|(var, _)| var.clone());
+        .map(|(var, _)| var.clone())
+        .or_else(|| {
+            analysis
+                .context
+                .aliases()
+                .find(|(var, _)| var.get_name() == word)
+                .map(|(var, _)| var.clone())
+        });
 
-    let definition_var = definition_var.or_else(|| {
-        final_context
-            .aliases()
-            .find(|(var, _)| var.get_name() == word)
-            .map(|(var, _)| var.clone())
-    });
+    if let Some(var) = definition_var {
+        return Some(definition_info_from_help_data(
+            &var.get_help_data(),
+            word.len(),
+            content,
+            file_path,
+        ));
+    }
 
-    let var = definition_var?;
-    let help_data = var.get_help_data();
+    let range = find_param_declaration(content, &word, line)?;
+    Some(DefinitionInfo {
+        range,
+        file_path: None,
+    })
+}
+
+/// Whether the character immediately before `col` on `line` is `ch`.
+fn preceded_by(content: &str, line: u32, col: u32, ch: char) -> bool {
+    let Some(source_line) = content.lines().nth(line as usize) else {
+        return false;
+    };
+    let col = col as usize;
+    if col == 0 || col > source_line.len() {
+        return false;
+    }
+    source_line.as_bytes()[col - 1] as char == ch
+}
+
+/// If the identifier starting at `word_start_col` is directly preceded by
+/// `$<qualifier>`, return `qualifier` — e.g. for `Math$pi_approx` with the
+/// cursor on `pi_approx`, returns `Some("Math")`. Only resolves the single
+/// immediately-preceding segment (the direct qualifier); a longer chain like
+/// `A$B$field` resolves `B`, not `A`.
+fn preceding_dollar_qualifier(content: &str, line: u32, word_start_col: u32) -> Option<String> {
+    if !preceded_by(content, line, word_start_col, '$') {
+        return None;
+    }
+    let source_line = content.lines().nth(line as usize)?;
+    let bytes = source_line.as_bytes();
+    let dollar_idx = word_start_col as usize - 1;
+
+    let mut start = dollar_idx;
+    while start > 0 && is_plain_word_char(bytes[start - 1]) {
+        start -= 1;
+    }
+    if start == dollar_idx {
+        return None;
+    }
+    Some(source_line[start..dollar_idx].to_string())
+}
+
+/// Build a `DefinitionInfo` from a `HelpData` and the resolved name's byte
+/// length, redirecting to an external file's content when the definition
+/// lives outside the current document.
+fn definition_info_from_help_data(
+    help_data: &HelpData,
+    name_len: usize,
+    content: &str,
+    file_path: &str,
+) -> DefinitionInfo {
     let offset = help_data.get_offset();
     let definition_file = help_data.get_file_name();
 
-    // 6. Determine if the definition is in a different file.
     let (source_content, file_path_result) =
         if definition_file.is_empty() || definition_file == file_path {
             (content.to_string(), None)
@@ -171,14 +293,198 @@ pub fn find_definition_at(
             }
         };
 
-    // 7. Convert offset to Position using the correct file content.
     let pos = offset_to_position(offset, &source_content);
-    let end_col = pos.character + word.len() as u32;
+    let end_col = pos.character + name_len as u32;
 
-    Some(DefinitionInfo {
+    DefinitionInfo {
         range: Range::new(pos, Position::new(pos.line, end_col)),
         file_path: file_path_result,
+    }
+}
+
+/// Search the AST for a `type X <- .Tag(..) | ...;` declaration containing a
+/// `Type::Tag` named `tag_name`, returning its `HelpData` (the position of
+/// the `.Tag` token). Deliberately walks the AST rather than
+/// `Context::aliases()`: type-checking a standalone tag literal (e.g.
+/// `.Circle(3.14)`) registers a *synthetic* alias (named `Tag0`, `Tag1`, ...)
+/// pointing at the literal's own usage site, and since `aliases()` iterates
+/// most-recently-pushed first, that synthetic entry would shadow the real
+/// declaration for any tag name that's ever been used standalone.
+fn find_tag_definition_in_ast(ast: &Lang, tag_name: &str) -> Option<HelpData> {
+    match ast {
+        Lang::Alias { target_type, .. } => find_tag_in_type(target_type, tag_name),
+        Lang::Lines { value, .. } => value
+            .iter()
+            .find_map(|m| find_tag_definition_in_ast(m, tag_name)),
+        Lang::Scope { body, .. } => body
+            .iter()
+            .find_map(|m| find_tag_definition_in_ast(m, tag_name)),
+        Lang::Module { body, .. } => body
+            .iter()
+            .find_map(|m| find_tag_definition_in_ast(m, tag_name)),
+        _ => None,
+    }
+}
+
+fn find_tag_in_type(typ: &Type, tag_name: &str) -> Option<HelpData> {
+    match typ {
+        Type::Tag(name, _, help_data) if name == tag_name => Some(help_data.clone()),
+        Type::Operator(_, left, right, _) => {
+            find_tag_in_type(left, tag_name).or_else(|| find_tag_in_type(right, tag_name))
+        }
+        Type::Params(types, _) => types.iter().find_map(|t| find_tag_in_type(t, tag_name)),
+        _ => None,
+    }
+}
+
+/// Find a `Lang::Module` named `module_name` anywhere in the AST (top level,
+/// or nested inside `Lines`/`Scope`/another module) and return its member
+/// list. Only one nesting level of module *name* resolution is attempted by
+/// the caller, but the module itself may appear anywhere structurally.
+fn find_module_in_ast<'a>(ast: &'a Lang, module_name: &str) -> Option<&'a Vec<Lang>> {
+    match ast {
+        Lang::Module { name, body, .. } if name == module_name => Some(body),
+        Lang::Module { body, .. } => body.iter().find_map(|m| find_module_in_ast(m, module_name)),
+        Lang::Lines { value, .. } => value
+            .iter()
+            .find_map(|m| find_module_in_ast(m, module_name)),
+        Lang::Scope { body, .. } => body.iter().find_map(|m| find_module_in_ast(m, module_name)),
+        _ => None,
+    }
+}
+
+/// Find a public `let`/`type` member named `field_name` among a module's
+/// direct members and return the identifier's own `HelpData` (unlike the
+/// `Context`'s exported `Type::Module`, this is the real declaration
+/// position — see `resolve_definition`'s doc comment).
+fn find_field_help_data(members: &[Lang], field_name: &str) -> Option<HelpData> {
+    members.iter().find_map(|member| match member {
+        Lang::Let {
+            variable,
+            is_public: true,
+            ..
+        } => {
+            let var = Var::try_from(variable).ok()?;
+            (var.get_name() == field_name).then(|| var.get_help_data())
+        }
+        Lang::Alias {
+            identifier,
+            is_public: true,
+            ..
+        } => {
+            let var = Var::try_from(identifier).ok()?;
+            (var.get_name() == field_name).then(|| var.get_help_data())
+        }
+        _ => None,
     })
+}
+
+/// Find the nearest preceding `fn(...)` parameter list (by source position)
+/// that declares `word` as a parameter name. Purely textual, single-document
+/// — a parameter never reaches the final `Context` (see this function's
+/// caller), so there is no structured signal to resolve against; this scans
+/// for the literal `fn(` token, depth-tracks to its matching `)`, and splits
+/// the parameter list at top-level commas. Picks whichever matching `fn(`
+/// starts on the latest line at or before `cursor_line` — correct for the
+/// common case (cursor inside that function's own body), but a same-named
+/// parameter in an unrelated function that doesn't actually enclose the
+/// cursor isn't distinguished from a real enclosing one.
+fn find_param_declaration(content: &str, word: &str, cursor_line: u32) -> Option<Range> {
+    if word.is_empty() {
+        return None;
+    }
+
+    let bytes = content.as_bytes();
+    let mut search_from = 0usize;
+    let mut best: Option<(usize, usize)> = None;
+
+    while let Some(rel) = content[search_from..].find("fn(") {
+        let open_paren = search_from + rel + 2;
+        let mut depth = 0i32;
+        let mut j = open_paren;
+        let mut close_paren = None;
+        while j < bytes.len() {
+            match bytes[j] {
+                b'(' => depth += 1,
+                b')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        close_paren = Some(j);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            j += 1;
+        }
+        let Some(close_paren) = close_paren else {
+            break;
+        };
+
+        let start_line = offset_to_position(open_paren, content).line;
+        if start_line <= cursor_line {
+            let params_text = &content[open_paren + 1..close_paren];
+            for (rel_start, entry) in split_top_level(params_text) {
+                if let Some((name_rel_start, name)) = entry_param_name(entry) {
+                    if name == word {
+                        let name_abs_start = open_paren + 1 + rel_start + name_rel_start;
+                        best = Some((name_abs_start, name_abs_start + name.len()));
+                    }
+                }
+            }
+        }
+
+        search_from = close_paren + 1;
+    }
+
+    best.map(|(s, e)| {
+        Range::new(
+            offset_to_position(s, content),
+            offset_to_position(e, content),
+        )
+    })
+}
+
+/// Split a comma-separated list into `(start_offset, text)` entries at depth
+/// 0, so a parameter whose type itself contains commas (e.g. a function
+/// type) isn't split mid-type.
+fn split_top_level(text: &str) -> Vec<(usize, &str)> {
+    let mut entries = Vec::new();
+    let mut depth = 0i32;
+    let mut entry_start = 0usize;
+    for (idx, ch) in text.char_indices() {
+        match ch {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth -= 1,
+            ',' if depth == 0 => {
+                entries.push((entry_start, &text[entry_start..idx]));
+                entry_start = idx + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    entries.push((entry_start, &text[entry_start..]));
+    entries
+}
+
+/// Extract a parameter entry's name and its byte offset relative to the
+/// entry's own start, skipping leading whitespace and a variadic `...`
+/// prefix, and stopping at `:` (typed param) or the entry's end (untyped
+/// lambda param).
+fn entry_param_name(entry: &str) -> Option<(usize, &str)> {
+    let trimmed_start = entry.len() - entry.trim_start().len();
+    let rest = &entry[trimmed_start..];
+    let after_dots = rest.strip_prefix("...").unwrap_or(rest);
+    let dots_len = rest.len() - after_dots.len();
+
+    let name_len = after_dots
+        .find(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .unwrap_or(after_dots.len());
+    if name_len == 0 {
+        return None;
+    }
+
+    Some((trimmed_start + dots_len, &after_dots[..name_len]))
 }
 
 /// Convert a byte offset (as produced by `nom_locate`'s `location_offset`) to
@@ -204,6 +510,286 @@ pub fn offset_to_position(offset: usize, content: &str) -> Position {
     }
 
     Position::new(line, col)
+}
+
+// ── signature help ──────────────────────────────────────────────────────────
+
+/// Main entry-point called by the LSP signatureHelp handler: resolve the
+/// active call's signature(s) against an already-built [`DocumentAnalysis`]
+/// (see `analyze_document`).
+///
+/// Returns `None` when the cursor is not inside a function-call's argument
+/// list, or when the call's callee can't be resolved to a `Type::Function`
+/// in the typing context.
+pub fn resolve_signature_help(
+    analysis: &DocumentAnalysis,
+    content: &str,
+    line: u32,
+    character: u32,
+) -> Option<SignatureHelp> {
+    // 1. Find the enclosing call's callee name and which argument the cursor
+    // currently sits in (by counting top-level commas back to the call's `(`).
+    let (call_name, active_param) = find_enclosing_call(content, line, character)?;
+
+    // 2. Resolve every `Type::Function` overload registered under that name.
+    let types = analysis.context.get_types_from_name(&call_name);
+    let function_types: Vec<&Type> = types.iter().filter(|t| t.is_function()).collect();
+    if function_types.is_empty() {
+        return None;
+    }
+
+    let signatures: Vec<SignatureInformation> = function_types
+        .iter()
+        .map(|t| build_signature_information(&call_name, t))
+        .collect();
+
+    // Prefer the first overload whose parameter count covers the active
+    // index; fall back to the first overload otherwise.
+    let active_signature = function_types
+        .iter()
+        .position(|t| matches!(t, Type::Function(params, _, _) if active_param < params.len()))
+        .unwrap_or(0);
+
+    Some(SignatureHelp {
+        signatures,
+        active_signature: Some(active_signature as u32),
+        active_parameter: Some(active_param as u32),
+    })
+}
+
+/// Build a `SignatureInformation` (label + per-parameter labels) from a
+/// `Type::Function`.
+fn build_signature_information(name: &str, typ: &Type) -> SignatureInformation {
+    if let Type::Function(params, ret, _) = typ {
+        let param_labels: Vec<String> = params
+            .iter()
+            .map(|p| format!("{}: {}", p.get_argument_str(), p.get_type().pretty()))
+            .collect();
+
+        let parameters: Vec<ParameterInformation> = param_labels
+            .iter()
+            .map(|label| ParameterInformation {
+                label: ParameterLabel::Simple(label.clone()),
+                documentation: None,
+            })
+            .collect();
+
+        let label = format!("{}({}) -> {}", name, param_labels.join(", "), ret.pretty());
+
+        SignatureInformation {
+            label,
+            documentation: None,
+            parameters: Some(parameters),
+            active_parameter: None,
+        }
+    } else {
+        SignatureInformation {
+            label: format!("{}: {}", name, typ.pretty()),
+            documentation: None,
+            parameters: None,
+            active_parameter: None,
+        }
+    }
+}
+
+/// Scan backward from the cursor (across up to a few preceding lines, like
+/// `extract_multiline_prefix`) to find the innermost unmatched `(` and the
+/// callee name immediately preceding it, plus the number of top-level commas
+/// between that `(` and the cursor (the active parameter index).
+///
+/// Returns `None` when the cursor sits directly inside a `[...]`/`{...}`
+/// without an enclosing call between it and the scan window (no signature
+/// help applies there), or when no callee name precedes the `(`.
+fn find_enclosing_call(content: &str, line: u32, character: u32) -> Option<(String, usize)> {
+    let prefix = extract_multiline_prefix(content, line, character);
+    let chars: Vec<char> = prefix.chars().collect();
+
+    let mut depth = 0i32;
+    let mut comma_count = 0usize;
+    let mut call_open_idx = None;
+
+    let mut i = chars.len();
+    while i > 0 {
+        i -= 1;
+        match chars[i] {
+            ')' | ']' | '}' => depth += 1,
+            '(' => {
+                if depth == 0 {
+                    call_open_idx = Some(i);
+                    break;
+                }
+                depth -= 1;
+            }
+            '[' | '{' if depth == 0 => return None,
+            '[' | '{' => depth -= 1,
+            ',' if depth == 0 => comma_count += 1,
+            _ => {}
+        }
+    }
+
+    let open_idx = call_open_idx?;
+
+    let mut end = open_idx;
+    while end > 0 && chars[end - 1].is_whitespace() {
+        end -= 1;
+    }
+    let mut start = end;
+    while start > 0
+        && (chars[start - 1].is_alphanumeric()
+            || chars[start - 1] == '_'
+            || chars[start - 1] == '.')
+    {
+        start -= 1;
+    }
+    if start == end {
+        return None;
+    }
+
+    let name: String = chars[start..end].iter().collect();
+    Some((name, comma_count))
+}
+
+// ── rename / references (occurrence search) ────────────────────────────────
+
+/// Main entry-point shared by the LSP rename and references handlers: finds
+/// every occurrence of the plain identifier under the cursor within the
+/// given document text.
+///
+/// This is a single-document, textual occurrence search (not a full
+/// scope-aware resolution): it matches the identifier at word boundaries,
+/// skips text after a `#` comment marker on each line, and skips occurrences
+/// immediately preceded by `.` or `$` (field/method access on some other
+/// value, not a use of the variable itself). Good enough for renaming a
+/// `let`-bound name and its uses within one file; it does not follow the
+/// symbol across files.
+pub fn find_word_occurrences_at(content: &str, line: u32, character: u32) -> Option<Vec<Range>> {
+    let (word, _) = extract_plain_word_at(content, line, character)?;
+    if word.is_empty() {
+        return None;
+    }
+
+    let mut ranges = Vec::new();
+    for (idx, src_line) in content.lines().enumerate() {
+        ranges.extend(find_word_occurrences_in_line(src_line, &word, idx as u32));
+    }
+    Some(ranges)
+}
+
+/// The range of the plain identifier under the cursor, for `prepareRename`.
+pub fn find_renameable_range_at(content: &str, line: u32, character: u32) -> Option<Range> {
+    extract_plain_word_at(content, line, character).map(|(_, range)| range)
+}
+
+fn find_word_occurrences_in_line(line: &str, word: &str, line_idx: u32) -> Vec<Range> {
+    let scan_line = match line.find('#') {
+        Some(idx) => &line[..idx],
+        None => line,
+    };
+
+    let chars: Vec<char> = scan_line.chars().collect();
+    let word_chars: Vec<char> = word.chars().collect();
+    let wlen = word_chars.len();
+    if wlen == 0 {
+        return Vec::new();
+    }
+
+    let mut ranges = Vec::new();
+    let mut i = 0;
+    while i + wlen <= chars.len() {
+        if chars[i..i + wlen] == word_chars[..] {
+            let before_ok = i == 0
+                || (!is_plain_word_char_ch(chars[i - 1])
+                    && chars[i - 1] != '.'
+                    && chars[i - 1] != '$');
+            let after_ok = i + wlen == chars.len() || !is_plain_word_char_ch(chars[i + wlen]);
+
+            if before_ok && after_ok {
+                let start_col: u32 = chars[..i].iter().map(|c| c.len_utf16() as u32).sum();
+                let token_width: u32 = chars[i..i + wlen]
+                    .iter()
+                    .map(|c| c.len_utf16() as u32)
+                    .sum();
+                ranges.push(Range::new(
+                    Position::new(line_idx, start_col),
+                    Position::new(line_idx, start_col + token_width),
+                ));
+                i += wlen;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    ranges
+}
+
+/// Extract the contiguous plain identifier (alphanumeric/underscore only, no
+/// dots) under the cursor. Unlike `extract_word_at` (used by hover/goto, which
+/// deliberately includes `.` so `Math.pi`-style dotted paths resolve as one
+/// token), rename/references need the bare variable name on either side of a
+/// dot to be treated as separate tokens.
+fn extract_plain_word_at(content: &str, line: u32, character: u32) -> Option<(String, Range)> {
+    let source_line = content.lines().nth(line as usize)?;
+
+    if (character as usize) > source_line.len() {
+        return None;
+    }
+
+    let bytes = source_line.as_bytes();
+    let col = character as usize;
+
+    if col >= bytes.len() || !is_plain_word_char(bytes[col]) {
+        if col == 0 {
+            return None;
+        }
+        if !is_plain_word_char(bytes[col - 1]) {
+            return None;
+        }
+    }
+
+    let anchor = if col < bytes.len() && is_plain_word_char(bytes[col]) {
+        col
+    } else {
+        col - 1
+    };
+
+    let start = {
+        let mut i = anchor;
+        while i > 0 && is_plain_word_char(bytes[i - 1]) {
+            i -= 1;
+        }
+        i
+    };
+
+    let end = {
+        let mut i = anchor;
+        while i + 1 < bytes.len() && is_plain_word_char(bytes[i + 1]) {
+            i += 1;
+        }
+        i + 1
+    };
+
+    let word = &source_line[start..end];
+    if word.is_empty() {
+        return None;
+    }
+
+    Some((
+        word.to_string(),
+        Range {
+            start: Position::new(line, start as u32),
+            end: Position::new(line, end as u32),
+        },
+    ))
+}
+
+/// A character is part of a plain identifier if it is alphanumeric or `_`
+/// (unlike `is_word_char`, dots are not included — see `extract_plain_word_at`).
+fn is_plain_word_char(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
+}
+
+fn is_plain_word_char_ch(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
 }
 
 // ── word extraction ────────────────────────────────────────────────────────
@@ -1234,7 +1820,8 @@ mod hover_project_mode_tests {
         let content = "mod mathmod;\n\nuse mathmod::add_two;\n\nlet x <- add_two(1, 2);\n";
         std::fs::write(&main_file, content).unwrap();
 
-        let info = find_type_at(content, 4, 4, main_file.to_str().unwrap());
+        let analysis = analyze_document(content, main_file.to_str().unwrap());
+        let info = analysis.and_then(|a| resolve_hover(&a, content, 4, 4));
 
         let _ = std::fs::remove_dir_all(&dir);
 
@@ -1369,5 +1956,208 @@ mod mod_completion_tests {
             CompletionCtx::ModuleFile => panic!("should not detect ModuleFile after `;`"),
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod signature_help_tests {
+    use super::*;
+
+    /// Test-only convenience wrapper around `analyze_document` +
+    /// `resolve_signature_help`, mirroring the old single-shot entry point.
+    fn find_signature_help_at(
+        content: &str,
+        line: u32,
+        character: u32,
+        file_path: &str,
+    ) -> Option<SignatureHelp> {
+        let analysis = analyze_document(content, file_path)?;
+        resolve_signature_help(&analysis, content, line, character)
+    }
+
+    /// Cursor right after the `(` of a call to a known function must resolve
+    /// its signature with `active_parameter` 0.
+    #[test]
+    fn resolves_signature_for_first_argument() {
+        let content = "let add <- fn(a: int, b: int): int { a + b };\nlet x <- add(";
+        let line = content.lines().last().unwrap();
+        let help = find_signature_help_at(content, 1, line.len() as u32, "test.ty")
+            .expect("expected signature help inside add(...)");
+
+        assert_eq!(help.active_parameter, Some(0));
+        let sig = &help.signatures[help.active_signature.unwrap() as usize];
+        assert!(
+            sig.label.starts_with("add("),
+            "unexpected label: {}",
+            sig.label
+        );
+        assert_eq!(sig.parameters.as_ref().unwrap().len(), 2);
+    }
+
+    /// After the first comma, the active parameter must advance to index 1.
+    #[test]
+    fn active_parameter_advances_past_comma() {
+        let content = "let add <- fn(a: int, b: int): int { a + b };\nlet x <- add(1, ";
+        let line = content.lines().last().unwrap();
+        let help = find_signature_help_at(content, 1, line.len() as u32, "test.ty")
+            .expect("expected signature help inside add(1, ...)");
+
+        assert_eq!(help.active_parameter, Some(1));
+    }
+
+    /// Cursor inside an unrelated `[...]` with no enclosing call must not
+    /// produce signature help.
+    #[test]
+    fn no_signature_help_inside_bare_brackets() {
+        let content = "let x <- [1, 2, ";
+        let help = find_signature_help_at(content, 0, content.len() as u32, "test.ty");
+        assert!(help.is_none());
+    }
+}
+
+#[cfg(test)]
+mod rename_and_references_tests {
+    use super::*;
+
+    /// Renaming a `let`-bound variable must find every plain-identifier use,
+    /// in declaration order, while skipping unrelated substrings (e.g. `pi`
+    /// must not match inside `pi_approx`).
+    #[test]
+    fn finds_all_occurrences_of_a_variable() {
+        let content = "let pi <- 3;\nlet pi_approx <- 3.14;\nlet x <- pi + pi;\n";
+        // Cursor on the `pi` in `let pi <- 3;` (line 0, col 4).
+        let ranges =
+            find_word_occurrences_at(content, 0, 5).expect("expected occurrences for `pi`");
+
+        // Exactly 3: the declaration plus the two uses in `pi + pi` — not the
+        // `pi` inside `pi_approx`.
+        assert_eq!(ranges.len(), 3, "ranges: {:?}", ranges);
+    }
+
+    /// A field/method access like `obj.pi` must not be counted as a use of
+    /// the variable `pi` (the `.`-prefixed occurrence is skipped).
+    #[test]
+    fn skips_dot_prefixed_occurrences() {
+        let content = "let pi <- 3;\nlet y <- obj.pi;\n";
+        let ranges = find_word_occurrences_at(content, 0, 5).unwrap();
+        assert_eq!(
+            ranges.len(),
+            1,
+            "expected only the declaration, got: {:?}",
+            ranges
+        );
+    }
+
+    /// Text after a `#` comment marker on a line must not be scanned for
+    /// occurrences.
+    #[test]
+    fn skips_occurrences_in_comments() {
+        let content = "let pi <- 3; # pi note\n";
+        let ranges = find_word_occurrences_at(content, 0, 5).unwrap();
+        assert_eq!(
+            ranges.len(),
+            1,
+            "expected only the declaration, got: {:?}",
+            ranges
+        );
+    }
+
+    /// `prepareRename` must report the bare identifier's range, not a
+    /// dot-extended token (unlike hover's `extract_word_at`).
+    #[test]
+    fn renameable_range_excludes_dots() {
+        let content = "let x <- Math.pi;\n";
+        // Cursor on `pi` within `Math.pi` (byte offset of 'p' is 14).
+        let range = find_renameable_range_at(content, 0, 15).expect("expected a range");
+        assert_eq!(range.start, Position::new(0, 14));
+        assert_eq!(range.end, Position::new(0, 16));
+    }
+}
+
+#[cfg(test)]
+mod goto_definition_tests {
+    use super::*;
+
+    /// Test-only convenience wrapper around `analyze_document` +
+    /// `resolve_definition`, mirroring the old single-shot entry point.
+    fn find_definition_at(
+        content: &str,
+        line: u32,
+        character: u32,
+        file_path: &str,
+    ) -> Option<DefinitionInfo> {
+        let analysis = analyze_document(content, file_path)?;
+        resolve_definition(&analysis, content, line, character, file_path)
+    }
+
+    /// A union tag variant reference (`.Circle` in a `match`) must resolve to
+    /// the `.Circle` token in its `type Shape <- .Circle(..) | ...;` alias —
+    /// not to wherever a same-named plain identifier happens to live.
+    #[test]
+    fn tag_variant_resolves_to_alias_declaration() {
+        let content = "type Shape <- .Circle(num) | .Square(num);\nlet s <- .Circle(3.14);\nlet area <- match s { .Circle(r) => r, .Square(side) => side };\n";
+        // Cursor on `Circle` inside the `.Circle(3.14)` construction (line 1).
+        let col = content.lines().nth(1).unwrap().find("Circle").unwrap() as u32;
+        let def = find_definition_at(content, 1, col, "test.ty")
+            .expect("expected a definition for the `.Circle` tag");
+
+        // Must land on the `.Circle` in the alias declaration (line 0), not
+        // on the construction site itself. `Type::Tag`'s `HelpData` is the
+        // span of the `.` token itself (see `tag_type` in
+        // `parsing/types.rs`), so the resolved column is the dot's position,
+        // not `Circle`'s.
+        assert_eq!(def.range.start.line, 0);
+        let decl_col = content.lines().next().unwrap().find(".Circle").unwrap() as u32;
+        assert_eq!(def.range.start.character, decl_col);
+    }
+
+    /// A module field accessed via `Module$field` (the real TypR field/module
+    /// access operator — see `Op::Dollar`) must resolve to the `let`
+    /// declaration inside the `module { ... }` body, not fail silently.
+    #[test]
+    fn module_field_access_resolves_to_member_let() {
+        let content =
+            "module Math {\n    @pub let pi_approx <- 3.14;\n};\nlet x <- Math$pi_approx;\n";
+        let line3 = content.lines().nth(3).unwrap();
+        let col = line3.find("pi_approx").unwrap() as u32;
+        let def = find_definition_at(content, 3, col, "test.ty")
+            .expect("expected a definition for `Math$pi_approx`");
+
+        assert_eq!(def.range.start.line, 1);
+        let decl_col = content.lines().nth(1).unwrap().find("pi_approx").unwrap() as u32;
+        // +1: `Var`'s `HelpData` is captured from `starting_char`'s
+        // *remaining* span (i.e. just past the first character) rather than
+        // the identifier's own start — a pre-existing typr-core parsing
+        // quirk (see `reference-ty-gotchas`), not specific to this lookup.
+        assert_eq!(def.range.start.character, decl_col + 1);
+    }
+
+    /// A function parameter, used inside the body, must resolve to its own
+    /// declaration in the enclosing `fn(...)` parameter list — parameters
+    /// never reach the final `Context` (see `find_param_declaration`'s doc
+    /// comment), so this is a purely textual fallback.
+    #[test]
+    fn function_parameter_resolves_to_its_declaration() {
+        let content = "let add <- fn(a: int, b: int): int { a + b };\n";
+        let col = content.find("a + b").unwrap() as u32;
+        let def = find_definition_at(content, 0, col, "test.ty")
+            .expect("expected a definition for parameter `a`");
+
+        assert_eq!(def.range.start.line, 0);
+        let decl_col = content.find("a: int").unwrap() as u32;
+        assert_eq!(def.range.start.character, decl_col);
+    }
+
+    /// A record `$` field access (`personne$age`) is not a module field —
+    /// the qualifier resolves to a `Record`, not a `Module`, in the AST, so
+    /// this must fall through cleanly to `None` rather than panicking or
+    /// resolving to something unrelated.
+    #[test]
+    fn record_dollar_access_does_not_false_positive_as_module_field() {
+        let content =
+            "type Person <- list { age: int };\nlet p <- Person:{ age = 1 };\nlet a <- p$age;\n";
+        let col = content.lines().nth(2).unwrap().find("age").unwrap() as u32;
+        let def = find_definition_at(content, 2, col, "test.ty");
+        assert!(def.is_none(), "expected no definition, got: {:?}", def);
     }
 }

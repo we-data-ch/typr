@@ -509,7 +509,9 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
     )
         .parse(s);
     match res {
-        Ok((s, (embed, e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, embed.is_some(), false))),
+        Ok((s, (embed, e1, _, e2, _))) => {
+            Ok((s, ArgumentType(e1, e2, embed.is_some(), false, None)))
+        }
         Err(r) => Err(r),
     }
 }
@@ -669,7 +671,7 @@ fn interface_function(s: Span) -> IResult<Span, ArgumentType> {
     )
         .parse(s);
     match res {
-        Ok((s, (e, _, f, _))) => Ok((s, ArgumentType(e, f, false, false))),
+        Ok((s, (e, _, f, _))) => Ok((s, ArgumentType(e, f, false, false, None))),
         Err(r) => Err(r),
     }
 }
@@ -805,7 +807,7 @@ fn variadic_field_seq(s: Span) -> IResult<Span, ArgumentType> {
             let h = HelpData::default();
             let label = Type::Char(name.clone().into(), h.clone());
             let typ = Type::Generic(name, h.clone());
-            Ok((s, ArgumentType(label, typ, false, true)))
+            Ok((s, ArgumentType(label, typ, false, true, None)))
         }
         Err(r) => Err(r),
     }

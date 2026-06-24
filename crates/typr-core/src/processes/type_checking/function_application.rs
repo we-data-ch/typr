@@ -175,6 +175,20 @@ fn try_variadic_match(
         .next()
 }
 
+/// Matches a call supplying fewer arguments than declared, when the missing
+/// trailing parameters all carry a default value.
+fn try_default_match(
+    all_signatures: &[FunctionType],
+    types: &[Type],
+    context: &Context,
+) -> Option<FunctionType> {
+    all_signatures
+        .iter()
+        .filter(|sig| sig.has_defaults() && !sig.is_variadic())
+        .flat_map(|x| x.clone().infer_return_type_partial(types, context))
+        .next()
+}
+
 // ── Tuple-spread unification (FILTERING 5) ──────────────────────────────────
 //
 // The SafeHashMap used by the normal generic-inference path treats every
@@ -874,14 +888,22 @@ fn apply_from_variable_inner(
     // FILTERING 1/2/2.5 all key off `types.first()`, so a call like `f()` to a
     // plain `fn(): T { ... }` (no parameters, not variadic) never reaches a
     // matching filter and falls through to FunctionNotFound. Handle the
-    // arity-0 case directly here.
+    // arity-0 case directly here — including a function whose params are
+    // *all* defaulted (`min_arity() == 0`), via `infer_return_type_partial`.
     if types.is_empty() {
-        if let Some(fun_typ) = all_signatures
+        let zero_arg_match = all_signatures
             .iter()
             .find(|sig| !sig.is_variadic() && sig.get_param_types().is_empty())
             .cloned()
             .and_then(|sig| sig.infer_return_type_direct(&types, context))
-        {
+            .or_else(|| {
+                all_signatures
+                    .iter()
+                    .find(|sig| !sig.is_variadic() && sig.min_arity() == 0 && sig.has_defaults())
+                    .cloned()
+                    .and_then(|sig| sig.infer_return_type_partial(&types, context))
+            });
+        if let Some(fun_typ) = zero_arg_match {
             return build_success(
                 &var,
                 &fun_typ,
@@ -984,6 +1006,21 @@ fn apply_from_variable_inner(
 
     // === FILTERING 3 : Vectorization ===
     if let Some(fun_typ) = try_vectorized_match(&all_signatures, &types, context) {
+        let (final_params, final_types) =
+            specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
+        return build_success(
+            &var,
+            &fun_typ,
+            final_params,
+            &final_types,
+            param_errors,
+            context,
+            h,
+        );
+    }
+
+    // === FILTERING 3.5 : Default parameters (fewer args than declared, trailing params have defaults) ===
+    if let Some(fun_typ) = try_default_match(&all_signatures, &types, context) {
         let (final_params, final_types) =
             specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
         return build_success(

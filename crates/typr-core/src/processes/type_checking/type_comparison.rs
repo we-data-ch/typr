@@ -24,6 +24,7 @@ pub fn reduce_param(
         reduced_type,
         param.2.to_owned(),
         param.3.to_owned(),
+        param.4.to_owned(),
     )
 }
 

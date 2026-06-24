@@ -1,0 +1,26 @@
+mod position;
+use position::Position;
+use position::move;
+
+type Animation <- interface {
+	render: (self: Self) -> bool
+};
+
+type Animator <- list { 
+	animations: [Animation] 
+};
+
+@pub
+let animate <- fn(target: %T): Animator {
+	let animations <- list { animations: [] };
+	list {
+		...target,
+		...animations
+	} as! Animator
+};
+
+#@case: The function animate_move was not found when generated see ../R/R_error.md
+@pub
+let animate_move <- fn(a: Animator & Position, direction: Vec[2, int]): Animator {
+	a.move(direction) as!  Animator
+};

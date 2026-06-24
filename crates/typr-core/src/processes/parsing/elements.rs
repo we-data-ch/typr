@@ -341,19 +341,22 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
     )
         .parse(s.clone());
     if let Ok((s2, (_, e1, _, e2, _))) = variadic {
-        return Ok((s2, ArgumentType(e1, e2, false, true)));
+        return Ok((s2, ArgumentType(e1, e2, false, true, None)));
     }
 
-    // Regular: `name: T[,]`
+    // Regular: `name: T[ = default][,]`
     let res = (
         terminated(label, multispace0),
         terminated(tag(":"), multispace0),
         ltype,
+        opt(preceded(terminated(tag("="), multispace0), parse_elements)),
         opt(terminated(tag(","), multispace0)),
     )
         .parse(s);
     match res {
-        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, false, false))),
+        Ok((s, (e1, _, e2, default, _))) => {
+            Ok((s, ArgumentType(e1, e2, false, false, default.map(Box::new))))
+        }
         Err(r) => Err(r),
     }
 }
@@ -1232,6 +1235,84 @@ fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+/// Partial application: `\f(arg1 = val1, ...)` (RFC partial_application.md).
+/// Distinguished from `lambda` below by what follows the `\`: `\(` is a
+/// lambda's parameter list, `\identifier(` is a partial application — so
+/// trying this combinator first and falling back to `lambda` on failure
+/// (via the `alt()` in `single_element`) disambiguates the two unambiguously.
+fn partial_application(s: Span) -> IResult<Span, Lang> {
+    let res = (
+        tag("\\"),
+        variable2,
+        terminated(tag("("), multispace0),
+        many0(terminated(
+            key_value,
+            terminated(opt(tag(",")), multispace0),
+        )),
+        terminated(tag(")"), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (start, ident, _, args, _))) => Ok((
+            s,
+            Lang::PartialApp {
+                function: Box::new(ident),
+                arguments: args,
+                help_data: start.into(),
+            },
+        )),
+        Err(r) => Err(r),
+    }
+}
+
+/// Partial application over a record constructor: `\TypeName:{ field = val, ... }`
+/// (records-only — see `partial_application` above for the function-call form).
+/// Reuses the same `Lang::PartialApp` node: `function` holds a bare
+/// `Lang::Variable` for the type name and `arguments` holds the fixed fields as
+/// `Lang::KeyValue`, so the type-checker (`partial_application` in
+/// `type_checking/partial_application.rs`) handles both forms with one
+/// dispatch — it just resolves the target as a record alias instead of a
+/// `Type::Function` when no function of that name exists. Field syntax reuses
+/// `argument_val`'s grammar (same as `constructor_call`), so `:` or `=` both
+/// work as the field separator.
+fn partial_constructor_application(s: Span) -> IResult<Span, Lang> {
+    let res = (
+        tag("\\"),
+        pascal_case,
+        terminated(tag(":"), multispace0),
+        terminated(tag("{"), multispace0),
+        many0(preceded(ws0, argument_val)),
+        preceded(ws0, terminated(tag("}"), multispace0)),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (start, (name, h), _, _, fields, _))) => {
+            let arguments = fields
+                .into_iter()
+                .map(|ArgumentValue(key, value)| Lang::KeyValue {
+                    key,
+                    value: Box::new(value),
+                    help_data: h.clone(),
+                })
+                .collect();
+            Ok((
+                s,
+                Lang::PartialApp {
+                    function: Box::new(Lang::Variable {
+                        name,
+                        is_opaque: false,
+                        related_type: Type::Empty(h.clone()),
+                        help_data: h,
+                    }),
+                    arguments,
+                    help_data: start.into(),
+                },
+            ))
+        }
+        Err(r) => Err(r),
+    }
+}
+
 fn lambda(s: Span) -> IResult<Span, Lang> {
     let res = (
         tag("\\"),
@@ -1352,6 +1433,8 @@ pub fn single_element(s: Span) -> IResult<Span, Lang> {
             tag_exp,
             union_constructor,
             range,
+            partial_application,
+            partial_constructor_application,
             lambda,
             primitive,
             js_block,

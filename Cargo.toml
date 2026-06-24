@@ -53,8 +53,7 @@ toml = "0.8"
 
 clap = { version = "4.5", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
-tower-lsp = "0.20"
-lsp-types = "0.94"
+tower-lsp-server = { version = "0.23", features = ["tokio"] }
 rustyline = "17.0.2"
 syntect = "5.3.0"
 bincode = "1.3"

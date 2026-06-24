@@ -1,0 +1,7 @@
+let tri_add <- fn(a: int, b: int, c: int): int {
+    a + b + c
+};
+
+let simple_add <- \tri_add(a = 5, b = 10);
+
+simple_add(3)

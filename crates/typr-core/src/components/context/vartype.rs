@@ -271,14 +271,17 @@ impl VarType {
             Type::Number(_, _) => "numeric".to_string(),
             Type::Any(_) => "Any".to_string(),
             // Unresolved type variables (`T`, `%T`, `#N`, `$L`, …) have no
-            // fixed runtime class — same fallback as `get_type_anotation`'s
-            // `as.Generic` default just below, instead of panicking.
+            // fixed runtime class. R's `UseMethod` always falls back to
+            // `<generic>.default` when no more specific class matches, so
+            // that's the only suffix that actually dispatches at runtime —
+            // unlike a literal `"Generic"` class, which no constructed value
+            // (record types in particular) ever carries in its class chain.
             _ => self
                 .aliases
                 .iter()
                 .find(|(_, typ)| typ == t)
                 .map(|(var, _)| var.get_name())
-                .unwrap_or("Generic".to_string()),
+                .unwrap_or("default".to_string()),
         };
         "'".to_string() + &res + "'"
     }
@@ -324,12 +327,14 @@ impl VarType {
             Type::Boolean(_, _) => "logical".to_string(),
             Type::Number(_, _) => "numeric".to_string(),
             Type::Any(_) => "Any".to_string(),
+            // Same rationale as `get_class`'s fallback above: "default" is
+            // the only suffix `UseMethod` actually finds for these.
             _ => self
                 .aliases
                 .iter()
                 .find(|(_, typ)| typ == t)
                 .map(|(var, _)| var.get_name())
-                .unwrap_or(t.pretty()),
+                .unwrap_or("default".to_string()),
         }
     }
 

@@ -1,0 +1,45 @@
+# Règles oracle (grep sur le R généré).
+#
+# Bug : la classe S3 enregistrée pour un paramètre kinded-generic (`%T`)
+# venait de deux chemins de calcul différents qui pouvaient diverger :
+#
+# 1. `VarType::get_class_unquoted` (utilisée pour le second argument de
+#    `registerS3method(...)`) retombait sur `t.pretty()` quand le type
+#    n'était dans aucun alias, donnant littéralement `"%T"` — une classe
+#    qu'aucun objet R ne porte jamais, donc le dispatch S3 échouait
+#    toujours (`registerS3method("animate", "%T", animate.Generic)`).
+#
+# 2. Le nom de fonction lui-même (`animate.Generic`, suffixe via
+#    `VarType::get_class`) était calculé une fois dans le corps du module
+#    (avec `inner_cont`, le contexte ré-typé) et une seconde fois dans la
+#    boucle d'export/registerS3method (avec `cont`, le contexte d'origine).
+#    Les deux contextes pouvaient nommer le même type structurel anonyme
+#    différemment (`Record4` vs `Record1`), donc la fonction exportée
+#    référençait un nom (`animate_move.Record1`) qui n'existait pas
+#    (`objet 'animate_move.Record1' introuvable`).
+#
+# Correctif :
+# - `get_class`/`get_class_unquoted` retombent maintenant sur `"default"`
+#   au lieu de `"Generic"`/`t.pretty()` : `UseMethod` trouve toujours
+#   `<generic>.default`, alors qu'aucun record TypR ne porte jamais la
+#   classe littérale `"Generic"` dans sa chaîne de classes R.
+# - La boucle d'export/registerS3method utilise `inner_cont` (le même
+#   contexte que le corps du module), plus `cont` (l'extérieur), pour que
+#   le nom de la méthode exportée corresponde toujours à celui réellement
+#   défini dans `local({...})`.
+
+[[rule]]
+file = "R/animation.R"
+must_contain = "registerS3method(\"animate\", \"default\", animate.default)"
+
+[[rule]]
+file = "R/animation.R"
+must_not_contain = "\"%T\""
+
+[[rule]]
+file = "R/animation.R"
+must_contain = "animate_move.Record4"
+
+[[rule]]
+file = "R/animation.R"
+must_not_contain = "animate_move.Record1"

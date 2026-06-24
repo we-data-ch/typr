@@ -1,5 +1,6 @@
 ---
 source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 283
 expression: ty
 ---
 Function(
@@ -23,6 +24,7 @@ Function(
             ),
             false,
             false,
+            None,
         ),
         ArgumentType(
             Char(
@@ -43,6 +45,7 @@ Function(
             ),
             false,
             false,
+            None,
         ),
     ],
     Integer(

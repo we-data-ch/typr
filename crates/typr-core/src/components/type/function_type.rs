@@ -24,6 +24,10 @@ pub struct FunctionType {
     help_data: HelpData,
     vec_type: VecType,
     is_variadic: bool,
+    // Number of leading parameters with no default value. Parameters from
+    // this index onward (up to `arguments.len()`) all have a default and
+    // may be omitted by the caller.
+    min_arity: usize,
 }
 
 fn lift(max_index: &(VecType, i32), types: &[Type]) -> Vec<Type> {
@@ -42,6 +46,7 @@ impl FunctionType {
         help_data: HelpData,
     ) -> Self {
         let is_variadic = arguments.last().map(|a| a.is_variadic()).unwrap_or(false);
+        let min_arity = arguments.iter().take_while(|a| !a.has_default()).count();
         let arguments: Vec<Type> = arguments.iter().map(|arg| arg.get_type()).collect();
         Self {
             return_type,
@@ -50,6 +55,7 @@ impl FunctionType {
             vec_type,
             infered_return_type: builder::empty_type(),
             is_variadic,
+            min_arity,
         }
     }
 
@@ -81,6 +87,14 @@ impl FunctionType {
 
     pub fn is_variadic(&self) -> bool {
         self.is_variadic
+    }
+
+    pub fn min_arity(&self) -> usize {
+        self.min_arity
+    }
+
+    pub fn has_defaults(&self) -> bool {
+        self.min_arity < self.arguments.len()
     }
 
     pub fn set_vectorized(self, vec_type: VecType) -> Self {
@@ -147,6 +161,13 @@ impl FunctionType {
 
     pub fn infer_return_type_direct(self, types: &[Type], context: &Context) -> Option<Self> {
         let param_types = self.get_param_types();
+        // Exact-arity match only: arity-flexible calls go through the
+        // variadic path or `infer_return_type_partial` instead. Without this
+        // guard, `Context::get_unification_map`'s `zip` silently ignores a
+        // shorter `types` against the trailing, unmatched params.
+        if types.len() != param_types.len() {
+            return None;
+        }
         context
             .get_unification_map(types, &param_types)
             .map(|um| self.apply_unification_to_return_type(context, um))
@@ -154,8 +175,37 @@ impl FunctionType {
 
     pub fn infer_return_type_vectorized(self, types: &[Type], context: &Context) -> Option<Self> {
         let param_types = self.get_param_types();
+        if types.len() != param_types.len() {
+            return None;
+        }
         Self::lift_and_unification(context, types, &param_types)
             .map(|um| self.apply_unification_to_return_type(context, um))
+    }
+
+    /// Matches a call with fewer arguments than declared, when the missing
+    /// trailing parameters all have a default value (`has_defaults()`).
+    /// Unifies only against the supplied `types`, truncating the signature
+    /// to that length — the omitted defaulted params never participate in
+    /// unification. The transpiled R function carries its own native
+    /// default syntax, so the caller-supplied argument count is all that
+    /// needs to round-trip through here.
+    pub fn infer_return_type_partial(self, types: &[Type], context: &Context) -> Option<Self> {
+        if !self.has_defaults() || self.is_variadic {
+            return None;
+        }
+        if types.len() < self.min_arity || types.len() >= self.arguments.len() {
+            return None;
+        }
+        let truncated_params = self.arguments[..types.len()].to_vec();
+        let truncated_self = self.clone().set_params(truncated_params.clone());
+        context
+            .get_unification_map(types, &truncated_params)
+            .or(Self::lift_and_unification(
+                context,
+                types,
+                &truncated_params,
+            ))
+            .map(|um| truncated_self.apply_unification_to_return_type(context, um))
     }
 
     fn lift(self, index: (VecType, i32)) -> Self {
@@ -277,6 +327,7 @@ impl Default for FunctionType {
             help_data: HelpData::default(),
             vec_type: VecType::Empty,
             is_variadic: false,
+            min_arity: 0,
         }
     }
 }

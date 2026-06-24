@@ -221,6 +221,12 @@ impl Op {
 }
 
 fn bool_op(s: Span) -> IResult<Span, Span> {
+    // Deliberately no bare `tag("=")` alternative here: a single `=` is never
+    // a binary operator in TypR (`Op::Eq2` has no handling anywhere in
+    // type-checking/transpiling — it would panic via `compute_operators`'s
+    // catch-all if ever produced). `=` is reserved for dedicated grammar
+    // positions parsed directly elsewhere: named record fields (`x = 1`),
+    // `assign()`'s `x = expr;`, and `fn(...)` default parameter values.
     terminated(
         alt((
             tag("<="),
@@ -235,7 +241,6 @@ fn bool_op(s: Span) -> IResult<Span, Span> {
             tag("or"),
             tag("||"),
             tag("|"),
-            tag("="),
         )),
         multispace0,
     )

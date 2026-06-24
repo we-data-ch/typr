@@ -527,7 +527,7 @@ impl Type {
             Type::Function(args, ret_typ, _) => args
                 .iter()
                 .flat_map(|arg| arg.get_type().extract_generics())
-                .chain([(**ret_typ).clone()])
+                .chain(ret_typ.extract_generics())
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect::<Vec<_>>(),
@@ -1413,6 +1413,50 @@ mod tests {
     use crate::processes::parsing::parse;
     use crate::processes::type_checking::typing;
     use crate::utils::fluent_parser::FluentParser;
+
+    /// Regression: `extract_generics` on `Type::Function` used to chain the
+    /// literal return type into the result instead of its own extracted
+    /// generics, so any concrete (non-generic) function type — e.g.
+    /// `(int, int, int) -> int` — was wrongly reported as `has_generic() ==
+    /// true`. That false positive made `Context::get_type_anotations()`
+    /// skip emitting the `as.FunctionN <- ...` cast for the function's own
+    /// auto-registered `FunctionN` alias, while the transpiler still
+    /// referenced `as.FunctionN()` at the call site — an "could not find
+    /// function as.FunctionN" error at R runtime for any plain typed
+    /// function declaration built through the real `typr build` pipeline.
+    #[test]
+    fn test_concrete_function_type_has_no_generic() {
+        let concrete_fn = builder::function_type(
+            &[
+                builder::integer_type_default(),
+                builder::integer_type_default(),
+            ],
+            builder::integer_type_default(),
+        );
+        assert!(
+            !concrete_fn.has_generic(),
+            "a function type built entirely from concrete types must not be reported as generic"
+        );
+    }
+
+    /// A generic nested inside the return type (not bare) must still be
+    /// found — `extract_generics` recurses into the return type rather than
+    /// taking it verbatim.
+    #[test]
+    fn test_function_type_finds_generic_nested_in_return_type() {
+        let generic_t = Type::Generic("T".to_string(), HelpData::default());
+        let fn_with_generic_return = builder::function_type(
+            &[builder::integer_type_default()],
+            builder::array_type(
+                Type::IndexGen("N".to_string(), HelpData::default()),
+                generic_t,
+            ),
+        );
+        assert!(
+            fn_with_generic_return.has_generic(),
+            "a generic nested inside the return type must still be detected"
+        );
+    }
 
     #[test]
     fn test_sigil_generics_get_kinded_category() {

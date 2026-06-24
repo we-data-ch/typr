@@ -1,0 +1,3 @@
+let move <- fn(obj: int, to: int, duration: int): int { obj + to + duration };
+let moved <- \move(to = 5);
+moved(10, 7)

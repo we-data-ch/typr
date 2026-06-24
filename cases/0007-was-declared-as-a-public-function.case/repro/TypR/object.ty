@@ -1,0 +1,6 @@
+mod circle;
+use circle::Circle;
+
+@pub
+type Object <- Circle;
+

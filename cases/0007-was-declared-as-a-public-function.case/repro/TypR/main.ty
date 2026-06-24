@@ -1,0 +1,19 @@
+mod circle;
+mod position;
+mod scene;
+mod animation;
+
+use circle::new_circle;
+use circle::Circle;
+use position::Position;
+use position::move;
+use position::right;
+use scene::Scene;
+use scene::new_scene;
+use scene::add;
+use animation::animate;
+use animation::animate_move;
+
+let c1 <- new_circle(4);
+
+c1.animate()

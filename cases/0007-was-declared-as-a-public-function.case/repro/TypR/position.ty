@@ -1,0 +1,17 @@
+@pub
+type Position <- list {
+	position: Vec[2, int]
+};
+
+@pub
+let move <- fn(self: Position, direction: Vec[2, int]): Position {
+	Position:{ 
+		position: (self$position + direction),
+		...self
+	}
+};
+
+@pub let right <- c(1, 0);
+@pub let left <- c(-1, 0);
+@pub let up <- c(0, 1);
+@pub let down <- c(0, -1);

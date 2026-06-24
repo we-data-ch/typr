@@ -724,7 +724,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         "(function({}) {}{}) |> {}",
                         params
                             .iter()
-                            .map(|x| x.to_r())
+                            .map(|x| x.to_r(cont))
                             .collect::<Vec<_>>()
                             .join(", "),
                         final_body_r,
@@ -964,7 +964,15 @@ impl RTranslatable<(String, Context)> for Lang {
                             Type::Empty(_) => {
                                 (format!("{} <- {}", new_name, body_str), new_name.clone())
                             }
-                            Type::Any(_) | Type::Generic(_, _) => (
+                            // `Type::Any` is the one case `display_type` (which produced
+                            // `new_name` above) deliberately leaves unsuffixed — see its
+                            // own `Type::Empty(_) | Type::Any(_) => ""` arm — so `.default`
+                            // must be appended explicitly here. Bare/kinded generics
+                            // (`Type::Generic`, `Type::KindedGen`) are NOT special-cased:
+                            // `display_type` already resolved them to `name.default` via
+                            // `get_class`'s "default" fallback, so they fall through to
+                            // the catch-all `_` arm below and use `new_name` as-is.
+                            Type::Any(_) => (
                                 format!("{}.default <- {}", new_name, body_str),
                                 new_name.clone(),
                             ),
@@ -1858,7 +1866,14 @@ impl RTranslatable<(String, Context)> for Lang {
                     {
                         if let Some(v) = Var::from_language(*var.clone()) {
                             let raw_name = v.get_name();
-                            let typed_name = v.clone().display_type(cont).get_name();
+                            // Use `inner_cont`, not `cont`: `body_content` above rendered
+                            // this same `Let` via `inner_cont` (the re-typed module-body
+                            // context), so `display_type`'s alias lookup must use the same
+                            // context here or it can resolve the same structural type to a
+                            // *different* auto-named alias (e.g. the function gets defined
+                            // as `animate_move.Record4` but exported/registered as
+                            // `animate_move.Record1` — a dangling reference at R runtime).
+                            let typed_name = v.clone().display_type(&inner_cont).get_name();
 
                             // Export the (possibly type-suffixed) member into the module env
                             exports.push(format!("{}${} <- {}", name_str, typed_name, typed_name));
@@ -1874,7 +1889,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             // For typed functions: register as S3 method and create generic
                             let var_type = v.get_type();
                             if !var_type.is_empty() && typed_name != raw_name {
-                                let class_name = cont.get_class_unquoted(&var_type);
+                                let class_name = inner_cont.get_class_unquoted(&var_type);
                                 exports.push(format!(
                                     "registerS3method(\"{}\", \"{}\", {})",
                                     raw_name, class_name, typed_name
@@ -1916,8 +1931,9 @@ impl RTranslatable<(String, Context)> for Lang {
                             if let Some(v) = Var::from_language(*var.clone()) {
                                 let raw_name = v.get_name();
                                 // Reference the actual (possibly type-suffixed)
-                                // binding emitted in the module body.
-                                let typed_name = v.clone().display_type(cont).get_name();
+                                // binding emitted in the module body. Must use
+                                // `inner_cont` for the same reason as above.
+                                let typed_name = v.clone().display_type(&inner_cont).get_name();
                                 exports.push(format!(
                                     "{}$`.test_{}` <- {}",
                                     name_str, raw_name, typed_name

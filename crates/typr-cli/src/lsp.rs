@@ -9,6 +9,15 @@
 //!   - **Go to Definition** provider: jump to symbol definitions (variables, functions, type aliases)
 //!   - **Workspace Symbol** provider: search for symbols across all open documents
 //!   - **Document Symbol** provider: outline/breadcrumbs for the current document
+//!   - **Signature Help** provider: parameter hints while inside a function call's `(...)`
+//!   - **Rename** / **References** providers: occurrence search scoped to a single document
+//!     (textual, word-boundary based — not a full scope-aware resolution)
+//!
+//! Performance: `did_change` debounces diagnostics (`DIAGNOSTICS_DEBOUNCE`) so a
+//! burst of keystrokes triggers one parse + type-check instead of one per
+//! keystroke, and a per-URI `analysis_cache` lets hover/goto-definition/
+//! signatureHelp reuse the `Context` already built for unchanged text instead
+//! of re-running the whole pipeline on every request.
 //!
 //! Launch with `typr lsp`.  The server communicates over stdin/stdout using
 //! the standard LSP JSON-RPC protocol.
@@ -18,9 +27,9 @@ use nom_locate::LocatedSpan;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::*;
-use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tower_lsp_server::jsonrpc::Result;
+use tower_lsp_server::ls_types::*;
+use tower_lsp_server::{Client, LanguageServer, LspService, Server};
 use typr_core::components::context::Context;
 use typr_core::components::error_message::help_data::HelpData;
 use typr_core::components::error_message::syntax_error::SyntaxError;
@@ -31,13 +40,33 @@ use typr_core::processes::parsing::parse;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
+/// Per-URI cache entry: a content hash paired with the `DocumentAnalysis`
+/// computed from that exact content.
+type AnalysisCache = HashMap<Uri, (u64, Arc<lsp_parser::DocumentAnalysis>)>;
+
 /// Shared state: one copy of each open document's full text.
+#[derive(Clone)]
 struct Backend {
     client: Client,
-    documents: Arc<RwLock<HashMap<Url, String>>>,
+    documents: Arc<RwLock<HashMap<Uri, String>>>,
+    /// Per-URI cache of the last successful parse→metaprogram→typing pass,
+    /// keyed by a hash of the content it was computed from. Populated by
+    /// `compute_diagnostics`; consulted by hover/goto-definition/signatureHelp
+    /// so they can skip straight to a position-specific lookup when the
+    /// document hasn't changed since diagnostics last ran.
+    analysis_cache: Arc<RwLock<AnalysisCache>>,
+    /// Per-URI monotonic counter bumped on every `did_change`, used to
+    /// debounce diagnostics: a delayed diagnostics task only runs if its
+    /// generation is still the latest when it wakes up, so a burst of
+    /// keystrokes results in one type-check, not one per keystroke.
+    diagnostics_generation: Arc<RwLock<HashMap<Uri, u64>>>,
 }
 
-#[tower_lsp::async_trait]
+/// How long to wait after the last `did_change` before actually computing
+/// and publishing diagnostics. Keeps fast typing from triggering a full
+/// parse + type-check on every keystroke.
+const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(250);
+
 impl LanguageServer for Backend {
     // ── initialisation ──────────────────────────────────────────────────────
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
@@ -55,6 +84,16 @@ impl LanguageServer for Backend {
                 workspace_symbol_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 definition_provider: Some(OneOf::Left(true)),
+                signature_help_provider: Some(SignatureHelpOptions {
+                    trigger_characters: Some(vec!["(".into(), ",".into()]),
+                    retrigger_characters: None,
+                    work_done_progress_options: Default::default(),
+                }),
+                rename_provider: Some(OneOf::Right(RenameOptions {
+                    prepare_provider: Some(true),
+                    work_done_progress_options: Default::default(),
+                })),
+                references_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -97,11 +136,36 @@ impl LanguageServer for Backend {
             docs.insert(uri.clone(), content.clone());
             drop(docs); // Release the lock before computing diagnostics
 
-            // Compute and publish diagnostics
-            let diagnostics = self.compute_diagnostics(&content, &uri).await;
-            self.client
-                .publish_diagnostics(uri, diagnostics, None)
-                .await;
+            // Debounce: bump this URI's generation now, then only let the
+            // delayed task that wakes up still holding the latest generation
+            // actually compute + publish. A burst of keystrokes collapses
+            // into a single type-check, ~DIAGNOSTICS_DEBOUNCE after typing
+            // settles, instead of one per keystroke.
+            let generation = {
+                let mut gens = self.diagnostics_generation.write().await;
+                let next = gens.get(&uri).copied().unwrap_or(0).wrapping_add(1);
+                gens.insert(uri.clone(), next);
+                next
+            };
+
+            let backend = self.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(DIAGNOSTICS_DEBOUNCE).await;
+
+                let is_latest = {
+                    let gens = backend.diagnostics_generation.read().await;
+                    gens.get(&uri).copied() == Some(generation)
+                };
+                if !is_latest {
+                    return; // superseded by a later edit; let that one publish
+                }
+
+                let diagnostics = backend.compute_diagnostics(&content, &uri).await;
+                backend
+                    .client
+                    .publish_diagnostics(uri, diagnostics, None)
+                    .await;
+            });
         }
     }
 
@@ -112,28 +176,28 @@ impl LanguageServer for Backend {
 
         let docs = self.documents.read().await;
         let content = match docs.get(&uri) {
-            Some(c) => c,
+            Some(c) => c.clone(),
             None => return Ok(None),
         };
+        drop(docs);
 
         // Extract the file path from the URI so imported `mod`/`use` modules
         // can be resolved (mirrors `goto_definition`).
         let file_path = uri
             .to_file_path()
-            .ok()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        // Offload parsing + typing to a blocking thread so we don't stall
-        // the LSP event loop.
+        let analysis = match self.analysis_for(&uri, &content, &file_path).await {
+            Some(a) => a,
+            None => return Ok(None),
+        };
+
+        // Offload the position-specific lookup to a blocking thread so we
+        // don't stall the LSP event loop.
         let content_owned = content.clone();
         let info = tokio::task::spawn_blocking(move || {
-            lsp_parser::find_type_at(
-                &content_owned,
-                position.line,
-                position.character,
-                &file_path,
-            )
+            lsp_parser::resolve_hover(&analysis, &content_owned, position.line, position.character)
         })
         .await
         .ok() // if the blocking task panicked, treat as None
@@ -166,7 +230,6 @@ impl LanguageServer for Backend {
         // sibling `.ty` files (same approach as `goto_definition`).
         let file_path = uri
             .to_file_path()
-            .ok()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
 
@@ -195,7 +258,7 @@ impl LanguageServer for Backend {
     async fn symbol(
         &self,
         params: WorkspaceSymbolParams,
-    ) -> Result<Option<Vec<SymbolInformation>>> {
+    ) -> Result<Option<WorkspaceSymbolResponse>> {
         let query = params.query.to_lowercase();
         let docs = self.documents.read().await;
 
@@ -224,7 +287,7 @@ impl LanguageServer for Backend {
         if all_symbols.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(all_symbols))
+            Ok(Some(all_symbols.into()))
         }
     }
 
@@ -263,24 +326,30 @@ impl LanguageServer for Backend {
 
         let docs = self.documents.read().await;
         let content = match docs.get(&uri) {
-            Some(c) => c,
+            Some(c) => c.clone(),
             None => return Ok(None),
         };
+        drop(docs);
 
         // Extract the file path from the URI for cross-file definition lookup.
         let file_path = uri
             .to_file_path()
-            .ok()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        // Offload parsing + typing to a blocking thread so we don't stall
-        // the LSP event loop.
+        let analysis = match self.analysis_for(&uri, &content, &file_path).await {
+            Some(a) => a,
+            None => return Ok(None),
+        };
+
+        // Offload the position-specific lookup to a blocking thread so we
+        // don't stall the LSP event loop.
         let content_owned = content.clone();
         let uri_owned = uri.clone();
         let file_path_owned = file_path.clone();
         let info = tokio::task::spawn_blocking(move || {
-            lsp_parser::find_definition_at(
+            lsp_parser::resolve_definition(
+                &analysis,
                 &content_owned,
                 position.line,
                 position.character,
@@ -295,7 +364,7 @@ impl LanguageServer for Backend {
             Some(def_info) => {
                 // Use the definition's file path if available, otherwise use current file
                 let target_uri = match &def_info.file_path {
-                    Some(path) => Url::from_file_path(path).unwrap_or(uri_owned),
+                    Some(path) => Uri::from_file_path(path).unwrap_or(uri_owned),
                     None => uri_owned,
                 };
                 Ok(Some(GotoDefinitionResponse::Scalar(Location {
@@ -306,6 +375,145 @@ impl LanguageServer for Backend {
             None => Ok(None),
         }
     }
+
+    // ── textDocument/signatureHelp ───────────────────────────────────────────
+    async fn signature_help(&self, params: SignatureHelpParams) -> Result<Option<SignatureHelp>> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+
+        let docs = self.documents.read().await;
+        let content = match docs.get(&uri) {
+            Some(c) => c.clone(),
+            None => return Ok(None),
+        };
+        drop(docs);
+
+        let file_path = uri
+            .to_file_path()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        let analysis = match self.analysis_for(&uri, &content, &file_path).await {
+            Some(a) => a,
+            None => return Ok(None),
+        };
+
+        let help = tokio::task::spawn_blocking(move || {
+            lsp_parser::resolve_signature_help(
+                &analysis,
+                &content,
+                position.line,
+                position.character,
+            )
+        })
+        .await
+        .ok()
+        .flatten();
+
+        Ok(help)
+    }
+
+    // ── textDocument/prepareRename ───────────────────────────────────────────
+    async fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> Result<Option<PrepareRenameResponse>> {
+        let uri = params.text_document.uri;
+        let position = params.position;
+
+        let docs = self.documents.read().await;
+        let content = match docs.get(&uri) {
+            Some(c) => c.clone(),
+            None => return Ok(None),
+        };
+        drop(docs);
+
+        let range = tokio::task::spawn_blocking(move || {
+            lsp_parser::find_renameable_range_at(&content, position.line, position.character)
+        })
+        .await
+        .ok()
+        .flatten();
+
+        Ok(range.map(PrepareRenameResponse::Range))
+    }
+
+    // ── textDocument/rename ───────────────────────────────────────────────────
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+        let uri = params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let new_name = params.new_name;
+
+        let docs = self.documents.read().await;
+        let content = match docs.get(&uri) {
+            Some(c) => c.clone(),
+            None => return Ok(None),
+        };
+        drop(docs);
+
+        let ranges = tokio::task::spawn_blocking(move || {
+            lsp_parser::find_word_occurrences_at(&content, position.line, position.character)
+        })
+        .await
+        .ok()
+        .flatten();
+
+        let ranges = match ranges {
+            Some(ranges) if !ranges.is_empty() => ranges,
+            _ => return Ok(None),
+        };
+
+        let edits: Vec<TextEdit> = ranges
+            .into_iter()
+            .map(|range| TextEdit {
+                range,
+                new_text: new_name.clone(),
+            })
+            .collect();
+
+        let mut changes = HashMap::new();
+        changes.insert(uri, edits);
+
+        Ok(Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }))
+    }
+
+    // ── textDocument/references ──────────────────────────────────────────────
+    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
+        let uri = params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+
+        let docs = self.documents.read().await;
+        let content = match docs.get(&uri) {
+            Some(c) => c.clone(),
+            None => return Ok(None),
+        };
+        drop(docs);
+
+        let ranges = tokio::task::spawn_blocking(move || {
+            lsp_parser::find_word_occurrences_at(&content, position.line, position.character)
+        })
+        .await
+        .ok()
+        .flatten();
+
+        match ranges {
+            Some(ranges) if !ranges.is_empty() => {
+                let locations = ranges
+                    .into_iter()
+                    .map(|range| Location {
+                        uri: uri.clone(),
+                        range,
+                    })
+                    .collect();
+                Ok(Some(locations))
+            }
+            _ => Ok(None),
+        }
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -313,30 +521,119 @@ impl LanguageServer for Backend {
 // ══════════════════════════════════════════════════════════════════════════
 
 impl Backend {
-    /// Compute diagnostics for a document by parsing and type-checking.
-    async fn compute_diagnostics(&self, content: &str, uri: &Url) -> Vec<Diagnostic> {
+    /// Compute diagnostics for a document by parsing and type-checking, and
+    /// cache the resulting `Context` keyed by this content's hash so that a
+    /// hover/goto-definition/signatureHelp request against the *same*
+    /// unedited text (the common case: those fire right after diagnostics,
+    /// with no keystroke in between) can skip straight to a cheap lookup
+    /// instead of re-running parse→metaprogram→typing from scratch.
+    async fn compute_diagnostics(&self, content: &str, uri: &Uri) -> Vec<Diagnostic> {
         let content_owned = content.to_string();
         let file_name = uri.to_string();
 
-        tokio::task::spawn_blocking(move || {
+        let (diagnostics, context, ast) = tokio::task::spawn_blocking(move || {
             check_code_and_extract_errors(&content_owned, &file_name)
         })
         .await
         .unwrap_or_else(|_| {
             // If the blocking task panicked, return a generic diagnostic
-            vec![Diagnostic {
-                range: Range::new(Position::new(0, 0), Position::new(0, 0)),
-                severity: Some(DiagnosticSeverity::ERROR),
-                message: "Internal error while checking code".to_string(),
-                source: Some("typr".to_string()),
-                ..Default::default()
-            }]
+            (
+                vec![Diagnostic {
+                    range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    message: "Internal error while checking code".to_string(),
+                    source: Some("typr".to_string()),
+                    ..Default::default()
+                }],
+                None,
+                None,
+            )
+        });
+
+        if let (Some(context), Some(ast)) = (context, ast) {
+            self.store_analysis(uri, content, lsp_parser::DocumentAnalysis { context, ast })
+                .await;
+        }
+
+        diagnostics
+    }
+
+    /// Look up a cached `DocumentAnalysis` for `uri`, but only if it was
+    /// computed from exactly this `content` (compared via a content hash,
+    /// not the full string, to keep the cache cheap to consult).
+    async fn get_cached_analysis(
+        &self,
+        uri: &Uri,
+        content: &str,
+    ) -> Option<Arc<lsp_parser::DocumentAnalysis>> {
+        let hash = hash_content(content);
+        let cache = self.analysis_cache.read().await;
+        cache
+            .get(uri)
+            .filter(|(cached_hash, _)| *cached_hash == hash)
+            .map(|(_, analysis)| analysis.clone())
+    }
+
+    /// Store a freshly computed `DocumentAnalysis` for `uri`, keyed by a hash
+    /// of the `content` it was computed from.
+    async fn store_analysis(
+        &self,
+        uri: &Uri,
+        content: &str,
+        analysis: lsp_parser::DocumentAnalysis,
+    ) {
+        let hash = hash_content(content);
+        let mut cache = self.analysis_cache.write().await;
+        cache.insert(uri.clone(), (hash, Arc::new(analysis)));
+    }
+
+    /// Get a `DocumentAnalysis` for `uri`/`content`, reusing the cached one
+    /// from the last `compute_diagnostics` pass when it's still fresh, or
+    /// running the parse→metaprogram→typing pipeline (and caching the
+    /// result) otherwise. Used by hover/goto-definition/signatureHelp, which
+    /// all need the same `Context` and previously each rebuilt it from
+    /// scratch on every request.
+    async fn analysis_for(
+        &self,
+        uri: &Uri,
+        content: &str,
+        file_path: &str,
+    ) -> Option<Arc<lsp_parser::DocumentAnalysis>> {
+        if let Some(analysis) = self.get_cached_analysis(uri, content).await {
+            return Some(analysis);
+        }
+
+        let content_owned = content.to_string();
+        let file_path_owned = file_path.to_string();
+        let analysis = tokio::task::spawn_blocking(move || {
+            lsp_parser::analyze_document(&content_owned, &file_path_owned)
         })
+        .await
+        .ok()
+        .flatten()?;
+
+        self.store_analysis(uri, content, analysis.clone()).await;
+        Some(Arc::new(analysis))
     }
 }
 
+/// A cheap, non-cryptographic hash of document content, used only to detect
+/// whether a cached `DocumentAnalysis` is still valid for the current text.
+fn hash_content(content: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    content.hash(&mut hasher);
+    hasher.finish()
+}
+
 /// Check the code and extract errors from parsing and type-checking.
-fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnostic> {
+/// Also returns the final `Context` when type-checking ran to completion
+/// (even if it collected errors along the way), so the caller can populate
+/// the per-URI analysis cache shared with hover/goto-definition/signatureHelp.
+fn check_code_and_extract_errors(
+    content: &str,
+    file_name: &str,
+) -> (Vec<Diagnostic>, Option<Context>, Option<Lang>) {
     let mut diagnostics = Vec::new();
 
     // Convert URI to file path if needed
@@ -386,14 +683,14 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
                     ..Default::default()
                 });
             }
-            return diagnostics;
+            return (diagnostics, None, None);
         }
     };
 
     // 1b. Resolve module imports the same way the CLI does, so that `use M::x`
     // and other cross-module references are known to the type checker. Without
     // this the LSP would flag every imported symbol as an "undefined variable"
-    // even though the code compiles fine. Mirrors `lsp_parser::find_definition_at`.
+    // even though the code compiles fine. Mirrors `lsp_parser::analyze_document`.
     let environment = lsp_parser::detect_environment(path);
     if let Ok(expanded) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         crate::metaprogramming::metaprogrammation(ast.clone(), environment)
@@ -407,10 +704,12 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
         typr_core::typing_with_errors(&context, &ast)
     }));
 
+    let mut final_context = None;
     match typing_result {
         Ok(result) => {
             use typr_core::TypRError;
 
+            final_context = Some(result.get_context().clone());
             for error in result.get_errors() {
                 // Skip errors that originate from an imported module file: their
                 // offsets are relative to *that* file and would map to bogus
@@ -459,7 +758,8 @@ fn check_code_and_extract_errors(content: &str, file_name: &str) -> Vec<Diagnost
         }
     }
 
-    diagnostics
+    let final_ast = final_context.is_some().then(|| ast.clone());
+    (diagnostics, final_context, final_ast)
 }
 
 /// Extract an LSP diagnostic from a panic payload.
@@ -690,7 +990,7 @@ fn find_token_end(content: &str, offset: usize, start_pos: Position) -> u32 {
 
 /// Get all symbols from a document for workspace/symbol support.
 #[allow(deprecated)]
-fn get_workspace_symbols(content: &str, file_uri: &Url) -> Vec<SymbolInformation> {
+fn get_workspace_symbols(content: &str, file_uri: &Uri) -> Vec<SymbolInformation> {
     let mut symbols = Vec::new();
 
     let span: Span = LocatedSpan::new_extra(content, file_uri.path().to_string());
@@ -711,7 +1011,7 @@ fn get_workspace_symbols(content: &str, file_uri: &Url) -> Vec<SymbolInformation
 fn collect_symbols_from_ast(
     lang: &Lang,
     content: &str,
-    file_uri: &Url,
+    file_uri: &Uri,
     container_name: Option<String>,
     symbols: &mut Vec<SymbolInformation>,
 ) {
@@ -1029,6 +1329,8 @@ pub async fn run_lsp() {
     let (service, socket) = LspService::new(|client| Backend {
         client,
         documents: Arc::new(RwLock::new(HashMap::new())),
+        analysis_cache: Arc::new(RwLock::new(HashMap::new())),
+        diagnostics_generation: Arc::new(RwLock::new(HashMap::new())),
     });
 
     Server::new(stdin, stdout, socket).serve(service).await;
@@ -1074,7 +1376,7 @@ module Math {
 use Math::pi;
 let x <- pi;
 ";
-        let diags = check_code_and_extract_errors(content, "test.ty");
+        let (diags, _, _) = check_code_and_extract_errors(content, "test.ty");
         let undefined: Vec<_> = diags
             .iter()
             .filter(|d| d.message.contains("Undefined"))
@@ -1092,7 +1394,7 @@ let x <- pi;
     #[test]
     fn genuine_type_error_in_current_file_is_still_reported() {
         let content = "let x: int <- \"hello\";\n";
-        let diags = check_code_and_extract_errors(content, "test.ty");
+        let (diags, _, _) = check_code_and_extract_errors(content, "test.ty");
         assert!(
             !diags.is_empty(),
             "expected at least one diagnostic for a type error, got none"
@@ -1114,7 +1416,7 @@ let x <- pi;
         let content = "mod math;\nuse math::pi;\nlet x <- pi;\n";
         std::fs::write(&main_file, content).unwrap();
 
-        let diags = check_code_and_extract_errors(content, main_file.to_str().unwrap());
+        let (diags, _, _) = check_code_and_extract_errors(content, main_file.to_str().unwrap());
 
         let _ = std::fs::remove_dir_all(&dir);
 
@@ -1150,7 +1452,7 @@ let x <- pi;
         let content = "mod person;\nuse person::make_person;\nlet x <- make_person(\"a\");\n";
         std::fs::write(&main_file, content).unwrap();
 
-        let diags = check_code_and_extract_errors(content, main_file.to_str().unwrap());
+        let (diags, _, _) = check_code_and_extract_errors(content, main_file.to_str().unwrap());
 
         let _ = std::fs::remove_dir_all(&dir);
 
@@ -1200,7 +1502,7 @@ let x <- 5;
     #[test]
     fn missing_return_type_panic_yields_precise_position() {
         let content = "let f <- fn(x: int): { x };\n";
-        let diags = check_code_and_extract_errors(content, "test.ty");
+        let (diags, _, _) = check_code_and_extract_errors(content, "test.ty");
 
         assert!(!diags.is_empty(), "expected a diagnostic, got none");
         let diag = &diags[0];
@@ -1214,5 +1516,77 @@ let x <- 5;
             "unexpected message: {}",
             diag.message
         );
+    }
+
+    /// Build a `Backend` with a real (but unconnected) `Client` for testing
+    /// the cache helper methods directly, without driving the LSP transport.
+    fn test_backend() -> Backend {
+        let (service, _socket) = LspService::new(|client| Backend {
+            client,
+            documents: Arc::new(RwLock::new(HashMap::new())),
+            analysis_cache: Arc::new(RwLock::new(HashMap::new())),
+            diagnostics_generation: Arc::new(RwLock::new(HashMap::new())),
+        });
+        service.inner().clone()
+    }
+
+    /// `analysis_for` must populate the cache on a miss, and a second call
+    /// with the *same* content must hit it (P5 perf fix: hover/goto-def/
+    /// signatureHelp skip a full re-parse + re-type-check when the document
+    /// hasn't changed since the last analysis).
+    #[tokio::test]
+    async fn analysis_for_caches_unchanged_content() {
+        let backend = test_backend();
+        let uri = "file:///test.ty".parse::<Uri>().unwrap();
+        // Two statements, not one: a lone top-level statement hits a
+        // pre-existing typr-core quirk where `Lang::Lines` with exactly one
+        // entry doesn't thread that entry's context updates through (see
+        // `typing()`'s `exprs.len() == 1` branch) — unrelated to this cache.
+        let content = "let x <- 5;\nlet y <- x;\n";
+
+        assert!(
+            backend.get_cached_analysis(&uri, content).await.is_none(),
+            "cache must start empty"
+        );
+
+        let analysis = backend
+            .analysis_for(&uri, content, "test.ty")
+            .await
+            .expect("analysis should succeed for valid code");
+        assert!(!analysis.context.get_types_from_name("x").is_empty());
+
+        // Second call with identical content must come straight from the cache.
+        let cached = backend
+            .get_cached_analysis(&uri, content)
+            .await
+            .expect("unchanged content must hit the cache populated above");
+        assert!(!cached.context.get_types_from_name("x").is_empty());
+    }
+
+    /// Changing the document's content must invalidate the cache entry: a
+    /// stale `Context` from before the edit would resolve hover/definitions
+    /// against outdated bindings.
+    #[tokio::test]
+    async fn analysis_for_invalidates_cache_on_content_change() {
+        let backend = test_backend();
+        let uri = "file:///test.ty".parse::<Uri>().unwrap();
+        let original = "let x <- 5;\nlet z <- x;\n";
+        let edited = "let y <- 5;\nlet z <- y;\n";
+
+        backend
+            .analysis_for(&uri, original, "test.ty")
+            .await
+            .expect("analysis should succeed for valid code");
+
+        assert!(
+            backend.get_cached_analysis(&uri, edited).await.is_none(),
+            "edited content must not hit the cache entry from before the edit"
+        );
+
+        let analysis = backend
+            .analysis_for(&uri, edited, "test.ty")
+            .await
+            .expect("analysis should succeed for the edited code");
+        assert!(!analysis.context.get_types_from_name("y").is_empty());
     }
 }

@@ -38,8 +38,7 @@ toml.workspace = true
 # CLI/System dependencies (NOT WASM-compatible)
 clap.workspace = true
 tokio.workspace = true
-tower-lsp.workspace = true
-lsp-types.workspace = true
+tower-lsp-server.workspace = true
 rustyline.workspace = true
 syntect.workspace = true
 bincode.workspace = true

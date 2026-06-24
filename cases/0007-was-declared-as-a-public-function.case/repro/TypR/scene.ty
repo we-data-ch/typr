@@ -1,0 +1,34 @@
+mod color;
+mod object;
+
+use object::Object;
+use color::Color;
+
+@pub
+type Scene <- list {
+	width: int,
+	height: int,
+	background: Color,
+	fps: int,
+	objects: [Object]
+};
+
+@pub
+let new_scene <- fn(): Scene {
+	Scene:{
+		width: 1920,
+		height: 1080,
+		background: "#000000",
+		fps: 60,
+		objects: [] as! [Object]
+	}	
+};
+
+@pub
+let add <- fn(self: Scene, obj: Object): Scene {
+	Scene:{
+		objects: self$objects.extend(obj),
+		...self
+	}	
+};
+

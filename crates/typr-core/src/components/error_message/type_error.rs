@@ -54,6 +54,9 @@ pub enum TypeError {
     /// function parameter to anchor it, or without the required `...base`
     /// spread.
     SelfOutsideContext(HelpData),
+    /// A parameter with no default value follows a parameter that has one
+    /// (e.g. `fn(a: int = 1, b: int): int { ... }`) — `(param_name, position)`.
+    NonTrailingDefaultParam(String, HelpData),
 }
 
 impl TypeError {
@@ -85,6 +88,7 @@ impl TypeError {
             TypeError::EmbedConflict(_, _, _, h) => Some(h.clone()),
             TypeError::KindMismatch(_, _, h) => Some(h.clone()),
             TypeError::SelfOutsideContext(h) => Some(h.clone()),
+            TypeError::NonTrailingDefaultParam(_, h) => Some(h.clone()),
         }
     }
 
@@ -209,6 +213,12 @@ impl TypeError {
             }
             TypeError::SelfOutsideContext(_) => {
                 "Self is not defined here: no enclosing function parameter to anchor it".to_string()
+            }
+            TypeError::NonTrailingDefaultParam(name, _) => {
+                format!(
+                    "Parameter '{}' has no default value, but appears after a parameter that does",
+                    name
+                )
             }
         }
     }
@@ -574,6 +584,18 @@ impl ErrorMsg for TypeError {
                     .text("Self is not defined in this context".to_string())
                     .pos_text("Self has no anchoring parameter")
                     .help("Self:{ ... } must appear inside a function body and include a `...base` spread (e.g. `Self:{ x = 1, ...a }`).")
+                    .build()
+            }
+            TypeError::NonTrailingDefaultParam(name, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "Parameter '{}' has no default value, but appears after a parameter that does",
+                        name
+                    ))
+                    .pos_text("Missing default value")
+                    .help("Once a parameter has a default value, every parameter after it must also have one.")
                     .build()
             }
         };
