@@ -1,0 +1,39 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 334
+expression: json
+---
+{
+  "@context": "https://typr-lang.dev/spg/v1/context.jsonld",
+  "package": "mypkg",
+  "version": "0.1.0",
+  "nodes": [
+    {
+      "id": "type:Color",
+      "kind": "type_def",
+      "name": "Color",
+      "module_path": [],
+      "visibility": "private",
+      "doc": null,
+      "source": null,
+      "payload": {
+        "kind": "union",
+        "variants": [
+          [
+            "Red",
+            null
+          ],
+          [
+            "Green",
+            null
+          ],
+          [
+            "Blue",
+            null
+          ]
+        ]
+      }
+    }
+  ],
+  "edges": []
+}

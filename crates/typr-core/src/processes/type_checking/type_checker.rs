@@ -102,6 +102,10 @@ impl TypeChecker {
         self.types.clone()
     }
 
+    pub fn get_code(&self) -> Vector<Lang> {
+        self.code.clone()
+    }
+
     pub fn transpile(self) -> String {
         let code = self
             .code

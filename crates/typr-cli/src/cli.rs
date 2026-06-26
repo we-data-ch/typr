@@ -10,9 +10,9 @@
 //! - `typr lsp`: Start Language Server Protocol server
 
 use crate::project::{
-    build_file, build_project, check_file, check_project, clean, cran, debug_file, document, load,
-    new, pkg_install, pkg_uninstall, run_file, run_file_keep, run_project, test, use_package,
-    DebugOptions,
+    build_file, build_project, check_file, check_project, clean, cran, debug_file, document,
+    generate_spg, load, new, pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep,
+    run_project, test, use_package, DebugOptions,
 };
 use crate::repl;
 use crate::standard_library::standard_library;
@@ -86,6 +86,8 @@ enum Commands {
         case_command: CaseCommands,
     },
     Document,
+    /// Build documentation (.Rd via SPG) then generate a pkgdown website.
+    Pkgdown,
     Use {
         package_name: String,
     },
@@ -95,6 +97,12 @@ enum Commands {
     Clean,
     Repl,
     Lsp,
+    /// Generate a Semantic Package Graph (spg.json) from the current project.
+    Spg {
+        /// Output path (default: spg.json).
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -197,6 +205,7 @@ pub fn start() {
             CaseCommands::Show { id } => crate::cases::show(&id),
         },
         Some(Commands::Document) => document(),
+        Some(Commands::Pkgdown) => pkgdown(),
         Some(Commands::Use { package_name }) => use_package(&package_name),
         Some(Commands::Load) => load(),
         Some(Commands::Cran) => cran(),
@@ -213,6 +222,7 @@ pub fn start() {
             rt.block_on(crate::lsp::run_lsp());
         }
         Some(Commands::Repl) => repl::start(),
+        Some(Commands::Spg { output }) => generate_spg(output),
         _ => {
             println!("Please specify a subcommand or file to execute");
             std::process::exit(1);

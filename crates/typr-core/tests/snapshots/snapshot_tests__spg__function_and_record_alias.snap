@@ -1,0 +1,75 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 323
+expression: json
+---
+{
+  "@context": "https://typr-lang.dev/spg/v1/context.jsonld",
+  "package": "mypkg",
+  "version": "0.1.0",
+  "nodes": [
+    {
+      "id": "type:Point",
+      "kind": "type_def",
+      "name": "Point",
+      "module_path": [],
+      "visibility": "private",
+      "doc": null,
+      "source": null,
+      "payload": {
+        "kind": "record",
+        "fields": [
+          [
+            "x",
+            "int"
+          ],
+          [
+            "y",
+            "int"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "function:distance",
+      "kind": "function",
+      "name": "distance",
+      "module_path": [],
+      "visibility": "public",
+      "doc": null,
+      "source": null,
+      "payload": {
+        "kind": "function",
+        "params": [
+          [
+            "p",
+            "Point"
+          ]
+        ],
+        "returns": "num"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "function:distance",
+      "to": "type:Point",
+      "kind": "consumes-type"
+    },
+    {
+      "from": "function:distance",
+      "to": "type:Point",
+      "kind": "uses"
+    },
+    {
+      "from": "type:Point",
+      "to": "function:distance",
+      "kind": "parameter-of"
+    },
+    {
+      "from": "type:Point",
+      "to": "function:distance",
+      "kind": "used-by"
+    }
+  ]
+}

@@ -43,7 +43,9 @@ pub mod io;
 pub mod lsp;
 pub mod lsp_parser;
 pub mod metaprogramming;
+pub mod progress;
 pub mod project;
+pub mod rd_renderer;
 pub mod repl;
 pub mod standard_library;
 

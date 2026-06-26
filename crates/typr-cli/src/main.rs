@@ -9,7 +9,9 @@ mod io;
 mod lsp;
 mod lsp_parser;
 mod metaprogramming;
+mod progress;
 mod project;
+mod rd_renderer;
 mod repl;
 mod standard_library;
 

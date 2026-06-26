@@ -3,6 +3,7 @@
 //! Run `cargo insta review` to review/accept new snapshots.
 //! Run `cargo test` to run all tests.
 
+use typr_core::processes::spg::build_spg_from_items;
 use typr_core::utils::fluent_parser::FluentParser;
 
 fn c_types(lines: &[&str]) -> String {
@@ -303,5 +304,33 @@ mod typing {
             .parse_type_next()
             .get_last_type();
         insta::assert_debug_snapshot!(ty);
+    }
+}
+
+mod spg {
+    use super::*;
+
+    #[test]
+    fn function_and_record_alias() {
+        let fp = FluentParser::new()
+            .push("type Point <- list { x: int, y: int };")
+            .parse_type_next()
+            .push("@pub let distance <- fn(p: Point): num { 0.0 };")
+            .parse_type_next();
+        let items: Vec<_> = fp.get_new_code().iter().cloned().collect();
+        let spg = build_spg_from_items(&items, "mypkg", "0.1.0");
+        let json = serde_json::to_string_pretty(&spg).unwrap();
+        insta::assert_snapshot!(json);
+    }
+
+    #[test]
+    fn union_alias() {
+        let fp = FluentParser::new()
+            .push("type Color <- .Red | .Green | .Blue;")
+            .parse_type_next();
+        let items: Vec<_> = fp.get_new_code().iter().cloned().collect();
+        let spg = build_spg_from_items(&items, "mypkg", "0.1.0");
+        let json = serde_json::to_string_pretty(&spg).unwrap();
+        insta::assert_snapshot!(json);
     }
 }

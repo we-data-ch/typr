@@ -7,6 +7,7 @@
 //! - Package management
 
 use crate::engine::{parse_code, parse_code_from_str, write_std_for_type_checking};
+use crate::progress::Step;
 use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -19,6 +20,8 @@ use typr_core::components::context::Context;
 use typr_core::components::language::var::Var;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::type_system::TypeSystem;
+use typr_core::processes::spg::build_spg_from_items;
+use typr_core::processes::spg::model::{NodePayload, Spg, Visibility};
 use typr_core::processes::type_checking::type_checker::TypeChecker;
 
 /// Options for the `typr debug` subcommand
@@ -580,48 +583,200 @@ pub fn new(name: &str, renv: bool) {
 
 pub fn check_project() {
     let context = Context::default().set_environment(Environment::Project);
+
+    let step = Step::new("Parsing");
     let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    step.done();
+
+    let step = Step::new("Type checking");
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     if type_checker.has_errors() {
+        step.fail();
         eprintln!("Type errors found:");
         type_checker.show_errors();
         std::process::exit(1);
     }
+    step.done();
     println!("Code verification successful!");
 }
 
 pub fn check_file(path: &PathBuf) {
     let context = Context::default().set_environment(Environment::Project);
-    let lang = parse_code(path, context.get_environment());
     let dir = PathBuf::from(".");
     write_std_for_type_checking(&dir);
+
+    let step = Step::new("Parsing");
+    let lang = parse_code(path, context.get_environment());
+    step.done();
+
+    let step = Step::new("Type checking");
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     write_context_json(&type_checker.get_context(), &dir);
     if type_checker.has_errors() {
+        step.fail();
         eprintln!("Type errors found:");
         type_checker.show_errors();
         std::process::exit(1);
     }
+    step.done();
     println!("File verification {:?} successful!", path);
 }
 
-pub fn build_project(test_mode: bool) {
-    build_project_impl(test_mode, false);
+/// Build a ROxygen2 comment block for a function node from the SPG.
+/// Returns an empty string if there is nothing worth emitting.
+fn roxygen_function_block(
+    doc: Option<&str>,
+    params: &[(String, String)],
+    returns: &str,
+) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    if let Some(d) = doc {
+        let mut it = d.lines();
+        if let Some(title) = it.next() {
+            let t = title.trim();
+            if !t.is_empty() {
+                lines.push(format!("#' {}", t));
+            }
+        }
+        let rest: Vec<&str> = it.map(str::trim).filter(|l| !l.is_empty()).collect();
+        if !rest.is_empty() {
+            lines.push("#'".to_string());
+            for l in rest {
+                lines.push(format!("#' {}", l));
+            }
+        }
+        if !lines.is_empty() {
+            lines.push("#'".to_string());
+        }
+    }
+    for (name, ty) in params {
+        lines.push(format!("#' @param {} \\code{{{}}}", name, ty));
+    }
+    if !returns.is_empty() && returns != "Empty" {
+        lines.push(format!("#' @return \\code{{{}}}", returns));
+    }
+    lines.join("\n")
 }
 
-fn build_project_impl(test_mode: bool, quiet: bool) {
+/// Build (pattern, replacement) pairs for ROxygen2 injection from the SPG.
+///
+/// Three patterns per function node:
+/// - P2: S3 method     `#' @export\n#' @method name Class`  (typed functions)
+/// - P1: plain fn      `#' @export\nname <- function`        (untyped / Empty)
+/// - P3: re-export     `#' @export\nname <- Module$name`     (inline module @export)
+///
+/// P1/P2 match in main.R (top-level) and in external module R files.
+/// P3 matches inline-module re-exports in main.R; is a no-op in module files.
+fn build_roxygen_entries(spg: &Spg) -> Vec<(String, String)> {
+    spg.nodes
+        .iter()
+        .filter(|n| n.visibility != Visibility::Private)
+        .filter_map(|node| {
+            let block = match &node.payload {
+                NodePayload::Function { params, returns } => {
+                    roxygen_function_block(node.doc.as_deref(), params, returns)
+                }
+                _ => return None,
+            };
+            if block.is_empty() {
+                return None;
+            }
+            let name = &node.name;
+            let mut entries: Vec<(String, String)> = Vec::new();
+            entries.push((
+                format!("#' @export\n#' @method {} ", name),
+                format!("{}\n#' @export\n#' @method {} ", block, name),
+            ));
+            entries.push((
+                format!("#' @export\n{} <- function", name),
+                format!("{}\n#' @export\n{} <- function", block, name),
+            ));
+            if !node.module_path.is_empty() {
+                let mod_path = node.module_path.join("$");
+                entries.push((
+                    format!("#' @export\n{} <- {}${}", name, mod_path, name),
+                    format!("{}\n#' @export\n{} <- {}${}", block, name, mod_path, name),
+                ));
+            }
+            Some(entries)
+        })
+        .flatten()
+        .collect()
+}
+
+/// Apply (pattern, replacement) pairs to `content`.
+fn inject_roxygen_headers(content: String, entries: &[(String, String)]) -> String {
+    if entries.is_empty() {
+        return content;
+    }
+    let mut result = content;
+    for (pattern, replacement) in entries {
+        result = result.replace(pattern.as_str(), replacement.as_str());
+    }
+    result
+}
+
+/// Apply injection to every `R/*.R` file written as a side-effect during transpilation.
+/// Skips the fixed generated files (std.R, generic_functions.R, types.R, main.R).
+fn inject_roxygen_into_module_files(r_dir: &Path, entries: &[(String, String)]) {
+    if entries.is_empty() {
+        return;
+    }
+    const SKIP: &[&str] = &["std.R", "generic_functions.R", "types.R", "main.R"];
+    let Ok(read_dir) = fs::read_dir(r_dir) else {
+        return;
+    };
+    for dir_entry in read_dir.flatten() {
+        let path = dir_entry.path();
+        let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if !file_name.ends_with(".R") || SKIP.contains(&file_name) {
+            continue;
+        }
+        let Ok(content) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let injected = inject_roxygen_headers(content, entries);
+        let _ = fs::write(&path, injected);
+    }
+}
+
+pub fn build_project(test_mode: bool) {
+    build_project_impl(test_mode, false, false);
+}
+
+fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool) {
     let dir = PathBuf::from(".");
     let context = Context::default()
         .set_environment(Environment::Project)
         .set_test_mode(test_mode);
+
+    let step = Step::new("Parsing");
     let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    step.done();
+
+    let step = Step::new("Type checking");
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     if type_checker.has_errors() {
+        step.fail();
         type_checker.show_errors();
+    } else {
+        step.done();
     }
 
+    let items: Vec<Lang> = type_checker.get_code().iter().cloned().collect();
+    let spg = build_spg_from_items(&items, "", "");
+    let roxygen_entries = build_roxygen_entries(&spg);
+
+    let step = Step::new("Transpiling");
     typr_core::processes::transpiling::reset_include_stack();
     let content = type_checker.clone().transpile();
+    let content = inject_roxygen_headers(content, &roxygen_entries);
+    inject_roxygen_into_module_files(&PathBuf::from("R"), &roxygen_entries);
+    step.done();
+
+    let step = Step::new("Writing R files");
     write_header(type_checker.get_context(), &dir, Environment::Project);
     write_to_r_lang(
         content,
@@ -630,28 +785,46 @@ fn build_project_impl(test_mode: bool, quiet: bool) {
         context.get_environment(),
     );
     write_loader(&dir);
-    document_impl(quiet);
+    step.done();
+
+    if !skip_document {
+        document_impl(quiet);
+    }
     if !quiet {
         println!("R code successfully generated in the R/ folder");
     }
 }
 
 pub fn build_file(path: &Path, test_mode: bool) {
-    let lang = parse_code(path, Environment::StandAlone);
     let dir = PathBuf::from(".");
-
     write_std_for_type_checking(&dir);
+
+    let step = Step::new("Parsing");
+    let lang = parse_code(path, Environment::StandAlone);
+    step.done();
+
     let context = Context::default().set_test_mode(test_mode);
+
+    let step = Step::new("Type checking");
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
+    step.done();
+
     let r_file_name = path
         .file_name()
         .unwrap()
         .to_str()
         .unwrap()
         .replace(".ty", ".R");
+
+    let step = Step::new("Transpiling");
     let content = type_checker.clone().transpile();
+    step.done();
+
+    let step = Step::new("Writing R files");
     write_header(type_checker.get_context(), &dir, Environment::StandAlone);
     write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
+    step.done();
+
     println!("Generated R code: {:?}", dir.join(&r_file_name));
 }
 
@@ -679,7 +852,7 @@ fn rprof_wrap(r_body: &str) -> String {
 }
 
 pub fn run_project(profile: bool) {
-    build_project_impl(false, true);
+    build_project_impl(false, true, true);
     // Use the TypR loader instead of devtools to respect module encapsulation.
     // Top-level code in main.ty already runs as a side effect of sourcing it
     // (sys.source() inside load_module()). The `module Main { @pub let main
@@ -703,15 +876,18 @@ pub fn run_project(profile: bool) {
     } else {
         base_command.to_string()
     };
+    let step = Step::new("Running");
     match Command::new("Rscript").arg("-e").arg(&r_command).output() {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
             if output.status.success() {
+                step.clear();
                 if !stdout.is_empty() {
                     print!("{}", stdout);
                 }
             } else {
+                step.fail();
                 eprintln!("Error (code {}):\n{}", output.status, stderr);
                 if !stdout.is_empty() {
                     print!("{}", stdout);
@@ -719,7 +895,10 @@ pub fn run_project(profile: bool) {
                 std::process::exit(1);
             }
         }
-        Err(e) => eprintln!("Failed to execute command: {}", e),
+        Err(e) => {
+            step.fail();
+            eprintln!("Failed to execute command: {}", e);
+        }
     }
 }
 
@@ -746,7 +925,10 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool) {
     });
     let content = strip_shebang(&raw);
     let file_name = path.to_str().unwrap().to_string();
+
+    let step = Step::new("Parsing");
     let lang = parse_code_from_str(content, &file_name, Environment::StandAlone);
+    step.done();
 
     let work_dir = if keep_files {
         PathBuf::from(".")
@@ -758,14 +940,18 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool) {
 
     write_std_for_type_checking(&work_dir);
     let context = Context::default();
+
+    let step = Step::new("Type checking");
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     if type_checker.has_errors() {
+        step.fail();
         type_checker.show_errors();
         if !keep_files {
             let _ = fs::remove_dir_all(&work_dir);
         }
         std::process::exit(1);
     }
+    step.done();
 
     let stem = path
         .file_stem()
@@ -784,7 +970,11 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool) {
         }
     }
 
+    let step = Step::new("Transpiling");
     let r_content = type_checker.clone().transpile();
+    step.done();
+
+    let step = Step::new("Writing R files");
     write_header(
         type_checker.get_context(),
         &work_dir,
@@ -796,8 +986,10 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool) {
         &r_file_name,
         context.get_environment(),
     );
+    step.done();
 
     let r_path = work_dir.join(&r_file_name);
+    let step = Step::new("Running");
     let result = if profile {
         let r_path_str = r_path.to_str().unwrap_or("script.R");
         let profile_script = format!(
@@ -841,10 +1033,12 @@ if (is.null(p) || nrow(p$by.self) == 0L) {{
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
             if output.status.success() {
+                step.clear();
                 if !stdout.is_empty() {
                     print!("{}", stdout);
                 }
             } else {
+                step.fail();
                 eprintln!("Error (code {}):\n{}", output.status, stderr);
                 if !stdout.is_empty() {
                     print!("{}", stdout);
@@ -852,7 +1046,10 @@ if (is.null(p) || nrow(p$by.self) == 0L) {{
                 std::process::exit(1);
             }
         }
-        Err(e) => eprintln!("Failed to execute Rscript: {}", e),
+        Err(e) => {
+            step.fail();
+            eprintln!("Failed to execute Rscript: {}", e);
+        }
     }
 }
 
@@ -923,6 +1120,57 @@ pub fn get_package_name() -> Result<String, String> {
     }
 
     Err("Package name not found in the DESCRIPTION file".to_string())
+}
+
+pub fn get_package_version() -> Result<String, String> {
+    let description_path = PathBuf::from("DESCRIPTION");
+
+    if !description_path.exists() {
+        return Err("DESCRIPTION file not found. Are you at the project root?".to_string());
+    }
+
+    let content = fs::read_to_string(&description_path)
+        .map_err(|e| format!("Error reading file DESCRIPTION: {}", e))?;
+
+    for line in content.lines() {
+        if line.starts_with("Version:") {
+            return Ok(line.replace("Version:", "").trim().to_string());
+        }
+    }
+
+    Err("Version not found in the DESCRIPTION file".to_string())
+}
+
+/// Generate a Semantic Package Graph (`spg.json`) from the current project.
+pub fn generate_spg(output: Option<PathBuf>) {
+    let context = Context::default().set_environment(Environment::Project);
+
+    let step = Step::new("Parsing");
+    let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    step.done();
+
+    let step = Step::new("Type checking");
+    let type_checker = TypeChecker::new(context).typing_no_panic(&lang);
+    if type_checker.has_errors() {
+        step.fail();
+        type_checker.show_errors();
+    } else {
+        step.done();
+    }
+
+    let package = get_package_name().unwrap_or_else(|_| "unknown".to_string());
+    let version = get_package_version().unwrap_or_else(|_| "0.0.0".to_string());
+
+    let step = Step::new("Building semantic graph");
+    let typed_items: Vec<Lang> = type_checker.get_code().iter().cloned().collect();
+    let spg = build_spg_from_items(&typed_items, &package, &version);
+    step.done();
+
+    let out_path = output.unwrap_or_else(|| PathBuf::from("spg.json"));
+    let json = serde_json::to_string_pretty(&spg).expect("Failed to serialize SPG");
+    let mut file = File::create(&out_path).expect("Failed to create SPG output file");
+    file.write_all(json.as_bytes()).expect("Failed to write SPG file");
+    println!("Semantic graph written to {:?}", out_path);
 }
 
 pub fn renv_init(project_path: &std::path::Path) {
@@ -1138,11 +1386,10 @@ pub fn document() {
     document_impl(false);
 }
 
-fn document_impl(quiet: bool) {
-    if !quiet {
-        println!("Generating package documentation...");
-    }
+pub fn pkgdown() {
+    document_impl(true);
 
+    let step = Step::new("Building pkgdown site");
     let current_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -1150,36 +1397,111 @@ fn document_impl(quiet: bool) {
             std::process::exit(1);
         }
     };
-
-    let project_path = current_dir.to_str().unwrap();
-    let r_command = format!("devtools::document('{}')", project_path);
-
+    let project_path = current_dir.to_str().unwrap_or(".");
+    let r_command = format!("pkgdown::build_site('{}')", project_path);
     let output = Command::new("R").arg("-e").arg(&r_command).output();
-
     match output {
-        Ok(output) => {
-            if output.status.success() {
-                if !quiet {
-                    println!("Documentation successfully generated!");
+        Ok(out) if out.status.success() => {
+            step.done();
+            println!("  pkgdown site written to docs/");
+        }
+        Ok(out) => {
+            step.fail();
+            eprintln!("Error building pkgdown site.");
+            if !out.stderr.is_empty() {
+                eprintln!("{}", String::from_utf8_lossy(&out.stderr));
+            }
+            std::process::exit(1);
+        }
+        Err(_) => {
+            step.fail();
+            eprintln!("R not found — cannot build pkgdown site.");
+            std::process::exit(1);
+        }
+    }
+}
 
-                    if !output.stdout.is_empty() {
-                        println!()
-                    }
-                }
-            } else {
-                eprintln!("Error while generating documentation");
+fn document_impl(quiet: bool) {
+    // Step 1: Parse + type-check the project to build the SPG.
+    let context = Context::default().set_environment(Environment::Project);
 
-                if !output.stderr.is_empty() {
-                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
-                }
+    let step = Step::new("Parsing");
+    let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    step.done();
 
-                std::process::exit(1);
+    let step = Step::new("Type checking");
+    let type_checker = TypeChecker::new(context).typing_no_panic(&lang);
+    if type_checker.has_errors() {
+        step.fail();
+        type_checker.show_errors();
+        std::process::exit(1);
+    }
+    step.done();
+
+    let package = get_package_name().unwrap_or_else(|_| "unknown".to_string());
+    let version = get_package_version().unwrap_or_else(|_| "0.0.0".to_string());
+    let items: Vec<Lang> = type_checker.get_code().iter().cloned().collect();
+
+    let step = Step::new("Building semantic graph");
+    let spg = build_spg_from_items(&items, &package, &version);
+    step.done();
+
+    // Step 2: Ensure man/ directory exists.
+    let man_dir = PathBuf::from("man");
+    if let Err(e) = fs::create_dir_all(&man_dir) {
+        eprintln!("Error creating man/ directory: {}", e);
+        std::process::exit(1);
+    }
+
+    // Step 3: Generate .Rd files from the SPG.
+    let step = Step::new("Generating .Rd files");
+    match crate::rd_renderer::generate_rd_files(&spg, &man_dir) {
+        Ok(count) => {
+            step.done();
+            if !quiet {
+                println!("  {} .Rd file(s) written to man/", count);
             }
         }
         Err(e) => {
-            eprintln!("Error while executing the R command : {}", e);
-            eprintln!("Be sure that R et devtools are installed.");
+            step.fail();
+            eprintln!("Error writing .Rd files: {}", e);
             std::process::exit(1);
+        }
+    }
+
+    // Step 4: Update NAMESPACE and Collate via devtools (skipping Rd generation
+    // so our SPG-generated files are not overwritten).
+    let step = Step::new("Updating NAMESPACE");
+    let current_dir = match std::env::current_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            eprintln!("Error obtaining current directory: {}", e);
+            std::process::exit(1);
+        }
+    };
+    let project_path = current_dir.to_str().unwrap_or(".");
+    let r_command = format!(
+        "devtools::document('{}', roclets = c('collate', 'namespace'))",
+        project_path
+    );
+    let output = Command::new("R").arg("-e").arg(&r_command).output();
+    match output {
+        Ok(out) if out.status.success() => step.done(),
+        Ok(out) => {
+            // devtools is optional; NAMESPACE may be stale but Rd files are ready.
+            step.fail();
+            if !quiet {
+                eprintln!("Warning: NAMESPACE update failed (devtools/roxygen2 may not be installed).");
+                if !out.stderr.is_empty() {
+                    eprintln!("{}", String::from_utf8_lossy(&out.stderr));
+                }
+            }
+        }
+        Err(_) => {
+            step.fail();
+            if !quiet {
+                eprintln!("Warning: R not found — NAMESPACE not updated.");
+            }
         }
     }
 }
