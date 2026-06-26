@@ -53,6 +53,9 @@ enum Commands {
     Run {
         #[arg(value_name = "FILE")]
         file: Option<PathBuf>,
+        /// Profile R execution with Rprof and print a summary.
+        #[arg(long)]
+        profile: bool,
     },
     Debug {
         #[arg(value_name = "FILE")]
@@ -68,7 +71,11 @@ enum Commands {
         #[arg(short, long)]
         files: bool,
     },
-    Test,
+    Test {
+        /// Profile R execution with Rprof and print a summary.
+        #[arg(long)]
+        profile: bool,
+    },
     Pkg {
         #[command(subcommand)]
         pkg_command: PkgCommands,
@@ -151,9 +158,9 @@ pub fn start() {
             Some(path) => build_file(&path, test),
             _ => build_project(test),
         },
-        Some(Commands::Run { file }) => match file {
-            Some(path) => run_file_keep(&path),
-            _ => run_project(),
+        Some(Commands::Run { file, profile }) => match file {
+            Some(path) => run_file_keep(&path, profile),
+            _ => run_project(profile),
         },
         Some(Commands::Debug {
             file,
@@ -172,7 +179,7 @@ pub fn start() {
                 show_files: files,
             },
         ),
-        Some(Commands::Test) => test(),
+        Some(Commands::Test { profile }) => test(profile),
         Some(Commands::Pkg { pkg_command }) => match pkg_command {
             PkgCommands::Install { packages } => pkg_install(packages.as_deref()),
             PkgCommands::Uninstall => pkg_uninstall(),

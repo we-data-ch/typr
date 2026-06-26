@@ -655,7 +655,30 @@ pub fn build_file(path: &Path, test_mode: bool) {
     println!("Generated R code: {:?}", dir.join(&r_file_name));
 }
 
-pub fn run_project() {
+/// Wraps an R expression string with Rprof sampling and prints a summary table.
+fn rprof_wrap(r_body: &str) -> String {
+    format!(
+        concat!(
+            "prof_file <- tempfile(fileext = '.Rprof'); ",
+            "Rprof(prof_file, interval = 0.01, memory.profiling = FALSE); ",
+            "{body}; ",
+            "Rprof(NULL); ",
+            "p <- tryCatch(summaryRprof(prof_file), error = function(e) NULL); ",
+            "if (is.null(p) || nrow(p$by.self) == 0L) {{ ",
+            "  cat('\\n[profile] No data collected (program ran too fast).\\n') ",
+            "}} else {{ ",
+            "  cat('\\n=== TypR Profile: top functions by self time ===\\n'); ",
+            "  by_self <- p$by.self[order(-p$by.self$self.time), , drop = FALSE]; ",
+            "  print(head(by_self, 30)); ",
+            "  cat(sprintf('\\nTotal sampled time: %.3f s  (interval = 10 ms)\\n', ",
+            "              p$sampling.interval * nrow(p$by.self))) ",
+            "}}"
+        ),
+        body = r_body
+    )
+}
+
+pub fn run_project(profile: bool) {
     build_project_impl(false, true);
     // Use the TypR loader instead of devtools to respect module encapsulation.
     // Top-level code in main.ty already runs as a side effect of sourcing it
@@ -663,7 +686,7 @@ pub fn run_project() {
     // <- fn() {...} }` convention is optional: if it's present we call it as
     // the entry point, but a plain main.ty with top-level statements works
     // out of the box with no boilerplate required.
-    let r_command = concat!(
+    let base_command = concat!(
         "source('load_module.R'); ",
         "modules <- load_module('.'); ",
         "if (exists('Main', envir = modules, inherits = FALSE)) { ",
@@ -675,7 +698,12 @@ pub fn run_project() {
         "  } ",
         "}"
     );
-    match Command::new("Rscript").arg("-e").arg(r_command).output() {
+    let r_command = if profile {
+        rprof_wrap(base_command)
+    } else {
+        base_command.to_string()
+    };
+    match Command::new("Rscript").arg("-e").arg(&r_command).output() {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -704,14 +732,14 @@ fn strip_shebang(content: &str) -> &str {
 }
 
 pub fn run_file(path: &Path) {
-    run_file_impl(path, false);
+    run_file_impl(path, false, false);
 }
 
-pub fn run_file_keep(path: &Path) {
-    run_file_impl(path, true);
+pub fn run_file_keep(path: &Path, profile: bool) {
+    run_file_impl(path, true, profile);
 }
 
-fn run_file_impl(path: &Path, keep_files: bool) {
+fn run_file_impl(path: &Path, keep_files: bool, profile: bool) {
     let raw = fs::read_to_string(path).unwrap_or_else(|e| {
         eprintln!("Cannot read {:?}: {}", path, e);
         std::process::exit(1);
@@ -770,10 +798,39 @@ fn run_file_impl(path: &Path, keep_files: bool) {
     );
 
     let r_path = work_dir.join(&r_file_name);
-    let result = Command::new("Rscript")
-        .current_dir(&work_dir)
-        .arg(&r_path)
-        .output();
+    let result = if profile {
+        let r_path_str = r_path.to_str().unwrap_or("script.R");
+        let profile_script = format!(
+            r#"
+prof_file <- tempfile(fileext = ".Rprof")
+Rprof(prof_file, interval = 0.005, memory.profiling = FALSE)
+source({r_path_str:?})
+Rprof(NULL)
+p <- tryCatch(summaryRprof(prof_file), error = function(e) NULL)
+if (is.null(p) || nrow(p$by.self) == 0L) {{
+  cat("\n[profile] No data collected (program too fast or no R activity sampled).\n")
+}} else {{
+  cat("\n=== TypR Profile: top functions by self time ===\n")
+  by_self <- p$by.self[order(-p$by.self$self.time), , drop = FALSE]
+  print(head(by_self, 30))
+  total <- p$sampling.interval * sum(p$by.self$self.time / p$sampling.interval)
+  cat(sprintf("\nTotal sampled time: %.3f s  (interval = %.0f ms)\n",
+              p$sampling.interval * nrow(p$by.self), p$sampling.interval * 1000))
+}}
+"#,
+            r_path_str = r_path_str
+        );
+        Command::new("Rscript")
+            .current_dir(&work_dir)
+            .arg("-e")
+            .arg(&profile_script)
+            .output()
+    } else {
+        Command::new("Rscript")
+            .current_dir(&work_dir)
+            .arg(&r_path)
+            .output()
+    };
 
     if !keep_files {
         let _ = fs::remove_dir_all(&work_dir);
@@ -807,19 +864,24 @@ fn write_context_json(context: &Context, output_dir: &Path) {
         .expect("Failed to write context.json");
 }
 
-pub fn test() {
+pub fn test(profile: bool) {
     build_project(true);
     // Load modules in test mode so @testable members are accessible in test files.
     // Then delegate test discovery to devtools::test().
-    let r_command = concat!(
+    let base_command = concat!(
         "source('load_module.R'); ",
         "modules <- load_module('.', test = TRUE); ",
         "devtools::test()"
     );
+    let r_command = if profile {
+        rprof_wrap(base_command)
+    } else {
+        base_command.to_string()
+    };
 
     println!("Execution of: R -e \"{}\"", r_command);
 
-    let output = Command::new("R").arg("-e").arg(r_command).output();
+    let output = Command::new("R").arg("-e").arg(&r_command).output();
 
     match output {
         Ok(output) => {
