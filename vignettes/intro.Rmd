@@ -1,0 +1,26 @@
+---
+title: "Introduction à TypR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction à TypR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Introduction à TypR
+
+TypR permet de créer des types structurés.
+
+## Exemple de fonction
+
+{{ description:scale }}
+
+### Signature
+
+{{ signature:scale }}
+
+### Utilisation
+
+```{r}
+{{ examples:scale }}
+```

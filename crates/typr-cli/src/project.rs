@@ -1469,7 +1469,43 @@ fn document_impl(quiet: bool) {
         }
     }
 
-    // Step 4: Update NAMESPACE and Collate via devtools (skipping Rd generation
+    // Step 4: Generate SPG fragments and inject into vignette templates.
+    let fragments_dir = PathBuf::from(".vignettes/spg_fragments");
+    let vignettes_dir = PathBuf::from("vignettes");
+    let compiled_dir = vignettes_dir.join("compiled");
+
+    let step = Step::new("Generating vignette fragments");
+    match crate::vignette_renderer::generate_spg_fragments(&spg, &fragments_dir) {
+        Ok(()) => step.done(),
+        Err(e) => {
+            step.fail();
+            if !quiet {
+                eprintln!("Warning: failed to write SPG fragments: {}", e);
+            }
+        }
+    }
+
+    let step = Step::new("Compiling vignette templates");
+    match crate::vignette_renderer::process_vignette_templates(
+        &fragments_dir,
+        &vignettes_dir,
+        &compiled_dir,
+    ) {
+        Ok(count) => {
+            step.done();
+            if !quiet && count > 0 {
+                println!("  {} vignette(s) compiled to vignettes/compiled/", count);
+            }
+        }
+        Err(e) => {
+            step.fail();
+            if !quiet {
+                eprintln!("Warning: vignette template processing failed: {}", e);
+            }
+        }
+    }
+
+    // Step 5: Update NAMESPACE and Collate via devtools (skipping Rd generation
     // so our SPG-generated files are not overwritten).
     let step = Step::new("Updating NAMESPACE");
     let current_dir = match std::env::current_dir() {

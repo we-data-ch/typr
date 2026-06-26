@@ -47,6 +47,7 @@ pub mod progress;
 pub mod project;
 pub mod rd_renderer;
 pub mod repl;
+pub mod vignette_renderer;
 pub mod standard_library;
 
 // Re-export commonly used items

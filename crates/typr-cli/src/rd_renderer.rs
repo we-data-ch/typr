@@ -7,15 +7,15 @@ use std::io;
 use std::path::Path;
 use typr_core::processes::spg::model::{Node, NodePayload, Spg, Visibility};
 
-struct ParsedDoc {
-    title: String,
-    description: String,
-    param_docs: HashMap<String, String>,
-    return_doc: String,
-    examples: Vec<String>,
+pub struct ParsedDoc {
+    pub title: String,
+    pub description: String,
+    pub param_docs: HashMap<String, String>,
+    pub return_doc: String,
+    pub examples: Vec<String>,
 }
 
-fn parse_doc(raw: &str) -> ParsedDoc {
+pub fn parse_doc(raw: &str) -> ParsedDoc {
     let mut lines = raw.lines();
     let title = lines.next().unwrap_or("").trim().to_string();
 
