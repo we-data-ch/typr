@@ -153,6 +153,7 @@ def publish-docker [] {
 
 def publish-github-actions [version_string: string] {
   print $"(char nl)=== Committing, tagging & pushing for GitHub Actions ==="
+  cargo fmt --all
   git add .
   git commit -m $"release v($version_string)" --allow-empty
 

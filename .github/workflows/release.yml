@@ -153,6 +153,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy to Playground
+        continue-on-error: true
         env:
           PLAYGROUND_TOKEN: ${{ secrets.PLAYGROUND_DEPLOY_TOKEN }}
         run: |
