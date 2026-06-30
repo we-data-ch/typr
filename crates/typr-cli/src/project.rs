@@ -1544,7 +1544,7 @@ fn document_impl(quiet: bool) {
 
 pub fn use_package(package_name: &str) {
     println!("Adding the package '{}' as a dependency...", package_name);
-    let r_command = format!("devtools::use_package('{}')", package_name);
+    let r_command = format!("usethis::use_package('{}')", package_name);
     println!("Execution of: R -e \"{}\"", r_command);
 
     let output = Command::new("R").arg("-e").arg(&r_command).output();
@@ -1572,7 +1572,7 @@ pub fn use_package(package_name: &str) {
         }
         Err(e) => {
             eprintln!("Error executing command R: {}", e);
-            eprintln!("Make sure that R and devtools are installed.");
+            eprintln!("Make sure that R and usethis are installed.");
             std::process::exit(1);
         }
     }
