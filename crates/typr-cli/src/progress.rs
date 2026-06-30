@@ -72,7 +72,10 @@ impl Step {
         self.stop_thread();
         let ms = self.start.elapsed().as_millis();
         if self.is_tty {
-            eprintln!("\r\x1b[K\x1b[32m✓\x1b[0m {}  \x1b[2m({} ms)\x1b[0m", self.label, ms);
+            eprintln!(
+                "\r\x1b[K\x1b[32m✓\x1b[0m {}  \x1b[2m({} ms)\x1b[0m",
+                self.label, ms
+            );
         } else {
             eprintln!(" done ({} ms)", ms);
         }

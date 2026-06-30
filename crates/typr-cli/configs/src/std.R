@@ -12,7 +12,6 @@ sys.setlocale <- function() Sys.setlocale()
 
 # --- Utilitaires de Typage ---
 
-#' @title Ajout d'une structure de classe
 struct <- function(x, new_class, typed_dim = NULL) {
   if (is.null(x)) return(NULL)
   
@@ -26,13 +25,11 @@ struct <- function(x, new_class, typed_dim = NULL) {
   x
 }
 
-#' @title Changement forcé de type
 let_type <- function(x, new_class) {
   # On retire les classes actuelles puis on applique le nouveau constructeur
   unclass(x) |> new_class()
 }
 
-#' @title Fusion shallow pour le spread operator (`{ ...x, a = 1 }`)
 spread <- function(base, override) {
   out <- base
   for (nm in names(override)) {
@@ -41,7 +38,6 @@ spread <- function(base, override) {
   out
 }
 
-#' @title Fusion explicite/spread pour les constructeurs record (`TypeName:{ ...x }`)
 typr_spread_record <- function(explicit, spread) {
   if (is.null(spread)) {
     return(explicit)

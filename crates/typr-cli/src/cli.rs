@@ -149,6 +149,7 @@ enum PkgCommands {
 /// Main entry point for the CLI
 pub fn start() {
     let cli = Cli::parse();
+    //Run file
     if let Some(path) = cli.file {
         if cli.command.is_none() {
             run_file(&path);

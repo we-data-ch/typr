@@ -1,15 +1,15 @@
 #![allow(dead_code, unused_variables, unused_imports)]
 
+use super::doc_attach::build_doc_map;
+use super::doc_attach::build_doc_map_from_slice;
+use super::edges::infer_edges;
+use super::model::{Edge, EdgeKind, Node, NodeKind, NodePayload, SourceLoc, Spg, Visibility};
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::Type;
-use super::doc_attach::build_doc_map;
-use super::doc_attach::build_doc_map_from_slice;
-use super::edges::infer_edges;
-use super::model::{Edge, EdgeKind, Node, NodeKind, NodePayload, SourceLoc, Spg, Visibility};
 use std::collections::HashMap;
 
 /// Walk a typed AST and produce a `Spg` with all documentable nodes and edges.
@@ -33,7 +33,12 @@ pub fn build_spg_from_items(items: &[Lang], package: &str, version: &str) -> Spg
     spg
 }
 
-fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &HashMap<usize, String>) {
+fn collect_nodes(
+    lang: &Lang,
+    spg: &mut Spg,
+    module_path: &[String],
+    doc_map: &HashMap<usize, String>,
+) {
     match lang {
         Lang::Lines { value, .. } => {
             for item in value {
@@ -41,7 +46,12 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
             }
         }
 
-        Lang::Module { name, body, help_data, .. } => {
+        Lang::Module {
+            name,
+            body,
+            help_data,
+            ..
+        } => {
             let exports = body.iter().filter_map(exported_name).collect::<Vec<_>>();
             let id = Node::make_id(&NodeKind::Module, module_path, name);
             spg.add_node(Node {
@@ -61,7 +71,15 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
             }
         }
 
-        Lang::Let { variable, r#type, expression, is_public, is_export, help_data, .. } => {
+        Lang::Let {
+            variable,
+            r#type,
+            expression,
+            is_public,
+            is_export,
+            help_data,
+            ..
+        } => {
             let name = lang_var_name(variable);
             if name.is_empty() {
                 return;
@@ -78,7 +96,12 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                     ret.to_string(),
                 )),
                 _ => {
-                    if let Lang::Function { parameters, return_type, .. } = expression.as_ref() {
+                    if let Lang::Function {
+                        parameters,
+                        return_type,
+                        ..
+                    } = expression.as_ref()
+                    {
                         if !matches!(return_type, Type::Empty(_)) {
                             Some((
                                 parameters
@@ -105,12 +128,21 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                     visibility: to_visibility(*is_public, *is_export),
                     doc: doc_map.get(&help_data.get_offset()).cloned(),
                     source: source_from_help(help_data),
-                    payload: NodePayload::Function { params: param_list, returns },
+                    payload: NodePayload::Function {
+                        params: param_list,
+                        returns,
+                    },
                 });
             }
         }
 
-        Lang::Alias { identifier, target_type, is_public, help_data, .. } => {
+        Lang::Alias {
+            identifier,
+            target_type,
+            is_public,
+            help_data,
+            ..
+        } => {
             let name = lang_var_name(identifier);
             if name.is_empty() {
                 return;
@@ -173,11 +205,17 @@ fn alias_node(t: &Type) -> (NodeKind, NodePayload) {
         }
         Type::Alias(name, _, opaque, _) => (
             NodeKind::Alias,
-            NodePayload::Alias { underlying: name.clone(), opaque: *opaque },
+            NodePayload::Alias {
+                underlying: name.clone(),
+                opaque: *opaque,
+            },
         ),
         other => (
             NodeKind::Alias,
-            NodePayload::Alias { underlying: other.to_string(), opaque: false },
+            NodePayload::Alias {
+                underlying: other.to_string(),
+                opaque: false,
+            },
         ),
     }
 }
@@ -215,13 +253,30 @@ fn safe_arg_name(at: &ArgumentType) -> String {
 /// Returns the exported/public name of a top-level binding if it carries one.
 fn exported_name(lang: &Lang) -> Option<String> {
     match lang {
-        Lang::Let { variable, is_public, is_export, .. } if *is_public || *is_export => {
+        Lang::Let {
+            variable,
+            is_public,
+            is_export,
+            ..
+        } if *is_public || *is_export => {
             let name = lang_var_name(variable);
-            if name.is_empty() { None } else { Some(name) }
+            if name.is_empty() {
+                None
+            } else {
+                Some(name)
+            }
         }
-        Lang::Alias { identifier, is_public, .. } if *is_public => {
+        Lang::Alias {
+            identifier,
+            is_public,
+            ..
+        } if *is_public => {
             let name = lang_var_name(identifier);
-            if name.is_empty() { None } else { Some(name) }
+            if name.is_empty() {
+                None
+            } else {
+                Some(name)
+            }
         }
         _ => None,
     }

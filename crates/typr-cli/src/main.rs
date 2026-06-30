@@ -13,8 +13,8 @@ mod progress;
 mod project;
 mod rd_renderer;
 mod repl;
-mod vignette_renderer;
 mod standard_library;
+mod vignette_renderer;
 
 fn main() {
     cli::start()

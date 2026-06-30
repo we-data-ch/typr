@@ -21,7 +21,7 @@ use typr_core::components::r#type::Type;
 use typr_core::processes::parsing::{parse, ParseResult};
 use typr_core::typing_with_errors;
 
-pub fn write_std_for_type_checking(output_dir: &Path) {
+pub fn write_stdlib_for_type_checking(output_dir: &Path) {
     let rstd = include_str!("../configs/std/std_R.ty");
     let std_path = output_dir.join("std.ty");
     let mut rstd_file = File::create(std_path).unwrap();
