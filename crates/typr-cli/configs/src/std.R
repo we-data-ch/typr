@@ -536,3 +536,65 @@ version.State <- function(s, ...) s$version
 map.State <- function(s, f, ...) state(f(s$value))
 
 derive.State <- function(s, f, ...) state(f(s$value))
+
+# --- Interop (Niveau 0) ---
+# to_native: lowering récursif TypR→R plat à la frontière des packages R externes.
+# from_native: lifting R natif→TypR piloté par un descripteur de type ("int","num","char","bool","Any").
+# Ces fonctions sont la fondation du plan d'interop; elles ne modifient pas l'état TypR interne.
+
+to_native <- function(x, ...) UseMethod("to_native")
+
+to_native.default   <- function(x, ...) x
+to_native.Integer   <- function(x, ...) as.integer(unclass(x))
+to_native.Number    <- function(x, ...) as.numeric(unclass(x))
+to_native.Character <- function(x, ...) as.character(unclass(x))
+to_native.Boolean   <- function(x, ...) as.logical(unclass(x))
+
+to_native.typed_vec <- function(x, ...) {
+  if (length(x$data) == 0L) return(list())
+  elems <- lapply(x$data, to_native)
+  # Collapse to atomic vector when all elements share the same base storage type
+  if (all(vapply(elems, is.atomic, logical(1))) &&
+      length(unique(vapply(elems, typeof, character(1)))) == 1L) {
+    do.call(c, elems)
+  } else {
+    elems
+  }
+}
+
+# Handles records (class c("T","list")) and Tag variants not matched by a more specific method.
+to_native.list <- function(x, ...) {
+  result <- lapply(unclass(x), to_native)
+  class(result) <- NULL
+  result
+}
+
+to_native.Some  <- function(x, ...) to_native(x$body)
+to_native.None  <- function(x, ...) NULL
+to_native.State <- function(x, ...) to_native(get.State(x))
+
+from_native <- function(x, ...) UseMethod("from_native")
+
+# type_desc: "int" | "num" | "char" | "bool" | "Any" (default = identity)
+from_native.default <- function(x, type_desc = "Any", ...) {
+  if (is.null(x)) return(NULL)
+  switch(type_desc,
+    "int"  = Integer(as.integer(x)),
+    "num"  = Number(as.numeric(x)),
+    "char" = Character(as.character(x)),
+    "bool" = Boolean(as.logical(x)),
+    x
+  )
+}
+
+# Typed lifting helpers: convert a plain R value to a specific TypR type.
+# These are the idiomatic way to bring native R values into TypR-typed code.
+from_int  <- function(x, ...) UseMethod("from_int")
+from_num  <- function(x, ...) UseMethod("from_num")
+from_char <- function(x, ...) UseMethod("from_char")
+from_bool <- function(x, ...) UseMethod("from_bool")
+
+from_int.default  <- function(x, ...) Integer(as.integer(x))
+from_num.default  <- function(x, ...) Number(as.numeric(x))
+from_char.default <- function(x, ...) Character(as.character(x))
+from_bool.default <- function(x, ...) Boolean(as.logical(x))
