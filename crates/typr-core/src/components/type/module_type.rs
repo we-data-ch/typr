@@ -54,6 +54,12 @@ impl ModuleType {
             .any(|arg_typ| arg_typ.get_argument_str() == name)
     }
 
+    pub fn has_private_member(&self, name: &str) -> bool {
+        self.priv_members
+            .iter()
+            .any(|arg_typ| arg_typ.get_argument_str() == name)
+    }
+
     pub fn get_aliases(&self) -> Vec<(Var, Type)> {
         self.pub_members
             .iter()
@@ -68,14 +74,17 @@ impl ModuleType {
     }
 }
 
-/// Build from Type::Module — all members treated as public since Type::Module only stores
-/// publicly accessible members.
-impl From<(Vec<ArgumentType>, HelpData)> for ModuleType {
-    fn from(val: (Vec<ArgumentType>, HelpData)) -> Self {
+impl From<(Vec<ArgumentType>, Vec<String>, HelpData)> for ModuleType {
+    fn from(val: (Vec<ArgumentType>, Vec<String>, HelpData)) -> Self {
+        let priv_members = val
+            .1
+            .into_iter()
+            .map(|name| ArgumentType::new(&name, &crate::utils::builder::empty_type()))
+            .collect();
         ModuleType {
             pub_members: val.0,
-            priv_members: vec![],
-            help_data: val.1,
+            priv_members,
+            help_data: val.2,
         }
     }
 }

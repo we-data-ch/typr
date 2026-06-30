@@ -106,7 +106,7 @@ pub enum Type {
     LabelGen(String, HelpData),
     Vec(VecType, Box<Type>, Box<Type>, HelpData),
     Record(HashSet<ArgumentType>, HelpData),
-    Module(Vec<ArgumentType>, HelpData),
+    Module(Vec<ArgumentType>, Vec<String>, HelpData),
     Alias(String, Vec<Type>, bool, HelpData), //for opacity
     Tag(String, Box<Type>, HelpData),
     Interface(HashSet<ArgumentType>, HelpData),
@@ -369,7 +369,7 @@ impl Type {
                 sol.push(self.clone());
                 sol
             }
-            Type::Module(argtypes, _) => {
+            Type::Module(argtypes, _, _) => {
                 let mut sol = argtypes
                     .iter()
                     .map(|argtype| argtype.get_type())
@@ -746,7 +746,7 @@ impl Type {
             Type::Empty(_) => TypeCategory::Empty,
             Type::RClass(_, _) => TypeCategory::RClass,
             Type::UnknownFunction(_) => TypeCategory::RFunction,
-            Type::Module(_, _) => TypeCategory::Module,
+            Type::Module(_, _, _) => TypeCategory::Module,
             Type::Null(_) => TypeCategory::Null,
             Type::NA(_) => TypeCategory::Null,
             Type::Operator(TypeOperator::Union, _, _, _) => TypeCategory::Union,
@@ -798,7 +798,7 @@ impl Type {
             Type::LabelGen(_, h) => h.clone(),
             Type::Vec(_, _, _, h) => h.clone(),
             Type::Record(_, h) => h.clone(),
-            Type::Module(_, h) => h.clone(),
+            Type::Module(_, _, h) => h.clone(),
             Type::Alias(_, _, _, h) => h.clone(),
             Type::Tag(_, _, h) => h.clone(),
             Type::Interface(_, h) => h.clone(),
@@ -834,7 +834,7 @@ impl Type {
             Type::LabelGen(a, _) => Type::LabelGen(a, h2),
             Type::Vec(vt, a1, a2, _) => Type::Vec(vt, a1, a2, h2),
             Type::Record(a, _) => Type::Record(a, h2),
-            Type::Module(a, _) => Type::Module(a, h2),
+            Type::Module(a, b, _) => Type::Module(a, b, h2),
             Type::Alias(a1, a2, a3, _) => Type::Alias(a1, a2, a3, h2),
             Type::Tag(a1, a2, _) => Type::Tag(a1, a2, h2),
             Type::Interface(a, _) => Type::Interface(a, h2),
@@ -967,7 +967,7 @@ impl Type {
 
     pub fn get_first_function_parameter_type(&self, name: &str) -> Option<Type> {
         match self {
-            Type::Module(args, _) => {
+            Type::Module(args, _, _) => {
                 let res = args
                     .iter()
                     .find(|arg_typ| arg_typ.get_argument_str() == name);
@@ -997,7 +997,7 @@ impl Type {
 
     pub fn to_module_type(self) -> Result<ModuleType, String> {
         match self {
-            Type::Module(args, h) => Ok(ModuleType::from((args, h))),
+            Type::Module(args, priv_names, h) => Ok(ModuleType::from((args, priv_names, h))),
             _ => Err(format!("{} can't be turn into a ModuleType", self.pretty())),
         }
     }
@@ -1193,7 +1193,7 @@ impl PartialEq for Type {
             (Type::Operator(op1, a1, b1, _), Type::Operator(op2, a2, b2, _)) => {
                 op1 == op2 && a1 == a2 && b1 == b2
             }
-            (Type::Module(a1, _), Type::Module(a2, _)) => a1 == a2,
+            (Type::Module(a1, _, _), Type::Module(a2, _, _)) => a1 == a2,
             _ => false,
         }
     }
@@ -1343,7 +1343,7 @@ impl Hash for Type {
             Type::Any(_) => 28.hash(state),
             Type::UnknownFunction(_) => 30.hash(state),
             Type::RClass(_, _) => 31.hash(state),
-            Type::Module(_, _) => 37.hash(state),
+            Type::Module(_, _, _) => 37.hash(state),
             Type::Operator(_, _, _, _) => 38.hash(state),
             Type::Variable(_, _) => 39.hash(state),
             Type::Null(_) => 40.hash(state),

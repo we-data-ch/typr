@@ -57,6 +57,9 @@ pub enum TypeError {
     /// A parameter with no default value follows a parameter that has one
     /// (e.g. `fn(a: int = 1, b: int): int { ... }`) — `(param_name, position)`.
     NonTrailingDefaultParam(String, HelpData),
+    /// A `use module::Name` imports a member that exists but is private (no `@pub`/`@export`) —
+    /// `(member_name, module_name, position)`.
+    PrivateImport(String, String, HelpData),
 }
 
 impl TypeError {
@@ -89,6 +92,7 @@ impl TypeError {
             TypeError::KindMismatch(_, _, h) => Some(h.clone()),
             TypeError::SelfOutsideContext(h) => Some(h.clone()),
             TypeError::NonTrailingDefaultParam(_, h) => Some(h.clone()),
+            TypeError::PrivateImport(_, _, h) => Some(h.clone()),
         }
     }
 
@@ -218,6 +222,12 @@ impl TypeError {
                 format!(
                     "Parameter '{}' has no default value, but appears after a parameter that does",
                     name
+                )
+            }
+            TypeError::PrivateImport(member, module, _) => {
+                format!(
+                    "'{}' is private in '{}': add `@pub` or `@export` before its declaration",
+                    member, module
                 )
             }
         }
@@ -596,6 +606,18 @@ impl ErrorMsg for TypeError {
                     ))
                     .pos_text("Missing default value")
                     .help("Once a parameter has a default value, every parameter after it must also have one.")
+                    .build()
+            }
+            TypeError::PrivateImport(member, module, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!("'{}' is private in module '{}'", member, module))
+                    .pos_text(format!("'{}' is not public", member))
+                    .help(format!(
+                        "Add `@pub` or `@export` before the declaration of '{}' in '{}'",
+                        member, module
+                    ))
                     .build()
             }
         };

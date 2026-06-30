@@ -134,7 +134,7 @@ pub fn format(ty: &Type) -> String {
         Type::Interface(args, _) => {
             format!("interface{{ {} }}", pretty(args.clone()))
         }
-        Type::Module(args, _) => {
+        Type::Module(args, _, _) => {
             let body = args
                 .iter()
                 .map(|arg| arg.pretty2())

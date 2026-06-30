@@ -953,7 +953,7 @@ impl Context {
             .expect("The module name was not found");
         let empty_context = Context::default();
         let new_context = match typ.clone() {
-            Type::Module(args, _) => {
+            Type::Module(args, _, _) => {
                 args.iter()
                     .rev()
                     .map(|arg_type| {

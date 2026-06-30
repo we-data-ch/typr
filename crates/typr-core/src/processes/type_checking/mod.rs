@@ -530,8 +530,27 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 })
                 .collect();
 
+            // Collect names of private members so `use module::Name` on a private member
+            // emits a "private, add @pub" error instead of a generic "undefined" error.
+            let priv_member_names: Vec<String> = members
+                .iter()
+                .filter_map(|member| match member {
+                    Lang::Let {
+                        variable: var,
+                        is_public: false,
+                        ..
+                    } => Var::try_from(var).ok().map(|v| v.get_name()),
+                    Lang::Alias {
+                        identifier: exp,
+                        is_public: false,
+                        ..
+                    } => Var::try_from(exp).ok().map(|v| v.get_name()),
+                    _ => None,
+                })
+                .collect();
+
             // Register only the module itself — members must be imported explicitly via `use`
-            let module_type = Type::Module(pub_arg_types, h.clone());
+            let module_type = Type::Module(pub_arg_types, priv_member_names, h.clone());
             let module_var = Var::from_name(module_name);
             let final_context = context
                 .clone()
@@ -933,7 +952,7 @@ pub fn resolve_module_member_type(
         .next();
     let resolved = module_path[1..].iter().fold(module_type, |acc, seg| {
         acc.and_then(|t| {
-            if let Type::Module(fields, _) = t.reduce(context) {
+            if let Type::Module(fields, _, _) = t.reduce(context) {
                 fields
                     .iter()
                     .find(|f| f.get_argument_str() == *seg)
@@ -944,7 +963,7 @@ pub fn resolve_module_member_type(
         })
     });
     resolved.and_then(|t| {
-        if let Type::Module(fields, _) = t.reduce(context) {
+        if let Type::Module(fields, _, _) = t.reduce(context) {
             fields
                 .iter()
                 .find(|f| f.get_argument_str() == member_name)
@@ -1265,7 +1284,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     }
                 }
                 (
-                    Type::Module(fields, _),
+                    Type::Module(fields, _, _),
                     Lang::Variable {
                         name, help_data: h, ..
                     },
@@ -1294,7 +1313,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     }
                 }
                 (
-                    Type::Module(fields, _),
+                    Type::Module(fields, _, _),
                     Lang::FunctionApp {
                         identifier: exp, ..
                     },
@@ -2509,14 +2528,22 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         let member_type = match mod_type.get_type_from_name(&item.name) {
                             Ok(member_type) => member_type,
                             Err(_) => {
-                                errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                                    Lang::Variable {
-                                        name: item.name.clone(),
-                                        is_opaque: false,
-                                        related_type: builder::any_type(),
-                                        help_data: help_data.clone(),
-                                    },
-                                )));
+                                if mod_type.has_private_member(&item.name) {
+                                    errors.push(TypRError::Type(TypeError::PrivateImport(
+                                        item.name.clone(),
+                                        module_path.join("::"),
+                                        help_data.clone(),
+                                    )));
+                                } else {
+                                    errors.push(TypRError::Type(TypeError::UndefinedVariable(
+                                        Lang::Variable {
+                                            name: item.name.clone(),
+                                            is_opaque: false,
+                                            related_type: builder::any_type(),
+                                            help_data: help_data.clone(),
+                                        },
+                                    )));
+                                }
                                 continue;
                             }
                         };
@@ -3352,6 +3379,55 @@ mod tests {
                 .iter()
                 .any(|e| matches!(e, TypRError::Type(TypeError::AliasNotFound(_)))),
             "Expected AliasNotFound error but got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_use_private_member_emits_private_import_error() {
+        use crate::components::error_message::type_error::TypeError;
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("module mymod { let secret <- 42; @pub let visible <- 1; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+        let expr = parse_from_string("use mymod::secret;", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result.has_errors(),
+            "Expected PrivateImport error for private member"
+        );
+        assert!(
+            result.get_errors().iter().any(|e| matches!(
+                e,
+                TypRError::Type(TypeError::PrivateImport(name, module, _))
+                    if name == "secret" && module == "mymod"
+            )),
+            "Expected PrivateImport error but got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_use_undefined_member_still_emits_undefined_variable() {
+        use crate::components::error_message::type_error::TypeError;
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("module mymod { @pub let visible <- 1; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+        let expr = parse_from_string("use mymod::nonexistent;", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result.has_errors(),
+            "Expected UndefinedVariable error for missing member"
+        );
+        assert!(
+            result
+                .get_errors()
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::UndefinedVariable(_)))),
+            "Expected UndefinedVariable error but got: {:?}",
             result.get_errors()
         );
     }
