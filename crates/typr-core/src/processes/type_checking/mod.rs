@@ -2819,6 +2819,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         }
         Lang::Comment { help_data: h, .. }
         | Lang::ModuleImport { help_data: h, .. }
+        | Lang::ImportFrom { help_data: h, .. }
         | Lang::Import { help_data: h, .. }
         | Lang::Test { help_data: h, .. }
         | Lang::Use { help_data: h, .. } => {

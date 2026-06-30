@@ -441,9 +441,13 @@ pub fn write_to_r_lang(
                 .iter()
                 .map(|f| format!("#' @include {}\n", f))
                 .collect::<String>();
+            let main_imports = typr_core::processes::transpiling::take_main_import_froms()
+                .iter()
+                .map(|e| format!("#' @importFrom {}\n", e))
+                .collect::<String>();
             format!(
-                "#' @include std.R\n#' @include generic_functions.R\n#' @include types.R\n{}",
-                main_includes
+                "#' @include std.R\n#' @include generic_functions.R\n#' @include types.R\n{}{}",
+                main_includes, main_imports
             )
         }
         Environment::Repl | Environment::Wasm => String::new(),
@@ -771,6 +775,7 @@ fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool) {
 
     let step = Step::new("Transpiling");
     typr_core::processes::transpiling::reset_include_stack();
+    typr_core::processes::transpiling::reset_import_from_stack();
     let content = type_checker.clone().transpile();
     let content = inject_roxygen_headers(content, &roxygen_entries);
     inject_roxygen_into_module_files(&PathBuf::from("R"), &roxygen_entries);
@@ -1528,6 +1533,10 @@ fn document_impl(quiet: bool) {
             step.fail();
             if !quiet {
                 eprintln!("Warning: NAMESPACE update failed (devtools/roxygen2 may not be installed).");
+                // R routes progress messages to stderr and errors to stdout — show both.
+                if !out.stdout.is_empty() {
+                    eprintln!("{}", String::from_utf8_lossy(&out.stdout));
+                }
                 if !out.stderr.is_empty() {
                     eprintln!("{}", String::from_utf8_lossy(&out.stderr));
                 }

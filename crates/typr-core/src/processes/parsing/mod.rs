@@ -38,12 +38,15 @@ use crate::processes::parsing::types::pascal_case_no_space;
 use crate::processes::parsing::types::type_alias;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
+use nom::bytes::complete::take_while1;
 use nom::character::complete::line_ending;
 use nom::character::complete::multispace0;
+use nom::character::complete::multispace1;
 use nom::character::complete::not_line_ending;
 use nom::combinator::map;
 use nom::combinator::opt;
 use nom::multi::many0;
+use nom::multi::many1;
 use nom::multi::separated_list0;
 use nom::sequence::delimited;
 use nom::sequence::pair;
@@ -754,6 +757,33 @@ fn import_module(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+fn import_from_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+        terminated(tag("@importFrom"), multispace1),
+        terminated(
+            take_while1(|c: char| c.is_alphanumeric() || c == '.' || c == '_'),
+            multispace1,
+        ),
+        many1(terminated(
+            take_while1(|c: char| c.is_alphanumeric() || c == '.' || c == '_'),
+            multispace0,
+        )),
+        opt(terminated(tag(";"), multispace0)),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (kw, pkg, fns, _))) => Ok((
+            s,
+            vec![Lang::ImportFrom {
+                package: pkg.fragment().to_string(),
+                functions: fns.iter().map(|f| f.fragment().to_string()).collect(),
+                help_data: kw.into(),
+            }],
+        )),
+        Err(r) => Err(r),
+    }
+}
+
 fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         variable,
@@ -1254,6 +1284,7 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
                 while_loop,
                 loop_loop,
                 for_loop,
+                import_from_exp,
                 signature,
                 tests,
                 import_module,

@@ -155,6 +155,11 @@ pub enum Lang {
         value: String,
         help_data: HelpData,
     },
+    ImportFrom {
+        package: String,
+        functions: Vec<String>,
+        help_data: HelpData,
+    },
     Import {
         value: Type,
         help_data: HelpData,
@@ -547,6 +552,7 @@ impl PartialEq for Lang {
             ) => a1 == b1 && a2 == b2,
             (Lang::Comment { value: a, .. }, Lang::Comment { value: b, .. }) => a == b,
             (Lang::ModuleImport { value: a, .. }, Lang::ModuleImport { value: b, .. }) => a == b,
+            (Lang::ImportFrom { package: a1, functions: a2, .. }, Lang::ImportFrom { package: b1, functions: b2, .. }) => a1 == b1 && a2 == b2,
             (Lang::Import { value: a, .. }, Lang::Import { value: b, .. }) => a == b,
             (
                 Lang::GenFunc {
@@ -956,6 +962,7 @@ impl Lang {
             Lang::Assign { help_data: h, .. } => h,
             Lang::Comment { help_data: h, .. } => h,
             Lang::ModuleImport { help_data: h, .. } => h,
+            Lang::ImportFrom { help_data: h, .. } => h,
             Lang::Import { help_data: h, .. } => h,
             Lang::GenFunc { help_data: h, .. } => h,
             Lang::Test { help_data: h, .. } => h,
@@ -1064,6 +1071,7 @@ impl Lang {
             Lang::Assign { .. } => "Assign".to_string(),
             Lang::Comment { .. } => "Comment".to_string(),
             Lang::ModuleImport { .. } => "ModImp".to_string(),
+            Lang::ImportFrom { .. } => "ImportFrom".to_string(),
             Lang::Import { .. } => "Import".to_string(),
             Lang::GenFunc { .. } => "GenFunc".to_string(),
             Lang::Test { .. } => "Test".to_string(),
@@ -1506,6 +1514,7 @@ impl From<Lang> for HelpData {
             Lang::Union(_, _, h) => h,
             Lang::Module { help_data: h, .. } => h,
             Lang::ModuleImport { help_data: h, .. } => h,
+            Lang::ImportFrom { help_data: h, .. } => h,
             Lang::Import { help_data: h, .. } => h,
             Lang::ArrayIndexing { help_data: h, .. } => h,
             Lang::Tag { help_data: h, .. } => h,

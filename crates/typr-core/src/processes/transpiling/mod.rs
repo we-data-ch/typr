@@ -105,6 +105,40 @@ pub fn take_main_includes() -> Vec<String> {
     })
 }
 
+thread_local! {
+    static IMPORT_FROM_STACK: RefCell<Vec<Vec<String>>> = RefCell::new(vec![Vec::new()]);
+}
+
+pub fn reset_import_from_stack() {
+    IMPORT_FROM_STACK.with(|s| *s.borrow_mut() = vec![Vec::new()]);
+}
+
+fn push_import_from_frame() {
+    IMPORT_FROM_STACK.with(|s| s.borrow_mut().push(Vec::new()));
+}
+
+fn pop_import_from_frame() -> Vec<String> {
+    IMPORT_FROM_STACK.with(|s| s.borrow_mut().pop().unwrap_or_default())
+}
+
+fn register_import_from(entry: &str) {
+    IMPORT_FROM_STACK.with(|s| {
+        if let Some(top) = s.borrow_mut().last_mut() {
+            top.push(entry.to_string());
+        }
+    });
+}
+
+pub fn take_main_import_froms() -> Vec<String> {
+    IMPORT_FROM_STACK.with(|s| {
+        let mut stack = s.borrow_mut();
+        match stack.first_mut() {
+            Some(bottom) => std::mem::take(bottom),
+            None => Vec::new(),
+        }
+    })
+}
+
 /// Register a generated file (used for WASM mode to capture file outputs)
 pub fn register_generated_file(path: &str, content: &str) {
     GENERATED_FILES.with(|files| {
@@ -1775,6 +1809,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     && config.environment == Environment::Project;
                 if writes_own_file {
                     push_include_frame();
+                    push_import_from_frame();
                 }
 
                 // Re-derive the module's internal typing context so body elements
@@ -1825,6 +1860,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         matches!(
                             lang,
                             Lang::ModuleImport { .. }
+                                | Lang::ImportFrom { .. }
                                 | Lang::Module {
                                     module_position: ModulePosition::External,
                                     ..
@@ -2013,10 +2049,14 @@ impl RTranslatable<(String, Context)> for Lang {
                             .iter()
                             .map(|f| format!("#' @include {}\n", f))
                             .collect::<String>();
+                        let nested_imports = pop_import_from_frame()
+                            .iter()
+                            .map(|e| format!("#' @importFrom {}\n", e))
+                            .collect::<String>();
                         let project_preamble = "#' @include std.R\n#' @include generic_functions.R\n#' @include types.R\n";
                         let _ = write_output_file(
                             &file_path,
-                            &format!("{}{}{}", project_preamble, nested_includes, content),
+                            &format!("{}{}{}{}", project_preamble, nested_includes, nested_imports, content),
                         );
                         // The enclosing file depends on this one: hoist the tag to its
                         // header instead of emitting it inline inside a `local({...})`.
@@ -2075,6 +2115,11 @@ impl RTranslatable<(String, Context)> for Lang {
                 (bindings.join("\n"), cont.clone())
             }
             Lang::ModuleImport { .. } => ("".to_string(), cont.clone()),
+            Lang::ImportFrom { package, functions, .. } => {
+                let entry = format!("{} {}", package, functions.join(" "));
+                register_import_from(&entry);
+                ("".to_string(), cont.clone())
+            }
             // `Self:{ field = expr, ...base }` (generic_constructor.md §5):
             // resolve the actual R constructor straight from `base`'s type
             // rather than from the literal name "Self" — by the
