@@ -398,6 +398,24 @@ fn verify_named_generics(
     subs: &std::collections::HashMap<String, Type>,
     context: &Context,
 ) -> bool {
+    // Resolve lambda fresh-generic params (T0, T1, …) that were bound during
+    // collection, so that e.g. `T0 vs U(=StoryBoard)` becomes
+    // `StoryBoard vs U(=StoryBoard)` and passes the subtype check.
+    // resolve_named_generic_chain handles cycles via its `seen` set.
+    let resolved_storage;
+    let concrete = if let Type::Generic(cname, _) = concrete {
+        let mut seen = std::collections::HashSet::new();
+        resolved_storage = resolve_named_generic_chain(cname, subs, &mut seen);
+        &resolved_storage
+    } else {
+        concrete
+    };
+    // Any is the error sentinel (lambda body failed to type with abstract generics).
+    // Treat it as compatible so the named-generic match can proceed; the lambda
+    // will be re-typed with concrete types during specialize_lambdas.
+    if matches!(concrete, Type::Any(_)) {
+        return true;
+    }
     match param {
         Type::Generic(name, _) => match subs.get(name) {
             Some(expected) => concrete.is_subtype_raw(expected, context),
@@ -2018,6 +2036,70 @@ mod tests {
     }
 
     // --- State<T>: stdlib overload resolution (see configs/std/state.ty) ---
+
+    /// Reproduces the `map` failure when the array element type is a concrete
+    /// record (`[any, list{id: char}]`) and the mapping function is typed with
+    /// an alias for that record.
+    #[test]
+    fn test_map_over_any_dim_record_array() {
+        // Wrap in a function so `arr` enters context with type [Any, Object].
+        let fp = FluentParser::new()
+            .push("type Object <- list { id: char };")
+            .run()
+            .push("let animate <- fn(obj: Object, action: char): Object { obj };")
+            .run()
+            .push("let use_map <- fn(arr: [Any, Object]): [Any, Object] { arr |> map(\\animate(action = \"run\")) };")
+            .parse_type_next();
+        let log = fp.get_last_log();
+        assert!(
+            !log.contains("not defined in this scope"),
+            "map over [any, Object] (alias) failed:\n{}",
+            log
+        );
+
+        // Same but with the concrete record type as element — this is the case
+        // that triggers the user's error: [any, list{id:char}] vs animate<Object>.
+        let fp2 = FluentParser::new()
+            .push("type Object <- list { id: char };")
+            .run()
+            .push("let animate <- fn(obj: Object, action: char): Object { obj };")
+            .run()
+            .push("let use_map <- fn(arr: [Any, list{id: char}]): [Any, list{id: char}] { arr |> map(\\animate<Object>(action = \"run\")) };")
+            .parse_type_next();
+        let log2 = fp2.get_last_log();
+        assert!(
+            !log2.contains("not defined in this scope"),
+            "map over [any, list{{id:char}}] with animate<Object> failed:\n{}",
+            log2
+        );
+    }
+
+    /// fold with an untyped lambda whose body can't be typed with abstract params
+    /// (T0, T1) should still resolve the return type from the accumulator arg.
+    /// Regression for: "Expected: StoryBoard, Found: U"
+    #[test]
+    fn test_fold_return_type_resolved_from_accumulator() {
+        let fp = FluentParser::new()
+            .set_context(Context::default())
+            .push("type Frame <- list { id: int };")
+            .run()
+            .push("type Clip <- list { frames: [Any, Frame] };")
+            .run()
+            .push("let append_frame <- fn(clip: Clip, f: Frame): Clip { clip };")
+            .run()
+            .push("let frames: [Any, Frame] <- [Frame:{ id = 1 }];")
+            .run()
+            .push("let base: Clip <- Clip:{ frames = frames };")
+            .run()
+            .push("frames |> fold(base, \\(acc, x) append_frame(acc, x))")
+            .parse_type_next();
+        let typ = fp.get_last_type();
+        let log = fp.get_last_log();
+        assert!(
+            matches!(&typ, Type::Alias(name, _, _, _) if name == "Clip"),
+            "fold should return Clip (resolved from accumulator), got: {typ:?}\nlog: {log}"
+        );
+    }
 
     #[test]
     fn test_state_get_resolves_against_real_stdlib() {
