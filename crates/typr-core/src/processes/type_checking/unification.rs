@@ -19,6 +19,7 @@ use std::collections::HashSet;
 /// `Generic` equality, so reworking it is out of scope for this fix.
 pub fn same_generic_key(key: &Type, var: &Type) -> bool {
     match (key, var) {
+        (Type::Generic(a, _), Type::Generic(b, _)) => a == b,
         (Type::IndexGen(a, _), Type::IndexGen(b, _)) => a == b,
         (Type::LabelGen(a, _), Type::LabelGen(b, _)) => a == b,
         (Type::KindedGen(k1, a, _), Type::KindedGen(k2, b, _)) => k1 == k2 && a == b,

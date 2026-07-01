@@ -1586,11 +1586,8 @@ mod tests {
 
     #[test]
     fn test_array_apply1() {
-        // BUG: with `@apply: ([#N, T], (T) -> U) -> [#N, U];`, `apply(v1, toto)`
-        // where `toto: (int) -> bool` should return `[3, bool]` (U bound to
-        // toto's return type), but U incorrectly resolves to T instead, giving
-        // `[3, int]`. This assertion documents the current (buggy) behavior;
-        // update it once the generic-return-type resolution is fixed.
+        // `@apply: ([#N, T], (T) -> U) -> [#N, U]` with `toto: (int) -> bool`
+        // should return `[3, bool]` (U bound to toto's return type).
         let fp = FluentParser::new()
             .push("let v1 <- [1, 2, 3];")
             .parse_type_next()
@@ -1602,7 +1599,7 @@ mod tests {
             .parse_type_next();
         assert_eq!(
             fp.get_last_type(),
-            builder::array_type2(3, builder::integer_type_default())
+            builder::array_type2(3, builder::boolean_type())
         );
     }
 

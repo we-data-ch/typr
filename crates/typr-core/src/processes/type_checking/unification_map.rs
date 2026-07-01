@@ -23,9 +23,10 @@ impl SafeHashMap {
     /// `#J`). For any other key (including `Generic`), falls back to `==`.
     fn key_eq(a: &Type, b: &Type) -> bool {
         match b {
-            Type::IndexGen(_, _) | Type::LabelGen(_, _) | Type::KindedGen(_, _, _) => {
-                unification::same_generic_key(a, b)
-            }
+            Type::Generic(_, _)
+            | Type::IndexGen(_, _)
+            | Type::LabelGen(_, _)
+            | Type::KindedGen(_, _, _) => unification::same_generic_key(a, b),
             _ => a == b,
         }
     }
@@ -39,6 +40,11 @@ impl SafeHashMap {
                     || matches!(&final_value, Type::Generic(_, _))
                 {
                     self.map.push((key, resolved_value));
+                } else if matches!(&resolved_value, Type::Generic(_, _)) {
+                    // key already bound to a concrete type; the new value is an
+                    // unbound generic. Propagate: bind that generic to the concrete
+                    // type so that chains like (U→G, T→int, T→G) resolve U→G→int.
+                    self.map.push((resolved_value, final_value));
                 }
             }
             Some((_ke, va)) => if va.exact_equality(&resolved_value) {},
@@ -106,14 +112,11 @@ impl UnificationMap {
         let mut current = ret_ty.clone();
         let mut seen = HashSet::new();
         loop {
-            // For index/label variables, match on the variable *name*: `Type`'s
-            // `PartialEq` treats all such variables as equal, which would otherwise
-            // make `current` resolve to the first binding in the map. `Generic` is
-            // intentionally left on the loose `==` path (see `same_generic_key`).
             let found = self.mapping.iter().find(|(typ1, _)| match &current {
-                Type::IndexGen(_, _) | Type::LabelGen(_, _) | Type::KindedGen(_, _, _) => {
-                    unification::same_generic_key(typ1, &current)
-                }
+                Type::Generic(_, _)
+                | Type::IndexGen(_, _)
+                | Type::LabelGen(_, _)
+                | Type::KindedGen(_, _, _) => unification::same_generic_key(typ1, &current),
                 _ => *typ1 == current,
             });
             match found {

@@ -59,7 +59,7 @@ typr_spread_record <- function(explicit, spread) {
 get <- function(a, ...) UseMethod("get")
 apply <- function(X, ...) UseMethod("apply")
 reduce <- function(vec, ...) UseMethod("reduce")
-fold <- function(init, ...) UseMethod("fold")
+fold <- function(vec, ...) UseMethod("fold")
 as_vec <- function(x, ...) UseMethod("as_vec")
 max <- function(a, ...) UseMethod("max")
 min <- function(a, ...) UseMethod("min")
@@ -344,9 +344,13 @@ sum.typed_vec <- function(x, ...) {
 
 vec_reduce <- function(vec, f, init = NULL) reduce(vec, f, init)
 
-fold.default <- function(init, vec, f, ...) {
-  if (!inherits(vec, "typed_vec")) vec <- typed_vec(vec)
+fold.typed_vec <- function(vec, init, f, ...) {
   Reduce(function(acc, x) f(acc, x), vec$data, init)
+}
+
+fold.default <- function(vec, init, f, ...) {
+  if (!inherits(vec, "typed_vec")) vec <- typed_vec(list(vec))
+  fold.typed_vec(vec, init, f)
 }
 
 extend <- function(vec, ...) UseMethod("extend")

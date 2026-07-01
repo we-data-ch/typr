@@ -341,6 +341,169 @@ fn try_spread_tuple_match(
     None
 }
 
+// ── Named multi-generic unification (FILTERING 5.5) ─────────────────────────
+//
+// The standard unification path (`SafeHashMap` / `merge_substitutions`) treats
+// every `Type::Generic` as identical regardless of its name.  That is fine for
+// single-variable signatures but breaks signatures like
+//   @fold: ([#N, T], U, (U, T) -> U) -> U
+// where T and U are two *distinct* generic variables — the binding for U gets
+// overwritten by the binding for T.
+//
+// This alternative path builds a `String`-keyed map so that T and U are kept
+// separate.  It is tried *after* the standard paths fail.
+
+fn collect_named_generics(
+    concrete: &Type,
+    param: &Type,
+    subs: &mut std::collections::HashMap<String, Type>,
+) {
+    match param {
+        Type::Generic(name, _) => {
+            if let Some(existing) = subs.get(name).cloned() {
+                // Param generic already bound. If arg is a fresh generic, propagate.
+                if let Type::Generic(arg_name, _) = concrete {
+                    if !matches!(existing, Type::Generic(_, _)) {
+                        subs.entry(arg_name.clone()).or_insert(existing);
+                    }
+                }
+            } else {
+                subs.insert(name.clone(), concrete.clone());
+            }
+        }
+        Type::IndexGen(name, _) => {
+            subs.entry(name.clone()).or_insert_with(|| concrete.clone());
+        }
+        Type::Vec(_, size_param, elem_param, _) => {
+            if let Type::Vec(_, size_concrete, elem_concrete, _) = concrete {
+                collect_named_generics(size_concrete, size_param, subs);
+                collect_named_generics(elem_concrete, elem_param, subs);
+            }
+        }
+        Type::Function(params_p, ret_p, _) => {
+            if let Type::Function(params_c, ret_c, _) = concrete {
+                for (p_c, p_p) in params_c.iter().zip(params_p.iter()) {
+                    collect_named_generics(&p_c.get_type(), &p_p.get_type(), subs);
+                }
+                collect_named_generics(ret_c, ret_p, subs);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn verify_named_generics(
+    concrete: &Type,
+    param: &Type,
+    subs: &std::collections::HashMap<String, Type>,
+    context: &Context,
+) -> bool {
+    match param {
+        Type::Generic(name, _) => match subs.get(name) {
+            Some(expected) => concrete.is_subtype_raw(expected, context),
+            None => true,
+        },
+        Type::IndexGen(_, _) => true,
+        Type::Vec(_, _, elem_param, _) => {
+            if let Type::Vec(_, _, elem_concrete, _) = concrete {
+                verify_named_generics(elem_concrete, elem_param, subs, context)
+            } else {
+                false
+            }
+        }
+        Type::Function(params_p, ret_p, _) => {
+            if let Type::Function(params_c, ret_c, _) = concrete {
+                params_c.iter().zip(params_p.iter()).all(|(pc, pp)| {
+                    verify_named_generics(&pc.get_type(), &pp.get_type(), subs, context)
+                }) && verify_named_generics(ret_c, ret_p, subs, context)
+            } else {
+                false
+            }
+        }
+        concrete_param => concrete.is_subtype_raw(concrete_param, context),
+    }
+}
+
+fn resolve_named_generic_chain(
+    name: &str,
+    subs: &std::collections::HashMap<String, Type>,
+    seen: &mut std::collections::HashSet<String>,
+) -> Type {
+    if !seen.insert(name.to_string()) {
+        return Type::Generic(name.to_string(), HelpData::default());
+    }
+    match subs.get(name) {
+        Some(Type::Generic(next_name, _)) => resolve_named_generic_chain(next_name, subs, seen),
+        Some(other) => other.clone(),
+        None => Type::Generic(name.to_string(), HelpData::default()),
+    }
+}
+
+fn apply_named_generics(ty: &Type, subs: &std::collections::HashMap<String, Type>) -> Type {
+    match ty {
+        Type::Generic(name, _) => {
+            let mut seen = std::collections::HashSet::new();
+            resolve_named_generic_chain(name, subs, &mut seen)
+        }
+        Type::IndexGen(name, _) => subs.get(name).cloned().unwrap_or_else(|| ty.clone()),
+        Type::Vec(vt, size, elem, h) => Type::Vec(
+            vt.clone(),
+            Box::new(apply_named_generics(size, subs)),
+            Box::new(apply_named_generics(elem, subs)),
+            h.clone(),
+        ),
+        Type::Function(params, ret, h) => Type::Function(
+            params
+                .iter()
+                .map(|p| {
+                    ArgumentType::new(&p.get_argument_str(), &apply_named_generics(&p.get_type(), subs))
+                })
+                .collect(),
+            Box::new(apply_named_generics(ret, subs)),
+            h.clone(),
+        ),
+        Type::Alias(name, params, opacity, h) => Type::Alias(
+            name.clone(),
+            params.iter().map(|p| apply_named_generics(p, subs)).collect(),
+            *opacity,
+            h.clone(),
+        ),
+        _ => ty.clone(),
+    }
+}
+
+fn try_named_generic_match(
+    all_signatures: &[FunctionType],
+    types: &[Type],
+    context: &Context,
+) -> Option<FunctionType> {
+    for sig in all_signatures {
+        let param_types = sig.get_param_types();
+        if param_types.len() != types.len() {
+            continue;
+        }
+        let mut subs = std::collections::HashMap::new();
+        for (arg, param) in types.iter().zip(param_types.iter()) {
+            collect_named_generics(arg, param, &mut subs);
+        }
+        if subs.is_empty() {
+            continue;
+        }
+        // Verify all args are consistent with the collected bindings.
+        let valid = types.iter().zip(param_types.iter()).all(|(arg, param)| {
+            verify_named_generics(arg, param, &subs, context)
+        });
+        if !valid {
+            continue;
+        }
+        let new_return = apply_named_generics(&sig.get_return_type(), &subs);
+        if !matches!(new_return, Type::Generic(_, _)) {
+            return Some(sig.clone().set_infered_return_type(new_return));
+        }
+    }
+    None
+}
+
 /// Interface subtyping match with universal generic return-type inference.
 ///
 /// For each candidate, checks that every argument satisfies its corresponding
@@ -914,6 +1077,24 @@ fn apply_from_variable_inner(
                 h,
             );
         }
+    }
+
+    // === FILTERING 0.6 : Named multi-generic match ===
+    // Handles signatures with multiple distinct generic variables (e.g. fold, map)
+    // where the standard SafeHashMap path conflates T and U.  Uses a String-keyed
+    // map with consistency verification, so it never accepts type-mismatched calls.
+    if let Some(fun_typ) = try_named_generic_match(&all_signatures, &types, context) {
+        let (final_params, final_types) =
+            specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
+        return build_success(
+            &var,
+            &fun_typ,
+            final_params,
+            &final_types,
+            param_errors,
+            context,
+            h,
+        );
     }
 
     // === FILTERING 1 : First equality of the first param, then complet match (unification) ===
