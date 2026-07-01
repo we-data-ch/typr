@@ -322,11 +322,16 @@ impl Type {
     }
 
     pub fn add_to_context(self, var: Var, context: Context) -> (Type, Context) {
-        let cont = context.clone().push_var_type(
-            var.clone().set_type(self.clone()),
-            self.clone(),
-            &context,
-        );
+        // Preserve an Empty related_type from the original Var — it signals a local
+        // binding (closure, partial app) rather than a parser-generated S3 method.
+        // Only override when the Var already carries a concrete type (non-Empty),
+        // which means the parser explicitly set it (e.g. `let f <- fn(self: T, …)`).
+        let stored_var = if matches!(var.get_type(), Type::Empty(_)) {
+            var.clone()
+        } else {
+            var.clone().set_type(self.clone())
+        };
+        let cont = context.clone().push_var_type(stored_var, self.clone(), &context);
         self.tuple(&cont)
     }
 

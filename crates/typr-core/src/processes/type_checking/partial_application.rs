@@ -43,11 +43,24 @@ pub fn partial_application(
         })
         .collect();
 
+    // `\f<Type>(arg = val)` — when a type annotation is present, restrict to
+    // overloads whose first parameter type matches the annotation. Mirrors how
+    // `f<Type>(value)` forces a specific S3 implementation at call sites.
+    let forced_type = var.get_type();
+    let is_forced = !matches!(forced_type, Type::Empty(_));
+
     let candidate = context
         .get_types_from_name(&var.get_name())
         .into_iter()
         .find_map(|t| match t {
             Type::Function(params, ret, _) => {
+                if is_forced {
+                    match params.first() {
+                        Some(p) if p.get_type() != forced_type => return None,
+                        None => return None,
+                        _ => {}
+                    }
+                }
                 let names: Vec<String> = params.iter().map(|p| p.get_argument_str()).collect();
                 fixed
                     .iter()
@@ -285,6 +298,41 @@ mod tests {
         assert!(
             r_str.contains("function(y)") && r_str.contains("Point(") && r_str.contains("x = 0"),
             "expected a generated single-hole function calling Point(...), got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_partial_application_with_type_target_selects_right_overload() {
+        // Two overloads of `compute`: one for int, one for num. `\compute<num>(x = 1.0)`
+        // must pick the num overload and leave `y: num` as the hole.
+        // Uses `let` (not `@`) so parameter names are preserved in the context.
+        let res = FluentParser::new()
+            .push("let compute <- fn(x: int, y: int): int { x + y };")
+            .run()
+            .push("let compute <- fn(x: num, y: num): num { x + y };")
+            .run()
+            .check_typing("\\compute<num>(x = 1.0)");
+        let expected = Type::Function(
+            vec![ArgumentType::new("y", &builder::number_type())],
+            Box::new(builder::number_type()),
+            HelpData::default(),
+        );
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_partial_application_with_type_target_transpiles_correctly() {
+        let r_code = FluentParser::new()
+            .push("let compute <- fn(x: int, y: int): int { x + y };")
+            .run()
+            .push("let compute <- fn(x: num, y: num): num { x + y };")
+            .run()
+            .check_transpiling("\\compute<num>(x = 1.0)");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains("function(y)") && r_str.contains("compute"),
+            "expected a single-hole closure calling compute<num>(...), got: {}",
             r_str
         );
     }

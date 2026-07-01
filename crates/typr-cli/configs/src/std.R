@@ -543,6 +543,18 @@ update.State <- function(s, f, ...) {
 
 version.State <- function(s, ...) s$version
 
+map.typed_vec <- function(a, f, ...) {
+  structure(
+    list(data = lapply(a$data, f)),
+    class = "typed_vec",
+    typed_dim = attr(a, "typed_dim")
+  )
+}
+
+map.default <- function(a, f, ...) {
+  typed_vec(lapply(as.list(a), f))
+}
+
 map.State <- function(s, f, ...) state(f(s$value))
 
 derive.State <- function(s, f, ...) state(f(s$value))

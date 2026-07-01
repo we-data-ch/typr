@@ -338,7 +338,23 @@ impl Var {
         if !self.get_name().contains(".") {
             let type_str = match self.get_type() {
                 Type::Empty(_) | Type::Any(_) => "".to_string(),
-                ty => ".".to_string() + &cont.get_class(&ty).replace("'", ""),
+                ty => {
+                    // Only add the S3 suffix when the variable is a known S3 method
+                    // binding: context must have an entry for this name with a non-Empty
+                    // related_type (set by the parser's let-fn path). Local closures and
+                    // partial-application results are stored with Empty related_type and
+                    // must not receive the suffix even if set_related_type_if_variable
+                    // temporarily gave them a non-Empty type for dispatch resolution.
+                    let is_method = cont
+                        .get_functions_from_name(&self.get_name())
+                        .iter()
+                        .any(|(v, _)| !matches!(v.get_type(), Type::Empty(_)));
+                    if is_method {
+                        ".".to_string() + &cont.get_class(&ty).replace("'", "")
+                    } else {
+                        "".to_string()
+                    }
+                }
             };
             let new_name = if self.contains("`") {
                 "`".to_string() + &self.get_name().replace("`", "") + &type_str + "`"
