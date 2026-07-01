@@ -552,7 +552,9 @@ to_native.Boolean   <- function(x, ...) as.logical(unclass(x))
 
 to_native.typed_vec <- function(x, ...) {
   if (length(x$data) == 0L) return(list())
-  elems <- lapply(x$data, to_native)
+  # lambda wrapper: keeps the closure chain so UseMethod can find to_native.* methods
+  # when called via lapply in load_module's isolated environments (parent=baseenv)
+  elems <- lapply(x$data, function(el) to_native(el))
   # Collapse to atomic vector when all elements share the same base storage type
   if (all(vapply(elems, is.atomic, logical(1))) &&
       length(unique(vapply(elems, typeof, character(1)))) == 1L) {
@@ -564,7 +566,9 @@ to_native.typed_vec <- function(x, ...) {
 
 # Handles records (class c("T","list")) and Tag variants not matched by a more specific method.
 to_native.list <- function(x, ...) {
-  result <- lapply(unclass(x), to_native)
+  # lambda wrapper: keeps the closure chain so UseMethod can find to_native.* methods
+  # when called via lapply in load_module's isolated environments (parent=baseenv)
+  result <- lapply(unclass(x), function(el) to_native(el))
   class(result) <- NULL
   result
 }
