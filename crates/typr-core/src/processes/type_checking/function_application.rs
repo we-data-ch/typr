@@ -358,6 +358,11 @@ fn collect_named_generics(
     param: &Type,
     subs: &mut std::collections::HashMap<String, Type>,
 ) {
+    // Any is the error sentinel (lambda body failed to type with abstract params).
+    // Don't let it bind generics — it would produce spurious [any, any] returns.
+    if matches!(concrete, Type::Any(_)) {
+        return;
+    }
     match param {
         Type::Generic(name, _) => {
             if let Some(existing) = subs.get(name).cloned() {
