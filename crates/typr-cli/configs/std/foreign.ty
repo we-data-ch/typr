@@ -1,0 +1,14 @@
+# FOREIGN TYPE -------
+# Opaque handle for external R objects that TypR cannot inspect
+# (S4 instances, R6 objects, data.frames from external packages, etc.).
+# T is a phantom tag that provides nominal type safety without boxing the value.
+#
+# Usage:
+#   type DataFrame <- Foreign<Any>;
+#   @extern readr::read_csv: (path: char) -> DataFrame;
+#   @extern dplyr::filter: (df: DataFrame, ...) -> DataFrame;
+#
+# At runtime, Foreign<T> values are passed through to_native unchanged
+# (to_native.default applies) and from_native is not applied on return
+# (extern_lift_fn returns None for Alias types).
+opaque Foreign<T> <- Any;

@@ -8,7 +8,14 @@ use crate::processes::type_checking::TypeContext;
 use crate::processes::type_checking::Var;
 use crate::utils::builder;
 
-pub fn signature_expression(context: &Context, expr: &Lang, var: &Var, typ: &Type) -> TypeContext {
+pub fn signature_expression(
+    context: &Context,
+    expr: &Lang,
+    var: &Var,
+    typ: &Type,
+    is_extern: bool,
+    extern_r_name: Option<String>,
+) -> TypeContext {
     let mut constructor_errors = validate_named_constructors(context, typ);
     constructor_errors.extend(validate_operator_kinds(context, typ));
     let tc: TypeContext = if var.is_variable() {
@@ -20,24 +27,22 @@ pub fn signature_expression(context: &Context, expr: &Lang, var: &Var, typ: &Typ
                 )
             })
             .unwrap_or(var.clone());
-        (
-            builder::unknown_function_type(),
-            expr.clone(),
-            context
-                .clone()
-                .replace_or_push_var_type(new_var, typ.to_owned(), context),
-        )
-            .into()
+        let mut new_context = context
+            .clone()
+            .replace_or_push_var_type(new_var, typ.to_owned(), context);
+        if is_extern {
+            new_context.extern_fns.push((var.get_name(), extern_r_name));
+        }
+        (builder::unknown_function_type(), expr.clone(), new_context).into()
     } else {
         // is alias
-        (
-            builder::unknown_function_type(),
-            expr.clone(),
-            context
-                .clone()
-                .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context),
-        )
-            .into()
+        let mut new_context = context
+            .clone()
+            .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context);
+        if is_extern {
+            new_context.extern_fns.push((var.get_name(), extern_r_name));
+        }
+        (builder::unknown_function_type(), expr.clone(), new_context).into()
     };
     tc.with_errors(constructor_errors)
 }
@@ -71,7 +76,9 @@ mod tests {
             &Lang::Signature {
                 identifier: var,
                 target_type: integer,
-                help_data: HelpData::default()
+                help_data: HelpData::default(),
+                is_extern: false,
+                extern_r_name: None,
             }
         );
     }

@@ -1147,6 +1147,8 @@ fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
                     identifier: var2,
                     target_type: typ,
                     help_data: at.into(),
+                    is_extern: false,
+                    extern_r_name: None,
                 }],
             ))
         }
@@ -1174,6 +1176,8 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
                     identifier: var2,
                     target_type: typ,
                     help_data: at.into(),
+                    is_extern: false,
+                    extern_r_name: None,
                 }],
             ))
         }
@@ -1182,8 +1186,41 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+fn signature_extern(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+        tag("@extern"),
+        multispace1,
+        opt((
+            take_while1(|c: char| c.is_alphanumeric() || c == '_' || c == '.'),
+            tag("::"),
+        )),
+        alt((variable_recognizer, custom_operators)),
+        terminated(tag(":"), multispace0),
+        ltype,
+        terminated(tag(";"), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (at, _, pkg_prefix, (name, h), _col, typ, _))) => {
+            let r_name = pkg_prefix.map(|(pkg, _)| format!("{}::{}", pkg, name));
+            let var2 = Var::from_name(&name).set_help_data(h).set_type(typ.clone());
+            Ok((
+                s,
+                vec![Lang::Signature {
+                    identifier: var2,
+                    target_type: typ,
+                    help_data: at.into(),
+                    is_extern: true,
+                    extern_r_name: r_name,
+                }],
+            ))
+        }
+        Err(r) => Err(r),
+    }
+}
+
 pub fn signature(s: Span) -> IResult<Span, Vec<Lang>> {
-    alt((signature_opaque, signature_variable)).parse(s)
+    alt((signature_extern, signature_opaque, signature_variable)).parse(s)
 }
 
 fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {

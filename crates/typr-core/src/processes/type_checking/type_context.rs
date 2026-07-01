@@ -62,12 +62,19 @@ impl TypeContext {
     pub fn get_covariant_type(self, typ: &Type) -> Self {
         let new_type = self.value.get_covariant_type(typ, &self.context);
         let mut errors = self.errors;
-        // If the covariant check failed, the returned type is Any — record a TypeError::Let
-        if let crate::components::r#type::Type::Any(_) = new_type {
-            errors.push(TypRError::type_error(TypeError::Let(
-                typ.clone(),
-                self.value.clone(),
-            )));
+        // `get_covariant_type` returns `Type::Any` as a sentinel when the subtype check fails.
+        // But it also returns `Any` legitimately when the annotation IS `Any` (success), or when
+        // there is no annotation (Empty) and the actual type is `Any`. Guard against both false
+        // positives: only record an error when the annotation is an explicit non-Any, non-Empty type.
+        let annotation_is_constraining =
+            !typ.is_empty() && !matches!(typ.reduce(&self.context), Type::Any(_));
+        if annotation_is_constraining {
+            if let crate::components::r#type::Type::Any(_) = new_type {
+                errors.push(TypRError::type_error(TypeError::Let(
+                    typ.clone(),
+                    self.value.clone(),
+                )));
+            }
         }
         Self {
             value: new_type,

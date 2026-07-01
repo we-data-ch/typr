@@ -254,6 +254,20 @@ fn to_pattern_match_statement(
 }
 
 /// Map a Type to its corresponding R type-check function name.
+/// Return the TypR lifting function name for the return type of an `@extern` function.
+/// `None` means the raw R value is passed through unchanged (opaque / Any / record types).
+fn extern_lift_fn(typ: &Type) -> Option<&'static str> {
+    match typ {
+        Type::Integer(_, _) => Some("from_int"),
+        Type::Number(_, _) => Some("from_num"),
+        Type::Char(_, _) => Some("from_char"),
+        Type::Boolean(_, _) => Some("from_bool"),
+        // Option<T> return: NULL from external fn becomes .None, any value becomes .Some(value)
+        Type::Alias(name, _, _, _) if name == "Option" => Some("from_nullable"),
+        _ => None,
+    }
+}
+
 fn type_to_r_check(typ: &Type) -> Option<&'static str> {
     match typ {
         Type::Integer(_, _) => Some("is.integer"),
@@ -803,7 +817,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     .zip(new_args.iter())
                     .map(set_related_type_if_variable)
                     .collect::<Vec<_>>();
-                let (args, current_cont) = Translatable::from(cont1).join(&new_vals, ", ").into();
+                let cont1_fallback = cont1.clone();
                 Var::from_language(*exp.clone())
                     .map(|var| {
                         let name = var.get_name();
@@ -812,9 +826,46 @@ impl RTranslatable<(String, Context)> for Lang {
                         } else {
                             name.replace("__", ".")
                         };
-                        (format!("{}({})", new_name, args), current_cont.clone())
+                        if cont1.is_extern_fn(&name) {
+                            let r_name = cont1
+                                .get_extern_r_name(&name)
+                                .unwrap_or_else(|| new_name.clone());
+                            let return_type = fn_t.get_return_type();
+                            let lift_fn = extern_lift_fn(&return_type);
+                            let (args_vec, current_cont): (Vec<String>, Context) =
+                                new_vals.iter().fold(
+                                    (Vec::new(), cont1.clone()),
+                                    |(mut v, c), val| {
+                                        let (s, c2) = val.to_r(&c);
+                                        v.push(format!("to_native({})", s));
+                                        (v, c2)
+                                    },
+                                );
+                            let args = args_vec.join(", ");
+                            let call = format!("{}({})", r_name, args);
+                            let result = match lift_fn {
+                                Some(f) => format!("{}({})", f, call),
+                                None => call,
+                            };
+                            (result, current_cont)
+                        } else if cont1.is_import_from_fn(&name) {
+                            let r_name = cont1
+                                .get_import_from_r_name(&name)
+                                .unwrap_or_else(|| new_name.clone());
+                            let (args, current_cont) =
+                                Translatable::from(cont1).join(&new_vals, ", ").into();
+                            (format!("{}({})", r_name, args), current_cont)
+                        } else {
+                            let (args, current_cont) =
+                                Translatable::from(cont1).join(&new_vals, ", ").into();
+                            (format!("{}({})", new_name, args), current_cont)
+                        }
                     })
-                    .unwrap_or((format!("{}({})", exp_str, args), current_cont))
+                    .unwrap_or_else(|| {
+                        let (args, current_cont) =
+                            Translatable::from(cont1_fallback).join(&new_vals, ", ").into();
+                        (format!("{}({})", exp_str, args), current_cont)
+                    })
             }
             Lang::VecFunctionApp {
                 vector_type,
@@ -1259,6 +1310,21 @@ impl RTranslatable<(String, Context)> for Lang {
                 .add(body)
                 .add("\n")
                 .into(),
+            Lang::ExternBlock {
+                parameters: params,
+                body,
+                ..
+            } => {
+                let param_names = params
+                    .iter()
+                    .map(|p| p.to_r(cont))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                (
+                    format!("function({}) {{\n{}\n}}", param_names, body),
+                    cont.clone(),
+                )
+            }
             Lang::Signature { .. } => ("".to_string(), cont.clone()),
             Lang::TypeConstructor { .. } => ("".to_string(), cont.clone()),
             Lang::Alias {
@@ -3261,6 +3327,44 @@ mod tests {
         assert!(
             r_str.contains("class(x) <- c(\"Position\", \"list\")"),
             "expected Position's annotator with no supertype, got: {r_str}"
+        );
+    }
+
+    #[test]
+    fn test_import_from_qualifies_call_site() {
+        // @importFrom dplyr filter should make filter(a, b) transpile to dplyr::filter(a, b).
+        let r_str = FluentParser::new()
+            .push("@importFrom dplyr filter;")
+            .run()
+            .push("@filter: (Any, Any) -> Any;")
+            .run()
+            .check_transpiling("filter(df, cond)")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_str.contains("dplyr::filter("),
+            "expected dplyr::filter(...), got: {r_str}"
+        );
+    }
+
+    #[test]
+    fn test_import_from_multiple_fns() {
+        // Multiple functions from the same package should each be qualified independently.
+        let r_str = FluentParser::new()
+            .push("@importFrom dplyr filter mutate;")
+            .run()
+            .push("@mutate: (Any, Any) -> Any;")
+            .run()
+            .check_transpiling("mutate(df, z)")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_str.contains("dplyr::mutate("),
+            "expected dplyr::mutate(...), got: {r_str}"
         );
     }
 }

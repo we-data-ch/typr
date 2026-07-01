@@ -39,3 +39,7 @@ let is_none <- fn(value: Option<T>): bool {
 		.None => true
 	}
 };
+
+# NULL ↔ Option<T> bridge for @extern interop
+@from_nullable: (Any) -> Option<Any>;
+@to_nullable: (Option<T>) -> Any;

@@ -64,8 +64,8 @@ max <- function(a, ...) UseMethod("max")
 min <- function(a, ...) UseMethod("min")
 replace <- function(a, ...) UseMethod("replace")
 append <- function(a, ...) UseMethod("append")
-plot <- function(a, ...) UseMethod("append")
-expect_equal <- function(a, ...) UseMethod("append")
+plot <- function(a, ...) UseMethod("plot")
+expect_equal <- function(a, ...) UseMethod("expect_equal")
 set <- function(a, ...) UseMethod("set")
 update <- function(a, ...) UseMethod("update")
 version <- function(a, ...) UseMethod("version")
@@ -598,3 +598,26 @@ from_int.default  <- function(x, ...) Integer(as.integer(x))
 from_num.default  <- function(x, ...) Number(as.numeric(x))
 from_char.default <- function(x, ...) Character(as.character(x))
 from_bool.default <- function(x, ...) Boolean(as.logical(x))
+
+# --- Interop (Niveau 2) ---
+# from_nullable / to_nullable: bridge between R NULL and TypR Option<T>.
+# Use from_nullable when an @extern function may return NULL to represent absence.
+# Use to_nullable when passing an Option<T> to an external function expecting NULL.
+
+from_nullable <- function(x, ...) UseMethod("from_nullable")
+from_nullable.default <- function(x, ...) {
+  if (is.null(x))
+    structure(list("None"), class = c("None", "Option", "Tag", "list"))
+  else
+    structure(list("Some", body = x), class = c("Some", "Option", "Tag", "list"))
+}
+
+to_nullable <- function(x, ...) UseMethod("to_nullable")
+to_nullable.Option <- function(x, ...) if (inherits(x, "Some")) x$body else NULL
+to_nullable.default <- function(x, ...) x
+
+# Foreign: identity function that serves as the runtime root for opaque Foreign<T> aliases.
+# `type DataFrame <- Foreign<Any>` compiles to `DataFrame <- Foreign` in R, so calling
+# `DataFrame(x)` returns `x` unchanged — native R objects (data.frame, R6, S4, etc.)
+# pass through without boxing. to_native.default already handles Foreign values correctly.
+Foreign <- function(x, ...) x

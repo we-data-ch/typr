@@ -243,6 +243,8 @@ pub enum Lang {
         identifier: Var,
         target_type: Type,
         help_data: HelpData,
+        is_extern: bool,
+        extern_r_name: Option<String>,
     },
     TypeConstructor {
         name: String,
@@ -258,6 +260,12 @@ pub enum Lang {
     },
     RFunction {
         parameters: Vec<Lang>,
+        body: String,
+        help_data: HelpData,
+    },
+    ExternBlock {
+        parameters: Vec<ArgumentType>,
+        return_type: Type,
         body: String,
         help_data: HelpData,
     },
@@ -609,6 +617,20 @@ impl PartialEq for Lang {
                 },
             ) => a1 == b1 && a2 == b2,
             (
+                Lang::ExternBlock {
+                    parameters: a1,
+                    return_type: a2,
+                    body: a3,
+                    ..
+                },
+                Lang::ExternBlock {
+                    parameters: b1,
+                    return_type: b2,
+                    body: b3,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2 && a3 == b3,
+            (
                 Lang::KeyValue {
                     key: a1, value: a2, ..
                 },
@@ -900,7 +922,7 @@ impl Lang {
     }
 
     pub fn is_function(&self) -> bool {
-        matches!(self, Lang::Function { .. } | Lang::RFunction { .. })
+        matches!(self, Lang::Function { .. } | Lang::RFunction { .. } | Lang::ExternBlock { .. })
     }
 
     pub fn infer_var_name(&self, args: &[Lang], context: &Context) -> Var {
@@ -976,6 +998,7 @@ impl Lang {
             Lang::TypeConstructor { help_data: h, .. } => h,
             Lang::ForLoop { help_data: h, .. } => h,
             Lang::RFunction { help_data: h, .. } => h,
+            Lang::ExternBlock { help_data: h, .. } => h,
             Lang::KeyValue { help_data: h, .. } => h,
             Lang::Vector { help_data: h, .. } => h,
             Lang::Not { help_data: h, .. } => h,
@@ -1085,6 +1108,7 @@ impl Lang {
             Lang::TypeConstructor { .. } => "TypeConstructor".to_string(),
             Lang::ForLoop { .. } => "ForLoop".to_string(),
             Lang::RFunction { .. } => "RFunction".to_string(),
+            Lang::ExternBlock { .. } => "ExternBlock".to_string(),
             Lang::KeyValue { .. } => "KeyValue".to_string(),
             Lang::Vector { .. } => "Vector".to_string(),
             Lang::Not { .. } => "Not".to_string(),
@@ -1530,6 +1554,7 @@ impl From<Lang> for HelpData {
             Lang::TypeConstructor { help_data: h, .. } => h,
             Lang::ForLoop { help_data: h, .. } => h,
             Lang::RFunction { help_data: h, .. } => h,
+            Lang::ExternBlock { help_data: h, .. } => h,
             Lang::KeyValue { help_data: h, .. } => h,
             Lang::Vector { help_data: h, .. } => h,
             Lang::Not { help_data: h, .. } => h,

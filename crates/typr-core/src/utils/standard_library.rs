@@ -8,7 +8,7 @@ use crate::components::r#type::Type;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-const BLACKLIST: [&str; 59] = [
+const BLACKLIST: [&str; 60] = [
     "test_that",
     "expect_true",
     "`+`",
@@ -68,6 +68,7 @@ const BLACKLIST: [&str; 59] = [
     "vector",
     "tags",
     "paste",
+    "to_native",
 ];
 
 /// Check if a function name is not in the blacklist of reserved/special functions

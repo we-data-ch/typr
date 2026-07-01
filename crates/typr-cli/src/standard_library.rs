@@ -266,6 +266,7 @@ const LIN_ALG_TY: &str = include_str!("../configs/std/lin_alg.ty");
 const SYSTEM_TY: &str = include_str!("../configs/std/system.ty");
 const FACTOR_TY: &str = include_str!("../configs/std/factor.ty");
 const STATE_TY: &str = include_str!("../configs/std/state.ty");
+const FOREIGN_TY: &str = include_str!("../configs/std/foreign.ty");
 
 // Embedded source files for JS
 const FUNCTIONS_JS: &str = include_str!("../configs/src/functions_JS.txt");
@@ -374,6 +375,7 @@ pub fn standard_library() {
         ("system.ty", SYSTEM_TY),
         ("factor.ty", FACTOR_TY),
         ("state.ty", STATE_TY),
+        ("foreign.ty", FOREIGN_TY),
     ];
     let std_r_typed = build_typed_vartype(&r_ty_sources);
     save_to_all(&std_r_typed, ".std_r_typed.bin", &dirs);

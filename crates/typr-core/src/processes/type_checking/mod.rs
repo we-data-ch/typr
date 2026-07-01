@@ -406,8 +406,10 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Signature {
             identifier: var,
             target_type: typ,
+            is_extern,
+            extern_r_name,
             ..
-        } => signature_expression(context, expr, var, typ),
+        } => signature_expression(context, expr, var, typ, *is_extern, extern_r_name.clone()),
         Lang::TypeConstructor {
             name,
             parameters,
@@ -563,6 +565,20 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
 
             TypeContext::new(builder::empty_type(), expr.clone(), final_context)
                 .with_errors(typing_context.errors)
+        }
+        Lang::ImportFrom {
+            package,
+            functions,
+            help_data: h,
+        } => {
+            let mut new_context = context.clone();
+            for fn_name in functions {
+                let r_name = format!("{}::{}", package, fn_name);
+                if !new_context.import_from_fns.iter().any(|(n, _)| n == fn_name) {
+                    new_context.import_from_fns.push((fn_name.clone(), r_name));
+                }
+            }
+            TypeContext::new(builder::empty_type(), expr.clone(), new_context)
         }
         _ => (
             builder::unknown_function_type(),
@@ -2219,6 +2235,15 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             expr.clone(),
             context.clone(),
         ),
+        Lang::ExternBlock {
+            parameters: params,
+            return_type: ret_ty,
+            help_data: h,
+            ..
+        } => {
+            let func_type = Type::Function(params.clone(), Box::new(ret_ty.clone()), h.clone());
+            TypeContext::new(func_type, expr.clone(), context.clone())
+        }
         Lang::ForLoop {
             identifier: var,
             expression: iter,
@@ -2817,9 +2842,9 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 }
             }
         }
+        Lang::ImportFrom { .. } => eval(context, expr),
         Lang::Comment { help_data: h, .. }
         | Lang::ModuleImport { help_data: h, .. }
-        | Lang::ImportFrom { help_data: h, .. }
         | Lang::Import { help_data: h, .. }
         | Lang::Test { help_data: h, .. }
         | Lang::Use { help_data: h, .. } => {
@@ -4788,5 +4813,30 @@ p"#;
             },
             "Assigning int to Factor<L> should produce a type error or not type as Factor"
         );
+    }
+
+    // --- ExternBlock (Niveau 3) ---
+
+    #[test]
+    fn test_extern_block_typing() {
+        let typ = FluentParser::new()
+            .check_typing(r##"extern (x: int, y: char) -> char r#"paste0(x, y)"#"##);
+        assert_eq!(typ.pretty(), "fn(x: int, y: char) -> char");
+    }
+
+    #[test]
+    fn test_extern_block_transpile() {
+        let code = FluentParser::new()
+            .check_transpiling(r##"let f <- extern (x: int) -> int r#"x + 1L"#;"##);
+        let r = code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(r.contains("function(x)"), "expected function(x) in: {r}");
+        assert!(r.contains("x + 1L"), "expected body in: {r}");
+    }
+
+    #[test]
+    fn test_extern_block_no_params() {
+        let typ = FluentParser::new()
+            .check_typing(r##"extern () -> int r#"42L"#"##);
+        assert_eq!(typ.pretty(), "fn() -> int");
     }
 }

@@ -15,6 +15,7 @@ use crate::processes::parsing::types::label;
 use crate::processes::parsing::types::ltype;
 use crate::processes::parsing::types::pascal_case_no_space;
 use crate::processes::parsing::types::primitive_types;
+use crate::processes::parsing::types::single_type;
 
 use crate::processes::parsing::vector_priority::VectorPriority;
 use crate::utils::builder;
@@ -33,6 +34,7 @@ use nom::character::complete::multispace1;
 use nom::character::complete::not_line_ending;
 use nom::character::complete::one_of;
 use nom::combinator::map;
+use nom::bytes::complete::take_until;
 use nom::combinator::not;
 use nom::combinator::opt;
 use nom::combinator::recognize;
@@ -419,6 +421,45 @@ pub fn r_function(s: Span) -> IResult<Span, Lang> {
                 },
             ))
         }
+        Err(r) => Err(r),
+    }
+}
+
+// Parses r#"..."# raw R string literals (exactly one hash).
+// The body is returned verbatim — no escape processing.
+fn raw_r_string(s: Span) -> IResult<Span, String> {
+    let (s, _) = tag("r#\"")(s)?;
+    let (s, body) = take_until("\"#")(s)?;
+    let (s, _) = tag("\"#")(s)?;
+    Ok((s, body.fragment().to_string()))
+}
+
+// `extern (name: Type, ...) -> RetType r#"...R code..."#`
+// Typed raw R block: parameters and return type are checked by TypR;
+// the body is emitted verbatim into the transpiled output.
+// Return type must be a single type token (not a union/function type inline) —
+// use a type alias for complex return types.
+pub fn extern_block(s: Span) -> IResult<Span, Lang> {
+    let res = (
+        terminated(tag("extern"), multispace1),
+        terminated(tag("("), multispace0),
+        many0(argument),
+        terminated(tag(")"), multispace0),
+        terminated(alt((tag("->"), tag(":"))), multispace0),
+        single_type,
+        raw_r_string,
+    )
+        .parse(s);
+    match res {
+        Ok((s, (kw, _op, params, _cl, _arrow, ret_ty, body))) => Ok((
+            s,
+            Lang::ExternBlock {
+                parameters: params,
+                return_type: ret_ty,
+                body,
+                help_data: kw.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -1450,6 +1491,7 @@ pub fn single_element(s: Span) -> IResult<Span, Lang> {
             constructor_call,
             record,
             r_function,
+            extern_block,
             function,
             tuple_exp,
             function_application,
@@ -1548,6 +1590,25 @@ pub fn parse_elements(s: Span) -> IResult<Span, Lang> {
 mod tests {
     use super::*;
     use crate::utils::fluent_parser::FluentParser;
+
+    #[test]
+    fn test_extern_block_parse() {
+        let res = r##"extern (x: int, y: char) -> char r#"paste0(x, y)"#"##.parse::<Lang>();
+        println!("extern_block parse: {:?}", res.as_ref().map(|l| l.simple_print()));
+        assert!(res.is_ok(), "extern_block should parse successfully");
+        assert!(
+            matches!(res.unwrap(), Lang::ExternBlock { .. }),
+            "should be ExternBlock"
+        );
+    }
+
+    #[test]
+    fn test_extern_block_no_params_parse() {
+        let res = r##"extern () -> int r#"42L"#"##.parse::<Lang>();
+        println!("extern_block no-params: {:?}", res.as_ref().map(|l| l.simple_print()));
+        assert!(res.is_ok(), "extern_block no-params should parse");
+        assert!(matches!(res.unwrap(), Lang::ExternBlock { .. }));
+    }
 
     #[test]
     fn test_empty_scope() {

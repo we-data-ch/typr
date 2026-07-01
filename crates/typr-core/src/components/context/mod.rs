@@ -80,6 +80,15 @@ pub struct Context {
     /// what makes `Self` invalid outside a function body.
     #[serde(skip)]
     pub self_type: Option<Type>,
+    /// Registry of `@extern` function declarations: (TypR name, R-side qualified name).
+    /// When `Option<String>` is `None` the TypR name is used directly as the R call.
+    #[serde(default)]
+    pub extern_fns: Vec<(String, Option<String>)>,
+    /// Registry of `@importFrom` declarations: (TypR function name, "pkg::fn_name").
+    /// At call sites the transpiler emits `pkg::fn_name(args)` instead of `fn_name(args)`,
+    /// bypassing TypR's own S3 generic stubs for names like `get`, `map`, `factor`.
+    #[serde(default)]
+    pub import_from_fns: Vec<(String, String)>,
     config: Config,
 }
 
@@ -128,6 +137,8 @@ impl Default for Context {
             embedded_methods: Vec::new(),
             test_preamble: Vec::new(),
             self_type: None,
+            extern_fns: Vec::new(),
+            import_from_fns: Vec::new(),
         }
     }
 }
@@ -165,7 +176,31 @@ impl Context {
             embedded_methods: Vec::new(),
             test_preamble: Vec::new(),
             self_type: None,
+            extern_fns: Vec::new(),
+            import_from_fns: Vec::new(),
         }
+    }
+
+    pub fn is_extern_fn(&self, name: &str) -> bool {
+        self.extern_fns.iter().any(|(n, _)| n == name)
+    }
+
+    pub fn get_extern_r_name(&self, name: &str) -> Option<String> {
+        self.extern_fns
+            .iter()
+            .find(|(n, _)| n == name)
+            .and_then(|(_, r)| r.clone())
+    }
+
+    pub fn is_import_from_fn(&self, name: &str) -> bool {
+        self.import_from_fns.iter().any(|(n, _)| n == name)
+    }
+
+    pub fn get_import_from_r_name(&self, name: &str) -> Option<String> {
+        self.import_from_fns
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, r)| r.clone())
     }
 
     pub fn set_config(self, config: Config) -> Self {
@@ -1015,6 +1050,18 @@ impl Add for Context {
                 embedded_methods.push(entry);
             }
         }
+        let mut extern_fns = self.extern_fns;
+        for entry in other.extern_fns {
+            if !extern_fns.iter().any(|(n, _)| n == &entry.0) {
+                extern_fns.push(entry);
+            }
+        }
+        let mut import_from_fns = self.import_from_fns;
+        for entry in other.import_from_fns {
+            if !import_from_fns.iter().any(|(n, _)| n == &entry.0) {
+                import_from_fns.push(entry);
+            }
+        }
         Context {
             typing_context: self.typing_context + other.typing_context,
             subtypes: self.subtypes + other.subtypes,
@@ -1025,6 +1072,8 @@ impl Add for Context {
             embedded_methods,
             test_preamble,
             self_type: None,
+            extern_fns,
+            import_from_fns,
             config: self.config,
         }
     }
