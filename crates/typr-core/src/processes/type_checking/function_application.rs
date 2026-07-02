@@ -92,7 +92,8 @@ fn build_success(
         .map(set_related_type_if_variable)
         .collect();
     let new_expr = build_function_lang(h, updated_parameters, fun_typ, var.clone().to_language());
-    TypeContext::new(fun_typ.get_infered_return_type(), new_expr, context.clone())
+    let return_type = fun_typ.get_infered_return_type().set_help_data(h.clone());
+    TypeContext::new(return_type, new_expr, context.clone())
         .with_errors(param_errors)
 }
 

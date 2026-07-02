@@ -11,7 +11,8 @@
 @`+`: (Vec[#M, T], Vec[#M, T]) -> Vec[#M, T];
 @as__character: (Any) -> char;
 @source: (char) -> Empty;
-@reduce: ([#N, T], (T, U) -> T) -> T;
+@reduce: ([#N, T], (T, T) -> T) -> T;
+@fold: ([#N, T], U, (U, T) -> U) -> U;
 @extend: ([#N, T], T) -> [#N, T];
 @sum: ([#N, T]) -> T;
 @test_that: (char, Any) -> Empty;
