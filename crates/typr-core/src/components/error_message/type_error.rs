@@ -239,6 +239,14 @@ fn default_file_data() -> (String, String) {
     ("std.ty".to_string(), String::new())
 }
 
+/// Returns (file_name, text, clamped_offset) — clamps offset so miette never goes OutOfBounds
+/// when the source text is shorter than the stored offset (common for stdlib types).
+fn safe_file_pos(help_data: &HelpData) -> ((String, String), usize) {
+    let (file, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+    let offset = help_data.get_offset().min(text.len().saturating_sub(1));
+    ((file, text), offset)
+}
+
 // main
 impl ErrorMsg for TypeError {
     fn display(self) -> String {
@@ -285,11 +293,11 @@ impl ErrorMsg for TypeError {
             TypeError::Let(t1, t2) => {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();
-                let (file_name, text) =
-                    help_data1.get_file_data().unwrap_or_else(default_file_data);
-                DoubleBuilder::new(file_name.clone(), text.clone(), file_name, text)
-                    .pos1((help_data1.get_offset(), 0))
-                    .pos2((help_data2.get_offset(), 1))
+                let ((file_name1, text1), offset1) = safe_file_pos(&help_data1);
+                let ((file_name2, text2), offset2) = safe_file_pos(&help_data2);
+                DoubleBuilder::new(file_name1, text1, file_name2, text2)
+                    .pos1((offset1, 0))
+                    .pos2((offset2, 1))
                     .text(format!(
                         "type {} doesn't match type {}",
                         t1.pretty(),
@@ -302,13 +310,11 @@ impl ErrorMsg for TypeError {
             TypeError::Param(t1, t2) => {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();
-                let (file_name1, text1) =
-                    help_data1.get_file_data().unwrap_or_else(default_file_data);
-                let (file_name2, text2) =
-                    help_data2.get_file_data().unwrap_or_else(default_file_data);
+                let ((file_name1, text1), offset1) = safe_file_pos(&help_data1);
+                let ((file_name2, text2), offset2) = safe_file_pos(&help_data2);
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
-                    .pos1((help_data1.get_offset(), 0))
-                    .pos2((help_data2.get_offset(), 1))
+                    .pos1((offset1, 0))
+                    .pos2((offset2, 1))
                     .text(format!(
                         "type {} doesn't match type {}",
                         t1.pretty(),
@@ -321,15 +327,11 @@ impl ErrorMsg for TypeError {
             TypeError::GenericPatternMatch(t1, t2) => {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();
-                let (file_name1, text1) = help_data1
-                    .get_file_data()
-                    .unwrap_or_else(|| ("std.ty".to_string(), "".to_string()));
-                let (file_name2, text2) = help_data2
-                    .get_file_data()
-                    .unwrap_or_else(|| ("std.ty".to_string(), "".to_string()));
+                let ((file_name1, text1), offset1) = safe_file_pos(&help_data1);
+                let ((file_name2, text2), offset2) = safe_file_pos(&help_data2);
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
-                    .pos1((help_data1.get_offset(), 0))
-                    .pos2((help_data2.get_offset(), 1))
+                    .pos1((offset1, 0))
+                    .pos2((offset2, 1))
                     .text(format!(
                         "can't pattern match {{{} => {}}}",
                         t1.pretty2(),
@@ -342,13 +344,11 @@ impl ErrorMsg for TypeError {
             TypeError::UnmatchingReturnType(t1, t2) => {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();
-                let (file_name1, text1) =
-                    help_data1.get_file_data().unwrap_or_else(default_file_data);
-                let (file_name2, text2) =
-                    help_data2.get_file_data().unwrap_or_else(default_file_data);
+                let ((file_name1, text1), offset1) = safe_file_pos(&help_data1);
+                let ((file_name2, text2), offset2) = safe_file_pos(&help_data2);
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
-                    .pos1((help_data1.get_offset(), 0))
-                    .pos2((help_data2.get_offset(), 1))
+                    .pos1((offset1, 0))
+                    .pos2((offset2, 1))
                     .text(format!("The output type of the function don't match it's type annotation\nExpected: {}\nFound: {}", t1.pretty(), t2.pretty()))
                     .pos_text1(format!("Expected {}", t1.pretty()))
                     .pos_text2(format!("Received {}", t2.pretty()))
@@ -385,13 +385,11 @@ impl ErrorMsg for TypeError {
                 let var = var.clone().set_type(var.get_type().generalize());
                 let help_data1 = var_assign.get_help_data();
                 let help_data2 = var.get_help_data();
-                let (file_name1, text1) =
-                    help_data1.get_file_data().unwrap_or_else(default_file_data);
-                let (file_name2, text2) =
-                    help_data2.get_file_data().unwrap_or_else(default_file_data);
+                let ((file_name1, text1), offset1) = safe_file_pos(&help_data1);
+                let ((file_name2, text2), offset2) = safe_file_pos(&help_data2);
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
-                    .pos1((help_data1.get_offset(), 0))
-                    .pos2((help_data2.get_offset(), 1))
+                    .pos1((offset1, 0))
+                    .pos2((offset2, 1))
                     .text(format!("The variable {} is immutable", var))
                     .pos_text1(format!("Forbidden assignation to {}", var))
                     .pos_text2(format!("{} defined with 'let' (=immutable) here", var))
@@ -402,13 +400,11 @@ impl ErrorMsg for TypeError {
                 let var = var.clone().set_type(var.get_type().generalize());
                 let help_data1 = var_used.get_help_data();
                 let help_data2 = var.get_help_data();
-                let (file_name1, text1) =
-                    help_data1.get_file_data().unwrap_or_else(default_file_data);
-                let (file_name2, text2) =
-                    help_data2.get_file_data().unwrap_or_else(default_file_data);
+                let ((file_name1, text1), offset1) = safe_file_pos(&help_data1);
+                let ((file_name2, text2), offset2) = safe_file_pos(&help_data2);
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
-                    .pos1((help_data1.get_offset(), 0))
-                    .pos2((help_data2.get_offset(), 1))
+                    .pos1((offset1, 0))
+                    .pos2((offset2, 1))
                     .text(format!("The variable {} is private", var))
                     .pos_text1(format!("Forbidden access to {} which is private", var))
                     .pos_text2(format!("{} defined as private (without 'pub') here", var))
@@ -418,11 +414,11 @@ impl ErrorMsg for TypeError {
             TypeError::FieldNotFound((name, h), typ) => {
                 let help_data1 = h;
                 let help_data2 = typ.get_help_data();
-                let (file_name, text) =
-                    help_data1.get_file_data().unwrap_or_else(default_file_data);
-                DoubleBuilder::new(file_name.clone(), text.clone(), file_name, text)
-                    .pos1((help_data1.get_offset(), 0))
-                    .pos2((help_data2.get_offset(), 1))
+                let ((file_name1, text1), offset1) = safe_file_pos(&help_data1);
+                let ((file_name2, text2), offset2) = safe_file_pos(&help_data2);
+                DoubleBuilder::new(file_name1, text1, file_name2, text2)
+                    .pos1((offset1, 0))
+                    .pos2((offset2, 1))
                     .text(format!("{} doesn't have a field '{}'", typ.pretty(), name))
                     .pos_text1(format!("Field '{}' doesn't exist", name))
                     .pos_text2(format!("Type {} defined here", typ.pretty()))
@@ -449,15 +445,11 @@ impl ErrorMsg for TypeError {
             TypeError::WrongIndexing(t1, t2) => {
                 let help_data1 = t1.get_help_data();
                 let help_data2 = t2.get_help_data();
-                let (file_name1, text1) = help_data1
-                    .get_file_data()
-                    .unwrap_or_else(|| ("std.ty".to_string(), "".to_string()));
-                let (file_name2, text2) = help_data2
-                    .get_file_data()
-                    .unwrap_or_else(|| ("std.ty".to_string(), "".to_string()));
+                let ((file_name1, text1), offset1) = safe_file_pos(&help_data1);
+                let ((file_name2, text2), offset2) = safe_file_pos(&help_data2);
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
-                    .pos1((help_data1.get_offset(), 0))
-                    .pos2((help_data2.get_offset(), 1))
+                    .pos1((offset1, 0))
+                    .pos2((offset2, 1))
                     .text("Wrong indexing".to_string())
                     .pos_text1(format!("{} Can't be indexed", t1.pretty2()))
                     .pos_text2(format!("Has a bigger dimension {}", t2.pretty2()))
