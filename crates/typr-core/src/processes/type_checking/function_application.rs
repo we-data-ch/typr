@@ -93,8 +93,7 @@ fn build_success(
         .collect();
     let new_expr = build_function_lang(h, updated_parameters, fun_typ, var.clone().to_language());
     let return_type = fun_typ.get_infered_return_type().set_help_data(h.clone());
-    TypeContext::new(return_type, new_expr, context.clone())
-        .with_errors(param_errors)
+    TypeContext::new(return_type, new_expr, context.clone()).with_errors(param_errors)
 }
 
 fn filter_by_first_param(
@@ -480,7 +479,10 @@ fn apply_named_generics(ty: &Type, subs: &std::collections::HashMap<String, Type
             params
                 .iter()
                 .map(|p| {
-                    ArgumentType::new(&p.get_argument_str(), &apply_named_generics(&p.get_type(), subs))
+                    ArgumentType::new(
+                        &p.get_argument_str(),
+                        &apply_named_generics(&p.get_type(), subs),
+                    )
                 })
                 .collect(),
             Box::new(apply_named_generics(ret, subs)),
@@ -488,7 +490,10 @@ fn apply_named_generics(ty: &Type, subs: &std::collections::HashMap<String, Type
         ),
         Type::Alias(name, params, opacity, h) => Type::Alias(
             name.clone(),
-            params.iter().map(|p| apply_named_generics(p, subs)).collect(),
+            params
+                .iter()
+                .map(|p| apply_named_generics(p, subs))
+                .collect(),
             *opacity,
             h.clone(),
         ),
@@ -514,15 +519,30 @@ fn try_named_generic_match(
             continue;
         }
         // Verify all args are consistent with the collected bindings.
-        let valid = types.iter().zip(param_types.iter()).all(|(arg, param)| {
-            verify_named_generics(arg, param, &subs, context)
-        });
+        let valid = types
+            .iter()
+            .zip(param_types.iter())
+            .all(|(arg, param)| verify_named_generics(arg, param, &subs, context));
         if !valid {
             continue;
         }
         let new_return = apply_named_generics(&sig.get_return_type(), &subs);
         if !matches!(new_return, Type::Generic(_, _)) {
-            return Some(sig.clone().set_infered_return_type(new_return));
+            // Also apply subs to argument types so that specialize_lambdas can
+            // see the concrete expected type for each lambda parameter (e.g. T
+            // resolved to `int` makes `(T) -> U` become `(int) -> U`, letting
+            // specialize_lambda substitute the lambda's fresh generic T0 = int
+            // and re-type the body with the correct concrete type).
+            let new_args: Vec<Type> = sig
+                .get_param_types()
+                .iter()
+                .map(|arg| apply_named_generics(arg, &subs))
+                .collect();
+            return Some(
+                sig.clone()
+                    .set_params(new_args)
+                    .set_infered_return_type(new_return),
+            );
         }
     }
     None
@@ -968,23 +988,32 @@ fn specialize_lambda(
 ) -> (Lang, Type) {
     if let (
         Type::Function(expected_params, expected_ret, _),
-        Type::Function(lambda_params, lambda_ret, _),
+        Type::Function(_lambda_params, lambda_ret, _),
     ) = (expected_type, lambda_type)
     {
+        // Map the lambda's parameter *names* (e.g. "x") to the concrete
+        // expected types. Keying by name is what both substitute_type_in_lang
+        // (which matches Lang::Variable by name) and the body re-typing below
+        // need — the fresh generic names (T0, T1, …) assigned during the
+        // initial abstract typing never appear as variable names in the Lang.
         let mut substitutions: std::collections::HashMap<String, Type> =
             std::collections::HashMap::new();
 
-        for (lambda_param, expected_param) in lambda_params.iter().zip(expected_params.iter()) {
-            if let Type::Generic(name, _) = &lambda_param.get_type() {
-                if !matches!(expected_param.get_type(), Type::Generic(_, _)) {
-                    substitutions.insert(name.clone(), expected_param.get_type());
-                }
-            }
-        }
+        let (parameters, body, help_data) = match lambda_lang {
+            Lang::Lambda {
+                parameters,
+                body,
+                help_data,
+            } => (parameters, body, help_data),
+            _ => return (lambda_lang.clone(), lambda_type.clone()),
+        };
 
-        if let Type::Generic(name, _) = lambda_ret.as_ref() {
-            if !matches!(expected_ret.as_ref(), Type::Generic(_, _)) {
-                substitutions.insert(name.clone(), expected_ret.as_ref().clone());
+        for (param_lang, expected_param) in parameters.iter().zip(expected_params.iter()) {
+            if let Lang::Variable { name, .. } = param_lang {
+                let expected_param_type = expected_param.get_type();
+                if !matches!(expected_param_type, Type::Generic(_, _)) {
+                    substitutions.insert(name.clone(), expected_param_type);
+                }
             }
         }
 
@@ -992,20 +1021,36 @@ fn specialize_lambda(
             return (lambda_lang.clone(), lambda_type.clone());
         }
 
+        // Annotate the lambda's Lang (params + body variables get their
+        // related_type set) so transpilation sees the concrete types.
         let specialized_lang = substitute_type_in_lang(lambda_lang, &substitutions);
 
+        // Re-type the *body* directly (not the whole Lambda: the Lang::Lambda
+        // typing arm would just re-bind the params to fresh abstract generics)
+        // with each parameter name bound to its concrete type.
         let specialized_context = substitutions
             .iter()
             .fold(context.clone(), |ctx, (name, typ)| {
                 let new_ctx = ctx.clone();
                 new_ctx.push_var_type(Var::from_name(name), typ.clone(), &ctx)
             });
+        let body_tc = typing(&specialized_context, body);
 
-        let specialized_tc = typing(&specialized_context, &specialized_lang);
-        let specialized_body_type = if let Type::Function(_, ret, _) = &specialized_tc.value {
-            *ret.clone()
+        // Keep the concrete body type when re-typing succeeded; otherwise fall
+        // back to the abstract lambda return (Any sentinel or generic).
+        let specialized_body_type = if matches!(body_tc.value, Type::Empty(_)) {
+            lambda_ret.as_ref().clone()
         } else {
-            expected_ret.as_ref().clone()
+            body_tc.value.clone()
+        };
+
+        let new_lang = match &specialized_lang {
+            Lang::Lambda { parameters, .. } => Lang::Lambda {
+                parameters: parameters.clone(),
+                body: Box::new(body_tc.lang),
+                help_data: help_data.clone(),
+            },
+            _ => specialized_lang.clone(),
         };
 
         let new_type = Type::Function(
@@ -1014,7 +1059,7 @@ fn specialize_lambda(
             lambda_type.get_help_data().clone(),
         );
 
-        return (specialized_tc.lang, new_type);
+        return (new_lang, new_type);
     }
     (lambda_lang.clone(), lambda_type.clone())
 }
@@ -1110,9 +1155,17 @@ fn apply_from_variable_inner(
     if let Some(fun_typ) = try_named_generic_match(&all_signatures, &types, context) {
         let (final_params, final_types) =
             specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
+        // Re-derive the return type from the specialized arg types. This matters
+        // when a lambda's return type was `Any` during the first pass (body failed
+        // to type with abstract params) but is now concrete after specialization.
+        // For example, `map(a: [Any, int], \(x) x + 1)`: the first pass yields
+        // return `[#N, U]` because U is unresolved; the second pass with the
+        // specialized lambda `(int) -> int` correctly yields `[#N, int]`.
+        let final_fun_typ =
+            try_named_generic_match(&all_signatures, &final_types, context).unwrap_or(fun_typ);
         return build_success(
             &var,
-            &fun_typ,
+            &final_fun_typ,
             final_params,
             &final_types,
             param_errors,
@@ -2143,6 +2196,27 @@ mod tests {
         assert!(
             matches!(&typ, Type::Generic(name, _) if name == "T"),
             "get(p, \"x\") should still resolve via the legacy 2-arg overload, got: {typ:?}"
+        );
+    }
+
+    #[test]
+    fn test_map_any_int_with_untyped_lambda_no_type_error() {
+        use crate::processes::parsing::parse;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        // Use the same parse path as the CLI (parse → Lang::Lines).
+        let src =
+            "let f <- fn(a: [Any, int]): [Any, int] {\n    a\n        |> map(\\(x) x + 1)\n};";
+        let lang = parse(nom_locate::LocatedSpan::new_extra(
+            src,
+            "test.ty".to_string(),
+        ))
+        .ast;
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&lang);
+        let errors: Vec<String> = tc.get_errors().iter().map(|e| format!("{e:?}")).collect();
+        assert!(
+            tc.get_errors().is_empty(),
+            "map over [Any, int] with untyped lambda produced unexpected type errors:\n{}",
+            errors.join("\n")
         );
     }
 }
