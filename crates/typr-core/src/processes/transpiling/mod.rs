@@ -49,6 +49,33 @@ pub fn escape_r_string(s: &str) -> String {
     format!("\"{}\"", escaped)
 }
 
+/// Raw `typed_vec(...)` R code for an array literal, without the trailing
+/// `|> as.<TypeName>()` annotation. Used by the `Lang::Array` arm (which then
+/// appends its own annotation) and by `Lang::ValidatingCast` over an array
+/// literal, where the cast supplies the one meaningful annotation and the
+/// literal's own would be redundant (or worse, `as.Generic()` when the
+/// literal's inferred type — e.g. `[0, Empty]` for `[]` — has no registered
+/// alias).
+fn array_literal_raw(array: &Lang, cont: &Context) -> String {
+    let typ = array.typing(cont).value;
+    let dimension = ArrayType::try_from(typ)
+        .expect("array literal should have an array type")
+        .get_shape()
+        .map(|sha| format!("c({})", sha))
+        .unwrap_or_else(|| "c(0)".to_string());
+    let lin_array = array
+        .linearize_array()
+        .iter()
+        .map(|lang| lang.to_r(cont).0)
+        .collect::<Vec<_>>()
+        .join(", ");
+    if lin_array.is_empty() {
+        format!("typed_vec(dim = {})", dimension)
+    } else {
+        format!("typed_vec({}, dim = {})", lin_array, dimension)
+    }
+}
+
 // Thread-local storage for generated files (used in WASM mode)
 thread_local! {
     static GENERATED_FILES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
@@ -193,26 +220,6 @@ pub trait ToSome {
 impl<T: Sized> ToSome for T {
     fn to_some(self) -> Option<Self> {
         Some(self)
-    }
-}
-
-trait AndIf {
-    fn and_if<F>(self, condition: F) -> Option<Self>
-    where
-        F: Fn(Self) -> bool,
-        Self: Sized;
-}
-
-impl<T: Clone> AndIf for T {
-    fn and_if<F>(self, condition: F) -> Option<Self>
-    where
-        F: Fn(Self) -> bool,
-    {
-        if condition(self.clone()) {
-            Some(self)
-        } else {
-            None
-        }
     }
 }
 
@@ -832,15 +839,13 @@ impl RTranslatable<(String, Context)> for Lang {
                                 .unwrap_or_else(|| new_name.clone());
                             let return_type = fn_t.get_return_type();
                             let lift_fn = extern_lift_fn(&return_type);
-                            let (args_vec, current_cont): (Vec<String>, Context) =
-                                new_vals.iter().fold(
-                                    (Vec::new(), cont1.clone()),
-                                    |(mut v, c), val| {
-                                        let (s, c2) = val.to_r(&c);
-                                        v.push(format!("to_native({})", s));
-                                        (v, c2)
-                                    },
-                                );
+                            let (args_vec, current_cont): (Vec<String>, Context) = new_vals
+                                .iter()
+                                .fold((Vec::new(), cont1.clone()), |(mut v, c), val| {
+                                    let (s, c2) = val.to_r(&c);
+                                    v.push(format!("to_native({})", s));
+                                    (v, c2)
+                                });
                             let args = args_vec.join(", ");
                             let call = format!("{}({})", r_name, args);
                             let result = match lift_fn {
@@ -862,8 +867,9 @@ impl RTranslatable<(String, Context)> for Lang {
                         }
                     })
                     .unwrap_or_else(|| {
-                        let (args, current_cont) =
-                            Translatable::from(cont1_fallback).join(&new_vals, ", ").into();
+                        let (args, current_cont) = Translatable::from(cont1_fallback)
+                            .join(&new_vals, ", ")
+                            .into();
                         (format!("{}({})", exp_str, args), current_cont)
                     })
             }
@@ -1084,23 +1090,7 @@ impl RTranslatable<(String, Context)> for Lang {
             }
             Lang::Array { .. } => {
                 let typ = self.typing(cont).value;
-
-                let dimension = ArrayType::try_from(typ.clone())
-                    .expect("array literal should have an array type")
-                    .get_shape()
-                    .map(|sha| format!("c({})", sha))
-                    .unwrap_or_else(|| "c(0)".to_string());
-
-                let array = &self
-                    .linearize_array()
-                    .iter()
-                    .map(|lang| lang.to_r(cont).0)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-                    .and_if(|lin_array| !lin_array.is_empty())
-                    .map(|lin_array| format!("typed_vec({}, dim = {})", lin_array, dimension))
-                    .unwrap_or_else(|| format!("typed_vec(dim = {})", dimension));
-
+                let array = array_literal_raw(self, cont);
                 (
                     format!("{} |> {}", array, cont.get_type_anotation(&typ)),
                     cont.to_owned(),
@@ -2122,7 +2112,10 @@ impl RTranslatable<(String, Context)> for Lang {
                         let project_preamble = "#' @include std.R\n#' @include generic_functions.R\n#' @include types.R\n";
                         let _ = write_output_file(
                             &file_path,
-                            &format!("{}{}{}{}", project_preamble, nested_includes, nested_imports, content),
+                            &format!(
+                                "{}{}{}{}",
+                                project_preamble, nested_includes, nested_imports, content
+                            ),
                         );
                         // The enclosing file depends on this one: hoist the tag to its
                         // header instead of emitting it inline inside a `local({...})`.
@@ -2181,7 +2174,9 @@ impl RTranslatable<(String, Context)> for Lang {
                 (bindings.join("\n"), cont.clone())
             }
             Lang::ModuleImport { .. } => ("".to_string(), cont.clone()),
-            Lang::ImportFrom { package, functions, .. } => {
+            Lang::ImportFrom {
+                package, functions, ..
+            } => {
                 let entry = format!("{} {}", package, functions.join(" "));
                 register_import_from(&entry);
                 ("".to_string(), cont.clone())
@@ -2405,7 +2400,15 @@ impl RTranslatable<(String, Context)> for Lang {
                 literal_type,
                 ..
             } => {
-                let expr_r = expression.to_r(cont).0;
+                // An array literal under a cast emits its raw typed_vec: the
+                // cast supplies the annotation, and the literal's own (based
+                // on its inferred type, e.g. `[0, Empty]` for `[]`) would be
+                // a redundant — usually unregistered → `as.Generic()` — cast.
+                let expr_r = if matches!(expression.as_ref(), Lang::Array { .. }) {
+                    array_literal_raw(expression, cont)
+                } else {
+                    expression.to_r(cont).0
+                };
                 match literal_type {
                     // Inline structural type (`as! [Any, int]` and friends):
                     // call the auto-generated `as.ArrayN`-style cast (see
@@ -2490,6 +2493,50 @@ mod tests {
         assert!(
             r_str.contains("c() |> as.Array0()"),
             "expected c() |> as.Array0(), got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_validating_cast_array_literal_single_annotation() {
+        // `[] as! [T]`: the literal's own annotation (its inferred type
+        // `[0, Empty]` has no registered alias → `as.Generic()`) must be
+        // suppressed; the cast provides the only annotation.
+        let r_code = FluentParser::new().check_transpiling("[] as! [Any, int]");
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains("typed_vec(dim = c(0)) |> as.Array0()"),
+            "expected raw typed_vec |> as.Array0(), got: {}",
+            r_str
+        );
+        assert!(
+            !r_str.contains("as.Generic"),
+            "no as.Generic() should be emitted, got: {}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_validating_cast_in_constructor_field_registers_alias() {
+        // The ArrayN alias registered by an `as!` cast inside a constructor
+        // call field must survive to transpile time (the ConstructorCall
+        // typing arm used to drop the field-typing sub-context, so the
+        // lookup fell back to as.Generic()).
+        let r_code = FluentParser::new()
+            .push("type Truc <- list { options: [Option] };")
+            .run()
+            .push("let new_truc <- Truc:{ options = [] as! [Option] };")
+            .run()
+            .get_r_code();
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains("typed_vec(dim = c(0)) |> as.Array0()"),
+            "expected the cast to resolve to as.Array0(), got: {}",
+            r_str
+        );
+        assert!(
+            !r_str.contains("as.Generic"),
+            "no as.Generic() should be emitted, got: {}",
             r_str
         );
     }

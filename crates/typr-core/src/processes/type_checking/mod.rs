@@ -574,7 +574,11 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let mut new_context = context.clone();
             for fn_name in functions {
                 let r_name = format!("{}::{}", package, fn_name);
-                if !new_context.import_from_fns.iter().any(|(n, _)| n == fn_name) {
+                if !new_context
+                    .import_from_fns
+                    .iter()
+                    .any(|(n, _)| n == fn_name)
+                {
                     new_context.import_from_fns.push((fn_name.clone(), r_name));
                 }
             }
@@ -2638,6 +2642,12 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
 
             let mut errors: Vec<TypRError> = Vec::new();
             let target_type = Type::Alias(type_name.clone(), vec![], false, h.clone());
+            // Thread the context through field/spread typing so that types
+            // registered while typing the values (e.g. the on-the-fly ArrayN
+            // alias created by an inline `as! [T]` cast) survive to transpile
+            // time — otherwise their `as.<name>` lookup falls back to the
+            // meaningless `as.Generic()`.
+            let mut new_context = context.clone();
 
             // Record-shaped target: validate the field list (this also fixes the
             // preexisting bug where `fields` was never checked at all, spread or not).
@@ -2659,14 +2669,21 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         .find(|rf| rf.get_argument_str() == fname)
                     {
                         Some(rf) => {
-                            let value_tc = typing(context, &f.get_value());
+                            let value_tc = typing(&new_context, &f.get_value());
                             errors.extend(value_tc.errors.clone());
-                            if !value_tc.value.is_subtype(&rf.get_type(), context).0 {
+                            // reduce_and_subtype (not is_subtype): `record_fields`
+                            // comes from the *reduced* record, so a field declared
+                            // as `[Option]` reads `[any, .Some(T) | .None]` here,
+                            // while the value keeps its unreduced `[any, Option]`
+                            // alias — is_subtype would split the union before ever
+                            // reducing the alias and spuriously fail.
+                            if !value_tc.value.reduce_and_subtype(&rf.get_type(), context).0 {
                                 errors.push(TypRError::Type(TypeError::Param(
                                     rf.get_type(),
                                     value_tc.value,
                                 )));
                             }
+                            new_context = value_tc.context;
                         }
                         None => {
                             errors.push(TypRError::Type(TypeError::FieldNotFound(
@@ -2684,8 +2701,9 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 // declared field with a compatible type.
                 let mut spread_merged: Vec<ArgumentType> = Vec::new();
                 for spread_expr in spreads {
-                    let tc = typing(context, spread_expr);
+                    let tc = typing(&new_context, spread_expr);
                     errors.extend(tc.errors.clone());
+                    new_context = tc.context.clone();
                     match tc.value.reduce(context) {
                         Type::Record(spread_fields, _) => {
                             spread_merged = merge_record_fields_override(
@@ -2766,7 +2784,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 }
             }
 
-            TypeContext::new(target_type, expr.clone(), context.clone()).with_errors(errors)
+            TypeContext::new(target_type, expr.clone(), new_context).with_errors(errors)
         }
         Lang::ArrayConstructorCall {
             type_name,
@@ -4835,8 +4853,7 @@ p"#;
 
     #[test]
     fn test_extern_block_no_params() {
-        let typ = FluentParser::new()
-            .check_typing(r##"extern () -> int r#"42L"#"##);
+        let typ = FluentParser::new().check_typing(r##"extern () -> int r#"42L"#"##);
         assert_eq!(typ.pretty(), "fn() -> int");
     }
 }
