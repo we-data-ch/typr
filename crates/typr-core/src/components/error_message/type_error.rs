@@ -60,6 +60,13 @@ pub enum TypeError {
     /// A `use module::Name` imports a member that exists but is private (no `@pub`/`@export`) —
     /// `(member_name, module_name, position)`.
     PrivateImport(String, String, HelpData),
+    /// A circular dependency was detected during type-checking: module `name` is
+    /// already being type-checked when a `use` directive targeting it was
+    /// encountered.
+    CircularModuleDependency {
+        module_name: String,
+        help_data: HelpData,
+    },
 }
 
 impl TypeError {
@@ -93,6 +100,7 @@ impl TypeError {
             TypeError::SelfOutsideContext(h) => Some(h.clone()),
             TypeError::NonTrailingDefaultParam(_, h) => Some(h.clone()),
             TypeError::PrivateImport(_, _, h) => Some(h.clone()),
+            TypeError::CircularModuleDependency { help_data: h, .. } => Some(h.clone()),
         }
     }
 
@@ -228,6 +236,13 @@ impl TypeError {
                 format!(
                     "'{}' is private in '{}': add `@pub` or `@export` before its declaration",
                     member, module
+                )
+            }
+            TypeError::CircularModuleDependency { module_name, .. } => {
+                format!(
+                    "Circular module dependency: module '{}' is currently being \
+                     type-checked — use of it inside its own body is not allowed",
+                    module_name
                 )
             }
         }
@@ -614,6 +629,25 @@ impl ErrorMsg for TypeError {
                         "Add `@pub` or `@export` before the declaration of '{}' in '{}'",
                         member, module
                     ))
+                    .build()
+            }
+            TypeError::CircularModuleDependency {
+                module_name,
+                help_data,
+            } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "Circular module dependency: '{}' is currently being type-checked",
+                        module_name
+                    ))
+                    .pos_text("Cyclic module import")
+                    .help(
+                        "Module A cannot import from module B while B's body is already being \
+                         type-checked (directly or transitively). Break the cycle by moving the \
+                         shared definitions into a third module.",
+                    )
                     .build()
             }
         };

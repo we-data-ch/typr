@@ -438,6 +438,17 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             help_data: h,
             ..
         } => {
+            // Cycle detection: if this module is already being type-checked
+            // (modules_in_progress set), a `use Module::*;` inside its body
+            // has created a circular dependency chain.
+            if context.is_module_in_progress(module_name) {
+                return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
+                    .with_errors(vec![TypRError::Type(TypeError::CircularModuleDependency {
+                        module_name: module_name.clone(),
+                        help_data: h.clone(),
+                    })]);
+            }
+
             let module_expr = if members.len() > 1 {
                 Lang::Lines {
                     value: members.to_vec(),
@@ -453,7 +464,10 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             // same file are visible from inside the module), with opaque
             // aliases made transparent — module-internal functions see through
             // them.
-            let internal_context = context.clone().set_in_module_body();
+            let internal_context = context
+                .clone()
+                .set_in_module_body()
+                .mark_module_in_progress(module_name);
             let typing_context = typing(&internal_context, &module_expr);
 
             // Collect opaque alias names declared in this module so we can
@@ -556,7 +570,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let module_var = Var::from_name(module_name);
             let final_context = context
                 .clone()
-                .push_var_type(module_var, module_type, context)
+                .push_var_type(module_var, module_type.clone(), context)
                 // The module's internal record aliases are otherwise dropped here
                 // for encapsulation, but R's S3 class system has no such privacy
                 // boundary: the whole-program registry must still see them so
@@ -567,7 +581,13 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 // module body: sibling modules dispatch on their class names
                 // (`new_x.Array1`) and `types.R` must emit their `as.ArrayN`
                 // casts. User-declared aliases stay module-scoped.
-                .hoist_aliases(&typing_context.context);
+                .hoist_aliases(&typing_context.context)
+                // Cache the inner context so transpilation can use it directly
+                // without re-running typing() on the module body.
+                .store_module_inner_context(module_name, &typing_context.context)
+                // Cache the module type so UseModule can resolve it from cache
+                // instead of walking the variable-path chain.
+                .cache_processed_module(module_name, module_type);
 
             TypeContext::new(builder::empty_type(), expr.clone(), final_context)
                 .with_errors(typing_context.errors)
@@ -2442,24 +2462,44 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 return TypeContext::new(builder::empty_type(), expr.clone(), context.clone());
             }
 
-            // Resolve first segment of path in context
+            // Cycle detection: prevent importing from a module whose body is
+            // currently being type-checked (i.e. is on the call stack).
+            let root_module_name = &module_path[0];
+            if context.is_module_in_progress(root_module_name) {
+                errors.push(TypRError::Type(TypeError::CircularModuleDependency {
+                    module_name: root_module_name.clone(),
+                    help_data: help_data.clone(),
+                }));
+                return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
+                    .with_errors(errors);
+            }
+
+            // Resolve first segment of path in context.
+            // Check the processed-module cache first for a fast path.
             let module_var = Var::from_name(&module_path[0]);
-            let root_type = match context.get_type_from_variable(&module_var) {
-                Ok(t) => t,
-                Err(_) => {
-                    errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                        Lang::Variable {
-                            name: module_path[0].clone(),
-                            is_opaque: false,
-                            related_type: builder::any_type(),
-                            help_data: help_data.clone(),
-                        },
-                    )));
-                    return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
+            let root_type = if let Some(cached) = context.get_processed_module(root_module_name) {
+                cached.clone()
+            } else {
+                match context.get_type_from_variable(&module_var) {
+                    Ok(t) => t,
+                    Err(_) => {
+                        errors.push(TypRError::Type(TypeError::UndefinedVariable(
+                            Lang::Variable {
+                                name: module_path[0].clone(),
+                                is_opaque: false,
+                                related_type: builder::any_type(),
+                                help_data: help_data.clone(),
+                            },
+                        )));
+                        return TypeContext::new(
+                            builder::empty_type(),
+                            expr.clone(),
+                            context.clone(),
+                        )
                         .with_errors(errors);
+                    }
                 }
             };
-
             // Navigate nested path segments
             let mut current_type = root_type;
             for segment in module_path.iter().skip(1) {
@@ -4861,5 +4901,40 @@ p"#;
     fn test_extern_block_no_params() {
         let typ = FluentParser::new().check_typing(r##"extern () -> int r#"42L"#"##);
         assert_eq!(typ.pretty(), "fn() -> int");
+    }
+
+    /// A processed module must appear in `processed_modules` so subsequent
+    /// `use Module::*` directives can resolve it from the cache.
+    #[test]
+    fn test_module_is_cached_after_eval() {
+        let fp = FluentParser::new()
+            .push("module M { @pub let x <- 42; }")
+            .run();
+        let ctx = fp.get_context();
+        let cached = ctx.get_processed_module("M");
+        assert!(
+            cached.is_some(),
+            "expected module M to be cached in processed_modules after eval"
+        );
+    }
+
+    /// When `eval()` enters a module body, the module must be flagged as
+    /// in-progress so that a circular `use` inside the body can be detected.
+    #[test]
+    fn test_modules_in_progress_is_set_during_eval() {
+        let fp = FluentParser::new()
+            .push("module A { @pub let a <- 1; }")
+            .run();
+        let ctx = fp.get_context();
+        // After eval completes, module A should no longer be in-progress.
+        assert!(
+            !ctx.is_module_in_progress("A"),
+            "module A should not be in-progress after eval completes"
+        );
+        // The processed cache should have module A.
+        assert!(
+            ctx.get_processed_module("A").is_some(),
+            "expected A in processed_modules"
+        );
     }
 }

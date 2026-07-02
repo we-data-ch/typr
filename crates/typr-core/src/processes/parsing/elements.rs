@@ -865,9 +865,10 @@ pub fn record(s: Span) -> IResult<Span, Lang> {
 }
 
 fn pascal_case_helper(s: Span) -> IResult<Span, (String, HelpData)> {
-    let res = (one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), alpha1).parse(s);
+    let res = (one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), opt(alpha1)).parse(s);
     match res {
-        Ok((s, (t1, t2))) => Ok((s.clone(), (format!("{}{}", t1, t2), s.into()))),
+        Ok((s, (t1, Some(t2)))) => Ok((s.clone(), (format!("{}{}", t1, t2), s.into()))),
+        Ok((s, (t1, None))) => Ok((s.clone(), (t1.to_string(), s.into()))),
         Err(r) => Err(r),
     }
 }

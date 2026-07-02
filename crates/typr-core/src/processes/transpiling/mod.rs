@@ -728,10 +728,23 @@ impl RTranslatable<(String, Context)> for Lang {
                 // the correct type (via ConstructorCall or List), so skip the
                 // output conversion for record aliases.
                 let is_record_alias_return = match &return_type {
+                    // `cont.aliases()` only has aliases explicitly `use`d (or
+                    // declared) in this module's own scope. A return type can
+                    // name a record alias that was never imported by name here
+                    // (only its constructor/functions were), resolved instead
+                    // through the whole-program `record_aliases` registry — the
+                    // same fallback `get_matching_alias_signature` relies on.
                     Type::Alias(alias_name, _, _, _) => cont
                         .aliases()
                         .find(|(var, _)| var.get_name() == *alias_name)
-                        .map(|(_, t)| matches!(t, Type::Record(_, _)))
+                        .map(|(_, t)| t.clone())
+                        .or_else(|| {
+                            cont.record_aliases
+                                .iter()
+                                .find(|(name, _)| name == alias_name)
+                                .map(|(_, t)| t.clone())
+                        })
+                        .map(|t| matches!(t, Type::Record(_, _)))
                         .unwrap_or(false),
                     _ => false,
                 };
@@ -1868,22 +1881,44 @@ impl RTranslatable<(String, Context)> for Lang {
                     push_import_from_frame();
                 }
 
-                // Re-derive the module's internal typing context so body elements
-                // can resolve sibling definitions (e.g. a `Test { ... }` block or a
-                // top-level call referencing an internal `let`). The outer `cont`
-                // only knows the module itself, not its private members.
-                let module_expr = if body.len() > 1 {
-                    Lang::Lines {
-                        value: body.to_vec(),
-                        help_data: HelpData::default(),
-                    }
+                // Use the inner context cached during type-checking when available.
+                // Fallback: re-run typing() on the module body (only happens if the
+                // cached context is missing, e.g. in isolated transpile-only calls).
+                let mut inner_cont = if let Some(cached) = cont.get_module_inner_context(name) {
+                    // The cached snapshot was taken while typing *this* module's
+                    // body, mid-compilation — it can't see whole-program registries
+                    // (record_aliases, the subtype graph) as they stood after later
+                    // sibling modules were typed (e.g. `Position` declared in a
+                    // module processed after this one). `cont`, the ambient context
+                    // at transpile time, has the final, fully-merged picture, so
+                    // overlay those registries onto the cheap cached snapshot rather
+                    // than trusting its stale copies.
+                    let mut cached = cached.clone();
+                    cached.record_aliases = cont.record_aliases.clone();
+                    cached.subtypes = cont.subtypes.clone();
+                    // Same staleness problem for auto-generated structural
+                    // aliases (`ArrayN`/`RecordN`/…) hoisted into the outer
+                    // scope from *other* modules after this one was typed —
+                    // pull those in too so this module's own class chains
+                    // (`class(x) <- c(..., "Record1", ...)`) still see them.
+                    cached.typing_context = cached
+                        .typing_context
+                        .clone()
+                        .hoist_aliases(&cont.typing_context);
+                    cached
                 } else {
-                    body.first()
-                        .cloned()
-                        .unwrap_or(Lang::Empty(HelpData::default()))
+                    let module_expr = if body.len() > 1 {
+                        Lang::Lines {
+                            value: body.to_vec(),
+                            help_data: HelpData::default(),
+                        }
+                    } else {
+                        body.first()
+                            .cloned()
+                            .unwrap_or(Lang::Empty(HelpData::default()))
+                    };
+                    typing(&cont.clone().set_in_module_body(), &module_expr).context
                 };
-                let mut inner_cont =
-                    typing(&cont.clone().set_in_module_body(), &module_expr).context;
 
                 // RFC-TR-031: in a test build, give any `Test { ... }` block in this
                 // module access to its `@testable` private members by binding their

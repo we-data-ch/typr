@@ -26,7 +26,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::iter::Rev;
+
 use std::ops::Add;
 use tap::Pipe;
 
@@ -80,6 +80,23 @@ pub struct Context {
     /// what makes `Self` invalid outside a function body.
     #[serde(skip)]
     pub self_type: Option<Type>,
+    /// Inner typing contexts computed while type-checking each `module M { ... }`
+    /// body, keyed by module name. Populated during type-checking; consumed
+    /// during transpilation to avoid re-running `typing()` on every module body.
+    #[serde(skip)]
+    pub module_inner_contexts: HashMap<String, Box<Context>>,
+    /// Cache of fully type-checked modules. Maps module name → its
+    /// `Type::Module` so that `use Module::*;` can be resolved without
+    /// re-walking the module path in the variable table. Populated by
+    /// `eval()` for `Lang::Module` and consumed by `typing()` for
+    /// `Lang::UseModule`.
+    #[serde(skip)]
+    pub processed_modules: HashMap<String, Type>,
+    /// Set of module names whose body is currently being type-checked.
+    /// Used to detect circular import chains at the type-checking level.
+    /// A `Lang::UseModule` targeting a name in this set is a cycle error.
+    #[serde(skip)]
+    pub modules_in_progress: HashSet<String>,
     /// Registry of `@extern` function declarations: (TypR name, R-side qualified name).
     /// When `Option<String>` is `None` the TypR name is used directly as the R call.
     #[serde(default)]
@@ -139,6 +156,9 @@ impl Default for Context {
             self_type: None,
             extern_fns: Vec::new(),
             import_from_fns: Vec::new(),
+            module_inner_contexts: HashMap::new(),
+            processed_modules: HashMap::new(),
+            modules_in_progress: HashSet::new(),
         }
     }
 }
@@ -178,6 +198,9 @@ impl Context {
             self_type: None,
             extern_fns: Vec::new(),
             import_from_fns: Vec::new(),
+            module_inner_contexts: HashMap::new(),
+            processed_modules: HashMap::new(),
+            modules_in_progress: HashSet::new(),
         }
     }
 
@@ -238,6 +261,83 @@ impl Context {
         Self { self_type, ..self }
     }
 
+    pub fn store_module_inner_context(mut self, name: &str, inner: &Context) -> Self {
+        // `inner` is the module body's final context, which inherits (and thus
+        // still carries) every `module_inner_contexts` entry that was already
+        // present in the *ambient* context before this module started (nested
+        // sibling modules typed earlier in the same file/enclosing module).
+        // Storing `inner` as-is would re-embed all of those already-stored
+        // snapshots inside this module's own boxed snapshot; since `Context`
+        // is cloned pervasively throughout type-checking, and every module
+        // boundary would repeat this, the nesting depth (and thus clone cost)
+        // grows exponentially with the number of `mod` declarations. Keep
+        // only the entries genuinely *new* to this module's own body (i.e.
+        // not already known to the ambient context) — those are exactly the
+        // modules declared/nested directly within this one.
+        let new_entries: HashMap<String, Box<Context>> = inner
+            .module_inner_contexts
+            .iter()
+            .filter(|(k, _)| !self.module_inner_contexts.contains_key(k.as_str()))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let mut trimmed = inner.clone();
+        trimmed.module_inner_contexts = new_entries;
+        self.module_inner_contexts
+            .insert(name.to_string(), Box::new(trimmed));
+        self
+    }
+
+    pub fn get_module_inner_context(&self, name: &str) -> Option<&Context> {
+        self.module_inner_contexts.get(name).map(|b| b.as_ref())
+    }
+
+    /// Mark a module as currently being type-checked. Returns the updated
+    /// context with `name` added to `modules_in_progress`.
+    pub fn mark_module_in_progress(self, name: &str) -> Self {
+        let mut set = self.modules_in_progress.clone();
+        set.insert(name.to_string());
+        Self {
+            modules_in_progress: set,
+            ..self
+        }
+    }
+
+    /// Remove a module from the in-progress set after its body has been
+    /// fully type-checked.
+    pub fn unmark_module_in_progress(self, name: &str) -> Self {
+        let mut set = self.modules_in_progress.clone();
+        set.remove(name);
+        Self {
+            modules_in_progress: set,
+            ..self
+        }
+    }
+
+    /// True when `name` is currently being type-checked (its body is on the
+    /// call stack). A `use {name}::*;` encountered while this returns `true`
+    /// is a circular dependency.
+    pub fn is_module_in_progress(&self, name: &str) -> bool {
+        self.modules_in_progress.contains(name)
+    }
+
+    /// Register `module_type` in the processed-module cache so that
+    /// subsequent `use {name}::*;` directives can resolve it without
+    /// walking the full variable-path chain.
+    pub fn cache_processed_module(self, name: &str, module_type: Type) -> Self {
+        let mut map = self.processed_modules.clone();
+        map.insert(name.to_string(), module_type);
+        Self {
+            processed_modules: map,
+            ..self
+        }
+    }
+
+    /// Look up a previously cached module by name. Returns `Some(module_type)`
+    /// when `name` has already been fully type-checked in this session.
+    pub fn get_processed_module(&self, name: &str) -> Option<&Type> {
+        self.processed_modules.get(name)
+    }
+
     pub fn set_in_module_body(self) -> Self {
         Self {
             config: self.config.set_in_module_body(true),
@@ -263,7 +363,7 @@ impl Context {
     }
 
     pub fn variable_exist(&self, var: Var) -> Option<Var> {
-        self.typing_context.variable_exist(var)
+        self.typing_context.variable_exist(var, self)
     }
 
     pub fn get_type_from_variable(&self, var: &Var) -> Result<Type, String> {
@@ -342,11 +442,11 @@ impl Context {
             })
     }
 
-    pub fn variables(&self) -> Rev<std::vec::IntoIter<&(Var, Type)>> {
+    pub fn variables(&self) -> impl Iterator<Item = &(Var, Type)> + '_ {
         self.typing_context.variables()
     }
 
-    pub fn aliases(&self) -> Rev<std::vec::IntoIter<&(Var, Type)>> {
+    pub fn aliases(&self) -> impl Iterator<Item = &(Var, Type)> + '_ {
         self.typing_context.aliases()
     }
 
@@ -1103,6 +1203,12 @@ impl Add for Context {
                 import_from_fns.push(entry);
             }
         }
+        let mut module_inner_contexts = self.module_inner_contexts;
+        module_inner_contexts.extend(other.module_inner_contexts);
+        let mut processed_modules = self.processed_modules;
+        processed_modules.extend(other.processed_modules);
+        let mut modules_in_progress = self.modules_in_progress;
+        modules_in_progress.extend(other.modules_in_progress);
         Context {
             typing_context: self.typing_context + other.typing_context,
             subtypes: self.subtypes + other.subtypes,
@@ -1116,6 +1222,9 @@ impl Add for Context {
             extern_fns,
             import_from_fns,
             config: self.config,
+            module_inner_contexts,
+            processed_modules,
+            modules_in_progress,
         }
     }
 }

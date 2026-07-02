@@ -20,7 +20,7 @@ use crate::utils::builder;
 use countmap::CountMap;
 use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
-use std::iter::Rev;
+
 use std::ops::Add;
 
 #[cfg(not(feature = "wasm"))]
@@ -159,12 +159,12 @@ impl VarType {
         }
     }
 
-    pub fn variables(&self) -> Rev<std::vec::IntoIter<&(Var, Type)>> {
-        self.variables.iter().collect::<Vec<_>>().into_iter().rev()
+    pub fn variables(&self) -> impl Iterator<Item = &(Var, Type)> + '_ {
+        self.variables.iter().rev()
     }
 
-    pub fn aliases(&self) -> Rev<std::vec::IntoIter<&(Var, Type)>> {
-        self.aliases.iter().collect::<Vec<_>>().into_iter().rev()
+    pub fn aliases(&self) -> impl Iterator<Item = &(Var, Type)> + '_ {
+        self.aliases.iter().rev()
     }
 
     pub fn get_types(&self) -> IndexSet<Type> {
@@ -433,10 +433,10 @@ impl VarType {
             .join("\n")
     }
 
-    pub fn variable_exist(&self, var: Var) -> Option<Var> {
+    pub fn variable_exist(&self, var: Var, context: &Context) -> Option<Var> {
         self.variables
             .iter()
-            .find(|(v, _)| v.match_with(&var, &Context::default()))
+            .find(|(v, _)| v.match_with(&var, context))
             .map(|(v, _)| v.clone())
     }
 

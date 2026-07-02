@@ -1,5 +1,6 @@
 use crate::components::context::Context;
 use crate::components::language::Lang;
+use crate::components::r#type::clear_subtype_cache;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use crate::processes::transpiling::translatable::RTranslatable;
@@ -43,6 +44,7 @@ impl TypeChecker {
     }
 
     pub fn typing(self, exp: &Lang) -> Self {
+        clear_subtype_cache();
         let res = match exp {
             Lang::Lines { value: exps, .. } => {
                 let type_checker = exps.iter().fold(self.clone(), |acc: TypeChecker, lang| {
@@ -64,6 +66,7 @@ impl TypeChecker {
     /// Errors are collected and can be retrieved via `get_errors()`.
     /// The transpilation can still proceed even if there are type errors.
     pub fn typing_no_panic(self, exp: &Lang) -> Self {
+        clear_subtype_cache();
         match exp {
             Lang::Lines { value: exps, .. } => {
                 let type_checker = exps.iter().fold(self.clone(), |acc: TypeChecker, lang| {
@@ -81,12 +84,14 @@ impl TypeChecker {
 
     fn typing_helper(self, exp: &Lang) -> Self {
         let (typ, lang, context, errors) = typing(&self.context, exp).to_tuple_with_errors();
+        let mut accumulated_errors = self.errors;
+        accumulated_errors.extend(errors);
         Self {
             context,
             code: self.code.push_back(lang),
             types: self.types.push_back(typ.clone()),
             last_type: typ,
-            errors: self.errors.iter().chain(errors.iter()).cloned().collect(),
+            errors: accumulated_errors,
         }
     }
 

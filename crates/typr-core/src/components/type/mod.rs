@@ -47,11 +47,22 @@ use crate::processes::parsing::types::ltype;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::utils::builder;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
 use std::hash::Hash;
 use std::hash::Hasher;
+
+thread_local! {
+    static SUBTYPE_CACHE: RefCell<HashMap<(Type, Type), bool>> =
+        RefCell::new(HashMap::new());
+}
+
+pub fn clear_subtype_cache() {
+    SUBTYPE_CACHE.with(|c| c.borrow_mut().clear());
+}
 use std::str::FromStr;
 
 pub fn generate_arg(num: usize) -> String {
@@ -139,23 +150,16 @@ impl TypeSystem for Type {
     }
 
     fn is_subtype(&self, other: &Type, context: &Context) -> (bool, Option<Context>) {
-        // Vérifier le cache
-        if let Some(cached) = context.subtypes.check_subtype_cache(self, other) {
-            return (cached, None);
+        let cached =
+            SUBTYPE_CACHE.with(|c| c.borrow().get(&(self.clone(), other.clone())).copied());
+        if let Some(result) = cached {
+            return (result, None);
         }
-
-        // Calculer le résultat
         let result = self.is_subtype_raw(other, context);
-
-        // Mettre à jour le cache et retourner
-        let new_subtypes =
-            context
-                .subtypes
-                .clone()
-                .cache_subtype(self.clone(), other.clone(), result);
-        let new_context = context.clone().with_subtypes(new_subtypes);
-
-        (result, Some(new_context))
+        SUBTYPE_CACHE.with(|c| {
+            c.borrow_mut().insert((self.clone(), other.clone()), result);
+        });
+        (result, None)
     }
 
     //main
