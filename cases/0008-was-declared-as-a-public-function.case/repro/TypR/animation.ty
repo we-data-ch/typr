@@ -1,0 +1,28 @@
+# Data to store what animation to apply
+@pub
+type Animation <- list {
+	target: char,
+	from: Any,
+	to: Any,
+	duration: int,
+	time: int
+};
+
+@pub
+let new_animation <- fn(id: char, from: Any, to: Any, duration: int): Animation {
+	Animation:{
+		target: id,
+		from: from,
+		to: to,
+		duration: duration,
+		time: 0
+	}
+};
+
+@pub
+let set_time <- fn(self: Animation, time: int): Animation {
+	Animation:{
+		time: time,
+		...self
+	}
+}

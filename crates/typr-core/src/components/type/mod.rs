@@ -331,7 +331,9 @@ impl Type {
         } else {
             var.clone().set_type(self.clone())
         };
-        let cont = context.clone().push_var_type(stored_var, self.clone(), &context);
+        let cont = context
+            .clone()
+            .push_var_type(stored_var, self.clone(), &context);
         self.tuple(&cont)
     }
 

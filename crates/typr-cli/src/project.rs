@@ -628,11 +628,7 @@ pub fn check_file(path: &PathBuf) {
 
 /// Build a ROxygen2 comment block for a function node from the SPG.
 /// Returns an empty string if there is nothing worth emitting.
-fn roxygen_function_block(
-    doc: Option<&str>,
-    params: &[(String, String)],
-    returns: &str,
-) -> String {
+fn roxygen_function_block(doc: Option<&str>, params: &[(String, String)], returns: &str) -> String {
     let mut lines: Vec<String> = Vec::new();
     if let Some(d) = doc {
         let mut it = d.lines();
@@ -1174,7 +1170,8 @@ pub fn generate_spg(output: Option<PathBuf>) {
     let out_path = output.unwrap_or_else(|| PathBuf::from("spg.json"));
     let json = serde_json::to_string_pretty(&spg).expect("Failed to serialize SPG");
     let mut file = File::create(&out_path).expect("Failed to create SPG output file");
-    file.write_all(json.as_bytes()).expect("Failed to write SPG file");
+    file.write_all(json.as_bytes())
+        .expect("Failed to write SPG file");
     println!("Semantic graph written to {:?}", out_path);
 }
 
@@ -1532,7 +1529,9 @@ fn document_impl(quiet: bool) {
             // devtools is optional; NAMESPACE may be stale but Rd files are ready.
             step.fail();
             if !quiet {
-                eprintln!("Warning: NAMESPACE update failed (devtools/roxygen2 may not be installed).");
+                eprintln!(
+                    "Warning: NAMESPACE update failed (devtools/roxygen2 may not be installed)."
+                );
                 // R routes progress messages to stderr and errors to stdout — show both.
                 if !out.stdout.is_empty() {
                     eprintln!("{}", String::from_utf8_lossy(&out.stdout));

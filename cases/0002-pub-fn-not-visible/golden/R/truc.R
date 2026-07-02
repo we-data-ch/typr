@@ -4,8 +4,11 @@
 do <- function(x, ...) UseMethod("do")
 truc <- new.env(parent = emptyenv())
 local({
-Object <- function(a, b) {
-  x <- list(a = a, b = b)
+Object <- function(a, b, .spread = NULL) {
+  explicit <- list()
+  if (!missing(a)) explicit[["a"]] <- a
+  if (!missing(b)) explicit[["b"]] <- b
+  x <- typr_spread_record(explicit, .spread)
   as.Object(x)
 }
 as.Object <- function(x) {

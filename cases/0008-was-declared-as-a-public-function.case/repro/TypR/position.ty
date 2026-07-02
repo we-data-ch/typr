@@ -1,0 +1,27 @@
+mod animation;
+use animation::Animation;
+use animation::new_animation;
+
+@pub
+type Position <- list {
+	id: char,
+	position: Vec[2, int]
+};
+
+@pub
+let move <- fn(self: Position, direction: Vec[2, int], duration: int): Animation {
+	new_animation(self$id, self$position, direction, duration)
+};
+
+@pub
+let true_move <- fn(self: Position, direction: Vec[2, int], duration: int): Position {
+	Self:{
+		position: (self$position + direction),
+		...self
+	}
+};
+
+@pub let right <- c(1, 0);
+@pub let left <- c(-1, 0);
+@pub let up <- c(0, 1);
+@pub let down <- c(0, -1);

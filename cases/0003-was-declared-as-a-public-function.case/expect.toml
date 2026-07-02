@@ -1,5 +1,7 @@
 # Circle's S3 class vector must include its cross-module structural
 # supertype Position, so `move` (declared only for Position) dispatches.
+# (The auto-generated RecordN suffix that follows is not pinned: its
+# counter value shifts whenever registration order changes.)
 [[rule]]
 file = "R/circle.R"
-must_contain = "class(x) <- c(\"Circle\", \"Position\", \"Record0\", \"list\")"
+must_contain = "class(x) <- c(\"Circle\", \"Position\""

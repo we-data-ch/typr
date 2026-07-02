@@ -1,0 +1,14 @@
+@pub
+type Object <- list {
+	id: char
+};
+
+@pub
+let get_object_by_id <- fn(objects: [Object]): Object {
+	...
+};
+
+@pub
+let animate <- fn(self: Object, animation: Animation): Object {
+	...
+};

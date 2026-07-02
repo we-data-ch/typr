@@ -1,0 +1,9 @@
+type Truc <- list { options: [int] };
+
+let make <- fn(): Truc {
+	Truc:{
+		options: [] as! [int]
+	}
+};
+
+let t <- make();

@@ -1,0 +1,18 @@
+type Object <- list { id: char };
+
+type StoryBoard <- list {
+	objects: [Object]
+};
+
+let new_storyboard <- fn(objects: [Object]): StoryBoard {
+	StoryBoard:{
+		objects: objects
+	}
+};
+
+let make <- fn(): StoryBoard {
+	new_storyboard([] as! [Object])
+};
+
+let sb <- make();
+print("ok")

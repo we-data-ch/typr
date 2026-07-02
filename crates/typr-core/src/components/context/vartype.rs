@@ -35,6 +35,19 @@ pub fn same_var_type(element1: &(Var, Type), element2: &(Var, Type)) -> bool {
         && (element1.0.get_type() == element2.0.get_type())
 }
 
+/// True for names shaped like the ones `push_alias_increment` generates:
+/// a `TypeCategory` display prefix followed by a counter (`Array0`,
+/// `Record2`, `Function15`, …). Used to tell auto-registered structural
+/// types apart from user-declared aliases when hoisting out of an inner
+/// scope. A user alias that happens to match (`Vec2`) is also hoisted —
+/// harmless, it only widens where that name resolves.
+pub fn is_generated_alias_name(name: &str) -> bool {
+    let prefix = name.trim_end_matches(|c: char| c.is_ascii_digit());
+    prefix.len() < name.len()
+        && !prefix.is_empty()
+        && prefix.chars().all(|c| c.is_ascii_alphabetic())
+}
+
 pub fn merge_variables(
     set1: IndexSet<(Var, Type)>,
     set2: IndexSet<(Var, Type)>,
@@ -213,6 +226,35 @@ impl VarType {
         types.iter().fold(self, |vartyp, typ| {
             vartyp.push_type_if_not_exists(typ.clone())
         })
+    }
+
+    /// Carries auto-generated structural type registrations (`Array0`,
+    /// `Record2`, `Function5`, … — created by `push_alias_increment` for
+    /// anonymous array/record/function types, e.g. from an inline
+    /// `expr as! [T]` cast or a signature's parameter type) made in an inner
+    /// scope (function body, module body) back into this outer context. The
+    /// transpiler resolves them here to emit `|> as.ArrayN()` annotations,
+    /// S3 method suffixes and the `types.R` entries — R's S3 class registry
+    /// is whole-program, so these must not stay scoped. The inner alias
+    /// counter is adopted too (it only ever advances) so later registrations
+    /// can't reuse a hoisted name for a different type. User-declared aliases
+    /// and variables stay scoped to the inner context.
+    pub fn hoist_aliases(self, inner: &VarType) -> Self {
+        let new_aliases = self.hoisted_alias_pairs(inner);
+        let mut result = self.push_aliases(&new_aliases);
+        result.alias_counter = inner.alias_counter.clone();
+        result
+    }
+
+    /// The alias pairs `hoist_aliases` would carry over from `inner`.
+    pub fn hoisted_alias_pairs(&self, inner: &VarType) -> Vec<(Var, Type)> {
+        inner
+            .aliases
+            .iter()
+            .filter(|pair| !self.aliases.contains(*pair))
+            .filter(|(var, _)| is_generated_alias_name(&var.get_name()))
+            .cloned()
+            .collect()
     }
 
     pub fn separate_variables_aliases(

@@ -1,0 +1,24 @@
+mod circle;
+mod position;
+mod scene;
+mod animation;
+mod storyboard;
+
+use circle::new_circle;
+use circle::Circle;
+use position::Position;
+use position::move;
+use position::right;
+use scene::Scene;
+use scene::new_scene;
+use scene::add;
+use scene::render;
+use storyboard::StoryBoard;
+
+let c1 <- new_circle("c1", 4);
+
+let scene <- new_scene();
+
+#@case: move is not working because Circle is not recognized as a subtype of Position, why?
+scene |> add(c1.move(c(10, 10), 1000))
+	|> render()

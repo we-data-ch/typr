@@ -27,18 +27,20 @@ pub fn signature_expression(
                 )
             })
             .unwrap_or(var.clone());
-        let mut new_context = context
-            .clone()
-            .replace_or_push_var_type(new_var, typ.to_owned(), context);
+        let mut new_context =
+            context
+                .clone()
+                .replace_or_push_var_type(new_var, typ.to_owned(), context);
         if is_extern {
             new_context.extern_fns.push((var.get_name(), extern_r_name));
         }
         (builder::unknown_function_type(), expr.clone(), new_context).into()
     } else {
         // is alias
-        let mut new_context = context
-            .clone()
-            .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context);
+        let mut new_context =
+            context
+                .clone()
+                .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context);
         if is_extern {
             new_context.extern_fns.push((var.get_name(), extern_r_name));
         }
@@ -132,4 +134,3 @@ mod tests {
         assert_eq!(res, boolean)
     }
 }
-

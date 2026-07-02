@@ -304,10 +304,15 @@ pub fn function(
         || is_rigid_compatible(&body_type.value, ret_ty, &sub_context);
     (!is_compatible)
         .then(|| errors.push(builder::unmatching_return_type(ret_ty, &body_type.value)));
+    // Structural types registered on the fly while typing the body (e.g. the
+    // `ArrayN` alias created by an inline `expr as! [T]` cast) must survive
+    // into the outer context: the transpiler resolves them there to emit the
+    // `|> as.ArrayN()` annotation and the matching `types.R` entry. Only
+    // alias registrations are hoisted — body variables stay local.
     TypeContext::new(
         Type::Function(list_of_types, Box::new(ret_ty.clone()), h.clone()),
         expr.clone(),
-        context.clone(),
+        context.clone().hoist_aliases(&body_type.context),
     )
     .with_errors(errors)
 }

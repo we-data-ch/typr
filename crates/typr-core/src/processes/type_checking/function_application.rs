@@ -1096,8 +1096,11 @@ fn apply_from_variable_inner(
     parameters: &[Lang],
     h: &HelpData,
 ) -> TypeContext {
-    let (expanded_parameters, types, param_errors) =
+    let (expanded_parameters, types, param_errors, arg_context) =
         get_expanded_parameters_with_their_types(context, parameters);
+    // Shadow the caller's context with the alias-enriched one so every
+    // downstream `build_success` threads the argument registrations onward.
+    let context = &arg_context;
 
     let all_signatures = var.get_functions_from_name(context);
 
@@ -1358,8 +1361,19 @@ fn specialize_lambdas(
 fn get_expanded_parameters_with_their_types(
     context: &Context,
     values: &[Lang],
-) -> (Vec<Lang>, Vec<Type>, Vec<TypRError>) {
-    let typing_contexts: Vec<_> = values.iter().map(|x| typing(context, x)).collect();
+) -> (Vec<Lang>, Vec<Type>, Vec<TypRError>, Context) {
+    // Arguments are typed sequentially, hoisting each argument's type-alias
+    // registrations (e.g. the `ArrayN` alias created on the fly by an inline
+    // `expr as! [T]` cast) into the context used for the next argument and
+    // returned to the caller — the transpiler resolves them there to emit
+    // the `|> as.ArrayN()` annotation. Argument-local variables never leak.
+    let mut new_context = context.clone();
+    let mut typing_contexts: Vec<TypeContext> = Vec::with_capacity(values.len());
+    for value in values {
+        let tc = typing(&new_context, value);
+        new_context = new_context.hoist_aliases(&tc.context);
+        typing_contexts.push(tc);
+    }
     let errors: Vec<TypRError> = typing_contexts
         .iter()
         .flat_map(|tc| tc.errors.clone())
@@ -1374,7 +1388,7 @@ fn get_expanded_parameters_with_their_types(
         .cloned()
         .map(|x| x.lang)
         .collect::<Vec<_>>();
-    (new_values, types, errors)
+    (new_values, types, errors, new_context)
 }
 
 fn build_function_lang(
@@ -1406,7 +1420,7 @@ pub fn apply_from_expression(
     h: &HelpData,
 ) -> TypeContext {
     // Collect errors from parameters but return Any type
-    let (_expanded_parameters, _types, param_errors) =
+    let (_expanded_parameters, _types, param_errors, _) =
         get_expanded_parameters_with_their_types(context, values);
     let mut errors = param_errors;
     errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));

@@ -23,6 +23,7 @@ use nom::branch::alt;
 use nom::bytes::complete::escaped;
 use nom::bytes::complete::is_not;
 use nom::bytes::complete::tag;
+use nom::bytes::complete::take_until;
 use nom::bytes::complete::take_while1;
 use nom::character::complete::alpha1;
 use nom::character::complete::alphanumeric1;
@@ -34,7 +35,6 @@ use nom::character::complete::multispace1;
 use nom::character::complete::not_line_ending;
 use nom::character::complete::one_of;
 use nom::combinator::map;
-use nom::bytes::complete::take_until;
 use nom::combinator::not;
 use nom::combinator::opt;
 use nom::combinator::recognize;
@@ -1594,7 +1594,10 @@ mod tests {
     #[test]
     fn test_extern_block_parse() {
         let res = r##"extern (x: int, y: char) -> char r#"paste0(x, y)"#"##.parse::<Lang>();
-        println!("extern_block parse: {:?}", res.as_ref().map(|l| l.simple_print()));
+        println!(
+            "extern_block parse: {:?}",
+            res.as_ref().map(|l| l.simple_print())
+        );
         assert!(res.is_ok(), "extern_block should parse successfully");
         assert!(
             matches!(res.unwrap(), Lang::ExternBlock { .. }),
@@ -1605,7 +1608,10 @@ mod tests {
     #[test]
     fn test_extern_block_no_params_parse() {
         let res = r##"extern () -> int r#"42L"#"##.parse::<Lang>();
-        println!("extern_block no-params: {:?}", res.as_ref().map(|l| l.simple_print()));
+        println!(
+            "extern_block no-params: {:?}",
+            res.as_ref().map(|l| l.simple_print())
+        );
         assert!(res.is_ok(), "extern_block no-params should parse");
         assert!(matches!(res.unwrap(), Lang::ExternBlock { .. }));
     }

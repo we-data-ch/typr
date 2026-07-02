@@ -31,7 +31,7 @@ validate_Animator <- function(x) {
 }
 #' @method animate default
 `animate.default` <- (function(target) {
-`animations` <- list(animations = typed_vec(dim = c(0)) |> as.Generic()) |> as.Generic()
+`animations` <- list(animations = typed_vec(dim = c(0)) |> as.Generic()) |> as.Record3()
 
 validate_Animator(spread(target, animations))
 }) |> as.Generic()

@@ -38,7 +38,7 @@ validate_Scene <- function(x) {
 }
 #' @method new_scene
 `new_scene` <- (function() {
-Scene(width = 1920L |> as.Integer(), height = 1080L |> as.Integer(), background = "#000000" |> as.Character(), fps = 60L |> as.Integer(), objects = typed_vec(dim = c(0)) |> as.Generic())
+Scene(width = 1920L |> as.Integer(), height = 1080L |> as.Integer(), background = "#000000" |> as.Character(), fps = 60L |> as.Integer(), objects = typed_vec(dim = c(0)) |> as.Array1())
 }) |> as.Generic()
 
 #' @method add Scene

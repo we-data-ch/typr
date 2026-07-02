@@ -1,0 +1,41 @@
+mod animation;
+mod object;
+
+use animation::Animation;
+use object::Object;
+use object::animate;
+
+@pub
+type Snapshot <- list {
+	time: int,
+	objects: [Object]
+};
+
+@pub
+type StoryBoard <- list {
+	objects: [Object],
+	snapshots: [Any]
+};
+
+@pub
+let new_storyboard <- fn(objects: [Object]): StoryBoard {
+	StoryBoard:{
+		objects: objects,
+		snapshots: [] as! [Any]
+	}
+};
+
+let snapshot <- fn(self: StoryBoard, animation:  Animation): StoryBoard {
+	let objs = self$objects |> map(\(x) animate(x, animation));
+	let snap <- Snapshot:{ time: animation$time, objects: objs };
+	StoryBoard:{
+		objects: objs,
+		snapshots: self$snapshots.extend(snap) 
+	}
+};
+
+@pub
+let snapshots <- fn(self: StoryBoard, actions: [Animation]): StoryBoard {
+	actions 
+		|> fold(self, \(acc, x) acc.snapshot(acc))
+};

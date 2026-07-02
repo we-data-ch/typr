@@ -328,6 +328,18 @@ impl Context {
                     panic!("The related type is not Params([...])");
                 }
             })
+            // Module-internal record aliases are dropped from `aliases()` at
+            // the module boundary for encapsulation, but their names still
+            // appear inside hoisted structural types and exported signatures.
+            // `record_aliases` is the whole-program record registry kept for
+            // codegen (see `merge_record_aliases`) — resolve through it so
+            // structural subtype checks don't collapse such names to `Any`.
+            .or_else(|| {
+                self.record_aliases
+                    .iter()
+                    .find(|(name, _)| *name == var.get_name())
+                    .map(|(_, typ)| (typ.clone(), vec![]))
+            })
     }
 
     pub fn variables(&self) -> Rev<std::vec::IntoIter<&(Var, Type)>> {
@@ -414,8 +426,37 @@ impl Context {
     }
 
     pub fn push_types(self, types: &[Type]) -> Self {
+        // The subtype graph is the whole-program registry the transpiler
+        // walks to compute class chains (`get_classes`): every registered
+        // type must be a node there, or values annotated with it lose their
+        // structural supertype classes at runtime dispatch.
+        let new_subtypes = self.subtypes.clone().add_types(types, &self);
         Self {
-            typing_context: self.typing_context.push_types(types),
+            typing_context: self.typing_context.clone().push_types(types),
+            subtypes: new_subtypes,
+            ..self
+        }
+    }
+
+    /// Hoists auto-generated type-alias registrations from an inner scope's
+    /// context (function body, module body) into this one — see
+    /// `VarType::hoist_aliases`. The hoisted types are also added to the
+    /// subtype graph so structural supertype lookups (S3 class chains)
+    /// keep working outside the scope that registered them.
+    pub fn hoist_aliases(self, inner: &Context) -> Self {
+        let hoisted_types: Vec<Type> = self
+            .typing_context
+            .hoisted_alias_pairs(&inner.typing_context)
+            .into_iter()
+            .map(|(_, typ)| typ)
+            .collect();
+        let new_subtypes = self.subtypes.clone().add_types(&hoisted_types, &self);
+        Self {
+            typing_context: self
+                .typing_context
+                .clone()
+                .hoist_aliases(&inner.typing_context),
+            subtypes: new_subtypes,
             ..self
         }
     }

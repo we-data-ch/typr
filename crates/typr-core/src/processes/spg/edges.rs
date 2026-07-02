@@ -1,8 +1,8 @@
 #![allow(dead_code, unused_imports)]
 
+use super::model::{Edge, EdgeKind, Node, NodeKind, NodePayload, Spg};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use super::model::{Edge, EdgeKind, Node, NodeKind, NodePayload, Spg};
 
 /// Infer all edges from the nodes already in `spg` and append them.
 /// Called by `build_spg` after the node-collection pass.
@@ -96,7 +96,11 @@ pub fn infer_edges(spg: &mut Spg) {
 }
 
 fn mk_edge(from: &str, to: &str, kind: EdgeKind) -> Edge {
-    Edge { from: from.to_string(), to: to.to_string(), kind }
+    Edge {
+        from: from.to_string(),
+        to: to.to_string(),
+        kind,
+    }
 }
 
 /// Produce the inverse edge for edge kinds that have one.

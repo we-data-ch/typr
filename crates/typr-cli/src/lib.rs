@@ -47,8 +47,8 @@ pub mod progress;
 pub mod project;
 pub mod rd_renderer;
 pub mod repl;
-pub mod vignette_renderer;
 pub mod standard_library;
+pub mod vignette_renderer;
 
 // Re-export commonly used items
 pub use cli::start;

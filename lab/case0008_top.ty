@@ -1,0 +1,5 @@
+type Truc <- list { options: [int] };
+
+let t <- Truc:{
+	options: [] as! [int]
+};

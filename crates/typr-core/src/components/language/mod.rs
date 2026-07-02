@@ -560,7 +560,18 @@ impl PartialEq for Lang {
             ) => a1 == b1 && a2 == b2,
             (Lang::Comment { value: a, .. }, Lang::Comment { value: b, .. }) => a == b,
             (Lang::ModuleImport { value: a, .. }, Lang::ModuleImport { value: b, .. }) => a == b,
-            (Lang::ImportFrom { package: a1, functions: a2, .. }, Lang::ImportFrom { package: b1, functions: b2, .. }) => a1 == b1 && a2 == b2,
+            (
+                Lang::ImportFrom {
+                    package: a1,
+                    functions: a2,
+                    ..
+                },
+                Lang::ImportFrom {
+                    package: b1,
+                    functions: b2,
+                    ..
+                },
+            ) => a1 == b1 && a2 == b2,
             (Lang::Import { value: a, .. }, Lang::Import { value: b, .. }) => a == b,
             (
                 Lang::GenFunc {
@@ -922,7 +933,10 @@ impl Lang {
     }
 
     pub fn is_function(&self) -> bool {
-        matches!(self, Lang::Function { .. } | Lang::RFunction { .. } | Lang::ExternBlock { .. })
+        matches!(
+            self,
+            Lang::Function { .. } | Lang::RFunction { .. } | Lang::ExternBlock { .. }
+        )
     }
 
     pub fn infer_var_name(&self, args: &[Lang], context: &Context) -> Var {

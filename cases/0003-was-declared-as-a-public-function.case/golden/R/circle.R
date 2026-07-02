@@ -15,7 +15,7 @@ Circle <- function(fill, position, radius, stroke, .spread = NULL) {
   as.Circle(x)
 }
 as.Circle <- function(x) {
-  if (!inherits(x, "Circle")) class(x) <- c("Circle", "Position", "Record0", "list")
+  if (!inherits(x, "Circle")) class(x) <- c("Circle", "Position", "Record1", "list")
   x <- validate_Circle(x)
   x <- validate(x)
   x

@@ -561,7 +561,13 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 // for encapsulation, but R's S3 class system has no such privacy
                 // boundary: the whole-program registry must still see them so
                 // sibling modules' structural supertypes are found at codegen time.
-                .merge_record_aliases(&typing_context.context);
+                .merge_record_aliases(&typing_context.context)
+                // Same whole-program rationale for the auto-generated structural
+                // aliases (`ArrayN`, `FunctionN`, …) registered while typing the
+                // module body: sibling modules dispatch on their class names
+                // (`new_x.Array1`) and `types.R` must emit their `as.ArrayN`
+                // casts. User-declared aliases stay module-scoped.
+                .hoist_aliases(&typing_context.context);
 
             TypeContext::new(builder::empty_type(), expr.clone(), final_context)
                 .with_errors(typing_context.errors)

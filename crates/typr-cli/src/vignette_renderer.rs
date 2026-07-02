@@ -25,13 +25,17 @@ pub fn generate_spg_fragments(spg: &Spg, fragments_dir: &Path) -> io::Result<()>
         let node_dir = fragments_dir.join(&node.name);
         fs::create_dir_all(&node_dir)?;
 
-        let parsed = node.doc.as_deref().map(parse_doc).unwrap_or_else(|| ParsedDoc {
-            title: node.name.clone(),
-            description: String::new(),
-            param_docs: HashMap::new(),
-            return_doc: String::new(),
-            examples: Vec::new(),
-        });
+        let parsed = node
+            .doc
+            .as_deref()
+            .map(parse_doc)
+            .unwrap_or_else(|| ParsedDoc {
+                title: node.name.clone(),
+                description: String::new(),
+                param_docs: HashMap::new(),
+                return_doc: String::new(),
+                examples: Vec::new(),
+            });
 
         // description
         let description = if !parsed.description.is_empty() {
@@ -69,11 +73,19 @@ pub fn generate_spg_fragments(spg: &Spg, fragments_dir: &Path) -> io::Result<()>
 fn render_signature(node: &typr_core::processes::spg::model::Node) -> Option<String> {
     match &node.payload {
         NodePayload::Function { params, .. } => {
-            let args = params.iter().map(|(p, _)| p.as_str()).collect::<Vec<_>>().join(", ");
+            let args = params
+                .iter()
+                .map(|(p, _)| p.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
             Some(format!("{}({})", node.name, args))
         }
         NodePayload::Record { fields } => {
-            let args = fields.iter().map(|(f, _)| f.as_str()).collect::<Vec<_>>().join(", ");
+            let args = fields
+                .iter()
+                .map(|(f, _)| f.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
             Some(format!("{}({})", node.name, args))
         }
         _ => None,
@@ -183,12 +195,16 @@ fn inject_placeholders(content: &str, fragments_dir: &Path) -> String {
                     Some(colon) => {
                         let fragment_type = placeholder[..colon].trim();
                         let entity = placeholder[colon + 1..].trim();
-                        let fragment_path =
-                            fragments_dir.join(entity).join(format!("{}.md", fragment_type));
+                        let fragment_path = fragments_dir
+                            .join(entity)
+                            .join(format!("{}.md", fragment_type));
 
                         let replacement = if fragment_path.exists() {
                             fs::read_to_string(&fragment_path).unwrap_or_else(|_| {
-                                format!("<!-- error reading fragment: {}/{} -->", entity, fragment_type)
+                                format!(
+                                    "<!-- error reading fragment: {}/{} -->",
+                                    entity, fragment_type
+                                )
                             })
                         } else {
                             format!("<!-- fragment not found: {}/{} -->", entity, fragment_type)

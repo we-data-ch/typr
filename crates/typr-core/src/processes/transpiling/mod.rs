@@ -2010,6 +2010,40 @@ impl RTranslatable<(String, Context)> for Lang {
                             }
                         }
                     }
+                    // A *private* typed function is also emitted as an S3 method
+                    // (`snapshot.StoryBoard`), and its call sites transpile to the
+                    // bare generic (`snapshot(...)`) — so a generic stub must
+                    // exist for them too. It stays inside `local({...})`: the
+                    // sibling methods' closures resolve it lexically, and nothing
+                    // leaks into the module env or the top level.
+                    if let Lang::Let {
+                        variable: var,
+                        is_public: false,
+                        ..
+                    } = lang
+                    {
+                        if let Some(v) = Var::from_language(*var.clone()) {
+                            let raw_name = v.get_name();
+                            let typed_name = v.clone().display_type(&inner_cont).get_name();
+                            let var_type = v.get_type();
+                            if !var_type.is_empty() && typed_name != raw_name {
+                                let class_name = inner_cont.get_class_unquoted(&var_type);
+                                let generic_def = format!(
+                                    "{} <- function(x, ...) UseMethod(\"{}\")",
+                                    raw_name, raw_name
+                                );
+                                if !generics.contains(&generic_def)
+                                    && !exports.contains(&generic_def)
+                                {
+                                    exports.push(generic_def);
+                                }
+                                exports.push(format!(
+                                    "registerS3method(\"{}\", \"{}\", {})",
+                                    raw_name, class_name, typed_name
+                                ));
+                            }
+                        }
+                    }
                     // RFC-TR-032: in a test build, expose `@testable` (and implied-testable
                     // `@pub`/`@export`) members as `M$.test_<name>` while keeping them
                     // private in the module's regular API.
