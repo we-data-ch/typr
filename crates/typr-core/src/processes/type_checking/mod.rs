@@ -48,7 +48,7 @@ use crate::utils::builder;
 use std::collections::HashSet;
 use std::error::Error;
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::process::Command;
 
 /// Result of type checking, containing the type context and collected errors
@@ -127,7 +127,7 @@ pub fn typing_with_errors(context: &Context, expr: &Lang) -> TypingResult {
 
 /// Execute an R function and return the output.
 /// Only available in native mode (not in WASM).
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>> {
     let r_script = format!("{}\n", function_code);
 
@@ -143,14 +143,14 @@ pub fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>>
 }
 
 /// Stub for WASM mode - R execution is not supported
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 pub fn execute_r_function(_function_code: &str) -> Result<String, Box<dyn Error>> {
     Err("R execution is not supported in WASM mode".into())
 }
 
 /// Check if an R package is already installed in the system.
 /// Only available in native mode.
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 fn is_package_installed(name: &str) -> bool {
     let check_code = format!("length(find.package(\"{}\", quiet = TRUE)) > 0", name);
     let output = Command::new("Rscript").args(["-e", &check_code]).output();
@@ -166,7 +166,7 @@ fn is_package_installed(name: &str) -> bool {
 
 /// Install an R package. Only available in native mode.
 /// First checks if the package is already installed in the system.
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 fn install_package(name: &str) {
     if is_package_installed(name) {
         return;
@@ -185,7 +185,7 @@ fn install_package(name: &str) {
 }
 
 /// Stub for WASM mode - package installation is not supported
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 fn install_package(_name: &str) {
     // No-op in WASM mode - packages must be pre-registered
 }

@@ -4,3 +4,4 @@ r#"^.*\.Rproj$
 ^\.git$
 ^\.gitignore$
 "#
+.typr_cache/

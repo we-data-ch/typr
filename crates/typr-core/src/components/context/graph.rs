@@ -69,15 +69,11 @@ impl<T: TypeSystem> Graph<T> {
         self.root.get_hierarchy()
     }
 
+    // Deduplicates while preserving the walk order: the result feeds R class
+    // vectors (`struct(c(...))` in types.R), where order drives S3 dispatch
+    // and must be stable from one build to the next.
     pub fn get_supertypes(&self, typ: &T, context: &Context) -> Vec<T> {
-        self.root
-            .get_supertypes(typ, context)
-            .iter()
-            .cloned()
-            .collect::<HashSet<_>>()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
+        self.get_ordered_supertypes(typ, context)
     }
 
     pub fn get_ordered_supertypes(&self, typ: &T, context: &Context) -> Vec<T> {

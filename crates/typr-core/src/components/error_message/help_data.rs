@@ -2,7 +2,7 @@ use crate::components::language::Lang;
 use nom_locate::LocatedSpan;
 use serde::{Deserialize, Serialize};
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::fs;
 
 use std::cell::RefCell;
@@ -65,7 +65,7 @@ impl HelpData {
         }
 
         // In native mode, fall back to filesystem
-        #[cfg(not(feature = "wasm"))]
+        #[cfg(not(target_arch = "wasm32"))]
         {
             match fs::read_to_string(&file_name).ok() {
                 Some(text) => {
@@ -77,7 +77,7 @@ impl HelpData {
             }
         }
 
-        #[cfg(feature = "wasm")]
+        #[cfg(target_arch = "wasm32")]
         {
             None
         }

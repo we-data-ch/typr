@@ -2,7 +2,6 @@
 
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fs;
 use std::io;
 use std::path::Path;
 use typr_core::processes::spg::model::{Node, NodePayload, Spg, Visibility};
@@ -307,7 +306,7 @@ pub fn generate_rd_files(spg: &Spg, man_dir: &Path) -> io::Result<usize> {
     for node in &spg.nodes {
         if let Some(rd_content) = render_rd_for_node(node, &linkable) {
             let file_path = man_dir.join(format!("{}.Rd", node.name));
-            fs::write(&file_path, rd_content)?;
+            crate::cache::write_if_changed(&file_path, &rd_content)?;
             count += 1;
         }
     }

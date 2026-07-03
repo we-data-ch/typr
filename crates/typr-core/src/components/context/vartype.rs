@@ -23,11 +23,11 @@ use serde::{Deserialize, Serialize};
 
 use std::ops::Add;
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::fs::File;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::io::Read;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::io::Write;
 
 pub fn same_var_type(element1: &(Var, Type), element2: &(Var, Type)) -> bool {
@@ -527,7 +527,7 @@ impl VarType {
     }
 
     /// Save to a file (only available in native mode)
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn save(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
         let binary_data = bincode::serialize(self)?;
         let mut file = File::create(path)?;
@@ -536,13 +536,13 @@ impl VarType {
     }
 
     /// Stub for WASM mode
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     pub fn save(&self, _path: &str) -> Result<(), Box<dyn std::error::Error>> {
         Err("File saving not supported in WASM mode".into())
     }
 
     /// Load from a file path (only available in native mode)
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn load(self, path: &str) -> Result<VarType, Box<dyn std::error::Error>> {
         let mut file = File::open(path)?;
         let mut buffer = Vec::new();
@@ -552,7 +552,7 @@ impl VarType {
     }
 
     /// Stub for WASM mode
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     pub fn load(self, _path: &str) -> Result<VarType, Box<dyn std::error::Error>> {
         Err("File loading not supported in WASM mode".into())
     }
@@ -586,7 +586,7 @@ impl VarType {
     }
 
     /// Load from file (only available in native mode)
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn from_file(path: &str) -> Result<VarType, Box<dyn std::error::Error>> {
         let mut file = File::open(path)?;
         let mut buffer = Vec::new();
@@ -596,7 +596,7 @@ impl VarType {
     }
 
     /// Stub for WASM mode
-    #[cfg(feature = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     pub fn from_file(_path: &str) -> Result<VarType, Box<dyn std::error::Error>> {
         Err("File loading not supported in WASM mode".into())
     }

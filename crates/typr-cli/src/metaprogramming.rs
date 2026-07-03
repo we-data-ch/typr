@@ -17,7 +17,7 @@
 
 use crate::io::get_os_file;
 use nom_locate::LocatedSpan;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 use std::path::PathBuf;
 use typr_core::components::context::config::Environment;
@@ -39,6 +39,31 @@ pub fn find_project_root(file_path: &str) -> Option<PathBuf> {
     None
 }
 
+/// What a `metaprogrammation` run learned about the project's source files —
+/// the raw material for the incremental-build manifest (see `cache.rs`).
+#[derive(Debug, Clone, Default)]
+pub struct ExpansionInfo {
+    /// Path of every `.ty` file read during expansion → content hash.
+    pub files: BTreeMap<String, u64>,
+    /// Importer module name (`"main"` for the entry file) → directly
+    /// imported module names.
+    pub deps: BTreeMap<String, Vec<String>>,
+}
+
+impl ExpansionInfo {
+    fn record_file(&mut self, path: &str, content: &str) {
+        self.files
+            .insert(path.to_string(), crate::cache::hash_str(content));
+    }
+
+    fn record_dep(&mut self, importer: &str, imported: &str) {
+        self.deps
+            .entry(importer.to_string())
+            .or_default()
+            .push(imported.to_string());
+    }
+}
+
 /// Expands `Lang::ModuleImport { .. }` nodes into the corresponding module AST
 /// with a shared cache and cycle detection.
 struct ModuleExpander {
@@ -48,6 +73,11 @@ struct ModuleExpander {
     /// detection).
     resolving: HashSet<String>,
     environment: Environment,
+    /// Files read + dependency edges, collected as expansion progresses.
+    info: ExpansionInfo,
+    /// Names of the modules currently being expanded, innermost last; the
+    /// entry file is the implicit `"main"` importer.
+    expansion_stack: Vec<String>,
 }
 
 impl ModuleExpander {
@@ -56,6 +86,8 @@ impl ModuleExpander {
             ast_cache: HashMap::new(),
             resolving: HashSet::new(),
             environment,
+            info: ExpansionInfo::default(),
+            expansion_stack: Vec::new(),
         }
     }
 
@@ -103,6 +135,13 @@ impl ModuleExpander {
                     return cached.clone();
                 }
 
+                let importer = self
+                    .expansion_stack
+                    .last()
+                    .cloned()
+                    .unwrap_or_else(|| "main".to_string());
+                self.info.record_dep(&importer, &name);
+
                 // 2. Cycle detection — if `name` is already in `resolving`,
                 //    we have a circular import chain.
                 if !self.resolving.insert(name.clone()) {
@@ -120,13 +159,16 @@ impl ModuleExpander {
                 let file = get_os_file(&module_path);
                 let content = std::fs::read_to_string(&module_path)
                     .unwrap_or_else(|_| panic!("Can't read module file '{}'", module_path));
+                self.info.record_file(&module_path, &content);
                 let parse_result = parse(LocatedSpan::new_extra(&content, file));
 
                 // 4. Wrap parsed AST in a `Module { .. }` node and expand it
                 //    recursively (the imported file may itself contain
                 //    `ModuleImport`s).
                 let module_ast = parse_result.ast.to_module(&name, self.environment);
+                self.expansion_stack.push(name.clone());
                 let expanded = self.expand(module_ast);
+                self.expansion_stack.pop();
 
                 // 5. Move from `resolving` to `ast_cache`.
                 self.resolving.remove(&name);
@@ -170,7 +212,16 @@ impl ModuleExpander {
 /// Uses a shared [`ModuleExpander`] to avoid re-reading/parsing the same
 /// module file more than once and to detect circular imports.
 pub fn metaprogrammation(adt: Lang, environment: Environment) -> Lang {
-    ModuleExpander::new(environment).expand(adt)
+    metaprogrammation_with_info(adt, environment).0
+}
+
+/// Same as [`metaprogrammation`], additionally returning which `.ty` files
+/// were read (with content hashes) and the module dependency edges — the
+/// inputs of the incremental-build manifest.
+pub fn metaprogrammation_with_info(adt: Lang, environment: Environment) -> (Lang, ExpansionInfo) {
+    let mut expander = ModuleExpander::new(environment);
+    let expanded = expander.expand(adt);
+    (expanded, expander.info)
 }
 
 #[cfg(test)]

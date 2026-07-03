@@ -25,11 +25,11 @@ use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
 use translatable::RTranslatable;
 
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::fs::File;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::io::Write;
-#[cfg(not(feature = "wasm"))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
 use std::cell::RefCell;
@@ -187,8 +187,10 @@ pub fn clear_generated_files() {
     });
 }
 
-/// Write a file - in native mode writes to filesystem, in WASM mode stores in memory
-#[cfg(not(feature = "wasm"))]
+/// Write a file - in native mode writes to filesystem, in WASM mode stores in memory.
+/// Skips the write when the file already holds the same content, so unchanged
+/// outputs keep a stable mtime across builds.
+#[cfg(not(target_arch = "wasm32"))]
 fn write_output_file(path: &str, content: &str) -> Result<(), String> {
     use std::fs;
 
@@ -196,6 +198,11 @@ fn write_output_file(path: &str, content: &str) -> Result<(), String> {
     register_generated_file(path, content);
 
     let path_buf = PathBuf::from(path);
+    if let Ok(existing) = fs::read_to_string(&path_buf) {
+        if existing == content {
+            return Ok(());
+        }
+    }
     if let Some(parent) = path_buf.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -205,7 +212,7 @@ fn write_output_file(path: &str, content: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(target_arch = "wasm32")]
 fn write_output_file(path: &str, content: &str) -> Result<(), String> {
     register_generated_file(path, content);
     Ok(())

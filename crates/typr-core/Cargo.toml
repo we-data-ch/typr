@@ -36,5 +36,9 @@ getrandom = { version = "0.4", features = ["wasm_js"] }
 
 [features]
 default = []
-# Enable this feature for WASM builds - disables file system operations
+# Kept for compatibility (typr-wasm still requests it) but no longer gates
+# anything: filesystem operations are disabled via `target_arch = "wasm32"`
+# instead. Gating on a feature broke native `cargo build --workspace`
+# binaries — feature unification with typr-wasm enabled it workspace-wide,
+# silently turning module-file writes into no-ops.
 wasm = []

@@ -9,6 +9,8 @@
 
 use crate::io::{get_os_file, read_file};
 use crate::metaprogramming::metaprogrammation;
+use crate::metaprogramming::metaprogrammation_with_info;
+use crate::metaprogramming::ExpansionInfo;
 use nom_locate::LocatedSpan;
 use std::fs::File;
 use std::io::Write;
@@ -57,6 +59,23 @@ pub fn parse_code(path: &Path, environment: Environment) -> Lang {
 
     let parse_result = base_file.parse_with_errors();
     metaprogrammation(parse_result.ast, environment)
+}
+
+/// Parse code, also returning the set of `.ty` files read (entry file
+/// included) with content hashes and module dependency edges — used by the
+/// incremental-build manifest.
+pub fn parse_code_with_info(path: &Path, environment: Environment) -> (Lang, ExpansionInfo) {
+    let file = get_os_file(path.to_str().unwrap());
+    let file_content = read_file(path).unwrap_or_else(|| panic!("Path {:?} not found", path));
+    let base_file = TypRFile::new(&file_content, file);
+
+    let parse_result = base_file.parse_with_errors();
+    let (lang, mut info) = metaprogrammation_with_info(parse_result.ast, environment);
+    info.files.insert(
+        path.to_string_lossy().into_owned(),
+        crate::cache::hash_str(&file_content),
+    );
+    (lang, info)
 }
 
 /// Parse code from a string (content already loaded, e.g. after shebang stripping)

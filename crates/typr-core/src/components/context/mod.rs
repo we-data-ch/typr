@@ -760,9 +760,14 @@ impl Context {
             .filter(|(var, _)| not_in_blacklist(&var.get_name()))
             .filter(|(var, _)| !var.get_type().is_any())
             .collect::<HashSet<_>>();
-        res.iter()
+        let mut result: Vec<(Var, Type)> = res
+            .iter()
             .map(|(var, typ)| (var.clone().add_backticks_if_percent(), typ.clone()))
-            .collect()
+            .collect();
+        // Stable order: the list is rendered into generic_functions.R, which
+        // must not reshuffle between builds (HashSet iteration is random).
+        result.sort_by_key(|(var, _)| var.get_name());
+        result
     }
 
     pub fn get_first_matching_function(&self, var1: Var) -> Type {

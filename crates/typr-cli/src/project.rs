@@ -6,7 +6,10 @@
 //! - Running tests
 //! - Package management
 
-use crate::engine::{parse_code, parse_code_from_str, write_std_for_type_checking};
+use crate::cache;
+use crate::engine::{
+    parse_code, parse_code_from_str, parse_code_with_info, write_std_for_type_checking,
+};
 use crate::progress::Step;
 use std::fs;
 use std::fs::File;
@@ -338,25 +341,23 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
     } else {
         ""
     };
-    let mut app = match environment {
-        Environment::Repl => OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(output_dir.join(".repl.R")),
-        _ => OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(
-                output_dir
-                    .join(context.get_environment().to_base_path())
-                    .join("types.R"),
-            ),
+    let types_content = format!("{}{}", c_types_include, type_anotations);
+    match environment {
+        Environment::Repl => {
+            let mut app = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(output_dir.join(".repl.R"))
+                .unwrap();
+            app.write_all(types_content.as_bytes()).unwrap();
+        }
+        _ => {
+            let path = output_dir
+                .join(context.get_environment().to_base_path())
+                .join("types.R");
+            cache::write_if_changed(&path, &types_content).unwrap();
+        }
     }
-    .unwrap();
-
-    app.write_all(format!("{}{}", c_types_include, type_anotations).as_bytes())
-        .unwrap();
 
     let include_tag = if environment.is_project() {
         "#' @include std.R\n"
@@ -385,25 +386,23 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
         .collect::<Vec<_>>()
         .join("\n");
 
-    let mut app = match environment {
-        Environment::Repl => OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(output_dir.join(".repl.R")),
-        _ => OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(
-                output_dir
-                    .join(context.get_environment().to_string())
-                    .join("generic_functions.R"),
-            ),
+    let generic_content = format!("{}{}\n", include_tag, generic_functions);
+    match environment {
+        Environment::Repl => {
+            let mut app = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(output_dir.join(".repl.R"))
+                .unwrap();
+            app.write_all(generic_content.as_bytes()).unwrap();
+        }
+        _ => {
+            let path = output_dir
+                .join(context.get_environment().to_string())
+                .join("generic_functions.R");
+            cache::write_if_changed(&path, &generic_content).unwrap();
+        }
     }
-    .unwrap();
-
-    app.write_all(format!("{}{}\n", include_tag, generic_functions).as_bytes())
-        .unwrap();
 }
 
 /// Write the TypR project loader (load_module.R) to the project root.
@@ -411,9 +410,7 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
 pub fn write_loader(project_root: &Path) {
     let loader = include_str!("../configs/src/load_module.R");
     let dest = project_root.join("load_module.R");
-    let mut f = File::create(&dest).expect("Cannot write load_module.R");
-    f.write_all(loader.as_bytes())
-        .expect("Cannot write load_module.R contents");
+    cache::write_if_changed(&dest, loader).expect("Cannot write load_module.R");
 }
 
 pub fn write_to_r_lang(
@@ -424,15 +421,9 @@ pub fn write_to_r_lang(
 ) {
     let rstd = include_str!("../configs/src/std.R");
     let std_path = output_dir.join("std.R");
-    let mut rstd_file = File::create(std_path).unwrap();
-    rstd_file.write_all(rstd.as_bytes()).unwrap();
+    cache::write_if_changed(&std_path, rstd).unwrap();
 
     let app_path = output_dir.join(file_name);
-    let mut app = match environment {
-        Environment::Repl => OpenOptions::new().append(true).create(true).open(app_path),
-        _ => File::create(app_path),
-    }
-    .unwrap();
     let preamble = match environment {
         Environment::Project => {
             // Top-level `mod foo;` deps collected during transpilation surface here
@@ -456,8 +447,20 @@ pub fn write_to_r_lang(
                 .to_string()
         }
     };
-    app.write_all(format!("{}{}", preamble, content).as_bytes())
-        .unwrap();
+    let full_content = format!("{}{}", preamble, content);
+    match environment {
+        Environment::Repl => {
+            let mut app = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(app_path)
+                .unwrap();
+            app.write_all(full_content.as_bytes()).unwrap();
+        }
+        _ => {
+            cache::write_if_changed(&app_path, &full_content).unwrap();
+        }
+    }
 }
 
 pub fn new(name: &str, renv: bool) {
@@ -737,23 +740,44 @@ fn inject_roxygen_into_module_files(r_dir: &Path, entries: &[(String, String)]) 
         let Ok(content) = fs::read_to_string(&path) else {
             continue;
         };
-        let injected = inject_roxygen_headers(content, entries);
-        let _ = fs::write(&path, injected);
+        let injected = inject_roxygen_headers(content.clone(), entries);
+        if injected != content {
+            let _ = fs::write(&path, injected);
+        }
     }
 }
 
-pub fn build_project(test_mode: bool) {
-    build_project_impl(test_mode, false, false);
+pub fn build_project(test_mode: bool, no_incremental: bool) {
+    build_project_impl(test_mode, false, false, !no_incremental);
 }
 
-fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool) {
+fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool, incremental: bool) {
     let dir = PathBuf::from(".");
+
+    // Whole-project short-circuit: when every source and generated file
+    // still matches the manifest of the last successful build, there is
+    // nothing to do. For a full build (with document step) we additionally
+    // require that devtools::document succeeded at least once, so a project
+    // only ever built via `typr run` still gets its NAMESPACE updated.
+    if incremental {
+        if let Some(manifest) = cache::load_manifest(&dir) {
+            let document_done = skip_document || manifest.devtools_input_hash.is_some();
+            if manifest.is_compatible(test_mode) && document_done && manifest.is_up_to_date(&dir) {
+                if !quiet {
+                    println!("Project up to date — nothing to rebuild.");
+                }
+                return;
+            }
+        }
+    }
+
     let context = Context::default()
         .set_environment(Environment::Project)
         .set_test_mode(test_mode);
 
     let step = Step::new("Parsing");
-    let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    let (lang, expansion_info) =
+        parse_code_with_info(&PathBuf::from("TypR/main.ty"), context.get_environment());
     step.done();
 
     let step = Step::new("Type checking");
@@ -765,8 +789,13 @@ fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool) {
         step.done();
     }
 
+    // Build the SPG once, with the real package name/version, and reuse it
+    // for both roxygen injection and the document step (which used to
+    // re-parse and re-type-check the whole project a second time).
+    let package = get_package_name().unwrap_or_else(|_| "unknown".to_string());
+    let version = get_package_version().unwrap_or_else(|_| "0.0.0".to_string());
     let items: Vec<Lang> = type_checker.get_code().iter().cloned().collect();
-    let spg = build_spg_from_items(&items, "", "");
+    let spg = build_spg_from_items(&items, &package, &version);
     let roxygen_entries = build_roxygen_entries(&spg);
 
     let step = Step::new("Transpiling");
@@ -788,9 +817,30 @@ fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool) {
     write_loader(&dir);
     step.done();
 
-    if !skip_document {
-        document_impl(quiet);
+    // Carry the last successful devtools run forward so the document step
+    // can skip the R subprocess when its inputs did not change.
+    let mut manifest = cache::BuildManifest::new(test_mode);
+    manifest.source_hashes = expansion_info.files.clone();
+    if let Some(previous) = cache::load_manifest(&dir) {
+        if previous.is_compatible(test_mode) {
+            manifest.devtools_input_hash = previous.devtools_input_hash;
+        }
     }
+
+    if !skip_document {
+        let manifest_ref = if incremental {
+            Some(&mut manifest)
+        } else {
+            None
+        };
+        document_from_spg(&spg, quiet, manifest_ref);
+    }
+
+    if incremental && !type_checker.has_errors() {
+        manifest.output_hashes = cache::collect_output_hashes(&dir);
+        cache::save_manifest(&dir, &manifest);
+    }
+
     if !quiet {
         println!("R code successfully generated in the R/ folder");
     }
@@ -853,7 +903,7 @@ fn rprof_wrap(r_body: &str) -> String {
 }
 
 pub fn run_project(profile: bool) {
-    build_project_impl(false, true, true);
+    build_project_impl(false, true, true, true);
     // Use the TypR loader instead of devtools to respect module encapsulation.
     // Top-level code in main.ty already runs as a side effect of sourcing it
     // (sys.source() inside load_module()). The `module Main { @pub let main
@@ -1063,7 +1113,7 @@ fn write_context_json(context: &Context, output_dir: &Path) {
 }
 
 pub fn test(profile: bool) {
-    build_project(true);
+    build_project(true, false);
     // Load modules in test mode so @testable members are accessible in test files.
     // Then delegate test discovery to devtools::test().
     let base_command = concat!(
@@ -1448,6 +1498,16 @@ fn document_impl(quiet: bool) {
     let spg = build_spg_from_items(&items, &package, &version);
     step.done();
 
+    // No manifest: an explicit `typr document` always runs devtools.
+    document_from_spg(&spg, quiet, None);
+}
+
+/// The document pipeline from an already-built SPG: .Rd generation,
+/// vignettes, then NAMESPACE/Collate via devtools. `typr build` calls this
+/// with its own SPG (avoiding a second parse + type-check of the project)
+/// and with the build manifest, which lets the devtools subprocess be
+/// skipped when its inputs are unchanged since the last successful run.
+fn document_from_spg(spg: &Spg, quiet: bool, manifest: Option<&mut cache::BuildManifest>) {
     // Step 2: Ensure man/ directory exists.
     let man_dir = PathBuf::from("man");
     if let Err(e) = fs::create_dir_all(&man_dir) {
@@ -1457,7 +1517,7 @@ fn document_impl(quiet: bool) {
 
     // Step 3: Generate .Rd files from the SPG.
     let step = Step::new("Generating .Rd files");
-    match crate::rd_renderer::generate_rd_files(&spg, &man_dir) {
+    match crate::rd_renderer::generate_rd_files(spg, &man_dir) {
         Ok(count) => {
             step.done();
             if !quiet {
@@ -1477,7 +1537,7 @@ fn document_impl(quiet: bool) {
     let compiled_dir = vignettes_dir.join("compiled");
 
     let step = Step::new("Generating vignette fragments");
-    match crate::vignette_renderer::generate_spg_fragments(&spg, &fragments_dir) {
+    match crate::vignette_renderer::generate_spg_fragments(spg, &fragments_dir) {
         Ok(()) => step.done(),
         Err(e) => {
             step.fail();
@@ -1509,7 +1569,28 @@ fn document_impl(quiet: bool) {
 
     // Step 5: Update NAMESPACE and Collate via devtools (skipping Rd generation
     // so our SPG-generated files are not overwritten).
+    update_namespace(quiet, manifest);
+}
+
+/// Run `devtools::document(roclets = c('collate', 'namespace'))`. When a
+/// build manifest is provided and the inputs of that run (`R/*.R` +
+/// `DESCRIPTION`) hash to the same value as the last successful run, the R
+/// subprocess is skipped entirely.
+fn update_namespace(quiet: bool, manifest: Option<&mut cache::BuildManifest>) {
     let step = Step::new("Updating NAMESPACE");
+    let input_hash = cache::devtools_input_hash(Path::new("."));
+    if let Some(m) = &manifest {
+        if input_hash.is_some()
+            && m.devtools_input_hash == input_hash
+            && Path::new("NAMESPACE").exists()
+        {
+            step.done();
+            if !quiet {
+                println!("  NAMESPACE up to date — devtools::document skipped");
+            }
+            return;
+        }
+    }
     let current_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -1524,7 +1605,12 @@ fn document_impl(quiet: bool) {
     );
     let output = Command::new("R").arg("-e").arg(&r_command).output();
     match output {
-        Ok(out) if out.status.success() => step.done(),
+        Ok(out) if out.status.success() => {
+            step.done();
+            if let Some(m) = manifest {
+                m.devtools_input_hash = input_hash;
+            }
+        }
         Ok(out) => {
             // devtools is optional; NAMESPACE may be stale but Rd files are ready.
             step.fail();
@@ -1662,4 +1748,5 @@ pub fn clean() {
             }
         }
     };
+    let _ = fs::remove_dir_all(cache::CACHE_DIR);
 }

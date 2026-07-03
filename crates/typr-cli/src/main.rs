@@ -2,6 +2,7 @@
 //!
 //! This is the main executable for the TypR command-line interface.
 
+mod cache;
 mod cases;
 mod cli;
 mod engine;
