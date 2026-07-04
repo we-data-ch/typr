@@ -4,6 +4,7 @@ members = [
     ".",
     "crates/typr-core",
     "crates/typr-cli",
+    "crates/typr-lsp",
     "crates/typr-wasm",
 ]
 
@@ -60,6 +61,7 @@ bincode = "1.3"
 
 typr-core = { path = "crates/typr-core", version = "0.5" }
 typr-cli = { path = "crates/typr-cli", version = "0.5" }
+typr-lsp = { path = "crates/typr-lsp", version = "0.5" }
 typr-wasm = { path = "crates/typr-wasm", version = "0.5" }
 
 [profile.release]

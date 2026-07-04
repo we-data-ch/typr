@@ -1546,8 +1546,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
- "tower-lsp-server",
  "typr-core",
+ "typr-lsp",
 ]
 
 [[package]]
@@ -1569,6 +1569,29 @@ dependencies = [
  "serde_json",
  "tap",
  "thiserror",
+]
+
+[[package]]
+name = "typr-lsp"
+version = "0.5.6"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "indexmap",
+ "miette",
+ "nom",
+ "nom_locate",
+ "rand",
+ "rpds",
+ "serde",
+ "serde_json",
+ "syntect",
+ "tap",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tower-lsp-server",
+ "typr-core",
 ]
 
 [[package]]

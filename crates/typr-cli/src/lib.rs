@@ -41,8 +41,6 @@ pub mod cases;
 pub mod cli;
 pub mod engine;
 pub mod io;
-pub mod lsp;
-pub mod lsp_parser;
 pub mod metaprogramming;
 pub mod progress;
 pub mod project;

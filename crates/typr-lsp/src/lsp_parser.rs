@@ -1372,9 +1372,8 @@ fn get_module_file_completions(file_path: &str) -> Vec<CompletionItem> {
     }
 
     let scan_dir = match detect_environment(file_path) {
-        Environment::Project => {
-            crate::metaprogramming::find_project_root(file_path).map(|root| root.join("TypR"))
-        }
+        Environment::Project => crate::metaprogramming::find_project_root(file_path)
+            .map(|root: std::path::PathBuf| root.join("TypR")),
         _ => std::path::Path::new(file_path)
             .parent()
             .map(|p| p.to_path_buf()),
@@ -1952,9 +1951,8 @@ mod mod_completion_tests {
     #[test]
     fn does_not_trigger_after_semicolon() {
         let prefix = "mod person;\nlet x <- ";
-        match detect_completion_context(prefix) {
-            CompletionCtx::ModuleFile => panic!("should not detect ModuleFile after `;`"),
-            _ => {}
+        if let CompletionCtx::ModuleFile = detect_completion_context(prefix) {
+            panic!("should not detect ModuleFile after `;`")
         }
     }
 }

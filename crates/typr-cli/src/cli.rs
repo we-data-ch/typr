@@ -226,7 +226,7 @@ pub fn start() {
                 .enable_all()
                 .build()
                 .unwrap();
-            rt.block_on(crate::lsp::run_lsp());
+            rt.block_on(typr_lsp::run_lsp());
         }
         Some(Commands::Repl) => repl::start(),
         Some(Commands::Spg { output }) => generate_spg(output),
