@@ -5,10 +5,17 @@
     unreachable_code,
     unused_assignments
 )]
+pub mod constructor_call;
+pub mod dollar_access;
+pub mod dot_pipe_access;
 pub mod embedding;
+pub mod facets;
+pub mod field_access;
 pub mod function;
 pub mod function_application;
 pub mod let_expression;
+pub mod match_expression;
+pub mod module_cache;
 pub mod partial_application;
 pub mod signature_expression;
 pub mod type_arithmetic;
@@ -37,9 +44,14 @@ use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
+use crate::processes::type_checking::constructor_call::constructor_call;
+use crate::processes::type_checking::dollar_access::dollar_access;
+use crate::processes::type_checking::dot_pipe_access::dot_pipe_access;
 use crate::processes::type_checking::function::function;
 use crate::processes::type_checking::function_application::function_application;
 use crate::processes::type_checking::let_expression::let_expression;
+use crate::processes::type_checking::match_expression::match_expression;
+
 use crate::processes::type_checking::partial_application::partial_application;
 use crate::processes::type_checking::signature_expression::signature_expression;
 use crate::processes::type_checking::type_comparison::reduce_type;
@@ -449,6 +461,27 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                     })]);
             }
 
+            // Per-module incremental cache (project builds only; inert
+            // elsewhere — see module_cache.rs). On a hit, the body is not
+            // re-typed: the enclosing context is rebuilt by replaying the
+            // exact same operations as the miss path below, with the cached
+            // module type and restored inner context.
+            let cache_key = module_cache::cache_key_for(module_name, context);
+            if let Some(key) = cache_key {
+                if let Some(entry) = module_cache::get(key) {
+                    let inner = entry.restore_inner(context);
+                    let module_var = Var::from_name(module_name);
+                    let final_context = context
+                        .clone()
+                        .push_var_type(module_var, entry.module_type.clone(), context)
+                        .merge_record_aliases(&inner)
+                        .hoist_aliases(&inner)
+                        .store_module_inner_context(module_name, &inner)
+                        .cache_processed_module(module_name, entry.module_type.clone());
+                    return TypeContext::new(builder::empty_type(), expr.clone(), final_context);
+                }
+            }
+
             let module_expr = if members.len() > 1 {
                 Lang::Lines {
                     value: members.to_vec(),
@@ -587,7 +620,20 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 .store_module_inner_context(module_name, &typing_context.context)
                 // Cache the module type so UseModule can resolve it from cache
                 // instead of walking the variable-path chain.
-                .cache_processed_module(module_name, module_type);
+                .cache_processed_module(module_name, module_type.clone());
+
+            // Persist for the next build — only clean modules are cached.
+            if let Some(key) = cache_key {
+                if typing_context.errors.is_empty() {
+                    module_cache::put(
+                        key,
+                        &module_cache::ModuleCacheEntry::capture(
+                            &module_type,
+                            &typing_context.context,
+                        ),
+                    );
+                }
+            }
 
             TypeContext::new(builder::empty_type(), expr.clone(), final_context)
                 .with_errors(typing_context.errors)
@@ -1150,606 +1196,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             rhs: e1,
             lhs: e2,
             ..
-        } => {
-            // Uniform function call over the native `c(...)` vector constructor:
-            // `receiver.c(args)` desugars to `c(receiver, args)` (a Lang::Vector,
-            // not a FunctionApp), so handle it before the generic method case.
-            if let Lang::Vector {
-                value: v,
-                help_data: h,
-            } = (**e2).clone()
-            {
-                let new_vec = Lang::Vector {
-                    value: [(**e1).clone()]
-                        .iter()
-                        .chain(v.iter())
-                        .cloned()
-                        .collect::<Vec<_>>(),
-                    help_data: h.clone(),
-                };
-                return typing(context, &new_vec);
-            }
-            if let Lang::FunctionApp {
-                identifier: exp,
-                arguments: v,
-                help_data: h,
-            } = (**e2).clone()
-            {
-                let fun_app = Lang::FunctionApp {
-                    identifier: exp,
-                    arguments: [(**e1).clone()]
-                        .iter()
-                        .chain(v.iter())
-                        .cloned()
-                        .collect::<Vec<_>>(),
-                    help_data: h.clone(),
-                };
-                typing(context, &fun_app)
-            } else {
-                let tc2 = typing(context, e2);
-                let mut errors = tc2.errors.clone();
-                let ty2 = tc2.value.clone().reduce(context);
-                match (ty2.clone(), *e1.clone()) {
-                    (
-                        Type::Record(fields, _),
-                        Lang::Variable {
-                            name, help_data: h, ..
-                        },
-                    ) => {
-                        match fields
-                            .iter()
-                            .find(|arg_typ2| arg_typ2.get_argument_str() == name)
-                        {
-                            Some(arg_typ) => {
-                                TypeContext::new(arg_typ.1.clone(), expr.clone(), context.clone())
-                                    .with_errors(errors)
-                            }
-                            None => {
-                                errors.push(TypRError::Type(TypeError::FieldNotFound(
-                                    (name, h),
-                                    ty2,
-                                )));
-                                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                    .with_errors(errors)
-                            }
-                        }
-                    }
-                    (
-                        Type::Record(fields, _),
-                        Lang::Char {
-                            value: name,
-                            help_data: h,
-                        },
-                    ) => {
-                        match fields
-                            .iter()
-                            .find(|arg_typ2| arg_typ2.get_argument_str() == name)
-                        {
-                            Some(arg_typ) => {
-                                TypeContext::new(arg_typ.1.clone(), expr.clone(), context.clone())
-                                    .with_errors(errors)
-                            }
-                            None => {
-                                errors.push(TypRError::Type(TypeError::FieldNotFound(
-                                    (name, h),
-                                    ty2,
-                                )));
-                                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                    .with_errors(errors)
-                            }
-                        }
-                    }
-                    (
-                        Type::Tuple(vals, _),
-                        Lang::Integer {
-                            value: i,
-                            help_data: h,
-                        },
-                    ) => match vals.get((i - 1) as usize) {
-                        Some(typ) => TypeContext::new(typ.clone(), expr.clone(), context.clone())
-                            .with_errors(errors),
-                        None => {
-                            errors.push(TypRError::Type(TypeError::WrongExpression(h)));
-                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
-                    },
-                    (Type::Record(fields1, h), Lang::List { .. }) => {
-                        let tc1 = e1.typing(context);
-                        errors.extend(tc1.errors.clone());
-                        let fields3: HashSet<_> = match tc1.value {
-                            Type::Record(fields2, _) => fields1.union(&fields2).cloned().collect(),
-                            _ => {
-                                errors.push(TypRError::Type(TypeError::WrongExpression(
-                                    e1.get_help_data(),
-                                )));
-                                fields1
-                            }
-                        };
-                        TypeContext::new(
-                            Type::Record(fields3, h.clone()),
-                            expr.clone(),
-                            context.clone(),
-                        )
-                        .with_errors(errors)
-                    }
-                    (Type::Generic(_, _), Lang::List { .. }) => {
-                        let tc1 = e1.typing(context);
-                        errors.extend(tc1.errors.clone());
-                        TypeContext::new(
-                            builder::intersection_type(&[ty2.clone(), tc1.value]),
-                            expr.clone(),
-                            context.clone(),
-                        )
-                        .with_errors(errors)
-                    }
-                    (_, _) => {
-                        errors.push(TypRError::Type(TypeError::WrongExpression(
-                            expr.get_help_data(),
-                        )));
-                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                            .with_errors(errors)
-                    }
-                }
-            }
-        }
+        } => dot_pipe_access(context, expr, e1, e2),
         Lang::Operator {
             operator: Op::Dollar(hd),
             rhs: e1,
             lhs: e2,
             ..
-        } => {
-            let op = match expr {
-                Lang::Operator { operator: op, .. } => op.clone(),
-                _ => Op::Dollar(HelpData::default()),
-            };
-            let tc1 = typing(context, e1);
-            let mut errors = tc1.errors.clone();
-            let ty1 = tc1.value.clone();
-            match (ty1.reduce(context), *e2.clone(), &op) {
-                (
-                    Type::Record(fields, _),
-                    Lang::Variable {
-                        name, help_data: h, ..
-                    },
-                    _,
-                ) => {
-                    match fields
-                        .iter()
-                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
-                    {
-                        Some(arg_typ) => {
-                            TypeContext::new(arg_typ.1.clone(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
-                        None => {
-                            errors.push(TypRError::Type(TypeError::FieldNotFound((name, h), ty1)));
-                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
-                    }
-                }
-                (
-                    Type::Module(fields, _, _),
-                    Lang::Variable {
-                        name, help_data: h, ..
-                    },
-                    _,
-                ) => {
-                    match fields
-                        .iter()
-                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
-                    {
-                        Some(arg_typ) => {
-                            TypeContext::new(arg_typ.1.clone(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
-                        None => {
-                            errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                                Lang::Variable {
-                                    name,
-                                    is_opaque: false,
-                                    related_type: builder::any_type(),
-                                    help_data: h.clone(),
-                                },
-                            )));
-                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
-                    }
-                }
-                (
-                    Type::Module(fields, _, _),
-                    Lang::FunctionApp {
-                        identifier: exp, ..
-                    },
-                    _,
-                ) => match Var::from_language(*exp.clone()) {
-                    Some(var) => {
-                        match fields
-                            .iter()
-                            .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
-                        {
-                            Some(arg_typ) => match FunctionType::try_from(arg_typ.get_type()) {
-                                Ok(ft) => TypeContext::new(
-                                    ft.get_return_type(),
-                                    expr.clone(),
-                                    context.clone(),
-                                )
-                                .with_errors(errors),
-                                Err(_) => {
-                                    errors.push(TypRError::Type(TypeError::WrongExpression(
-                                        exp.get_help_data(),
-                                    )));
-                                    TypeContext::new(
-                                        builder::any_type(),
-                                        expr.clone(),
-                                        context.clone(),
-                                    )
-                                    .with_errors(errors)
-                                }
-                            },
-                            None => {
-                                errors.push(TypRError::Type(TypeError::FunctionNotFound(var)));
-                                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                    .with_errors(errors)
-                            }
-                        }
-                    }
-                    None => {
-                        errors.push(TypRError::Type(TypeError::WrongExpression(
-                            exp.get_help_data(),
-                        )));
-                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                            .with_errors(errors)
-                    }
-                },
-                (
-                    Type::Record(fields, _),
-                    Lang::Char {
-                        value: name,
-                        help_data: h,
-                    },
-                    _,
-                ) => {
-                    match fields
-                        .iter()
-                        .find(|arg_typ2| arg_typ2.get_argument_str() == name)
-                    {
-                        Some(arg_typ) => {
-                            TypeContext::new(arg_typ.1.clone(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
-                        None => {
-                            errors.push(TypRError::Type(TypeError::FieldNotFound((name, h), ty1)));
-                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
-                    }
-                }
-                (
-                    Type::Tuple(vals, _),
-                    Lang::Integer {
-                        value: i,
-                        help_data: h,
-                    },
-                    _,
-                ) => match vals.get((i - 1) as usize) {
-                    Some(typ) => TypeContext::new(typ.clone(), expr.clone(), context.clone())
-                        .with_errors(errors),
-                    None => {
-                        errors.push(TypRError::Type(TypeError::WrongExpression(h)));
-                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                            .with_errors(errors)
-                    }
-                },
-                (Type::Record(fields1, h), Lang::List { value: fields2, .. }, _) => {
-                    let at = fields2[0].clone();
-                    let fields3 = fields1
-                        .iter()
-                        .map(replace_fields_type_if_needed(context, at))
-                        .collect::<HashSet<_>>();
-                    TypeContext::new(
-                        Type::Record(fields3, h.clone()),
-                        expr.clone(),
-                        context.clone(),
-                    )
-                    .with_errors(errors)
-                }
-                (
-                    Type::Record(fields, _),
-                    Lang::FunctionApp {
-                        identifier: exp,
-                        arguments: params,
-                        ..
-                    },
-                    _,
-                ) => match Var::from_language(*exp.clone()) {
-                    Some(var) => {
-                        match fields
-                            .iter()
-                            .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
-                        {
-                            Some(arg_typ) => {
-                                let typ = arg_typ.get_type();
-                                let tc =
-                                    typing(&context.clone().push_var_type(var, typ, context), e2);
-                                errors.extend(tc.errors.clone());
-                                TypeContext::new(tc.value, expr.clone(), context.clone())
-                                    .with_errors(errors)
-                            }
-                            None => {
-                                errors.push(TypRError::Type(TypeError::FunctionNotFound(
-                                    var.set_type_from_params(&params, context),
-                                )));
-                                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                    .with_errors(errors)
-                            }
-                        }
-                    }
-                    None => {
-                        errors.push(TypRError::Type(TypeError::WrongExpression(
-                            exp.get_help_data(),
-                        )));
-                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                            .with_errors(errors)
-                    }
-                },
-                (Type::UnknownFunction(h), Lang::FunctionApp { .. }, _) => {
-                    TypeContext::new(Type::UnknownFunction(h), (*expr).clone(), context.clone())
-                        .with_errors(errors)
-                }
-                // DataFrame $ access: df$col -> [N, col_type] (VecType::Vector)
-                (
-                    Type::Vec(VecType::DataFrame, n, ref body, h),
-                    Lang::Variable {
-                        name,
-                        help_data: ref vh,
-                        ..
-                    },
-                    _,
-                ) => match body.as_ref() {
-                    Type::Record(fields, _) => {
-                        match fields
-                            .iter()
-                            .find(|arg_typ2| arg_typ2.get_argument_str() == name)
-                        {
-                            Some(arg_typ) => {
-                                let inner_type = match arg_typ.1.clone() {
-                                    Type::Vec(_, _, inner, _) => *inner,
-                                    other => other,
-                                };
-                                TypeContext::new(
-                                    Type::Vec(
-                                        VecType::Vector,
-                                        n.clone(),
-                                        Box::new(inner_type),
-                                        h.clone(),
-                                    ),
-                                    expr.clone(),
-                                    context.clone(),
-                                )
-                                .with_errors(errors)
-                            }
-                            None => {
-                                errors.push(TypRError::Type(TypeError::FieldNotFound(
-                                    (name, vh.clone()),
-                                    ty1,
-                                )));
-                                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                    .with_errors(errors)
-                            }
-                        }
-                    }
-                    _ => {
-                        errors.push(TypRError::Type(TypeError::WrongExpression(
-                            expr.get_help_data(),
-                        )));
-                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                            .with_errors(errors)
-                    }
-                },
-                // DataFrame $ access with string literal: df$"col"
-                (
-                    Type::Vec(VecType::DataFrame, n, ref body, h),
-                    Lang::Char {
-                        value: name,
-                        help_data: ref vh,
-                    },
-                    _,
-                ) => match body.as_ref() {
-                    Type::Record(fields, _) => {
-                        match fields
-                            .iter()
-                            .find(|arg_typ2| arg_typ2.get_argument_str() == name)
-                        {
-                            Some(arg_typ) => {
-                                let inner_type = match arg_typ.1.clone() {
-                                    Type::Vec(_, _, inner, _) => *inner,
-                                    other => other,
-                                };
-                                TypeContext::new(
-                                    Type::Vec(VecType::Vector, n, Box::new(inner_type), h.clone()),
-                                    expr.clone(),
-                                    context.clone(),
-                                )
-                                .with_errors(errors)
-                            }
-                            None => {
-                                errors.push(TypRError::Type(TypeError::FieldNotFound(
-                                    (name, vh.clone()),
-                                    ty1,
-                                )));
-                                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                    .with_errors(errors)
-                            }
-                        }
-                    }
-                    _ => {
-                        errors.push(TypRError::Type(TypeError::WrongExpression(
-                            expr.get_help_data(),
-                        )));
-                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                            .with_errors(errors)
-                    }
-                },
-                // DataFrame $ update with list: df$:{col: new_type}
-                (
-                    Type::Vec(VecType::DataFrame, n, ref body, h),
-                    Lang::List { value: fields2, .. },
-                    _,
-                ) => match body.as_ref() {
-                    Type::Record(fields1, rh) => {
-                        let at = fields2[0].clone();
-                        let fields3 = fields1
-                            .iter()
-                            .map(replace_fields_type_if_needed(context, at))
-                            .collect::<HashSet<_>>();
-                        TypeContext::new(
-                            Type::Vec(
-                                VecType::DataFrame,
-                                n,
-                                Box::new(Type::Record(fields3, rh.clone())),
-                                h.clone(),
-                            ),
-                            expr.clone(),
-                            context.clone(),
-                        )
-                        .with_errors(errors)
-                    }
-                    _ => {
-                        errors.push(TypRError::Type(TypeError::WrongExpression(
-                            expr.get_help_data(),
-                        )));
-                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                            .with_errors(errors)
-                    }
-                },
-                // DataFrame $ function call: df$fn(args)
-                (
-                    Type::Vec(VecType::DataFrame, _n, ref body, _h),
-                    Lang::FunctionApp {
-                        identifier: exp,
-                        arguments: params,
-                        ..
-                    },
-                    _,
-                ) => match body.as_ref() {
-                    Type::Record(fields, _) => match Var::from_language(*exp.clone()) {
-                        Some(var) => {
-                            match fields
-                                .iter()
-                                .find(|arg_typ2| arg_typ2.get_argument_str() == var.get_name())
-                            {
-                                Some(arg_typ) => {
-                                    let typ = arg_typ.get_type();
-                                    let tc = typing(
-                                        &context.clone().push_var_type(var, typ, context),
-                                        e2,
-                                    );
-                                    errors.extend(tc.errors.clone());
-                                    TypeContext::new(tc.value, expr.clone(), context.clone())
-                                        .with_errors(errors)
-                                }
-                                None => {
-                                    errors.push(TypRError::Type(TypeError::FunctionNotFound(
-                                        var.set_type_from_params(&params, context),
-                                    )));
-                                    TypeContext::new(
-                                        builder::any_type(),
-                                        expr.clone(),
-                                        context.clone(),
-                                    )
-                                    .with_errors(errors)
-                                }
-                            }
-                        }
-                        None => {
-                            errors.push(TypRError::Type(TypeError::WrongExpression(
-                                exp.get_help_data(),
-                            )));
-                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
-                    },
-                    _ => {
-                        errors.push(TypRError::Type(TypeError::WrongExpression(
-                            expr.get_help_data(),
-                        )));
-                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                            .with_errors(errors)
-                    }
-                },
-                (Type::Vec(vtype, n, _, h), Lang::Variable { .. }, _) => {
-                    match ArrayLang::try_from(e1) {
-                        Ok(arr_lang) => match arr_lang.get_first_argument() {
-                            Some(first_arg) => {
-                                let tc = typing(
-                                    context,
-                                    &builder::operation(
-                                        Op::Dollar(hd.clone()),
-                                        first_arg,
-                                        (**e2).clone(),
-                                    ),
-                                );
-                                errors.extend(tc.errors.clone());
-                                TypeContext::new(
-                                    Type::Vec(vtype, n, Box::new(tc.value), h.clone()),
-                                    tc.lang,
-                                    context.clone(),
-                                )
-                                .with_errors(errors)
-                            }
-                            None => {
-                                errors.push(TypRError::Type(TypeError::WrongExpression(
-                                    expr.get_help_data(),
-                                )));
-                                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                    .with_errors(errors)
-                            }
-                        },
-                        Err(_) => {
-                            errors.push(TypRError::Type(TypeError::WrongExpression(
-                                expr.get_help_data(),
-                            )));
-                            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                                .with_errors(errors)
-                        }
-                    }
-                }
-                (
-                    _,
-                    Lang::FunctionApp {
-                        identifier: exp,
-                        arguments: args,
-                        help_data: h2,
-                    },
-                    Op::Dot(_),
-                ) => {
-                    let tc = typing(
-                        context,
-                        &Lang::FunctionApp {
-                            identifier: exp,
-                            arguments: [(**e1).clone()]
-                                .iter()
-                                .chain(args.iter())
-                                .cloned()
-                                .collect(),
-                            help_data: h2,
-                        },
-                    );
-                    errors.extend(tc.errors);
-                    TypeContext::new(tc.value, tc.lang, tc.context).with_errors(errors)
-                }
-                (_a, _b, _c) => {
-                    errors.push(TypRError::Type(TypeError::WrongExpression(
-                        expr.get_help_data(),
-                    )));
-                    TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                        .with_errors(errors)
-                }
-            }
-        }
+        } => dollar_access(context, expr, e1, e2, hd),
         Lang::Operator {
             operator: op,
             rhs: e1,
@@ -2012,127 +1465,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             target: match_exp,
             branches,
             ..
-        } => {
-            let match_tc = typing(context, match_exp);
-            let mut errors = match_tc.errors.clone();
-            let match_type = match_tc.value.clone();
-
-            let branch_tcs: Vec<_> = branches
-                .iter()
-                .map(|(pattern, bexp)| {
-                    // For tag patterns with bindings, we extract the inner type
-                    let new_context = match pattern {
-                        Lang::Tag {
-                            name: tag_name,
-                            value: inner,
-                            ..
-                        } => match inner.as_ref() {
-                            Lang::Variable { name: var_name, .. } => {
-                                let inner_type = match &match_type {
-                                    Type::Tag(tn, inner_t, _h) if tn == tag_name => {
-                                        (**inner_t).clone()
-                                    }
-                                    Type::Alias(name, generics, _, _h) => {
-                                        if name == "Option"
-                                            && (tag_name == "Some" || tag_name == "None")
-                                        {
-                                            generics
-                                                .first()
-                                                .cloned()
-                                                .unwrap_or_else(builder::any_type)
-                                        } else {
-                                            builder::any_type()
-                                        }
-                                    }
-                                    _ => builder::any_type(),
-                                };
-                                let var = Var::from_name(var_name);
-                                context.clone().push_var_type(var, inner_type, context)
-                            }
-                            _ => context.clone(),
-                        },
-                        // For type patterns `x as int`, bind variable to that type
-                        Lang::TypePattern {
-                            variable_name: var_name,
-                            matched_type: typ,
-                            ..
-                        } => {
-                            let var = Var::from_name(var_name);
-                            context.clone().push_var_type(var, typ.clone(), context)
-                        }
-                        // For tuple patterns `:{a, b, c}`, bind each variable by position
-                        Lang::Tuple {
-                            value: elements, ..
-                        } => {
-                            let tuple_types = match &match_type {
-                                Type::Tuple(types, _) => Some(types.clone()),
-                                _ => None,
-                            };
-                            elements.iter().enumerate().fold(
-                                context.clone(),
-                                |ctx: Context, (i, elem)| {
-                                    if let Lang::Variable { name: var_name, .. } = elem {
-                                        if var_name == "_" {
-                                            return ctx;
-                                        }
-                                        let elem_type = tuple_types
-                                            .as_ref()
-                                            .and_then(|types| types.get(i).cloned())
-                                            .unwrap_or_else(builder::any_type);
-                                        let var = Var::from_name(var_name);
-                                        ctx.push_var_type(var, elem_type, context)
-                                    } else {
-                                        ctx
-                                    }
-                                },
-                            )
-                        }
-                        // For list/record patterns `:{nom: n, age: a}`, bind each variable
-                        Lang::List { value: fields, .. } => {
-                            // Extract record field types from the matched expression if available
-                            let record_fields = match &match_type {
-                                Type::Record(field_types, _) => Some(field_types.clone()),
-                                _ => None,
-                            };
-                            fields.iter().fold(
-                                context.clone(),
-                                |ctx: Context, arg_val: &ArgumentValue| {
-                                    if let Lang::Variable { name: var_name, .. } =
-                                        &arg_val.get_value()
-                                    {
-                                        let field_type = record_fields
-                                            .as_ref()
-                                            .and_then(|fields| {
-                                                fields.iter().find(|at| {
-                                                    at.get_argument_str() == arg_val.get_argument()
-                                                })
-                                            })
-                                            .map(|at| at.get_type())
-                                            .unwrap_or_else(builder::any_type);
-                                        let var = Var::from_name(var_name);
-                                        ctx.push_var_type(var, field_type, context)
-                                    } else {
-                                        ctx
-                                    }
-                                },
-                            )
-                        }
-                        _ => context.clone(),
-                    };
-                    typing(&new_context, bexp)
-                })
-                .collect();
-
-            errors.extend(branch_tcs.iter().flat_map(|tc| tc.errors.clone()));
-            let types: Vec<_> = branch_tcs.iter().map(|tc| tc.value.clone()).collect();
-
-            let output_type = if types.len() == 1 {
-                types[0].clone()
-            } else {
-                builder::union_type(&types)
-            };
-            TypeContext::new(output_type, expr.clone(), context.clone()).with_errors(errors)
-        }
+        } => match_expression(context, expr, match_exp, branches),
         Lang::ArrayIndexing {
             identifier: arr_exp,
             indexing: index,
@@ -2676,162 +2009,16 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             spread,
             spreads,
             help_data: h,
-        } => {
-            let resolved_alias = if module_path.is_empty() {
-                context.get_type_from_aliases(&Var::from_name(type_name))
-            } else {
-                resolve_module_member_type(context, module_path, type_name)
-            };
-            let Some(resolved_alias) = resolved_alias else {
-                return TypeContext::new(builder::any_type(), expr.clone(), context.clone());
-            };
-
-            let mut errors: Vec<TypRError> = Vec::new();
-            let target_type = Type::Alias(type_name.clone(), vec![], false, h.clone());
-            // Thread the context through field/spread typing so that types
-            // registered while typing the values (e.g. the on-the-fly ArrayN
-            // alias created by an inline `as! [T]` cast) survive to transpile
-            // time — otherwise their `as.<name>` lookup falls back to the
-            // meaningless `as.Generic()`.
-            let mut new_context = context.clone();
-
-            // Record-shaped target: validate the field list (this also fixes the
-            // preexisting bug where `fields` was never checked at all, spread or not).
-            if let Type::Record(record_fields, _) = resolved_alias.reduce(context) {
-                let mut seen = std::collections::HashSet::new();
-                for f in fields {
-                    if !seen.insert(f.get_argument()) {
-                        errors.push(TypRError::Type(TypeError::DuplicateField(
-                            f.get_argument(),
-                            h.clone(),
-                        )));
-                    }
-                }
-
-                for f in fields {
-                    let fname = f.get_argument();
-                    match record_fields
-                        .iter()
-                        .find(|rf| rf.get_argument_str() == fname)
-                    {
-                        Some(rf) => {
-                            let value_tc = typing(&new_context, &f.get_value());
-                            errors.extend(value_tc.errors.clone());
-                            // reduce_and_subtype (not is_subtype): `record_fields`
-                            // comes from the *reduced* record, so a field declared
-                            // as `[Option]` reads `[any, .Some(T) | .None]` here,
-                            // while the value keeps its unreduced `[any, Option]`
-                            // alias — is_subtype would split the union before ever
-                            // reducing the alias and spuriously fail.
-                            if !value_tc.value.reduce_and_subtype(&rf.get_type(), context).0 {
-                                errors.push(TypRError::Type(TypeError::Param(
-                                    rf.get_type(),
-                                    value_tc.value,
-                                )));
-                            }
-                            new_context = value_tc.context;
-                        }
-                        None => {
-                            errors.push(TypRError::Type(TypeError::FieldNotFound(
-                                (fname, h.clone()),
-                                target_type.clone(),
-                            )));
-                        }
-                    }
-                }
-
-                // Runtime `...source` spread(s) (spread_operator2.md): structural
-                // merge, sequential like in a record literal. Unlike the static `..`
-                // spread below, this doesn't require `source` to be exactly
-                // `Alias(type_name)` — only that the merged result covers every
-                // declared field with a compatible type.
-                let mut spread_merged: Vec<ArgumentType> = Vec::new();
-                for spread_expr in spreads {
-                    let tc = typing(&new_context, spread_expr);
-                    errors.extend(tc.errors.clone());
-                    new_context = tc.context.clone();
-                    match tc.value.reduce(context) {
-                        Type::Record(spread_fields, _) => {
-                            spread_merged = merge_record_fields_override(
-                                &spread_merged,
-                                &spread_fields.into_iter().collect::<Vec<_>>(),
-                            );
-                        }
-                        _ => {
-                            errors.push(TypRError::Type(TypeError::WrongExpression(
-                                spread_expr.get_help_data(),
-                            )));
-                        }
-                    }
-                }
-
-                match spread {
-                    Some((spread_path, spread_var, spread_h)) => {
-                        let spread_type = if spread_path.is_empty() {
-                            context
-                                .get_type_from_variable(&Var::from_name(spread_var))
-                                .ok()
-                        } else {
-                            resolve_module_member_type(context, spread_path, spread_var)
-                        };
-                        match spread_type {
-                            Some(Type::Alias(name, ..)) if name == *type_name => {}
-                            Some(found) => {
-                                errors.push(TypRError::Type(TypeError::SpreadTypeMismatch(
-                                    target_type.clone(),
-                                    found,
-                                    spread_h.clone(),
-                                )));
-                            }
-                            None => {
-                                errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                                    Lang::Variable {
-                                        name: spread_var.clone(),
-                                        is_opaque: false,
-                                        related_type: builder::any_type(),
-                                        help_data: spread_h.clone(),
-                                    },
-                                )));
-                            }
-                        }
-                    }
-                    None => {
-                        // No static `..` spread: every record field must be covered
-                        // either explicitly or by a runtime `...` spread above.
-                        let provided: std::collections::HashSet<String> =
-                            fields.iter().map(|f| f.get_argument()).collect();
-                        for rf in &record_fields {
-                            let rname = rf.get_argument_str();
-                            if provided.contains(&rname) {
-                                continue;
-                            }
-                            match spread_merged
-                                .iter()
-                                .find(|mf| mf.get_argument_str() == rname)
-                            {
-                                Some(mf) => {
-                                    if !mf.get_type().is_subtype(&rf.get_type(), context).0 {
-                                        errors.push(TypRError::Type(TypeError::Param(
-                                            rf.get_type(),
-                                            mf.get_type(),
-                                        )));
-                                    }
-                                }
-                                None => {
-                                    errors.push(TypRError::Type(TypeError::MissingField(
-                                        rname,
-                                        target_type.clone(),
-                                        h.clone(),
-                                    )));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            TypeContext::new(target_type, expr.clone(), new_context).with_errors(errors)
-        }
+        } => constructor_call(
+            context,
+            expr,
+            module_path,
+            type_name,
+            fields,
+            spread,
+            spreads,
+            h,
+        ),
         Lang::ArrayConstructorCall {
             type_name,
             elements,
@@ -2969,19 +2156,6 @@ pub fn flatten_operator_union(typ: &Type) -> HashSet<Type> {
     }
 }
 
-fn replace_fields_type_if_needed(
-    context: &Context,
-    at: ArgumentValue,
-) -> impl FnMut(&ArgumentType) -> ArgumentType + use<'_> {
-    move |arg_typ2| {
-        if arg_typ2.get_argument_str() == at.get_argument() {
-            ArgumentType::new(&at.get_argument(), &typing(context, &at.get_value()).value)
-        } else {
-            arg_typ2.clone()
-        }
-    }
-}
-
 /// `Self:{ field = expr, ...base }` (generic_constructor.md §3-§4): builds a
 /// value of the same concrete type as the enclosing function's first
 /// parameter (`context.self_type`), validating `fields` against that type's
@@ -3070,7 +2244,7 @@ fn typing_self_constructor(
 
 /// Shallow merge of record field types by name, override winning on
 /// conflict and order-of-appearance otherwise preserved (spread_operator2.md).
-fn merge_record_fields_override(
+pub fn merge_record_fields_override(
     base: &[ArgumentType],
     overrides: &[ArgumentType],
 ) -> Vec<ArgumentType> {

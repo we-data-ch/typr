@@ -1,0 +1,12 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 209
+expression: r
+---
+`f.Tuple0` <- (function(a) {
+a[[2L |> as.Integer()]]
+} |> as.Boolean()) |> as.Function0()
+
+`a` <- struct(list(3L |> as.Integer(), FALSE |> as.Boolean()), 'Tuple') |> as.Tuple0()
+
+f(a)

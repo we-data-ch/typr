@@ -45,15 +45,18 @@ pub fn find_project_root(file_path: &str) -> Option<PathBuf> {
 pub struct ExpansionInfo {
     /// Path of every `.ty` file read during expansion → content hash.
     pub files: BTreeMap<String, u64>,
+    /// Module name → content hash of its own `.ty` file.
+    pub module_hashes: BTreeMap<String, u64>,
     /// Importer module name (`"main"` for the entry file) → directly
     /// imported module names.
     pub deps: BTreeMap<String, Vec<String>>,
 }
 
 impl ExpansionInfo {
-    fn record_file(&mut self, path: &str, content: &str) {
-        self.files
-            .insert(path.to_string(), crate::cache::hash_str(content));
+    fn record_file(&mut self, name: &str, path: &str, content: &str) {
+        let hash = crate::cache::hash_str(content);
+        self.files.insert(path.to_string(), hash);
+        self.module_hashes.insert(name.to_string(), hash);
     }
 
     fn record_dep(&mut self, importer: &str, imported: &str) {
@@ -159,7 +162,7 @@ impl ModuleExpander {
                 let file = get_os_file(&module_path);
                 let content = std::fs::read_to_string(&module_path)
                     .unwrap_or_else(|_| panic!("Can't read module file '{}'", module_path));
-                self.info.record_file(&module_path, &content);
+                self.info.record_file(&name, &module_path, &content);
                 let parse_result = parse(LocatedSpan::new_extra(&content, file));
 
                 // 4. Wrap parsed AST in a `Module { .. }` node and expand it

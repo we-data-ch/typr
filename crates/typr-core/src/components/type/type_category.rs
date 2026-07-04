@@ -2,6 +2,8 @@ use crate::components::error_message::help_data::HelpData;
 use crate::components::language::var::Var;
 use crate::components::r#type::kind::Kind;
 use crate::components::r#type::Type;
+use serde::Deserialize;
+use serde::Serialize;
 use std::fmt;
 
 /// The kind a sigil-generic is bounded to. Mirrors `Kind` (the four sigil
@@ -9,7 +11,7 @@ use std::fmt;
 /// no `Kind` variant because Number stays IndexGen-based). Each `GKind` names
 /// a `TypeCategory::GenericKinded(_)` that sits between `Generic` and the
 /// concrete monomorphized types of that kind in the subtype lattice.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
 pub enum GKind {
     Record,
     Interface,
@@ -44,7 +46,7 @@ impl fmt::Display for GKind {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum TypeCategory {
     Array,
     Function,

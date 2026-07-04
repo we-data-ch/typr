@@ -1,0 +1,7 @@
+let f <- fn(a: list{int, bool}): bool {
+    a[2]
+};
+
+let a <- :{3, false};
+
+f(a)

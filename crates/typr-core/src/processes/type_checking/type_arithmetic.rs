@@ -125,16 +125,21 @@ pub fn norm_arithmetic(op: TypeOperator, t1: Type, t2: Type, h: HelpData) -> Typ
 
 /// RFC §7.3 + §4.3 — normalize an `&` (intersection) operator node.
 /// `t1`/`t2` must already be reduced. `Record & Record` merges fields
-/// (shared fields recursively become `T1 & T2`); `Never` absorbs (`X & Never
-/// = Never`); `Any` is the identity; an out-of-domain operand or an
-/// impossible merged field is reported as `Type::Failed`. Otherwise the
-/// operator stays symbolic (e.g. a still-generic operand).
+/// (shared fields recursively become `T1 & T2`); `Interface & Interface`
+/// merges methods (same rule: a shared method name must have identical
+/// signatures, else `Type::Failed`); `Never` absorbs (`X & Never = Never`);
+/// `Any` is the identity; an out-of-domain operand or an impossible merged
+/// field/method is reported as `Type::Failed`. A mixed `Record & Interface`
+/// stays symbolic (both operands are within the accepted kind, but there is
+/// nothing to merge structurally) — callers that need to see through it
+/// project the facet they need (see `facets.rs`).
 pub fn norm_intersection(t1: Type, t2: Type, h: HelpData) -> Type {
     match (&t1, &t2) {
         (Type::Empty(_), _) | (_, Type::Empty(_)) => Type::Empty(h),
         (Type::Any(_), _) => t2,
         (_, Type::Any(_)) => t1,
         (Type::Record(f1, _), Type::Record(f2, _)) => merge_record_fields(f1, f2, &h),
+        (Type::Interface(m1, _), Type::Interface(m2, _)) => merge_interface_methods(m1, m2, &h),
         _ => {
             if accepts_record_kind(&t1) && accepts_record_kind(&t2) {
                 Type::Operator(TypeOperator::Intersection, Box::new(t1), Box::new(t2), h)
@@ -186,6 +191,52 @@ fn merge_record_fields(
         fields.insert(ArgumentType::new(name, &merged));
     }
     Type::Record(fields, h.clone())
+}
+
+/// Mirrors `merge_record_fields` for `Interface & Interface`: a method name
+/// shared by both interfaces must have exactly the same signature in both
+/// (no covariant/contravariant merge attempted — that's future work), else
+/// the intersection is ill-formed. Unlike record fields, method types are
+/// never merged recursively (`Self`-shaped `Function` types, not records).
+fn merge_interface_methods(
+    m1: &HashSet<ArgumentType>,
+    m2: &HashSet<ArgumentType>,
+    h: &HelpData,
+) -> Type {
+    let names1: HashMap<String, Type> = m1
+        .iter()
+        .map(|a| (a.get_argument_str(), a.get_type()))
+        .collect();
+    let names2: HashMap<String, Type> = m2
+        .iter()
+        .map(|a| (a.get_argument_str(), a.get_type()))
+        .collect();
+
+    let mut all_names: Vec<&String> = names1.keys().chain(names2.keys()).collect();
+    all_names.sort();
+    all_names.dedup();
+
+    let mut methods = HashSet::new();
+    for name in all_names {
+        let merged = match (names1.get(name), names2.get(name)) {
+            (Some(t1), Some(t2)) if t1 == t2 => t1.clone(),
+            (Some(t1), Some(t2)) => {
+                return Type::Failed(
+                    format!(
+                        "`&` cannot merge method `{}`: incompatible signatures `{}` and `{}`",
+                        name,
+                        t1.pretty(),
+                        t2.pretty()
+                    ),
+                    h.clone(),
+                );
+            }
+            (Some(t), None) | (None, Some(t)) => t.clone(),
+            (None, None) => unreachable!(),
+        };
+        methods.insert(ArgumentType::new(name, &merged));
+    }
+    Type::Interface(methods, h.clone())
 }
 
 /// Recursively reduce `typ` and collect every `Type::Failed` node produced
@@ -422,6 +473,81 @@ mod tests {
         let b = builder::record_type(&[("x".to_string(), builder::character_type_default())]);
         let res = norm_intersection(a, b, HelpData::default());
         assert!(matches!(res, Type::Failed(_, _)));
+    }
+
+    #[test]
+    fn test_intersection_merges_disjoint_interface_methods() {
+        let a = builder::interface_type(&[(
+            "view",
+            builder::function_type(
+                &[builder::self_generic_type()],
+                builder::character_type_default(),
+            ),
+        )]);
+        let b = builder::interface_type(&[(
+            "len",
+            builder::function_type(
+                &[builder::self_generic_type()],
+                builder::integer_type_default(),
+            ),
+        )]);
+        let res = norm_intersection(a, b, HelpData::default());
+        match res {
+            Type::Interface(methods, _) => assert_eq!(methods.len(), 2),
+            other => panic!("expected an Interface, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_intersection_merges_shared_identical_method() {
+        let view = builder::function_type(
+            &[builder::self_generic_type()],
+            builder::character_type_default(),
+        );
+        let a = builder::interface_type(&[("view", view.clone())]);
+        let b = builder::interface_type(&[("view", view)]);
+        let res = norm_intersection(a, b, HelpData::default());
+        match res {
+            Type::Interface(methods, _) => assert_eq!(methods.len(), 1),
+            other => panic!("expected an Interface, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_intersection_incompatible_shared_method_fails() {
+        let a = builder::interface_type(&[(
+            "view",
+            builder::function_type(
+                &[builder::self_generic_type()],
+                builder::character_type_default(),
+            ),
+        )]);
+        let b = builder::interface_type(&[(
+            "view",
+            builder::function_type(
+                &[builder::self_generic_type()],
+                builder::integer_type_default(),
+            ),
+        )]);
+        let res = norm_intersection(a, b, HelpData::default());
+        assert!(matches!(res, Type::Failed(_, _)));
+    }
+
+    #[test]
+    fn test_intersection_record_and_interface_stays_symbolic() {
+        let a = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
+        let b = builder::interface_type(&[(
+            "view",
+            builder::function_type(
+                &[builder::self_generic_type()],
+                builder::character_type_default(),
+            ),
+        )]);
+        let res = norm_intersection(a, b, HelpData::default());
+        assert!(matches!(
+            res,
+            Type::Operator(TypeOperator::Intersection, _, _, _)
+        ));
     }
 
     #[test]

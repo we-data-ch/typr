@@ -178,6 +178,92 @@ fn tampered_output_invalidates_cache() {
     let _ = fs::remove_dir_all(&project);
 }
 
+/// All `.R` files of a project's `R/` directory, as sorted (name, content)
+/// pairs, for byte-level comparison between two builds.
+fn r_dir_contents(project: &Path) -> Vec<(String, String)> {
+    let mut entries: Vec<(String, String)> = fs::read_dir(project.join("R"))
+        .unwrap()
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if !name.ends_with(".R") {
+                return None;
+            }
+            let content = fs::read_to_string(e.path()).ok()?;
+            Some((name, content))
+        })
+        .collect();
+    entries.sort();
+    entries
+}
+
+/// Stage 3 keystone: a warm rebuild that replays unchanged modules from the
+/// per-module cache must produce R output byte-identical to a clean
+/// `--no-incremental` build of the same sources.
+#[test]
+fn module_cache_output_is_byte_identical_to_clean_build() {
+    let project = scaffold_project("module_cache_identical");
+    // Two independent modules so one can hit the cache while the other is
+    // re-typed.
+    fs::write(
+        project.join("TypR/main.ty"),
+        "mod helper;\nmod second;\nuse helper::*;\nuse second::*;\n\nlet x <- add_one(1);\nlet y <- twice(2.0);\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("TypR/second.ty"),
+        "@pub let twice <- fn(a: num): num { a * 2.0 };\n",
+    )
+    .unwrap();
+
+    let first = typr(&project, &["build"]);
+    assert!(first.status.success(), "cold build failed: {:?}", first);
+    assert!(
+        stdout(&first).contains("0 from cache, 2 type-checked"),
+        "cold build should type-check both modules, got: {}",
+        stdout(&first)
+    );
+
+    // Same-line body edit in `second` — `helper` (typed before it) must hit.
+    fs::write(
+        project.join("TypR/second.ty"),
+        "@pub let twice <- fn(a: num): num { a * 2.5 };\n",
+    )
+    .unwrap();
+    let warm = typr(&project, &["build"]);
+    assert!(warm.status.success(), "warm rebuild failed: {:?}", warm);
+    assert!(
+        stdout(&warm).contains("1 from cache, 1 type-checked"),
+        "helper should be replayed from the module cache, got: {}",
+        stdout(&warm)
+    );
+
+    // Clean build of the exact same (modified) sources in a fresh project.
+    let reference = scaffold_project("module_cache_reference");
+    fs::copy(project.join("TypR/main.ty"), reference.join("TypR/main.ty")).unwrap();
+    fs::copy(
+        project.join("TypR/helper.ty"),
+        reference.join("TypR/helper.ty"),
+    )
+    .unwrap();
+    fs::copy(
+        project.join("TypR/second.ty"),
+        reference.join("TypR/second.ty"),
+    )
+    .unwrap();
+    let clean = typr(&reference, &["build", "--no-incremental"]);
+    assert!(clean.status.success(), "clean build failed: {:?}", clean);
+
+    assert_eq!(
+        r_dir_contents(&project),
+        r_dir_contents(&reference),
+        "warm incremental output must be byte-identical to a clean build"
+    );
+
+    let _ = fs::remove_dir_all(&project);
+    let _ = fs::remove_dir_all(&reference);
+}
+
 #[test]
 fn clean_removes_cache_dir() {
     let project = scaffold_project("clean_cache");

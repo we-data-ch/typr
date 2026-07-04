@@ -19,6 +19,7 @@ use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::processes::transpiling::translatable::Translatable;
+use crate::processes::type_checking::facets;
 use crate::processes::type_checking::flatten_operator_union;
 use crate::processes::type_checking::resolve_module_member_type;
 use crate::processes::type_checking::type_comparison::reduce_type;
@@ -1087,10 +1088,49 @@ impl RTranslatable<(String, Context)> for Lang {
                                 format!("{}.default <- {}", new_name, body_str),
                                 new_name.clone(),
                             ),
-                            _ => (
-                                format!("{}{} <- {}", method, new_name, body_str),
-                                new_name.clone(),
-                            ),
+                            _ => {
+                                let mut code = format!("{}{} <- {}", method, new_name, body_str);
+                                // Interfaces are satisfied structurally at compile
+                                // time, but R dispatches nominally on the runtime
+                                // class vector. Constructed records carry the
+                                // interface class (see the record-alias arm), but
+                                // primitives (`integer`, `character`, …) and values
+                                // built outside TypR constructors never do — so a
+                                // method whose dispatch parameter is a *pure*
+                                // interface (interface facet, no record facet) also
+                                // registers itself as the `.default` fallback.
+                                // `UseMethod` only reaches `.default` when no more
+                                // specific method matches, so this never overrides
+                                // a concrete-type method.
+                                let suffix = cont.get_class_unquoted(&related_type);
+                                if suffix != "default"
+                                    && facets::interface_facet(cont, &related_type).is_some()
+                                    && facets::record_facet(cont, &related_type).is_none()
+                                {
+                                    // `new_name` may be backtick-wrapped (dotted
+                                    // method names always are) — strip them before
+                                    // splitting off the suffix, re-wrap on emit.
+                                    if let Some(base) = new_name
+                                        .trim_matches('`')
+                                        .strip_suffix(&format!(".{}", suffix))
+                                    {
+                                        let default_method = match cont.get_environment() {
+                                            Environment::Project => {
+                                                format!("#' @method {} default\n", base)
+                                            }
+                                            _ => "".to_string(),
+                                        };
+                                        code = format!(
+                                            "{}\n{}{} <- {}",
+                                            code,
+                                            default_method,
+                                            format_backtick(format!("{}.default", base)),
+                                            new_name
+                                        );
+                                    }
+                                }
+                                (code, new_name.clone())
+                            }
                         }
                     })
                     .unwrap_or((format!("{} <- {}", new_name, body_str), new_name));
@@ -1214,11 +1254,22 @@ impl RTranslatable<(String, Context)> for Lang {
                 .add(" \n} else ")
                 .to_r(els)
                 .into(),
-            Lang::Tuple { value: vals, .. } => Translatable::from(cont.clone())
-                .add("struct(list(")
-                .join(vals, ", ")
-                .add("), 'Tuple')")
-                .into(),
+            Lang::Tuple { value: vals, .. } => {
+                // Attach the registered TupleN alias class on top of the bare
+                // 'Tuple' marker — S3 methods on tuple-typed parameters are
+                // emitted as `name.TupleN`, so the runtime value must carry
+                // that class for UseMethod dispatch to find them.
+                let typ = self.typing(cont).value;
+                let (body, current_cont): (String, Context) = Translatable::from(cont.clone())
+                    .add("struct(list(")
+                    .join(vals, ", ")
+                    .add("), 'Tuple')")
+                    .into();
+                (
+                    format!("{} |> {}", body, cont.get_type_anotation(&typ)),
+                    current_cont,
+                )
+            }
             Lang::Assign {
                 identifier: var,
                 expression: exp,
@@ -1440,15 +1491,45 @@ impl RTranslatable<(String, Context)> for Lang {
                         // More-specific supertypes (more fields) first for correct S3
                         // dispatch order; ties broken by name for determinism.
                         supertype_entries.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-                        let supertype_class_str = if supertype_entries.is_empty() {
+                        // Interfaces-as-classes: any named interface alias — or an
+                        // intersection alias with an interface facet, e.g.
+                        // `Combined <- list {...} & interface {...}` — that this
+                        // record structurally satisfies is also added to the class
+                        // vector, so functions dispatching on the interface name
+                        // (`describe.Viewable`) apply to values of this type through
+                        // normal S3 dispatch. Satisfaction is checked against the
+                        // final whole-program context (transpiling runs after all
+                        // typing), so implementing functions declared later in the
+                        // source are already visible here.
+                        let self_alias =
+                            Type::Alias(name.clone(), vec![], false, HelpData::default());
+                        let mut seen_ifaces: std::collections::HashSet<String> =
+                            std::collections::HashSet::new();
+                        let mut interface_entries: Vec<(String, usize)> = cont
+                            .aliases()
+                            .filter(|(var, _)| var.get_name() != name)
+                            .filter(|(_, alias_typ)| !alias_typ.has_generic())
+                            .filter_map(|(var, alias_typ)| {
+                                let methods = facets::interface_facet(cont, alias_typ)?;
+                                (seen_ifaces.insert(var.get_name())
+                                    && self_alias.is_subtype_raw(alias_typ, cont))
+                                .then(|| (var.get_name(), methods.len()))
+                            })
+                            .collect();
+                        // More methods = more specific; ties broken by name.
+                        interface_entries.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+                        // Record supertypes (structural field subsets) first, then
+                        // interfaces: a record supertype is always at least as
+                        // specific a match as an interface constraint.
+                        let all_super_names: Vec<String> = supertype_entries
+                            .iter()
+                            .chain(interface_entries.iter())
+                            .map(|(n, _)| format!("\"{n}\""))
+                            .collect();
+                        let supertype_class_str = if all_super_names.is_empty() {
                             String::new()
                         } else {
-                            let names = supertype_entries
-                                .iter()
-                                .map(|(n, _)| format!("\"{n}\""))
-                                .collect::<Vec<_>>()
-                                .join(", ");
-                            format!(", {names}")
+                            format!(", {}", all_super_names.join(", "))
                         };
                         // Annotator: the single entry point that adds the class
                         // (idempotently), runs the internal validator, then the
@@ -2520,6 +2601,76 @@ mod tests {
         assert_eq!(escape_r_string(r#"say "hi""#), r#""say \"hi\"""#);
         assert_eq!(escape_r_string(r"a\b"), r#""a\\b""#);
         assert_eq!(escape_r_string("line1\nline2"), r#""line1\nline2""#);
+    }
+
+    /// Interfaces-as-classes + `.default` fallback (hybrid dispatch model).
+    /// These go through `parse2` + `TypeChecker` (not `FluentParser`) because
+    /// the interface-satisfaction check runs against the *final* whole-program
+    /// context — exactly what `TypeChecker::transpile` provides and what
+    /// per-statement `FluentParser::run()` chains do not.
+    fn transpile_program(stmts: &[&str]) -> String {
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let tc = stmts
+            .iter()
+            .fold(TypeChecker::new(Context::default()), |tc, s| {
+                let code = parse2((*s).into()).unwrap();
+                tc.typing_no_panic(&code)
+            });
+        assert!(!tc.has_errors(), "type errors: {:?}", tc.get_errors());
+        tc.transpile()
+    }
+
+    #[test]
+    fn test_record_class_chain_includes_satisfied_interface() {
+        // `view` is declared *after* `Point`: satisfaction must still be
+        // seen, since transpiling runs on the final context.
+        let r = transpile_program(&[
+            "type Viewable <- interface { view: (Self) -> char };",
+            "type Point <- list { x: int };",
+            "let view <- fn(p: Point): char { \"pt\" };",
+            "let describe <- fn(v: Viewable): char { view(v) };",
+        ]);
+        assert!(
+            r.contains("class(x) <- c(\"Point\", \"Viewable\", \"list\")"),
+            "expected Viewable in Point's class chain, got: {r}"
+        );
+    }
+
+    #[test]
+    fn test_pure_interface_param_function_emits_default_fallback() {
+        // Primitives and foreign values never carry interface classes, so a
+        // pure-interface method must also register as `.default`.
+        let r = transpile_program(&[
+            "type Incrementable <- interface { incr: (Self) -> Self };",
+            "let incr <- fn(s: int): int { s + 1 };",
+            "let double_up <- fn(i: Incrementable): Incrementable { i.incr() };",
+        ]);
+        assert!(
+            r.contains("`double_up.default` <- `double_up.Incrementable`"),
+            "expected .default fallback alias, got: {r}"
+        );
+    }
+
+    #[test]
+    fn test_mixed_intersection_alias_tags_satisfier_but_no_default() {
+        // A record & interface intersection alias: satisfying records get the
+        // alias in their class chain; no `.default` is emitted since only
+        // records (which carry the class) can satisfy the record facet.
+        let r = transpile_program(&[
+            "type Combined <- list { y: int } & interface { show: (Self) -> char };",
+            "type Widget <- list { y: int, label: char };",
+            "let show <- fn(w: Widget): char { \"ws\" };",
+            "let inspect <- fn(c: Combined): char { show(c) };",
+        ]);
+        assert!(
+            r.contains("class(x) <- c(\"Widget\", \"Combined\", \"list\")"),
+            "expected Combined in Widget's class chain, got: {r}"
+        );
+        assert!(
+            !r.contains("inspect.default"),
+            "mixed intersection param must not emit a .default fallback, got: {r}"
+        );
     }
 
     #[test]

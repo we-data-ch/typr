@@ -11,6 +11,7 @@ use crate::components::language::set_related_type_if_variable;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::processes::type_checking::facets;
 use crate::processes::type_checking::match_types_to_generic;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
@@ -33,15 +34,14 @@ fn try_constrained_variable_match(
     context: &Context,
 ) -> Option<FunctionType> {
     let first_type = types.first()?;
-    let rigid_name = match first_type {
-        Type::Generic(name, _) => name,
-        _ => return None,
-    };
-    let interface = context.get_interface_constraint(rigid_name)?;
-    let methods = match interface {
-        Type::Interface(methods, _) => methods,
-        _ => return None,
-    };
+    if !matches!(first_type, Type::Generic(_, _)) {
+        return None;
+    }
+    // `interface_facet` looks through the rigid generic to its
+    // `interface_constraint` bound, which may be a plain interface or a
+    // `List & Interface` intersection — either way this recovers the method
+    // set, so a mixed-intersection parameter can still dispatch method calls.
+    let methods = facets::interface_facet(context, first_type)?;
     let method = methods
         .iter()
         .find(|m| m.get_argument_str() == var.get_name())?;
@@ -128,9 +128,15 @@ fn filter_by_first_param(
         sig.get_first_param()
             .map(|p| {
                 let reduced_p = reduce_type(context, &p);
-                // Exclude Any (belongs to FILTERING 3) and Interface (belongs to
-                // FILTERING 2.5) from the is_subtype_raw fast path.
-                (!matches!(&reduced_p, Type::Any(_) | Type::Interface(_, _))
+                // Exclude Any (belongs to FILTERING 3) and anything with an
+                // interface facet — plain `Interface` or a `Record &
+                // Interface` intersection (belongs to FILTERING 2.5, which
+                // uses the *unreduced* arg type so `to_interface`'s exact
+                // first-param-type match still sees the alias name) — from
+                // the is_subtype_raw fast path here, which only has the
+                // already-reduced (alias-stripped) `reduced_arg` to work with.
+                (!matches!(&reduced_p, Type::Any(_))
+                    && facets::interface_facet(context, &reduced_p).is_none()
                     && reduced_arg.is_subtype_raw(&reduced_p, context))
                     || match_types_to_generic(context, &reduced_arg, &p)
                         .map(|bindings| !bindings.is_empty())
@@ -155,6 +161,7 @@ fn try_direct_match(
 fn try_vectorized_match(
     candidates: &[FunctionType],
     types: &[Type],
+    _var: &Var,
     context: &Context,
 ) -> Option<FunctionType> {
     candidates
@@ -166,6 +173,7 @@ fn try_vectorized_match(
 fn try_variadic_match(
     all_signatures: &[FunctionType],
     types: &[Type],
+    _var: &Var,
     context: &Context,
 ) -> Option<FunctionType> {
     all_signatures
@@ -180,6 +188,7 @@ fn try_variadic_match(
 fn try_default_match(
     all_signatures: &[FunctionType],
     types: &[Type],
+    _var: &Var,
     context: &Context,
 ) -> Option<FunctionType> {
     all_signatures
@@ -323,6 +332,7 @@ fn apply_spread_subs(ret: &Type, subs: &std::collections::HashMap<String, Spread
 fn try_spread_tuple_match(
     all_signatures: &[FunctionType],
     types: &[Type],
+    _var: &Var,
     context: &Context,
 ) -> Option<FunctionType> {
     for sig in all_signatures {
@@ -573,7 +583,7 @@ fn try_interface_subtype_match(
             .zip(arg_types.iter())
             .all(|(param, arg)| {
                 let reduced_param = reduce_type(context, param);
-                if matches!(&reduced_param, Type::Interface(_, _)) {
+                if facets::interface_facet(context, &reduced_param).is_some() {
                     if arg.is_subtype_raw(&reduced_param, context) {
                         if !interface_to_concrete
                             .iter()
@@ -1090,6 +1100,135 @@ pub fn apply_from_variable(
     result
 }
 
+// ── Filter chain for function-application dispatch ─────────────────────────
+//
+// Each FILTERING step is a standalone function; the chain iterates in
+// priority order and the first match wins.  Cross-cutting concerns
+// (lambda specialization, success building) run once after the match,
+// not in every step.
+
+/// Signature of a single filter: `(all_signatures, arg_types, fn_var, context) -> Option<matched_signature>`
+type FilterFn =
+    for<'a> fn(&'a [FunctionType], &'a [Type], &'a Var, &'a Context) -> Option<FunctionType>;
+
+/// Refinement function: re-run after lambda specialization with concrete arg types.
+type RefineFn = fn(&[FunctionType], &[Type], &Context) -> Option<FunctionType>;
+
+/// A step in the filter chain, optionally with a refinement pass that
+/// re-runs after lambda specialization to improve the inferred return type.
+struct FilterStep {
+    filter: FilterFn,
+    refine: Option<RefineFn>,
+}
+
+/// FILTERING 0: constrained rigid variable method resolution (§5 elimination)
+fn filter_constrained_variable(
+    _sigs: &[FunctionType],
+    types: &[Type],
+    var: &Var,
+    ctx: &Context,
+) -> Option<FunctionType> {
+    try_constrained_variable_match(var, types, ctx)
+}
+
+/// FILTERING 0.5: zero-argument call to a plain (non-variadic) function
+fn filter_zero_arg(
+    sigs: &[FunctionType],
+    types: &[Type],
+    _var: &Var,
+    ctx: &Context,
+) -> Option<FunctionType> {
+    if !types.is_empty() {
+        return None;
+    }
+    sigs.iter()
+        .find(|sig| !sig.is_variadic() && sig.get_param_types().is_empty())
+        .cloned()
+        .and_then(|sig| sig.infer_return_type_direct(types, ctx))
+        .or_else(|| {
+            sigs.iter()
+                .find(|sig| !sig.is_variadic() && sig.min_arity() == 0 && sig.has_defaults())
+                .cloned()
+                .and_then(|sig| sig.infer_return_type_partial(types, ctx))
+        })
+}
+
+/// FILTERING 1: first-param equality, then full unification
+fn filter_first_param_match(
+    sigs: &[FunctionType],
+    types: &[Type],
+    _var: &Var,
+    ctx: &Context,
+) -> Option<FunctionType> {
+    let first_arg_type = types.first()?;
+    let candidates = filter_by_first_param(sigs, first_arg_type, ctx);
+    if candidates.is_empty() {
+        return None;
+    }
+    try_direct_match(&candidates, types, ctx)
+}
+
+/// FILTERING 2: super-type chain (walk ancestors of the first argument)
+fn filter_supertype_match(
+    sigs: &[FunctionType],
+    types: &[Type],
+    _var: &Var,
+    ctx: &Context,
+) -> Option<FunctionType> {
+    let first_arg_type = types.first()?;
+    let super_types = ctx.subtypes.get_ordered_supertypes(first_arg_type, ctx);
+    for super_type in &super_types {
+        if facets::interface_facet(ctx, &reduce_type(ctx, super_type)).is_some() {
+            continue;
+        }
+        let candidates = filter_by_first_param(sigs, super_type, ctx);
+        if candidates.is_empty() {
+            continue;
+        }
+        if let Some(fun_typ) = try_direct_match(&candidates, types, ctx) {
+            return Some(fun_typ);
+        }
+    }
+    None
+}
+
+/// FILTERING 2.5: interface structural subtyping
+fn filter_interface_match(
+    sigs: &[FunctionType],
+    types: &[Type],
+    _var: &Var,
+    ctx: &Context,
+) -> Option<FunctionType> {
+    let first_arg_type = types.first()?;
+    let interface_candidates: Vec<FunctionType> = sigs
+        .iter()
+        .filter(|sig| {
+            sig.get_first_param()
+                .map(|p| {
+                    let reduced_param = reduce_type(ctx, &p);
+                    facets::interface_facet(ctx, &reduced_param).is_some()
+                        && first_arg_type.is_subtype_raw(&reduced_param, ctx)
+                })
+                .unwrap_or(false)
+        })
+        .cloned()
+        .collect();
+    if interface_candidates.is_empty() {
+        return None;
+    }
+    try_interface_subtype_match(&interface_candidates, types, ctx)
+}
+
+/// Wrapper so `try_named_generic_match` can serve as a `FilterFn`.
+fn filter_named_generic(
+    sigs: &[FunctionType],
+    types: &[Type],
+    _var: &Var,
+    ctx: &Context,
+) -> Option<FunctionType> {
+    try_named_generic_match(sigs, types, ctx)
+}
+
 fn apply_from_variable_inner(
     var: Var,
     context: &Context,
@@ -1098,231 +1237,70 @@ fn apply_from_variable_inner(
 ) -> TypeContext {
     let (expanded_parameters, types, param_errors, arg_context) =
         get_expanded_parameters_with_their_types(context, parameters);
-    // Shadow the caller's context with the alias-enriched one so every
-    // downstream `build_success` threads the argument registrations onward.
     let context = &arg_context;
-
     let all_signatures = var.get_functions_from_name(context);
 
-    // === FILTERING 0 : Constrained rigid variable method resolution (§5 elimination) ===
-    // When the receiver (first argument) is a constrained generic rigid variable,
-    // resolve the method directly from the interface constraint.
-    if let Some(fun_typ) = try_constrained_variable_match(&var, &types, context) {
-        return build_success(
-            &var,
-            &fun_typ,
-            expanded_parameters,
-            &types,
-            param_errors,
-            context,
-            h,
-        );
-    }
+    let filters: &[FilterStep] = &[
+        FilterStep {
+            filter: filter_constrained_variable,
+            refine: None,
+        },
+        FilterStep {
+            filter: filter_zero_arg,
+            refine: None,
+        },
+        FilterStep {
+            filter: filter_named_generic,
+            refine: Some(try_named_generic_match),
+        },
+        FilterStep {
+            filter: filter_first_param_match,
+            refine: None,
+        },
+        FilterStep {
+            filter: filter_supertype_match,
+            refine: None,
+        },
+        FilterStep {
+            filter: filter_interface_match,
+            refine: None,
+        },
+        FilterStep {
+            filter: try_vectorized_match,
+            refine: None,
+        },
+        FilterStep {
+            filter: try_default_match,
+            refine: None,
+        },
+        FilterStep {
+            filter: try_variadic_match,
+            refine: None,
+        },
+        FilterStep {
+            filter: try_spread_tuple_match,
+            refine: None,
+        },
+    ];
 
-    // === FILTERING 0.5 : Zero-argument call to a plain (non-variadic) function ===
-    // FILTERING 1/2/2.5 all key off `types.first()`, so a call like `f()` to a
-    // plain `fn(): T { ... }` (no parameters, not variadic) never reaches a
-    // matching filter and falls through to FunctionNotFound. Handle the
-    // arity-0 case directly here — including a function whose params are
-    // *all* defaulted (`min_arity() == 0`), via `infer_return_type_partial`.
-    if types.is_empty() {
-        let zero_arg_match = all_signatures
-            .iter()
-            .find(|sig| !sig.is_variadic() && sig.get_param_types().is_empty())
-            .cloned()
-            .and_then(|sig| sig.infer_return_type_direct(&types, context))
-            .or_else(|| {
-                all_signatures
-                    .iter()
-                    .find(|sig| !sig.is_variadic() && sig.min_arity() == 0 && sig.has_defaults())
-                    .cloned()
-                    .and_then(|sig| sig.infer_return_type_partial(&types, context))
-            });
-        if let Some(fun_typ) = zero_arg_match {
+    for step in filters {
+        if let Some(fun_typ) = (step.filter)(&all_signatures, &types, &var, context) {
+            let (final_params, final_types) =
+                specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
+            let final_fun_typ = match step.refine {
+                Some(refine) => refine(&all_signatures, &final_types, context).unwrap_or(fun_typ),
+                None => fun_typ,
+            };
             return build_success(
                 &var,
-                &fun_typ,
-                expanded_parameters,
-                &types,
+                &final_fun_typ,
+                final_params,
+                &final_types,
                 param_errors,
                 context,
                 h,
             );
         }
-    }
-
-    // === FILTERING 0.6 : Named multi-generic match ===
-    // Handles signatures with multiple distinct generic variables (e.g. fold, map)
-    // where the standard SafeHashMap path conflates T and U.  Uses a String-keyed
-    // map with consistency verification, so it never accepts type-mismatched calls.
-    if let Some(fun_typ) = try_named_generic_match(&all_signatures, &types, context) {
-        let (final_params, final_types) =
-            specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
-        // Re-derive the return type from the specialized arg types. This matters
-        // when a lambda's return type was `Any` during the first pass (body failed
-        // to type with abstract params) but is now concrete after specialization.
-        // For example, `map(a: [Any, int], \(x) x + 1)`: the first pass yields
-        // return `[#N, U]` because U is unresolved; the second pass with the
-        // specialized lambda `(int) -> int` correctly yields `[#N, int]`.
-        let final_fun_typ =
-            try_named_generic_match(&all_signatures, &final_types, context).unwrap_or(fun_typ);
-        return build_success(
-            &var,
-            &final_fun_typ,
-            final_params,
-            &final_types,
-            param_errors,
-            context,
-            h,
-        );
-    }
-
-    // === FILTERING 1 : First equality of the first param, then complet match (unification) ===
-    if let Some(first_arg_type) = types.first() {
-        let candidates = filter_by_first_param(&all_signatures, first_arg_type, context);
-        if !candidates.is_empty() {
-            if let Some(fun_typ) = try_direct_match(&candidates, &types, context) {
-                let (final_params, final_types) =
-                    specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
-                return build_success(
-                    &var,
-                    &fun_typ,
-                    final_params,
-                    &final_types,
-                    param_errors,
-                    context,
-                    h,
-                );
-            }
-        }
-    }
-
-    // === FILTERING 2 : Super-type of the first arg, one by one from the closest one ===
-    if let Some(first_arg_type) = types.first() {
-        let super_types = context
-            .subtypes
-            .get_ordered_supertypes(first_arg_type, context);
-        for super_type in &super_types {
-            // Interface super-types are handled by FILTERING 2.5 with proper
-            // return-type inference (universal generic semantics). Skip them here.
-            if matches!(reduce_type(context, super_type), Type::Interface(_, _)) {
-                continue;
-            }
-            let candidates = filter_by_first_param(&all_signatures, super_type, context);
-            if !candidates.is_empty() {
-                if let Some(fun_typ) = try_direct_match(&candidates, &types, context) {
-                    let (final_params, final_types) =
-                        specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
-                    return build_success(
-                        &var,
-                        &fun_typ,
-                        final_params,
-                        &final_types,
-                        param_errors,
-                        context,
-                        h,
-                    );
-                }
-            }
-        }
-    }
-
-    // === FILTERING 2.5 : Interface structural subtyping ===
-    // Handles the case where parameters are interface types and arguments satisfy them
-    // structurally. When the return type is the same interface as a matched parameter,
-    // it is substituted with the concrete argument type (universal generic semantics:
-    // fn(i: I): I desugars to forall A: I. A -> A).
-    if let Some(first_arg_type) = types.first() {
-        let interface_candidates: Vec<FunctionType> = all_signatures
-            .iter()
-            .filter(|sig| {
-                sig.get_first_param()
-                    .map(|p| {
-                        let reduced_param = reduce_type(context, &p);
-                        matches!(&reduced_param, Type::Interface(_, _))
-                            && first_arg_type.is_subtype_raw(&reduced_param, context)
-                    })
-                    .unwrap_or(false)
-            })
-            .cloned()
-            .collect();
-        if !interface_candidates.is_empty() {
-            if let Some(fun_typ) =
-                try_interface_subtype_match(&interface_candidates, &types, context)
-            {
-                let (final_params, final_types) =
-                    specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
-                return build_success(
-                    &var,
-                    &fun_typ,
-                    final_params,
-                    &final_types,
-                    param_errors,
-                    context,
-                    h,
-                );
-            }
-        }
-    }
-
-    // === FILTERING 3 : Vectorization ===
-    if let Some(fun_typ) = try_vectorized_match(&all_signatures, &types, context) {
-        let (final_params, final_types) =
-            specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
-        return build_success(
-            &var,
-            &fun_typ,
-            final_params,
-            &final_types,
-            param_errors,
-            context,
-            h,
-        );
-    }
-
-    // === FILTERING 3.5 : Default parameters (fewer args than declared, trailing params have defaults) ===
-    if let Some(fun_typ) = try_default_match(&all_signatures, &types, context) {
-        let (final_params, final_types) =
-            specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
-        return build_success(
-            &var,
-            &fun_typ,
-            final_params,
-            &final_types,
-            param_errors,
-            context,
-            h,
-        );
-    }
-
-    // === FILTERING 4 : Variadic function (handles 0-arg calls and arity mismatch) ===
-    if let Some(fun_typ) = try_variadic_match(&all_signatures, &types, context) {
-        let (final_params, final_types) =
-            specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
-        return build_success(
-            &var,
-            &fun_typ,
-            final_params,
-            &final_types,
-            param_errors,
-            context,
-            h,
-        );
-    }
-
-    // === FILTERING 5 : Tuple spread (Ts...) ===
-    if let Some(fun_typ) = try_spread_tuple_match(&all_signatures, &types, context) {
-        let (final_params, final_types) =
-            specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
-        return build_success(
-            &var,
-            &fun_typ,
-            final_params,
-            &final_types,
-            param_errors,
-            context,
-            h,
-        );
     }
 
     // === ERROR : no filtering worked ===

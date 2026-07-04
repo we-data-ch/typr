@@ -69,6 +69,13 @@ impl<T: TypeSystem> Graph<T> {
         self.root.get_hierarchy()
     }
 
+    /// Deterministic rendering of the graph for fingerprinting: only the
+    /// insertion-ordered node tree. `memory` (a `HashSet`) and the subtype
+    /// cache iterate in random order and must not reach a fingerprint.
+    pub fn structure_debug(&self) -> String {
+        format!("{:?}", self.root)
+    }
+
     // Deduplicates while preserving the walk order: the result feeds R class
     // vectors (`struct(c(...))` in types.R), where order drives S3 dispatch
     // and must be stable from one build to the next.

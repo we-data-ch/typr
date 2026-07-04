@@ -4,6 +4,7 @@ use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::var::Var;
 use crate::components::r#type::kind::Kind;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::processes::type_checking::facets;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::ArgumentType;
 use crate::processes::type_checking::HelpData;
@@ -185,12 +186,13 @@ fn is_opaque_of(body_type: &Type, declared_ret: &Type) -> bool {
     }
 }
 
-/// Returns true when the return type is an interface that does not appear in any
-/// parameter. Such a position would require an existential type, which TypR does
-/// not support. The caller should use an opaque type instead.
+/// Returns true when the return type is an interface (or has an interface
+/// facet — e.g. `List & Interface`) that does not appear in any parameter.
+/// Such a position would require an existential type, which TypR does not
+/// support. The caller should use an opaque type instead.
 fn is_interface_return_only(params: &[ArgumentType], ret_ty: &Type, context: &Context) -> bool {
     let reduced_ret = reduce_type(context, ret_ty);
-    if !reduced_ret.is_interface() {
+    if facets::interface_facet(context, &reduced_ret).is_none() {
         return false;
     }
     !params
@@ -256,13 +258,17 @@ pub fn function(
     let kind_consistency_errors = check_kind_consistency(params, ret_ty);
     let default_param_errors = check_default_params(params, context);
 
-    // Build sub-context: interface parameters become rigid generic variables
-    // with interface constraints, instead of being decomposed via push_interface.
+    // Build sub-context: interface parameters (including a `List & Interface`
+    // intersection that has an interface facet) become rigid generic
+    // variables with interface constraints, instead of being decomposed via
+    // push_interface. The full reduced type (record facet included) is kept
+    // as the constraint, so `facets::record_facet` can still recover the
+    // record side of a mixed intersection through the rigid generic.
     let mut sub_context = context.clone();
     for arg_typ in params {
         let param_type = arg_typ.body_type();
         let reduced = reduce_type(&sub_context, &param_type);
-        if matches!(&reduced, Type::Interface(_, _)) {
+        if facets::interface_facet(&sub_context, &reduced).is_some() {
             let (rigid_name, new_ctx) = sub_context.clone().fresh_rigid_name();
             let rigid_type = Type::Generic(rigid_name.clone(), h.clone());
             sub_context = new_ctx
@@ -593,6 +599,62 @@ mod tests {
         use crate::processes::type_checking::type_checker::TypeChecker;
         let code = parse2(
             "fn(o: Option<int>, f: (int) -> int): int { match o { .Some(x) => f(x), .None => 0 } }"
+                .into(),
+        )
+        .unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(
+            !tc.has_errors(),
+            "Expected no type errors, got: {:?}",
+            tc.get_errors()
+        );
+    }
+
+    /// A parameter typed `list { ... } & interface { ... }` should support
+    /// both record field access (`$`) and interface method calls in the same
+    /// function body — the user-reported gap where combining a record and an
+    /// interface via `&` used to lose both capabilities.
+    #[test]
+    fn test_function_with_record_and_interface_intersection_param_field_access() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let code = parse2(
+            "fn(v: list { x: int } & interface { view: (Self) -> char }): int { v$x }".into(),
+        )
+        .unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(
+            !tc.has_errors(),
+            "Expected no type errors, got: {:?}",
+            tc.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_function_with_record_and_interface_intersection_param_method_call() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let code = parse2(
+            "fn(v: list { x: int } & interface { view: (Self) -> char }): char { view(v) }".into(),
+        )
+        .unwrap();
+        let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
+        assert!(
+            !tc.has_errors(),
+            "Expected no type errors, got: {:?}",
+            tc.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_function_with_record_and_interface_intersection_param_both_in_one_body() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+        let code = parse2(
+            "fn(v: list { x: int } & interface { view: (Self) -> char }): char { let n <- v$x; view(v) }"
                 .into(),
         )
         .unwrap();

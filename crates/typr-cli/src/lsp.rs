@@ -12,6 +12,9 @@
 //!   - **Signature Help** provider: parameter hints while inside a function call's `(...)`
 //!   - **Rename** / **References** providers: occurrence search scoped to a single document
 //!     (textual, word-boundary based — not a full scope-aware resolution)
+//!   - **Code Action** provider (quickfixes): add an inferred type annotation to an
+//!     un-annotated `let`, fill in missing `match` arms for a tag-union/`Option` target,
+//!     and import a missing module member found in another open document
 //!
 //! Performance: `did_change` debounces diagnostics (`DIAGNOSTICS_DEBOUNCE`) so a
 //! burst of keystrokes triggers one parse + type-check instead of one per
@@ -60,6 +63,14 @@ struct Backend {
     /// generation is still the latest when it wakes up, so a burst of
     /// keystrokes results in one type-check, not one per keystroke.
     diagnostics_generation: Arc<RwLock<HashMap<Uri, u64>>>,
+    /// Per-file `(Context, doc_map)` captured by the most recent
+    /// `textDocument/completion` request against that file, keyed by the
+    /// filesystem path stamped onto each lazily-built item's `data`
+    /// (`lsp_parser::lazy_completion_item`). `completionItem/resolve` reads
+    /// it back to fill in `detail`/`documentation` for just the one item the
+    /// client asks about, instead of `completion` eagerly formatting every
+    /// candidate's type up front.
+    completion_resolve_cache: Arc<RwLock<HashMap<String, Arc<lsp_parser::CompletionResolveCtx>>>>,
 }
 
 /// How long to wait after the last `did_change` before actually computing
@@ -78,7 +89,7 @@ impl LanguageServer for Backend {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 completion_provider: Some(CompletionOptions {
                     trigger_characters: Some(vec![".".into(), "$".into(), ">".into(), ":".into()]),
-                    resolve_provider: None,
+                    resolve_provider: Some(true),
                     ..Default::default()
                 }),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
@@ -94,6 +105,26 @@ impl LanguageServer for Backend {
                     work_done_progress_options: Default::default(),
                 })),
                 references_provider: Some(OneOf::Left(true)),
+                inlay_hint_provider: Some(OneOf::Left(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Options(
+                    CodeActionOptions {
+                        code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                        resolve_provider: None,
+                        work_done_progress_options: Default::default(),
+                    },
+                )),
+                semantic_tokens_provider: Some(
+                    SemanticTokensOptions {
+                        legend: SemanticTokensLegend {
+                            token_types: lsp_parser::SEMANTIC_TOKEN_TYPES.to_vec(),
+                            token_modifiers: lsp_parser::SEMANTIC_TOKEN_MODIFIERS.to_vec(),
+                        },
+                        full: Some(SemanticTokensFullOptions::Bool(true)),
+                        range: Some(false),
+                        work_done_progress_options: Default::default(),
+                    }
+                    .into(),
+                ),
                 ..Default::default()
             },
             ..Default::default()
@@ -235,23 +266,48 @@ impl LanguageServer for Backend {
 
         // Offload parsing + typing to a blocking thread (same strategy as hover).
         let content_owned = content.clone();
-        let items = tokio::task::spawn_blocking(move || {
+        let file_path_for_task = file_path.clone();
+        let (items, resolve_ctx) = tokio::task::spawn_blocking(move || {
             lsp_parser::get_completions_at(
                 &content_owned,
                 position.line,
                 position.character,
-                &file_path,
+                &file_path_for_task,
             )
         })
         .await
         .ok()
-        .unwrap_or_default();
+        .unwrap_or((Vec::new(), None));
+
+        if let Some(ctx) = resolve_ctx {
+            let mut cache = self.completion_resolve_cache.write().await;
+            cache.insert(file_path, Arc::new(ctx));
+        }
 
         if items.is_empty() {
             Ok(None)
         } else {
             Ok(Some(CompletionResponse::Array(items)))
         }
+    }
+
+    // ── completionItem/resolve ───────────────────────────────────────────────
+    async fn completion_resolve(&self, mut item: CompletionItem) -> Result<CompletionItem> {
+        let file_path = item
+            .data
+            .as_ref()
+            .and_then(|d| d.get("file_path"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        if let Some(file_path) = file_path {
+            let cache = self.completion_resolve_cache.read().await;
+            if let Some(ctx) = cache.get(&file_path) {
+                lsp_parser::resolve_completion_item(ctx, &mut item);
+            }
+        }
+
+        Ok(item)
     }
 
     // ── workspace/symbol ─────────────────────────────────────────────────────
@@ -514,6 +570,173 @@ impl LanguageServer for Backend {
             _ => Ok(None),
         }
     }
+
+    // ── textDocument/inlayHint ────────────────────────────────────────────────
+    async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
+        let uri = params.text_document.uri;
+
+        let docs = self.documents.read().await;
+        let content = match docs.get(&uri) {
+            Some(c) => c.clone(),
+            None => return Ok(None),
+        };
+        drop(docs);
+
+        let file_path = uri
+            .to_file_path()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        let analysis = match self.analysis_for(&uri, &content, &file_path).await {
+            Some(a) => a,
+            None => return Ok(None),
+        };
+
+        let hints = tokio::task::spawn_blocking(move || {
+            lsp_parser::resolve_inlay_hints(&analysis, &content)
+        })
+        .await
+        .unwrap_or_default();
+
+        if hints.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(hints))
+        }
+    }
+
+    // ── textDocument/semanticTokens/full ────────────────────────────────────
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> Result<Option<SemanticTokensResult>> {
+        let uri = params.text_document.uri;
+
+        let docs = self.documents.read().await;
+        let content = match docs.get(&uri) {
+            Some(c) => c.clone(),
+            None => return Ok(None),
+        };
+        drop(docs);
+
+        let file_path = uri
+            .to_file_path()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        let analysis = match self.analysis_for(&uri, &content, &file_path).await {
+            Some(a) => a,
+            None => return Ok(None),
+        };
+
+        let data = tokio::task::spawn_blocking(move || {
+            lsp_parser::resolve_semantic_tokens(&analysis, &content)
+        })
+        .await
+        .unwrap_or_default();
+
+        Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
+            result_id: None,
+            data,
+        })))
+    }
+
+    // ── textDocument/codeAction ──────────────────────────────────────────────
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let uri = params.text_document.uri;
+        let range = params.range;
+        let diagnostics = params.context.diagnostics;
+
+        let docs = self.documents.read().await;
+        let content = match docs.get(&uri) {
+            Some(c) => c.clone(),
+            None => return Ok(None),
+        };
+        drop(docs);
+
+        let file_path = uri
+            .to_file_path()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        let mut actions: Vec<CodeActionOrCommand> = Vec::new();
+
+        if let Some(analysis) = self.analysis_for(&uri, &content, &file_path).await {
+            let content_owned = content.clone();
+            let quick_fixes = tokio::task::spawn_blocking(move || {
+                let mut fixes = Vec::new();
+                if let Some(action) =
+                    lsp_parser::type_annotation_action(&analysis, &content_owned, range)
+                {
+                    fixes.push(action);
+                }
+                if let Some(action) =
+                    lsp_parser::missing_match_arms_action(&analysis, &content_owned, range)
+                {
+                    fixes.push(action);
+                }
+                fixes
+            })
+            .await
+            .unwrap_or_default();
+            actions.extend(
+                quick_fixes.into_iter().map(|fix| {
+                    CodeActionOrCommand::CodeAction(quick_fix_to_code_action(&uri, fix))
+                }),
+            );
+        }
+
+        // "Import missing module member" needs every open document's AST, not
+        // just this one's `DocumentAnalysis` — the exporting `module M { ... }`
+        // usually lives in a *different* file, so it's collected the same way
+        // `symbol()` gathers workspace symbols: parse every currently open
+        // document on demand rather than maintaining a persistent index.
+        if !diagnostics.is_empty() {
+            let docs = self.documents.read().await;
+            let all_docs: Vec<(String, String)> = docs
+                .iter()
+                .map(|(u, c)| (u.to_string(), c.clone()))
+                .collect();
+            drop(docs);
+
+            let uri_string = uri.to_string();
+            let import_fixes = tokio::task::spawn_blocking(move || {
+                lsp_parser::import_missing_member_actions(&uri_string, &diagnostics, &all_docs)
+            })
+            .await
+            .unwrap_or_default();
+            actions.extend(
+                import_fixes.into_iter().map(|fix| {
+                    CodeActionOrCommand::CodeAction(quick_fix_to_code_action(&uri, fix))
+                }),
+            );
+        }
+
+        if actions.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(actions))
+        }
+    }
+}
+
+/// Wrap a `lsp_parser::QuickFix` (Uri-agnostic: it only knows about ranges
+/// and text) into an LSP `CodeAction` targeting `uri`'s document — the same
+/// split `rename`/`references` use, where `lsp_parser` returns bare
+/// `Range`s and `lsp.rs` is the only place that knows about `Uri`.
+fn quick_fix_to_code_action(uri: &Uri, fix: lsp_parser::QuickFix) -> CodeAction {
+    let mut changes = HashMap::new();
+    changes.insert(uri.clone(), fix.edits);
+    CodeAction {
+        title: fix.title,
+        kind: Some(CodeActionKind::QUICKFIX),
+        edit: Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }),
+        ..Default::default()
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -551,8 +774,12 @@ impl Backend {
         });
 
         if let (Some(context), Some(ast)) = (context, ast) {
-            self.store_analysis(uri, content, lsp_parser::DocumentAnalysis { context, ast })
-                .await;
+            self.store_analysis(
+                uri,
+                content,
+                lsp_parser::DocumentAnalysis::new(context, ast),
+            )
+            .await;
         }
 
         diagnostics
@@ -1331,6 +1558,7 @@ pub async fn run_lsp() {
         documents: Arc::new(RwLock::new(HashMap::new())),
         analysis_cache: Arc::new(RwLock::new(HashMap::new())),
         diagnostics_generation: Arc::new(RwLock::new(HashMap::new())),
+        completion_resolve_cache: Arc::new(RwLock::new(HashMap::new())),
     });
 
     Server::new(stdin, stdout, socket).serve(service).await;
@@ -1526,6 +1754,7 @@ let x <- 5;
             documents: Arc::new(RwLock::new(HashMap::new())),
             analysis_cache: Arc::new(RwLock::new(HashMap::new())),
             diagnostics_generation: Arc::new(RwLock::new(HashMap::new())),
+            completion_resolve_cache: Arc::new(RwLock::new(HashMap::new())),
         });
         service.inner().clone()
     }
@@ -1588,5 +1817,53 @@ let x <- 5;
             .await
             .expect("analysis should succeed for the edited code");
         assert!(!analysis.context.get_types_from_name("y").is_empty());
+    }
+
+    /// End-to-end `textDocument/codeAction`: this is the one thing
+    /// `lsp_parser`'s own quick-fix unit tests can't cover, since
+    /// `lsp_parser::QuickFix` stays `Uri`-agnostic by design (see
+    /// `quick_fix_to_code_action`'s doc comment) — only the full `Backend`
+    /// round-trip proves the `WorkspaceEdit` ends up keyed by the request's
+    /// own `Uri`.
+    #[tokio::test]
+    async fn code_action_offers_type_annotation_quick_fix() {
+        let backend = test_backend();
+        let uri = "file:///test.ty".parse::<Uri>().unwrap();
+        let content = "let x <- 5;\nlet y <- x;\n";
+        backend
+            .documents
+            .write()
+            .await
+            .insert(uri.clone(), content.to_string());
+
+        let params = CodeActionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            range: Range::new(Position::new(0, 4), Position::new(0, 5)),
+            context: CodeActionContext {
+                diagnostics: Vec::new(),
+                only: None,
+                trigger_kind: None,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+
+        let actions = backend
+            .code_action(params)
+            .await
+            .expect("code_action must not error")
+            .expect("expected at least one quick fix");
+
+        let CodeActionOrCommand::CodeAction(action) = &actions[0] else {
+            panic!("expected a CodeAction, got a Command");
+        };
+        let edit = action.edit.as_ref().expect("quick fix must carry an edit");
+        let edits = edit
+            .changes
+            .as_ref()
+            .expect("edit must carry `changes`")
+            .get(&uri)
+            .expect("edit must target the request's own Uri");
+        assert_eq!(edits[0].new_text, ": int");
     }
 }

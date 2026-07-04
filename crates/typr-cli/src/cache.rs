@@ -12,12 +12,20 @@
 //! Every read path is fail-open: a missing, unreadable, or unparsable
 //! manifest simply means "no cache" and the full build runs.
 
+use crate::metaprogramming::ExpansionInfo;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
+use std::rc::Rc;
+use typr_core::processes::type_checking::module_cache::ModuleCacheEntry;
+use typr_core::processes::type_checking::module_cache::ModuleCacheStore;
 
 /// Bump when the manifest layout or the meaning of a hash changes.
 pub const CACHE_FORMAT_VERSION: u32 = 1;
@@ -174,6 +182,105 @@ pub fn collect_output_hashes(root: &Path) -> BTreeMap<String, u64> {
         hashes.insert("load_module.R".to_string(), hash);
     }
     hashes
+}
+
+/// Salt folded into every per-module cache key: a different typr version,
+/// cache format or build mode must never share entries.
+pub fn module_cache_salt(test_mode: bool) -> u64 {
+    hash_str(&format!(
+        "module-cache|{}|{}|{}",
+        CACHE_FORMAT_VERSION,
+        env!("CARGO_PKG_VERSION"),
+        test_mode
+    ))
+}
+
+/// Combined source hash per module: its own `.ty` content hash plus the
+/// hashes of every module it (transitively) imports, so a dependency edit
+/// invalidates the whole import chain even when the importer's own file is
+/// untouched.
+pub fn combined_module_hashes(info: &ExpansionInfo) -> HashMap<String, u64> {
+    fn closure(name: &str, deps: &BTreeMap<String, Vec<String>>, acc: &mut BTreeSet<String>) {
+        if !acc.insert(name.to_string()) {
+            return;
+        }
+        for dep in deps.get(name).map(|v| v.as_slice()).unwrap_or(&[]) {
+            closure(dep, deps, acc);
+        }
+    }
+    info.module_hashes
+        .keys()
+        .map(|name| {
+            let mut reached = BTreeSet::new();
+            closure(name, &info.deps, &mut reached);
+            let combined = reached
+                .iter()
+                .filter_map(|m| info.module_hashes.get(m).map(|h| format!("{}:{}", m, h)))
+                .collect::<Vec<_>>()
+                .join("|");
+            (name.clone(), hash_str(&combined))
+        })
+        .collect()
+}
+
+/// Filesystem-backed [`ModuleCacheStore`] under `.typr_cache/modules/`.
+/// Fail-open on every path: unreadable or undecodable entries are misses.
+/// Keys touched during the build (both hits and fresh puts) are tracked so
+/// [`FsModuleStore::gc`] can prune entries the build no longer reaches.
+#[derive(Clone)]
+pub struct FsModuleStore {
+    dir: PathBuf,
+    used: Rc<RefCell<HashSet<u64>>>,
+}
+
+impl FsModuleStore {
+    pub fn new(dir: PathBuf) -> Self {
+        FsModuleStore {
+            dir,
+            used: Rc::new(RefCell::new(HashSet::new())),
+        }
+    }
+
+    fn entry_path(&self, key: u64) -> PathBuf {
+        self.dir.join(format!("{:016x}.bin", key))
+    }
+
+    /// Remove every stored entry whose key was neither read nor written by
+    /// the build that just finished.
+    pub fn gc(&self) {
+        let used = self.used.borrow();
+        let Ok(read_dir) = fs::read_dir(&self.dir) else {
+            return;
+        };
+        for dir_entry in read_dir.flatten() {
+            let path = dir_entry.path();
+            let stale = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .and_then(|s| u64::from_str_radix(s, 16).ok())
+                .map_or(true, |key| !used.contains(&key));
+            if stale {
+                let _ = fs::remove_file(&path);
+            }
+        }
+    }
+}
+
+impl ModuleCacheStore for FsModuleStore {
+    fn get(&self, key: u64) -> Option<ModuleCacheEntry> {
+        let bytes = fs::read(self.entry_path(key)).ok()?;
+        let entry = bincode::deserialize(&bytes).ok()?;
+        self.used.borrow_mut().insert(key);
+        Some(entry)
+    }
+
+    fn put(&self, key: u64, entry: &ModuleCacheEntry) {
+        let _ = fs::create_dir_all(&self.dir);
+        if let Ok(bytes) = bincode::serialize(entry) {
+            let _ = fs::write(self.entry_path(key), bytes);
+            self.used.borrow_mut().insert(key);
+        }
+    }
 }
 
 #[cfg(test)]

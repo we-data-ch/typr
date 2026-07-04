@@ -780,6 +780,21 @@ fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool, increme
         parse_code_with_info(&PathBuf::from("TypR/main.ty"), context.get_environment());
     step.done();
 
+    // Per-module type-check cache: unchanged modules (same source + deps +
+    // upstream context) are replayed from .typr_cache/modules/ instead of
+    // being re-typed. See typr-core's module_cache for the replay semantics.
+    let module_store = if incremental {
+        let store = cache::FsModuleStore::new(dir.join(cache::CACHE_DIR).join("modules"));
+        typr_core::processes::type_checking::module_cache::install(
+            Box::new(store.clone()),
+            cache::module_cache_salt(test_mode),
+            cache::combined_module_hashes(&expansion_info),
+        );
+        Some(store)
+    } else {
+        None
+    };
+
     let step = Step::new("Type checking");
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     if type_checker.has_errors() {
@@ -787,6 +802,14 @@ fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool, increme
         type_checker.show_errors();
     } else {
         step.done();
+    }
+
+    if let Some(store) = &module_store {
+        let (hits, misses) = typr_core::processes::type_checking::module_cache::uninstall();
+        if !quiet && hits + misses > 0 {
+            println!("  Modules: {} from cache, {} type-checked", hits, misses);
+        }
+        store.gc();
     }
 
     // Build the SPG once, with the real package name/version, and reuse it

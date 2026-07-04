@@ -197,6 +197,19 @@ mod transpilation {
     }
 
     #[test]
+    fn tuple_literal_carries_alias_class_for_dispatch() {
+        // A function with a tuple-typed parameter is emitted as an S3 method
+        // `f.TupleN`, so the tuple literal must be annotated with `as.TupleN()`
+        // (not just the bare 'Tuple' class) for UseMethod dispatch to find it.
+        let r = transpile_all(&[
+            "let f <- fn(a: list{int, bool}): bool { a[2] };",
+            "let a <- :{3, false};",
+            "f(a)",
+        ]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
     fn state_aliasing_is_plain_assignment() {
         // State<T> gets its shared-mutation semantics entirely from R
         // environments being reference types, so aliasing (`let b <- a;`)
