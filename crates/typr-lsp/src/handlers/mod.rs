@@ -2,14 +2,18 @@ pub mod completions;
 pub mod document;
 pub mod goto_definition;
 pub mod hover;
+pub mod inlay_hints;
 pub mod rename;
 pub mod signature_help;
 pub mod utils;
+pub mod code_actions;
 
 pub use completions::*;
 pub use document::*;
 pub use goto_definition::*;
 pub use hover::*;
+pub use inlay_hints::*;
 pub use rename::*;
 pub use signature_help::*;
 pub use utils::*;
+pub use code_actions::*;

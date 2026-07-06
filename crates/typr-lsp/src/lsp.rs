@@ -94,6 +94,8 @@ impl LanguageServer for Backend {
                     work_done_progress_options: Default::default(),
                 })),
                 references_provider: Some(OneOf::Left(true)),
+                inlay_hint_provider: Some(OneOf::Left(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -399,12 +401,7 @@ impl LanguageServer for Backend {
         };
 
         let help = tokio::task::spawn_blocking(move || {
-            handlers::resolve_signature_help(
-                &analysis,
-                &content,
-                position.line,
-                position.character,
-            )
+            handlers::resolve_signature_help(&analysis, &content, position.line, position.character)
         })
         .await
         .ok()
@@ -514,6 +511,48 @@ impl LanguageServer for Backend {
             _ => Ok(None),
         }
     }
+
+    async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
+        let uri = params.text_document.uri.clone();
+        let file_path = uri.to_string();
+
+        let content = {
+            let docs = self.documents.read().await;
+            match docs.get(&uri) {
+                Some(c) => c.clone(),
+                None => return Ok(None),
+            }
+        };
+
+        let analysis_opt = self.analysis_for(&uri, &file_path, &content).await;
+        let analysis = match analysis_opt {
+            Some(a) => a,
+            None => return Ok(None),
+        };
+
+        Ok(crate::handlers::resolve_inlay_hints(&analysis, &content))
+    }
+
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let uri = params.text_document.uri.clone();
+        let file_path = uri.to_string();
+
+        let content = {
+            let docs = self.documents.read().await;
+            match docs.get(&uri) {
+                Some(c) => c.clone(),
+                None => return Ok(None),
+            }
+        };
+
+        let analysis_opt = self.analysis_for(&uri, &file_path, &content).await;
+        let analysis = match analysis_opt {
+            Some(a) => a,
+            None => return Ok(None),
+        };
+
+        Ok(crate::handlers::resolve_code_actions(params, &analysis, &content))
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -576,12 +615,7 @@ impl Backend {
 
     /// Store a freshly computed `DocumentAnalysis` for `uri`, keyed by a hash
     /// of the `content` it was computed from.
-    async fn store_analysis(
-        &self,
-        uri: &Uri,
-        content: &str,
-        analysis: handlers::DocumentAnalysis,
-    ) {
+    async fn store_analysis(&self, uri: &Uri, content: &str, analysis: handlers::DocumentAnalysis) {
         let hash = hash_content(content);
         let mut cache = self.analysis_cache.write().await;
         cache.insert(uri.clone(), (hash, Arc::new(analysis)));
@@ -630,7 +664,7 @@ fn hash_content(content: &str) -> u64 {
 /// Also returns the final `Context` when type-checking ran to completion
 /// (even if it collected errors along the way), so the caller can populate
 /// the per-URI analysis cache shared with hover/goto-definition/signatureHelp.
-fn check_code_and_extract_errors(
+pub fn check_code_and_extract_errors(
     content: &str,
     file_name: &str,
 ) -> (Vec<Diagnostic>, Option<Context>, Option<Lang>) {
@@ -1330,7 +1364,7 @@ pub async fn run_lsp() {
         .with_env_filter(
             tracing_subscriber::EnvFilter::builder()
                 .with_default_directive(tracing_subscriber::filter::LevelFilter::INFO.into())
-                .from_env_lossy()
+                .from_env_lossy(),
         )
         .init();
 
