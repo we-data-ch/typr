@@ -1788,9 +1788,9 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 TypeContext::new(
                     typ.clone(),
                     langs.clone(),
-                    context
+                    tc.context
                         .clone()
-                        .push_var_type(Var::from("_out"), typ.clone(), context),
+                        .push_var_type(Var::from("_out"), typ.clone(), &tc.context),
                 )
                 .with_errors(errors)
             } else if exprs.is_empty() {

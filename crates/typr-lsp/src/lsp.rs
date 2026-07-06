@@ -524,7 +524,7 @@ impl LanguageServer for Backend {
             }
         };
 
-        let analysis_opt = self.analysis_for(&uri, &file_path, &content).await;
+        let analysis_opt = self.analysis_for(&uri, &content, &file_path).await;
         let analysis = match analysis_opt {
             Some(a) => a,
             None => return Ok(None),
@@ -545,7 +545,7 @@ impl LanguageServer for Backend {
             }
         };
 
-        let analysis_opt = self.analysis_for(&uri, &file_path, &content).await;
+        let analysis_opt = self.analysis_for(&uri, &content, &file_path).await;
         let analysis = match analysis_opt {
             Some(a) => a,
             None => return Ok(None),

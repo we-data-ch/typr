@@ -16,7 +16,9 @@ pub fn resolve_inlay_hints(analysis: &DocumentAnalysis, content: &str) -> Option
         if let Some(inferred_type) = types.last() {
             let pos = offset_to_position(offset, content);
 
-            let end_col = pos.character + name.len() as u32;
+            let line_text = content.lines().nth(pos.line as usize).unwrap_or("");
+            let true_start = line_text.find(&name).unwrap_or(pos.character as usize);
+            let end_col = (true_start + name.len()) as u32;
             let end_pos = Position::new(pos.line, end_col);
 
             hints.push(InlayHint {
@@ -76,7 +78,7 @@ mod tests {
 
     #[test]
     fn test_find_untyped_lets() {
-        let code = "let my_var = 42;\nlet message = \"Hello\";";
+        let code = "let my_var <- 42;\nlet message <- \"Hello\";";
         let (_, context, ast) = crate::lsp::check_code_and_extract_errors(code, "test.typr");
         let ast = ast.unwrap();
 
