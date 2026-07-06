@@ -8,13 +8,7 @@
 //!   3. Looks up the identifier in that context and returns its type.
 //!   4. Renders the type string with Markdown syntax highlighting.
 
-use nom_locate::LocatedSpan;
-use tower_lsp_server::ls_types::{
-    Position, Range,
-};
-
-type Span<'a> = LocatedSpan<&'a str, String>;
-
+use tower_lsp_server::ls_types::{Position, Range};
 
 // ── rename / references (occurrence search) ────────────────────────────────
 
@@ -217,4 +211,3 @@ mod rename_and_references_tests {
         assert_eq!(range.end, Position::new(0, 16));
     }
 }
-

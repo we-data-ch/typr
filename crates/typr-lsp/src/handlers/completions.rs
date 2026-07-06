@@ -31,6 +31,7 @@ use super::*;
 // ══════════════════════════════════════════════════════════════════════════
 
 /// Main entry point for LSP completion requests.
+#[tracing::instrument(skip_all)]
 pub fn get_completions_at(
     content: &str,
     line: u32,

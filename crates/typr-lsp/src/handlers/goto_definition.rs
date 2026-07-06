@@ -8,17 +8,12 @@
 //!   3. Looks up the identifier in that context and returns its type.
 //!   4. Renders the type string with Markdown syntax highlighting.
 
-use nom_locate::LocatedSpan;
-use tower_lsp_server::ls_types::{
-    Position, Range,
-};
+use tower_lsp_server::ls_types::{Position, Range};
 use typr_core::components::context::config::Environment;
 use typr_core::components::error_message::help_data::HelpData;
 use typr_core::components::language::var::Var;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::Type;
-
-type Span<'a> = LocatedSpan<&'a str, String>;
 
 use super::*;
 
@@ -59,6 +54,7 @@ pub fn detect_environment(file_path: &str) -> Environment {
 ///   `find_param_declaration`) since a parameter only lives in the
 ///   *sub-context* used to type its function's body and never reaches the
 ///   final `Context` (`processes/type_checking/function.rs`).
+#[tracing::instrument(skip_all)]
 pub fn resolve_definition(
     analysis: &DocumentAnalysis,
     content: &str,

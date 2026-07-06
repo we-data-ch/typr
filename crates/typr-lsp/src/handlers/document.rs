@@ -50,6 +50,7 @@ pub struct DocumentAnalysis {
 /// `None` if parsing or type-checking panics (e.g. incomplete/invalid code
 /// mid-edit) — callers treat that the same way the old per-feature pipelines
 /// did (silently produce no result rather than surfacing an error).
+#[tracing::instrument(skip_all)]
 pub fn analyze_document(content: &str, file_path: &str) -> Option<DocumentAnalysis> {
     let span: Span = LocatedSpan::new_extra(content, file_path.to_string());
     let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
@@ -77,4 +78,3 @@ pub struct DefinitionInfo {
     /// The file path where the symbol is defined (None if same file or unknown).
     pub file_path: Option<String>,
 }
-

@@ -1323,6 +1323,19 @@ fn collect_document_symbols_from_ast(
 
 /// Start the LSP server.  Blocks until the client disconnects.
 pub async fn run_lsp() {
+    let file_appender = tracing_appender::rolling::daily(std::env::temp_dir(), "typr-lsp.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    tracing_subscriber::fmt()
+        .with_writer(non_blocking)
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(tracing_subscriber::filter::LevelFilter::INFO.into())
+                .from_env_lossy()
+        )
+        .init();
+
+    tracing::info!("Starting TypR LSP server");
+
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 

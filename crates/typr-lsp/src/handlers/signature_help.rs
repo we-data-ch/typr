@@ -8,15 +8,11 @@
 //!   3. Looks up the identifier in that context and returns its type.
 //!   4. Renders the type string with Markdown syntax highlighting.
 
-use nom_locate::LocatedSpan;
 use tower_lsp_server::ls_types::{
-    ParameterInformation, ParameterLabel,
-    SignatureHelp, SignatureInformation,
+    ParameterInformation, ParameterLabel, SignatureHelp, SignatureInformation,
 };
 use typr_core::components::r#type::type_system::TypeSystem;
 use typr_core::components::r#type::Type;
-
-type Span<'a> = LocatedSpan<&'a str, String>;
 
 use super::*;
 
@@ -29,6 +25,7 @@ use super::*;
 /// Returns `None` when the cursor is not inside a function-call's argument
 /// list, or when the call's callee can't be resolved to a `Type::Function`
 /// in the typing context.
+#[tracing::instrument(skip_all)]
 pub fn resolve_signature_help(
     analysis: &DocumentAnalysis,
     content: &str,
@@ -212,4 +209,3 @@ mod signature_help_tests {
         assert!(help.is_none());
     }
 }
-

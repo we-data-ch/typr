@@ -8,10 +8,7 @@
 //!   3. Looks up the identifier in that context and returns its type.
 //!   4. Renders the type string with Markdown syntax highlighting.
 
-use nom_locate::LocatedSpan;
 use typr_core::components::r#type::type_system::TypeSystem;
-
-type Span<'a> = LocatedSpan<&'a str, String>;
 
 use super::*;
 
@@ -23,6 +20,7 @@ use super::*;
 /// pay for a fresh parse + type-check on every hover).
 ///
 /// Returns `None` when the cursor is not on an identifier/literal.
+#[tracing::instrument(skip_all)]
 pub fn resolve_hover(
     analysis: &DocumentAnalysis,
     content: &str,
@@ -224,4 +222,3 @@ mod hover_project_mode_tests {
         );
     }
 }
-
