@@ -22,7 +22,7 @@
 //! Launch with `typr lsp`.  The server communicates over stdin/stdout using
 //! the standard LSP JSON-RPC protocol.
 
-use crate::lsp_parser;
+use crate::handlers;
 use nom_locate::LocatedSpan;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -42,7 +42,7 @@ type Span<'a> = LocatedSpan<&'a str, String>;
 
 /// Per-URI cache entry: a content hash paired with the `DocumentAnalysis`
 /// computed from that exact content.
-type AnalysisCache = HashMap<Uri, (u64, Arc<lsp_parser::DocumentAnalysis>)>;
+type AnalysisCache = HashMap<Uri, (u64, Arc<handlers::DocumentAnalysis>)>;
 
 /// Shared state: one copy of each open document's full text.
 #[derive(Clone)]
@@ -197,7 +197,7 @@ impl LanguageServer for Backend {
         // don't stall the LSP event loop.
         let content_owned = content.clone();
         let info = tokio::task::spawn_blocking(move || {
-            lsp_parser::resolve_hover(&analysis, &content_owned, position.line, position.character)
+            handlers::resolve_hover(&analysis, &content_owned, position.line, position.character)
         })
         .await
         .ok() // if the blocking task panicked, treat as None
@@ -236,7 +236,7 @@ impl LanguageServer for Backend {
         // Offload parsing + typing to a blocking thread (same strategy as hover).
         let content_owned = content.clone();
         let items = tokio::task::spawn_blocking(move || {
-            lsp_parser::get_completions_at(
+            handlers::get_completions_at(
                 &content_owned,
                 position.line,
                 position.character,
@@ -348,7 +348,7 @@ impl LanguageServer for Backend {
         let uri_owned = uri.clone();
         let file_path_owned = file_path.clone();
         let info = tokio::task::spawn_blocking(move || {
-            lsp_parser::resolve_definition(
+            handlers::resolve_definition(
                 &analysis,
                 &content_owned,
                 position.line,
@@ -399,7 +399,7 @@ impl LanguageServer for Backend {
         };
 
         let help = tokio::task::spawn_blocking(move || {
-            lsp_parser::resolve_signature_help(
+            handlers::resolve_signature_help(
                 &analysis,
                 &content,
                 position.line,
@@ -429,7 +429,7 @@ impl LanguageServer for Backend {
         drop(docs);
 
         let range = tokio::task::spawn_blocking(move || {
-            lsp_parser::find_renameable_range_at(&content, position.line, position.character)
+            handlers::find_renameable_range_at(&content, position.line, position.character)
         })
         .await
         .ok()
@@ -452,7 +452,7 @@ impl LanguageServer for Backend {
         drop(docs);
 
         let ranges = tokio::task::spawn_blocking(move || {
-            lsp_parser::find_word_occurrences_at(&content, position.line, position.character)
+            handlers::find_word_occurrences_at(&content, position.line, position.character)
         })
         .await
         .ok()
@@ -494,7 +494,7 @@ impl LanguageServer for Backend {
         drop(docs);
 
         let ranges = tokio::task::spawn_blocking(move || {
-            lsp_parser::find_word_occurrences_at(&content, position.line, position.character)
+            handlers::find_word_occurrences_at(&content, position.line, position.character)
         })
         .await
         .ok()
@@ -551,7 +551,7 @@ impl Backend {
         });
 
         if let (Some(context), Some(ast)) = (context, ast) {
-            self.store_analysis(uri, content, lsp_parser::DocumentAnalysis { context, ast })
+            self.store_analysis(uri, content, handlers::DocumentAnalysis { context, ast })
                 .await;
         }
 
@@ -565,7 +565,7 @@ impl Backend {
         &self,
         uri: &Uri,
         content: &str,
-    ) -> Option<Arc<lsp_parser::DocumentAnalysis>> {
+    ) -> Option<Arc<handlers::DocumentAnalysis>> {
         let hash = hash_content(content);
         let cache = self.analysis_cache.read().await;
         cache
@@ -580,7 +580,7 @@ impl Backend {
         &self,
         uri: &Uri,
         content: &str,
-        analysis: lsp_parser::DocumentAnalysis,
+        analysis: handlers::DocumentAnalysis,
     ) {
         let hash = hash_content(content);
         let mut cache = self.analysis_cache.write().await;
@@ -598,7 +598,7 @@ impl Backend {
         uri: &Uri,
         content: &str,
         file_path: &str,
-    ) -> Option<Arc<lsp_parser::DocumentAnalysis>> {
+    ) -> Option<Arc<handlers::DocumentAnalysis>> {
         if let Some(analysis) = self.get_cached_analysis(uri, content).await {
             return Some(analysis);
         }
@@ -606,7 +606,7 @@ impl Backend {
         let content_owned = content.to_string();
         let file_path_owned = file_path.to_string();
         let analysis = tokio::task::spawn_blocking(move || {
-            lsp_parser::analyze_document(&content_owned, &file_path_owned)
+            handlers::analyze_document(&content_owned, &file_path_owned)
         })
         .await
         .ok()
@@ -690,8 +690,8 @@ fn check_code_and_extract_errors(
     // 1b. Resolve module imports the same way the CLI does, so that `use M::x`
     // and other cross-module references are known to the type checker. Without
     // this the LSP would flag every imported symbol as an "undefined variable"
-    // even though the code compiles fine. Mirrors `lsp_parser::analyze_document`.
-    let environment = lsp_parser::detect_environment(path);
+    // even though the code compiles fine. Mirrors `handlers::analyze_document`.
+    let environment = handlers::detect_environment(path);
     if let Ok(expanded) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         crate::metaprogramming::metaprogrammation(ast.clone(), environment)
     })) {
@@ -957,10 +957,10 @@ fn extract_error_length(message: &str, content: &str, line: u32) -> u32 {
     1
 }
 
-/// Convert a byte offset to a Position. Delegates to `lsp_parser`'s
+/// Convert a byte offset to a Position. Delegates to `handlers`'s
 /// implementation so there is a single, UTF-16-correct source of truth
 /// (see its doc comment for why UTF-16 code units are used).
-use lsp_parser::offset_to_position;
+use handlers::offset_to_position;
 
 /// Find the end column of a token starting at the given byte offset.
 /// Scans by `char`, not by byte, so a multi-byte UTF-8 sequence is never
