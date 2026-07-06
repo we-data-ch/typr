@@ -828,23 +828,36 @@ impl RTranslatable<(String, Context)> for Lang {
                 let var = Var::try_from(exp.clone()).unwrap();
 
                 let (exp_str, cont1) = exp.to_r(cont);
-                let fn_t = FunctionType::try_from(
-                    cont1
-                        .get_type_from_variable(&var)
-                        .unwrap_or_else(|_| panic!("variable {} don't have a related type", var)),
-                )
-                .map(|ft| ft.adjust_nb_parameters(vals.len()))
-                .expect("function application identifier should have a function type");
-                let new_args = fn_t
-                    .get_param_types()
-                    .iter()
-                    .map(|arg| reduce_type(&cont1, arg))
-                    .collect::<Vec<_>>();
-                let new_vals = vals
-                    .iter()
-                    .zip(new_args.iter())
-                    .map(set_related_type_if_variable)
-                    .collect::<Vec<_>>();
+                // Callee may be resolved purely structurally (e.g. an interface
+                // method called as a plain function on a rigid-generic/interface
+                // receiver, §5 elimination — `try_constrained_variable_match` in
+                // function_application.rs), with no directly registered
+                // `(name, FunctionType)` entry to look up here. The R call is
+                // still just `name(args...)`: S3 dispatch on the first argument
+                // resolves the concrete implementation at runtime, wherever it's
+                // defined. In that case skip the param-type reduction/annotation
+                // below (it only matters for annotating a variable *argument*
+                // that is itself an overloaded top-level function reference) and
+                // pass the arguments through unchanged.
+                let fn_t_opt = cont1
+                    .get_type_from_variable(&var)
+                    .ok()
+                    .and_then(|t| FunctionType::try_from(t).ok())
+                    .map(|ft| ft.adjust_nb_parameters(vals.len()));
+                let new_vals = match &fn_t_opt {
+                    Some(fn_t) => {
+                        let new_args = fn_t
+                            .get_param_types()
+                            .iter()
+                            .map(|arg| reduce_type(&cont1, arg))
+                            .collect::<Vec<_>>();
+                        vals.iter()
+                            .zip(new_args.iter())
+                            .map(set_related_type_if_variable)
+                            .collect::<Vec<_>>()
+                    }
+                    None => vals.clone(),
+                };
                 let cont1_fallback = cont1.clone();
                 Var::from_language(*exp.clone())
                     .map(|var| {
@@ -858,7 +871,10 @@ impl RTranslatable<(String, Context)> for Lang {
                             let r_name = cont1
                                 .get_extern_r_name(&name)
                                 .unwrap_or_else(|| new_name.clone());
-                            let return_type = fn_t.get_return_type();
+                            let return_type = fn_t_opt
+                                .as_ref()
+                                .map(|ft| ft.get_return_type())
+                                .expect("extern function application identifier should have a function type");
                             let lift_fn = extern_lift_fn(&return_type);
                             let (args_vec, current_cont): (Vec<String>, Context) = new_vals
                                 .iter()
@@ -924,24 +940,28 @@ impl RTranslatable<(String, Context)> for Lang {
                         (format!("{}({})", new_name, str_vals), cont.clone())
                     } else {
                         let (exp_str, cont1) = exp.to_r(cont);
-                        let fn_t = FunctionType::try_from(
-                            cont1.get_type_from_variable(&var).unwrap_or_else(|_| {
-                                panic!("variable {} don't have a related type", var)
-                            }),
-                        )
-                        .expect(
-                            "vector function application identifier should have a function type",
-                        );
-                        let new_args = fn_t
-                            .get_param_types()
-                            .iter()
-                            .map(|arg| reduce_type(&cont1, arg))
-                            .collect::<Vec<_>>();
-                        let new_vals = vals
-                            .iter()
-                            .zip(new_args.iter())
-                            .map(set_related_type_if_variable)
-                            .collect::<Vec<_>>();
+                        // See the comment on the analogous fallback in
+                        // `Lang::FunctionApp` above: a structurally-resolved
+                        // (interface/generic-dispatched) callee has no
+                        // registered signature to look up here.
+                        let new_vals = match cont1
+                            .get_type_from_variable(&var)
+                            .ok()
+                            .and_then(|t| FunctionType::try_from(t).ok())
+                        {
+                            Some(fn_t) => {
+                                let new_args = fn_t
+                                    .get_param_types()
+                                    .iter()
+                                    .map(|arg| reduce_type(&cont1, arg))
+                                    .collect::<Vec<_>>();
+                                vals.iter()
+                                    .zip(new_args.iter())
+                                    .map(set_related_type_if_variable)
+                                    .collect::<Vec<_>>()
+                            }
+                            None => vals.clone(),
+                        };
                         let (args, current_cont) =
                             Translatable::from(cont1).join(&new_vals, ", ").into();
                         Var::from_language(*exp.clone())
@@ -971,22 +991,26 @@ impl RTranslatable<(String, Context)> for Lang {
                     (s, cont.clone())
                 } else {
                     let (exp_str, cont1) = exp.to_r(cont);
-                    let fn_t = FunctionType::try_from(
-                        cont1.get_type_from_variable(&var).unwrap_or_else(|_| {
-                            panic!("variable {} don't have a related type", var)
-                        }),
-                    )
-                    .expect("vector function application identifier should have a function type");
-                    let new_args = fn_t
-                        .get_param_types()
-                        .iter()
-                        .map(|arg| reduce_type(&cont1, arg))
-                        .collect::<Vec<_>>();
-                    let new_vals = vals
-                        .iter()
-                        .zip(new_args.iter())
-                        .map(set_related_type_if_variable)
-                        .collect::<Vec<_>>();
+                    // See the comment on the analogous fallback in
+                    // `Lang::FunctionApp` above.
+                    let new_vals = match cont1
+                        .get_type_from_variable(&var)
+                        .ok()
+                        .and_then(|t| FunctionType::try_from(t).ok())
+                    {
+                        Some(fn_t) => {
+                            let new_args = fn_t
+                                .get_param_types()
+                                .iter()
+                                .map(|arg| reduce_type(&cont1, arg))
+                                .collect::<Vec<_>>();
+                            vals.iter()
+                                .zip(new_args.iter())
+                                .map(set_related_type_if_variable)
+                                .collect::<Vec<_>>()
+                        }
+                        None => vals.clone(),
+                    };
                     let (args, current_cont) =
                         Translatable::from(cont1).join(&new_vals, ", ").into();
                     Var::from_language(*exp.clone())
@@ -1396,26 +1420,28 @@ impl RTranslatable<(String, Context)> for Lang {
                 let name = Var::from_language(*ident.clone())
                     .map(|v| v.get_name())
                     .unwrap_or_default();
-                // An alias mixing a record-kinded generic with a concrete
-                // record (e.g. `type Animator<%T> <- %T & list { animations:
-                // [Animation] }`) has no fixed runtime shape on the generic
-                // side — TypR doesn't monomorphize, and R has no class for
-                // "any record" — so only the concrete `Record` side carries
-                // fields worth validating. Substitute the alias's type with
-                // that concrete side so it falls into the existing
-                // `Type::Record` pipeline below (constructor/annotator/
-                // validator), instead of the unrelated union-alias
-                // `Type::Operator` catch-all, which doesn't apply here and
-                // previously produced no R code at all for this shape,
-                // leaving `validate_Animator`/`as.Animator` referenced
-                // elsewhere but never defined.
+                // An intersection alias (`A & B`, `%T & list {...}`, ...) has
+                // no fixed runtime shape on any non-record member — TypR
+                // doesn't monomorphize generics, R has no class for "any
+                // record", and interface members contribute methods, not
+                // fields — but every `Record`/list member found anywhere in
+                // the intersection does have fields worth constructing and
+                // validating. `facets::record_facet` flattens the whole
+                // intersection and merges all such members into one field
+                // set (see its doc comment for why a simple pairwise
+                // `norm_intersection` reduction isn't enough on its own), so
+                // substituting that merged record here routes any list-
+                // bearing intersection into the existing `Type::Record`
+                // pipeline below (constructor/annotator/validator) instead
+                // of the unrelated union-alias `Type::Operator` catch-all,
+                // which doesn't apply here and previously produced no R code
+                // at all for these shapes, leaving `validate_X`/`as.X`
+                // referenced elsewhere but never defined.
                 let typ_for_dispatch: Type = match typ {
-                    Type::Operator(TypeOperator::Intersection, t1, t2, _) => {
-                        match (t1.reduce(cont), t2.reduce(cont)) {
-                            (record @ Type::Record(_, _), other) if other.has_generic() => record,
-                            (other, record @ Type::Record(_, _)) if other.has_generic() => record,
-                            _ => typ.clone(),
-                        }
+                    Type::Operator(TypeOperator::Intersection, _, _, h) => {
+                        facets::record_facet(cont, typ)
+                            .map(|fields| Type::Record(fields, h.clone()))
+                            .unwrap_or_else(|| typ.clone())
                     }
                     _ => typ.clone(),
                 };
@@ -2858,6 +2884,41 @@ mod tests {
             r_str.contains("validate_Animator <- function(x)")
                 && r_str.contains("required_fields <- c(\"animations\")"),
             "expected a validator checking the concrete field, got:\n{}",
+            r_str
+        );
+    }
+
+    #[test]
+    fn test_multi_record_intersection_alias_merges_all_fields_into_constructor() {
+        // `Alpha & Beta` where both sides are concrete list/record aliases
+        // should get a constructor combining every field from every list
+        // type in the intersection, not just fall through to no R code at
+        // all (which is what happened before `record_facet` was
+        // generalized to fold *all* record members together, not just the
+        // first found).
+        let r_code = FluentParser::new()
+            .push("type Alpha <- list { x: int };")
+            .run()
+            .push("type Beta <- list { y: char };")
+            .run()
+            .push("type Combo <- Alpha & Beta;")
+            .run()
+            .get_r_code();
+        let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(
+            r_str.contains("Combo <- function(x, y, .spread = NULL)"),
+            "expected a constructor merging fields from both Alpha and Beta, got:\n{}",
+            r_str
+        );
+        assert!(
+            r_str.contains("as.Combo <- function(x)"),
+            "expected an annotator, got:\n{}",
+            r_str
+        );
+        assert!(
+            r_str.contains("validate_Combo <- function(x)")
+                && r_str.contains("required_fields <- c(\"x\", \"y\")"),
+            "expected a validator checking both merged fields, got:\n{}",
             r_str
         );
     }

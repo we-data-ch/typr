@@ -67,6 +67,16 @@ pub enum TypeError {
         module_name: String,
         help_data: HelpData,
     },
+    /// A concrete type doesn't structurally implement an interface: one or
+    /// more required methods have no counterpart at all —
+    /// `(concrete_type, interface_type, missing_method_names, position)`.
+    /// See `interface_satisfaction.rs` / `interface_constructeurs.md`.
+    InterfaceNotSatisfied(Type, Type, Vec<String>, HelpData),
+    /// A concrete type has a method matching a required interface method by
+    /// name, but its signature isn't compatible (contravariant params /
+    /// covariant return, RFC §8.1) — `(method_name, required_signature,
+    /// found_signature, position)`.
+    IncompatibleInterfaceMethod(String, Type, Type, HelpData),
 }
 
 impl TypeError {
@@ -101,6 +111,8 @@ impl TypeError {
             TypeError::NonTrailingDefaultParam(_, h) => Some(h.clone()),
             TypeError::PrivateImport(_, _, h) => Some(h.clone()),
             TypeError::CircularModuleDependency { help_data: h, .. } => Some(h.clone()),
+            TypeError::InterfaceNotSatisfied(_, _, _, h) => Some(h.clone()),
+            TypeError::IncompatibleInterfaceMethod(_, _, _, h) => Some(h.clone()),
         }
     }
 
@@ -243,6 +255,23 @@ impl TypeError {
                     "Circular module dependency: module '{}' is currently being \
                      type-checked — use of it inside its own body is not allowed",
                     module_name
+                )
+            }
+            TypeError::InterfaceNotSatisfied(concrete, interface, missing, _) => {
+                format!(
+                    "Type {} does not implement interface {}\nmissing function{}: {}",
+                    concrete.pretty(),
+                    interface.pretty(),
+                    if missing.len() > 1 { "s" } else { "" },
+                    missing.join(", ")
+                )
+            }
+            TypeError::IncompatibleInterfaceMethod(name, expected, found, _) => {
+                format!(
+                    "Function {} has incompatible signature\nexpected: {}\nfound:    {}",
+                    name,
+                    expected.pretty(),
+                    found.pretty()
                 )
             }
         }
@@ -648,6 +677,44 @@ impl ErrorMsg for TypeError {
                          type-checked (directly or transitively). Break the cycle by moving the \
                          shared definitions into a third module.",
                     )
+                    .build()
+            }
+            TypeError::InterfaceNotSatisfied(concrete, interface, missing, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "Type {} does not implement interface {}",
+                        concrete.pretty(),
+                        interface.pretty()
+                    ))
+                    .pos_text(format!(
+                        "missing function{}: {}",
+                        if missing.len() > 1 { "s" } else { "" },
+                        missing.join(", ")
+                    ))
+                    .help(format!(
+                        "Add {} to {} (or to a value passed where this interface is required).",
+                        missing
+                            .iter()
+                            .map(|m| format!("`{}`", m))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        concrete.pretty()
+                    ))
+                    .build()
+            }
+            TypeError::IncompatibleInterfaceMethod(name, expected, found, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!("Function {} has incompatible signature", name))
+                    .pos_text(format!(
+                        "expected: {}\nfound:    {}",
+                        expected.pretty(),
+                        found.pretty()
+                    ))
+                    .help("Parameters must be contravariant and the return type covariant with the interface's declared signature.")
                     .build()
             }
         };

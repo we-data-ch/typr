@@ -1,42 +1,53 @@
 //! Projects a "facet" (record fields, or interface methods) out of a type
-//! that may be a plain `Record`/`Interface`, an `Intersection` combining the
-//! two (`List & Interface`), or a rigid generic bound to such a type via an
+//! that may be a plain `Record`/`Interface`, an `Intersection` combining any
+//! number of such members (`List & Interface`, or several list types like
+//! `A & B & C`), or a rigid generic bound to such a type via an
 //! `interface_constraint` (see `function.rs`'s interface-parameter handling).
 //!
 //! `norm_intersection` (`type_arithmetic.rs`) already merges `Record & Record`
-//! and `Interface & Interface` into a single `Record`/`Interface`, so a
-//! reduced, irreducible intersection contains *at most one* `Record` member
-//! and *at most one* `Interface` member. These two functions are the single
-//! place that looks through that shape — callers (`$` field access, method
-//! call resolution) project the facet they need instead of pattern-matching
-//! `Type::Record`/`Type::Interface` directly, so a mixed `List & Interface`
-//! parameter supports both `$` field access and interface method calls.
+//! and `Interface & Interface` pairs into a single `Record`/`Interface` as it
+//! walks the operator tree, but that pairwise folding can leave more than one
+//! `Record` member un-merged when a non-record member (a generic, say) sits
+//! between two record members in the tree — e.g. `%T & A & B` reduces to the
+//! symbolic `(%T & A) & B` rather than `%T & (A & B)`. `record_facet` accounts
+//! for this: it flattens the whole intersection, keeps every member that
+//! reduces to a `Record`, and folds all of them together via
+//! `norm_intersection`, so any number of list types mixed into an
+//! intersection combine into one record. Callers (`$` field access, method
+//! call resolution, constructor generation) project the facet they need
+//! instead of pattern-matching `Type::Record`/`Type::Interface` directly, so
+//! a mixed `List & Interface` (or `List & List & ...`) parameter supports
+//! `$` field access, interface method calls, and record construction alike.
 use crate::components::context::Context;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::intersection_type::IntersectionType;
+use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::Type;
+use crate::processes::type_checking::type_arithmetic::norm_intersection;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use std::collections::HashSet;
 
 /// Project the record-field facet of `typ`: its own fields if it's a
-/// `Record`, the `Record` member's fields if it's an intersection, or the
-/// facet of its bound if it's a rigid generic constrained by
-/// `add_interface_constraint` (which may itself be a `Record`, an
-/// `Interface`, or an intersection of both).
+/// `Record`, the merged fields of every `Record` member if it's an
+/// intersection (combining all list types found, ignoring non-record
+/// members like generics/interfaces), or the facet of its bound if it's a
+/// rigid generic constrained by `add_interface_constraint`.
 pub fn record_facet(context: &Context, typ: &Type) -> Option<HashSet<ArgumentType>> {
     match reduce_type(context, typ) {
         Type::Record(fields, _) => Some(fields),
-        Type::Operator(
-            crate::components::r#type::type_operator::TypeOperator::Intersection,
-            ..,
-        ) => IntersectionType::try_from(reduce_type(context, typ))
-            .ok()?
-            .get_types()
-            .iter()
-            .find_map(|member| match reduce_type(context, member) {
-                Type::Record(fields, _) => Some(fields),
-                _ => None,
-            }),
+        Type::Operator(TypeOperator::Intersection, ..) => {
+            let flat = IntersectionType::try_from(reduce_type(context, typ)).ok()?;
+            let h = flat.get_help_data().clone();
+            flat.get_types()
+                .iter()
+                .map(|member| reduce_type(context, member))
+                .filter(|member| matches!(member, Type::Record(_, _)))
+                .reduce(|acc, r| norm_intersection(acc, r, h.clone()))
+                .and_then(|merged| match merged {
+                    Type::Record(fields, _) => Some(fields),
+                    _ => None,
+                })
+        }
         Type::Generic(name, _) => {
             let bound = context.get_interface_constraint(&name)?.clone();
             record_facet(context, &bound)

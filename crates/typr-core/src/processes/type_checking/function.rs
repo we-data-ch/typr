@@ -186,18 +186,70 @@ fn is_opaque_of(body_type: &Type, declared_ret: &Type) -> bool {
     }
 }
 
+/// Collects every interface-faceted type reachable inside `typ` (already
+/// reduced — `reduce_type` recurses through `Vec`/`Record`/`Function`/`Tag`/
+/// `Operator` bodies on its own, so a single top-level reduction is enough).
+/// A node that itself has an interface facet (a plain `Interface`, or an
+/// intersection like `List & Interface`) is recorded and not descended into
+/// further; anything else is walked structurally so an interface nested
+/// inside an array element, record field, tuple slot, or function
+/// arg/return still counts as "anchored" by that parameter. Mirrors the
+/// recursion shape of `collect_generic_kind_occurrences` above.
+fn collect_interface_leaf_types(context: &Context, typ: &Type, acc: &mut Vec<Type>) {
+    if facets::interface_facet(context, typ).is_some() {
+        acc.push(typ.clone());
+        return;
+    }
+    match typ {
+        Type::Function(args, ret, _) => {
+            args.iter()
+                .for_each(|a| collect_interface_leaf_types(context, &a.get_type(), acc));
+            collect_interface_leaf_types(context, ret, acc);
+        }
+        Type::Vec(_, idx, body, _) => {
+            collect_interface_leaf_types(context, idx, acc);
+            collect_interface_leaf_types(context, body, acc);
+        }
+        Type::Record(fields, _) => fields
+            .iter()
+            .for_each(|a| collect_interface_leaf_types(context, &a.get_type(), acc)),
+        Type::Tag(_, inner, _) | Type::Multi(inner, _) => {
+            collect_interface_leaf_types(context, inner, acc)
+        }
+        Type::Operator(_, a, b, _) => {
+            collect_interface_leaf_types(context, a, acc);
+            collect_interface_leaf_types(context, b, acc);
+        }
+        Type::Params(ts, _) | Type::Tuple(ts, _) => ts
+            .iter()
+            .for_each(|t| collect_interface_leaf_types(context, t, acc)),
+        Type::Alias(_, params, _, _) => params
+            .iter()
+            .for_each(|t| collect_interface_leaf_types(context, t, acc)),
+        _ => {}
+    }
+}
+
 /// Returns true when the return type is an interface (or has an interface
-/// facet — e.g. `List & Interface`) that does not appear in any parameter.
-/// Such a position would require an existential type, which TypR does not
-/// support. The caller should use an opaque type instead.
+/// facet — e.g. `List & Interface`) that is not "anchored" by any
+/// parameter — i.e. it doesn't reappear, at any depth, inside a parameter's
+/// type. Interfaces are treated like generics: a function is free to return
+/// one as long as *some* parameter carries a value that could concretely
+/// supply it (directly, or nested inside an array/record/tuple/etc.), so the
+/// runtime representation flows in from an argument. Without such an anchor
+/// the position would require an existential type, which TypR does not
+/// support — the caller should use an opaque type instead.
 fn is_interface_return_only(params: &[ArgumentType], ret_ty: &Type, context: &Context) -> bool {
     let reduced_ret = reduce_type(context, ret_ty);
     if facets::interface_facet(context, &reduced_ret).is_none() {
         return false;
     }
-    !params
-        .iter()
-        .any(|p| reduce_type(context, &p.get_type()) == reduced_ret)
+    let mut anchors = Vec::new();
+    for p in params {
+        let reduced_param = reduce_type(context, &p.get_type());
+        collect_interface_leaf_types(context, &reduced_param, &mut anchors);
+    }
+    !anchors.contains(&reduced_ret)
 }
 
 /// Check if a type is a constrained rigid generic that satisfies the declared return type.
@@ -1118,6 +1170,35 @@ mod tests {
         let tc1 = TypeChecker::new(Context::empty()).typing_no_panic(&code1);
 
         let code2 = parse2("fn(i: Incrementable): Incrementable { i.incr() }".into()).unwrap();
+        let tc2 = tc1.typing_no_panic(&code2);
+
+        assert!(
+            !tc2.get_errors()
+                .iter()
+                .any(|e| matches!(e, TypRError::Type(TypeError::InterfaceReturnOnly(_)))),
+            "Should not have InterfaceReturnOnly error, got: {:?}",
+            tc2.get_errors()
+        );
+    }
+
+    /// fn(items: [Incrementable]): Incrementable — interface nested inside an
+    /// array parameter, returned directly. Interfaces are treated like
+    /// generics: the array anchors the interface just as a bare parameter
+    /// would, so this must NOT produce an InterfaceReturnOnly error.
+    #[test]
+    fn test_interface_anchored_inside_array_param_no_error() {
+        use crate::components::context::Context;
+        use crate::components::error_message::type_error::TypeError;
+        use crate::components::error_message::typr_error::TypRError;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let code1 =
+            parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
+        let tc1 = TypeChecker::new(Context::empty()).typing_no_panic(&code1);
+
+        let code2 =
+            parse2("fn(items: [Incrementable]): Incrementable { items[0] }".into()).unwrap();
         let tc2 = tc1.typing_no_panic(&code2);
 
         assert!(

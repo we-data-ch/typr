@@ -13,6 +13,7 @@ pub mod facets;
 pub mod field_access;
 pub mod function;
 pub mod function_application;
+pub mod interface_satisfaction;
 pub mod let_expression;
 pub mod match_expression;
 pub mod module_cache;

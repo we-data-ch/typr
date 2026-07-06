@@ -12,6 +12,7 @@ use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::facets;
+use crate::processes::type_checking::interface_satisfaction;
 use crate::processes::type_checking::match_types_to_generic;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
@@ -1037,12 +1038,37 @@ fn specialize_lambda(
 
         // Re-type the *body* directly (not the whole Lambda: the Lang::Lambda
         // typing arm would just re-bind the params to fresh abstract generics)
-        // with each parameter name bound to its concrete type.
+        // with each parameter name bound to its concrete type. Mirrors
+        // `function.rs`'s param-binding loop: a param type carrying an
+        // interface facet (a pure interface, or a `List & Interface`
+        // intersection) becomes a rigid generic with an interface constraint
+        // instead of the raw type, so interface-method calls in the body
+        // (`try_constrained_variable_match`, FILTERING 0) resolve — without
+        // this, calling an interface method on a lambda param whose only
+        // implementer is a different concrete type fails with
+        // `FunctionNotFound` inside `map`-like calls.
+        // Rigid names introduced below need mapping back to their original
+        // concrete param type once the body has been re-typed: an interface
+        // method call resolves `Self` to the rigid variable itself, so a
+        // body that just returns the receiver unchanged (`fn(a: Self) -> Self`)
+        // types to the bare rigid generic, not the concrete type.
+        let mut rigid_to_concrete: std::collections::HashMap<String, Type> =
+            std::collections::HashMap::new();
         let specialized_context = substitutions
             .iter()
             .fold(context.clone(), |ctx, (name, typ)| {
-                let new_ctx = ctx.clone();
-                new_ctx.push_var_type(Var::from_name(name), typ.clone(), &ctx)
+                let reduced = reduce_type(&ctx, typ);
+                if facets::interface_facet(&ctx, &reduced).is_some() {
+                    let (rigid_name, new_ctx) = ctx.clone().fresh_rigid_name();
+                    rigid_to_concrete.insert(rigid_name.clone(), typ.clone());
+                    let rigid_type = Type::Generic(rigid_name.clone(), HelpData::default());
+                    new_ctx
+                        .add_interface_constraint(rigid_name, reduced)
+                        .push_var_type(Var::from_name(name), rigid_type, &ctx)
+                } else {
+                    ctx.clone()
+                        .push_var_type(Var::from_name(name), typ.clone(), &ctx)
+                }
             });
         let body_tc = typing(&specialized_context, body);
 
@@ -1050,8 +1076,10 @@ fn specialize_lambda(
         // back to the abstract lambda return (Any sentinel or generic).
         let specialized_body_type = if matches!(body_tc.value, Type::Empty(_)) {
             lambda_ret.as_ref().clone()
-        } else {
+        } else if rigid_to_concrete.is_empty() {
             body_tc.value.clone()
+        } else {
+            apply_named_generics(&body_tc.value, &rigid_to_concrete)
         };
 
         let new_lang = match &specialized_lang {
@@ -1412,17 +1440,209 @@ pub fn function_application(
     values: &[Lang],
     h: &HelpData,
 ) -> TypeContext {
+    // Interface constructor call (`I(x)`, interface_constructeurs.md §3/§4):
+    // when the callee name resolves to an alias with an interface facet, this
+    // isn't an ordinary function call — aliases live in a separate namespace
+    // from callable variables/functions (`Context::aliases()`), so `I` could
+    // never resolve through the normal path below anyway. It's a compile-time
+    // structural validator: the argument's type must already satisfy every
+    // method the interface requires (§8.1 variance rules), and the call
+    // desugars to nothing at transpile time — the argument itself is returned
+    // unchanged, exactly like `Self:{...}`/`PartialApp` desugaring elsewhere.
+    if values.len() == 1 {
+        if let Ok(var) = Var::try_from(fn_var_name.clone()) {
+            if let Some(alias_type) =
+                context.get_type_from_aliases(&Var::from_name(&var.get_name()))
+            {
+                if let Some(required_methods) = facets::interface_facet(context, &alias_type) {
+                    return interface_constructor_call(
+                        context,
+                        &var.get_name(),
+                        &required_methods,
+                        &values[0],
+                        h,
+                    );
+                }
+            }
+        }
+    }
     match Var::try_from(fn_var_name.clone()) {
         Ok(var) => apply_from_variable(var, context, values, h),
         _ => apply_from_expression(context, fn_var_name, values, h),
     }
 }
 
+/// `I(x)`: validates that `argument`'s type structurally satisfies
+/// `required_methods` and, on success, desugars to `argument` itself — no
+/// instance is created, no field is transformed (RFC §3.2). On failure the
+/// error is collected but the argument's own type/lang are still returned so
+/// type-checking can continue.
+fn interface_constructor_call(
+    context: &Context,
+    interface_name: &str,
+    required_methods: &std::collections::HashSet<ArgumentType>,
+    argument: &Lang,
+    h: &HelpData,
+) -> TypeContext {
+    let arg_tc = typing(context, argument);
+    let mut errors = arg_tc.errors.clone();
+    if let Err(err) = interface_satisfaction::check_interface_satisfaction(
+        &arg_tc.context,
+        &arg_tc.value,
+        required_methods,
+    ) {
+        let interface_typ = Type::Alias(interface_name.to_string(), vec![], false, h.clone());
+        errors.push(TypRError::Type(match err {
+            interface_satisfaction::InterfaceSatisfactionError::Missing(names) => {
+                TypeError::InterfaceNotSatisfied(
+                    arg_tc.value.clone(),
+                    interface_typ,
+                    names,
+                    h.clone(),
+                )
+            }
+            interface_satisfaction::InterfaceSatisfactionError::Incompatible(
+                name,
+                expected,
+                found,
+            ) => TypeError::IncompatibleInterfaceMethod(name, *expected, *found, h.clone()),
+        }));
+    }
+    TypeContext::new(arg_tc.value, arg_tc.lang, arg_tc.context).with_errors(errors)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::processes::parsing::parse_from_string;
+    use crate::processes::type_checking::typing_with_errors;
     use crate::utils::builder;
     use crate::utils::fluent_parser::FluentParser;
+
+    // --- interface constructors (interface_constructeurs.md) ---
+
+    #[test]
+    fn test_interface_constructor_call_satisfied_no_type_errors() {
+        let src = "type Point <- list { x: int, y: int };\n\
+                   let mv <- fn(p: Point, dx: int, dy: int): Point { p };\n\
+                   type Movable <- interface { mv: (Self, int, int) -> Self };\n\
+                   let p <- Point:{ x = 1, y = 2 };\n\
+                   Movable(p);";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "expected no errors, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_interface_constructor_call_satisfied_passes_through() {
+        let fp = FluentParser::new()
+            .push("type Point <- list { x: int, y: int };")
+            .run()
+            .push("let mv <- fn(p: Point, dx: int, dy: int): Point { p };")
+            .run()
+            .push("type Movable <- interface { mv: (Self, int, int) -> Self };")
+            .run()
+            .push("let p <- Point:{ x = 1, y = 2 };")
+            .run()
+            .push("Movable(p)")
+            .run();
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+        let r_code = fp
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        // `I(x)` desugars to `x` itself: no wrapper call in the generated R.
+        assert!(
+            !r_code.contains("Movable("),
+            "expected no Movable(...) wrapper call in transpiled R, got:\n{r_code}"
+        );
+        assert!(
+            r_code.trim_end().ends_with('p'),
+            "expected the last transpiled statement to be a bare pass-through of `p`, got:\n{r_code}"
+        );
+    }
+
+    #[test]
+    fn test_interface_constructor_call_missing_method() {
+        let src = "type Point <- list { x: int, y: int };\n\
+                   type Movable <- interface { mv: (Self, int, int) -> Self };\n\
+                   let p <- Point:{ x = 1, y = 2 };\n\
+                   Movable(p);";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(result.has_errors(), "expected a missing-method error");
+        assert!(result.errors.iter().any(|e| matches!(
+            e,
+            TypRError::Type(TypeError::InterfaceNotSatisfied(_, _, _, _))
+        )));
+    }
+
+    #[test]
+    fn test_interface_constructor_call_incompatible_signature() {
+        let src = "type Point <- list { x: int, y: int };\n\
+                   let mv <- fn(p: Point, dx: int): Point { p };\n\
+                   type Movable <- interface { mv: (Self, int, int) -> Self };\n\
+                   let p <- Point:{ x = 1, y = 2 };\n\
+                   Movable(p);";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "expected an incompatible-signature error"
+        );
+        assert!(result.errors.iter().any(|e| matches!(
+            e,
+            TypRError::Type(TypeError::InterfaceNotSatisfied(_, _, _, _))
+                | TypRError::Type(TypeError::IncompatibleInterfaceMethod(_, _, _, _))
+        )));
+    }
+
+    #[test]
+    fn test_interface_constructor_call_chains_two_interfaces() {
+        // `DrawableMovable <- Movable & Drawable` merges into one
+        // `Type::Interface` (Interface & Interface norm_intersection), so
+        // calling `DrawableMovable(p)` validates both `mv` and `draw` in one
+        // shot without any dedicated "chain" codegen.
+        let src = "type Point <- list { x: int, y: int };\n\
+                   let mv <- fn(p: Point, dx: int, dy: int): Point { p };\n\
+                   let draw <- fn(p: Point): char { \"o\" };\n\
+                   type Movable <- interface { mv: (Self, int, int) -> Self };\n\
+                   type Drawable <- interface { draw: (Self) -> char };\n\
+                   type DrawableMovable <- Movable & Drawable;\n\
+                   let p <- Point:{ x = 1, y = 2 };\n\
+                   DrawableMovable(p);";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "expected no errors, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_interface_constructor_call_chains_two_interfaces_missing_one() {
+        let src = "type Point <- list { x: int, y: int };\n\
+                   let mv <- fn(p: Point, dx: int, dy: int): Point { p };\n\
+                   type Movable <- interface { mv: (Self, int, int) -> Self };\n\
+                   type Drawable <- interface { draw: (Self) -> char };\n\
+                   type DrawableMovable <- Movable & Drawable;\n\
+                   let p <- Point:{ x = 1, y = 2 };\n\
+                   DrawableMovable(p);";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(result.has_errors(), "expected a missing draw method error");
+        assert!(result.errors.iter().any(|e| matches!(
+            e,
+            TypRError::Type(TypeError::InterfaceNotSatisfied(_, _, names, _)) if names.contains(&"draw".to_string())
+        )));
+    }
 
     #[test]
     fn test_vectorization0() {
