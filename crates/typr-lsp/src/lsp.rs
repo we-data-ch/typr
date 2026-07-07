@@ -25,7 +25,7 @@
 //! Launch with `typr lsp`.  The server communicates over stdin/stdout using
 //! the standard LSP JSON-RPC protocol.
 
-use crate::lsp_parser;
+use crate::handlers;
 use nom_locate::LocatedSpan;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -45,7 +45,7 @@ type Span<'a> = LocatedSpan<&'a str, String>;
 
 /// Per-URI cache entry: a content hash paired with the `DocumentAnalysis`
 /// computed from that exact content.
-type AnalysisCache = HashMap<Uri, (u64, Arc<lsp_parser::DocumentAnalysis>)>;
+type AnalysisCache = HashMap<Uri, (u64, Arc<handlers::DocumentAnalysis>)>;
 
 /// Shared state: one copy of each open document's full text.
 #[derive(Clone)]
@@ -66,11 +66,11 @@ struct Backend {
     /// Per-file `(Context, doc_map)` captured by the most recent
     /// `textDocument/completion` request against that file, keyed by the
     /// filesystem path stamped onto each lazily-built item's `data`
-    /// (`lsp_parser::lazy_completion_item`). `completionItem/resolve` reads
+    /// (`handlers::lazy_completion_item`). `completionItem/resolve` reads
     /// it back to fill in `detail`/`documentation` for just the one item the
     /// client asks about, instead of `completion` eagerly formatting every
     /// candidate's type up front.
-    completion_resolve_cache: Arc<RwLock<HashMap<String, Arc<lsp_parser::CompletionResolveCtx>>>>,
+    completion_resolve_cache: Arc<RwLock<HashMap<String, Arc<handlers::CompletionResolveCtx>>>>,
 }
 
 /// How long to wait after the last `did_change` before actually computing
@@ -116,8 +116,8 @@ impl LanguageServer for Backend {
                 semantic_tokens_provider: Some(
                     SemanticTokensOptions {
                         legend: SemanticTokensLegend {
-                            token_types: lsp_parser::SEMANTIC_TOKEN_TYPES.to_vec(),
-                            token_modifiers: lsp_parser::SEMANTIC_TOKEN_MODIFIERS.to_vec(),
+                            token_types: handlers::SEMANTIC_TOKEN_TYPES.to_vec(),
+                            token_modifiers: handlers::SEMANTIC_TOKEN_MODIFIERS.to_vec(),
                         },
                         full: Some(SemanticTokensFullOptions::Bool(true)),
                         range: Some(false),
@@ -228,7 +228,7 @@ impl LanguageServer for Backend {
         // don't stall the LSP event loop.
         let content_owned = content.clone();
         let info = tokio::task::spawn_blocking(move || {
-            lsp_parser::resolve_hover(&analysis, &content_owned, position.line, position.character)
+            handlers::resolve_hover(&analysis, &content_owned, position.line, position.character)
         })
         .await
         .ok() // if the blocking task panicked, treat as None
@@ -268,7 +268,7 @@ impl LanguageServer for Backend {
         let content_owned = content.clone();
         let file_path_for_task = file_path.clone();
         let (items, resolve_ctx) = tokio::task::spawn_blocking(move || {
-            lsp_parser::get_completions_at(
+            handlers::get_completions_at(
                 &content_owned,
                 position.line,
                 position.character,
@@ -303,7 +303,7 @@ impl LanguageServer for Backend {
         if let Some(file_path) = file_path {
             let cache = self.completion_resolve_cache.read().await;
             if let Some(ctx) = cache.get(&file_path) {
-                lsp_parser::resolve_completion_item(ctx, &mut item);
+                handlers::resolve_completion_item(ctx, &mut item);
             }
         }
 
@@ -404,7 +404,7 @@ impl LanguageServer for Backend {
         let uri_owned = uri.clone();
         let file_path_owned = file_path.clone();
         let info = tokio::task::spawn_blocking(move || {
-            lsp_parser::resolve_definition(
+            handlers::resolve_definition(
                 &analysis,
                 &content_owned,
                 position.line,
@@ -455,12 +455,7 @@ impl LanguageServer for Backend {
         };
 
         let help = tokio::task::spawn_blocking(move || {
-            lsp_parser::resolve_signature_help(
-                &analysis,
-                &content,
-                position.line,
-                position.character,
-            )
+            handlers::resolve_signature_help(&analysis, &content, position.line, position.character)
         })
         .await
         .ok()
@@ -485,7 +480,7 @@ impl LanguageServer for Backend {
         drop(docs);
 
         let range = tokio::task::spawn_blocking(move || {
-            lsp_parser::find_renameable_range_at(&content, position.line, position.character)
+            handlers::find_renameable_range_at(&content, position.line, position.character)
         })
         .await
         .ok()
@@ -508,7 +503,7 @@ impl LanguageServer for Backend {
         drop(docs);
 
         let ranges = tokio::task::spawn_blocking(move || {
-            lsp_parser::find_word_occurrences_at(&content, position.line, position.character)
+            handlers::find_word_occurrences_at(&content, position.line, position.character)
         })
         .await
         .ok()
@@ -550,7 +545,7 @@ impl LanguageServer for Backend {
         drop(docs);
 
         let ranges = tokio::task::spawn_blocking(move || {
-            lsp_parser::find_word_occurrences_at(&content, position.line, position.character)
+            handlers::find_word_occurrences_at(&content, position.line, position.character)
         })
         .await
         .ok()
@@ -592,11 +587,10 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
 
-        let hints = tokio::task::spawn_blocking(move || {
-            lsp_parser::resolve_inlay_hints(&analysis, &content)
-        })
-        .await
-        .unwrap_or_default();
+        let hints =
+            tokio::task::spawn_blocking(move || handlers::resolve_inlay_hints(&analysis, &content))
+                .await
+                .unwrap_or_default();
 
         if hints.is_empty() {
             Ok(None)
@@ -630,7 +624,7 @@ impl LanguageServer for Backend {
         };
 
         let data = tokio::task::spawn_blocking(move || {
-            lsp_parser::resolve_semantic_tokens(&analysis, &content)
+            handlers::resolve_semantic_tokens(&analysis, &content)
         })
         .await
         .unwrap_or_default();
@@ -666,12 +660,12 @@ impl LanguageServer for Backend {
             let quick_fixes = tokio::task::spawn_blocking(move || {
                 let mut fixes = Vec::new();
                 if let Some(action) =
-                    lsp_parser::type_annotation_action(&analysis, &content_owned, range)
+                    handlers::type_annotation_action(&analysis, &content_owned, range)
                 {
                     fixes.push(action);
                 }
                 if let Some(action) =
-                    lsp_parser::missing_match_arms_action(&analysis, &content_owned, range)
+                    handlers::missing_match_arms_action(&analysis, &content_owned, range)
                 {
                     fixes.push(action);
                 }
@@ -701,7 +695,7 @@ impl LanguageServer for Backend {
 
             let uri_string = uri.to_string();
             let import_fixes = tokio::task::spawn_blocking(move || {
-                lsp_parser::import_missing_member_actions(&uri_string, &diagnostics, &all_docs)
+                handlers::import_missing_member_actions(&uri_string, &diagnostics, &all_docs)
             })
             .await
             .unwrap_or_default();
@@ -720,11 +714,11 @@ impl LanguageServer for Backend {
     }
 }
 
-/// Wrap a `lsp_parser::QuickFix` (Uri-agnostic: it only knows about ranges
+/// Wrap a `handlers::QuickFix` (Uri-agnostic: it only knows about ranges
 /// and text) into an LSP `CodeAction` targeting `uri`'s document — the same
-/// split `rename`/`references` use, where `lsp_parser` returns bare
+/// split `rename`/`references` use, where `handlers` returns bare
 /// `Range`s and `lsp.rs` is the only place that knows about `Uri`.
-fn quick_fix_to_code_action(uri: &Uri, fix: lsp_parser::QuickFix) -> CodeAction {
+fn quick_fix_to_code_action(uri: &Uri, fix: handlers::QuickFix) -> CodeAction {
     let mut changes = HashMap::new();
     changes.insert(uri.clone(), fix.edits);
     CodeAction {
@@ -774,12 +768,8 @@ impl Backend {
         });
 
         if let (Some(context), Some(ast)) = (context, ast) {
-            self.store_analysis(
-                uri,
-                content,
-                lsp_parser::DocumentAnalysis::new(context, ast),
-            )
-            .await;
+            self.store_analysis(uri, content, handlers::DocumentAnalysis::new(context, ast))
+                .await;
         }
 
         diagnostics
@@ -792,7 +782,7 @@ impl Backend {
         &self,
         uri: &Uri,
         content: &str,
-    ) -> Option<Arc<lsp_parser::DocumentAnalysis>> {
+    ) -> Option<Arc<handlers::DocumentAnalysis>> {
         let hash = hash_content(content);
         let cache = self.analysis_cache.read().await;
         cache
@@ -803,12 +793,7 @@ impl Backend {
 
     /// Store a freshly computed `DocumentAnalysis` for `uri`, keyed by a hash
     /// of the `content` it was computed from.
-    async fn store_analysis(
-        &self,
-        uri: &Uri,
-        content: &str,
-        analysis: lsp_parser::DocumentAnalysis,
-    ) {
+    async fn store_analysis(&self, uri: &Uri, content: &str, analysis: handlers::DocumentAnalysis) {
         let hash = hash_content(content);
         let mut cache = self.analysis_cache.write().await;
         cache.insert(uri.clone(), (hash, Arc::new(analysis)));
@@ -825,7 +810,7 @@ impl Backend {
         uri: &Uri,
         content: &str,
         file_path: &str,
-    ) -> Option<Arc<lsp_parser::DocumentAnalysis>> {
+    ) -> Option<Arc<handlers::DocumentAnalysis>> {
         if let Some(analysis) = self.get_cached_analysis(uri, content).await {
             return Some(analysis);
         }
@@ -833,7 +818,7 @@ impl Backend {
         let content_owned = content.to_string();
         let file_path_owned = file_path.to_string();
         let analysis = tokio::task::spawn_blocking(move || {
-            lsp_parser::analyze_document(&content_owned, &file_path_owned)
+            handlers::analyze_document(&content_owned, &file_path_owned)
         })
         .await
         .ok()
@@ -917,8 +902,8 @@ pub fn check_code_and_extract_errors(
     // 1b. Resolve module imports the same way the CLI does, so that `use M::x`
     // and other cross-module references are known to the type checker. Without
     // this the LSP would flag every imported symbol as an "undefined variable"
-    // even though the code compiles fine. Mirrors `lsp_parser::analyze_document`.
-    let environment = lsp_parser::detect_environment(path);
+    // even though the code compiles fine. Mirrors `handlers::analyze_document`.
+    let environment = handlers::detect_environment(path);
     if let Ok(expanded) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         crate::metaprogramming::metaprogrammation(ast.clone(), environment)
     })) {
@@ -1184,10 +1169,10 @@ fn extract_error_length(message: &str, content: &str, line: u32) -> u32 {
     1
 }
 
-/// Convert a byte offset to a Position. Delegates to `lsp_parser`'s
+/// Convert a byte offset to a Position. Delegates to `handlers`'s
 /// implementation so there is a single, UTF-16-correct source of truth
 /// (see its doc comment for why UTF-16 code units are used).
-use lsp_parser::offset_to_position;
+use handlers::offset_to_position;
 
 /// Find the end column of a token starting at the given byte offset.
 /// Scans by `char`, not by byte, so a multi-byte UTF-8 sequence is never
@@ -1833,8 +1818,8 @@ let x <- 5;
     }
 
     /// End-to-end `textDocument/codeAction`: this is the one thing
-    /// `lsp_parser`'s own quick-fix unit tests can't cover, since
-    /// `lsp_parser::QuickFix` stays `Uri`-agnostic by design (see
+    /// `handlers`'s own quick-fix unit tests can't cover, since
+    /// `handlers::QuickFix` stays `Uri`-agnostic by design (see
     /// `quick_fix_to_code_action`'s doc comment) — only the full `Backend`
     /// round-trip proves the `WorkspaceEdit` ends up keyed by the request's
     /// own `Uri`.
