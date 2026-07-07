@@ -1,29 +1,20 @@
 [package]
-name = "typr-cli"
-description = "Command-line interface, REPL, and LSP server for TypR - a typed superset of R"
-keywords = ["R", "type-checker", "cli", "lsp", "repl"]
-readme = "README.md"
+name = "typr-lsp"
+description = "LSP server for TypR"
+keywords = ["R", "type-checker", "lsp"]
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[[bin]]
-name = "typr"
-path = "src/main.rs"
-
-[lib]
-name = "typr_cli"
-path = "src/lib.rs"
-
 [dependencies]
-# Use typr-core for core logic
 typr-core.workspace = true
 
-# Pure dependencies (needed for parsing/type manipulation)
 nom.workspace = true
 nom_locate.workspace = true
+
+# Pure dependencies (needed for parsing/type manipulation)
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -35,10 +26,11 @@ rand.workspace = true
 anyhow.workspace = true
 toml.workspace = true
 
-# CLI/System dependencies (NOT WASM-compatible)
-clap.workspace = true
+# System dependencies
 tokio.workspace = true
-typr-lsp.workspace = true
-rustyline.workspace = true
+tower-lsp-server.workspace = true
 syntect.workspace = true
 bincode.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-appender.workspace = true

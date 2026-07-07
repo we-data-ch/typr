@@ -92,7 +92,7 @@ pub fn format(ty: &Type) -> String {
             _ => "bool".to_string(),
         },
         Type::Char(tchar, _) => match tchar {
-            Tchar::Val(c) => c.to_string(),
+            Tchar::Val(c) => format!("\"{}\"", c),
             _ => "char".to_string(),
         },
         Type::Null(_) => "null".to_string(),

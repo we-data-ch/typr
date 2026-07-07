@@ -1314,7 +1314,7 @@ mod tests {
     #[test]
     fn test_char_litteral1() {
         let typ = char_litteral("'hello'".into()).unwrap().1;
-        assert_eq!(typ.pretty(), "hello".to_string());
+        assert_eq!(typ.pretty(), "\"hello\"".to_string());
     }
 
     #[test]

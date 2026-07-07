@@ -7,8 +7,6 @@ mod cases;
 mod cli;
 mod engine;
 mod io;
-mod lsp;
-mod lsp_parser;
 mod metaprogramming;
 mod progress;
 mod project;

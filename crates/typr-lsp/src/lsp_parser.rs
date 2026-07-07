@@ -82,6 +82,7 @@ impl DocumentAnalysis {
 /// `None` if parsing or type-checking panics (e.g. incomplete/invalid code
 /// mid-edit) — callers treat that the same way the old per-feature pipelines
 /// did (silently produce no result rather than surfacing an error).
+#[tracing::instrument(skip_all)]
 pub fn analyze_document(content: &str, file_path: &str) -> Option<DocumentAnalysis> {
     let span: Span = LocatedSpan::new_extra(content, file_path.to_string());
     let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
@@ -189,6 +190,7 @@ fn doc_target_name(lang: &Lang) -> Option<String> {
 /// pay for a fresh parse + type-check on every hover).
 ///
 /// Returns `None` when the cursor is not on an identifier/literal.
+#[tracing::instrument(skip_all)]
 pub fn resolve_hover(
     analysis: &DocumentAnalysis,
     content: &str,
@@ -258,6 +260,7 @@ pub fn resolve_hover(
 /// re-threading intermediate contexts through this walk instead of
 /// consulting one flat final `Context`, which is a bigger lift than this
 /// first pass — see `toward_LSP.md`.
+#[tracing::instrument(skip_all)]
 pub fn resolve_inlay_hints(analysis: &DocumentAnalysis, content: &str) -> Vec<InlayHint> {
     let mut hints = Vec::new();
     collect_inlay_hints(&analysis.ast, &analysis.context, content, &mut hints);
@@ -620,6 +623,7 @@ struct RawToken {
 ///   reason;
 /// - a `for`-loop's own binding (`Var::from_name` with no `set_help_data`
 ///   call in `parsing/mod.rs`'s `for_loop`) has no real position either.
+#[tracing::instrument(skip_all)]
 pub fn resolve_semantic_tokens(analysis: &DocumentAnalysis, content: &str) -> Vec<SemanticToken> {
     let mut raw = Vec::new();
     collect_semantic_tokens(&analysis.ast, &analysis.context, content, &mut raw);
@@ -1219,6 +1223,7 @@ pub fn detect_environment(file_path: &str) -> Environment {
 ///   `find_param_declaration`) since a parameter only lives in the
 ///   *sub-context* used to type its function's body and never reaches the
 ///   final `Context` (`processes/type_checking/function.rs`).
+#[tracing::instrument(skip_all)]
 pub fn resolve_definition(
     analysis: &DocumentAnalysis,
     content: &str,
@@ -1574,6 +1579,7 @@ pub fn offset_to_position(offset: usize, content: &str) -> Position {
 /// Returns `None` when the cursor is not inside a function-call's argument
 /// list, or when the call's callee can't be resolved to a `Type::Function`
 /// in the typing context.
+#[tracing::instrument(skip_all)]
 pub fn resolve_signature_help(
     analysis: &DocumentAnalysis,
     content: &str,
@@ -2062,6 +2068,7 @@ pub struct CompletionResolveCtx {
     pub doc_map: HashMap<String, String>,
 }
 
+#[tracing::instrument(skip_all)]
 pub fn get_completions_at(
     content: &str,
     line: u32,
@@ -2146,6 +2153,7 @@ pub fn get_completions_at(
 /// generated. No-op if `item` carries no `data` (e.g. items built eagerly by
 /// `get_type_completions`/`get_record_field_completions`/`var_to_completion_item`,
 /// which don't need resolving).
+#[tracing::instrument(skip_all)]
 pub fn resolve_completion_item(ctx: &CompletionResolveCtx, item: &mut CompletionItem) {
     let Some(name) = item
         .data
@@ -3028,6 +3036,7 @@ fn walk_for_quick_fix(
 /// `Type::Empty` because the source omitted the annotation, looked up by
 /// name in the final `Context`), just narrowed to the one `let` under the
 /// cursor and turned into an edit instead of a rendered hint.
+#[tracing::instrument(skip_all)]
 pub fn type_annotation_action(
     analysis: &DocumentAnalysis,
     content: &str,
@@ -3096,6 +3105,7 @@ fn annotation_quick_fix(
 /// only falls back to `Context::get_types_from_name` for names that aren't
 /// a local parameter (e.g. a top-level `let` used directly as a match
 /// target).
+#[tracing::instrument(skip_all)]
 pub fn missing_match_arms_action(
     analysis: &DocumentAnalysis,
     content: &str,
@@ -3453,6 +3463,7 @@ fn find_alias_target_type(ast: &Lang, name: &str) -> Option<Type> {
 /// `lsp.rs` does — there is no persistent cross-file index) for a `module M
 /// { @pub let/type X ... }` declaration, and offers to insert `use M::X;`
 /// into `current_path`'s own document.
+#[tracing::instrument(skip_all)]
 pub fn import_missing_member_actions(
     current_path: &str,
     diagnostics: &[Diagnostic],
