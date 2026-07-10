@@ -1,0 +1,10 @@
+# cmd = "check" ne génère pas de R/*.R : l'oracle grep le stdout+stderr du
+# `typr check` lui-même (capturé sous la cible virtuelle "@run", indépendante
+# du cmd réellement lancé — voir cases.rs::run_output_text).
+[[rule]]
+file = "@run"
+must_not_contain = "not defined in this scope"
+
+[[rule]]
+file = "@run"
+must_contain = "successful"

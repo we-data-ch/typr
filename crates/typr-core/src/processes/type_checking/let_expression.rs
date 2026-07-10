@@ -8,9 +8,9 @@ use crate::processes::type_checking::Lang;
 use crate::processes::type_checking::TypeContext;
 use crate::processes::type_checking::Var;
 
-fn collect_undefined_aliases(context: &Context, ty: &Type) -> Vec<TypRError> {
+pub fn collect_undefined_aliases(context: &Context, ty: &Type) -> Vec<TypRError> {
     match ty {
-        Type::Alias(name, params, is_opaque, _) => {
+        Type::Alias(name, params, is_opaque, h) => {
             let is_builtin = matches!(
                 name.as_str(),
                 "Integer" | "Character" | "Boolean" | "Number"
@@ -21,7 +21,14 @@ fn collect_undefined_aliases(context: &Context, ty: &Type) -> Vec<TypRError> {
 
             let mut errors = Vec::new();
             if !is_opaque && !is_builtin && !is_defined {
-                errors.push(TypRError::type_error(TypeError::AliasNotFound(ty.clone())));
+                errors.push(match context.find_alias_source_module(name) {
+                    Some(module_name) => TypRError::type_error(TypeError::AliasNotImported(
+                        name.clone(),
+                        module_name,
+                        h.clone(),
+                    )),
+                    None => TypRError::type_error(TypeError::AliasNotFound(ty.clone())),
+                });
             }
             for param in params {
                 errors.extend(collect_undefined_aliases(context, param));
@@ -201,6 +208,64 @@ mod tests {
                 )
             )),
             "Expected AliasNotFound error but got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_let_unimported_module_alias_produces_alias_not_imported_error() {
+        use crate::processes::parsing::parse_from_string;
+        use crate::processes::type_checking::typing_with_errors;
+
+        let fp = FluentParser::new()
+            .push("module geo { @pub type Meters <- int; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+
+        let expr = parse_from_string("let y: Meters <- 5;", "test");
+        let result = typing_with_errors(&context, &expr);
+
+        assert!(
+            result.has_errors(),
+            "Expected an AliasNotImported error for unimported alias 'Meters'"
+        );
+        assert!(
+            result.get_errors().iter().any(|e| matches!(
+                e,
+                TypRError::Type(
+                    crate::components::error_message::type_error::TypeError::AliasNotImported(
+                        name, module, _
+                    )
+                ) if name == "Meters" && module == "geo"
+            )),
+            "Expected AliasNotImported error but got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_function_signature_unimported_module_alias_produces_alias_not_imported_error() {
+        use crate::processes::parsing::parse_from_string;
+        use crate::processes::type_checking::typing_with_errors;
+
+        let fp = FluentParser::new()
+            .push("module geo { @pub type Meters <- int; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+
+        let expr = parse_from_string("let f <- fn(x: Meters): int { x };", "test");
+        let result = typing_with_errors(&context, &expr);
+
+        assert!(
+            result.get_errors().iter().any(|e| matches!(
+                e,
+                TypRError::Type(
+                    crate::components::error_message::type_error::TypeError::AliasNotImported(
+                        name, module, _
+                    )
+                ) if name == "Meters" && module == "geo"
+            )),
+            "Expected AliasNotImported error for unimported param type 'Meters', got: {:?}",
             result.get_errors()
         );
     }

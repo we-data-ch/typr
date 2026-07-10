@@ -416,6 +416,23 @@ impl Context {
             .next()
     }
 
+    /// Search every module currently in scope (declared via `module M { ... }`
+    /// somewhere visible, whether or not any of its members were ever brought
+    /// in via `use`) for a public alias named `name`. Returns the module's
+    /// name on a hit — used to tell "genuinely undefined alias" apart from
+    /// "exists, but this file never imported it" so the error can point at
+    /// the fix (`use M::Name;`) instead of just saying "not defined".
+    pub fn find_alias_source_module(&self, name: &str) -> Option<String> {
+        self.variables().find_map(|(var, typ)| {
+            let module_type = typ.clone().to_module_type().ok()?;
+            module_type
+                .get_aliases()
+                .iter()
+                .any(|(alias_var, _)| alias_var.get_name() == name)
+                .then(|| var.get_name())
+        })
+    }
+
     fn is_matching_alias(&self, var1: &Var, var2: &Var) -> bool {
         var1.name == var2.name
     }
@@ -1070,8 +1087,35 @@ impl Context {
     }
 
     pub fn get_functions_from_type(&self, typ: &Type) -> Vec<(Var, Type)> {
+        // `var.get_type()` (the parser-set "related type" marking a function as
+        // a dispatchable method, e.g. `let animate <- fn(self: Circle, …)`) is
+        // the primary signal, matched either exactly or via reduced forms — a
+        // caller may hold a structurally-identical but alias-stripped type
+        // (e.g. an array literal's element type, which `typing_container`
+        // reduces away from its alias for homogeneity checking — see
+        // `[Object]`/`[Circle]` array-covariance).
+        let reduced_typ = reduce_type(self, typ);
         self.variables()
-            .filter(|&(var, typ2)| typ2.is_function() && var.get_type() == *typ)
+            .filter(|&(var, typ2)| {
+                if !typ2.is_function() {
+                    return false;
+                }
+                if var.get_type() == *typ || reduce_type(self, &var.get_type()) == reduced_typ {
+                    return true;
+                }
+                // Fallback: `var.get_type()` comes back `Empty` for a function
+                // re-imported across a module boundary — `Lang::Module`'s
+                // `pub_arg_types` export rebuilds a fresh `Var` from just the
+                // exported name, losing the parser's related-type marker even
+                // though the function itself is a perfectly good method.
+                // The function's own declared first parameter can't be lost
+                // this way, so use it as the structural anchor instead:
+                // interface satisfaction in TypR is meant to be purely
+                // structural, not keyed on a bookkeeping field surviving a
+                // module re-export.
+                typ2.get_first_parameter()
+                    .is_some_and(|p| p == *typ || reduce_type(self, &p) == reduced_typ)
+            })
             .cloned()
             .collect()
     }

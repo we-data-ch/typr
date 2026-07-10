@@ -140,6 +140,33 @@ pub enum Type {
     KindedGen(Kind, String, HelpData),
 }
 
+/// Structural fallback for interface-method-set comparison: for every
+/// required method in `required`, is there a same-named method in `have`
+/// whose function type is equal *after reducing both sides*? Plain `==`/
+/// `is_superset` on the raw `HashSet<ArgumentType>` can spuriously fail when
+/// the two signatures were reduced at different points with different
+/// recursion depth — e.g. a function exported across a module boundary
+/// (`Lang::Module`'s `pub_arg_types`) has its parameter types reduced as
+/// part of exporting the whole function, while an interface's own declared
+/// methods are exported by reducing the `Interface` as a unit (which does
+/// not recurse into its methods' argument types) — so one side ends up with
+/// a bare `Record` where the other still has the originating `Alias`.
+/// Reducing both sides here, uniformly, at comparison time removes that
+/// asymmetry regardless of how each side got to this point.
+fn interface_methods_satisfy(
+    have: &HashSet<ArgumentType>,
+    required: &HashSet<ArgumentType>,
+    context: &Context,
+) -> bool {
+    required.iter().all(|req| {
+        have.iter().any(|candidate| {
+            candidate.get_argument_str() == req.get_argument_str()
+                && reduce_type(context, &candidate.get_type())
+                    == reduce_type(context, &req.get_type())
+        })
+    })
+}
+
 impl TypeSystem for Type {
     fn pretty(&self) -> String {
         format(self)
@@ -200,10 +227,16 @@ impl TypeSystem for Type {
             }
             (_, Type::UnknownFunction(_)) => true,
             (Type::Interface(args1, _), Type::Interface(args2, _)) => {
-                args1 == args2 || args1.is_superset(args2)
+                args1 == args2
+                    || args1.is_superset(args2)
+                    || interface_methods_satisfy(args1, args2, context)
             }
             (typ, Type::Interface(args2, _)) => match typ.to_interface(context) {
-                Type::Interface(args1, _) => &args1 == args2 || args1.is_superset(args2),
+                Type::Interface(args1, _) => {
+                    &args1 == args2
+                        || args1.is_superset(args2)
+                        || interface_methods_satisfy(&args1, args2, context)
+                }
                 _ => todo!(),
             },
             // Record subtyping
@@ -955,8 +988,17 @@ impl Type {
                     .iter()
                     .cloned()
                     .map(|(var, typ2)| {
+                        // Substitute using the function's own declared first-param
+                        // type, not `typ` itself: `get_functions_from_type` may have
+                        // matched structurally (reduced forms equal) rather than by
+                        // exact identity — e.g. an array literal's element type has
+                        // its alias reduced away by `typing_container` before it
+                        // ever reaches here. The signature's first param is always
+                        // the literal type the function was declared against, so
+                        // it's the only reliable anchor for the Self substitution.
+                        let self_type = typ2.get_first_parameter().unwrap_or_else(|| typ.clone());
                         let replaced =
-                            typ2.replace_function_types(typ.clone(), builder::self_generic_type());
+                            typ2.replace_function_types(self_type, builder::self_generic_type());
                         (var.get_name(), replaced.normalize_fn_param_names())
                     })
                     .collect::<Vec<_>>();

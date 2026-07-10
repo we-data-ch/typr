@@ -300,6 +300,12 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 )));
             }
 
+            // An alias-to-alias target that isn't in scope (e.g. `type Distance
+            // <- Meters;` when `Meters` lives in an unimported module) would
+            // otherwise register silently — `Meters` reduces to `Any` wherever
+            // it's later used, with no diagnostic at all. Surface it here.
+            errors.extend(let_expression::collect_undefined_aliases(context, typ));
+
             errors.extend(validate_named_constructors(context, typ));
             errors.extend(type_arithmetic::validate_operator_kinds(context, typ));
 

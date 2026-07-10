@@ -309,6 +309,24 @@ pub fn function(
     // RFC sigils.md §7 — intra-signature kind-consistency pass.
     let kind_consistency_errors = check_kind_consistency(params, ret_ty);
     let default_param_errors = check_default_params(params, context);
+    // A parameter/return alias that isn't in scope otherwise fails silently
+    // (an unresolved alias reduces to `Any`, so the call site just sees no
+    // type error at all) — surface it here, distinguishing "not imported
+    // from module M" from "genuinely unknown" (see `collect_undefined_aliases`).
+    let undefined_alias_errors: Vec<TypRError> = params
+        .iter()
+        .flat_map(|p| {
+            crate::processes::type_checking::let_expression::collect_undefined_aliases(
+                context,
+                &p.get_type(),
+            )
+        })
+        .chain(
+            crate::processes::type_checking::let_expression::collect_undefined_aliases(
+                context, ret_ty,
+            ),
+        )
+        .collect();
 
     // Build sub-context: interface parameters (including a `List & Interface`
     // intersection that has an interface facet) become rigid generic
@@ -357,6 +375,7 @@ pub fn function(
     let mut errors = body_type.errors;
     errors.extend(kind_consistency_errors);
     errors.extend(default_param_errors);
+    errors.extend(undefined_alias_errors);
     let is_compatible = is_opaque_of(&body_type.value, ret_ty)
         || body_type.value.reduce_and_subtype(ret_ty, &sub_context).0
         || is_rigid_compatible(&body_type.value, ret_ty, &sub_context);

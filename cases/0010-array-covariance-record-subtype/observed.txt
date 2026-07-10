@@ -1,0 +1,22 @@
+# exit=1
+
+## stdout/stderr
+
+  Parsing... done (163 ms)
+  Type checking... failed
+Type errors found:
+  × Type error: Function new_scene<[1, list{"position": Vec[2, int], "stroke":
+  │ char, "fill": char, "radius": int, "id": char}]> not defined in this
+  │ scope.
+    ╭─[TypR/main.ty:22:15]
+ 21 │ 
+ 22 │ let scene <- new_scene([c1]);
+    ·               ▲
+    ·               ╰── Not defined in this scope
+ 23 │ 
+    ╰────
+
+
+
+## R généré
+

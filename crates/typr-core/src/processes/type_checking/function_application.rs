@@ -1225,6 +1225,19 @@ fn filter_supertype_match(
     None
 }
 
+/// Like `facets::interface_facet`, but also looks through one level of array
+/// wrapping: `[Object]` has an interface facet whenever `Object` does, so an
+/// `objects: [Object]` parameter is recognised as an (array-covariant)
+/// interface parameter, not just a bare `o: Object` one. `facets::interface_facet`
+/// itself stays array-unaware since its other callers (`$`/method-call
+/// resolution) must NOT reach through an array to the element's methods.
+fn has_interface_facet(ctx: &Context, typ: &Type) -> bool {
+    match typ {
+        Type::Vec(_, _, elem, _) => facets::interface_facet(ctx, elem).is_some(),
+        _ => facets::interface_facet(ctx, typ).is_some(),
+    }
+}
+
 /// FILTERING 2.5: interface structural subtyping
 fn filter_interface_match(
     sigs: &[FunctionType],
@@ -1239,7 +1252,7 @@ fn filter_interface_match(
             sig.get_first_param()
                 .map(|p| {
                     let reduced_param = reduce_type(ctx, &p);
-                    facets::interface_facet(ctx, &reduced_param).is_some()
+                    has_interface_facet(ctx, &reduced_param)
                         && first_arg_type.is_subtype_raw(&reduced_param, ctx)
                 })
                 .unwrap_or(false)
