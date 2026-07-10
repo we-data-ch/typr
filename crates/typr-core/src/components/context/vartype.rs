@@ -101,11 +101,23 @@ pub fn merge_variables(
 /// forward via `..self` — see `VarType::entries_named`.
 type NameIndex = Arc<OnceLock<HashMap<String, Vec<(Var, Type)>>>>;
 
+/// `variables`/`aliases`/`std` are the stdlib-heavy sets (~1700 entries once
+/// R's standard library is loaded) that used to be deep-cloned on every
+/// `Context::clone()` — 92 call sites in `type_checking/mod.rs` alone, one
+/// per AST node in the worst case. Wrapping them in `Arc` turns
+/// `VarType::clone()` (and so `Context::clone()`) into a handful of refcount
+/// bumps instead of an O(n) copy. Every mutator gets an owned `IndexSet` back
+/// via `Arc::unwrap_or_clone`/`Arc::make_mut`, which only actually clones the
+/// underlying set when another live `Arc` still points at it (i.e. some
+/// earlier `.clone()` is still alive) — the common case of a context moved
+/// straight through a chain of `fold`/`pipe` calls pays zero copies.
+type SharedVarSet = Arc<IndexSet<(Var, Type)>>;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VarType {
-    pub variables: IndexSet<(Var, Type)>,
-    pub aliases: IndexSet<(Var, Type)>,
-    pub std: IndexSet<(Var, Type)>,
+    pub variables: SharedVarSet,
+    pub aliases: SharedVarSet,
+    pub std: SharedVarSet,
     #[serde(skip)]
     pub alias_counter: CountMap<TypeCategory, usize>,
     #[serde(skip)]
@@ -142,9 +154,9 @@ impl VarType {
         let mut aliases = IndexSet::new();
         aliases.insert((var, typ));
         VarType {
-            variables: IndexSet::new(),
-            aliases,
-            std: IndexSet::new(),
+            variables: Arc::new(IndexSet::new()),
+            aliases: Arc::new(aliases),
+            std: Arc::new(IndexSet::new()),
             alias_counter: CountMap::new(),
             name_index: Arc::new(OnceLock::new()),
         }
@@ -260,7 +272,7 @@ impl VarType {
 
     fn push_type_if_not_exists(self, typ: Type) -> Self {
         if !self.exists(&typ) {
-            self.clone().push_alias_increment((typ.to_category(), typ))
+            self.push_alias_increment((typ.to_category(), typ))
         } else {
             self
         }
@@ -318,35 +330,74 @@ impl VarType {
     }
 
     fn push_variables(self, vt: IndexSet<(Var, Type)>) -> Self {
+        let VarType {
+            mut variables,
+            aliases,
+            std,
+            alias_counter,
+            ..
+        } = self;
+        {
+            let set = Arc::make_mut(&mut variables);
+            for pair in vt {
+                set.insert(pair);
+            }
+        }
         VarType {
-            variables: self.variables.union(&vt).cloned().collect(),
+            variables,
+            aliases,
+            std,
+            alias_counter,
             name_index: Arc::new(OnceLock::new()),
-            ..self
         }
     }
 
     fn replace_or_push_variables(self, vt: IndexSet<(Var, Type)>) -> Self {
-        let res = merge_variables(self.variables, vt);
+        let VarType {
+            variables,
+            aliases,
+            std,
+            alias_counter,
+            ..
+        } = self;
+        let res = merge_variables(Arc::unwrap_or_clone(variables), vt);
         VarType {
-            variables: res,
+            variables: Arc::new(res),
+            aliases,
+            std,
+            alias_counter,
             name_index: Arc::new(OnceLock::new()),
-            ..self
         }
     }
 
     fn push_aliases(self, vt: &[(Var, Type)]) -> Self {
-        let vt_set: IndexSet<(Var, Type)> = vt.iter().cloned().collect();
+        let VarType {
+            variables,
+            mut aliases,
+            std,
+            alias_counter,
+            name_index,
+        } = self;
+        {
+            let set = Arc::make_mut(&mut aliases);
+            for pair in vt.iter().cloned() {
+                set.insert(pair);
+            }
+        }
         VarType {
-            aliases: self.aliases.union(&vt_set).cloned().collect(),
-            ..self
+            variables,
+            aliases,
+            std,
+            alias_counter,
+            name_index,
         }
     }
 
     fn replace_aliases(self, vt: &[(Var, Type)]) -> Self {
         let vt_set: IndexSet<(Var, Type)> = vt.iter().cloned().collect();
-        let res = merge_variables(self.variables.clone(), vt_set);
+        let res = merge_variables(Arc::unwrap_or_clone(self.variables.clone()), vt_set);
         VarType {
-            aliases: res,
+            aliases: Arc::new(res),
             ..self
         }
     }
@@ -448,24 +499,44 @@ impl VarType {
 
     pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
         let var = Var::from_name(&alias_name).set_type(builder::params_type());
-        let mut new_aliases = self.aliases.clone();
-        if !self.in_aliases(&alias_name) {
-            new_aliases.insert((var, typ));
+        if self.in_aliases(&alias_name) {
+            return self;
         }
+        let VarType {
+            variables,
+            mut aliases,
+            std,
+            alias_counter,
+            name_index,
+        } = self;
+        Arc::make_mut(&mut aliases).insert((var, typ));
         Self {
-            aliases: new_aliases,
-            ..self
+            variables,
+            aliases,
+            std,
+            alias_counter,
+            name_index,
         }
     }
 
     pub fn push_alias2(self, var: Var, typ: Type) -> Self {
-        let mut new_aliases = self.aliases.clone();
-        if !self.in_aliases(&var.get_name()) {
-            new_aliases.insert((var, typ));
+        if self.in_aliases(&var.get_name()) {
+            return self;
         }
+        let VarType {
+            variables,
+            mut aliases,
+            std,
+            alias_counter,
+            name_index,
+        } = self;
+        Arc::make_mut(&mut aliases).insert((var, typ));
         Self {
-            aliases: new_aliases,
-            ..self
+            variables,
+            aliases,
+            std,
+            alias_counter,
+            name_index,
         }
     }
 
@@ -494,20 +565,25 @@ impl VarType {
             .expect("Variable not found")
             .clone();
 
+        let VarType {
+            variables,
+            aliases,
+            std,
+            alias_counter,
+            ..
+        } = self;
         // `IndexSet::remove` is deprecated because it disrupts set order.
-        // Use a filter/collect to remove the old variable while preserving order.
-        let mut new_variables = self
-            .variables
-            .iter()
-            .filter(|&x| x != &old_var)
-            .cloned()
-            .collect::<indexmap::IndexSet<(Var, Type)>>();
+        // Use `retain` to remove the old variable in place while preserving order.
+        let mut new_variables = Arc::unwrap_or_clone(variables);
+        new_variables.retain(|x| x != &old_var);
         new_variables.insert((var.clone(), var.get_type()));
 
         Self {
-            variables: new_variables,
+            variables: Arc::new(new_variables),
+            aliases,
+            std,
+            alias_counter,
             name_index: Arc::new(OnceLock::new()),
-            ..self
         }
     }
 
@@ -525,15 +601,21 @@ impl VarType {
     }
 
     pub fn remove_var(self, var: &Var) -> Self {
+        let VarType {
+            variables,
+            aliases,
+            std,
+            alias_counter,
+            ..
+        } = self;
+        let mut new_variables = Arc::unwrap_or_clone(variables);
+        new_variables.retain(|(var2, _)| var != var2);
         Self {
-            variables: self
-                .variables
-                .iter()
-                .filter(|(var2, _)| var != var2)
-                .cloned()
-                .collect(),
+            variables: Arc::new(new_variables),
+            aliases,
+            std,
+            alias_counter,
             name_index: Arc::new(OnceLock::new()),
-            ..self
         }
     }
 
@@ -569,7 +651,7 @@ impl VarType {
 
     pub fn set_std(self, v: Vec<(Var, Type)>) -> Self {
         Self {
-            std: v.into_iter().collect(),
+            std: Arc::new(v.into_iter().collect()),
             ..self
         }
     }
@@ -670,9 +752,9 @@ impl From<Vec<(Var, Type)>> for VarType {
     fn from(val: Vec<(Var, Type)>) -> Self {
         let (variables, aliases) = VarType::separate_variables_aliases(val);
         VarType {
-            variables,
-            aliases,
-            std: IndexSet::new(),
+            variables: Arc::new(variables),
+            aliases: Arc::new(aliases),
+            std: Arc::new(IndexSet::new()),
             alias_counter: CountMap::new(),
             name_index: Arc::new(OnceLock::new()),
         }
@@ -696,10 +778,18 @@ impl Add for VarType {
             }
         }
         let alias_counter: CountMap<TypeCategory, usize> = counter.into_iter().collect();
+
+        let mut variables = Arc::unwrap_or_clone(self.variables);
+        variables.extend(other.variables.iter().cloned());
+        let mut aliases = Arc::unwrap_or_clone(self.aliases);
+        aliases.extend(other.aliases.iter().cloned());
+        let mut std = Arc::unwrap_or_clone(self.std);
+        std.extend(other.std.iter().cloned());
+
         Self {
-            variables: self.variables.union(&other.variables).cloned().collect(),
-            aliases: self.aliases.union(&other.aliases).cloned().collect(),
-            std: self.std.union(&other.std).cloned().collect(),
+            variables: Arc::new(variables),
+            aliases: Arc::new(aliases),
+            std: Arc::new(std),
             alias_counter,
             name_index: Arc::new(OnceLock::new()),
         }

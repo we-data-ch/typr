@@ -40,7 +40,7 @@ repository = "https://github.com/fabriceHategekimana/typr"
 [workspace.dependencies]
 nom = "8.0.0"
 nom_locate = "5.0.0"
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive", "rc"] }
 serde_json = "1.0.133"
 thiserror = "2.0.12"
 miette = { version = "7.6.0", features = ["fancy"] }

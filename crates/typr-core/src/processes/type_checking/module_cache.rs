@@ -63,7 +63,7 @@ impl ModuleCacheEntry {
     /// typing context.
     pub fn capture(module_type: &Type, inner: &Context) -> Self {
         let mut inner_context = inner.clone();
-        inner_context.typing_context.std = indexmap::IndexSet::new();
+        inner_context.typing_context.std = std::sync::Arc::new(indexmap::IndexSet::new());
         ModuleCacheEntry {
             module_type: module_type.clone(),
             alias_counter: inner

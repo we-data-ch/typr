@@ -6,14 +6,22 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::ops::Add;
+use std::sync::Arc;
 
+/// `memory`/`root` hold the whole-program subtype registry (grows with every
+/// distinct type seen — stdlib signatures included), and used to be
+/// deep-cloned on every `Graph::clone()` (in turn triggered by every
+/// `Context::clone()`). `Arc`-wrapping makes that clone O(1); mutators
+/// (`add_type`, `cache_subtype`) recover an owned value via
+/// `Arc::unwrap_or_clone`, which only actually copies when another live
+/// `Arc` still shares the allocation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "T: Serialize + for<'a> Deserialize<'a>")]
 pub struct Graph<T: TypeSystem> {
-    memory: HashSet<T>,
-    root: Node<T>,
+    memory: Arc<HashSet<T>>,
+    root: Arc<Node<T>>,
     #[serde(skip)]
-    subtype_cache: HashMap<(T, T), bool>,
+    subtype_cache: Arc<HashMap<(T, T), bool>>,
 }
 
 impl<T: TypeSystem> Default for Graph<T> {
@@ -25,9 +33,9 @@ impl<T: TypeSystem> Default for Graph<T> {
 impl<T: TypeSystem> Graph<T> {
     pub fn new() -> Self {
         Graph {
-            memory: HashSet::new(),
-            root: Node::new(),
-            subtype_cache: HashMap::new(),
+            memory: Arc::new(HashSet::new()),
+            root: Arc::new(Node::new()),
+            subtype_cache: Arc::new(HashMap::new()),
         }
     }
 
@@ -38,12 +46,12 @@ impl<T: TypeSystem> Graph<T> {
 
     /// Enregistre un résultat de sous-typage dans le cache
     pub fn cache_subtype(self, t1: T, t2: T, result: bool) -> Self {
-        let mut subtype_cache = self.subtype_cache;
+        let mut subtype_cache = Arc::unwrap_or_clone(self.subtype_cache);
         subtype_cache.insert((t1, t2), result);
         Graph {
             memory: self.memory,
             root: self.root,
-            subtype_cache,
+            subtype_cache: Arc::new(subtype_cache),
         }
     }
 
@@ -51,12 +59,13 @@ impl<T: TypeSystem> Graph<T> {
         if self.memory.contains(&typ) {
             self
         } else {
-            let new_root = self.root.add_type(typ.clone(), context);
-            let mut new_memory = self.memory;
+            let root = Arc::unwrap_or_clone(self.root);
+            let new_root = root.add_type(typ.clone(), context);
+            let mut new_memory = Arc::unwrap_or_clone(self.memory);
             new_memory.insert(typ);
             Graph {
-                memory: new_memory,
-                root: new_root,
+                memory: Arc::new(new_memory),
+                root: Arc::new(new_root),
                 subtype_cache: self.subtype_cache,
             }
         }
@@ -243,10 +252,10 @@ impl<T: TypeSystem> Add for Graph<T> {
             .cloned()
             .fold(self.clone(), |acc, typ| acc.add_type(typ, &context));
         // Fusionner les caches de sous-typage
-        let mut new_cache = self.subtype_cache;
-        new_cache.extend(other.subtype_cache);
+        let mut new_cache = Arc::unwrap_or_clone(self.subtype_cache);
+        new_cache.extend(other.subtype_cache.iter().map(|(k, v)| (k.clone(), *v)));
         Graph {
-            subtype_cache: new_cache,
+            subtype_cache: Arc::new(new_cache),
             ..merged
         }
     }
