@@ -103,49 +103,54 @@ fn filter_by_first_param(
     context: &Context,
 ) -> Vec<FunctionType> {
     let reduced_arg = reduce_type(context, first_arg_type);
-    let (exact, rest): (Vec<&FunctionType>, Vec<&FunctionType>) =
-        signatures.iter().partition(|sig| {
-            sig.get_first_param()
-                .map(|p| {
-                    let reduced_p = reduce_type(context, &p);
-                    reduced_p == reduced_arg
-                        || matches!(
-                            reduced_p,
-                            Type::Generic(_, _)
-                                | Type::IndexGen(_, _)
-                                | Type::LabelGen(_, _)
-                                | Type::KindedGen(_, _, _)
-                        )
-                })
-                .unwrap_or(false)
-        });
+    // Reduce each candidate's first param exactly once — this used to be
+    // recomputed a second time for every signature that fell through to the
+    // `unifiable` filter below.
+    let candidates: Vec<(&FunctionType, Type, Type)> = signatures
+        .iter()
+        .filter_map(|sig| {
+            sig.get_first_param().map(|p| {
+                let reduced_p = reduce_type(context, &p);
+                (sig, p, reduced_p)
+            })
+        })
+        .collect();
+    let (exact, rest): (Vec<_>, Vec<_>) = candidates.into_iter().partition(|(_, _, reduced_p)| {
+        *reduced_p == reduced_arg
+            || matches!(
+                reduced_p,
+                Type::Generic(_, _)
+                    | Type::IndexGen(_, _)
+                    | Type::LabelGen(_, _)
+                    | Type::KindedGen(_, _, _)
+            )
+    });
     // Composite generic params (e.g. `[#N, T]` against an argument `[#N, num]`)
     // don't pass the equality test above but can still unify. They are appended
     // after the exact matches so they don't steal overload resolution.
     // Also include signatures where the arg is a primitive subtype of the param
     // (e.g. Char(Val("A")) <: Char(Unknown)), excluding Any so that Any-param
     // functions still fall through to FILTERING 3 vectorization as before.
-    let unifiable = rest.into_iter().filter(|sig| {
-        sig.get_first_param()
-            .map(|p| {
-                let reduced_p = reduce_type(context, &p);
-                // Exclude Any (belongs to FILTERING 3) and anything with an
-                // interface facet — plain `Interface` or a `Record &
-                // Interface` intersection (belongs to FILTERING 2.5, which
-                // uses the *unreduced* arg type so `to_interface`'s exact
-                // first-param-type match still sees the alias name) — from
-                // the is_subtype_raw fast path here, which only has the
-                // already-reduced (alias-stripped) `reduced_arg` to work with.
-                (!matches!(&reduced_p, Type::Any(_))
-                    && facets::interface_facet(context, &reduced_p).is_none()
-                    && reduced_arg.is_subtype_raw(&reduced_p, context))
-                    || match_types_to_generic(context, &reduced_arg, &p)
-                        .map(|bindings| !bindings.is_empty())
-                        .unwrap_or(false)
-            })
-            .unwrap_or(false)
+    let unifiable = rest.into_iter().filter(|(_, p, reduced_p)| {
+        // Exclude Any (belongs to FILTERING 3) and anything with an
+        // interface facet — plain `Interface` or a `Record &
+        // Interface` intersection (belongs to FILTERING 2.5, which
+        // uses the *unreduced* arg type so `to_interface`'s exact
+        // first-param-type match still sees the alias name) — from
+        // the is_subtype_raw fast path here, which only has the
+        // already-reduced (alias-stripped) `reduced_arg` to work with.
+        (!matches!(reduced_p, Type::Any(_))
+            && facets::interface_facet(context, reduced_p).is_none()
+            && reduced_arg.is_subtype_raw(reduced_p, context))
+            || match_types_to_generic(context, &reduced_arg, p)
+                .map(|bindings| !bindings.is_empty())
+                .unwrap_or(false)
     });
-    exact.into_iter().chain(unifiable).cloned().collect()
+    exact
+        .into_iter()
+        .chain(unifiable)
+        .map(|(sig, _, _)| sig.clone())
+        .collect()
 }
 
 fn try_direct_match(
