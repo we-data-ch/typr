@@ -21,7 +21,10 @@ use countmap::CountMap;
 use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 
+use std::collections::HashMap;
 use std::ops::Add;
+use std::sync::Arc;
+use std::sync::OnceLock;
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::fs::File;
@@ -88,6 +91,16 @@ pub fn merge_variables(
     result
 }
 
+/// Lazily-built index of `VarType::variables` keyed by name, so name-keyed
+/// lookups (`get_type_from_variable`, `get_types_from_name`,
+/// `get_functions_from_name`) don't linear-scan the whole (stdlib-heavy,
+/// ~1700-entry) set on every call. `Arc<OnceLock<_>>` rather than
+/// `Rc<RefCell<_>>` so `VarType`/`Context` stay `Send + Sync` (`Context`
+/// crosses the multi-thread tokio runtime in typr-lsp). Every mutator of
+/// `variables` must reset this to a fresh empty cell instead of carrying it
+/// forward via `..self` — see `VarType::entries_named`.
+type NameIndex = Arc<OnceLock<HashMap<String, Vec<(Var, Type)>>>>;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VarType {
     pub variables: IndexSet<(Var, Type)>,
@@ -95,12 +108,30 @@ pub struct VarType {
     pub std: IndexSet<(Var, Type)>,
     #[serde(skip)]
     pub alias_counter: CountMap<TypeCategory, usize>,
+    #[serde(skip)]
+    name_index: NameIndex,
 }
 
 impl PartialEq for VarType {
     fn eq(&self, other: &Self) -> bool {
         self.variables == other.variables && self.aliases == other.aliases && self.std == other.std
     }
+}
+
+/// Buckets `variables` by name, preserving `variables()`'s existing
+/// `.iter().rev()` order within each bucket — `get_type_from_variable`'s
+/// `reduce(...)` over same-name candidates picks the first-seen one when two
+/// matches are mutually non-subtypes, so shadowing (most-recently-pushed wins)
+/// depends on this order being preserved exactly.
+fn build_name_index(variables: &IndexSet<(Var, Type)>) -> HashMap<String, Vec<(Var, Type)>> {
+    let mut index: HashMap<String, Vec<(Var, Type)>> = HashMap::new();
+    for pair in variables.iter().rev() {
+        index
+            .entry(pair.0.get_name())
+            .or_default()
+            .push(pair.clone());
+    }
+    index
 }
 
 //main
@@ -115,7 +146,20 @@ impl VarType {
             aliases,
             std: IndexSet::new(),
             alias_counter: CountMap::new(),
+            name_index: Arc::new(OnceLock::new()),
         }
+    }
+
+    /// Entries in `variables` whose name is `name`, in the same order
+    /// `variables().filter(|(v, _)| v.get_name() == name)` would yield
+    /// (i.e. most-recently-pushed first). O(1) amortized via a lazily-built,
+    /// per-mutation-invalidated index — see `name_index`.
+    pub fn entries_named(&self, name: &str) -> Vec<(Var, Type)> {
+        self.name_index
+            .get_or_init(|| build_name_index(&self.variables))
+            .get(name)
+            .cloned()
+            .unwrap_or_default()
     }
 
     pub fn push_interface(
@@ -276,6 +320,7 @@ impl VarType {
     fn push_variables(self, vt: IndexSet<(Var, Type)>) -> Self {
         VarType {
             variables: self.variables.union(&vt).cloned().collect(),
+            name_index: Arc::new(OnceLock::new()),
             ..self
         }
     }
@@ -284,6 +329,7 @@ impl VarType {
         let res = merge_variables(self.variables, vt);
         VarType {
             variables: res,
+            name_index: Arc::new(OnceLock::new()),
             ..self
         }
     }
@@ -460,6 +506,7 @@ impl VarType {
 
         Self {
             variables: new_variables,
+            name_index: Arc::new(OnceLock::new()),
             ..self
         }
     }
@@ -485,6 +532,7 @@ impl VarType {
                 .filter(|(var2, _)| var != var2)
                 .cloned()
                 .collect(),
+            name_index: Arc::new(OnceLock::new()),
             ..self
         }
     }
@@ -626,6 +674,7 @@ impl From<Vec<(Var, Type)>> for VarType {
             aliases,
             std: IndexSet::new(),
             alias_counter: CountMap::new(),
+            name_index: Arc::new(OnceLock::new()),
         }
     }
 }
@@ -652,6 +701,7 @@ impl Add for VarType {
             aliases: self.aliases.union(&other.aliases).cloned().collect(),
             std: self.std.union(&other.std).cloned().collect(),
             alias_counter,
+            name_index: Arc::new(OnceLock::new()),
         }
     }
 }

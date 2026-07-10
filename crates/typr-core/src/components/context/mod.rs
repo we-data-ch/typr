@@ -29,6 +29,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use std::ops::Add;
+use std::sync::Arc;
 use tap::Pipe;
 
 /// True for the auto-generated names given to anonymous record types
@@ -85,7 +86,7 @@ pub struct Context {
     /// body, keyed by module name. Populated during type-checking; consumed
     /// during transpilation to avoid re-running `typing()` on every module body.
     #[serde(skip)]
-    pub module_inner_contexts: HashMap<String, Box<Context>>,
+    pub module_inner_contexts: HashMap<String, Arc<Context>>,
     /// Cache of fully type-checked modules. Maps module name → its
     /// `Type::Module` so that `use Module::*;` can be resolved without
     /// re-walking the module path in the variable table. Populated by
@@ -275,7 +276,7 @@ impl Context {
         // only the entries genuinely *new* to this module's own body (i.e.
         // not already known to the ambient context) — those are exactly the
         // modules declared/nested directly within this one.
-        let new_entries: HashMap<String, Box<Context>> = inner
+        let new_entries: HashMap<String, Arc<Context>> = inner
             .module_inner_contexts
             .iter()
             .filter(|(k, _)| !self.module_inner_contexts.contains_key(k.as_str()))
@@ -284,7 +285,7 @@ impl Context {
         let mut trimmed = inner.clone();
         trimmed.module_inner_contexts = new_entries;
         self.module_inner_contexts
-            .insert(name.to_string(), Box::new(trimmed));
+            .insert(name.to_string(), Arc::new(trimmed));
         self
     }
 
@@ -369,13 +370,14 @@ impl Context {
 
     pub fn get_type_from_variable(&self, var: &Var) -> Result<Type, String> {
         let res = self
-            .variables()
+            .typing_context
+            .entries_named(&var.get_name())
+            .into_iter()
             .flat_map(|(var2, typ)| {
-                let conditions = (var.name == var2.name)
-                    && (var.is_opaque == var2.is_opaque)
+                let conditions = (var.is_opaque == var2.is_opaque)
                     && var.related_type.is_subtype(&var2.related_type, self).0;
                 if conditions {
-                    Some(typ.clone())
+                    Some(typ)
                 } else {
                     None
                 }
@@ -392,9 +394,10 @@ impl Context {
     }
 
     pub fn get_types_from_name(&self, name: &str) -> Vec<Type> {
-        self.variables()
-            .filter(|(var, _)| var.get_name() == name)
-            .map(|(_, typ)| typ.clone())
+        self.typing_context
+            .entries_named(name)
+            .into_iter()
+            .map(|(_, typ)| typ)
             .collect()
     }
 
@@ -1074,9 +1077,10 @@ impl Context {
     }
 
     pub fn get_functions_from_name(&self, name: &str) -> Vec<(Var, Type)> {
-        self.variables()
-            .filter(|&(var, typ2)| typ2.is_function() && var.get_name() == name)
-            .cloned()
+        self.typing_context
+            .entries_named(name)
+            .into_iter()
+            .filter(|(_, typ2)| typ2.is_function())
             .collect()
     }
 
