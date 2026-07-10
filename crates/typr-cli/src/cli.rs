@@ -131,6 +131,10 @@ enum CaseCommands {
         from: Option<String>,
         #[arg(long, default_value = "build")]
         cmd: String,
+        /// parse|type|transpile|r-run. Use "r-run" with `--cmd run` to oracle on a real
+        /// Rscript execution (rules target "@run") instead of the generated R text.
+        #[arg(long, default_value = "transpile")]
+        layer: String,
     },
     /// Snapshot the current TypR project into a `<slug>.case/` bundle (run from the project root).
     Snapshot { slug: Option<String> },
@@ -206,7 +210,12 @@ pub fn start() {
                 status,
                 keep,
             } => crate::cases::run(filter, status, keep),
-            CaseCommands::Add { slug, from, cmd } => crate::cases::add(&slug, from, &cmd),
+            CaseCommands::Add {
+                slug,
+                from,
+                cmd,
+                layer,
+            } => crate::cases::add(&slug, from, &cmd, &layer),
             CaseCommands::Snapshot { slug } => crate::cases::snapshot(slug),
             CaseCommands::Freeze { id } => crate::cases::freeze(&id),
             CaseCommands::Show { id } => crate::cases::show(&id),

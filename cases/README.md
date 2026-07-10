@@ -8,19 +8,20 @@ réduit à une repro rejouable et vérifiable automatiquement. Outil : la sous-c
 
 ```
 cases/0001-pub-typed-fn-in-module/
-  case.toml      # title, cmd (build|check|debug), layer, status, created, origin
+  case.toml      # title, cmd (build|check|debug|run), layer, status, created, origin
   repro/         # un VRAI projet TypR (TypR/main.ty, …) rejoué tel quel par `typr <cmd>`
-  expect.toml    # ORACLE : règles must_contain / must_not_contain sur le R généré
+  expect.toml    # ORACLE : règles must_contain / must_not_contain sur le R généré (ou, pour
+                 # layer=r-run, sur le stdout+stderr d'une exécution R réelle via file="@run")
   expect.md      # ce qui DEVRAIT se passer (prose), + localisation dans le code
   observed.txt   # l'erreur / le R fautif au moment du report
-  golden/        # (cas fixed) copie des R/*.R ciblés → diff de non-régression
+  golden/        # (cas fixed) copie des R/*.R ciblés → diff de non-régression (jamais "@run")
 ```
 
 `case.toml` :
 
 | champ    | valeurs                              | rôle                                  |
 |----------|--------------------------------------|---------------------------------------|
-| `cmd`    | `build` \| `check` \| `debug`        | comment rejouer le repro              |
+| `cmd`    | `build` \| `check` \| `debug` \| `run` | comment rejouer le repro (`run` = build + exécution R réelle) |
 | `layer`  | `parse` \| `type` \| `transpile` \| `r-run` | à quel étage le bug se manifeste |
 | `status` | `open` \| `fixed` \| `wontfix`       | tri du catalogue + sémantique du run  |
 
@@ -43,7 +44,27 @@ filet de sécurité optionnel : sur les cas `fixed`, le run diffe les fichiers c
 
 Phase 1 = oracle par règles, **sans exécuter R** : `typr build` écrit `R/*.R` *avant* l'étape
 `document()`, donc le grep fonctionne même si `document()` échoue (R/devtools absent).
-Phase 2 (à venir) : oracle comportemental via `typr document` / `Rscript` pour les cas `layer=r-run`.
+
+**Phase 2 (`layer = "r-run"`) exécute R pour de vrai.** Associe `cmd = "run"` (au lieu de
+`build`) : le sandbox lance `typr run`, qui build **et** exécute le point d'entrée du projet via
+`Rscript`. Les règles avec `file = "@run"` grep alors le stdout+stderr capturés de cette
+exécution réelle, plutôt qu'un fichier généré :
+
+```toml
+[[rule]]
+file = "@run"
+must_not_contain = "no applicable method"   # mauvais dispatch S3 détecté seulement à l'exécution
+[[rule]]
+file = "@run"
+must_contain = "42"                          # le résultat correct est bien produit
+```
+
+C'est le seul moyen d'attraper les bugs invisibles dans le texte R généré mais qui explosent à
+l'exécution (mauvais dispatch S3, mauvais ordre d'arguments, …). Échoue "ouvert" : si `Rscript`
+n'est pas sur le PATH, `typr run` échoue et toute règle `@run` échoue avec — pas de cas
+particulier à gérer. `@run` n'est **jamais** diffé en golden (le texte capturé inclut les
+timings de la barre de progression CLI, qui varient à chaque run) — reste du grep pur, golden/
+continue de ne cibler que des fichiers `R/*.R` déterministes.
 
 ## Capturer un cas depuis un projet en cours de dev (`snapshot`)
 
@@ -97,11 +118,15 @@ bug rencontré dans un projet
 ```
 typr case list [--status open]
 typr case run [filtre] [--status s] [--keep]
-typr case add <slug> [--from <dir>] [--cmd build]
+typr case add <slug> [--from <dir>] [--cmd build] [--layer transpile]
 typr case snapshot [slug]                     # depuis un projet : crée <slug>.case/ in situ
 typr case freeze <id>
 typr case show <id>
 ```
+
+Pour un cas `r-run` créé depuis un vrai projet : `typr case add <slug> --from <dir> --cmd run
+--layer r-run` (`add` curate la copie comme `snapshot` — `TypR/` + `DESCRIPTION`/`NAMESPACE`
+seulement, sans `renv/`/`.git/`).
 
 `run` rejoue chaque cas en réinvoquant ce même binaire `typr` (via `current_exe`) sur une copie
 temporaire de `repro/` — un rebuild est donc pris en compte automatiquement (pas de `--build`).

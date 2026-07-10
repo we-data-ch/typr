@@ -4,17 +4,29 @@
 //!
 //! ```text
 //! cases/0001-mon-bug/
-//!   case.toml      # cmd (build|check|debug), layer, status, title, created, origin
+//!   case.toml      # cmd (build|check|debug|run), layer, status, title, created, origin
 //!   repro/         # a REAL TypR project (TypR/main.ty, …) replayed by `typr <cmd>`
 //!   expect.toml    # ORACLE: must_contain / must_not_contain rules grep'd on the generated R
+//!                  # (or, for file = "@run", on the captured stdout+stderr of a real R run)
 //!   expect.md      # what SHOULD happen (prose) + code localization
 //!   observed.txt   # the broken R / error at report time
-//!   golden/        # (fixed cases) captured target R/*.R → regression diff
+//!   golden/        # (fixed cases) captured target R/*.R → regression diff (never "@run": noisy)
 //! ```
 //!
 //! Phase 1 does NOT execute R: `typr build` writes `R/*.R` before the `document()` step, so the
 //! grep oracle works even when `document()` fails (R/devtools absent). `golden/` is captured by
 //! `freeze`, never written by hand.
+//!
+//! Phase 2 (`layer = "r-run"`) DOES execute R: pair it with `cmd = "run"`, which runs
+//! `typr run` — build + `Rscript` execution of the project's actual entry point — in the
+//! sandbox. Rules with `file = "@run"` then grep the captured stdout+stderr of that real R
+//! process instead of a generated file, e.g. `must_not_contain = "no applicable method"`. This
+//! is the only way to catch bugs that are invisible in the generated R text but blow up at
+//! runtime (wrong S3 dispatch, wrong argument order, …). Fails open: if `Rscript` isn't on
+//! PATH, the underlying `typr run` fails and every `@run` rule fails too — same as any other
+//! missing dependency, no special-casing needed here. `@run` is never golden-diffed
+//! (`ruled_files` excludes it): the captured text includes CLI progress timings
+//! (`done (N ms)`), which differ every run — golden stays for deterministic `R/*.R` text only.
 
 #![allow(dead_code)]
 
@@ -34,9 +46,13 @@ const GREY: &str = "\x1b[90m";
 const BOLD: &str = "\x1b[1m";
 const RESET: &str = "\x1b[0m";
 
-const EXPECT_SKELETON: &str = "# Règles oracle (grep sur le R généré). Décommente et adapte :\n\
+const EXPECT_SKELETON: &str = "# Règles oracle (grep). Décommente et adapte :\n\
     #[[rule]]\n#file = \"R/main.R\"\n#must_contain = \"motif attendu\"\n\
-    #[[rule]]\n#file = \"R/main.R\"\n#must_not_contain = \"motif interdit\"\n";
+    #[[rule]]\n#file = \"R/main.R\"\n#must_not_contain = \"motif interdit\"\n\
+    # Cas layer=\"r-run\" (cmd=\"run\") : file = \"@run\" grep le stdout+stderr de\n\
+    # l'exécution R réelle plutôt qu'un fichier généré, ex. :\n\
+    #[[rule]]\n#file = \"@run\"\n#must_not_contain = \"no applicable method\"\n\
+    #[[rule]]\n#file = \"@run\"\n#must_contain = \"42\"\n";
 
 const MINIMAL_DESCRIPTION: &str = "Package: repro\nTitle: TypR repro case\nVersion: 0.0.0.9000\n\
     Description: Minimal reproduction project for `typr case`.\nEncoding: UTF-8\n";
@@ -228,20 +244,36 @@ fn read_expect(case: &Path) -> ExpectFile {
     }
 }
 
-/// Apply the expect.toml rules on the generated R inside `work`.
-fn check_rules(case: &Path, work: &Path) -> Vec<RuleResult> {
+/// Virtual rule target name for the captured stdout+stderr of an R execution
+/// (`cmd = "run"`, `layer = "r-run"`), as opposed to a generated `R/*.R` file.
+const RUN_TARGET: &str = "@run";
+
+/// Combined stdout+stderr of the sandbox's `typr <cmd>` invocation — what a
+/// `file = "@run"` rule greps, since real R runtime errors (e.g. "no
+/// applicable method") never land in a generated `R/*.R` file.
+fn run_output_text(sb: &Sandbox) -> String {
+    format!("{}\n{}", sb.stdout, sb.stderr)
+}
+
+/// Apply the expect.toml rules on the sandboxed run: `R/*.R` files on disk,
+/// or (for `file = "@run"`) the captured stdout+stderr of the R execution.
+fn check_rules(case: &Path, sb: &Sandbox) -> Vec<RuleResult> {
     read_expect(case)
         .rule
         .iter()
         .map(|r| {
-            let target = work.join(&r.file);
-            if !target.exists() {
-                return RuleResult {
-                    ok: false,
-                    msg: format!("{} absent (non généré)", r.file),
-                };
-            }
-            let content = std::fs::read_to_string(&target).unwrap_or_default();
+            let content = if r.file == RUN_TARGET {
+                run_output_text(sb)
+            } else {
+                let target = sb.work.join(&r.file);
+                if !target.exists() {
+                    return RuleResult {
+                        ok: false,
+                        msg: format!("{} absent (non généré)", r.file),
+                    };
+                }
+                std::fs::read_to_string(&target).unwrap_or_default()
+            };
             if let Some(p) = &r.must_contain {
                 RuleResult {
                     ok: content.contains(p),
@@ -266,8 +298,18 @@ fn check_rules(case: &Path, work: &Path) -> Vec<RuleResult> {
 }
 
 /// Unique R files referenced by the rules (targeted golden, no stdlib noise).
+///
+/// Excludes `@run`: its captured text carries CLI progress chatter with elapsed-ms timings
+/// (`progress.rs`'s `Step`), which differ on every invocation. Byte-exact golden diffing on it
+/// would false-positive as REGRESS on every run. `@run` stays grep-only, same philosophy as the
+/// rest of this oracle ("never hand-written/exact-matched R", just substring rules).
 fn ruled_files(case: &Path) -> Vec<String> {
-    let mut files: Vec<String> = read_expect(case).rule.into_iter().map(|r| r.file).collect();
+    let mut files: Vec<String> = read_expect(case)
+        .rule
+        .into_iter()
+        .map(|r| r.file)
+        .filter(|f| f != RUN_TARGET)
+        .collect();
     files.sort();
     files.dedup();
     files
@@ -336,7 +378,7 @@ pub fn run(filter: Option<String>, status: Option<String>, keep: bool) {
     for case in &dirs {
         let meta = read_meta(case);
         let sb = build_sandbox(case);
-        let checks = check_rules(case, &sb.work);
+        let checks = check_rules(case, &sb);
         let failed: Vec<&RuleResult> = checks.iter().filter(|c| !c.ok).collect();
         let rules_pass = !checks.is_empty() && failed.is_empty();
 
@@ -410,7 +452,7 @@ pub fn run(filter: Option<String>, status: Option<String>, keep: bool) {
     }
 }
 
-pub fn add(slug: &str, from: Option<String>, cmd: &str) {
+pub fn add(slug: &str, from: Option<String>, cmd: &str, layer: &str) {
     let cases = PathBuf::from(CASES_DIR);
     if !cases.exists() {
         let _ = std::fs::create_dir_all(&cases);
@@ -424,8 +466,10 @@ pub fn add(slug: &str, from: Option<String>, cmd: &str) {
     }
 
     match from {
+        // Curated copy (TypR/ + DESCRIPTION/NAMESPACE only), same as `snapshot` — avoids
+        // dragging renv/.git/large caches from a real project into the catalog.
         Some(src) => {
-            if let Err(e) = copy_dir(&PathBuf::from(&src), &dir.join("repro")) {
+            if let Err(e) = copy_repro_curated(&PathBuf::from(&src), &dir.join("repro")) {
                 eprintln!("{RED}Impossible de copier {src}: {e}{RESET}");
                 std::process::exit(1);
             }
@@ -441,7 +485,7 @@ pub fn add(slug: &str, from: Option<String>, cmd: &str) {
     let meta = CaseMeta {
         title: format!("TODO: décrire {slug}"),
         cmd: cmd.to_string(),
-        layer: "transpile".to_string(),
+        layer: layer.to_string(),
         status: "open".to_string(),
         created: today,
         origin: "perso".to_string(),
