@@ -1,0 +1,7 @@
+[[rule]]
+file = "R/object.R"
+must_not_contain = "object$Animable <- Animable"
+
+[[rule]]
+file = "R/object.R"
+must_contain = "object$Id <- Id"

@@ -2216,16 +2216,24 @@ impl RTranslatable<(String, Context)> for Lang {
                             }
                         }
                     }
-                    // Export @pub opaque type constructors into the module environment
+                    // Export @pub opaque type constructors into the module environment.
+                    // Interfaces are compile-time-only structural validators (see CLAUDE.md
+                    // "Interface Constructors") and generate no R binding at all, so exporting
+                    // them here would reference an undefined variable (e.g. `object$Animable <-
+                    // Animable` with `Animable` never assigned).
                     if let Lang::Alias {
                         identifier: var,
                         is_public: true,
+                        target_type,
                         ..
                     } = lang
                     {
-                        if let Some(v) = Var::from_language(*var.clone()) {
-                            let alias_name = v.get_name();
-                            exports.push(format!("{}${} <- {}", name_str, alias_name, alias_name));
+                        if !target_type.is_interface() {
+                            if let Some(v) = Var::from_language(*var.clone()) {
+                                let alias_name = v.get_name();
+                                exports
+                                    .push(format!("{}${} <- {}", name_str, alias_name, alias_name));
+                            }
                         }
                     }
                 }

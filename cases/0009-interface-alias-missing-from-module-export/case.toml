@@ -1,0 +1,6 @@
+title = "@pub interface alias exported from a module as if it had an R binding (object$Animable <- Animable, undefined)"
+cmd = "build"
+layer = "transpile"
+status = "fixed"
+created = "2026-07-10"
+origin = "perso"
