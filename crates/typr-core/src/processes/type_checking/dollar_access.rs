@@ -48,8 +48,8 @@ pub fn dollar_access(
         _ => Op::Dollar(HelpData::default()),
     };
     let tc1 = typing(context, e1);
-    let mut errors = tc1.errors.clone();
-    let ty1 = tc1.value.clone();
+    let mut errors = tc1.errors;
+    let ty1 = tc1.value;
 
     match (ty1.reduce(context), e2.clone(), &op) {
         (
@@ -204,7 +204,7 @@ pub fn dollar_access(
                     Some(arg_typ) => {
                         let typ = arg_typ.get_type();
                         let tc = typing(&context.clone().push_var_type(var, typ, context), e2);
-                        errors.extend(tc.errors.clone());
+                        errors.extend(tc.errors);
                         TypeContext::new(tc.value, expr.clone(), context.clone())
                             .with_errors(errors)
                     }
@@ -361,7 +361,7 @@ pub fn dollar_access(
                         Some(arg_typ) => {
                             let typ = arg_typ.get_type();
                             let tc = typing(&context.clone().push_var_type(var, typ, context), e2);
-                            errors.extend(tc.errors.clone());
+                            errors.extend(tc.errors);
                             TypeContext::new(tc.value, expr.clone(), context.clone())
                                 .with_errors(errors)
                         }
@@ -398,7 +398,7 @@ pub fn dollar_access(
                             context,
                             &builder::operation(Op::Dollar(hd.clone()), first_arg, e2.clone()),
                         );
-                        errors.extend(tc.errors.clone());
+                        errors.extend(tc.errors);
                         TypeContext::new(
                             Type::Vec(vtype, n, Box::new(tc.value), h.clone()),
                             tc.lang,

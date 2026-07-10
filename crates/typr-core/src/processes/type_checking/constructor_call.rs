@@ -68,7 +68,7 @@ pub fn constructor_call(
             {
                 Some(rf) => {
                     let value_tc = typing(&new_context, &f.get_value());
-                    errors.extend(value_tc.errors.clone());
+                    errors.extend(value_tc.errors);
                     // reduce_and_subtype (not is_subtype): `record_fields`
                     // comes from the *reduced* record, so a field declared
                     // as `[Option]` reads `[any, .Some(T) | .None]` here,
@@ -100,8 +100,8 @@ pub fn constructor_call(
         let mut spread_merged: Vec<ArgumentType> = Vec::new();
         for spread_expr in spreads {
             let tc = typing(&new_context, spread_expr);
-            errors.extend(tc.errors.clone());
-            new_context = tc.context.clone();
+            errors.extend(tc.errors);
+            new_context = tc.context;
             match tc.value.reduce(context) {
                 Type::Record(spread_fields, _) => {
                     spread_merged = merge_record_fields_override(

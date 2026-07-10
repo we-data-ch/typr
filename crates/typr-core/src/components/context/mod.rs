@@ -383,11 +383,11 @@ impl Context {
             .reduce(|acc, x| if x.is_subtype(&acc, self).0 { x } else { acc });
         match res {
             Some(typ) => Ok(typ),
-            _ => Err(format!(
-                "Didn't find {} in the context: {}",
-                var.get_name(),
-                self.display_typing_context()
-            )),
+            // Every call site discards this message via `.ok()`/`unwrap_or_else`,
+            // so `display_typing_context()` (formats ~1700 stdlib+user entries)
+            // is never actually read — skip it rather than pay it on every
+            // speculative lookup (see project_typechecking_optimization memory).
+            _ => Err(format!("Didn't find {} in the context", var.get_name())),
         }
     }
 
@@ -482,19 +482,17 @@ impl Context {
     pub fn push_var_type(self, lang: Var, typ: Type, context: &Context) -> Context {
         let reduced_type = typ.reduce(context);
         let types = reduced_type.extract_types();
+        let new_subtypes = self.subtypes.add_types(&types, context);
         let var_type = self
             .typing_context
-            .clone()
             .pipe(|vt| {
                 if reduced_type.is_interface() && lang.is_variable() {
-                    vt.clone()
-                        .push_interface(lang.clone(), reduced_type, typ.clone(), context)
+                    vt.push_interface(lang.clone(), reduced_type, typ.clone(), context)
                 } else {
                     vt.push_var_type(&[(lang.clone(), typ.clone())])
                 }
             })
             .push_types(&types);
-        let new_subtypes = self.subtypes.add_types(&types, context);
         Context {
             typing_context: var_type,
             subtypes: new_subtypes,

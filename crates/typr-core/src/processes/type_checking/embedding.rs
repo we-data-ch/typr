@@ -166,7 +166,7 @@ pub fn synthesize_embedding(
             Err(_) => continue,
         };
         let tc = typing(&acc_context, &parsed);
-        errors.extend(tc.errors.clone());
+        errors.extend(tc.errors);
         acc_context = tc.context.push_embedded_method(
             a_name.to_string(),
             method_name.clone(),

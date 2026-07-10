@@ -150,14 +150,14 @@ impl TypeSystem for Type {
     }
 
     fn is_subtype(&self, other: &Type, context: &Context) -> (bool, Option<Context>) {
-        let cached =
-            SUBTYPE_CACHE.with(|c| c.borrow().get(&(self.clone(), other.clone())).copied());
+        let key = (self.clone(), other.clone());
+        let cached = SUBTYPE_CACHE.with(|c| c.borrow().get(&key).copied());
         if let Some(result) = cached {
             return (result, None);
         }
         let result = self.is_subtype_raw(other, context);
         SUBTYPE_CACHE.with(|c| {
-            c.borrow_mut().insert((self.clone(), other.clone()), result);
+            c.borrow_mut().insert(key, result);
         });
         (result, None)
     }

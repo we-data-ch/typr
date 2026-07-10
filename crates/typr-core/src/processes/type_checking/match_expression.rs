@@ -112,8 +112,8 @@ pub fn match_expression(
     branches: &[(Lang, Box<Lang>)],
 ) -> TypeContext {
     let match_tc = typing(context, match_exp);
-    let mut errors = match_tc.errors.clone();
-    let match_type = match_tc.value.clone();
+    let mut errors = match_tc.errors;
+    let match_type = match_tc.value;
 
     let branch_tcs: Vec<_> = branches
         .iter()

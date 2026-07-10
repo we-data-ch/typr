@@ -369,8 +369,8 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
         } => {
             let left_tc = typing(context, left_expr);
             let right_tc = typing(context, right_expr);
-            let mut errors = left_tc.errors.clone();
-            errors.extend(right_tc.errors.clone());
+            let mut errors = left_tc.errors;
+            errors.extend(right_tc.errors);
 
             let left_type = left_tc.value;
             let right_type = right_tc.value;
@@ -839,7 +839,7 @@ fn typing_container(
         .iter()
         .map(|tc| {
             if reduce {
-                tc.value.clone().reduce(context)
+                tc.value.reduce(context)
             } else {
                 tc.value.clone()
             }
@@ -989,7 +989,7 @@ fn typing_vector(context: &Context, expr: &Lang, exprs: &[Lang], h: &HelpData) -
         .collect();
     let types: Vec<Type> = type_contexts
         .iter()
-        .map(|tc| tc.value.clone().reduce(context))
+        .map(|tc| tc.value.reduce(context))
         .collect();
 
     let new_type = if types.is_empty() {
@@ -1108,9 +1108,8 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             body, help_data: h, ..
         } => {
             let tc = typing(context, body);
-            let errors = tc.errors.clone();
             TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
-                .with_errors(errors)
+                .with_errors(tc.errors)
         }
         Lang::Operator {
             operator: Op::And(_),
@@ -1126,8 +1125,8 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         } => {
             let tc1 = typing(context, e1);
             let tc2 = typing(context, e2);
-            let mut errors = tc1.errors.clone();
-            errors.extend(tc2.errors.clone());
+            let mut errors = tc1.errors;
+            errors.extend(tc2.errors);
 
             if tc1.value.is_boolean() && tc2.value.is_boolean() {
                 TypeContext::new(builder::boolean_type(), expr.clone(), context.clone())
@@ -1172,8 +1171,8 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         } => {
             let tc1 = typing(context, e1);
             let tc2 = typing(context, e2);
-            let mut errors = tc1.errors.clone();
-            errors.extend(tc2.errors.clone());
+            let mut errors = tc1.errors;
+            errors.extend(tc2.errors);
 
             if tc1.value == tc2.value {
                 TypeContext::new(builder::boolean_type(), expr.clone(), context.clone())
@@ -1294,7 +1293,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             help_data: _h,
         } => {
             let cond_tc = typing(context, cond);
-            let mut errors = cond_tc.errors.clone();
+            let mut errors = cond_tc.errors;
 
             if cond_tc.value.is_boolean() {
                 let true_tc = typing(context, true_branch);
@@ -1361,7 +1360,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             // it lets the transpiler emit `x` directly (§6.3).
             if spreads.len() == 1 && fields.is_empty() {
                 let tc = typing(context, &spreads[0]);
-                errors.extend(tc.errors.clone());
+                errors.extend(tc.errors);
                 return TypeContext::new(tc.value, expr.clone(), context.clone())
                     .with_errors(errors);
             }
@@ -1377,7 +1376,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let mut unresolved: Vec<Type> = Vec::new();
             for spread_expr in spreads {
                 let tc = typing(context, spread_expr);
-                errors.extend(tc.errors.clone());
+                errors.extend(tc.errors);
                 match tc.value.reduce(context) {
                     Type::Record(spread_fields, _) => {
                         merged = merge_record_fields_override(
@@ -1473,7 +1472,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             help_data: h,
         } => {
             let tc = typing(context, arr_exp);
-            let mut errors = tc.errors.clone();
+            let mut errors = tc.errors;
             let typ1 = tc.value;
 
             // Scalar indexing on a Tuple: list(a, b, c)[2] → element type at position 2
@@ -1615,7 +1614,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             help_data: h,
         } => {
             let iter_tc = typing(context, iter);
-            let mut errors = iter_tc.errors.clone();
+            let mut errors = iter_tc.errors;
 
             // A type is *iterable* if it can be materialised into an array `[T]`.
             // Three cases:
@@ -1700,7 +1699,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             help_data: h,
         } => {
             let tc = typing(context, not_exp);
-            let mut errors = tc.errors.clone();
+            let mut errors = tc.errors;
 
             match tc.value {
                 Type::Boolean(_, _) => TypeContext::new(
@@ -2036,7 +2035,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     let mut errors: Vec<TypRError> = Vec::new();
                     for el in elements {
                         let el_tc = typing(context, el);
-                        errors.extend(el_tc.errors.clone());
+                        errors.extend(el_tc.errors);
                         if !el_tc.value.is_subtype(&elem_type, context).0 {
                             errors.push(TypRError::Type(TypeError::Param(
                                 (*elem_type).clone(),
@@ -2184,7 +2183,7 @@ fn typing_self_constructor(
     // RFC §4.2 condition 2: `base` must be typed as `Self`, or a
     // structurally compatible subtype of it.
     let base_tc = typing(context, base_expr);
-    errors.extend(base_tc.errors.clone());
+    errors.extend(base_tc.errors);
     if !base_tc.value.is_subtype(&self_type, context).0 {
         errors.push(TypRError::Type(TypeError::SpreadTypeMismatch(
             self_type.clone(),
@@ -2213,7 +2212,7 @@ fn typing_self_constructor(
                 {
                     Some(rf) => {
                         let value_tc = typing(context, &f.get_value());
-                        errors.extend(value_tc.errors.clone());
+                        errors.extend(value_tc.errors);
                         if !value_tc.value.is_subtype(&rf.get_type(), context).0 {
                             errors.push(TypRError::Type(TypeError::Param(
                                 rf.get_type(),

@@ -1374,26 +1374,16 @@ fn get_expanded_parameters_with_their_types(
     // returned to the caller — the transpiler resolves them there to emit
     // the `|> as.ArrayN()` annotation. Argument-local variables never leak.
     let mut new_context = context.clone();
-    let mut typing_contexts: Vec<TypeContext> = Vec::with_capacity(values.len());
+    let mut new_values = Vec::with_capacity(values.len());
+    let mut types = Vec::with_capacity(values.len());
+    let mut errors: Vec<TypRError> = Vec::new();
     for value in values {
         let tc = typing(&new_context, value);
         new_context = new_context.hoist_aliases(&tc.context);
-        typing_contexts.push(tc);
+        errors.extend(tc.errors);
+        types.push(tc.value);
+        new_values.push(tc.lang);
     }
-    let errors: Vec<TypRError> = typing_contexts
-        .iter()
-        .flat_map(|tc| tc.errors.clone())
-        .collect();
-    let types = typing_contexts
-        .iter()
-        .cloned()
-        .map(|x| x.value)
-        .collect::<Vec<_>>();
-    let new_values = typing_contexts
-        .iter()
-        .cloned()
-        .map(|x| x.lang)
-        .collect::<Vec<_>>();
     (new_values, types, errors, new_context)
 }
 
@@ -1485,7 +1475,7 @@ fn interface_constructor_call(
     h: &HelpData,
 ) -> TypeContext {
     let arg_tc = typing(context, argument);
-    let mut errors = arg_tc.errors.clone();
+    let mut errors = arg_tc.errors;
     if let Err(err) = interface_satisfaction::check_interface_satisfaction(
         &arg_tc.context,
         &arg_tc.value,

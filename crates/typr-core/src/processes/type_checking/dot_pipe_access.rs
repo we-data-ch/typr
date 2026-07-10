@@ -45,8 +45,8 @@ pub fn dot_pipe_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang) -> 
     }
 
     let tc2 = typing(context, e2);
-    let mut errors = tc2.errors.clone();
-    let ty2 = tc2.value.clone().reduce(context);
+    let mut errors = tc2.errors;
+    let ty2 = tc2.value.reduce(context);
 
     match (ty2.clone(), e1.clone()) {
         (
@@ -96,7 +96,7 @@ pub fn dot_pipe_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang) -> 
         // unlike `$`'s update-in-place semantics (see `dollar_access.rs`).
         (Type::Record(fields1, h), Lang::List { .. }) => {
             let tc1 = e1.typing(context);
-            errors.extend(tc1.errors.clone());
+            errors.extend(tc1.errors);
             let fields3 = match tc1.value {
                 Type::Record(fields2, _) => fields1.union(&fields2).cloned().collect(),
                 _ => {
@@ -115,7 +115,7 @@ pub fn dot_pipe_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang) -> 
         }
         (Type::Generic(_, _), Lang::List { .. }) => {
             let tc1 = e1.typing(context);
-            errors.extend(tc1.errors.clone());
+            errors.extend(tc1.errors);
             TypeContext::new(
                 builder::intersection_type(&[ty2.clone(), tc1.value]),
                 expr.clone(),

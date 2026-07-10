@@ -38,11 +38,12 @@ impl<T: TypeSystem> Graph<T> {
 
     /// Enregistre un résultat de sous-typage dans le cache
     pub fn cache_subtype(self, t1: T, t2: T, result: bool) -> Self {
-        let mut new_cache = self.subtype_cache.clone();
-        new_cache.insert((t1, t2), result);
+        let mut subtype_cache = self.subtype_cache;
+        subtype_cache.insert((t1, t2), result);
         Graph {
-            subtype_cache: new_cache,
-            ..self
+            memory: self.memory,
+            root: self.root,
+            subtype_cache,
         }
     }
 
@@ -50,13 +51,9 @@ impl<T: TypeSystem> Graph<T> {
         if self.memory.contains(&typ) {
             self
         } else {
-            let new_memory = self
-                .memory
-                .iter()
-                .chain([typ.clone()].iter())
-                .cloned()
-                .collect();
             let new_root = self.root.add_type(typ.clone(), context);
+            let mut new_memory = self.memory;
+            new_memory.insert(typ);
             Graph {
                 memory: new_memory,
                 root: new_root,

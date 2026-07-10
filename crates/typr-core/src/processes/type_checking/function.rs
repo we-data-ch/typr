@@ -144,7 +144,7 @@ fn check_default_params(params: &[ArgumentType], context: &Context) -> Vec<TypRE
                 seen_default = true;
                 let declared_type = arg_typ.get_type();
                 let default_tc = default_lang.typing(context);
-                errors.extend(default_tc.errors.clone());
+                errors.extend(default_tc.errors);
                 let reduced_declared = reduce_type(context, &declared_type);
                 let is_bare_generic = matches!(
                     reduced_declared,
@@ -354,7 +354,7 @@ pub fn function(
     }
 
     let body_type = body.typing(&sub_context);
-    let mut errors = body_type.errors.clone();
+    let mut errors = body_type.errors;
     errors.extend(kind_consistency_errors);
     errors.extend(default_param_errors);
     let is_compatible = is_opaque_of(&body_type.value, ret_ty)
