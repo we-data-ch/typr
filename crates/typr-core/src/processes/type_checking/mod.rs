@@ -1570,10 +1570,29 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Variable { .. } => {
             let old_var = Var::try_from(expr.clone()).unwrap();
             let var = context.get_true_variable(&old_var);
-            context
+            let tc: TypeContext = context
                 .get_type_from_existing_variable(var)
                 .with_lang(expr, context)
-                .into()
+                .into();
+            // Not genuinely undefined (that's still silently `Any` — a
+            // pre-existing, separate gap) but resolvable to a member of a
+            // module in scope that was never `use`d: point the error at the
+            // fix instead of letting it surface later as a confusing
+            // downstream type mismatch (see AliasNotImported for the same
+            // idea applied to type aliases).
+            if context.get_type_from_variable(&old_var).is_err() {
+                if let Some((module_name, is_public)) =
+                    context.find_variable_source_module(&old_var.get_name())
+                {
+                    return tc.with_errors(vec![TypRError::Type(TypeError::VariableNotImported(
+                        old_var.get_name(),
+                        module_name,
+                        is_public,
+                        old_var.get_help_data(),
+                    ))]);
+                }
+            }
+            tc
         }
         Lang::Scope { body: expr, .. } if expr.len() == 1 => typing(context, &expr[0]),
         Lang::Scope {
@@ -2698,6 +2717,69 @@ mod tests {
                 .iter()
                 .any(|e| matches!(e, TypRError::Type(TypeError::UndefinedVariable(_)))),
             "Expected UndefinedVariable error but got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_unimported_public_variable_reference_produces_variable_not_imported_error() {
+        use crate::components::error_message::type_error::TypeError;
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("module geo { @pub let circle_ratio <- 3.14; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+        let expr = parse_from_string("let y <- circle_ratio;", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result.get_errors().iter().any(|e| matches!(
+                e,
+                TypRError::Type(TypeError::VariableNotImported(name, module, is_public, _))
+                    if name == "circle_ratio" && module == "geo" && *is_public
+            )),
+            "Expected VariableNotImported error but got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_unimported_private_variable_reference_reports_it_as_private() {
+        use crate::components::error_message::type_error::TypeError;
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("module geo { let secret_value <- 42; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+        let expr = parse_from_string("let y <- secret_value;", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result.get_errors().iter().any(|e| matches!(
+                e,
+                TypRError::Type(TypeError::VariableNotImported(name, module, is_public, _))
+                    if name == "secret_value" && module == "geo" && !*is_public
+            )),
+            "Expected VariableNotImported (private) error but got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_unimported_function_call_produces_variable_not_imported_error() {
+        use crate::components::error_message::type_error::TypeError;
+        use crate::processes::parsing::parse_from_string;
+        let fp = FluentParser::new()
+            .push("module geo { @pub let area <- fn(r: num): num { r * r * 3.14 }; };")
+            .parse_type_next();
+        let context = fp.context.clone();
+        let expr = parse_from_string("let y <- area(2.0);", "test");
+        let result = typing_with_errors(&context, &expr);
+        assert!(
+            result.get_errors().iter().any(|e| matches!(
+                e,
+                TypRError::Type(TypeError::VariableNotImported(name, module, is_public, _))
+                    if name == "area" && module == "geo" && *is_public
+            )),
+            "Expected VariableNotImported error but got: {:?}",
             result.get_errors()
         );
     }

@@ -1,0 +1,26 @@
+# exit=1
+
+## stdout/stderr
+
+  Parsing... done (279 ms)
+  Type checking... failed
+Type errors found:
+  × Type error: Function `@`<Scene> not defined in this scope.
+   ╭─[std.ty:1:1]
+   ╰────
+
+  × Type error: Function new_scene<[1, list{"fill": char, "position": Vec[2,
+  │ int], "radius": int, "id": char, "stroke": char}]> not defined in this
+  │ scope.
+    ╭─[TypR/main.ty:22:15]
+ 21 │ 
+ 22 │ let scene <- new_scene([c1]);
+    ·               ▲
+    ·               ╰── Not defined in this scope
+ 23 │ 
+    ╰────
+
+
+
+## R généré
+

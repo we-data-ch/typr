@@ -1,0 +1,7 @@
+[[rule]]
+file = "@run"
+must_not_contain = "Unknown element"
+
+[[rule]]
+file = "@run"
+must_not_contain = "elf.objects.extend"

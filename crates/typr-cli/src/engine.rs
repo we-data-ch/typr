@@ -17,6 +17,7 @@ use std::io::Write;
 use std::path::Path;
 use typr_core::components::context::config::Environment;
 use typr_core::components::context::Context;
+use typr_core::components::error_message::syntax_error::SyntaxError;
 use typr_core::components::error_message::typr_error::TypRError;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::Type;
@@ -51,19 +52,27 @@ impl<'a> TypRFile<'a> {
     }
 }
 
-/// Parse code and return the AST
-pub fn parse_code(path: &Path, environment: Environment) -> Lang {
+/// Parse code and return the AST, plus every syntax error collected while
+/// parsing the entry file and every module file it (transitively) imports.
+/// Previously these were silently discarded — see `wrong_comment` in
+/// `typr-core`'s `parsing/mod.rs` for the underlying `push_parse_error`
+/// mechanism this now actually surfaces.
+pub fn parse_code(path: &Path, environment: Environment) -> (Lang, Vec<SyntaxError>) {
     let file = get_os_file(path.to_str().unwrap());
     let file_content = read_file(path).unwrap_or_else(|| panic!("Path {:?} not found", path));
     let base_file = TypRFile::new(&file_content, file);
 
     let parse_result = base_file.parse_with_errors();
-    metaprogrammation(parse_result.ast, environment)
+    let mut errors = parse_result.errors;
+    let (lang, module_errors) = metaprogrammation(parse_result.ast, environment);
+    errors.extend(module_errors);
+    (lang, errors)
 }
 
 /// Parse code, also returning the set of `.ty` files read (entry file
 /// included) with content hashes and module dependency edges — used by the
-/// incremental-build manifest.
+/// incremental-build manifest. Syntax errors from the entry file and every
+/// imported module are folded into `ExpansionInfo::syntax_errors`.
 pub fn parse_code_with_info(path: &Path, environment: Environment) -> (Lang, ExpansionInfo) {
     let file = get_os_file(path.to_str().unwrap());
     let file_content = read_file(path).unwrap_or_else(|| panic!("Path {:?} not found", path));
@@ -75,14 +84,24 @@ pub fn parse_code_with_info(path: &Path, environment: Environment) -> (Lang, Exp
         path.to_string_lossy().into_owned(),
         crate::cache::hash_str(&file_content),
     );
+    let mut errors = parse_result.errors;
+    errors.append(&mut info.syntax_errors);
+    info.syntax_errors = errors;
     (lang, info)
 }
 
 /// Parse code from a string (content already loaded, e.g. after shebang stripping)
-pub fn parse_code_from_str(content: &str, file_name: &str, environment: Environment) -> Lang {
+pub fn parse_code_from_str(
+    content: &str,
+    file_name: &str,
+    environment: Environment,
+) -> (Lang, Vec<SyntaxError>) {
     let base_file = TypRFile::new(content, file_name.to_string());
     let parse_result = base_file.parse_with_errors();
-    metaprogrammation(parse_result.ast, environment)
+    let mut errors = parse_result.errors;
+    let (lang, module_errors) = metaprogrammation(parse_result.ast, environment);
+    errors.extend(module_errors);
+    (lang, errors)
 }
 
 /// Complete result of compiling a TypR file (parsing + type checking)
@@ -125,12 +144,13 @@ pub fn compile_string_with_errors(
 
     // Parse with error collection
     let parse_result = base_file.parse_with_errors();
-    let ast = metaprogrammation(parse_result.ast, environment);
+    let (ast, module_errors) = metaprogrammation(parse_result.ast, environment);
 
-    // Convert syntax errors to TypRErrors
+    // Convert syntax errors (entry file + every imported module) to TypRErrors
     let mut all_errors: Vec<TypRError> = parse_result
         .errors
         .into_iter()
+        .chain(module_errors)
         .map(TypRError::Syntax)
         .collect();
 

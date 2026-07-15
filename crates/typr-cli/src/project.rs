@@ -20,6 +20,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use typr_core::components::context::config::Environment;
 use typr_core::components::context::Context;
+use typr_core::components::error_message::help_message::ErrorMsg;
+use typr_core::components::error_message::syntax_error::SyntaxError;
 use typr_core::components::language::var::Var;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::type_system::TypeSystem;
@@ -42,6 +44,39 @@ fn print_step(title: &str) {
     println!("\n{}", "─".repeat(60));
     println!("  ▶ {}", title);
     println!("{}", "─".repeat(60));
+}
+
+/// Prints every syntax error collected while parsing (entry file + every
+/// imported module), and reports whether any of them represents code
+/// silently dropped from the AST (`SyntaxError::UnknownElement`) — the only
+/// kind serious enough to abort the pipeline. Everything else (forgotten
+/// semicolons, `//` comments, `let`/`type` mixups, ...) is fully recovered
+/// by the parser already and is only printed as a heads-up.
+///
+/// Previously these were parsed and thrown away entirely by
+/// `engine::parse_code`/`parse_code_with_info`/`parse_code_from_str` — a
+/// stray `//` comment or any other unparseable trailing statement could
+/// silently vanish from a build with zero indication anything was wrong.
+fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
+    if errors.is_empty() {
+        return false;
+    }
+    let (fatal, warnings): (Vec<_>, Vec<_>) = errors
+        .into_iter()
+        .partition(|e| matches!(e, SyntaxError::UnknownElement { .. }));
+    if !warnings.is_empty() {
+        eprintln!("Syntax warnings:");
+        for err in warnings {
+            eprintln!("  - {}", err.display());
+        }
+    }
+    if !fatal.is_empty() {
+        eprintln!("Syntax errors found (some source code could not be parsed and was dropped):");
+        for err in &fatal {
+            eprintln!("  - {}", err.clone().display());
+        }
+    }
+    !fatal.is_empty()
 }
 
 /// Pretty-print a Lang AST tree, omitting noise like HelpData
@@ -592,7 +627,12 @@ pub fn check_project() {
     let context = Context::default().set_environment(Environment::Project);
 
     let step = Step::new("Parsing");
-    let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    let (lang, syntax_errors) =
+        parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    if report_syntax_errors(syntax_errors) {
+        step.fail();
+        std::process::exit(1);
+    }
     step.done();
 
     let step = Step::new("Type checking");
@@ -613,7 +653,11 @@ pub fn check_file(path: &PathBuf) {
     write_std_for_type_checking(&dir);
 
     let step = Step::new("Parsing");
-    let lang = parse_code(path, context.get_environment());
+    let (lang, syntax_errors) = parse_code(path, context.get_environment());
+    if report_syntax_errors(syntax_errors) {
+        step.fail();
+        std::process::exit(1);
+    }
     step.done();
 
     let step = Step::new("Type checking");
@@ -776,8 +820,12 @@ fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool, increme
         .set_test_mode(test_mode);
 
     let step = Step::new("Parsing");
-    let (lang, expansion_info) =
+    let (lang, mut expansion_info) =
         parse_code_with_info(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    if report_syntax_errors(std::mem::take(&mut expansion_info.syntax_errors)) {
+        step.fail();
+        std::process::exit(1);
+    }
     step.done();
 
     // Per-module type-check cache: unchanged modules (same source + deps +
@@ -874,7 +922,11 @@ pub fn build_file(path: &Path, test_mode: bool) {
     write_std_for_type_checking(&dir);
 
     let step = Step::new("Parsing");
-    let lang = parse_code(path, Environment::StandAlone);
+    let (lang, syntax_errors) = parse_code(path, Environment::StandAlone);
+    if report_syntax_errors(syntax_errors) {
+        step.fail();
+        std::process::exit(1);
+    }
     step.done();
 
     let context = Context::default().set_test_mode(test_mode);
@@ -1001,7 +1053,11 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool) {
     let file_name = path.to_str().unwrap().to_string();
 
     let step = Step::new("Parsing");
-    let lang = parse_code_from_str(content, &file_name, Environment::StandAlone);
+    let (lang, syntax_errors) = parse_code_from_str(content, &file_name, Environment::StandAlone);
+    if report_syntax_errors(syntax_errors) {
+        step.fail();
+        std::process::exit(1);
+    }
     step.done();
 
     let work_dir = if keep_files {
@@ -1220,7 +1276,12 @@ pub fn generate_spg(output: Option<PathBuf>) {
     let context = Context::default().set_environment(Environment::Project);
 
     let step = Step::new("Parsing");
-    let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    let (lang, syntax_errors) =
+        parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    if report_syntax_errors(syntax_errors) {
+        step.fail();
+        std::process::exit(1);
+    }
     step.done();
 
     let step = Step::new("Type checking");
@@ -1501,7 +1562,12 @@ fn document_impl(quiet: bool) {
     let context = Context::default().set_environment(Environment::Project);
 
     let step = Step::new("Parsing");
-    let lang = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    let (lang, syntax_errors) =
+        parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    if report_syntax_errors(syntax_errors) {
+        step.fail();
+        std::process::exit(1);
+    }
     step.done();
 
     let step = Step::new("Type checking");

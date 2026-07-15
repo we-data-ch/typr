@@ -433,6 +433,27 @@ impl Context {
         })
     }
 
+    /// Same idea as `find_alias_source_module`, but for ordinary names
+    /// (variables and functions) rather than type aliases. Scans every
+    /// module currently in scope for a member named `name`, checking public
+    /// members first, then private ones — returns `(module_name,
+    /// is_public)` on a hit. A private hit still points the error at
+    /// `use M::name;` (per the fix this supports): the member exists and
+    /// this is where it lives, even though that particular `use` will itself
+    /// fail with `PrivateImport` until the declaration gains `@pub`/`@export`.
+    pub fn find_variable_source_module(&self, name: &str) -> Option<(String, bool)> {
+        self.variables().find_map(|(var, typ)| {
+            let module_type = typ.clone().to_module_type().ok()?;
+            if module_type.is_public_member(name) {
+                Some((var.get_name(), true))
+            } else if module_type.has_private_member(name) {
+                Some((var.get_name(), false))
+            } else {
+                None
+            }
+        })
+    }
+
     fn is_matching_alias(&self, var1: &Var, var2: &Var) -> bool {
         var1.name == var2.name
     }

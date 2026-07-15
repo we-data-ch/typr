@@ -1,0 +1,82 @@
+#' @importFrom jsonlite toJSON
+@extern jsonlite::toJSON: (Any) -> char;
+@writeLines: (path: char, con: char) -> Empty;
+@cat: (...Any) -> Empty;
+@str: (Any) -> Empty;
+
+mod color;
+mod object;
+mod animation;
+mod storyboard;
+
+use object::Object;
+use color::Color;
+use animation::Animation;
+use animation::set_time;
+use storyboard::new_storyboard;
+use storyboard::snapshots;
+
+@pub
+type Scene <- list {
+	width: int,
+	height: int,
+	background: Color,
+	fps: int,
+	time: int,
+	objects: [Object],
+	animations: [Animation]
+};
+
+@pub
+let new_scene <- fn(objects: [Object]): Scene {
+	Scene:{
+		width: 1920,
+		height: 1080,
+		background: "#000000",
+		fps: 60,
+		time: 0,
+		objects: objects,
+		animations: [] as! [Animation]
+	}	
+};
+
+@pub
+let add <- fn(self: Scene, ani: Animation): Scene {
+	let a <- ani.set_time(self$time);
+	Scene:{
+		animations: (self$animations.extend(ani)),
+		time: (a$time),
+		...self
+	}	
+};
+
+@pub
+let set_objects <- fn(self: Scene, objects: [Object]): Scene {
+	Scene:{
+		objects: objects,
+		...self
+	}
+};
+
+@pub 
+let add_object <- fn(self: Scene, object: Object): Scene {
+	Scene:{
+		objects: self.objects.extend(object),
+		...self
+	}
+}
+
+@pub
+let print <- fn(self: Scene): Empty {
+	cat("Scene: ");
+	print(self$objects) 
+};
+
+@pub
+let render <- fn(self: Scene, path: char): Empty {
+	new_storyboard(self$objects)
+		|> snapshots(self$animations)
+		|> to_native()
+		|> toJSON()
+		|> writeLines(con = path)
+};

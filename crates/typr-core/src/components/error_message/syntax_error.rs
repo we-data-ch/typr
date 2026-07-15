@@ -30,6 +30,7 @@ pub enum SyntaxError {
         help_data: HelpData,
     },
     MutationTargetNotAssignable(HelpData),
+    WrongCommentSyntax(HelpData),
     WithNode(Box<Lang>, Box<SyntaxError>),
 }
 
@@ -49,6 +50,7 @@ impl SyntaxError {
             SyntaxError::LetInsteadOfType { help_data, .. } => Some(help_data.clone()),
             SyntaxError::TypeInsteadOfLet { help_data, .. } => Some(help_data.clone()),
             SyntaxError::MutationTargetNotAssignable(h) => Some(h.clone()),
+            SyntaxError::WrongCommentSyntax(h) => Some(h.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
     }
@@ -101,6 +103,9 @@ impl SyntaxError {
             SyntaxError::MutationTargetNotAssignable(_) => {
                 "Mutation target is not assignable: `!;` requires a variable or pipeline/UFC starting with a variable".to_string()
             }
+            SyntaxError::WrongCommentSyntax(_) => {
+                "TypR comments use `#`, not `//`".to_string()
+            }
             SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
     }
@@ -117,6 +122,7 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::FunctionWithoutType(help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), 0))
                     .text("Function parameter is missing a type annotation")
                     .pos_text("Here")
@@ -126,6 +132,7 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::FunctionWithoutReturnType(help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), 0))
                     .text("Hey You forgot to specify the function return type after the ':' : 'fn(...): Type'")
                     .pos_text("Here")
@@ -135,6 +142,7 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::ForgottenSemicolon(help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), 1))
                     .text("You forgot a semicolon at the end of your statement")
                     .pos_text("Here")
@@ -144,6 +152,7 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::MissingListPrefix(help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), 0))
                     .text("You forgot to add a list prefix ('list' or ':') before the braces")
                     .pos_text("Here")
@@ -153,6 +162,7 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::EmptyFunctionBody(help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), 0))
                     .text("Empty function body is not allowed")
                     .pos_text("Empty body here")
@@ -162,6 +172,7 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::FunctionTypeSyntax(help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), 0))
                     .text("Function types use parentheses without 'fn'")
                     .pos_text("Unexpected 'fn' here")
@@ -171,6 +182,7 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::RecordConstructorIndex(help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), 0))
                     .text("A record constructor takes exactly one integer length")
                     .pos_text("Here")
@@ -180,6 +192,7 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::RecordInRecursiveParams(help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), 0))
                     .text(
                         "Record blocks `{ ... }` are not allowed inside recursive type parameters",
@@ -195,6 +208,7 @@ impl ErrorMsg for SyntaxError {
             } => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name.clone(), text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), element.len()))
                     .text(format!(
                         "Unknown element `{}` in `{}` at `{}`",
@@ -206,6 +220,7 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::LetInsteadOfType { name, help_data } => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), 0))
                     .text("Use `type` instead of `let` to create a type alias")
                     .pos_text("`let` used here")
@@ -215,6 +230,7 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::TypeInsteadOfLet { name, help_data } => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), 0))
                     .text("Use `let` instead of `type` to create a variable binding")
                     .pos_text("`type` used here")
@@ -224,10 +240,21 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::MutationTargetNotAssignable(help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
                     .pos((help_data.get_offset(), 0))
                     .text("Mutation target is not assignable")
                     .pos_text("Here")
                     .help("`!;` can only be applied to a variable, pipeline (`x |> f()!;`), or UFC (`obj.method()!;`) whose head is a variable")
+                    .build()
+            }
+            SyntaxError::WrongCommentSyntax(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), 2))
+                    .text("TypR comments use `#`, not `//`")
+                    .pos_text("Treated as a comment here")
+                    .help("Replace `//` with `#` — the rest of the line was ignored as a comment")
                     .build()
             }
             SyntaxError::WithNode(_, inner) => return inner.display(),

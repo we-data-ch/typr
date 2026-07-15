@@ -1,0 +1,53 @@
+# exit=1
+
+## stdout/stderr
+
+  Parsing... done (274 ms)
+  Type checking... failed
+Type errors found:
+  × Type error: Unknown element `elf.objects.extend(object),` in `TypR/
+  │ scene.ty` at `65`
+    ╭─[TypR/scene.ty:64:13]
+ 63 │     Scene:{
+ 64 │         objects: self.objects.extend(object),
+    ·                   ▲
+    ·                   ╰── Error here
+ 65 │         ...self
+    ╰────
+
+  × Type error: type [any, list{id: char} & interface{ animate: fn(a: SELF, b:
+  │ Animation) -> SELF }] doesn't match type [#N, __RIGID_0]
+    ╭─[TypR/scene.ty:26:11]
+ 25 │     time: int,
+ 26 │     objects: [Object],
+    ·              ▲
+    ·              ╰── Expected [any, interface{ animate: fn(a: SELF, b: Animation) -> SELF } & list{id: char}]
+ 27 │     animations: [Animation]
+    ╰────
+    ╭─[TypR/scene.ty:64:26]
+ 63 │     Scene:{
+ 64 │         objects: self.objects.extend(object),
+    ·                                ┬
+    ·                                ╰── Received [#N, __RIGID_0]
+ 65 │         ...self
+    ╰────
+
+  × Type error: Function `@`<Scene> not defined in this scope.
+   ╭─[std.ty:1:1]
+   ╰────
+
+  × Type error: Function new_scene<[1, list{"stroke": char, "id": char,
+  │ "fill": char, "position": Vec[2, int], "radius": int}]> not defined in
+  │ this scope.
+    ╭─[TypR/main.ty:22:15]
+ 21 │ 
+ 22 │ let scene <- new_scene([c1]);
+    ·               ▲
+    ·               ╰── Not defined in this scope
+ 23 │ 
+    ╰────
+
+
+
+## R généré
+

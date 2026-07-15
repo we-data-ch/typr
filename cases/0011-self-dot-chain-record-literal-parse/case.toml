@@ -1,0 +1,6 @@
+title = "self.foo.bar(baz) mis-parsed as field value in a record literal that ends with ...self"
+cmd = "check"
+layer = "parse"
+status = "fixed"
+created = "2026-07-11"
+origin = "perso"

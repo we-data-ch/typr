@@ -21,6 +21,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 use std::path::PathBuf;
 use typr_core::components::context::config::Environment;
+use typr_core::components::error_message::syntax_error::SyntaxError;
 use typr_core::components::language::Lang;
 use typr_core::processes::parsing::parse;
 
@@ -50,6 +51,11 @@ pub struct ExpansionInfo {
     /// Importer module name (`"main"` for the entry file) → directly
     /// imported module names.
     pub deps: BTreeMap<String, Vec<String>>,
+    /// Syntax errors collected while parsing every imported module file
+    /// (the entry file's own errors are not included here — the caller of
+    /// `metaprogrammation_with_info` already has those from its own parse of
+    /// the entry file, before expansion starts).
+    pub syntax_errors: Vec<SyntaxError>,
 }
 
 impl ExpansionInfo {
@@ -164,6 +170,7 @@ impl ModuleExpander {
                     .unwrap_or_else(|_| panic!("Can't read module file '{}'", module_path));
                 self.info.record_file(&name, &module_path, &content);
                 let parse_result = parse(LocatedSpan::new_extra(&content, file));
+                self.info.syntax_errors.extend(parse_result.errors);
 
                 // 4. Wrap parsed AST in a `Module { .. }` node and expand it
                 //    recursively (the imported file may itself contain
@@ -213,9 +220,12 @@ impl ModuleExpander {
 /// the corresponding module files.
 ///
 /// Uses a shared [`ModuleExpander`] to avoid re-reading/parsing the same
-/// module file more than once and to detect circular imports.
-pub fn metaprogrammation(adt: Lang, environment: Environment) -> Lang {
-    metaprogrammation_with_info(adt, environment).0
+/// module file more than once and to detect circular imports. Also returns
+/// the syntax errors collected while parsing every imported module file
+/// (not the entry file's own — see `ExpansionInfo::syntax_errors`).
+pub fn metaprogrammation(adt: Lang, environment: Environment) -> (Lang, Vec<SyntaxError>) {
+    let (lang, info) = metaprogrammation_with_info(adt, environment);
+    (lang, info.syntax_errors)
 }
 
 /// Same as [`metaprogrammation`], additionally returning which `.ty` files
@@ -240,7 +250,7 @@ mod tests {
         let file_name = main_file.to_string_lossy().into_owned();
         let span = LocatedSpan::new_extra(content, file_name);
         let parse_result = parse(span);
-        metaprogrammation(parse_result.ast, Environment::StandAlone)
+        metaprogrammation(parse_result.ast, Environment::StandAlone).0
     }
 
     /// When the same module is imported from two separate places, the second

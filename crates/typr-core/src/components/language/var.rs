@@ -286,7 +286,7 @@ impl Var {
         !self.is_alias()
     }
 
-    pub fn is_opaque(&self) -> bool {
+    pub fn is_opaque_alias(&self) -> bool {
         self.is_alias() && self.is_opaque
     }
 
@@ -294,11 +294,15 @@ impl Var {
         self.is_opaque
     }
 
+    pub fn is_opaque(&self) -> bool {
+        self.get_opacity()
+    }
+
     pub fn to_alias_type(self) -> Type {
         Type::Alias(
             self.get_name(),
             vec![],
-            self.get_opacity(),
+            self.is_opaque(),
             self.get_help_data(),
         )
     }

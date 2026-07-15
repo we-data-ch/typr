@@ -1,0 +1,6 @@
+title = "Missing ';' before an @pub let swallows the next statement via a dead '@' infix operator"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-07-11"
+origin = "perso"

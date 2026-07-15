@@ -1351,9 +1351,29 @@ fn apply_from_variable_inner(
 
     // === ERROR : no filtering worked ===
     let mut errors = param_errors;
-    errors.push(TypRError::Type(TypeError::FunctionNotFound(
-        var.clone().set_type_from_params(parameters, context),
-    )));
+    // No signature at all under this name (`get_functions_from_name` came back
+    // empty) may mean it's declared in an in-scope module but never `use`d —
+    // same idea as `VariableNotImported` for a bare variable reference, just
+    // reached through function-call resolution instead of `Lang::Variable`.
+    let not_imported = all_signatures
+        .is_empty()
+        .then(|| context.find_variable_source_module(&var.get_name()))
+        .flatten();
+    match not_imported {
+        Some((module_name, is_public)) => {
+            errors.push(TypRError::Type(TypeError::VariableNotImported(
+                var.get_name(),
+                module_name,
+                is_public,
+                h.clone(),
+            )));
+        }
+        None => {
+            errors.push(TypRError::Type(TypeError::FunctionNotFound(
+                var.clone().set_type_from_params(parameters, context),
+            )));
+        }
+    }
     TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
         .with_errors(errors)
 }

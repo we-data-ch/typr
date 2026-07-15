@@ -1,0 +1,44 @@
+mod color;
+mod animation;
+
+use color::Color;
+use animation:: Animation;
+
+@cat: (...Any) -> Empty;
+
+@pub
+type Circle <- list {
+	id: char,
+	position: Vec[2, int],
+	radius: int,
+	stroke: Color,
+	fill: Color
+};
+
+@pub
+let new_circle <- fn(id: char, r: int): Circle {
+	Circle:{
+		id: id,
+		position: c(0, 0),
+		radius: r,
+		stroke: "#000000",
+		fill: "#ffffff"
+	}
+};
+
+@pub
+let print <- fn(self: Circle): Empty {
+	cat("Circle<", self$radius, ",", self$position,">")
+};
+
+@pub
+let animate <- fn(self: Circle, animation: Animation): Circle {
+	...
+};
+
+Test {
+	test_that("circle with the right radius", {
+		let c1 <- new_circle("c1", 4);
+		expect_equal(c1$radius, 4)
+	})
+}

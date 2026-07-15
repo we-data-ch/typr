@@ -1,0 +1,20 @@
+mod animation;
+use animation::Animation;
+
+@pub
+type Animable <- interface {
+	animate: (self: Self, animation: Animation) -> Self
+};
+
+@pub
+type Id <- list {
+	id: char
+};
+
+@pub
+type Object <- Id & Animable;
+
+@pub
+let get_object_by_id <- fn(objects: [Object]): Object {
+	...
+};

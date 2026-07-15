@@ -44,6 +44,37 @@ pub fn dot_pipe_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang) -> 
         return typing(context, &fun_app);
     }
 
+    // Plain field access (`receiver.field`, e.g. `self.objects`, `p.x`):
+    // built by the generic operator `combine()` with `e1` = receiver and
+    // `e2` = the bare field-name token. This must be tried before the
+    // generic `(ty2, e1)` matching below, which instead assumes `e2` is
+    // the receiver (`e1` the index/name) — the convention used by the
+    // *synthetic* tuple-destructuring node built in `parsing/mod.rs`
+    // (`rhs: Integer(index), lhs: tmp_var`). Typing a bare field-name
+    // token as a free variable can never legitimately produce a
+    // `Type::Record`, so without this, `receiver.field` could only ever
+    // fall through to the catch-all `WrongExpression` error below.
+    if let Lang::Variable { name, .. } | Lang::Char { value: name, .. } = e2 {
+        let ty1 = e1.typing(context).value.reduce(context);
+        if let Type::Record(fields, _) = ty1.clone() {
+            let mut errors = Vec::new();
+            return field_access::find_field_or_push_error(
+                &fields,
+                name,
+                &ty1,
+                e2.get_help_data(),
+                &mut errors,
+            )
+            .map(|ty| {
+                TypeContext::new(ty, expr.clone(), context.clone()).with_errors(errors.clone())
+            })
+            .unwrap_or_else(|| {
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                    .with_errors(errors.clone())
+            });
+        }
+    }
+
     let tc2 = typing(context, e2);
     let mut errors = tc2.errors;
     let ty2 = tc2.value.reduce(context);

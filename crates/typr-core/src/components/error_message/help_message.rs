@@ -44,6 +44,7 @@ where
 // Builder pour Single
 #[derive(Debug)]
 pub struct SingleBuilder<S: SourceCode + 'static + std::fmt::Debug> {
+    kind: String,
     text: String,
     pos: SourceSpan,
     pos_text: String,
@@ -54,12 +55,21 @@ pub struct SingleBuilder<S: SourceCode + 'static + std::fmt::Debug> {
 impl<S: SourceCode + 'static + std::fmt::Debug> SingleBuilder<S> {
     pub fn new(file_name: String, text: S) -> Self {
         Self {
+            kind: "Type error".to_string(),
             text: "Default error message".to_string(),
             pos: (0_usize, 0_usize).into(),
             pos_text: "Error here".to_string(),
             file: NamedSource::new(file_name, text),
             help: None,
         }
+    }
+
+    /// Overrides the leading label (defaults to "Type error") — e.g.
+    /// `SyntaxError::display()` uses `.kind("Syntax error")` so a parse-time
+    /// issue doesn't get mislabeled as a type error.
+    pub fn kind<T: Into<String>>(mut self, kind: T) -> Self {
+        self.kind = kind.into();
+        self
     }
 
     pub fn text<T: Into<String>>(mut self, text: T) -> Self {
@@ -84,6 +94,7 @@ impl<S: SourceCode + 'static + std::fmt::Debug> SingleBuilder<S> {
 
     pub fn build(self) -> Result<()> {
         let res = MsgTemplate::Single {
+            kind: self.kind,
             text: self.text,
             pos: self.pos,
             pos_text: self.pos_text,
@@ -102,6 +113,7 @@ impl From<(String, String)> for SingleBuilder<String> {
 
 // Builder pour Double
 pub struct DoubleBuilder<S: SourceCode + 'static + std::fmt::Debug> {
+    kind: String,
     text: String,
     pos1: SourceSpan,
     pos_text1: String,
@@ -115,6 +127,7 @@ pub struct DoubleBuilder<S: SourceCode + 'static + std::fmt::Debug> {
 impl<S: SourceCode + 'static + std::fmt::Debug + Clone> DoubleBuilder<S> {
     pub fn new(file_name: String, text: S, file_name2: String, text2: S) -> Self {
         Self {
+            kind: "Type error".to_string(),
             text: "Default error message".to_string(),
             pos1: (0_usize, 0_usize).into(),
             pos_text1: "First error".to_string(),
@@ -124,6 +137,12 @@ impl<S: SourceCode + 'static + std::fmt::Debug + Clone> DoubleBuilder<S> {
             file2: NamedSource::new(file_name2, text2),
             help: None,
         }
+    }
+
+    /// Overrides the leading label (defaults to "Type error").
+    pub fn kind<T: Into<String>>(mut self, kind: T) -> Self {
+        self.kind = kind.into();
+        self
     }
 
     pub fn text<T: Into<String>>(mut self, text: T) -> Self {
@@ -158,6 +177,7 @@ impl<S: SourceCode + 'static + std::fmt::Debug + Clone> DoubleBuilder<S> {
 
     pub fn build(self) -> Result<()> {
         let res = MsgTemplate::Double {
+            kind: self.kind,
             text: self.text,
             pos1: self.pos1,
             pos_text1: self.pos_text1,

@@ -41,6 +41,7 @@ use nom::combinator::recognize;
 use nom::multi::many0;
 use nom::multi::many1;
 use nom::sequence::delimited;
+use nom::sequence::pair;
 use nom::sequence::preceded;
 use nom::sequence::terminated;
 use nom::IResult;
@@ -1563,18 +1564,38 @@ fn as_excl_operator_token(s: Span) -> IResult<Span, LangToken> {
     }
 }
 
+// `many1(alt((as_excl_operator_token, single_element_token, element_operator_token)))`
+// used to gather tokens with no alternation constraint: two `single_element_token`s in a
+// row (no operator between them) were silently accepted into the token vec. When the source
+// omits a `;` between two statements (`let a <- fn(...){...}` directly followed by
+// `let b <- ...`), the next statement's `let`/identifier tokens got vacuumed up as bogus
+// trailing `Expression` tokens here (nothing in `variable_exp` excludes keywords), advancing
+// the parse position across the whole next statement. `VectorPriority::run_helper`
+// (operation_priority.rs) then silently drops any token vec tail that isn't a well-formed
+// `Op Expression` pair — so the swallowed statement vanished from the AST with no parse
+// error anywhere (see cases/0012). Requiring strict `E (Op E)*` alternation here means a
+// stray non-operator after a complete expression makes `many0` stop *without* consuming
+// input, leaving the next statement for the caller to parse normally instead of eating it.
+fn operator_like_token(s: Span) -> IResult<Span, LangToken> {
+    alt((as_excl_operator_token, element_operator_token)).parse(s)
+}
+
 pub fn elements(s: Span) -> IResult<Span, Lang> {
-    let res = many1(alt((
-        as_excl_operator_token,
+    let res = (
         single_element_token,
-        element_operator_token,
-    )))
-    .parse(s);
+        many0(pair(operator_like_token, single_element_token)),
+    )
+        .parse(s);
     match res {
-        Ok((s, v)) => {
-            if v.len() == 1 {
-                Ok((s, v[0].clone().into()))
+        Ok((s, (first, rest))) => {
+            if rest.is_empty() {
+                Ok((s, first.into()))
             } else {
+                let mut v = vec![first];
+                for (op, ex) in rest {
+                    v.push(op);
+                    v.push(ex);
+                }
                 Ok((s, VectorPriority::from(v).run()))
             }
         }

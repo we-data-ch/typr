@@ -28,6 +28,13 @@ pub enum TypeError {
     /// — distinguished from `AliasNotFound` (a genuinely unknown name) so the
     /// message can point at the fix — `(alias_name, module_name, position)`.
     AliasNotImported(String, String, HelpData),
+    /// A variable or function name resolves to a real member declared in
+    /// another module, but that module's member was never brought into this
+    /// scope via `use` — the ordinary-name counterpart of `AliasNotImported`.
+    /// `(name, module_name, is_public, position)`: `is_public` distinguishes
+    /// a straightforward `use M::name;` fix from a member that also needs
+    /// `@pub`/`@export` before that `use` will actually work.
+    VariableNotImported(String, String, bool, HelpData),
     FunctionNotFound(Var),
     AliasMissingGenerics(String, Vec<String>, Type),
     InterfaceReturnOnly(Type),
@@ -101,6 +108,7 @@ impl TypeError {
             TypeError::WrongIndexing(t1, _) => Some(t1.get_help_data()),
             TypeError::AliasNotFound(typ) => Some(typ.get_help_data()),
             TypeError::AliasNotImported(_, _, h) => Some(h.clone()),
+            TypeError::VariableNotImported(_, _, _, h) => Some(h.clone()),
             TypeError::FunctionNotFound(var) => Some(var.get_help_data()),
             TypeError::AliasMissingGenerics(_, _, typ) => Some(typ.get_help_data()),
             TypeError::InterfaceReturnOnly(typ) => Some(typ.get_help_data()),
@@ -180,6 +188,19 @@ impl TypeError {
                     "Alias '{}' is defined in module '{}' but not imported. Add `use {}::{};` or `use {}::*;`.",
                     name, module, module, name, module
                 )
+            }
+            TypeError::VariableNotImported(name, module, is_public, _) => {
+                if *is_public {
+                    format!(
+                        "'{}' is defined in module '{}' but not imported here. Add `use {}::{};` or `use {}::*;`.",
+                        name, module, module, name, module
+                    )
+                } else {
+                    format!(
+                        "'{}' is defined in module '{}' but is private and not imported here. Add `use {}::{};` (after marking it `@pub` or `@export` in '{}').",
+                        name, module, module, name, module
+                    )
+                }
             }
             TypeError::FunctionNotFound(var) => {
                 format!(
@@ -348,6 +369,30 @@ impl ErrorMsg for TypeError {
                         "Add `use {}::{};` or `use {}::*;` to import it.",
                         module, name, module
                     ))
+                    .build()
+            }
+            TypeError::VariableNotImported(name, module, is_public, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                let help = if is_public {
+                    format!(
+                        "Add `use {}::{};` or `use {}::*;` to import it.",
+                        module, name, module
+                    )
+                } else {
+                    format!(
+                        "It's declared without `@pub`/`@export` in '{}', so mark it public first, \
+                         then add `use {}::{};` to import it.",
+                        module, module, name
+                    )
+                };
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "'{}' is defined in module '{}' but not imported here",
+                        name, module
+                    ))
+                    .pos_text(format!("'{}' is not in scope", name))
+                    .help(help)
                     .build()
             }
             TypeError::AliasMissingGenerics(name, generics, typ) => {

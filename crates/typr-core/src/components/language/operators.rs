@@ -25,33 +25,22 @@ pub enum Op {
     And(HelpData),
     And2(HelpData),
     Eq(HelpData),
-    Eq2(HelpData),
     NotEq(HelpData),
     Add(HelpData),
-    Add2(HelpData),
     Pipe(HelpData),
     Dot(HelpData),
-    Pipe2(HelpData),
-    Dot2(HelpData),
     Or(HelpData),
     Or2(HelpData),
     Minus(HelpData),
-    Minus2(HelpData),
     Mul(HelpData),
-    Mul2(HelpData),
     In(HelpData),
-    At(HelpData),
-    At2(HelpData),
     Div(HelpData),
-    Div2(HelpData),
     LesserThan(HelpData),
     GreaterThan(HelpData),
     LesserOrEqual(HelpData),
     GreaterOrEqual(HelpData),
     Modulo(HelpData),
-    Modulo2(HelpData),
     Dollar(HelpData),
-    Dollar2(HelpData),
     Custom(String, HelpData),
     Empty(HelpData),
     AsExcl(HelpData),
@@ -137,22 +126,9 @@ impl Op {
     pub fn get_binding_power(&self) -> i32 {
         match self {
             Op::AsExcl(_) => 4,
-            Op::Dot(_)
-            | Op::Dot2(_)
-            | Op::Pipe(_)
-            | Op::Pipe2(_)
-            | Op::Dollar(_)
-            | Op::Dollar2(_)
-            | Op::In(_) => 4,
-            Op::Mul(_)
-            | Op::Mul2(_)
-            | Op::Div(_)
-            | Op::Div2(_)
-            | Op::Modulo(_)
-            | Op::Modulo2(_)
-            | Op::At(_)
-            | Op::At2(_) => 3,
-            Op::Add(_) | Op::Add2(_) | Op::Minus(_) | Op::Minus2(_) => 2,
+            Op::Dot(_) | Op::Pipe(_) | Op::Dollar(_) | Op::In(_) => 4,
+            Op::Mul(_) | Op::Div(_) | Op::Modulo(_) => 3,
+            Op::Add(_) | Op::Minus(_) => 2,
             _ => 1,
         }
     }
@@ -187,33 +163,22 @@ impl Op {
             Op::Empty(h) => h.clone(),
             Op::Custom(_, h) => h.clone(),
             Op::Dollar(h) => h.clone(),
-            Op::Dollar2(h) => h.clone(),
-            Op::Modulo2(h) => h.clone(),
             Op::Modulo(h) => h.clone(),
             Op::LesserOrEqual(h) => h.clone(),
             Op::GreaterOrEqual(h) => h.clone(),
             Op::Add(h) => h.clone(),
-            Op::Add2(h) => h.clone(),
             Op::And(h) => h.clone(),
             Op::And2(h) => h.clone(),
             Op::Or(h) => h.clone(),
             Op::Or2(h) => h.clone(),
             Op::Eq(h) => h.clone(),
-            Op::Eq2(h) => h.clone(),
             Op::NotEq(h) => h.clone(),
             Op::Pipe(h) => h.clone(),
-            Op::Pipe2(h) => h.clone(),
             Op::Dot(h) => h.clone(),
-            Op::Dot2(h) => h.clone(),
             Op::Minus(h) => h.clone(),
-            Op::Minus2(h) => h.clone(),
             Op::Mul(h) => h.clone(),
-            Op::Mul2(h) => h.clone(),
             Op::In(h) => h.clone(),
-            Op::At(h) => h.clone(),
-            Op::At2(h) => h.clone(),
             Op::Div(h) => h.clone(),
-            Op::Div2(h) => h.clone(),
             Op::LesserThan(h) => h.clone(),
             Op::GreaterThan(h) => h.clone(),
         }
@@ -222,11 +187,11 @@ impl Op {
 
 fn bool_op(s: Span) -> IResult<Span, Span> {
     // Deliberately no bare `tag("=")` alternative here: a single `=` is never
-    // a binary operator in TypR (`Op::Eq2` has no handling anywhere in
-    // type-checking/transpiling — it would panic via `compute_operators`'s
-    // catch-all if ever produced). `=` is reserved for dedicated grammar
-    // positions parsed directly elsewhere: named record fields (`x = 1`),
-    // `assign()`'s `x = expr;`, and `fn(...)` default parameter values.
+    // a binary operator in TypR — there is no `Op` variant for it at all
+    // (see the tokenizer purge note on `op()` below). `=` is reserved for
+    // dedicated grammar positions parsed directly elsewhere: named record
+    // fields (`x = 1`), `assign()`'s `x = expr;`, and `fn(...)` default
+    // parameter values.
     terminated(
         alt((
             tag("<="),
@@ -250,25 +215,14 @@ fn bool_op(s: Span) -> IResult<Span, Span> {
 fn get_op(ls: LocatedSpan<&str, String>) -> Op {
     match ls.clone().into_fragment() {
         "+" => Op::Add(ls.into()),
-        "++" => Op::Add2(ls.into()),
         "-" => Op::Minus(ls.into()),
-        "--" => Op::Minus2(ls.into()),
         "*" => Op::Mul(ls.into()),
-        "**" => Op::Mul2(ls.into()),
         "/" => Op::Div(ls.into()),
-        "//" => Op::Div2(ls.into()),
-        "@@" => Op::At2(ls.into()),
-        "@" => Op::At(ls.into()),
-        "%%" => Op::Modulo2(ls.into()),
         "%" => Op::Modulo(ls.into()),
         "|>" => Op::Pipe(ls.into()),
-        "|>>" => Op::Pipe2(ls.into()),
         "::" => Op::Dollar(ls.into()),
-        "=" => Op::Eq2(ls.into()),
         "." => Op::Dot(ls.into()),
-        ".." => Op::Dot2(ls.into()),
         "$" => Op::Dollar(ls.into()),
-        "$$" => Op::Dollar2(ls.into()),
         "==" => Op::Eq(ls.into()),
         "!=" => Op::NotEq(ls.into()),
         "<=" => Op::LesserOrEqual(ls.into()),
@@ -291,36 +245,56 @@ pub fn custom_op(s: Span) -> IResult<Span, Span> {
 }
 
 fn pipe_op(s: Span) -> IResult<Span, Span> {
-    alt((
-        tag("|>>"),
-        tag("|>"),
-        tag("::"),
-        tag(".."),
-        tag("."),
-        tag("$$"),
-        tag("$"),
-    ))
-    .parse(s)
+    // `..` and `$$`/`|>>` are deliberately NOT recognized here: they have no
+    // type-checking/transpiling arm and no stdlib signature anywhere, so as
+    // runtime infix operators they're dead syntax — see the tokenizer purge
+    // note on `op()` below. `..` is only alive as the dedicated *nominal
+    // spread* field prefix (`Point:{ ..source }`), parsed by
+    // `spread_field` in `parsing/elements.rs`, never through this combinator.
+    alt((tag("|>"), tag("::"), tag("."), tag("$"))).parse(s)
 }
 
 pub fn op(s: Span) -> IResult<Span, Op> {
+    // The doubled/duplicated-character variants (`++ -- ** // %% @@ ..  $$
+    // |>>`) and bare `@`/`=` as infix operators are deliberately NOT
+    // recognized here: none of them has a type-checking/transpiling arm or a
+    // stdlib `` `op` `` signature anywhere (unlike `+ - * / % && || ...`,
+    // which fall through to a real stdlib-backed function call — see the
+    // catch-all `Lang::Operator` arm in `type_checking/mod.rs`). Left in the
+    // tokenizer they silently swallowed typos as a "successfully parsed"
+    // operator that only failed much later, as a confusing "function not
+    // found" type error far from the real mistake — e.g. a stray `//`
+    // comment (TypR comments are `#`, never `//`) was accepted as a division
+    // operator instead of surfacing near the actual typo (now caught earlier,
+    // as a `#`-comment lookalike, by `wrong_comment` in `parsing/mod.rs`).
+    // `@` in particular is also the *prefix* of
+    // `@pub`/`@export`/`@testable`/`@extern`/`@name: ...` annotations, parsed
+    // by dedicated statement-level parsers tried before general expressions;
+    // see cases/0012-new-scene-object-arg-not-found for the bug this specific
+    // overlap caused before `@`/`@@` were dropped from this tokenizer.
+    //
+    // A bare `=` was deliberately tried as an `op()`-level recovery (falling
+    // back to `Op::Eq` with a `SingleEqualsComparison` warning, so `if (a = b)`
+    // degrades to `==` instead of losing the rest of the statement) but had
+    // to be reverted: `op()` is also called from the *type* grammar
+    // (`types.rs::index_operator`/`compute_operators`, for type-level
+    // arithmetic like `type Combined <- A + B;`), which sits directly in
+    // front of a default parameter's `= value` separator
+    // (`greeting: char = "Hello"`). There, `=` right after a type is a
+    // syntactic separator with no operator meaning at all — recovering it as
+    // `Op::Eq` made `compute_operators` panic on the unhandled combination.
+    // A future fix needs to special-case `=` in `elements.rs`'s
+    // expression-only tokenizer instead of this shared primitive.
     let res = terminated(
         alt((
             custom_op,
             pipe_op,
             bool_op,
             tag("in "),
-            tag("++"),
             tag("+"),
-            tag("--"),
             tag("-"),
-            tag("@@"),
-            tag("@"),
-            tag("**"),
             tag("*"),
-            tag("//"),
             tag("/"),
-            tag("%%"),
             tag("%"),
         )),
         multispace0,
@@ -341,29 +315,18 @@ pub fn get_string(op: &Op) -> String {
         Op::Or(_) => "|".to_string(),
         Op::Or2(_) => "||".to_string(),
         Op::Add(_) => "+".to_string(),
-        Op::Add2(_) => "++".to_string(),
         Op::Minus(_) => "-".to_string(),
-        Op::Minus2(_) => "--".to_string(),
         Op::Mul(_) => "*".to_string(),
-        Op::Mul2(_) => "**".to_string(),
         Op::Div(_) => "/".to_string(),
-        Op::Div2(_) => "//".to_string(),
-        Op::At(_) => "@".to_string(),
-        Op::At2(_) => "@@".to_string(),
         Op::Pipe(_) => "|>".to_string(),
-        Op::Pipe2(_) => "|>>".to_string(),
         Op::Dot(_) => ".".to_string(),
-        Op::Dot2(_) => "..".to_string(),
         Op::LesserThan(_) => "<".to_string(),
         Op::GreaterThan(_) => ">".to_string(),
         Op::LesserOrEqual(_) => "<=".to_string(),
         Op::GreaterOrEqual(_) => ">=".to_string(),
-        Op::Modulo2(_) => "%%".to_string(),
         Op::Modulo(_) => "%".to_string(),
-        Op::Dollar2(_) => "$$".to_string(),
         Op::Dollar(_) => "$".to_string(),
         Op::Eq(_) => "==".to_string(),
-        Op::Eq2(_) => "=".to_string(),
         Op::NotEq(_) => "!=".to_string(),
         n => todo!("operator to_string not implemented for {:?}", n),
     }
@@ -374,5 +337,75 @@ impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = get_string(self);
         write!(f, "{}", res)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn span(s: &str) -> Span<'_> {
+        LocatedSpan::new_extra(s, "test".to_string())
+    }
+
+    #[test]
+    fn live_operators_still_tokenize() {
+        for (input, expected) in [
+            ("+ ", Op::Add(HelpData::default())),
+            ("- ", Op::Minus(HelpData::default())),
+            ("* ", Op::Mul(HelpData::default())),
+            ("/ ", Op::Div(HelpData::default())),
+            ("% ", Op::Modulo(HelpData::default())),
+            ("&& ", Op::And2(HelpData::default())),
+            ("|| ", Op::Or2(HelpData::default())),
+        ] {
+            let (_, got) = op(span(input)).unwrap_or_else(|_| panic!("{input:?} should tokenize"));
+            assert_eq!(
+                std::mem::discriminant(&got),
+                std::mem::discriminant(&expected),
+                "unexpected op for {input:?}: {got:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn dead_doubled_operators_no_longer_tokenize_as_one_token() {
+        // ++ -- ** // %% .. $$ |>> and a bare @/= never had a stdlib `op`
+        // signature or a typing/transpiling arm backing them (see the
+        // tokenizer-purge note on `op()`), so they must no longer be
+        // consumed whole as a single operator token — either the parse
+        // fails outright, or (for tags that overlap a live single-char
+        // prefix, e.g. "++"'s leading "+") only the live prefix is consumed,
+        // leaving a leftover character that breaks the surrounding
+        // expression grammar instead of silently forming a bogus operator.
+        for (input, leftover) in [
+            ("++", Some("+")),
+            ("--", Some("-")),
+            ("**", Some("*")),
+            ("//", Some("/")),
+            // "%%" is fully consumed by `custom_op` as an empty-name `%...%`
+            // custom operator (`Op::Custom("", _)`), not by the purged
+            // `Modulo2`/tag("%%") arm — a pre-existing, unrelated overlap.
+            ("%%", Some("")),
+            ("..", Some(".")),
+            ("$$", Some("$")),
+            ("|>>", Some(">")),
+            ("@", None),
+            ("=", None),
+        ] {
+            match (op(span(input)), leftover) {
+                (Ok((rest, _)), Some(expected)) => {
+                    assert_eq!(
+                        *rest.fragment(),
+                        expected,
+                        "leftover mismatch for {input:?}"
+                    )
+                }
+                (Err(_), None) => {}
+                (result, expected) => {
+                    panic!("{input:?}: expected leftover {expected:?}, got {result:?}")
+                }
+            }
+        }
     }
 }

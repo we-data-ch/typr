@@ -6,8 +6,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug, Diagnostic)]
 pub enum MsgTemplate<S: SourceCode + 'static + std::fmt::Debug> {
-    #[error("Type error: {text}")]
+    #[error("{kind}: {text}")]
     Single {
+        kind: String,
         text: String,
         #[label("{pos_text}")]
         pos: SourceSpan,
@@ -17,8 +18,9 @@ pub enum MsgTemplate<S: SourceCode + 'static + std::fmt::Debug> {
         #[help]
         help: Option<String>,
     },
-    #[error("Type error: {text}")]
+    #[error("{kind}: {text}")]
     Double {
+        kind: String,
         text: String,
 
         #[label("{pos_text1}")]

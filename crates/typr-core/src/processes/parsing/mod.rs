@@ -65,7 +65,7 @@ thread_local! {
     static PARSE_ERRORS: RefCell<Vec<SyntaxError>> = const { RefCell::new(Vec::new()) };
 }
 
-fn push_parse_error(err: SyntaxError) {
+pub fn push_parse_error(err: SyntaxError) {
     PARSE_ERRORS.with(|e| e.borrow_mut().push(err));
 }
 
@@ -831,6 +831,33 @@ fn comment(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+/// Recognizes a `//`-style comment (the C/JS/R convention) and treats it
+/// exactly like a real `#`-comment — consumed to end of line, dropped from
+/// the AST, non-fatal — but flags a recoverable `WrongCommentSyntax` error:
+/// TypR only ever uses `#`. Without this, `//` used to silently tokenize as
+/// a (dead) division-like operator and fail much later with a confusing
+/// "function `//` not defined" type error; now that the dead-operator
+/// tokenizer entry for `//` is gone (see `operators.rs::op()`), it would
+/// otherwise leave unparseable trailing text that gets silently dropped
+/// from the AST instead — this dedicated parser keeps the common typo both
+/// harmless (no code loss) and visible (a located warning).
+fn wrong_comment(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (tag("//"), not_line_ending, opt(line_ending), multispace0).parse(s);
+    match res {
+        Ok((s, (slashes, txt, _, _))) => {
+            push_parse_error(SyntaxError::WrongCommentSyntax(slashes.clone().into()));
+            Ok((
+                s,
+                vec![Lang::Comment {
+                    value: txt.to_string(),
+                    help_data: slashes.into(),
+                }],
+            ))
+        }
+        Err(r) => Err(r),
+    }
+}
+
 pub fn simple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (parse_elements, opt(terminated(tag(";"), multispace0))).parse(s);
     match res {
@@ -1332,6 +1359,7 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
                 import_var,
                 mod_imp,
                 comment,
+                wrong_comment,
                 typeconstructor_exp,
                 type_exp,
                 type_instead_of_let_exp,
