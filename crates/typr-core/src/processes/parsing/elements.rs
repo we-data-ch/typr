@@ -10,6 +10,7 @@ use crate::components::r#type::Type;
 use crate::processes::parsing::base_parse;
 use crate::processes::parsing::lang_token::LangToken;
 use crate::processes::parsing::operation_priority::PriorityTokens;
+use crate::processes::parsing::push_parse_error;
 use crate::processes::parsing::types::if_type;
 use crate::processes::parsing::types::label;
 use crate::processes::parsing::types::ltype;
@@ -865,6 +866,54 @@ pub fn record(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+/// `list{...}` / `record{...}` / `object{...}` with at least one positional (unnamed)
+/// element — e.g. `list{1, 2, 3}`. These three keywords are reserved for named-field
+/// record literals (`list{ x = 1, y = 2 }`, handled by `record()` above, which is always
+/// tried first in every `alt()` this parser shares a spot with and wins whenever every
+/// element is `name = value`). By nom's `alt()` semantics, reaching this parser at all
+/// means `record()` already failed to match here — so at least one element is positional.
+/// Before this fix `list{1, 2, 3}` silently became a `Lang::Tuple` (via `tuple_exp`, which
+/// also accepts the bare `"list"` keyword) while `record{1, 2, 3}`/`object{1, 2, 3}` fell
+/// all the way through to `variable2`, misparsing as a bare identifier with a dangling,
+/// unconsumed `{...}` block. This parser intercepts all three uniformly, still recovers a
+/// full `Lang::Tuple` (nothing lost from the AST — same shape `tuple_exp` would have
+/// produced), but flags it as a fatal `KeywordRecordPositionalElements` syntax error
+/// pointing at the neutral `:{...}` tuple syntax instead.
+///
+/// Deliberately brace-only (`{`/`}`): `list(1, 2, 3)` (parens) is the long-established,
+/// heavily-used way to build positional tuples (see `tuple_exp`, which keeps handling it
+/// unchanged) and must not be affected.
+fn keyword_positional_record_exp(s: Span) -> IResult<Span, Lang> {
+    let res = (
+        terminated(
+            alt((tag("list"), tag("record"), tag("object"))),
+            multispace0,
+        ),
+        terminated(tag("{"), multispace0),
+        values,
+        preceded(ws0, terminated(tag("}"), multispace0)),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (kw, _ob, vals, _cb))) => {
+            let keyword = kw.to_string();
+            let h: HelpData = kw.into();
+            push_parse_error(SyntaxError::KeywordRecordPositionalElements {
+                keyword,
+                help_data: h.clone(),
+            });
+            Ok((
+                s,
+                Lang::Tuple {
+                    value: vals,
+                    help_data: h,
+                },
+            ))
+        }
+        Err(r) => Err(r),
+    }
+}
+
 fn pascal_case_helper(s: Span) -> IResult<Span, (String, HelpData)> {
     let res = (one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), opt(alpha1)).parse(s);
     match res {
@@ -1084,6 +1133,7 @@ fn match_pattern(s: Span) -> IResult<Span, Lang> {
             tag_pattern_with_var,
             tag_pattern_no_var,
             record,
+            keyword_positional_record_exp,
             tuple_exp,
             type_pattern,
             wildcard_pattern,
@@ -1394,6 +1444,7 @@ fn not_exp(s: Span) -> IResult<Span, Lang> {
             dotdotdot,
             vector,
             record,
+            keyword_positional_record_exp,
             r_function,
             function,
             tuple_exp,
@@ -1492,6 +1543,7 @@ pub fn single_element(s: Span) -> IResult<Span, Lang> {
             array_constructor_call,
             constructor_call,
             record,
+            keyword_positional_record_exp,
             r_function,
             extern_block,
             function,

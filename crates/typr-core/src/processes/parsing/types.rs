@@ -27,6 +27,7 @@ use nom::character::complete::multispace0;
 use nom::character::complete::multispace1;
 use nom::character::complete::none_of;
 use nom::character::complete::one_of;
+use nom::combinator::not;
 use nom::combinator::opt;
 use nom::combinator::recognize;
 use nom::multi::many0;
@@ -635,6 +636,46 @@ pub fn pascal_case_no_space(s: Span) -> IResult<Span, (String, HelpData)> {
 pub fn type_alias(s: Span) -> IResult<Span, Type> {
     let res = (
         pascal_case_no_space,
+        terminated(opt(type_params), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, ((name, h), Some(v)))) => Ok((s, Type::Alias(name, v.clone(), false, h))),
+        Ok((s, ((name, h), None))) => Ok((s, Type::Alias(name, vec![], false, h))),
+        Err(r) => Err(r),
+    }
+}
+
+/// Recognizes a single uppercase letter as a `type`/`opaque` alias name (the `A` in
+/// `type A <- int;`), distinct from `pascal_case_no_space` which requires 2+ characters
+/// and simply fails to match here (leaving the whole `type_alias` alternative — and the
+/// caller's `alt()` — to fall through silently). A dedicated caller uses this to reject
+/// the name explicitly with `SyntaxError::SingleLetterTypeName`: single uppercase letters
+/// are reserved for generic type variables elsewhere in the grammar (`upper_case_generic`).
+pub fn single_letter_type_name(s: Span) -> IResult<Span, (String, HelpData)> {
+    // Deliberately does NOT consume trailing whitespace here (unlike
+    // `pascal_case_no_space` returning before it too) — the caller's
+    // `terminated(opt(type_params), multispace0)` needs that leading space to
+    // still be there so `type_params`'s `tag("<")` can't misfire against the
+    // `<` of a following `<-`/`=` (e.g. `type A <- int;`).
+    let res = recognize(terminated(
+        one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+        not(alphanumeric1),
+    ))
+    .parse(s);
+    match res {
+        Ok((s, letter)) => {
+            let h: HelpData = letter.clone().into();
+            Ok((s, (letter.fragment().to_string(), h)))
+        }
+        Err(r) => Err(r),
+    }
+}
+
+/// Same shape as `type_alias`, but for a single-letter name (see `single_letter_type_name`).
+pub fn single_letter_type_alias(s: Span) -> IResult<Span, Type> {
+    let res = (
+        single_letter_type_name,
         terminated(opt(type_params), multispace0),
     )
         .parse(s);

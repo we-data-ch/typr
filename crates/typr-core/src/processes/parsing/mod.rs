@@ -35,6 +35,7 @@ use crate::processes::parsing::elements::vector;
 use crate::processes::parsing::elements::Case;
 use crate::processes::parsing::types::ltype;
 use crate::processes::parsing::types::pascal_case_no_space;
+use crate::processes::parsing::types::single_letter_type_alias;
 use crate::processes::parsing::types::type_alias;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -457,6 +458,55 @@ fn typeconstructor_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 }],
             ))
         }
+        Err(r) => Err(r),
+    }
+}
+
+/// Detects `type X <- ...;` / `opaque X <- ...;` where the alias name is a single
+/// uppercase letter — reserved for generic type variables (`T`, `U`, ...) elsewhere in
+/// the grammar. Without this dedicated parser, `type_alias`/`base_type_exp` simply fail
+/// to match (`pascal_case_no_space` requires 2+ characters) and the whole statement falls
+/// through to a much later, permissive alternative that treats the bare `type`/`opaque`
+/// keyword as a variable reference — silently dropping the rest of the line with no error
+/// (see bug_single_letter_alias_name_unparseable). Parses the full statement so nothing is
+/// lost from the AST, but flags it as a fatal `SingleLetterTypeName` error: single-letter
+/// alias names are forbidden outright (not legalized) to avoid colliding with generics.
+fn single_letter_type_name_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let res = (
+        opt(terminated(tag("@pub"), multispace0)),
+        terminated(alt((tag("type"), tag("opaque"))), multispace0),
+        single_letter_type_alias,
+        equality_operator,
+        ltype,
+        terminated(tag(";"), multispace0),
+    )
+        .parse(s);
+    match res {
+        Ok((s, (_pub, _kw, Type::Alias(name, params, _, h), _eq, ty, _))) => {
+            push_parse_error(SyntaxError::SingleLetterTypeName {
+                name: name.clone(),
+                help_data: h.clone(),
+            });
+            let h2 = if !params.is_empty() {
+                params[0].clone().into()
+            } else {
+                HelpData::default()
+            };
+            let vari = Var::from_name(&name)
+                .set_type(Type::Params(params.clone(), h2))
+                .to_language();
+            Ok((
+                s,
+                vec![Lang::Alias {
+                    identifier: Box::new(vari),
+                    parameters: params,
+                    target_type: ty,
+                    is_public: false,
+                    help_data: h,
+                }],
+            ))
+        }
+        Ok((s, (_pub, kw, _, _eq, _ty2, _))) => Ok((s, vec![Lang::Empty(kw.into())])),
         Err(r) => Err(r),
     }
 }
@@ -1361,6 +1411,7 @@ pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
                 comment,
                 wrong_comment,
                 typeconstructor_exp,
+                single_letter_type_name_exp,
                 type_exp,
                 type_instead_of_let_exp,
                 opaque_exp,
@@ -1604,6 +1655,191 @@ mod tesus {
             !res.has_errors(),
             "type with PascalCase should not produce a syntax error"
         );
+    }
+
+    // ============= Single-Letter Type Alias Name Tests (P2) =============
+
+    #[test]
+    fn test_single_letter_type_name_is_an_error() {
+        let res = parse("type A <- int;".into());
+        assert!(
+            res.has_errors(),
+            "single uppercase letter alias name should produce a syntax error"
+        );
+        match &res.errors[0] {
+            SyntaxError::SingleLetterTypeName { name, .. } => {
+                assert_eq!(name, "A");
+            }
+            other => panic!("Expected SingleLetterTypeName error, got {:?}", other),
+        }
+        // Unlike the pre-fix bug, the statement is no longer silently dropped —
+        // it recovers a full Lang::Alias.
+        match &res.ast {
+            Lang::Lines { value, .. } => {
+                assert_eq!(value.len(), 1);
+                assert!(matches!(value[0], Lang::Alias { .. }));
+            }
+            other => panic!("Expected Lang::Lines, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_single_letter_opaque_name_is_an_error() {
+        let res = parse("opaque Z <- num;".into());
+        assert!(
+            res.has_errors(),
+            "single uppercase letter opaque name should produce a syntax error"
+        );
+        match &res.errors[0] {
+            SyntaxError::SingleLetterTypeName { name, .. } => {
+                assert_eq!(name, "Z");
+            }
+            other => panic!("Expected SingleLetterTypeName error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_single_letter_type_name_with_pub() {
+        let res = parse("@pub type T <- int;".into());
+        assert!(
+            res.has_errors(),
+            "@pub single-letter alias name should still produce a syntax error"
+        );
+        assert!(res
+            .errors
+            .iter()
+            .any(|e| matches!(e, SyntaxError::SingleLetterTypeName { .. })));
+    }
+
+    #[test]
+    fn test_two_letter_type_name_is_fine() {
+        let res = parse("type Ab <- int;".into());
+        assert!(
+            !res.has_errors(),
+            "a two-letter alias name should not produce a syntax error"
+        );
+    }
+
+    // ========= Keyword Positional Record/Tuple Tests (P3) =========
+
+    fn extract_let_expression(ast: &Lang) -> &Lang {
+        match ast {
+            Lang::Lines { value, .. } => match &value[0] {
+                Lang::Let { expression, .. } => expression,
+                other => panic!("Expected Lang::Let, got {:?}", other),
+            },
+            other => panic!("Expected Lang::Lines, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_list_brace_positional_is_an_error() {
+        let res = parse("let x <- list{1, 2, 3};".into());
+        assert!(
+            res.has_errors(),
+            "list{{...}} with positional elements should produce a syntax error"
+        );
+        match &res.errors[0] {
+            SyntaxError::KeywordRecordPositionalElements { keyword, .. } => {
+                assert_eq!(keyword, "list");
+            }
+            other => panic!(
+                "Expected KeywordRecordPositionalElements error, got {:?}",
+                other
+            ),
+        }
+        // Recovers a full Lang::Tuple — nothing lost from the AST.
+        match extract_let_expression(&res.ast) {
+            Lang::Tuple { value, .. } => assert_eq!(value.len(), 3),
+            other => panic!("Expected Lang::Tuple, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_record_brace_positional_is_an_error() {
+        let res = parse("let x <- record{1, 2, 3};".into());
+        assert!(
+            res.has_errors(),
+            "record{{...}} with positional elements should produce a syntax error"
+        );
+        match &res.errors[0] {
+            SyntaxError::KeywordRecordPositionalElements { keyword, .. } => {
+                assert_eq!(keyword, "record");
+            }
+            other => panic!(
+                "Expected KeywordRecordPositionalElements error, got {:?}",
+                other
+            ),
+        }
+        match extract_let_expression(&res.ast) {
+            Lang::Tuple { value, .. } => assert_eq!(value.len(), 3),
+            other => panic!("Expected Lang::Tuple, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_object_brace_positional_is_an_error() {
+        let res = parse("let x <- object{1, 2, 3};".into());
+        assert!(
+            res.has_errors(),
+            "object{{...}} with positional elements should produce a syntax error"
+        );
+        match &res.errors[0] {
+            SyntaxError::KeywordRecordPositionalElements { keyword, .. } => {
+                assert_eq!(keyword, "object");
+            }
+            other => panic!(
+                "Expected KeywordRecordPositionalElements error, got {:?}",
+                other
+            ),
+        }
+        match extract_let_expression(&res.ast) {
+            Lang::Tuple { value, .. } => assert_eq!(value.len(), 3),
+            other => panic!("Expected Lang::Tuple, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_list_brace_named_fields_still_fine() {
+        let res = parse("let x <- list{ a = 1, b = 2 };".into());
+        assert!(
+            !res.has_errors(),
+            "list{{...}} with named fields should keep working (real record literal)"
+        );
+        match extract_let_expression(&res.ast) {
+            Lang::List { value, .. } => assert_eq!(value.len(), 2),
+            other => panic!("Expected Lang::List, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_list_paren_positional_still_fine() {
+        // `list(...)` (parens) is the long-established positional-tuple syntax
+        // and must not be affected by the brace-only P3 restriction.
+        let res = parse("let x <- list(1, 2, 3);".into());
+        assert!(
+            !res.has_errors(),
+            "list(...) with positional elements should keep working"
+        );
+        match extract_let_expression(&res.ast) {
+            Lang::Tuple { value, .. } => assert_eq!(value.len(), 3),
+            other => panic!("Expected Lang::Tuple, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_colon_brace_positional_still_fine() {
+        // `:{...}` is the sanctioned neutral positional-tuple syntax and must
+        // keep working unaffected.
+        let res = parse("let x <- :{1, 2, 3};".into());
+        assert!(
+            !res.has_errors(),
+            ":{{...}} with positional elements should keep working"
+        );
+        match extract_let_expression(&res.ast) {
+            Lang::Tuple { value, .. } => assert_eq!(value.len(), 3),
+            other => panic!("Expected Lang::Tuple, got {:?}", other),
+        }
     }
 
     // ==================== Let Tuple Destructuring Tests ====================

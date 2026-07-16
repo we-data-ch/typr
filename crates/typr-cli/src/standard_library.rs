@@ -6,6 +6,9 @@
 use std::path::PathBuf;
 use typr_core::components::context::vartype::VarType;
 use typr_core::components::context::Context;
+use typr_core::components::error_message::help_message::ErrorMsg;
+use typr_core::components::error_message::syntax_error::SyntaxError;
+use typr_core::components::error_message::type_error::TypeError;
 use typr_core::components::language::var::Var;
 use typr_core::components::r#type::Type;
 use typr_core::processes::parsing::parse_from_string;
@@ -293,13 +296,66 @@ fn build_function_list_vartype(functions_txt: &str) -> VarType {
     VarType::new().push_var_type(&entries).set_std(entries)
 }
 
+const RED: &str = "\x1b[31m";
+const BOLD: &str = "\x1b[1m";
+const RESET: &str = "\x1b[0m";
+
+/// Extract a human-readable message from a `catch_unwind` panic payload.
+///
+/// Covers every panic payload shape actually produced by the parsing/
+/// type-checking pipeline:
+/// - plain `panic!`/`.unwrap()`/`.expect()` (`&str`/`String`);
+/// - the two `std::panic::panic_any(...)` call sites that carry a structured
+///   error (`SyntaxError` in `parsing/elements.rs`, `TypeError` in
+///   `parsing/operation_priority.rs`) — rendered via `ErrorMsg::display`
+///   instead of a generic `{:?}` so the message matches what a real compile
+///   error would have shown;
+/// - `TypeChecker::typing`'s `panic!("")` (`type_checker.rs`), which already
+///   dumped every accumulated `TypRError` to stderr via `show_errors()`
+///   *before* panicking — the payload itself is an empty string, so it's
+///   remapped to a pointer back at that already-printed output instead of
+///   showing a blank message.
+fn panic_payload_message(payload: &(dyn std::any::Any + Send)) -> String {
+    let message = if let Some(s) = payload.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(e) = payload.downcast_ref::<SyntaxError>() {
+        e.clone().display()
+    } else if let Some(e) = payload.downcast_ref::<TypeError>() {
+        e.clone().display()
+    } else {
+        "<non-string panic payload>".to_string()
+    };
+
+    if message.is_empty() {
+        "type-checking failed — see the error(s) printed above".to_string()
+    } else {
+        message
+    }
+}
+
 /// Build a VarType from typed standard library .ty source files.
 ///
 /// Parses and type-checks each .ty source file sequentially, threading the
 /// context through so that later files can reference types from earlier ones.
 /// Signature lines (`@`) are preprocessed to strip named parameters.
-fn build_typed_vartype(ty_sources: &[(&str, &str)]) -> VarType {
+///
+/// Returns the built `VarType` plus the list of `(filename, panic message)`
+/// for every source file that was skipped because parsing/type-checking it
+/// panicked. A skipped file's signatures are silently absent from the
+/// resulting `VarType` — the caller MUST surface this loudly (see
+/// `standard_library()`), never let it pass as a quiet informational line,
+/// since it means real stdlib entries silently vanished from the compiler.
+fn build_typed_vartype(ty_sources: &[(&str, &str)]) -> (VarType, Vec<(String, String)>) {
     let mut context = Context::empty();
+    let mut skipped: Vec<(String, String)> = Vec::new();
+
+    // Silence the default panic hook while probing these files: a skip is an
+    // expected, handled outcome here (reported below with our own red
+    // message), not an unhandled crash that should dump a Rust backtrace.
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
 
     for (filename, source) in ty_sources {
         let processed = preprocess_ty_source(source);
@@ -316,13 +372,20 @@ fn build_typed_vartype(ty_sources: &[(&str, &str)]) -> VarType {
                 println!("  Processed {}", filename);
                 context = new_context;
             }
-            Err(_) => {
-                println!("  Skipped {} (syntax not supported by parser)", filename);
+            Err(payload) => {
+                let message = panic_payload_message(payload.as_ref());
+                eprintln!(
+                    "{RED}{BOLD}  SKIPPED{RESET}{RED} {} — not supported by the parser/type-checker, its signatures are MISSING from the compiled stdlib:{RESET}\n{RED}    {}{RESET}",
+                    filename, message
+                );
+                skipped.push((filename.to_string(), message));
             }
         }
     }
 
-    context.get_vartype()
+    std::panic::set_hook(previous_hook);
+
+    (context.get_vartype(), skipped)
 }
 
 /// All paths where binary files should be written (relative to the app root).
@@ -377,7 +440,7 @@ pub fn standard_library() {
         ("state.ty", STATE_TY),
         ("foreign.ty", FOREIGN_TY),
     ];
-    let std_r_typed = build_typed_vartype(&r_ty_sources);
+    let (std_r_typed, mut skipped) = build_typed_vartype(&r_ty_sources);
     save_to_all(&std_r_typed, ".std_r_typed.bin", &dirs);
 
     // --- JS Standard Library ---
@@ -389,7 +452,8 @@ pub fn standard_library() {
 
     // 4. .std_js_typed.bin: typed signatures from .ty files
     let js_ty_sources: Vec<(&str, &str)> = vec![("std_JS.ty", STD_JS_TY)];
-    let std_js_typed = build_typed_vartype(&js_ty_sources);
+    let (std_js_typed, js_skipped) = build_typed_vartype(&js_ty_sources);
+    skipped.extend(js_skipped);
     save_to_all(&std_js_typed, ".std_js_typed.bin", &dirs);
 
     // Rebuild to verify the generated binaries are loadable
@@ -398,6 +462,57 @@ pub fn standard_library() {
     let std_count = context.typing_context.standard_library().len();
     println!("  Loaded {} standard library entries", std_count);
 
+    if !skipped.is_empty() {
+        eprintln!(
+            "\n{RED}{BOLD}{} stdlib file(s) were skipped — see the SKIPPED messages above.{RESET}",
+            skipped.len()
+        );
+        eprintln!("{RED}The generated .bin files are MISSING every signature these files would have contributed:{RESET}");
+        for (filename, _) in &skipped {
+            eprintln!("{RED}  - {}{RESET}", filename);
+        }
+        eprintln!(
+            "Fix the file(s) above and re-run `typr std` before committing the generated binaries."
+        );
+        std::process::exit(1);
+    }
+
     println!("\nStandard library binaries generated successfully.");
     println!("Run `cargo build` to embed the new binaries into the compiler.");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A stdlib file that fails to parse must be reported as skipped with a
+    /// real, non-generic message (not silently dropped, not the
+    /// `<non-string panic payload>` fallback) — this is P5 of the
+    /// syntax-safety plan: `build_typed_vartype`'s `catch_unwind` used to
+    /// just print "Skipped <file> (syntax not supported)" with no way to
+    /// tell what broke or that it mattered.
+    #[test]
+    fn broken_ty_source_is_reported_as_skipped_with_a_real_message() {
+        // `fn(...)` (no parameter types) hits the dedicated
+        // `SyntaxError::FunctionWithoutType` panic_any in
+        // `parsing/elements.rs::r_function` — a real structured panic
+        // payload, not a generic string one.
+        let sources = [("broken.ty", "let f <- fn(x) { x };")];
+        let (_vartype, skipped) = build_typed_vartype(&sources);
+
+        assert_eq!(skipped.len(), 1);
+        assert_eq!(skipped[0].0, "broken.ty");
+        assert_ne!(skipped[0].1, "<non-string panic payload>");
+        assert!(!skipped[0].1.is_empty());
+    }
+
+    /// Sanity check that a file which parses and type-checks fine is never
+    /// reported as skipped.
+    #[test]
+    fn valid_ty_source_is_not_reported_as_skipped() {
+        let sources = [("fine.ty", "let x: int <- 5;")];
+        let (_vartype, skipped) = build_typed_vartype(&sources);
+
+        assert!(skipped.is_empty());
+    }
 }

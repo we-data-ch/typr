@@ -29,6 +29,14 @@ pub enum SyntaxError {
         name: String,
         help_data: HelpData,
     },
+    SingleLetterTypeName {
+        name: String,
+        help_data: HelpData,
+    },
+    KeywordRecordPositionalElements {
+        keyword: String,
+        help_data: HelpData,
+    },
     MutationTargetNotAssignable(HelpData),
     WrongCommentSyntax(HelpData),
     WithNode(Box<Lang>, Box<SyntaxError>),
@@ -49,6 +57,10 @@ impl SyntaxError {
             SyntaxError::UnknownElement { help_data, .. } => Some(help_data.clone()),
             SyntaxError::LetInsteadOfType { help_data, .. } => Some(help_data.clone()),
             SyntaxError::TypeInsteadOfLet { help_data, .. } => Some(help_data.clone()),
+            SyntaxError::SingleLetterTypeName { help_data, .. } => Some(help_data.clone()),
+            SyntaxError::KeywordRecordPositionalElements { help_data, .. } => {
+                Some(help_data.clone())
+            }
             SyntaxError::MutationTargetNotAssignable(h) => Some(h.clone()),
             SyntaxError::WrongCommentSyntax(h) => Some(h.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
@@ -98,6 +110,16 @@ impl SyntaxError {
             SyntaxError::TypeInsteadOfLet { name, .. } => {
                 format!(
                     "Use `let` instead of `type` to create a variable binding: `let {name} <- ...`"
+                )
+            }
+            SyntaxError::SingleLetterTypeName { name, .. } => {
+                format!(
+                    "`{name}` is a single uppercase letter, reserved for generic type variables — use a longer alias name"
+                )
+            }
+            SyntaxError::KeywordRecordPositionalElements { keyword, .. } => {
+                format!(
+                    "`{keyword}{{...}}` requires named fields (`name = value`) — found a positional element; use `:{{...}}` for a positional tuple instead"
                 )
             }
             SyntaxError::MutationTargetNotAssignable(_) => {
@@ -235,6 +257,28 @@ impl ErrorMsg for SyntaxError {
                     .text("Use `let` instead of `type` to create a variable binding")
                     .pos_text("`type` used here")
                     .help(format!("Did you mean `let {name}`?"))
+                    .build()
+            }
+            SyntaxError::SingleLetterTypeName { name, help_data } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), name.len()))
+                    .text("Single uppercase letters are reserved for generic type variables")
+                    .pos_text("Here")
+                    .help(format!("Rename `{name}` to a longer alias name, e.g. `{name}b` or a descriptive name"))
+                    .build()
+            }
+            SyntaxError::KeywordRecordPositionalElements { keyword, help_data } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), keyword.len()))
+                    .text(format!(
+                        "`{keyword}{{...}}` requires named fields (`name = value`)"
+                    ))
+                    .pos_text("Positional element found here")
+                    .help("Use `:{...}` for a positional tuple instead, e.g. `:{1, 2, 3}`")
                     .build()
             }
             SyntaxError::MutationTargetNotAssignable(help_data) => {

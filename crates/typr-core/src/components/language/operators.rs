@@ -9,8 +9,10 @@ use crate::utils::builder;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::bytes::complete::take_until;
+use nom::character::complete::alphanumeric1;
 use nom::character::complete::char;
 use nom::character::complete::multispace0;
+use nom::combinator::not;
 use nom::combinator::recognize;
 use nom::sequence::terminated;
 use nom::IResult;
@@ -229,7 +231,7 @@ fn get_op(ls: LocatedSpan<&str, String>) -> Op {
         ">=" => Op::GreaterOrEqual(ls.into()),
         "<" => Op::LesserThan(ls.into()),
         ">" => Op::GreaterThan(ls.into()),
-        "in " => Op::In(ls.into()),
+        "in" => Op::In(ls.into()),
         "and" => Op::And2(ls.into()),
         "&&" => Op::And2(ls.into()),
         "&" => Op::And(ls.into()),
@@ -290,7 +292,16 @@ pub fn op(s: Span) -> IResult<Span, Op> {
             custom_op,
             pipe_op,
             bool_op,
-            tag("in "),
+            // `in` is a word, not a symbol, so a bare `tag("in")` would also
+            // match the first two characters of `index`/`input`/`in_valid`/
+            // ... — guard with a trailing word-boundary check (no
+            // alphanumeric-or-underscore right after, matching identifier
+            // body chars in `elements.rs::body_char`), same idiom as
+            // `single_letter_type_name` in `parsing/types.rs`. `not()` only
+            // asserts, it consumes nothing, so identifiers keep matching as a
+            // whole via `variable_exp` elsewhere; this only rules out this
+            // tokenizer swallowing a prefix of one.
+            terminated(tag("in"), not(alt((alphanumeric1, tag("_"))))),
             tag("+"),
             tag("-"),
             tag("*"),
@@ -406,6 +417,34 @@ mod tests {
                     panic!("{input:?}: expected leftover {expected:?}, got {result:?}")
                 }
             }
+        }
+    }
+
+    #[test]
+    fn in_operator_word_boundary() {
+        // `in` followed by anything that isn't a plain space used to fail to
+        // tokenize at all (old pattern was the literal `tag("in ")`); now any
+        // non-alphanumeric boundary works, matching how every other keyword
+        // in the grammar behaves.
+        for input in ["in ", "in(", "in\t", "in\n", "in)"] {
+            let (_, got) = op(span(input)).unwrap_or_else(|_| panic!("{input:?} should tokenize"));
+            assert_eq!(
+                std::mem::discriminant(&got),
+                std::mem::discriminant(&Op::In(HelpData::default())),
+                "unexpected op for {input:?}: {got:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn in_operator_does_not_swallow_identifier_prefix() {
+        // `index`/`input`/`instance` must never be tokenized as `Op::In` plus
+        // a leftover suffix — `in` is only an operator at a word boundary.
+        for input in ["index", "input", "instance", "in_valid"] {
+            assert!(
+                op(span(input)).is_err(),
+                "{input:?} should not tokenize as an operator"
+            );
         }
     }
 }

@@ -48,22 +48,45 @@ fn print_step(title: &str) {
 
 /// Prints every syntax error collected while parsing (entry file + every
 /// imported module), and reports whether any of them represents code
-/// silently dropped from the AST (`SyntaxError::UnknownElement`) — the only
-/// kind serious enough to abort the pipeline. Everything else (forgotten
-/// semicolons, `//` comments, `let`/`type` mixups, ...) is fully recovered
-/// by the parser already and is only printed as a heads-up.
+/// silently dropped from the AST (`SyntaxError::UnknownElement`) or a
+/// forbidden-outright construct (`SyntaxError::SingleLetterTypeName`,
+/// `SyntaxError::KeywordRecordPositionalElements`) — the only kinds serious
+/// enough to abort the pipeline. Everything else (forgotten semicolons, `//`
+/// comments, `let`/`type` mixups, ...) is fully recovered by the parser
+/// already and is only printed as a heads-up.
 ///
 /// Previously these were parsed and thrown away entirely by
 /// `engine::parse_code`/`parse_code_with_info`/`parse_code_from_str` — a
 /// stray `//` comment or any other unparseable trailing statement could
 /// silently vanish from a build with zero indication anything was wrong.
+///
+/// `SingleLetterTypeName` is fatal rather than a warning even though the
+/// parser now recovers a full `Lang::Alias` for it: a single-letter alias
+/// name (`type A <- ...;`) was never usable before this recovery existed (it
+/// silently collapsed to nothing), and it collides with the single-uppercase-
+/// letter convention reserved for generics — so there is no working project
+/// that failing here could break, and letting it through as a mere warning
+/// risks confusing generic-collision bugs downstream.
+///
+/// `KeywordRecordPositionalElements` (P3 of the syntax-safety plan) is fatal
+/// for the same reason, not legalized: `list{1, 2, 3}` used to silently
+/// become a positional tuple (indistinguishable from a typo of `list{ x = 1,
+/// y = 2 }`) while `record{1, 2, 3}`/`object{1, 2, 3}` misparsed even more
+/// confusingly (bare identifier + dangling `{...}`). A repo-wide grep found
+/// no existing project relying on the brace-positional form — `list(...)`
+/// (parens) remains the working, unaffected way to build positional tuples.
 fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
     if errors.is_empty() {
         return false;
     }
-    let (fatal, warnings): (Vec<_>, Vec<_>) = errors
-        .into_iter()
-        .partition(|e| matches!(e, SyntaxError::UnknownElement { .. }));
+    let (fatal, warnings): (Vec<_>, Vec<_>) = errors.into_iter().partition(|e| {
+        matches!(
+            e,
+            SyntaxError::UnknownElement { .. }
+                | SyntaxError::SingleLetterTypeName { .. }
+                | SyntaxError::KeywordRecordPositionalElements { .. }
+        )
+    });
     if !warnings.is_empty() {
         eprintln!("Syntax warnings:");
         for err in warnings {
