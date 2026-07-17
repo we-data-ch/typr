@@ -853,19 +853,27 @@ pub fn match_types_to_generic(
     // Try unification on the unreduced types first so that alias type parameters
     // are preserved (e.g. Factor<[2, char]> vs Factor<L> → L = [2, char]).
     // Reducing non-opaque aliases first would collapse both to `int`, losing L.
-    let collect = |vec: Vec<(Type, Type)>| -> Vec<(Type, Type)> {
-        vec.iter()
-            .flat_map(|(arg, par)| unification::unify(ctx, arg, par))
-            .collect()
+    //
+    // G2 (audit_type_checking.md): `try_unify` distinguishes "these two
+    // don't unify at all" (`None`) from "they unify with no new bindings"
+    // (`Some(vec![])`) — a real sub-unification failure now fails this whole
+    // candidate instead of silently contributing zero bindings and letting
+    // the caller believe the match succeeded.
+    let collect = |vec: Vec<(Type, Type)>| -> Option<Vec<(Type, Type)>> {
+        let mut result = Vec::new();
+        for (arg, par) in &vec {
+            result.extend(unification::try_unify(ctx, arg, par)?);
+        }
+        Some(result)
     };
-    if let Some(result) = get_gen_type(type1, type2).map(collect) {
+    if let Some(result) = get_gen_type(type1, type2).and_then(collect) {
         return Some(result);
     }
     // Fall back to reduced types (handles cases where aliases must be expanded
     // to discover compatibility, e.g. opaque aliases vs primitives).
     let type1 = reduce_type(ctx, type1);
     let type2 = reduce_type(ctx, type2);
-    get_gen_type(&type1, &type2).map(collect)
+    get_gen_type(&type1, &type2).and_then(collect)
 }
 
 fn are_homogenous_types(types: &[Type]) -> bool {

@@ -31,7 +31,14 @@ impl SafeHashMap {
         }
     }
 
-    fn insert(&mut self, key: Type, value: Type) {
+    /// Returns `false` (G1, audit_type_checking.md) when `key` is already
+    /// bound to a different, unrelated concrete type — e.g. `f(x: T, y: T)`
+    /// called as `f(1, "a")` inserts `T ↦ int` from the first argument, then
+    /// tries `T ↦ char` from the second. This used to fall through both
+    /// branches below with no effect at all: the conflicting insert was
+    /// silently dropped and the call type-checked anyway, with whichever
+    /// binding got there first.
+    fn insert(&mut self, key: Type, value: Type) -> bool {
         let resolved_value = Self::resolve_generic(&self.map, &value);
         match self.map.iter().find(|(k, _v)| Self::key_eq(k, &key)) {
             Some((Type::Generic(old_key_name, _), existing_val)) => {
@@ -40,15 +47,22 @@ impl SafeHashMap {
                     || matches!(&final_value, Type::Generic(_, _))
                 {
                     self.map.push((key, resolved_value));
+                    true
                 } else if matches!(&resolved_value, Type::Generic(_, _)) {
                     // key already bound to a concrete type; the new value is an
                     // unbound generic. Propagate: bind that generic to the concrete
                     // type so that chains like (U→G, T→int, T→G) resolve U→G→int.
                     self.map.push((resolved_value, final_value));
+                    true
+                } else {
+                    false
                 }
             }
-            Some((_ke, va)) => if va.exact_equality(&resolved_value) {},
-            None => self.map.push((key, resolved_value)),
+            Some((_ke, va)) => va.exact_equality(&resolved_value),
+            None => {
+                self.map.push((key, resolved_value));
+                true
+            }
         }
     }
 
@@ -82,15 +96,19 @@ pub struct UnificationMap {
 }
 
 impl UnificationMap {
-    pub fn new(v: Vec<(Type, Type)>) -> Self {
+    /// `None` (G1) when two of `v`'s bindings assign the same generic to
+    /// different, unrelated concrete types — see `SafeHashMap::insert`.
+    pub fn try_new(v: Vec<(Type, Type)>) -> Option<Self> {
         let mut safe_map = SafeHashMap::new();
         for (key, val) in v {
-            safe_map.insert(key, val);
+            if !safe_map.insert(key, val) {
+                return None;
+            }
         }
-        UnificationMap {
+        Some(UnificationMap {
             mapping: safe_map.to_vec(),
             vectorized: None,
-        }
+        })
     }
 
     pub fn set_vectorized(self, vec_type: VecType, index: i32) -> Self {
@@ -222,5 +240,41 @@ impl Default for UnificationMap {
             mapping: vec![],
             vectorized: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::builder;
+
+    // G1 (audit_type_checking.md): the same generic bound to two different,
+    // unrelated concrete types across separate call arguments — e.g.
+    // `f(x: T, y: T)` called as `f(1, "a")` produces bindings `T ↦ int` and
+    // `T ↦ char` from the two arguments independently. `SafeHashMap::insert`
+    // used to drop the conflicting second insert silently, so `try_new`
+    // (then `new`) always succeeded regardless.
+    #[test]
+    fn test_try_new_rejects_conflicting_generic_bindings() {
+        let bindings = vec![
+            (builder::generic_type(), builder::integer_type_default()),
+            (builder::generic_type(), builder::character_type_default()),
+        ];
+        assert!(
+            UnificationMap::try_new(bindings).is_none(),
+            "T bound to both int and char should fail unification"
+        );
+    }
+
+    #[test]
+    fn test_try_new_accepts_consistent_generic_bindings() {
+        let bindings = vec![
+            (builder::generic_type(), builder::integer_type_default()),
+            (builder::generic_type(), builder::integer_type_default()),
+        ];
+        assert!(
+            UnificationMap::try_new(bindings).is_some(),
+            "T bound consistently to int everywhere should succeed"
+        );
     }
 }

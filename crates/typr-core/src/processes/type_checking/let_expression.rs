@@ -15,9 +15,9 @@ pub fn collect_undefined_aliases(context: &Context, ty: &Type) -> Vec<TypRError>
                 name.as_str(),
                 "Integer" | "Character" | "Boolean" | "Number"
             );
-            let is_defined = Var::from_type(ty.clone())
-                .and_then(|var| context.get_matching_alias_signature(&var))
-                .is_some();
+            let alias_signature = Var::from_type(ty.clone())
+                .and_then(|var| context.get_matching_alias_signature(&var));
+            let is_defined = alias_signature.is_some();
 
             let mut errors = Vec::new();
             if !is_opaque && !is_builtin && !is_defined {
@@ -29,6 +29,26 @@ pub fn collect_undefined_aliases(context: &Context, ty: &Type) -> Vec<TypRError>
                     )),
                     None => TypRError::type_error(TypeError::AliasNotFound(ty.clone())),
                 });
+            } else if !is_opaque {
+                // G3 (audit_type_checking.md): `reduce_alias` zips `generics`
+                // against `concret_types` and silently truncates on a length
+                // mismatch — `Option` (0 args) or `Option<int, char>` (2 args)
+                // both used to pass here and leave unsubstituted `Generic`
+                // placeholders (too few) or drop extra args (too many)
+                // wherever the alias was later reduced. Opaque aliases are
+                // excluded: `get_matching_alias_signature` always reports
+                // `generics == []` for them (arity isn't tracked through this
+                // path — see opaque phantom generics like `Factor<L>`).
+                if let Some((_, generics)) = &alias_signature {
+                    if params.len() != generics.len() {
+                        errors.push(TypRError::type_error(TypeError::AliasArityMismatch(
+                            name.clone(),
+                            generics.len(),
+                            params.len(),
+                            h.clone(),
+                        )));
+                    }
+                }
             }
             for param in params {
                 errors.extend(collect_undefined_aliases(context, param));
@@ -285,6 +305,78 @@ mod tests {
         assert!(
             !result.has_errors(),
             "Recursive function should type-check without errors, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    // G3 (audit_type_checking.md): `Option<T>` takes exactly one type
+    // argument; before this check, a bare `Option` or `Option<int, char>`
+    // both passed silently and `reduce_alias`'s `generics.zip(concret_types)`
+    // truncated the mismatch away (missing args left `Generic` placeholders,
+    // extra args got dropped).
+    #[test]
+    fn test_option_bare_without_type_args_produces_alias_arity_mismatch() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::typing_with_errors;
+
+        let expr = parse2("let x: Option <- .None;".into()).unwrap();
+        let result = typing_with_errors(&Context::default(), &expr);
+
+        assert!(
+            result.get_errors().iter().any(|e| matches!(
+                e,
+                TypRError::Type(
+                    crate::components::error_message::type_error::TypeError::AliasArityMismatch(
+                        name, expected, found, _
+                    )
+                ) if name == "Option" && *expected == 1 && *found == 0
+            )),
+            "Expected AliasArityMismatch(Option, 1, 0, _) but got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_option_with_too_many_type_args_produces_alias_arity_mismatch() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::typing_with_errors;
+
+        let expr = parse2("let x: Option<int, char> <- .None;".into()).unwrap();
+        let result = typing_with_errors(&Context::default(), &expr);
+
+        assert!(
+            result.get_errors().iter().any(|e| matches!(
+                e,
+                TypRError::Type(
+                    crate::components::error_message::type_error::TypeError::AliasArityMismatch(
+                        name, expected, found, _
+                    )
+                ) if name == "Option" && *expected == 1 && *found == 2
+            )),
+            "Expected AliasArityMismatch(Option, 1, 2, _) but got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn test_option_with_correct_arity_has_no_arity_error() {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::typing_with_errors;
+
+        let expr = parse2("let x: Option<int> <- .None;".into()).unwrap();
+        let result = typing_with_errors(&Context::default(), &expr);
+
+        assert!(
+            !result.get_errors().iter().any(|e| matches!(
+                e,
+                TypRError::Type(
+                    crate::components::error_message::type_error::TypeError::AliasArityMismatch(..)
+                )
+            )),
+            "Correct arity should not raise AliasArityMismatch, got: {:?}",
             result.get_errors()
         );
     }

@@ -1047,11 +1047,8 @@ impl Context {
             .map(|(val_typ, par_typ)| match_types_to_generic(self, &val_typ.clone(), par_typ))
             .collect::<Option<Vec<_>>>();
 
-        let val = res
-            .map(|vec| vec.iter().flatten().cloned().collect::<Vec<_>>())
-            .map(UnificationMap::new);
-
-        val
+        res.map(|vec| vec.iter().flatten().cloned().collect::<Vec<_>>())
+            .and_then(UnificationMap::try_new)
     }
 
     fn s3_type_definition(&self, var: &Var, typ: &Type) -> String {

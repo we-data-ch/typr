@@ -89,6 +89,28 @@ pub enum TypeError {
     /// covariant return, RFC §8.1) — `(method_name, required_signature,
     /// found_signature, position)`.
     IncompatibleInterfaceMethod(String, Type, Type, HelpData),
+    /// A `match` over a tag-union scrutinee doesn't cover every variant, and
+    /// has no catch-all (`_ => ...` / `name => ...`) branch either —
+    /// `(missing_tag_names, position)`.
+    NonExhaustiveMatch(Vec<String>, HelpData),
+    /// A `match` pattern's shape can never match its scrutinee's type at all
+    /// (e.g. a tag pattern `.Foo(..)` naming a variant the scrutinee's union
+    /// doesn't have, or a tag/tuple/record pattern against a scrutinee that
+    /// isn't tag/tuple/record-shaped) — `(pattern_description, scrutinee_type,
+    /// position)`.
+    PatternTypeMismatch(String, Type, HelpData),
+    /// A `match` pattern shape isn't supported by the checker (e.g. a nested
+    /// pattern inside a tag/tuple/record pattern) — `(pattern_description,
+    /// position)`. Raised instead of silently dropping the bindings the
+    /// nested pattern would have introduced.
+    UnsupportedPattern(String, HelpData),
+    /// A generic alias is referenced with the wrong number of concrete type
+    /// arguments (e.g. `Option` bare or `Option<int, char>` where `Option<T>`
+    /// takes exactly one) — `(alias_name, expected_arity, found_arity,
+    /// position)`. Without this check `reduce_alias`'s `generics.zip(concret_types)`
+    /// silently truncates: extra args are dropped, missing ones leave
+    /// unsubstituted `Generic` placeholders in the reduced type.
+    AliasArityMismatch(String, usize, usize, HelpData),
 }
 
 impl TypeError {
@@ -127,6 +149,10 @@ impl TypeError {
             TypeError::CircularModuleDependency { help_data: h, .. } => Some(h.clone()),
             TypeError::InterfaceNotSatisfied(_, _, _, h) => Some(h.clone()),
             TypeError::IncompatibleInterfaceMethod(_, _, _, h) => Some(h.clone()),
+            TypeError::NonExhaustiveMatch(_, h) => Some(h.clone()),
+            TypeError::PatternTypeMismatch(_, _, h) => Some(h.clone()),
+            TypeError::UnsupportedPattern(_, h) => Some(h.clone()),
+            TypeError::AliasArityMismatch(_, _, _, h) => Some(h.clone()),
         }
     }
 
@@ -305,6 +331,32 @@ impl TypeError {
                     name,
                     expected.pretty(),
                     found.pretty()
+                )
+            }
+            TypeError::NonExhaustiveMatch(missing, _) => {
+                format!(
+                    "Non-exhaustive match: missing variant{} {}",
+                    if missing.len() > 1 { "s" } else { "" },
+                    missing.join(", ")
+                )
+            }
+            TypeError::PatternTypeMismatch(pattern, typ, _) => {
+                format!(
+                    "Pattern {} can never match value of type {}",
+                    pattern,
+                    typ.pretty()
+                )
+            }
+            TypeError::UnsupportedPattern(pattern, _) => {
+                format!("Unsupported match pattern: {}", pattern)
+            }
+            TypeError::AliasArityMismatch(name, expected, found, _) => {
+                format!(
+                    "{} expects {} type argument{}, found {}",
+                    name,
+                    expected,
+                    if *expected > 1 { "s" } else { "" },
+                    found
                 )
             }
         }
@@ -787,6 +839,60 @@ impl ErrorMsg for TypeError {
                         found.pretty()
                     ))
                     .help("Parameters must be contravariant and the return type covariant with the interface's declared signature.")
+                    .build()
+            }
+            TypeError::NonExhaustiveMatch(missing, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text("This match doesn't cover every variant".to_string())
+                    .pos_text(format!(
+                        "Missing variant{}: {}",
+                        if missing.len() > 1 { "s" } else { "" },
+                        missing.join(", ")
+                    ))
+                    .help("Add an arm for each missing variant, or a catch-all `_ => ...` branch.")
+                    .build()
+            }
+            TypeError::PatternTypeMismatch(pattern, typ, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "Pattern {} can never match value of type {}",
+                        pattern,
+                        typ.pretty()
+                    ))
+                    .pos_text("This pattern's shape is incompatible with the scrutinee's type")
+                    .build()
+            }
+            TypeError::UnsupportedPattern(pattern, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!("Unsupported match pattern: {}", pattern))
+                    .pos_text("This pattern shape isn't supported")
+                    .help("Bind a plain variable name here instead; nested destructuring inside this position isn't implemented yet.")
+                    .build()
+            }
+            TypeError::AliasArityMismatch(name, expected, found, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "{} expects {} type argument{}, found {}",
+                        name,
+                        expected,
+                        if expected > 1 { "s" } else { "" },
+                        found
+                    ))
+                    .pos_text("Wrong number of type arguments here")
+                    .help(format!(
+                        "Provide exactly {} type argument{} to `{}`.",
+                        expected,
+                        if expected > 1 { "s" } else { "" },
+                        name
+                    ))
                     .build()
             }
         };
