@@ -1,0 +1,6 @@
+title = "`type T <- int;` (single uppercase letter): fatal SyntaxError::SingleLetterTypeName, not silent drop (P2 regression net)"
+cmd = "check"
+layer = "parse"
+status = "fixed"
+created = "2026-07-17"
+origin = "perso"

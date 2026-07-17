@@ -1,0 +1,6 @@
+title = "`//` used as a comment: recoverable SyntaxError::WrongCommentSyntax warning, build still succeeds (P1 regression net)"
+cmd = "check"
+layer = "parse"
+status = "fixed"
+created = "2026-07-17"
+origin = "perso"

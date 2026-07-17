@@ -39,6 +39,7 @@ pub enum SyntaxError {
     },
     MutationTargetNotAssignable(HelpData),
     WrongCommentSyntax(HelpData),
+    SingleEqualsComparison(HelpData),
     WithNode(Box<Lang>, Box<SyntaxError>),
 }
 
@@ -63,6 +64,7 @@ impl SyntaxError {
             }
             SyntaxError::MutationTargetNotAssignable(h) => Some(h.clone()),
             SyntaxError::WrongCommentSyntax(h) => Some(h.clone()),
+            SyntaxError::SingleEqualsComparison(h) => Some(h.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
     }
@@ -127,6 +129,9 @@ impl SyntaxError {
             }
             SyntaxError::WrongCommentSyntax(_) => {
                 "TypR comments use `#`, not `//`".to_string()
+            }
+            SyntaxError::SingleEqualsComparison(_) => {
+                "`=` is not a comparison operator — did you mean `==`?".to_string()
             }
             SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
@@ -299,6 +304,16 @@ impl ErrorMsg for SyntaxError {
                     .text("TypR comments use `#`, not `//`")
                     .pos_text("Treated as a comment here")
                     .help("Replace `//` with `#` — the rest of the line was ignored as a comment")
+                    .build()
+            }
+            SyntaxError::SingleEqualsComparison(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), 1))
+                    .text("`=` is not a comparison operator")
+                    .pos_text("Treated as `==` here")
+                    .help("Replace `=` with `==` for comparison")
                     .build()
             }
             SyntaxError::WithNode(_, inner) => return inner.display(),

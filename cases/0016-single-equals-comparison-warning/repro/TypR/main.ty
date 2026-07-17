@@ -1,0 +1,3 @@
+let a <- 1;
+let b <- 2;
+let r <- if (a = b) { 1 } else { 0 };

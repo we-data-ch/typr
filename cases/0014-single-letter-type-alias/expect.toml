@@ -1,0 +1,11 @@
+[[rule]]
+file = "@run"
+must_contain = "reserved for generic type"
+
+[[rule]]
+file = "@run"
+must_contain = "Rename `T` to a longer alias name"
+
+[[rule]]
+file = "@run"
+must_not_contain = "Code verification successful!"

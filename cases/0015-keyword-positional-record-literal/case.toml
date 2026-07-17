@@ -1,0 +1,6 @@
+title = "`list{1,2,3}` positional elements: fatal SyntaxError::KeywordRecordPositionalElements, not silent Lang::Tuple (P3 regression net)"
+cmd = "check"
+layer = "parse"
+status = "fixed"
+created = "2026-07-17"
+origin = "perso"

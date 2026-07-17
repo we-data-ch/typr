@@ -1,0 +1,6 @@
+title = "`a = b` used as a comparison: recoverable SyntaxError::SingleEqualsComparison warning, build still succeeds (P7 regression net)"
+cmd = "check"
+layer = "parse"
+status = "fixed"
+created = "2026-07-17"
+origin = "perso"

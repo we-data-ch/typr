@@ -1616,6 +1616,37 @@ fn as_excl_operator_token(s: Span) -> IResult<Span, LangToken> {
     }
 }
 
+/// Recovers a stray `=` used where `==` was meant (`if (a = b)`). Only tried
+/// after `element_operator_token` has already failed at this position —
+/// `op()`'s `bool_op` matches the two-char `==`/`!=`/`<=`/`>=` tags first, so
+/// this never fires on a genuine comparison operator, only on a lone `=`.
+/// `not(char('>'))` keeps it from swallowing the `=` of a match arm's `=>`
+/// separator (`pattern_branch` in this file).
+///
+/// Deliberately NOT added to the shared `op()` primitive in `operators.rs`:
+/// `op()` is also called by the *type* grammar
+/// (`types.rs::index_operator`/`compute_operators`, for `type Combined <- A +
+/// B;`), which sits directly in front of a default parameter's `= value`
+/// separator (`greeting: char = "Hello"`) — recovering `=` there panics
+/// `compute_operators` on the unhandled `Op::Eq` combination (see the long
+/// comment on `op()`). Living here instead means the recovery only applies
+/// inside `elements()`'s expression-continuation loop, which the type
+/// grammar never calls.
+fn single_equals_recovery_token(s: Span) -> IResult<Span, LangToken> {
+    let res = terminated(
+        terminated(recognize(char('=')), not(char('>'))),
+        multispace0,
+    )
+    .parse(s);
+    match res {
+        Ok((s, eq)) => {
+            push_parse_error(SyntaxError::SingleEqualsComparison(eq.clone().into()));
+            Ok((s, LangToken::Operator(Op::Eq(eq.into()))))
+        }
+        Err(r) => Err(r),
+    }
+}
+
 // `many1(alt((as_excl_operator_token, single_element_token, element_operator_token)))`
 // used to gather tokens with no alternation constraint: two `single_element_token`s in a
 // row (no operator between them) were silently accepted into the token vec. When the source
@@ -1629,7 +1660,12 @@ fn as_excl_operator_token(s: Span) -> IResult<Span, LangToken> {
 // stray non-operator after a complete expression makes `many0` stop *without* consuming
 // input, leaving the next statement for the caller to parse normally instead of eating it.
 fn operator_like_token(s: Span) -> IResult<Span, LangToken> {
-    alt((as_excl_operator_token, element_operator_token)).parse(s)
+    alt((
+        as_excl_operator_token,
+        element_operator_token,
+        single_equals_recovery_token,
+    ))
+    .parse(s)
 }
 
 pub fn elements(s: Span) -> IResult<Span, Lang> {

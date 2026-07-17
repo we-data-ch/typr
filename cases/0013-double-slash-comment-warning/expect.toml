@@ -1,0 +1,11 @@
+[[rule]]
+file = "@run"
+must_contain = "TypR comments use `#`, not `//`"
+
+[[rule]]
+file = "@run"
+must_contain = "Code verification successful!"
+
+[[rule]]
+file = "@run"
+must_not_contain = "Type errors found"

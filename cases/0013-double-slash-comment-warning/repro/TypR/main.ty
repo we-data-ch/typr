@@ -1,0 +1,3 @@
+// this looks like a comment but TypR uses `#`, not `//`
+let x <- 1;
+let y <- x + 1;

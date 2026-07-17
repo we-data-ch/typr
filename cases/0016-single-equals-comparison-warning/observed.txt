@@ -1,0 +1,21 @@
+# exit=0
+
+## stdout/stderr
+Code verification successful!
+
+  Parsing...Syntax warnings:
+  -   × Syntax error: `=` is not a comparison operator
+   ╭─[TypR/main.ty:3:16]
+ 2 │ let b <- 2;
+ 3 │ let r <- if (a = b) { 1 } else { 0 };
+   ·                ┬
+   ·                ╰── Treated as `==` here
+   ╰────
+  help: Replace `=` with `==` for comparison
+
+ done (1 ms)
+  Type checking... done (4 ms)
+
+
+## R généré
+

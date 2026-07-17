@@ -1,0 +1,11 @@
+[[rule]]
+file = "@run"
+must_contain = "requires named fields"
+
+[[rule]]
+file = "@run"
+must_contain = "Use `:{...}` for a positional tuple instead"
+
+[[rule]]
+file = "@run"
+must_not_contain = "Code verification successful!"

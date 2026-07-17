@@ -1842,6 +1842,72 @@ mod tesus {
         }
     }
 
+    // ============ Single `=` Comparison Recovery Tests (P7) ============
+
+    #[test]
+    fn test_single_equals_in_if_condition_recovers_as_eq() {
+        let res = parse("if (a = b) { 1 } else { 0 };".into());
+        assert!(
+            res.has_errors(),
+            "a bare `=` in expression position should produce a syntax warning"
+        );
+        match &res.errors[0] {
+            SyntaxError::SingleEqualsComparison(_) => (),
+            other => panic!("Expected SingleEqualsComparison error, got {:?}", other),
+        }
+        // The statement is fully recovered, not dropped: `a = b` becomes `a == b`.
+        match &res.ast {
+            Lang::Lines { value, .. } => match &value[0] {
+                Lang::If { condition, .. } => match condition.as_ref() {
+                    Lang::Operator { operator, .. } => {
+                        assert!(matches!(operator, Op::Eq(_)));
+                    }
+                    other => panic!("Expected Lang::Operator, got {:?}", other),
+                },
+                other => panic!("Expected Lang::If, got {:?}", other),
+            },
+            other => panic!("Expected Lang::Lines, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_double_equals_in_if_condition_no_warning() {
+        // Regression guard: a real `==` must not be affected by the new
+        // recovery — it's already a full operator via `op()`'s `bool_op`.
+        let res = parse("if (a == b) { 1 } else { 0 };".into());
+        assert!(
+            !res.has_errors(),
+            "a real `==` comparison should not produce any syntax error"
+        );
+    }
+
+    #[test]
+    fn test_match_arrow_not_affected_by_equals_recovery() {
+        // The `=>` match-arm separator must not be mistaken for the bare `=`
+        // recovery (guarded by `not(char('>'))` in `single_equals_recovery_token`).
+        let res = parse("let x <- 5; match x { _ => 1 };".into());
+        assert!(
+            !res.has_errors(),
+            "match arm `=>` should not trigger SingleEqualsComparison"
+        );
+    }
+
+    #[test]
+    fn test_default_param_equals_not_affected_by_equals_recovery() {
+        // Regression guard for the exact conflict that sank the first
+        // attempt at this fix (see the `op()` doc comment in operators.rs):
+        // default parameter values (`name: T = value`) consume their own
+        // `=` before recursing into the value expression, so they must never
+        // see the new recovery trigger.
+        let res = parse(
+            "let greet <- fn(name: char, greeting: char = \"Hello\"): char { greeting };".into(),
+        );
+        assert!(
+            !res.has_errors(),
+            "default parameter `=` should not trigger SingleEqualsComparison"
+        );
+    }
+
     // ==================== Let Tuple Destructuring Tests ====================
 
     #[test]
