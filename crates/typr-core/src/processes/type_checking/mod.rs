@@ -663,7 +663,71 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             }
             TypeContext::new(builder::empty_type(), expr.clone(), new_context)
         }
-        _ => (
+        // `eval()` types *declarations/statements* (see the module doc comment
+        // in CLAUDE.md); every other `Lang` variant is an expression that
+        // `typing()` dispatches directly and never forwards here — every one
+        // of its arms above that delegates to `eval()` matches on one exact
+        // variant name (`Lang::Let { .. } => eval(...)`, etc.), so this arm is
+        // provably unreachable today. It is still listed explicitly, rather
+        // than folded into a wildcard, so that adding a new `Lang` variant
+        // forces a compile error here — the developer then has to decide
+        // whether it belongs in this list or needs real `eval()` logic,
+        // instead of it silently falling back to `unknown_function_type()`
+        // if some future caller ever does pass it in (see
+        // audit_type_checking.md S3).
+        Lang::Number { .. }
+        | Lang::Integer { .. }
+        | Lang::Bool { .. }
+        | Lang::Char { .. }
+        | Lang::Scope { .. }
+        | Lang::Function { .. }
+        | Lang::Lambda { .. }
+        | Lang::Variable { .. }
+        | Lang::FunctionApp { .. }
+        | Lang::VecFunctionApp { .. }
+        | Lang::ArrayIndexing { .. }
+        | Lang::Array { .. }
+        | Lang::List { .. }
+        | Lang::DataFrame { .. }
+        | Lang::Tuple { .. }
+        | Lang::Lines { .. }
+        | Lang::Comment { .. }
+        | Lang::ModuleImport { .. }
+        | Lang::Import { .. }
+        | Lang::Test { .. }
+        | Lang::Return { .. }
+        | Lang::VecBlock { .. }
+        | Lang::Exp { .. }
+        | Lang::Vector { .. }
+        | Lang::Not { .. }
+        | Lang::Use { .. }
+        | Lang::WhileLoop { .. }
+        | Lang::Loop { .. }
+        | Lang::Sequence { .. }
+        | Lang::Tag { .. }
+        | Lang::GenFunc { .. }
+        | Lang::If { .. }
+        | Lang::Match { .. }
+        | Lang::ForLoop { .. }
+        | Lang::RFunction { .. }
+        | Lang::ExternBlock { .. }
+        | Lang::KeyValue { .. }
+        | Lang::Operator { .. }
+        | Lang::TypePattern { .. }
+        | Lang::Union(_, _, _)
+        | Lang::JSBlock(_, _, _)
+        | Lang::Break(_)
+        | Lang::Next(_)
+        | Lang::Null(_)
+        | Lang::NA(_)
+        | Lang::Empty(_)
+        | Lang::Dots(_)
+        | Lang::UseModule { .. }
+        | Lang::ConstructorCall { .. }
+        | Lang::ArrayConstructorCall { .. }
+        | Lang::ValidatingCast { .. }
+        | Lang::UnionConstructor { .. }
+        | Lang::PartialApp { .. } => (
             builder::unknown_function_type(),
             expr.clone(),
             context.clone(),
@@ -1574,13 +1638,11 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .get_type_from_existing_variable(var)
                 .with_lang(expr, context)
                 .into();
-            // Not genuinely undefined (that's still silently `Any` — a
-            // pre-existing, separate gap) but resolvable to a member of a
-            // module in scope that was never `use`d: point the error at the
-            // fix instead of letting it surface later as a confusing
-            // downstream type mismatch (see AliasNotImported for the same
-            // idea applied to type aliases).
             if context.get_type_from_variable(&old_var).is_err() {
+                // Resolvable to a member of a module in scope that was never
+                // `use`d: point the error at the fix instead of letting it
+                // surface later as a confusing downstream type mismatch (see
+                // AliasNotImported for the same idea applied to type aliases).
                 if let Some((module_name, is_public)) =
                     context.find_variable_source_module(&old_var.get_name())
                 {
@@ -1591,6 +1653,15 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         old_var.get_help_data(),
                     ))]);
                 }
+                // Genuinely undefined (S1/audit_type_checking.md): no
+                // declaration anywhere in scope, and not an unimported module
+                // member either. `get_type_from_variable` already accounts
+                // for the preloaded untyped-R/JS-builtin placeholders (they
+                // sit in `variables` too), so this only fires for names that
+                // were never registered at all.
+                return tc.with_errors(vec![TypRError::Type(TypeError::UndefinedVariable(
+                    expr.clone(),
+                ))]);
             }
             tc
         }
@@ -2132,7 +2203,46 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             context.clone(),
         ),
         Lang::KeyValue { value, .. } => typing(context, value),
-        _ => builder::any_type().with_lang(expr, context).into(),
+        Lang::NA(h) => (Type::NA(h.clone()), expr.clone(), context.clone()).into(),
+        Lang::WhileLoop {
+            condition,
+            body,
+            help_data: h,
+        } => {
+            let cond_tc = typing(context, condition);
+            let mut errors = cond_tc.errors;
+            if !cond_tc.value.is_boolean() {
+                errors.push(TypRError::Type(TypeError::WrongExpression(
+                    condition.get_help_data(),
+                )));
+            }
+            let body_tc = typing(context, body);
+            errors.extend(body_tc.errors);
+            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
+                .with_errors(errors)
+        }
+        // The following variants are never a live input to typing(): each is
+        // synthesized *after* typing already ran, as an AST-rewrite artifact,
+        // rather than something the parser or a user program hands to
+        // typing() directly. Kept as explicit no-op arms (instead of folding
+        // into a wildcard) so adding a genuinely new `Lang` variant elsewhere
+        // forces a compile error here instead of silently typing as `Any`
+        // (see audit_type_checking.md S2).
+        //   - `VecFunctionApp`: built by `build_function_lang` from an
+        //     already-typed `FunctionApp` call, purely to mark vectorized
+        //     codegen for the transpiler.
+        //   - `Exp`: a raw, pre-rendered R-code string leaf produced by
+        //     `lang_substitution`/`function_application2`; nothing left to type.
+        //   - `TypePattern`: a `match` pattern (`x as int`); typed via
+        //     `build_match_branch_context` in match_expression.rs, never
+        //     through this general dispatcher.
+        //   - `Union`: a vestigial tuple variant with no parser construction
+        //     site (superseded by `Type::Operator(Union, ...)` /
+        //     `UnionConstructor`); dead code kept only for exhaustiveness.
+        Lang::VecFunctionApp { .. }
+        | Lang::Exp { .. }
+        | Lang::TypePattern { .. }
+        | Lang::Union(_, _, _) => builder::any_type().with_lang(expr, context).into(),
     }
 }
 
@@ -4197,6 +4307,85 @@ p"#;
         assert!(
             ctx.get_processed_module("A").is_some(),
             "expected A in processed_modules"
+        );
+    }
+
+    // =====================================================================
+    // Edge-case audit (audit_type_checking.md) — P0 red tests for the items
+    // targeted by P1.2 (making `typing()`/`eval()` exhaustive over `Lang`).
+    // Written against desired behavior; failing today confirms the gap the
+    // catch-all `_ => any_type()` arm was hiding.
+    // =====================================================================
+
+    #[test]
+    fn edge_na_literal_types_as_na_not_any() {
+        // `NA` currently falls into typing()'s `_ => any_type()` catch-all
+        // (S2/audit_type_checking.md) instead of getting its own arm like
+        // `Null`/`Empty` do. It should type as `Type::NA`.
+        let typ = FluentParser::new().check_typing("NA");
+        assert_eq!(
+            typ,
+            Type::NA(typ.get_help_data()),
+            "expected NA literal to type as Type::NA, got {}",
+            typ.pretty()
+        );
+    }
+
+    #[test]
+    fn edge_while_loop_condition_must_be_boolean() {
+        // `Lang::WhileLoop` has no arm in typing() at all today: it falls
+        // into the catch-all, so the condition's type is never checked.
+        use crate::processes::parsing::parse_from_string;
+        let src = "while (1) { 1; };";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "while-loop with a non-boolean condition should be a type error"
+        );
+    }
+
+    #[test]
+    fn edge_while_loop_body_type_error_detected() {
+        // Same root cause: the body is never type-checked either, so a
+        // type error inside a while-loop body is currently invisible.
+        use crate::processes::parsing::parse_from_string;
+        let src = "while (true) { let z: char <- 5; };";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "while-loop body type error (int bound to char) should be detected"
+        );
+    }
+
+    #[test]
+    fn edge_s1_undefined_variable_is_an_error() {
+        // S1/audit_type_checking.md: a genuinely undefined variable used to
+        // degrade silently to `Any` — no diagnostic at all.
+        use crate::processes::parsing::parse_from_string;
+        let src = "totally_bogus_never_declared_name;";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "reference to an undeclared variable should be a type error"
+        );
+    }
+
+    #[test]
+    fn edge_s1_untyped_r_builtin_still_resolves() {
+        // Preloaded untyped R/JS builtin names (functions_R.txt) must keep
+        // resolving without error — S1 must not regress calls to base-R
+        // functions that TypR doesn't have a typed signature for.
+        // `Context::default()` (not `Context::empty()`) is required here to
+        // actually load the std placeholder entries.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("Position;", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "reference to a preloaded untyped builtin (Position) should not be an error"
         );
     }
 }
