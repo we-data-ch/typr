@@ -1,0 +1,11 @@
+
+# Row 2 (S4) x column f (dot/dollar access) of interop_matrix.md.
+# Deliberate hole, not a bug: Foreign<T> reduces to Any, which has no
+# structural fields/slots, so `mat.x` can never type-check. Reaching a
+# foreign value's slots requires an explicit @extern accessor (e.g.
+# `methods::slot`) instead.
+type MatrixS4 <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> MatrixS4;
+
+let mat <- readRDS("fixtures/matrix_s4.rds");
+print(mat.x);

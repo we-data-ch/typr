@@ -35,12 +35,28 @@ pub fn collect_undefined_aliases(context: &Context, ty: &Type) -> Vec<TypRError>
                 // mismatch — `Option` (0 args) or `Option<int, char>` (2 args)
                 // both used to pass here and leave unsubstituted `Generic`
                 // placeholders (too few) or drop extra args (too many)
-                // wherever the alias was later reduced. Opaque aliases are
+                // wherever the alias was later reduced. Opaque *targets* are
                 // excluded: `get_matching_alias_signature` always reports
-                // `generics == []` for them (arity isn't tracked through this
-                // path — see opaque phantom generics like `Factor<L>`).
+                // `generics == []` for an alias declared `opaque` (arity isn't
+                // tracked through this path — see opaque phantom generics like
+                // `Factor<L>`/`State<T>`/`Foreign<T>`), which is not the same
+                // as the alias genuinely taking zero params — so the check
+                // must be skipped by looking up the *target*'s own opacity,
+                // not just `is_opaque` (the opacity of this reference node,
+                // which is only ever true when the reference itself is
+                // written `opaque X` — practically never at a use site).
+                // Before this fix, using an opaque generic alias with an
+                // explicit type argument at a use site (`type DataFrame <-
+                // Foreign<Any>;`, exactly the pattern documented in
+                // `foreign.ty`) always raised a bogus "Foreign expects 0 type
+                // argument, found 1" (soundness_transpilation.md Phase D).
+                let target_is_opaque = context
+                    .aliases()
+                    .find(|(v, _)| v.get_name() == *name)
+                    .map(|(v, _)| v.is_opaque())
+                    .unwrap_or(false);
                 if let Some((_, generics)) = &alias_signature {
-                    if params.len() != generics.len() {
+                    if !target_is_opaque && params.len() != generics.len() {
                         errors.push(TypRError::type_error(TypeError::AliasArityMismatch(
                             name.clone(),
                             generics.len(),

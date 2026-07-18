@@ -801,6 +801,13 @@ impl Context {
         self.typing_context.get_type_anotation_no_parentheses(t)
     }
 
+    /// Does `name` resolve (through alias hops) to the stdlib `Foreign<T>`
+    /// alias? See `VarType::resolves_to_foreign` / `get_type_anotation` for
+    /// the rationale (soundness_transpilation.md Phase D).
+    pub fn resolves_to_foreign_alias(&self, name: &str) -> bool {
+        self.typing_context.resolves_to_foreign(name)
+    }
+
     pub fn get_classes(&self, t: &Type) -> Option<String> {
         let res = self
             .subtypes
@@ -844,6 +851,16 @@ impl Context {
             .filter(|(_, typ)| typ.is_function())
             .filter(|(var, _)| not_in_blacklist(&var.get_name()))
             .filter(|(var, _)| !var.get_type().is_any())
+            // `@extern`/`@importFrom` names call an existing R function
+            // directly by (possibly package-qualified) name — never through
+            // `UseMethod` dispatch. Emitting the standard `name <- function(x,
+            // ...) UseMethod('name', x)` stub for them here would shadow the
+            // real R function at exactly the call site meant to reach it (the
+            // `nlevels` bug's shape, see the std.R hard rule in CLAUDE.md),
+            // discovered while wiring up the Phase D interop matrix
+            // (soundness_transpilation.md) for a bare `@extern base::readRDS`.
+            .filter(|(var, _)| !self.is_extern_fn(&var.get_name()))
+            .filter(|(var, _)| !self.is_import_from_fn(&var.get_name()))
             .collect::<HashSet<_>>();
         let mut result: Vec<(Var, Type)> = res
             .iter()

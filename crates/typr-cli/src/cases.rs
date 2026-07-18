@@ -84,6 +84,11 @@ struct CaseMeta {
     created: String,
     #[serde(default)]
     origin: String,
+    /// Replay this case's `cmd` (`build`/`run` only) with `--checked`
+    /// (soundness_transpilation.md Phase A/D): lets an interop-matrix case
+    /// double as a `typr_assert_type` oracle run without a separate harness.
+    #[serde(default)]
+    checked: bool,
 }
 
 fn default_cmd() -> String {
@@ -222,7 +227,12 @@ fn build_sandbox(case: &Path) -> Sandbox {
         std::process::exit(1);
     }
     let exe = std::env::current_exe().expect("current exe path");
-    let output = Command::new(exe).arg(&meta.cmd).current_dir(&work).output();
+    let mut command = Command::new(exe);
+    command.arg(&meta.cmd).current_dir(&work);
+    if meta.checked && (meta.cmd == "build" || meta.cmd == "run") {
+        command.arg("--checked");
+    }
+    let output = command.output();
     match output {
         Ok(out) => Sandbox {
             work,
@@ -490,6 +500,7 @@ pub fn add(slug: &str, from: Option<String>, cmd: &str, layer: &str) {
         status: "open".to_string(),
         created: today,
         origin: "perso".to_string(),
+        checked: false,
     };
     let _ = std::fs::write(
         dir.join("case.toml"),
@@ -641,6 +652,7 @@ pub fn snapshot(slug_arg: Option<String>) {
         status: "open".to_string(),
         created: current_date(),
         origin: "perso".to_string(),
+        checked: false,
     };
     let _ = std::fs::write(
         bundle.join("case.toml"),

@@ -1,0 +1,8 @@
+
+# Row 2 (S4) x column c (`let x: T <- expr`) of interop_matrix.md.
+type MatrixS4 <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> MatrixS4;
+@extern base::nrow: (m: MatrixS4) -> int;
+
+let mat: MatrixS4 <- readRDS("fixtures/matrix_s4.rds");
+print(nrow(mat));

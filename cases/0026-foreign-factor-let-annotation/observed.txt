@@ -1,0 +1,11 @@
+Before the fix, blocked by the same `AliasArityMismatch`/r-name-lint
+prerequisites as 0018-foreign-lm-let-annotation/observed.txt. Once those
+were fixed but before `get_type_anotation`'s Foreign-family skip, `f`'s
+class vector after the annotated `let` was:
+
+  > class(f)
+  [1] "ordered"   "factor"    "FactorExt" "Foreign0"  "Any"
+
+instead of the original `c("ordered", "factor")` -- `nlevels(f)` still
+printed the right answer (see expect.md for why), but the object's identity
+was no longer what `readRDS` actually produced.

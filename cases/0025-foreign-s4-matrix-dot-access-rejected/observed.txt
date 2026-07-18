@@ -1,0 +1,9 @@
+$ typr check TypR/main.ty
+
+  × Type error: Undefined variable 'x'
+   ╭─[TypR/main.ty:8:12]
+ 7 │ let mat <- readRDS("fixtures/matrix_s4.rds");
+ 8 │ print(mat.x);
+   ·            ▲
+   ·            ╰── Undefined variable 'x'
+   ╰────

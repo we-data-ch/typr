@@ -1,0 +1,6 @@
+title = "Phase D interop matrix: row 2 (S4, Matrix::Matrix) x column f (dot/dollar access) -- documented hole"
+cmd = "check"
+layer = "type"
+status = "wontfix"
+created = "2026-07-18"
+origin = "perso"

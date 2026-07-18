@@ -1,0 +1,7 @@
+Before the dispatch-fallback fix (same mechanism verified directly against
+this case's own generated R):
+
+Erreur dans UseMethod("get_nrow", x) :
+  pas de methode pour 'get_nrow' applicable pour un objet de classe
+  c("dgeMatrix", "denseMatrix", "compMatrix", "generalMatrix", "Matrix")
+Exécution arrêtée

@@ -1,0 +1,9 @@
+Before fixing the dispatch gap (arity + r-name-lint prerequisites already
+fixed, see 0018's observed.txt for those):
+
+Erreur dans UseMethod("count_coefficients", x) :
+  pas de méthode pour 'count_coefficients' applicable pour un objet de
+  classe "lm"
+Appels : load_module -> sys.source -> eval -> eval -> print ->
+  count_coefficients
+Exécution arrêtée

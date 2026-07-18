@@ -45,6 +45,7 @@ pub mod io;
 pub mod metaprogramming;
 pub mod progress;
 pub mod project;
+pub mod r_name_lint;
 pub mod rd_renderer;
 pub mod repl;
 pub mod standard_library;

@@ -11,6 +11,7 @@ mod io;
 mod metaprogramming;
 mod progress;
 mod project;
+mod r_name_lint;
 mod rd_renderer;
 mod repl;
 mod standard_library;

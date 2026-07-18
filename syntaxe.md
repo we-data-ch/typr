@@ -191,6 +191,7 @@ typeconstructor Matrix[N, M, T] recursive;
 @as__character: (Self) -> char;                # "__" → "." en sortie R (as.character)
 
 @extern stats::sd: (x: [Any, num]) -> num;      # fonction R externe, appel réel package::fn
+@extern base::readRDS: (path: char) -> Foreign<Any>;  # nom nu = fonction déjà visible sans préfixe pkg::
 @importFrom dplyr filter select mutate;          # hisse un @importFrom roxygen2
 ```
 
@@ -198,6 +199,28 @@ Une signature `.ty` peut contenir un vrai corps `let nom <- fn(...){...}` et êt
 avec succès — mais ce corps est **silencieusement jeté** : seule la paire `(nom, type)` survit.
 Le seul patron qui marche pour la stdlib est signature seule + implémentation R écrite à la main
 dans `std.R`.
+
+#### `Foreign<T>` — valeurs R externes opaques
+
+`opaque Foreign<T> <- Any;` (`configs/std/foreign.ty`) est le type compagnon idiomatique de
+`@extern` pour *nommer* une valeur R qui existe déjà à l'extérieur (objet S3/S4/RC/R6, package
+tiers) sans jamais la construire depuis TypR :
+
+```typr
+type LmModel <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> LmModel;
+@extern stats::coef: (m: LmModel) -> Foreign<Any>;   # accesseur dédié pour toucher au contenu
+
+let m: LmModel <- readRDS("modele.rds");
+```
+
+La valeur traverse `let` annoté, arguments et retours de fonction **sans jamais être touchée**
+(pas de `as.X()`/`struct()` appliqué). Deux limites volontaires à connaître : `m.champ`/`m$champ`
+ne type-check **jamais** (`Any` n'a aucun champ structurel connu — il faut un accesseur `@extern`
+dédié pour chaque champ/slot/méthode) ; et un appel `@extern` est **positionnel uniquement**, donc
+impossible d'appeler directement une fonction R qui exige des arguments nommés (`new("X", x=1)`).
+Détail complet — mécanisme, quatre bugs trouvés et corrigés, grille de conformité — dans
+`CLAUDE.md` § "Foreign R Values" et `interop_matrix.md` (racine du repo).
 
 ---
 

@@ -1,0 +1,26 @@
+Before the fix (`typr build`, `TypR/main.ty` as it stands in this case):
+
+  × Type error: Foreign expects 0 type argument, found 1
+   ╭─[TypR/main.ty:2:18]
+ 2 │ type LmModel <- Foreign<Any>;
+   ·                  ▲
+   ·                  ╰── Wrong number of type arguments here
+   ╰────
+  help: Provide exactly 0 type argument to `Foreign`.
+
+After fixing the arity check, the build reached the r-name lint and failed
+there instead:
+
+error[r-name-lint]: `readRDS` shadows a base-R function that is not
+S3-generic, and no `readRDS.default` fallback is emitted. This is the
+historical `nlevels` bug: any call to `readRDS` in the generated R will fail
+at runtime with "no applicable method for 'readRDS'". Add a
+`readRDS.default` implementation to configs/src/std.R (see the `max`/
+`nlevels` pattern in CLAUDE.md), or rename the TypR function so it stops
+colliding.
+
+After fixing both, `typr run` succeeded but the class-append bug (see
+expect.md) was still live for the S4 row (0022) — for `lm` specifically the
+appended classes are harmless (S3 dispatch still finds "lm" first), so this
+case's own captured output already matches the fixed shape; kept as a
+regression guard for `get_type_anotation`'s Foreign-family skip.

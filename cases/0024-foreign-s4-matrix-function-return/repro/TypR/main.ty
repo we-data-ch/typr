@@ -1,0 +1,11 @@
+
+# Row 2 (S4) x column b (return value of a TypR function) of
+# interop_matrix.md.
+type MatrixS4 <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> MatrixS4;
+@extern base::nrow: (m: MatrixS4) -> int;
+
+let get_matrix <- fn(): MatrixS4 { readRDS("fixtures/matrix_s4.rds") };
+
+let mat <- get_matrix();
+print(nrow(mat));

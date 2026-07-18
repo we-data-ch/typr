@@ -1174,10 +1174,23 @@ impl RTranslatable<(String, Context)> for Lang {
                                 // `UseMethod` only reaches `.default` when no more
                                 // specific method matches, so this never overrides
                                 // a concrete-type method.
+                                //
+                                // Same reasoning for a `Foreign<T>`-family dispatch
+                                // parameter (soundness_transpilation.md Phase D):
+                                // the emitted method's suffix is the TypR-side
+                                // alias's own (possibly monomorphized) name (e.g.
+                                // `Foreign0`), but a real foreign value's runtime
+                                // class is whatever R/S4/R6/… gave it (`lm`,
+                                // `Matrix`, a user S4 class, …) — never that
+                                // synthetic name — so a plain `name.Foreign0`
+                                // method is dead code no call can ever reach
+                                // without this `.default` fallback.
                                 let suffix = cont.get_class_unquoted(&related_type);
+                                let is_foreign_dispatch = matches!(&related_type, Type::Alias(name, _, _, _) if cont.resolves_to_foreign_alias(name));
                                 if suffix != "default"
-                                    && facets::interface_facet(cont, &related_type).is_some()
-                                    && facets::record_facet(cont, &related_type).is_none()
+                                    && (is_foreign_dispatch
+                                        || (facets::interface_facet(cont, &related_type).is_some()
+                                            && facets::record_facet(cont, &related_type).is_none()))
                                 {
                                     // `new_name` may be backtick-wrapped (dotted
                                     // method names always are) — strip them before

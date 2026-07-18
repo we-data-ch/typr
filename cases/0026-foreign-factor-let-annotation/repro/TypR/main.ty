@@ -1,0 +1,11 @@
+
+# Row 7 (base vector with attributes) x column c (`let x: T <- expr`) of
+# interop_matrix.md. A base::factor(), deliberately NOT TypR's own opaque
+# Factor<L> stdlib type (factor.ty) -- this exercises a genuinely foreign
+# value with attributes (levels, class = c("ordered","factor")).
+type FactorExt <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> FactorExt;
+@extern base::nlevels: (f: FactorExt) -> int;
+
+let f: FactorExt <- readRDS("fixtures/factor_ext.rds");
+print(nlevels(f));

@@ -1,0 +1,24 @@
+Before the fix (isolated reproduction, same shape as this case but with a
+hand-built `setClass("Point", representation(x="numeric", y="numeric"))`
+instance instead of Matrix::Matrix, to make the point self-contained):
+
+  s4_before <- new("Point", x = 1, y = 2)
+  isS4(s4_before)                          # TRUE
+
+  s4_after <- struct(s4_before, c('PointForeign', 'Foreign0', 'Any'))
+  # Message d'avis :
+  # Dans class(x) <- unique(c(class(x), new_class)) :
+  #   La class(x) est une chaine multiple ("Point", "PointForeign", ...) ;
+  #   le resultat ne sera plus un objet S4
+  isS4(s4_after)                           # FALSE
+  s4_after@x
+  # Erreur : no applicable method for `@` applied to an object of class "Point"
+
+With the actual `typr run` pipeline (pre-fix, `MatrixS4`/`Matrix::Matrix`):
+`nrow(mat)` inside `@extern base::nrow` still happened to return the right
+number here (dimension-derived attributes on `Matrix` objects mostly
+survive the corruption), but any slot (`@`) access on the same annotated
+value failed exactly like the isolated `Point` repro above -- see
+0025-foreign-s4-matrix-dot-access-rejected's discussion for why `@` access
+is rejected at compile time regardless, and CLAUDE.md's soundness section
+for the general write-up.

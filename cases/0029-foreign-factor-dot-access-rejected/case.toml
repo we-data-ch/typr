@@ -1,0 +1,6 @@
+title = "Phase D interop matrix: row 7 (base vector with attributes, ordered factor) x column f (dot/dollar access) -- documented hole"
+cmd = "check"
+layer = "type"
+status = "wontfix"
+created = "2026-07-18"
+origin = "perso"

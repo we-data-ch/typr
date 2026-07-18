@@ -56,6 +56,10 @@ enum Commands {
         /// Test-only oracle, never a production mode (soundness_transpilation.md Phase A).
         #[arg(long)]
         checked: bool,
+        /// Escalate the base-R/S4 name-collision lint's warnings to build-failing
+        /// errors (soundness_transpilation.md Phase C).
+        #[arg(long)]
+        strict: bool,
     },
     Run {
         #[arg(value_name = "FILE")]
@@ -67,6 +71,10 @@ enum Commands {
         /// Test-only oracle, never a production mode (soundness_transpilation.md Phase A).
         #[arg(long)]
         checked: bool,
+        /// Escalate the base-R/S4 name-collision lint's warnings to build-failing
+        /// errors (soundness_transpilation.md Phase C).
+        #[arg(long)]
+        strict: bool,
     },
     Debug {
         #[arg(value_name = "FILE")]
@@ -220,17 +228,19 @@ pub fn start() {
             test,
             no_incremental,
             checked,
+            strict,
         }) => match file {
-            Some(path) => build_file(&path, test, checked),
-            _ => build_project(test, no_incremental, checked),
+            Some(path) => build_file(&path, test, checked, strict),
+            _ => build_project(test, no_incremental, checked, strict),
         },
         Some(Commands::Run {
             file,
             profile,
             checked,
+            strict,
         }) => match file {
-            Some(path) => run_file_keep(&path, profile, checked),
-            _ => run_project(profile, checked),
+            Some(path) => run_file_keep(&path, profile, checked, strict),
+            _ => run_project(profile, checked, strict),
         },
         Some(Commands::Debug {
             file,

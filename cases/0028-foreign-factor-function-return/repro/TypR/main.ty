@@ -1,0 +1,11 @@
+
+# Row 7 (base vector with attributes) x column b (return value of a TypR
+# function) of interop_matrix.md.
+type FactorExt <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> FactorExt;
+@extern base::nlevels: (f: FactorExt) -> int;
+
+let get_factor <- fn(): FactorExt { readRDS("fixtures/factor_ext.rds") };
+
+let f <- get_factor();
+print(nlevels(f));

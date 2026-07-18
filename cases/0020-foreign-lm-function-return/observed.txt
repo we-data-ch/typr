@@ -1,0 +1,7 @@
+Before the fix, blocked by the same upstream `AliasArityMismatch`/r-name-lint
+prerequisites as 0018-foreign-lm-let-annotation/observed.txt. Once those
+were fixed but before `get_type_anotation`'s Foreign-family skip, the
+function's return value carried the same appended `c('LmModel', 'Foreign0',
+'Foreign0', 'Any')` class-vector corruption described in 0018 (harmless for
+`lm`'s S3 dispatch specifically, but semantically wrong and destructive for
+S4 values — see 0024-foreign-s4-matrix-function-return).

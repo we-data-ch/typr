@@ -1,0 +1,6 @@
+Before the dispatch-fallback fix:
+
+Erreur dans UseMethod("count_levels", x) :
+  pas de methode pour 'count_levels' applicable pour un objet de classe
+  c("ordered", "factor")
+Exécution arrêtée

@@ -2,7 +2,15 @@
 
 **Statut : Phase A implémentée (2026-07-18) — voir CLAUDE.md § Runtime Soundness Checks.
 Phase B Stage 1 ET Stage 2 implémentées (2026-07-18) — voir CLAUDE.md § Generative Testing
-(Phase B). Phases C/D encore au stade plan.**
+(Phase B). Phase C implémentée (2026-07-18) — voir CLAUDE.md § Static Base-R/S4 Name Lint
+(Phase C). Phase D v1 implémentée (2026-07-18) — voir `interop_matrix.md` : grille
+S3/S4/RC/R6/S7/base + `cases/0018`-`0029` (12 cases, rows {S3, S4, base-attrs} ×
+columns {argument, retour, `let` annoté, accès `.`/`$`}). Construire la toute première
+case a immédiatement fait remonter 4 bugs réels bloquant l'usage documenté de
+`Foreign<T>`/`@extern` (arité d'alias opaque, `@extern` shadowé par son propre stub
+`UseMethod`, corruption de classe S4 via `as.X`/`struct()`, dispatch S3 inatteignable
+sur paramètre `Foreign<T>`) — tous corrigés, détail dans `interop_matrix.md`. Le reste
+de la grille (RC/R6, colonnes d/e/g/h/i/j, ligne S7) reste un backlog priorisé.**
 
 ## Le problème
 
@@ -335,6 +343,47 @@ Les variants manquants = la todo-list des prochains incréments du générateur.
 
 ## Phase C — Oracle statique : base de noms base-R / S4
 
+> **Implémentée (2026-07-18)** — voir CLAUDE.md § Static Base-R/S4 Name Lint (Phase C) pour
+> l'état exact. Une déviation volontaire par rapport à la description ci-dessous : `--lint-r`
+> (le lint optionnel `codetools::checkUsage` sur le R généré) n'a **pas** été implémenté — il
+> était explicitement hors des critères de fin du plan, contrairement aux 4 règles du tableau
+> qui, elles, sont implémentées et testées.
+>
+> **Rentabilisée immédiatement, avant même d'être branchée en continu** : lancer le lint sur un
+> projet `typr new` frais (zéro code utilisateur) a fait remonter **18 collisions réelles**
+> déjà présentes dans le propre stdlib de typr (`nchar`, `sd`, `substr`, `sub`, `gsub`,
+> `strsplit`, `tolower`, `toupper`, `startsWith`, `endsWith`, `grepl`, `setwd`, `unlink`,
+> `system2`, `version`, plus `dir`/`getwd` — voir plus bas) — parce que
+> `Context::get_all_generic_functions` parcourt tout le contexte préchargé, pas seulement les
+> noms déclarés par l'utilisateur : **tout** projet TypR aurait planté au premier appel à l'une
+> de ces fonctions, exactement comme `nlevels` historiquement. Confirmé avec une exécution R
+> réelle (`UseMethod` sur un objet de classe `Character` → `no applicable method`) avant
+> correction. Les 14 fonctions à arité ≥ 1 ont reçu un `.default` dans `configs/src/std.R`
+> déléguant à leur équivalent `base::`, dans le même style que `max.default`/`nlevels.default`
+> (`unlink.default` normalise le code de sortie en bool, `system2.default` et `strsplit.default`
+> ajustent la forme de retour ; `version.default` — spécifique à `State<T>`, pas d'équivalent
+> base-R sensé — lève une erreur claire plutôt que de faire semblant). La ligne bare
+> `version <- function(a, ...) UseMethod("version")` (violation de la règle dure `std.R` du
+> CLAUDE.md, `generic_functions.R` la régénère de toute façon) a été supprimée au passage.
+>
+> **`dir`/`getwd` restent exclus du lint** (`ZERO_ARITY_STDLIB_EXEMPT` dans `r_name_lint.rs`) :
+> ce sont des signatures stdlib à **zéro paramètre** (`@dir: () -> [#N, char];`,
+> `@getwd: () -> char;`), mais elles reçoivent quand même le stub générique standard
+> `name <- function(x, ...) UseMethod('name', x)` — appeler `dir()`/`getwd()` sans argument (ce
+> que leur propre signature exige) échoue sur le paramètre `x` manquant **avant même** que
+> `UseMethod` ne dispatche, qu'un `.default` existe ou non. C'est un bug de transpilation
+> distinct et plus profond (désaccord entre une signature stdlib à arité zéro et la génération
+> systématique du stub générique), pas une collision de noms qu'un `.default` peut réparer —
+> non corrigé ici, volontairement cataloqué à part plutôt que masqué par un `.default`
+> inatteignable.
+>
+> **Validation** : `typr case run` (catalogue complet, binaire debug et release) donne le même
+> résultat avant et après ce travail — `REGRESS` sur 0007/0010/0012 et `OPEN` sur 0017 sont
+> confirmés préexistants sur `main` (vérifié via `git stash`/rebuild/replay), aucune régression
+> nouvelle introduite par le lint ou les correctifs `std.R`. Couvert par
+> `crates/typr-cli/tests/r_name_lint.rs` (les 4 règles du tableau, plus le garde-fou "projet
+> frais sans code utilisateur ne déclenche aucune erreur").
+
 ### Objectif
 
 Le transpileur connaît tous les symboles top-level qu'il émet (stubs `UseMethod` via
@@ -395,6 +444,48 @@ inexistantes dans le R émis. Fail-open si `Rscript` absent (même politique que
 ---
 
 ## Phase D — Matrice d'interop S4 / R6 / RC / S7 / base
+
+> **v1 implémentée (2026-07-18)** — voir `interop_matrix.md` pour la grille complète et le
+> détail. Périmètre v1 exactement celui prescrit ci-dessous : lignes {1 S3, 2 S4, 7 base
+> attribué} × colonnes {a argument, b retour, c `let` annoté, f accès `.`/`$`}, soit les 12
+> cases `cases/0018`-`cases/0029`. Mécanique : `Foreign<T>`/`@extern` (déjà implémentés dans
+> le code, contrairement à ce que suggérait la doc d'interop externe non committée) +
+> fixtures `.rds` pré-générées (`tools/gen_interop_fixtures.R`, même convention que
+> `tools/gen_r_name_db.R`) plutôt qu'un fichier R compagnon sourcé au run — le loader de
+> projet TypR (`load_module.R`) source chaque `R/*.R` dans un environnement isolé et ne
+> partage les bindings qu'via des tags `@include` générés par TypR lui-même, donc un fichier
+> R écrit à la main n'y serait pas visible sans plomberie dédiée.
+>
+> **Construire la toute première case a immédiatement trouvé 4 bugs réels**, tous corrigés :
+> l'usage `type X <- Foreign<Any>;` documenté dans `foreign.ty` lui-même ne fonctionnait pas
+> du tout. (1) `Foreign<T>` avec un argument de type explicite levait un faux
+> `AliasArityMismatch` — `collect_undefined_aliases` ignorait l'arité seulement quand la
+> *référence* était opaque, jamais quand la *cible résolue* l'était (le cas exact de
+> `Foreign<T>`). (2) un `@extern` à nom nu (`readRDS`) recevait quand même le stub
+> `UseMethod` générique de `generic_functions.R`, qui l'aurait shadowé — `nlevels` bug mais
+> pour `@extern`. (3) `let x: T <- expr` (et un retour de fonction typé, même helper)
+> passait la valeur dans `as.X()`, qui ajoute des classes TypR sur le vecteur de classes
+> *réel* via `struct()`/`class(x) <-` — inoffensif pour S3, mais **casse silencieusement les
+> objets S4** (R perd le statut S4 dès qu'une deuxième classe est assignée). (4) une fonction
+> TypR de premier niveau prenant un paramètre `Foreign<T>` est émise comme méthode S3 sur un
+> nom d'alias synthétique (`f.Foreign0`) qu'aucune valeur étrangère réelle ne porte jamais —
+> dispatch **inatteignable**. Les quatre corrections + leur rationale complet sont dans
+> `interop_matrix.md` et les `expect.md` des cases concernées.
+>
+> **`--checked` (interaction Phase A/D)** : les 3 cases colonne c tournent avec
+> `checked = true` (nouveau champ `CaseMeta.checked`, ajoute `--checked` au replay) — la
+> question posée par le plan ("que doit faire `typr_assert_type` face à un objet R6/S4
+> annoté d'un type précis ?") est tranchée par le fix (3) ci-dessus : aucune assertion,
+> `checked_descriptor` retourne `None` pour tout type résolvant vers `Foreign<T>`, sans quoi
+> ce serait un faux positif garanti sur tout usage légitime de l'échappatoire.
+>
+> **Trous documentés, pas des bugs** : les 3 cases colonne f (`status = "wontfix"`)
+> confirment que `val.field` sur un `Foreign<T>` échoue toujours à la compilation (Any n'a
+> aucun champ structurel) — accès volontairement fermé, contournable via un accesseur
+> `@extern` dédié. Ligne S7 marquée `n/a` (package absent de l'environnement de dev/CI, pas
+> testé) plutôt que silencieusement ignorée. Reste en backlog : lignes RC/R6 (packages
+> installés, pas encore exercées), colonnes d/e/g/h/i/j (record field, `match`, pipe, `for`,
+> frontière de module, instanciation générique) pour toutes les lignes.
 
 ### Objectif
 

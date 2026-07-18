@@ -1,0 +1,7 @@
+
+# Row 1 (S3 external) x column c (`let x: T <- expr`) of interop_matrix.md.
+type LmModel <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> LmModel;
+
+let m: LmModel <- readRDS("fixtures/lm.rds");
+print(m);

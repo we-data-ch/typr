@@ -85,6 +85,12 @@ fn checked_descriptor(context: &Context, typ: &Type) -> Option<String> {
         | Type::UnknownFunction(_)
         | Type::Failed(_, _)
         | Type::Empty(_) => None,
+        // `Foreign<T>`-family aliases (soundness_transpilation.md Phase D)
+        // name genuinely external R values (S4/R6/RC instances, third-party
+        // S3 objects, …) whose real runtime class TypR never controls and
+        // must not assert on — same rationale as `get_type_anotation`
+        // skipping the `as.X` cast for them (`vartype.rs`).
+        Type::Alias(name, _, _, _) if context.resolves_to_foreign_alias(name) => None,
         _ => {
             let head = context.get_class(typ);
             // `get_class`'s fallback for anything it can't resolve to a

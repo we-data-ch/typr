@@ -425,6 +425,28 @@ impl VarType {
         "'".to_string() + &res + "'"
     }
 
+    /// Does `name` resolve (through zero or more single-parameter alias
+    /// hops) to the stdlib `Foreign<T>` alias (`opaque Foreign<T> <- Any;`,
+    /// `configs/std/foreign.ty`)? Foreign-family aliases (e.g. `type
+    /// DataFrame <- Foreign<Any>;`) name genuinely external R values (S4/R6/
+    /// RC instances, third-party S3 objects, …) that TypR cannot and must
+    /// not touch — see `is_foreign_alias`'s caller in `get_type_anotation`.
+    pub fn resolves_to_foreign(&self, name: &str) -> bool {
+        let mut current = name.to_string();
+        for _ in 0..16 {
+            if current == "Foreign" {
+                return true;
+            }
+            match self.aliases.iter().find(|(v, _)| v.get_name() == current) {
+                Some((_, Type::Alias(target_name, _, _, _))) => {
+                    current = target_name.clone();
+                }
+                _ => return false,
+            }
+        }
+        false
+    }
+
     pub fn get_type_anotation(&self, t: &Type) -> String {
         let res = match t {
             Type::Boolean(_, _) => "as.Boolean".to_string(),
@@ -432,6 +454,16 @@ impl VarType {
             Type::Number(_, _) => "as.Number".to_string(),
             Type::Char(_, _) => "as.Character".to_string(),
             Type::Vec(vtype, _, _, _) if vtype.is_vector() => "".to_string(),
+            // `as.LmModel(x)` (`x |> struct(c('LmModel', ...))`) appends
+            // classes onto the runtime value's class vector. For a genuine
+            // foreign value that's actively harmful, not just redundant: R
+            // silently drops S4-ness the moment `class(x) <-` is assigned a
+            // multi-element vector (soundness_transpilation.md Phase D,
+            // found instrumenting `type LmModel <- Foreign<Any>;` — an `@`
+            // slot access on the annotated value failed with "no applicable
+            // method for `@`" after going through exactly this cast).
+            // `identity()` is the real base-R passthrough.
+            Type::Alias(name, _, _, _) if self.resolves_to_foreign(name) => "identity".to_string(),
             Type::Alias(name, _, _, _) => format!("as.{}", name),
             _ => self
                 .aliases

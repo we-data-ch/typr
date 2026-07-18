@@ -1,0 +1,10 @@
+
+# Row 1 (S3 external) x column b (return value of a TypR function) of
+# interop_matrix.md.
+type LmModel <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> LmModel;
+
+let get_model <- fn(): LmModel { readRDS("fixtures/lm.rds") };
+
+let m <- get_model();
+print(m);

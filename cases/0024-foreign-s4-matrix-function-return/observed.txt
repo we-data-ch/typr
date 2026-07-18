@@ -1,0 +1,4 @@
+Same class-append corruption as 0022-foreign-s4-matrix-let-annotation's
+observed.txt, applied to the function-return boundary instead of the
+`let`-annotation boundary (both transpile through the same
+`get_type_anotation` call before the fix).

@@ -101,3 +101,30 @@ don't guess a path. A description alone, with nothing to build a `repro/` from, 
   `r-run` cases — real `Rscript` stdout+stderr via `file = "@run"`). Never author the expected R
   by hand, and never golden-diff `@run` (its capture includes CLI progress timings that vary
   every run — grep only).
+- `case.toml` has a `checked = true` field (default `false`): appends `--checked` to the
+  replayed `cmd` (`build`/`run` only). Set it when the bug is specifically about
+  `typr_assert_type` runtime boundary checks (soundness_transpilation.md Phase A) — e.g. a
+  false-positive/false-negative assertion, not just "the program crashes".
+
+### `@extern`/`Foreign<T>` bugs (interop with real R values)
+
+If the bug involves a value from outside TypR's own type system — an S3/S4/RC/R6 object, a
+third-party package, anything reached via `@extern` — this is the `interop_matrix.md` (repo
+root) family, soundness_transpilation.md Phase D. Before scaffolding a new case:
+
+- **Check the matrix first.** The cell (provenance row × TypR-boundary column) may already be
+  covered by an existing `cases/00NN-...` — read `interop_matrix.md`'s grid and its "Backlog"
+  section before assuming this is new.
+- **`typr case add --from <dir>` won't carry extra files.** It curates only `TypR/` +
+  `DESCRIPTION`/`NAMESPACE` (`copy_repro_curated` in `cases.rs`) — any `repro/fixtures/*.rds` the
+  repro needs must be added by hand into the scaffolded `repro/` afterward, same as the existing
+  `cases/0018`-`0029` do.
+- **Never construct the foreign value from TypR source or a hand-written companion `.R` file
+  sourced at run.** TypR's project loader (`load_module.R`) sources every `R/*.R` into its own
+  *isolated* environment, only sharing bindings via `@include` tags TypR itself generates — a
+  hand-placed R file isn't reachable from `main.ty` without that plumbing. Instead: generate the
+  value once with a plain R script (extend `tools/gen_interop_fixtures.R` if it's a new fixture,
+  same "run by hand, `.rds` committed" convention as `tools/gen_r_name_db.R`) and read it back
+  via `@extern base::readRDS: (path: char) -> Foreign<Any>;`.
+- **After fixing**, update the matching cell in `interop_matrix.md` to link the new case (or add
+  a row/column if this opens a genuinely new one), not just `cases/README.md`.

@@ -1,0 +1,6 @@
+[[rule]]
+file = "@run"
+must_contain = "3"
+[[rule]]
+file = "@run"
+must_not_contain = "no applicable method"

@@ -1,0 +1,9 @@
+$ typr check TypR/main.ty
+
+  × Type error: Undefined variable 'raw_levels'
+   ╭─[TypR/main.ty:8:12]
+ 7 │ let f <- readRDS("fixtures/factor_ext.rds");
+ 8 │ print(f.raw_levels);
+   ·            ▲
+   ·            ╰── Undefined variable 'raw_levels'
+   ╰────

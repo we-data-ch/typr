@@ -1,0 +1,6 @@
+# status = "wontfix": this is a documented current limitation, not a bug
+# being tracked for a fix (see expect.md). Rules kept so a `typr case run`
+# still surfaces the exact error text if it ever changes.
+[[rule]]
+file = "@run"
+must_contain = "Undefined variable"

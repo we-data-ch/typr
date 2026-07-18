@@ -401,6 +401,32 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
     }
 }
 
+/// Phase C of soundness_transpilation.md: static base-R/S4 name-collision
+/// lint, run right before `R/*.R` is written. `generated_r` is the
+/// transpiled program body (used to detect a user-supplied `<name>.default`
+/// fallback alongside typr's own `std.R`). Returns whether any error-level
+/// finding was reported (callers abort the build in that case).
+fn lint_r_names(context: &Context, generated_r: &str, strict_mode: bool) -> bool {
+    let stub_names = context
+        .get_all_generic_functions()
+        .iter()
+        .map(|(var, _)| var.get_name().replace('`', ""))
+        .filter(|x| !x.contains("<-"))
+        .collect::<Vec<_>>();
+    let ctor_names = context
+        .record_aliases
+        .iter()
+        .map(|(name, _)| name.clone())
+        .collect::<Vec<_>>();
+
+    let mut findings =
+        crate::r_name_lint::lint_generic_stub_names(&stub_names, generated_r, strict_mode);
+    findings.extend(crate::r_name_lint::lint_record_constructor_names(
+        &ctor_names,
+    ));
+    crate::r_name_lint::report_findings(&findings)
+}
+
 pub fn write_header(context: Context, output_dir: &Path, environment: Environment) {
     let type_anotations = context.get_type_anotations();
     let c_types_include = if environment.is_project() {
@@ -823,13 +849,21 @@ fn inject_roxygen_into_module_files(r_dir: &Path, entries: &[(String, String)]) 
     }
 }
 
-pub fn build_project(test_mode: bool, no_incremental: bool, checked_mode: bool) {
-    build_project_impl(test_mode, checked_mode, false, false, !no_incremental);
+pub fn build_project(test_mode: bool, no_incremental: bool, checked_mode: bool, strict_mode: bool) {
+    build_project_impl(
+        test_mode,
+        checked_mode,
+        strict_mode,
+        false,
+        false,
+        !no_incremental,
+    );
 }
 
 fn build_project_impl(
     test_mode: bool,
     checked_mode: bool,
+    strict_mode: bool,
     quiet: bool,
     skip_document: bool,
     incremental: bool,
@@ -919,6 +953,10 @@ fn build_project_impl(
     inject_roxygen_into_module_files(&PathBuf::from("R"), &roxygen_entries);
     step.done();
 
+    if lint_r_names(&type_checker.get_context(), &content, strict_mode) {
+        std::process::exit(1);
+    }
+
     let step = Step::new("Writing R files");
     write_header(type_checker.get_context(), &dir, Environment::Project);
     write_to_r_lang(
@@ -959,7 +997,7 @@ fn build_project_impl(
     }
 }
 
-pub fn build_file(path: &Path, test_mode: bool, checked_mode: bool) {
+pub fn build_file(path: &Path, test_mode: bool, checked_mode: bool, strict_mode: bool) {
     let dir = PathBuf::from(".");
     write_std_for_type_checking(&dir);
 
@@ -989,6 +1027,10 @@ pub fn build_file(path: &Path, test_mode: bool, checked_mode: bool) {
     let step = Step::new("Transpiling");
     let content = type_checker.clone().transpile();
     step.done();
+
+    if lint_r_names(&type_checker.get_context(), &content, strict_mode) {
+        std::process::exit(1);
+    }
 
     let step = Step::new("Writing R files");
     write_header(type_checker.get_context(), &dir, Environment::StandAlone);
@@ -1021,8 +1063,8 @@ fn rprof_wrap(r_body: &str) -> String {
     )
 }
 
-pub fn run_project(profile: bool, checked_mode: bool) {
-    build_project_impl(false, checked_mode, true, true, true);
+pub fn run_project(profile: bool, checked_mode: bool, strict_mode: bool) {
+    build_project_impl(false, checked_mode, strict_mode, true, true, true);
     // Use the TypR loader instead of devtools to respect module encapsulation.
     // Top-level code in main.ty already runs as a side effect of sourcing it
     // (sys.source() inside load_module()). The `module Main { @pub let main
@@ -1081,14 +1123,20 @@ fn strip_shebang(content: &str) -> &str {
 }
 
 pub fn run_file(path: &Path) {
-    run_file_impl(path, false, false, false);
+    run_file_impl(path, false, false, false, false);
 }
 
-pub fn run_file_keep(path: &Path, profile: bool, checked_mode: bool) {
-    run_file_impl(path, true, profile, checked_mode);
+pub fn run_file_keep(path: &Path, profile: bool, checked_mode: bool, strict_mode: bool) {
+    run_file_impl(path, true, profile, checked_mode, strict_mode);
 }
 
-fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: bool) {
+fn run_file_impl(
+    path: &Path,
+    keep_files: bool,
+    profile: bool,
+    checked_mode: bool,
+    strict_mode: bool,
+) {
     let raw = fs::read_to_string(path).unwrap_or_else(|e| {
         eprintln!("Cannot read {:?}: {}", path, e);
         std::process::exit(1);
@@ -1147,6 +1195,13 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: boo
     let step = Step::new("Transpiling");
     let r_content = type_checker.clone().transpile();
     step.done();
+
+    if lint_r_names(&type_checker.get_context(), &r_content, strict_mode) {
+        if !keep_files {
+            let _ = fs::remove_dir_all(&work_dir);
+        }
+        std::process::exit(1);
+    }
 
     let step = Step::new("Writing R files");
     write_header(
@@ -1236,7 +1291,7 @@ fn write_context_json(context: &Context, output_dir: &Path) {
 }
 
 pub fn test(profile: bool) {
-    build_project(true, false, false);
+    build_project(true, false, false, false);
     // Load modules in test mode so @testable members are accessible in test files.
     // Then delegate test discovery to devtools::test().
     let base_command = concat!(

@@ -1,0 +1,11 @@
+
+# Row 1 (S3 external) x column f (dot/dollar access) of interop_matrix.md.
+# Deliberate hole, not a bug: Foreign<T> reduces to Any, which has no
+# structural fields, so `m.coefficients` can never type-check. Reaching a
+# foreign value's fields/methods requires an explicit @extern accessor
+# instead (see 0019-foreign-lm-function-arg's `stats::coef`).
+type LmModel <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> LmModel;
+
+let m <- readRDS("fixtures/lm.rds");
+print(m.coefficients);

@@ -1,0 +1,11 @@
+$ typr check TypR/main.ty
+
+  × Type error: Undefined variable 'coefficients'
+   ╭─[TypR/main.ty:9:10]
+ 8 │ let m <- readRDS("fixtures/lm.rds");
+ 9 │ print(m.coefficients);
+   ·          ▲
+   ·          ╰── Undefined variable 'coefficients'
+   ╰────
+  help: - Check the orthograph
+        - if it's a function check if it's defined for the given type Empty

@@ -1,0 +1,3 @@
+Same class-append corruption as 0026-foreign-factor-let-annotation's
+observed.txt, applied to the function-return boundary instead of the
+`let`-annotation boundary.

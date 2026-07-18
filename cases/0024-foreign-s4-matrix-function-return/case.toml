@@ -1,0 +1,7 @@
+title = "Phase D interop matrix: row 2 (S4, Matrix::Matrix) x column b (return value of a TypR function)"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-07-18"
+origin = "perso"
+checked = false

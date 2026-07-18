@@ -1,0 +1,12 @@
+
+# Row 1 (S3 external) x column a (argument of a TypR function) of
+# interop_matrix.md.
+type LmModel <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> LmModel;
+@extern stats::coef: (m: LmModel) -> Foreign<Any>;
+@extern base::length: (x: Foreign<Any>) -> int;
+
+let count_coefficients <- fn(m: LmModel): int { length(coef(m)) };
+
+let m <- readRDS("fixtures/lm.rds");
+print(count_coefficients(m));
