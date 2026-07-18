@@ -71,6 +71,11 @@ pub struct Config {
     /// are additionally exposed as `M$.test_<name>` (see RFC-TR-031).
     #[serde(default)]
     pub test_mode: bool,
+    /// When true, the expression currently being type-checked is nested
+    /// inside a loop body (`Lang::Loop`/`WhileLoop`/`ForLoop`) — lets
+    /// `break`/`next` be rejected outside of one (audit_type_checking.md C2).
+    #[serde(default)]
+    pub in_loop: bool,
 }
 
 //main
@@ -110,6 +115,13 @@ impl Config {
         }
     }
 
+    pub fn set_in_loop(self, val: bool) -> Self {
+        Self {
+            in_loop: val,
+            ..self
+        }
+    }
+
     pub fn get_target_language(&self) -> TargetLanguage {
         self.target_language
     }
@@ -127,6 +139,7 @@ impl Default for Config {
             file_type: FileType::Main,
             in_module_body: false,
             test_mode: false,
+            in_loop: false,
         }
     }
 }

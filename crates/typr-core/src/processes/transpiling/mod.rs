@@ -1334,9 +1334,13 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Lines { value: exps, .. } => {
                 Translatable::from(cont.clone()).join(exps, "\n").into()
             }
+            // `return X` is a syntax error in R — `return` is an ordinary
+            // function there, not a statement keyword, so the argument must
+            // be parenthesized (`return(X)`).
             Lang::Return { value: exp, .. } => Translatable::from(cont.clone())
-                .add("return ")
+                .add("return(")
                 .to_r(exp)
+                .add(")")
                 .into(),
             Lang::Lambda {
                 parameters: params,

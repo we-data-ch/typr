@@ -111,6 +111,33 @@ pub enum TypeError {
     /// silently truncates: extra args are dropped, missing ones leave
     /// unsubstituted `Generic` placeholders in the reduced type.
     AliasArityMismatch(String, usize, usize, HelpData),
+    /// `break`/`next` used outside of any enclosing loop body — `(keyword,
+    /// position)`. R would fail at runtime with a similarly-shaped error, but
+    /// silently: catching it at compile time (audit_type_checking.md C2).
+    LoopControlOutsideLoop(String, HelpData),
+    /// A `DataFrame` literal column isn't vector-shaped — `(column_name,
+    /// column_type, position)`. Without this check the DataFrame's index
+    /// silently fell back to `Any` (audit_type_checking.md D1).
+    DataFrameColumnNotVector(String, Type, HelpData),
+    /// Two `DataFrame` literal columns have statically known, differing
+    /// lengths — `(first_column_name, first_len, second_column_name,
+    /// second_len, position)` (audit_type_checking.md D1).
+    DataFrameColumnLengthMismatch(String, i32, String, i32, HelpData),
+    /// `Union.Variant:{ field = val }` / `TagName:{ field = val }` (and the
+    /// bare, brace-less form) used against a real `Type::Tag` union member.
+    /// Tag constructors always take exactly one positional payload
+    /// (`.Variant(value)`, or `.Variant(:{...})` when the payload itself is
+    /// record-shaped) — never named record-style fields, and never zero
+    /// arguments when the payload isn't empty. The generated R constructor
+    /// is always `Variant <- function(x) { ... }`, so this construct
+    /// type-checked but crashed at runtime with "unused argument"
+    /// (audit_type_checking.md U1) before this check existed —
+    /// `(variant_name, union_name, position)`.
+    TagFieldConstructorNotSupported(String, String, HelpData),
+    /// `Union.Variant`/`Union.Variant:{...}` names a variant that isn't a
+    /// member of `Union`'s declared union type at all — `(variant_name,
+    /// union_name, position)`.
+    UnknownUnionVariant(String, String, HelpData),
 }
 
 impl TypeError {
@@ -153,6 +180,11 @@ impl TypeError {
             TypeError::PatternTypeMismatch(_, _, h) => Some(h.clone()),
             TypeError::UnsupportedPattern(_, h) => Some(h.clone()),
             TypeError::AliasArityMismatch(_, _, _, h) => Some(h.clone()),
+            TypeError::LoopControlOutsideLoop(_, h) => Some(h.clone()),
+            TypeError::DataFrameColumnNotVector(_, _, h) => Some(h.clone()),
+            TypeError::TagFieldConstructorNotSupported(_, _, h) => Some(h.clone()),
+            TypeError::UnknownUnionVariant(_, _, h) => Some(h.clone()),
+            TypeError::DataFrameColumnLengthMismatch(_, _, _, _, h) => Some(h.clone()),
         }
     }
 
@@ -357,6 +389,34 @@ impl TypeError {
                     expected,
                     if *expected > 1 { "s" } else { "" },
                     found
+                )
+            }
+            TypeError::LoopControlOutsideLoop(keyword, _) => {
+                format!("'{}' used outside of a loop", keyword)
+            }
+            TypeError::DataFrameColumnNotVector(name, typ, _) => {
+                format!(
+                    "DataFrame column '{}' must be a vector, found {}",
+                    name,
+                    typ.pretty()
+                )
+            }
+            TypeError::DataFrameColumnLengthMismatch(name1, len1, name2, len2, _) => {
+                format!(
+                    "DataFrame columns have mismatched lengths: '{}' has {}, '{}' has {}",
+                    name1, len1, name2, len2
+                )
+            }
+            TypeError::TagFieldConstructorNotSupported(variant_name, union_name, _) => {
+                format!(
+                    "'{}' is a tag of union '{}'; it can't be constructed with `:{{ field = val }}` syntax",
+                    variant_name, union_name
+                )
+            }
+            TypeError::UnknownUnionVariant(variant_name, union_name, _) => {
+                format!(
+                    "'{}' is not a variant of union '{}'",
+                    variant_name, union_name
                 )
             }
         }
@@ -892,6 +952,70 @@ impl ErrorMsg for TypeError {
                         expected,
                         if expected > 1 { "s" } else { "" },
                         name
+                    ))
+                    .build()
+            }
+            TypeError::LoopControlOutsideLoop(keyword, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!("'{}' used outside of a loop", keyword))
+                    .pos_text(format!("'{}' has no enclosing loop", keyword))
+                    .help("break/next are only valid inside the body of a loop/while/for.")
+                    .build()
+            }
+            TypeError::DataFrameColumnNotVector(name, typ, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "DataFrame column '{}' must be a vector, found {}",
+                        name,
+                        typ.pretty()
+                    ))
+                    .pos_text("This column isn't vector-shaped")
+                    .help("Every DataFrame column must be a vector (e.g. `[1, 2, 3]`).")
+                    .build()
+            }
+            TypeError::DataFrameColumnLengthMismatch(name1, len1, name2, len2, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "DataFrame columns have mismatched lengths: '{}' has {}, '{}' has {}",
+                        name1, len1, name2, len2
+                    ))
+                    .pos_text("Column lengths must all match")
+                    .help("Every column in a DataFrame literal must have the same length.")
+                    .build()
+            }
+            TypeError::TagFieldConstructorNotSupported(variant_name, union_name, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "'{}' is a tag of union '{}'; it can't be constructed with `:{{ field = val }}` syntax",
+                        variant_name, union_name
+                    ))
+                    .pos_text("Tag constructors take a single positional payload, not named fields")
+                    .help(format!(
+                        "Use `.{}(value)` instead (e.g. `.{}(:{{ ... }})` if the payload is itself a record).",
+                        variant_name, variant_name
+                    ))
+                    .build()
+            }
+            TypeError::UnknownUnionVariant(variant_name, union_name, help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "'{}' is not a variant of union '{}'",
+                        variant_name, union_name
+                    ))
+                    .pos_text("Unknown variant")
+                    .help(format!(
+                        "Check the variants declared by `type {} <- ...;`.",
+                        union_name
                     ))
                     .build()
             }

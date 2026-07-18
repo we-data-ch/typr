@@ -75,6 +75,14 @@ fn print_step(title: &str) {
 /// confusingly (bare identifier + dangling `{...}`). A repo-wide grep found
 /// no existing project relying on the brace-positional form — `list(...)`
 /// (parens) remains the working, unaffected way to build positional tuples.
+///
+/// `TupleDestructureArityMismatch` (T1 of the type-checking edge-case audit)
+/// is fatal too: under-binding (`let :{a, b} <- :{1, 2, 3};`) used to drop
+/// the extra element with zero diagnostic anywhere, and over-binding fell
+/// through to a generic, badly-localized `Unknown element` error pointing at
+/// `std.ty` instead of the user's file — neither is a state any working
+/// project depends on, and treating it as a mere warning would leave the
+/// silent-data-loss case exactly as silent as before.
 fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
     if errors.is_empty() {
         return false;
@@ -85,6 +93,7 @@ fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
             SyntaxError::UnknownElement { .. }
                 | SyntaxError::SingleLetterTypeName { .. }
                 | SyntaxError::KeywordRecordPositionalElements { .. }
+                | SyntaxError::TupleDestructureArityMismatch { .. }
         )
     });
     if !warnings.is_empty() {

@@ -113,6 +113,20 @@ fn lang_to_cast_type(lang: &Lang) -> Option<Type> {
     }
 }
 
+/// `int`/`num`/`char`/`bool` as the RHS of `as!`: these are TypR primitive-
+/// type keywords, not aliases resolvable through the context — see the call
+/// site in `combine()` for why leaving them as a bare `Lang::Variable` name
+/// used to reduce to a broken `Type::Alias`.
+fn primitive_cast_type(name: &str) -> Option<Type> {
+    match name {
+        "int" => Some(builder::integer_type_default()),
+        "num" => Some(builder::number_type()),
+        "char" => Some(builder::character_type_default()),
+        "bool" => Some(builder::boolean_type()),
+        _ => None,
+    }
+}
+
 impl Op {
     pub fn to_type(&self) -> Option<Type> {
         match self {
@@ -138,7 +152,21 @@ impl Op {
     pub fn combine(self, left: Lang, right: Lang) -> Lang {
         if let Op::AsExcl(_) = self {
             let (type_name, literal_type) = match &right {
-                Lang::Variable { name, .. } => (name.clone(), None),
+                // `x as! int` (and num/char/bool): the RHS parses as an
+                // ordinary `Lang::Variable` identifier, same as a real alias
+                // name — but these four are TypR primitive-type keywords,
+                // not context-resolvable aliases. Left as `(name, None)`,
+                // the type-checker's `ValidatingCast` arm used to wrap them
+                // in `Type::Alias("int", ...)`, which nothing downstream can
+                // reduce (the stdlib alias fallback only knows the
+                // capitalized long-form names "Integer"/"Number"/etc., not
+                // "int"/"num") — silently `Any` at best, and a hard panic at
+                // worst (`HelpData::from(Type)` has no arm for `Type::Alias`,
+                // reached e.g. via a record field's ArgumentType conversion).
+                Lang::Variable { name, .. } => match primitive_cast_type(name) {
+                    Some(t) => (t.pretty(), Some(t)),
+                    None => (name.clone(), None),
+                },
                 _ => match lang_to_cast_type(&right) {
                     Some(t) => (t.pretty(), Some(t)),
                     None => ("Unknown".to_string(), None),

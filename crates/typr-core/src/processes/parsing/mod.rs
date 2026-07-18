@@ -322,6 +322,24 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 body,
             ),
         )) => {
+            // Arity check only when the source is syntactically a tuple literal
+            // (`:{...}`) — the only case where the element count is known without
+            // type-checking. A generic expression (function call, variable, ...)
+            // still falls through to the existing generic tuple-indexing checks.
+            if let Lang::Tuple {
+                value: body_elements,
+                ..
+            } = &body
+            {
+                if elements.len() != body_elements.len() {
+                    push_parse_error(SyntaxError::TupleDestructureArityMismatch {
+                        expected: elements.len(),
+                        found: body_elements.len(),
+                        help_data: _th.clone(),
+                    });
+                }
+            }
+
             let tmp_name = "__tuple_tmp__";
             let tmp_var = Var::from_name(tmp_name).to_language();
 
@@ -2014,6 +2032,96 @@ mod tesus {
     }
 
     #[test]
+    fn test_let_tuple_under_binding_is_arity_error() {
+        let _ = take_parse_errors();
+        let _ = let_tuple_exp("let :{a, b} <- :{1, 2, 3};".into())
+            .unwrap()
+            .1;
+        let errors = take_parse_errors();
+        assert_eq!(
+            errors.len(),
+            1,
+            "under-binding must raise exactly one error"
+        );
+        match &errors[0] {
+            SyntaxError::TupleDestructureArityMismatch {
+                expected, found, ..
+            } => {
+                assert_eq!(*expected, 2);
+                assert_eq!(*found, 3);
+            }
+            other => panic!("Expected TupleDestructureArityMismatch, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_let_tuple_over_binding_is_arity_error() {
+        let _ = take_parse_errors();
+        let _ = let_tuple_exp("let :{a, b, c, d} <- :{1, 2, 3};".into())
+            .unwrap()
+            .1;
+        let errors = take_parse_errors();
+        assert_eq!(errors.len(), 1, "over-binding must raise exactly one error");
+        match &errors[0] {
+            SyntaxError::TupleDestructureArityMismatch {
+                expected, found, ..
+            } => {
+                assert_eq!(*expected, 4);
+                assert_eq!(*found, 3);
+            }
+            other => panic!("Expected TupleDestructureArityMismatch, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_let_tuple_matching_arity_no_error() {
+        let _ = take_parse_errors();
+        let _ = let_tuple_exp("let :{a, b, c} <- :{1, 2, 3};".into())
+            .unwrap()
+            .1;
+        let errors = take_parse_errors();
+        assert!(errors.is_empty(), "matching arity must not raise an error");
+    }
+
+    #[test]
+    fn test_let_tuple_wildcard_counts_toward_arity() {
+        let _ = take_parse_errors();
+        let _ = let_tuple_exp("let :{a, _} <- :{1, 2, 3};".into())
+            .unwrap()
+            .1;
+        let errors = take_parse_errors();
+        assert_eq!(
+            errors.len(),
+            1,
+            "`_` still occupies a slot, so this is a 2-vs-3 mismatch"
+        );
+    }
+
+    #[test]
+    fn test_let_tuple_dynamic_source_no_arity_check() {
+        // Source is not a syntactic tuple literal (a function call) — arity is
+        // unknown at parse time, so no error should be raised here.
+        let _ = take_parse_errors();
+        let _ = let_tuple_exp("let :{a, b} <- get_pair();".into())
+            .unwrap()
+            .1;
+        let errors = take_parse_errors();
+        assert!(
+            errors.is_empty(),
+            "dynamic (non-literal) tuple source must not be flagged at parse time"
+        );
+    }
+
+    #[test]
+    fn test_let_tuple_arity_mismatch_full_parse_has_errors() {
+        let res = parse("let :{a, b} <- :{1, 2, 3};".into());
+        assert!(
+            res.has_errors(),
+            "arity mismatch should surface through the full parse() entry point"
+        );
+    }
+
+    #[test]
     fn test_let_tuple_in_full_parse() {
         let res = parse("let :{a, b, c} <- :{1, 2, 3};".into());
         assert!(
@@ -2259,5 +2367,32 @@ mod tesus {
         // 3!; — literal, not assignable: parser should fail (return Err)
         let res = implicit_mutate("3!;".into());
         assert!(res.is_err(), "Literal mutation should fail to parse");
+    }
+
+    // A1 (audit_type_checking.md): `head_lang` only accepts `Lang::Variable`
+    // or a `Dot`/`Pipe` chain terminating in one, so `Lang::Assign::identifier`
+    // is guaranteed to always be a `Lang::Variable` by construction — the
+    // silent fallback in `eval()`'s `Lang::Assign` arm (`Var::from_language`
+    // failing) is unreachable dead code, not a live gap. These two cases —
+    // `$` field access and array indexing — are the ones the audit called
+    // out as *not* reducible to a plain variable target.
+    #[test]
+    fn test_implicit_mutate_dollar_target_fails() {
+        // p$x!; — `Dollar` isn't one of `head_lang`'s accepted chain links.
+        let res = implicit_mutate("p$x!;".into());
+        assert!(
+            res.is_err(),
+            "Mutating a `$`-field target should fail to parse, not silently drop"
+        );
+    }
+
+    #[test]
+    fn test_implicit_mutate_array_indexing_target_fails() {
+        // v[1]!; — indexing isn't a `head_lang`-accepted chain link either.
+        let res = implicit_mutate("v[1]!;".into());
+        assert!(
+            res.is_err(),
+            "Mutating an indexed target should fail to parse, not silently drop"
+        );
     }
 }

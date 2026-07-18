@@ -1,0 +1,6 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 396
+expression: "diagnose(\"let f <- fn(o: Option): int { 0 };\")"
+---
+Option expects 1 type argument, found 0

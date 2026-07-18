@@ -49,6 +49,7 @@ use crate::processes::type_checking::constructor_call::constructor_call;
 use crate::processes::type_checking::dollar_access::dollar_access;
 use crate::processes::type_checking::dot_pipe_access::dot_pipe_access;
 use crate::processes::type_checking::function::function;
+use crate::processes::type_checking::function::is_compatible_return_type;
 use crate::processes::type_checking::function_application::function_application;
 use crate::processes::type_checking::let_expression::let_expression;
 use crate::processes::type_checking::match_expression::match_expression;
@@ -1180,12 +1181,32 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             .into(),
         Lang::Null(h) => (Type::Null(h.clone()), expr.clone(), context.clone()).into(),
         Lang::Empty(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()).into(),
-        Lang::Break(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()).into(),
-        Lang::Next(h) => (Type::Empty(h.clone()), expr.clone(), context.clone()).into(),
+        Lang::Break(h) => {
+            let mut errors = Vec::new();
+            if !context.is_in_loop() {
+                errors.push(TypRError::Type(TypeError::LoopControlOutsideLoop(
+                    "break".to_string(),
+                    h.clone(),
+                )));
+            }
+            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
+                .with_errors(errors)
+        }
+        Lang::Next(h) => {
+            let mut errors = Vec::new();
+            if !context.is_in_loop() {
+                errors.push(TypRError::Type(TypeError::LoopControlOutsideLoop(
+                    "next".to_string(),
+                    h.clone(),
+                )));
+            }
+            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
+                .with_errors(errors)
+        }
         Lang::Loop {
             body, help_data: h, ..
         } => {
-            let tc = typing(context, body);
+            let tc = typing(&context.clone().set_in_loop(true), body);
             TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
                 .with_errors(tc.errors)
         }
@@ -1206,7 +1227,11 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let mut errors = tc1.errors;
             errors.extend(tc2.errors);
 
-            if tc1.value.is_boolean() && tc2.value.is_boolean() {
+            // O2 (audit_type_checking.md): reduce before checking booleanness so
+            // an alias to `bool` (`type Flag <- bool;`) is accepted.
+            if reduce_type(context, &tc1.value).is_boolean()
+                && reduce_type(context, &tc2.value).is_boolean()
+            {
                 TypeContext::new(builder::boolean_type(), expr.clone(), context.clone())
                     .with_errors(errors)
             } else {
@@ -1252,7 +1277,23 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let mut errors = tc1.errors;
             errors.extend(tc2.errors);
 
-            if tc1.value == tc2.value {
+            // O1 (audit_type_checking.md): raw `Type` equality is too strict for
+            // a comparison operator — an alias compared to its own underlying
+            // type (`type Meters <- int; m == 5`) or an int compared to a num
+            // (`1 < 1.5`) are both legitimate comparisons, not type errors.
+            // Reduce both sides first, then accept exact (reduced) equality, a
+            // numeric int/num mix, or either side being a subtype of the other
+            // (covers e.g. a record alias vs. its structural literal).
+            let reduced1 = reduce_type(context, &tc1.value);
+            let reduced2 = reduce_type(context, &tc2.value);
+            let both_numeric = matches!(reduced1, Type::Integer(_, _) | Type::Number(_, _))
+                && matches!(reduced2, Type::Integer(_, _) | Type::Number(_, _));
+            let comparable = reduced1 == reduced2
+                || both_numeric
+                || reduced1.is_subtype(&reduced2, context).0
+                || reduced2.is_subtype(&reduced1, context).0;
+
+            if comparable {
                 TypeContext::new(builder::boolean_type(), expr.clone(), context.clone())
                     .with_errors(errors)
             } else {
@@ -1335,7 +1376,14 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 let mut exprs2 = exprs.clone();
                 let exp = exprs2.pop().unwrap();
                 let mut all_errors = Vec::new();
-                let new_context = exprs.iter().fold(context2, |ctx, expr| {
+                // `exprs2` (not `exprs`): the last statement was already
+                // popped off into `exp` and is typed separately below via
+                // `final_tc` — folding over the un-popped `exprs` here used
+                // to type it a *second* time too, silently duplicating every
+                // error it raised (found via audit_type_checking.md Phase 6
+                // diagnostic-wording snapshots: `.Blue`-variant match errors
+                // came out twice for a two-statement program).
+                let new_context = exprs2.iter().fold(context2, |ctx, expr| {
                     let tc = typing(&ctx, expr);
                     all_errors.extend(tc.errors);
                     tc.context
@@ -1373,13 +1421,27 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let cond_tc = typing(context, cond);
             let mut errors = cond_tc.errors;
 
-            if cond_tc.value.is_boolean() {
+            if reduce_type(context, &cond_tc.value).is_boolean() {
                 let true_tc = typing(context, true_branch);
                 let false_tc = typing(context, false_branch);
                 errors.extend(true_tc.errors);
                 errors.extend(false_tc.errors);
 
-                let result_type = if true_tc.value == false_tc.value || false_tc.value.is_empty() {
+                // C4 (audit_type_checking.md): raw `Type` equality collapsed
+                // an if/else union only when both branches were the exact
+                // same `Type` value — a record alias (`Point`) and its own
+                // structural literal (`list{x:int,y:int}`) are equal *after*
+                // reduction but not before, so they used to produce a
+                // spurious `Point | Record` instead of collapsing to one
+                // type. Reduce both sides first and also collapse when
+                // either is a subtype of the other (covers e.g. returning
+                // either a narrower record or its wider structural form).
+                let reduced_true = reduce_type(context, &true_tc.value);
+                let reduced_false = reduce_type(context, &false_tc.value);
+                let collapses = reduced_true == reduced_false
+                    || reduced_false.is_subtype(&reduced_true, context).0
+                    || reduced_true.is_subtype(&reduced_false, context).0;
+                let result_type = if false_tc.value.is_empty() || collapses {
                     true_tc.value
                 } else {
                     builder::union_type(&[true_tc.value, false_tc.value])
@@ -1508,7 +1570,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .iter()
                 .map(|arg_val: &ArgumentValue| typing(context, &arg_val.get_value()))
                 .collect();
-            let errors: Vec<TypRError> = type_contexts
+            let mut errors: Vec<TypRError> = type_contexts
                 .iter()
                 .flat_map(|tc| tc.errors.clone())
                 .collect();
@@ -1517,16 +1579,46 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .zip(type_contexts.iter())
                 .map(|(arg_val, tc)| (arg_val.get_argument(), tc.value.clone()).into())
                 .collect();
-            let index = fields
-                .first()
-                .map(|arg_val: &ArgumentValue| {
-                    let col_type = typing(context, &arg_val.get_value()).value;
-                    match col_type {
-                        Type::Vec(_, idx, _, _) => *idx,
-                        _ => builder::any_type(),
+
+            // D1 (audit_type_checking.md): every column must be vector-shaped,
+            // and columns with a statically known length must all agree.
+            let mut known_length: Option<(String, i32)> = None;
+            let mut index = builder::any_type();
+            for (arg_val, tc) in fields.iter().zip(type_contexts.iter()) {
+                let name = arg_val.get_argument();
+                match &tc.value {
+                    Type::Vec(_, idx, _, _) => {
+                        if fields.first().map(|f| f.get_argument()) == Some(name.clone()) {
+                            index = (**idx).clone();
+                        }
+                        if let Type::Integer(Tint::Val(len), _) = idx.as_ref() {
+                            match &known_length {
+                                None => known_length = Some((name.clone(), *len)),
+                                Some((first_name, first_len)) if first_len != len => {
+                                    errors.push(TypRError::Type(
+                                        TypeError::DataFrameColumnLengthMismatch(
+                                            first_name.clone(),
+                                            *first_len,
+                                            name.clone(),
+                                            *len,
+                                            h.clone(),
+                                        ),
+                                    ));
+                                }
+                                _ => {}
+                            }
+                        }
                     }
-                })
-                .unwrap_or_else(builder::any_type);
+                    other => {
+                        errors.push(TypRError::Type(TypeError::DataFrameColumnNotVector(
+                            name,
+                            other.clone(),
+                            h.clone(),
+                        )));
+                    }
+                }
+            }
+
             TypeContext::new(
                 Type::Vec(
                     VecType::DataFrame,
@@ -1611,16 +1703,60 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
 
             match index.get_members_if_array() {
                 Some(members) => {
+                    // I2 (audit_type_checking.md): `Lang::len()` only knows
+                    // Integer/Array/Vector shapes and panics on anything else
+                    // — a dynamic index (`v[i]`, `v[f(x)]`, …) used to crash
+                    // the whole compiler here instead of being type-checked.
+                    // Type-check non-literal members and require `int`; the
+                    // size-probe machinery below only needs *some*
+                    // `Type::Integer`, so a dynamic index degrades to
+                    // `Tint::Unknown` (skipping the static bounds check for
+                    // that dimension, since its value isn't known at
+                    // compile time) rather than a concrete `Val`.
                     let args_index: Vec<_> = members
                         .iter()
-                        .map(|x| builder::integer_type(x.len()).set_help_data((*x).clone().into()))
+                        .map(|x| match x {
+                            Lang::Integer { .. } | Lang::Array { .. } | Lang::Vector { .. } => {
+                                builder::integer_type(x.len()).set_help_data(x.clone().into())
+                            }
+                            _ => {
+                                let idx_tc = typing(context, x);
+                                errors.extend(idx_tc.errors);
+                                if !matches!(
+                                    reduce_type(context, &idx_tc.value),
+                                    Type::Integer(_, _)
+                                ) {
+                                    errors.push(TypRError::Type(TypeError::WrongIndexing(
+                                        typ1.clone(),
+                                        idx_tc.value.clone(),
+                                    )));
+                                }
+                                builder::integer_type_default().set_help_data(x.clone().into())
+                            }
+                        })
                         .collect();
                     let is_indexable = args_target
                         .iter()
                         .zip(args_index.iter())
                         .all(|(target, idx)| idx <= target);
-                    let typ2 =
-                        Type::to_array2(args_index).set_help_data((**arr_exp).clone().into());
+                    // I3 (audit_type_checking.md): `Type::to_array2(args_index)`
+                    // rebuilt the result type from the *index* values (always
+                    // ending in a hardcoded `int`), never from `typ1`'s real
+                    // element type. `args_target` is `[dim1, .., dimN, base]`
+                    // (via `linearize`); once the index covers every real
+                    // dimension, the result is that real `base`, not a shape
+                    // derived from how the index was written. A partial index
+                    // (fewer members than dimensions) still yields a sub-array
+                    // over the untouched trailing dimensions.
+                    let typ2 = if args_index.len() >= args_target.len().saturating_sub(1) {
+                        args_target
+                            .last()
+                            .cloned()
+                            .unwrap_or_else(builder::any_type)
+                    } else {
+                        Type::from_linear(args_target[args_index.len()..].to_vec())
+                    }
+                    .set_help_data((**arr_exp).clone().into());
 
                     if is_indexable {
                         TypeContext::new(typ2, expr.clone(), context.clone()).with_errors(errors)
@@ -1773,11 +1909,14 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 Some((base_type, iter_expr)) => {
                     // The iterable implements `Iterable<T>`: bind `x : T` in the
                     // block scope (T = element type) and type-check the body.
-                    let body_context = context.clone().push_var_type(
-                        var.clone().set_type(base_type.clone()),
-                        base_type.clone(),
-                        context,
-                    );
+                    let body_context = context
+                        .clone()
+                        .push_var_type(
+                            var.clone().set_type(base_type.clone()),
+                            base_type.clone(),
+                            context,
+                        )
+                        .set_in_loop(true);
                     let body_tc = typing(&body_context, body);
                     errors.extend(body_tc.errors);
                     let new_for = Lang::ForLoop {
@@ -1805,7 +1944,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let tc = typing(context, not_exp);
             let mut errors = tc.errors;
 
-            match tc.value {
+            match reduce_type(context, &tc.value) {
                 Type::Boolean(_, _) => TypeContext::new(
                     Type::Boolean(crate::components::r#type::tbool::Tbool::Unknown, h.clone()),
                     expr.clone(),
@@ -1842,7 +1981,22 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         Lang::TestBlock { .. } => eval(context, expr).with_lang(expr),
         Lang::Signature { .. } => eval(context, expr).with_lang(expr),
         Lang::TypeConstructor { .. } => eval(context, expr).with_lang(expr),
-        Lang::Return { value: exp, .. } => typing(context, exp),
+        Lang::Return { value: exp, .. } => {
+            let tc = typing(context, exp);
+            // C1 (audit_type_checking.md): an early `return` used to be typed
+            // but never unified with the enclosing function's declared return
+            // type — only the trailing expression was checked in `function()`.
+            // `expected_return_type` is only `Some` while typing a function
+            // body (set in `function()`), so a `return` used outside of one
+            // (parse-error territory already, but defensive) is left alone.
+            let mut errors = tc.errors;
+            if let Some(expected) = context.get_expected_return_type() {
+                if !is_compatible_return_type(&tc.value, &expected, context) {
+                    errors.push(builder::unmatching_return_type(&expected, &tc.value));
+                }
+            }
+            TypeContext::new(tc.value, tc.lang, tc.context).with_errors(errors)
+        }
         Lang::Module { .. } => eval(context, expr).with_lang(expr),
         Lang::Lambda {
             parameters: params,
@@ -2025,9 +2179,18 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                             // Record types imported from a module must also be registered as
                             // aliases so that ConstructorCall (TypeName:{...}) can find them.
                             if !matches!(member_type, Type::Function(..)) {
-                                new_context = new_context
-                                    .clone()
-                                    .push_alias(local_name.clone(), member_type);
+                                let (alias_var, alias_type) = resolve_imported_alias(
+                                    context,
+                                    module_path,
+                                    &local_name,
+                                    &local_name,
+                                    &member_type,
+                                );
+                                new_context = new_context.clone().push_var_type(
+                                    alias_var,
+                                    alias_type,
+                                    &new_context,
+                                );
                             }
                         }
                     }
@@ -2089,9 +2252,18 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         // Record types imported from a module must also be registered
                         // as aliases so that ConstructorCall (TypeName:{...}) can find them.
                         if !matches!(member_type, Type::Function(..)) {
-                            new_context = new_context
-                                .clone()
-                                .push_alias(local_name.clone(), member_type);
+                            let (alias_var, alias_type) = resolve_imported_alias(
+                                context,
+                                module_path,
+                                &item.name,
+                                &local_name,
+                                &member_type,
+                            );
+                            new_context = new_context.clone().push_var_type(
+                                alias_var,
+                                alias_type,
+                                &new_context,
+                            );
                         }
                     }
                 }
@@ -2164,13 +2336,69 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         }
         Lang::UnionConstructor {
             union_name,
+            variant_name,
+            fields,
             help_data: h,
-            ..
-        } => TypeContext::new(
-            Type::Alias(union_name.clone(), vec![], false, h.clone()),
-            expr.clone(),
-            context.clone(),
-        ),
+        } => {
+            let union_target = context
+                .get_matching_alias_signature(&Var::from_name(union_name))
+                .map(|(target, _)| target);
+            let Some(union_target) = union_target else {
+                return TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                    .with_errors(vec![TypRError::Type(TypeError::AliasNotFound(
+                        Type::Alias(union_name.clone(), vec![], false, h.clone()),
+                    ))]);
+            };
+            let members = flatten_operator_union(&union_target);
+            let tag_member = members.iter().find_map(|m| match m {
+                Type::Tag(name, inner, _) if name == variant_name => Some((**inner).clone()),
+                _ => None,
+            });
+            let alias_member = members
+                .iter()
+                .any(|m| matches!(m, Type::Alias(name, ..) if name == variant_name));
+            if let Some(inner) = tag_member {
+                // Tag member (declared as `.Variant(...)` in the union): the
+                // generated R constructor is always `Variant <- function(x)
+                // { ... }` — one positional payload, never named fields —
+                // whether that payload is scalar or itself record-shaped.
+                // Only a genuinely empty payload with no fields at all is a
+                // legitimate use of this qualified syntax (a bare reference
+                // to a zero-arg tag, e.g. `Color.Red`); everything else must
+                // go through `.Variant(value)` instead.
+                if matches!(inner, Type::Empty(_)) && fields.is_empty() {
+                    TypeContext::new(
+                        Type::Alias(union_name.clone(), vec![], false, h.clone()),
+                        expr.clone(),
+                        context.clone(),
+                    )
+                } else {
+                    TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                        .with_errors(vec![TypRError::Type(
+                            TypeError::TagFieldConstructorNotSupported(
+                                variant_name.clone(),
+                                union_name.clone(),
+                                h.clone(),
+                            ),
+                        )])
+                }
+            } else if alias_member {
+                // Record-alias union member (e.g. `type Color <- .Red | Rgb;`
+                // with `type Rgb <- list{...}`): `Rgb` is itself a real
+                // top-level alias with a proper named-field constructor, so
+                // delegate to the exact same validation `Rgb:{...}` would get
+                // as a standalone constructor call.
+                constructor_call(context, expr, &[], variant_name, fields, &None, &[], h)
+            } else {
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(
+                    vec![TypRError::Type(TypeError::UnknownUnionVariant(
+                        variant_name.clone(),
+                        union_name.clone(),
+                        h.clone(),
+                    ))],
+                )
+            }
+        }
         Lang::ValidatingCast {
             expression,
             type_name,
@@ -2219,12 +2447,12 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         } => {
             let cond_tc = typing(context, condition);
             let mut errors = cond_tc.errors;
-            if !cond_tc.value.is_boolean() {
+            if !reduce_type(context, &cond_tc.value).is_boolean() {
                 errors.push(TypRError::Type(TypeError::WrongExpression(
                     condition.get_help_data(),
                 )));
             }
-            let body_tc = typing(context, body);
+            let body_tc = typing(&context.clone().set_in_loop(true), body);
             errors.extend(body_tc.errors);
             TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
                 .with_errors(errors)
@@ -2268,6 +2496,51 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
 ///   `add(int, int)` / `add(num, num)` overloads is a legitimate overload,
 ///   not a redefinition.
 ///
+/// G6 (audit_type_checking.md): a non-function member imported via `use
+/// module::Name;` is re-registered locally as an alias so `ConstructorCall`
+/// (`TypeName:{...}`) can find it. The module's *exported* `Type::Module`
+/// only carries each member's already-reduced target type (built in the
+/// `Lang::Module` eval arm) — it has no slot for "this alias takes N type
+/// parameters", so naively calling `Context::push_alias(name, type)` here
+/// always registers the import with **zero** generics (it builds a fresh
+/// `Var` typed `Type::Params(vec![])`), regardless of how many the alias
+/// actually declares. For a generic alias (`type Box<T> <- list{value:T};`)
+/// this made `use M::Box; let b: Box<int> <- ...;` fail with a bogus
+/// "Box expects 0 type argument, found 1" from the G3 arity check.
+///
+/// Fix: the declaring module's *own* typing context — with the alias
+/// correctly registered as `(Var("Box", Type::Params([T])), target_type)`,
+/// exactly like a top-level `Lang::Alias` — is already kept around via
+/// `Context::store_module_inner_context` (originally for transpilation /
+/// incremental-cache replay, see `CLAUDE.md`). Re-resolve the alias's
+/// signature through that inner context instead of trusting the exported
+/// member type's shape. Falls back to the old zero-generics registration
+/// when no inner context is available (e.g. cache-cold cross-file resolution
+/// paths) — no worse than before, and non-generic aliases are unaffected
+/// either way.
+fn resolve_imported_alias(
+    context: &Context,
+    module_path: &[String],
+    original_name: &str,
+    local_name: &str,
+    fallback_type: &Type,
+) -> (Var, Type) {
+    let inner_signature = module_path
+        .last()
+        .and_then(|seg| context.get_module_inner_context(seg))
+        .and_then(|inner| inner.get_matching_alias_signature(&Var::from_name(original_name)));
+    match inner_signature {
+        Some((target_type, generics)) => (
+            Var::from_name(local_name).set_type(Type::Params(generics, HelpData::default())),
+            target_type,
+        ),
+        None => (
+            Var::from_name(local_name).set_type(builder::params_type()),
+            fallback_type.clone(),
+        ),
+    }
+}
+
 /// Used by `use module::Name;` to avoid rejecting a legitimate import.
 fn has_real_conflict(context: &Context, name: &str, member_type: &Type) -> bool {
     let new_first_param = member_type.get_first_parameter();
@@ -4394,6 +4667,484 @@ p"#;
         assert!(
             !result.has_errors(),
             "reference to a preloaded untyped builtin (Position) should not be an error"
+        );
+    }
+
+    // =====================================================================
+    // Phase 4 (audit_type_checking.md) — operators, control flow, assignment.
+    // =====================================================================
+
+    #[test]
+    fn edge_o1_int_num_comparison_is_allowed() {
+        // O1: `tc1.value == tc2.value` used to be raw `Type` equality, which
+        // rejects a legitimate int/num comparison outright.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("1 < 1.5;", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "comparing an int literal to a num literal should be allowed, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_o1_alias_vs_underlying_comparison_is_allowed() {
+        // O1: a value typed through an alias compared to a literal of the
+        // underlying type used to fail because `Type::Alias` never equals
+        // the reduced `Type::Integer` by raw `PartialEq`.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("type Meters <- int; let m: Meters <- 5; m == 5;", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "comparing an alias value to its underlying literal type should be allowed, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_o2_and_or_accept_boolean_alias() {
+        // O2: `&&`/`||` checked `is_boolean()` on the un-reduced type, so an
+        // alias to `bool` was rejected.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string(
+            "type Flag <- bool; let f: Flag <- true; f && true;",
+            "test.ty",
+        );
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "`&&` over a bool alias should be allowed, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_o2_not_accepts_boolean_alias() {
+        // O2: `!` matched `Type::Boolean` directly with no `reduce_type` first.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("type Flag <- bool; let f: Flag <- true; !f;", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "`!` over a bool alias should be allowed, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_o2_if_condition_accepts_boolean_alias() {
+        // O2: the `if` condition also checked `is_boolean()` unreduced.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string(
+            "type Flag <- bool; let f: Flag <- true; if (f) { 1 } else { 2 };",
+            "test.ty",
+        );
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "`if` over a bool alias condition should be allowed, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_c1_early_return_type_mismatch_is_detected() {
+        // C1: `Lang::Return { value } => typing(context, value)` never unified
+        // the early return's type with the function's declared return type —
+        // only the trailing expression was checked in `function()`.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string(
+            "fn(x: int): int { if (x > 0) { return \"a\"; } else { 1 } };",
+            "test.ty",
+        );
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "returning a char from a fn declared to return int should be a type error"
+        );
+    }
+
+    #[test]
+    fn edge_c1_compatible_early_return_is_not_flagged() {
+        // Companion to the above: a `return` whose type does match the
+        // declared return type must not be a false positive.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string(
+            "fn(x: int): int { if (x > 0) { return 5; } else { 1 } };",
+            "test.ty",
+        );
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "a `return` matching the declared return type should not error, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_c4_if_else_collapses_structurally_identical_branches() {
+        // C4: an `if`/`else` whose branches have structurally identical but
+        // nominally different types (a record alias vs. its own structural
+        // literal) used to compare raw, un-reduced `Type` values, so it
+        // built a spurious `Point | Record` union instead of collapsing to
+        // one type.
+        let fp = FluentParser::new()
+            .push("type Point <- list { x: int, y: int };")
+            .run()
+            .push("let mkp <- fn(): Point { Point:{ x = 1, y = 2 } };")
+            .run()
+            .push("let mkr <- fn(): list { x: int, y: int } { list { x = 3, y = 4 } };")
+            .run()
+            .push("let c <- true;")
+            .run()
+            .push("if (c) { mkp() } else { mkr() }")
+            .parse_type_next();
+        let result_type = fp.get_last_type();
+        assert!(
+            !matches!(
+                result_type,
+                Type::Operator(
+                    crate::components::r#type::type_operator::TypeOperator::Union,
+                    _,
+                    _,
+                    _
+                )
+            ),
+            "structurally identical if/else branches should collapse, got: {:?}",
+            result_type
+        );
+    }
+
+    #[test]
+    fn edge_i2_dynamic_index_does_not_panic_and_is_checked() {
+        // I2: a non-literal index (`v[i]`) isn't one of the shapes
+        // `Lang::len()` handles (Integer/Array/Vector) and used to panic the
+        // whole compiler instead of type-checking. Now it must be typed
+        // `int` and must not crash.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("let v <- [1, 2, 3]; let i <- 1; v[i];", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "indexing with an int-typed variable should be allowed, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_i2_non_int_dynamic_index_is_an_error() {
+        // Companion to the above: an index that type-checks fine but isn't
+        // `int` (e.g. a `char`) must be rejected, not silently accepted.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("let v <- [1, 2, 3]; let i <- \"a\"; v[i];", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "indexing with a non-int-typed variable should be a type error"
+        );
+    }
+
+    #[test]
+    fn edge_i3_scalar_array_indexing_returns_real_element_type() {
+        // I3: `a[1]` on an Array/Vec used to always type as `[1, int]`
+        // (`Type::to_array2` hardcoded `int` and rebuilt the shape from the
+        // index value instead of reading `a`'s real element type). A `char`
+        // array must index to `char`, not `[1, int]`.
+        let fp = FluentParser::new()
+            .push(r#"let a <- ["un", "deux", "trois"];"#)
+            .run()
+            .push("a[1]")
+            .parse_type_next();
+        let t = fp.get_last_type();
+        assert!(
+            matches!(t, Type::Char(..)),
+            "a[1] on a char array should return char, got {:?}",
+            t
+        );
+    }
+
+    #[test]
+    fn edge_i3_scalar_array_indexing_of_int_array_returns_int() {
+        // Companion: same fix must not regress the (previously accidentally
+        // correct) int case.
+        let fp = FluentParser::new()
+            .push("let a <- [1, 2, 3];")
+            .run()
+            .push("a[1]")
+            .parse_type_next();
+        let t = fp.get_last_type();
+        assert!(
+            matches!(t, Type::Integer(..)),
+            "a[1] on an int array should return int, got {:?}",
+            t
+        );
+    }
+
+    #[test]
+    fn edge_i3_scalar_indexed_array_element_usable_as_typed_argument() {
+        // Concrete regression from the audit: passing `a[1]` (char element)
+        // into a function typed `(char) -> char` used to be rejected with a
+        // bogus "Function f<[1, int]> not defined in this scope".
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string(
+            r#"let f <- fn(x: char): char { x }; let a <- ["un", "deux"]; f(a[1]);"#,
+            "test.ty",
+        );
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "a[1] (char) should be usable where a char is expected, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_g6_generic_alias_arity_survives_module_import() {
+        // G6: a generic alias declared inside a module used to lose its type
+        // parameter on `use M::Box;` — the exported member type carries only
+        // the (already-reduced) target type, so the naive string-keyed
+        // `push_alias` re-registered it with zero generics, making
+        // `Box<int>` fail the (correct, G3-added) arity check with a bogus
+        // "Box expects 0 type argument, found 1".
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string(
+            "module M { @pub type Box<T> <- list { value: T }; }; \
+             use M::Box; \
+             let get_value <- fn(b: Box<int>): int { b.value };",
+            "test.ty",
+        );
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "Box<int> from an imported generic alias should type-check, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_g6_imported_generic_alias_substitutes_field_type() {
+        // Companion to the above: not just the arity check, but the actual
+        // per-field substitution (T -> int) must survive the import, so a
+        // field access against the wrong concrete type is still rejected.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string(
+            "module M { @pub type Box<T> <- list { value: T }; }; \
+             use M::Box; \
+             let get_value <- fn(b: Box<int>): char { b.value };",
+            "test.ty",
+        );
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "b.value on a Box<int> should be int, not assignable where char is declared"
+        );
+    }
+
+    #[test]
+    fn edge_c2_break_outside_loop_is_an_error() {
+        // C2: `break`/`next` typed `Empty` unconditionally, so they were
+        // accepted anywhere — including outside of any loop.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("break;", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "`break` outside of a loop should be a type error"
+        );
+    }
+
+    #[test]
+    fn edge_c2_next_outside_loop_is_an_error() {
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("next;", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "`next` outside of a loop should be a type error"
+        );
+    }
+
+    #[test]
+    fn edge_c2_break_inside_while_loop_is_allowed() {
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("while (true) { break; };", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "`break` inside a while-loop body should be allowed, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_c2_next_inside_for_loop_is_allowed() {
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("for (x in [1, 2, 3]) { next; };", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "`next` inside a for-loop body should be allowed, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_a2_assign_to_undeclared_variable_is_an_error() {
+        // A2: `x!;` (implicit-mutate) on a never-declared `x` used to create
+        // an implicit binding silently — turns out this is already covered
+        // as a side effect of S1 (`Lang::Variable` typing of the mutation
+        // target now raises `UndefinedVariable`).
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("x!;", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "mutating a never-declared variable should be a type error"
+        );
+    }
+
+    #[test]
+    fn edge_d1_dataframe_matching_column_lengths_is_allowed() {
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("data.frame(a = [1, 2, 3], b = [4, 5, 6]);", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            !result.has_errors(),
+            "DataFrame columns of matching length should be allowed, got: {:?}",
+            result.get_errors()
+        );
+    }
+
+    #[test]
+    fn edge_d1_dataframe_column_length_mismatch_is_an_error() {
+        // D1 (audit_type_checking.md, Phase 5): column lengths were never
+        // compared against each other before.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("data.frame(a = [1, 2, 3], b = [4, 5]);", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "DataFrame columns with mismatched lengths should be a type error"
+        );
+    }
+
+    #[test]
+    fn edge_d1_dataframe_non_vector_column_is_an_error() {
+        // D1: a non-vector column used to silently give the DataFrame's
+        // index type `Any` instead of raising an error.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("data.frame(a = [1, 2, 3], b = 5);", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.has_errors(),
+            "a non-vector DataFrame column should be a type error"
+        );
+    }
+
+    #[test]
+    fn edge_c3_lines_single_statement_retains_binding() {
+        // C3 (audit_type_checking.md §3): a file with exactly one top-level
+        // statement was claimed to lose that statement's bindings via the
+        // `Lang::Lines` `exprs.len() == 1` fast path (`tc.context` was said
+        // to be discarded in favor of the pre-statement `context`). Current
+        // code already threads `tc.context` through (see the fast path a few
+        // lines above `Lang::Lines { .. } if exprs.len() == 1`), so this is a
+        // regression guard confirming the claim no longer holds.
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string("let x <- 5;", "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(!result.has_errors());
+        let types = result.get_context().get_types_from_name("x");
+        assert!(
+            !types.is_empty(),
+            "single top-level statement should still bind its variable"
+        );
+    }
+
+    // ---- Phase 6 item 3 (audit_type_checking.md): CI guard against future
+    // silent-`Any` regressions. These read this file's own source rather
+    // than exercising the type-checker, so they catch a *reintroduced*
+    // catch-all even before anyone writes a test that would trip over it.
+
+    /// This file's own source, cut off right before `#[cfg(test)] mod
+    /// tests`. Without the cutoff, `include_str!` pulls in this very test
+    /// module too — so the guard tests' own string literals (e.g. the
+    /// `"any_type()"` pattern they search for) would inflate the counts
+    /// they're trying to measure, checking against themselves.
+    fn production_source() -> &'static str {
+        let source = include_str!("mod.rs");
+        &source[..source.find("#[cfg(test)]").unwrap()]
+    }
+
+    #[test]
+    fn guard_any_type_call_count_is_tracked() {
+        // `any_type()` is the dominant silent-degradation footgun in this
+        // file (S1-S3). This isn't a ban — sometimes `Any` really is the
+        // correct type — but every new call site should be a conscious
+        // choice made in review, not an accident that slips in unnoticed.
+        // Bump BASELINE *and* explain why in the same commit if a new call
+        // is genuinely needed.
+        //
+        // 16 -> 19 (audit_type_checking.md U1, Phase 9): three new
+        // `any_type()` calls in the `Lang::UnionConstructor` typing arm, each
+        // paired with a pushed `TypeError` (AliasNotFound /
+        // TagFieldConstructorNotSupported / UnknownUnionVariant) — never a
+        // silent fallback, always an error-carrying result type.
+        const BASELINE: usize = 19;
+        let count = production_source().matches("any_type()").count();
+        assert!(
+            count <= BASELINE,
+            "any_type() call count in mod.rs grew from {BASELINE} to {count} — if this is \
+             intentional, bump BASELINE here and explain why in the commit message \
+             (audit_type_checking.md Phase 6 item 3)"
+        );
+    }
+
+    #[test]
+    fn guard_no_new_wildcard_any_type_fallback() {
+        // A `_ => any_type()` / `_ => unknown_function_type()` arm defeats
+        // the exhaustive-match guard Phase 1 installed on eval()/typing()
+        // (S2/S3): it would silently swallow any *future* Lang variant
+        // instead of forcing a compile error. The baseline covers the one
+        // pre-existing, narrow, unrelated instance: array negative-indexing's
+        // inner `match &typ1 { Vec(..) => .., _ => any_type() }` fallback.
+        const BASELINE: usize = 1;
+        let source = production_source();
+        let count = source.matches("_ => any_type()").count()
+            + source.matches("_ => builder::any_type()").count()
+            + source.matches("_ => unknown_function_type()").count()
+            + source
+                .matches("_ => builder::unknown_function_type()")
+                .count();
+        assert!(
+            count <= BASELINE,
+            "a new `_ => any_type()`-style wildcard fallback appeared in mod.rs ({count} vs \
+             baseline {BASELINE}) — if it's inside eval()'s or typing()'s central Lang match, \
+             this likely reintroduces the S2/S3 silent-Any bug; if it's a narrow, unrelated \
+             inner match, bump BASELINE and say why (audit_type_checking.md Phase 6 item 3)"
+        );
+    }
+
+    #[test]
+    fn guard_central_dispatchers_stay_exhaustive_matches() {
+        // Phase 1 replaced the old bare `_ => any_type()` / `_ =>
+        // unknown_function_type()` catch-alls in eval()/typing() with an
+        // explicit list of every remaining Lang variant, specifically so the
+        // compiler forces a decision whenever a new variant is added. These
+        // comment anchors document that choice; their disappearance would
+        // mean someone collapsed the match back into a wildcard.
+        let source = include_str!("mod.rs");
+        assert!(
+            source.contains("provably unreachable today"),
+            "eval()'s exhaustive-match explanation (S3 guard) seems to have been removed \
+             from mod.rs — verify eval() still matches every Lang variant explicitly"
+        );
+        assert!(
+            source.contains("never a live input to typing()"),
+            "typing()'s exhaustive-match explanation (S2 guard) seems to have been removed \
+             from mod.rs — verify typing() still matches every Lang variant explicitly"
         );
     }
 }

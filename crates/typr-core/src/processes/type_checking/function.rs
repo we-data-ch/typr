@@ -267,6 +267,17 @@ fn is_rigid_compatible(body_type: &Type, declared_ret: &Type, context: &Context)
     *interface == reduced_ret || interface.is_subtype_raw(&reduced_ret, context)
 }
 
+/// Shared compatibility check between a produced type and a function's declared
+/// return type — used both for the trailing (last-expression) return value in
+/// `function()` and for every `return` statement inside the body (see
+/// `Lang::Return` in `type_checking/mod.rs`, audit item C1), so an early
+/// `return` is held to the same bar as the implicit final-expression return.
+pub fn is_compatible_return_type(body_type: &Type, declared_ret: &Type, context: &Context) -> bool {
+    is_opaque_of(body_type, declared_ret)
+        || body_type.reduce_and_subtype(declared_ret, context).0
+        || is_rigid_compatible(body_type, declared_ret, context)
+}
+
 pub fn function(
     context: &Context,
     expr: &Lang,
@@ -371,14 +382,17 @@ pub fn function(
         }
     }
 
+    // C1 (audit_type_checking.md): thread the declared return type through so
+    // every early `return` inside the body — not just the trailing expression
+    // — gets checked against it (see `Lang::Return` in `type_checking/mod.rs`).
+    sub_context = sub_context.set_expected_return_type(Some(ret_ty.clone()));
+
     let body_type = body.typing(&sub_context);
     let mut errors = body_type.errors;
     errors.extend(kind_consistency_errors);
     errors.extend(default_param_errors);
     errors.extend(undefined_alias_errors);
-    let is_compatible = is_opaque_of(&body_type.value, ret_ty)
-        || body_type.value.reduce_and_subtype(ret_ty, &sub_context).0
-        || is_rigid_compatible(&body_type.value, ret_ty, &sub_context);
+    let is_compatible = is_compatible_return_type(&body_type.value, ret_ty, &sub_context);
     (!is_compatible)
         .then(|| errors.push(builder::unmatching_return_type(ret_ty, &body_type.value)));
     // Structural types registered on the fly while typing the body (e.g. the

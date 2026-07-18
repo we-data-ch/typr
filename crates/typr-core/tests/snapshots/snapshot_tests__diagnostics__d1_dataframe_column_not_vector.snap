@@ -1,0 +1,6 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 386
+expression: "diagnose(\"data.frame(a = [1, 2, 3], b = 5);\")"
+---
+DataFrame column 'b' must be a vector, found int

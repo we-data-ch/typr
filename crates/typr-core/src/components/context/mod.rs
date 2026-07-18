@@ -82,6 +82,12 @@ pub struct Context {
     /// what makes `Self` invalid outside a function body.
     #[serde(skip)]
     pub self_type: Option<Type>,
+    /// The declared return type of the function whose body is currently being
+    /// type-checked (audit_type_checking.md C1) — lets `Lang::Return` compare
+    /// an early `return` against the same target the trailing expression is
+    /// checked against in `function()`. `None` outside a function body.
+    #[serde(skip)]
+    pub expected_return_type: Option<Type>,
     /// Inner typing contexts computed while type-checking each `module M { ... }`
     /// body, keyed by module name. Populated during type-checking; consumed
     /// during transpilation to avoid re-running `typing()` on every module body.
@@ -156,6 +162,7 @@ impl Default for Context {
             embedded_methods: Vec::new(),
             test_preamble: Vec::new(),
             self_type: None,
+            expected_return_type: None,
             extern_fns: Vec::new(),
             import_from_fns: Vec::new(),
             module_inner_contexts: HashMap::new(),
@@ -198,6 +205,7 @@ impl Context {
             embedded_methods: Vec::new(),
             test_preamble: Vec::new(),
             self_type: None,
+            expected_return_type: None,
             extern_fns: Vec::new(),
             import_from_fns: Vec::new(),
             module_inner_contexts: HashMap::new(),
@@ -261,6 +269,19 @@ impl Context {
     /// denoted by `Self` for the duration of typing a function body.
     pub fn set_self_type(self, self_type: Option<Type>) -> Context {
         Self { self_type, ..self }
+    }
+
+    /// Bind/clear the declared return type of the function whose body is
+    /// currently being type-checked (audit_type_checking.md C1).
+    pub fn set_expected_return_type(self, expected_return_type: Option<Type>) -> Context {
+        Self {
+            expected_return_type,
+            ..self
+        }
+    }
+
+    pub fn get_expected_return_type(&self) -> Option<Type> {
+        self.expected_return_type.clone()
     }
 
     pub fn store_module_inner_context(mut self, name: &str, inner: &Context) -> Self {
@@ -349,6 +370,19 @@ impl Context {
 
     pub fn is_in_module_body(&self) -> bool {
         self.config.in_module_body
+    }
+
+    /// See `Config::in_loop` — set while type-checking the body of a
+    /// `Loop`/`WhileLoop`/`ForLoop` so `break`/`next` inside it are valid.
+    pub fn set_in_loop(self, val: bool) -> Self {
+        Self {
+            config: self.config.set_in_loop(val),
+            ..self
+        }
+    }
+
+    pub fn is_in_loop(&self) -> bool {
+        self.config.in_loop
     }
 
     /// Retourne un nouveau Context avec le Graph de sous-typage mis à jour
@@ -1289,6 +1323,7 @@ impl Add for Context {
             embedded_methods,
             test_preamble,
             self_type: None,
+            expected_return_type: None,
             extern_fns,
             import_from_fns,
             config: self.config,

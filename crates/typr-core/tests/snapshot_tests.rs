@@ -320,6 +320,97 @@ mod typing {
     }
 }
 
+/// Snapshots of the exact wording of diagnostics added by the
+/// audit_type_checking.md Phases 1-5 fixes (Phase 6 item 2: freeze the
+/// messages so a future refactor can't silently reword/regress them —
+/// `cargo test` alone only checks `has_errors()`, not what the error *says*).
+mod diagnostics {
+    use typr_core::components::error_message::help_data::HelpData;
+    use typr_core::components::error_message::type_error::TypeError;
+    use typr_core::components::error_message::typr_error::TypRError;
+    use typr_core::parsing::parse_from_string;
+    use typr_core::{typing_with_errors, Context};
+
+    /// Type-checks a whole (possibly multi-statement) `.ty` source through
+    /// the real `parse()`/`typing_with_errors()` pipeline (not `parse2`,
+    /// which only accepts a single top-level statement) and renders every
+    /// collected error's `simple_message()` — the plain, file-independent
+    /// wording (no ANSI/miette framing) also used by the LSP.
+    fn diagnose(source: &str) -> String {
+        let ast = parse_from_string(source, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        result
+            .errors
+            .iter()
+            .map(|e| e.simple_message())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn s1_undefined_variable() {
+        insta::assert_snapshot!(diagnose("totally_bogus_never_declared_name;"));
+    }
+
+    #[test]
+    fn m1_non_exhaustive_match() {
+        insta::assert_snapshot!(diagnose(
+            "type Color <- .Red | .Green | .Blue;\n\
+             fn(c: Color): int { match c { .Red => 1, .Green => 2 } };"
+        ));
+    }
+
+    #[test]
+    fn m4_pattern_type_mismatch_unknown_variant() {
+        insta::assert_snapshot!(diagnose(
+            "type Color <- .Red | .Green;\n\
+             fn(c: Color): int { match c { .Red => 1, .Green => 2, .Blue => 3 } };"
+        ));
+    }
+
+    #[test]
+    fn c1_unmatching_return_type() {
+        insta::assert_snapshot!(diagnose(
+            "fn(x: int): int { if (x > 0) { return \"a\"; } else { 1 } };"
+        ));
+    }
+
+    #[test]
+    fn c2_loop_control_outside_loop() {
+        insta::assert_snapshot!(diagnose("break;"));
+    }
+
+    #[test]
+    fn d1_dataframe_column_not_vector() {
+        insta::assert_snapshot!(diagnose("data.frame(a = [1, 2, 3], b = 5);"));
+    }
+
+    #[test]
+    fn d1_dataframe_column_length_mismatch() {
+        insta::assert_snapshot!(diagnose("data.frame(a = [1, 2, 3], b = [4, 5]);"));
+    }
+
+    #[test]
+    fn g3_alias_arity_mismatch() {
+        insta::assert_snapshot!(diagnose("let f <- fn(o: Option): int { 0 };"));
+    }
+
+    /// M3 (`UnsupportedPattern`): no clean textual repro exists — the tag
+    /// pattern grammar only accepts a plain identifier inside `.Tag(...)`
+    /// (see `tag_pattern_with_var` in `parsing/elements.rs`), so a nested
+    /// pattern can't be typed at all today (same reason `.Some(.Some(x))`
+    /// doesn't parse, per audit_type_checking.md M3). Constructing the error
+    /// value directly still freezes its wording.
+    #[test]
+    fn m3_unsupported_pattern() {
+        let err = TypRError::Type(TypeError::UnsupportedPattern(
+            "nested pattern inside tuple pattern".to_string(),
+            HelpData::default(),
+        ));
+        insta::assert_snapshot!(err.simple_message());
+    }
+}
+
 mod spg {
     use super::*;
 

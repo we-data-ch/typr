@@ -924,25 +924,6 @@ impl Type {
         }
     }
 
-    pub fn to_array2(args: Vec<Type>) -> Type {
-        let h = HelpData::default();
-        if args.len() > 1 {
-            Type::Vec(
-                VecType::S3,
-                Box::new(args[0].clone()),
-                Box::new(Self::to_array2(args[1..].to_vec())),
-                h,
-            )
-        } else {
-            Type::Vec(
-                VecType::S3,
-                Box::new(args[0].clone()),
-                Box::new(builder::integer_type_default()),
-                h,
-            )
-        }
-    }
-
     pub fn is_any(&self) -> bool {
         *self == builder::any_type()
     }
@@ -1063,6 +1044,25 @@ impl Type {
                 .cloned()
                 .collect(),
             other => vec![other],
+        }
+    }
+
+    /// Inverse of `linearize`: rebuilds a (possibly nested) `Type::Vec` from
+    /// `[dim1, dim2, ..., base_type]`, i.e. `[dim1, [dim2, ..., base_type]]`.
+    /// Used by scalar/sub-array indexing (I3, audit_type_checking.md) to
+    /// reconstruct the *real* remaining element type instead of fabricating
+    /// one from the index values.
+    pub fn from_linear(mut dims_and_base: Vec<Type>) -> Type {
+        match dims_and_base.pop() {
+            None => builder::any_type(),
+            Some(base) => dims_and_base.into_iter().rev().fold(base, |acc, dim| {
+                Type::Vec(
+                    VecType::S3,
+                    Box::new(dim),
+                    Box::new(acc),
+                    HelpData::default(),
+                )
+            }),
         }
     }
 

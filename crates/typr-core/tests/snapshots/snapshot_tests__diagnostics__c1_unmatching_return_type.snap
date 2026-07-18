@@ -1,0 +1,7 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 374
+expression: "diagnose(\"fn(x: int): int { if (x > 0) { return \\\"a\\\"; } else { 1 } };\")"
+---
+Return type mismatch: expected int, got "a"
+Return type mismatch: expected int, got ("a" | int)

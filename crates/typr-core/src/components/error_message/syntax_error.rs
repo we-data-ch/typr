@@ -40,6 +40,11 @@ pub enum SyntaxError {
     MutationTargetNotAssignable(HelpData),
     WrongCommentSyntax(HelpData),
     SingleEqualsComparison(HelpData),
+    TupleDestructureArityMismatch {
+        expected: usize,
+        found: usize,
+        help_data: HelpData,
+    },
     WithNode(Box<Lang>, Box<SyntaxError>),
 }
 
@@ -65,6 +70,7 @@ impl SyntaxError {
             SyntaxError::MutationTargetNotAssignable(h) => Some(h.clone()),
             SyntaxError::WrongCommentSyntax(h) => Some(h.clone()),
             SyntaxError::SingleEqualsComparison(h) => Some(h.clone()),
+            SyntaxError::TupleDestructureArityMismatch { help_data, .. } => Some(help_data.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
     }
@@ -132,6 +138,11 @@ impl SyntaxError {
             }
             SyntaxError::SingleEqualsComparison(_) => {
                 "`=` is not a comparison operator — did you mean `==`?".to_string()
+            }
+            SyntaxError::TupleDestructureArityMismatch { expected, found, .. } => {
+                format!(
+                    "Tuple destructuring expects {expected} element(s), but the source tuple has {found}"
+                )
             }
             SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
@@ -314,6 +325,32 @@ impl ErrorMsg for SyntaxError {
                     .text("`=` is not a comparison operator")
                     .pos_text("Treated as `==` here")
                     .help("Replace `=` with `==` for comparison")
+                    .build()
+            }
+            SyntaxError::TupleDestructureArityMismatch {
+                expected,
+                found,
+                help_data,
+            } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), 0))
+                    .text(format!(
+                        "Tuple destructuring expects {expected} element(s), but the source tuple has {found}"
+                    ))
+                    .pos_text("Here")
+                    .help(if expected < found {
+                        format!(
+                            "Add {} more binding(s), or use `_` to ignore the extra element(s)",
+                            found - expected
+                        )
+                    } else {
+                        format!(
+                            "Remove {} binding(s) — the source tuple only has {found} element(s)",
+                            expected - found
+                        )
+                    })
                     .build()
             }
             SyntaxError::WithNode(_, inner) => return inner.display(),
