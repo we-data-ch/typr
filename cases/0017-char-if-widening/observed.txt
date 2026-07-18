@@ -1,0 +1,26 @@
+# exit=1
+
+## stdout/stderr
+
+  Parsing... done (4 ms)
+  Type checking... failed
+Type errors found:
+  × Type error: type char doesn't match type ("a" | "b")
+   ╭─[TypR/main.ty:1:1]
+ 1 │ #@case char-if-widening: `let x: char <- if (...) { "a" } else { "b" };` fails to
+   · ▲
+   · ╰── Received ("a" | "b")
+ 2 │ # type-check because the if-expression's two char-literal branches produce a
+   ╰────
+   ╭─[TypR/main.ty:7:9]
+ 6 │ # position; only char is affected.
+ 7 │ let x0: char <- if (true) { "a" } else { "b" };
+   ·         ▲
+   ·         ╰── Expected char
+ 8 │ print(x0);
+   ╰────
+
+
+
+## R généré
+

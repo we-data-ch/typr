@@ -3,6 +3,7 @@
 //! Run `cargo insta review` to review/accept new snapshots.
 //! Run `cargo test` to run all tests.
 
+use typr_core::components::context::Context;
 use typr_core::processes::spg::build_spg_from_items;
 use typr_core::utils::fluent_parser::FluentParser;
 
@@ -48,6 +49,21 @@ fn transpile_all(lines: &[&str]) -> String {
     let fp = lines
         .iter()
         .fold(FluentParser::new(), |acc, line| acc.push(line).run());
+    fp.get_r_code()
+        .iter()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Same as `transpile_all`, but with `Context::checked_mode` on
+/// (soundness_transpilation.md Phase A): pins the `typr_assert_type(...)`
+/// wrapping shape emitted by `typr build --checked`.
+fn transpile_all_checked(lines: &[&str]) -> String {
+    let fp = lines.iter().fold(
+        FluentParser::new().set_context(Context::empty().set_checked_mode(true)),
+        |acc, line| acc.push(line).run(),
+    );
     fp.get_r_code()
         .iter()
         .cloned()
@@ -436,5 +452,33 @@ mod spg {
         let spg = build_spg_from_items(&items, "mypkg", "0.1.0");
         let json = serde_json::to_string_pretty(&spg).unwrap();
         insta::assert_snapshot!(json);
+    }
+}
+
+/// `typr build --checked` (soundness_transpilation.md Phase A): pins the
+/// `typr_assert_type(...)` wrapping shape at each instrumented boundary
+/// (annotated `let`, function params/return, constructor call).
+mod checked_mode {
+    use super::*;
+
+    #[test]
+    fn typed_let_and_constructor_call() {
+        let r = transpile_all_checked(&[
+            "type Point <- list { x: int, y: int };",
+            "let p: Point <- Point:{ x = 1, y = 2 };",
+        ]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn function_params_and_return() {
+        let r = transpile_all_checked(&["let add <- fn(a: int, b: int): int { a + b };"]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn unannotated_let_is_not_instrumented() {
+        let r = transpile_all_checked(&["let x <- 5;"]);
+        insta::assert_snapshot!(r);
     }
 }

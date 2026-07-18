@@ -1,3 +1,4 @@
+pub mod checked_assertions;
 pub mod translatable;
 
 use crate::components::context::config::Environment;
@@ -725,6 +726,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Function {
                 parameters: params,
                 body,
+                help_data,
                 ..
             } => {
                 let fn_type = FunctionType::try_from(typing(cont, self).value.clone())
@@ -780,7 +782,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     " |> ".to_owned() + &output_conversion
                 };
                 let body_r = body.to_r(&sub_context).0;
-                let final_body_r = if has_variadic {
+                let with_variadic_collector = if has_variadic {
                     let vname = params.last().unwrap().get_argument_str();
                     // The body sees the variadic param as `[#N, T]`, so collect
                     // the R `...` into a `typed_vec` to match the S3 dispatch the
@@ -795,6 +797,35 @@ impl RTranslatable<(String, Context)> for Lang {
                 } else {
                     body_r
                 };
+                // --checked (soundness_transpilation.md Phase A): assert each
+                // typed param on entry, and the returned value against the
+                // declared return type. No-op when checked mode is off.
+                let checked_prologue: String = params
+                    .iter()
+                    .filter(|p| !p.is_variadic())
+                    .filter_map(|p| {
+                        checked_assertions::param_assertion(
+                            cont,
+                            &p.get_argument_str(),
+                            &p.body_type(),
+                            help_data,
+                        )
+                    })
+                    .collect();
+                let final_body_r = if checked_prologue.is_empty() {
+                    with_variadic_collector
+                } else if let Some(rest) = with_variadic_collector.strip_prefix('{') {
+                    format!("{{\n{}{}", checked_prologue, rest)
+                } else {
+                    with_variadic_collector
+                };
+                let final_body_r = checked_assertions::wrap_checked(
+                    cont,
+                    final_body_r,
+                    &return_type,
+                    help_data,
+                    "return",
+                );
                 (
                     format!(
                         "(function({}) {}{}) |> {}",
@@ -1077,9 +1108,26 @@ impl RTranslatable<(String, Context)> for Lang {
                 is_public: _,
                 is_testable: _,
                 is_export,
-                help_data: _,
+                help_data,
             } => {
                 let (body_str, new_cont) = body.to_r(cont);
+                // --checked (soundness_transpilation.md Phase A): only
+                // annotated `let x: T <- expr` are instrumented, matching the
+                // plan's v1 boundary table — un-annotated lets and function
+                // definitions (which have no `let`-level type annotation)
+                // stay untouched here (functions get their own check via the
+                // `Lang::Function` return-type wrap).
+                let body_str = if ttype.is_empty() {
+                    body_str
+                } else {
+                    let what = format!(
+                        "let {}",
+                        Var::try_from(expr)
+                            .map(|v| v.get_name())
+                            .unwrap_or_default()
+                    );
+                    checked_assertions::wrap_checked(&new_cont, body_str, ttype, help_data, &what)
+                };
                 let new_name = format_backtick(expr.clone().to_r(cont).0);
 
                 let (r_code, _new_name2) = Function::try_from((**body).clone())
@@ -2617,6 +2665,27 @@ impl RTranslatable<(String, Context)> for Lang {
                 }
             }
             _ => ("".to_string(), cont.clone()),
+        };
+
+        // --checked (soundness_transpilation.md Phase A): assert the class
+        // vector a constructor call produces matches its declared type.
+        // Single insertion point covering all three `Lang::ConstructorCall`
+        // arms above (Self-spread, runtime-spread, plain) rather than
+        // touching each one — `self.typing(cont)` mirrors the existing
+        // `Lang::Array` arm's own re-typing for its output annotation.
+        let result = if cont.get_checked_mode() {
+            if let Lang::ConstructorCall { type_name, .. } = self {
+                let (r_code, r_cont) = result;
+                let typ = self.typing(cont).value;
+                let loc = self.get_help_data();
+                let what = format!("constructor {}", type_name);
+                let wrapped = checked_assertions::wrap_checked(&r_cont, r_code, &typ, &loc, &what);
+                (wrapped, r_cont)
+            } else {
+                result
+            }
+        } else {
+            result
         };
 
         result

@@ -123,6 +123,62 @@ fn no_incremental_forces_full_rebuild() {
 }
 
 #[test]
+fn checked_mode_invalidates_cache() {
+    let project = scaffold_project("checked_mode");
+
+    let first = typr(&project, &["build"]);
+    assert!(first.status.success(), "first build failed: {:?}", first);
+    // add_one's own `a: int` param/`: int` return are checked at its
+    // *definition* site (R/helper.R), not at main.ty's unannotated call site.
+    let helper_r = fs::read_to_string(project.join("R/helper.R")).unwrap();
+    assert!(
+        !helper_r.contains("typr_assert_type"),
+        "a plain build must not emit checked-mode assertions, got: {}",
+        helper_r
+    );
+
+    // Switching to --checked must not reuse a manifest written without it,
+    // and must emit runtime assertions in the regenerated R.
+    let checked = typr(&project, &["build", "--checked"]);
+    assert!(
+        checked.status.success(),
+        "checked build failed: {:?}",
+        checked
+    );
+    assert!(
+        !stdout(&checked).contains("Project up to date"),
+        "switching --checked must never short-circuit off a non-checked manifest"
+    );
+    let checked_helper_r = fs::read_to_string(project.join("R/helper.R")).unwrap();
+    assert!(
+        checked_helper_r.contains("typr_assert_type"),
+        "checked build should emit typr_assert_type, got: {}",
+        checked_helper_r
+    );
+
+    // And switching back off must invalidate again rather than reusing the
+    // checked manifest.
+    let back_off = typr(&project, &["build"]);
+    assert!(
+        back_off.status.success(),
+        "back-off build failed: {:?}",
+        back_off
+    );
+    assert!(
+        !stdout(&back_off).contains("Project up to date"),
+        "switching off --checked must never short-circuit off a checked manifest"
+    );
+    let back_off_helper_r = fs::read_to_string(project.join("R/helper.R")).unwrap();
+    assert!(
+        !back_off_helper_r.contains("typr_assert_type"),
+        "build without --checked should not emit assertions, got: {}",
+        back_off_helper_r
+    );
+
+    let _ = fs::remove_dir_all(&project);
+}
+
+#[test]
 fn source_change_invalidates_cache() {
     let project = scaffold_project("source_change");
 

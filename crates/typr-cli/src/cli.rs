@@ -52,6 +52,10 @@ enum Commands {
         /// Disable the incremental-build cache (.typr_cache) and force a full rebuild.
         #[arg(long)]
         no_incremental: bool,
+        /// Emit runtime type-boundary assertions (typr_assert_type) in the generated R.
+        /// Test-only oracle, never a production mode (soundness_transpilation.md Phase A).
+        #[arg(long)]
+        checked: bool,
     },
     Run {
         #[arg(value_name = "FILE")]
@@ -59,6 +63,10 @@ enum Commands {
         /// Profile R execution with Rprof and print a summary.
         #[arg(long)]
         profile: bool,
+        /// Emit runtime type-boundary assertions (typr_assert_type) in the generated R.
+        /// Test-only oracle, never a production mode (soundness_transpilation.md Phase A).
+        #[arg(long)]
+        checked: bool,
     },
     Debug {
         #[arg(value_name = "FILE")]
@@ -87,6 +95,13 @@ enum Commands {
     Case {
         #[command(subcommand)]
         case_command: CaseCommands,
+    },
+    /// Type-directed generative fuzzing (soundness_transpilation.md Phase B
+    /// Stage 2): generate well-typed programs, run them under `--checked`
+    /// through a real R execution, catalog genuine failures.
+    Fuzz {
+        #[command(subcommand)]
+        fuzz_command: FuzzCommands,
     },
     Document,
     /// Build documentation (.Rd via SPG) then generate a pkgdown website.
@@ -145,6 +160,37 @@ enum CaseCommands {
 }
 
 #[derive(Subcommand, Debug)]
+enum FuzzCommands {
+    /// Generate N programs and build+run each under `--checked` via a real
+    /// `typr run` subprocess (needs Rscript on PATH). Not part of `cargo
+    /// test` — real wall-clock cost per iteration; run manually or nightly.
+    Run {
+        #[arg(default_value_t = 50)]
+        n: u32,
+        /// Base seed (program i uses seed+i). Defaults to a time-based seed
+        /// so repeated runs explore different programs.
+        #[arg(long)]
+        seed: Option<u64>,
+        #[arg(long, default_value_t = 4)]
+        max_depth: u32,
+        /// Keep every sandbox (not just failures), printing its path.
+        #[arg(long)]
+        keep: bool,
+    },
+    /// Generation-only production/coverage report — no R execution, no
+    /// Rscript required.
+    Stats {
+        #[arg(default_value_t = 200)]
+        n: u32,
+        #[arg(long, default_value_t = 4)]
+        max_depth: u32,
+    },
+    /// Promote a persisted failure (fuzz_failures/<hash>/) into cases/, via
+    /// the same curated copy `typr case add --from` already does.
+    Promote { hash: String },
+}
+
+#[derive(Subcommand, Debug)]
 enum PkgCommands {
     Install {
         #[arg(value_name = "PACKAGE", num_args = 1..)]
@@ -173,13 +219,18 @@ pub fn start() {
             file,
             test,
             no_incremental,
+            checked,
         }) => match file {
-            Some(path) => build_file(&path, test),
-            _ => build_project(test, no_incremental),
+            Some(path) => build_file(&path, test, checked),
+            _ => build_project(test, no_incremental, checked),
         },
-        Some(Commands::Run { file, profile }) => match file {
-            Some(path) => run_file_keep(&path, profile),
-            _ => run_project(profile),
+        Some(Commands::Run {
+            file,
+            profile,
+            checked,
+        }) => match file {
+            Some(path) => run_file_keep(&path, profile, checked),
+            _ => run_project(profile, checked),
         },
         Some(Commands::Debug {
             file,
@@ -219,6 +270,16 @@ pub fn start() {
             CaseCommands::Snapshot { slug } => crate::cases::snapshot(slug),
             CaseCommands::Freeze { id } => crate::cases::freeze(&id),
             CaseCommands::Show { id } => crate::cases::show(&id),
+        },
+        Some(Commands::Fuzz { fuzz_command }) => match fuzz_command {
+            FuzzCommands::Run {
+                n,
+                seed,
+                max_depth,
+                keep,
+            } => crate::fuzz::run(n, seed, max_depth, keep),
+            FuzzCommands::Stats { n, max_depth } => crate::fuzz::stats(n, max_depth),
+            FuzzCommands::Promote { hash } => crate::fuzz::promote(&hash),
         },
         Some(Commands::Document) => document(),
         Some(Commands::Pkgdown) => pkgdown(),

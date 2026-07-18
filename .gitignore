@@ -88,3 +88,7 @@ function_type_checking.md
 # Generated debug artifacts
 context.json
 problem/
+
+# typr fuzz (soundness_transpilation.md Phase B Stage 2) persisted failures —
+# promote interesting ones into cases/ via `typr fuzz promote <hash>`.
+/fuzz_failures/

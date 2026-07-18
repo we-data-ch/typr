@@ -54,6 +54,33 @@ typr_spread_record <- function(explicit, spread) {
   merged
 }
 
+#' @title Contrat de type runtime pour le mode `typr build --checked`
+#' (soundness_transpilation.md Phase A). Jamais un mode de production : un
+#' oracle sémantique pour lab/ et cases/. `expected` est soit une chaîne
+#' `typeof` simple ("integer"/"double"/"character"/"logical"/"list"), soit
+#' un vecteur de classes nommées (tête = classe canonique, reste = les
+#' variantes acceptées pour un type union).
+typr_assert_type <- function(x, expected, loc, what) {
+  ok <- if (is.character(expected) && length(expected) > 1L) {
+    any(vapply(expected, function(cls) inherits(x, cls), logical(1)))
+  } else {
+    switch(expected,
+      integer   = is.integer(x) || (is.numeric(x) && all(x == trunc(x))),
+      double    = is.double(x),
+      character = is.character(x),
+      logical   = is.logical(x),
+      list      = is.list(x),
+      inherits(x, expected))
+  }
+  if (!isTRUE(ok)) {
+    stop(sprintf(
+      "[typr --checked] %s at %s: expected %s, got class <%s> (typeof %s)",
+      what, loc, paste(expected, collapse = "/"), paste(class(x), collapse = ","),
+      typeof(x)), call. = FALSE)
+  }
+  x
+}
+
 # --- Génériques S3 ---
 
 get <- function(a, ...) UseMethod("get")

@@ -823,11 +823,17 @@ fn inject_roxygen_into_module_files(r_dir: &Path, entries: &[(String, String)]) 
     }
 }
 
-pub fn build_project(test_mode: bool, no_incremental: bool) {
-    build_project_impl(test_mode, false, false, !no_incremental);
+pub fn build_project(test_mode: bool, no_incremental: bool, checked_mode: bool) {
+    build_project_impl(test_mode, checked_mode, false, false, !no_incremental);
 }
 
-fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool, incremental: bool) {
+fn build_project_impl(
+    test_mode: bool,
+    checked_mode: bool,
+    quiet: bool,
+    skip_document: bool,
+    incremental: bool,
+) {
     let dir = PathBuf::from(".");
 
     // Whole-project short-circuit: when every source and generated file
@@ -838,7 +844,10 @@ fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool, increme
     if incremental {
         if let Some(manifest) = cache::load_manifest(&dir) {
             let document_done = skip_document || manifest.devtools_input_hash.is_some();
-            if manifest.is_compatible(test_mode) && document_done && manifest.is_up_to_date(&dir) {
+            if manifest.is_compatible(test_mode, checked_mode)
+                && document_done
+                && manifest.is_up_to_date(&dir)
+            {
                 if !quiet {
                     println!("Project up to date — nothing to rebuild.");
                 }
@@ -849,7 +858,8 @@ fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool, increme
 
     let context = Context::default()
         .set_environment(Environment::Project)
-        .set_test_mode(test_mode);
+        .set_test_mode(test_mode)
+        .set_checked_mode(checked_mode);
 
     let step = Step::new("Parsing");
     let (lang, mut expansion_info) =
@@ -867,7 +877,7 @@ fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool, increme
         let store = cache::FsModuleStore::new(dir.join(cache::CACHE_DIR).join("modules"));
         typr_core::processes::type_checking::module_cache::install(
             Box::new(store.clone()),
-            cache::module_cache_salt(test_mode),
+            cache::module_cache_salt(test_mode, checked_mode),
             cache::combined_module_hashes(&expansion_info),
         );
         Some(store)
@@ -922,10 +932,10 @@ fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool, increme
 
     // Carry the last successful devtools run forward so the document step
     // can skip the R subprocess when its inputs did not change.
-    let mut manifest = cache::BuildManifest::new(test_mode);
+    let mut manifest = cache::BuildManifest::new(test_mode, checked_mode);
     manifest.source_hashes = expansion_info.files.clone();
     if let Some(previous) = cache::load_manifest(&dir) {
-        if previous.is_compatible(test_mode) {
+        if previous.is_compatible(test_mode, checked_mode) {
             manifest.devtools_input_hash = previous.devtools_input_hash;
         }
     }
@@ -949,7 +959,7 @@ fn build_project_impl(test_mode: bool, quiet: bool, skip_document: bool, increme
     }
 }
 
-pub fn build_file(path: &Path, test_mode: bool) {
+pub fn build_file(path: &Path, test_mode: bool, checked_mode: bool) {
     let dir = PathBuf::from(".");
     write_std_for_type_checking(&dir);
 
@@ -961,7 +971,9 @@ pub fn build_file(path: &Path, test_mode: bool) {
     }
     step.done();
 
-    let context = Context::default().set_test_mode(test_mode);
+    let context = Context::default()
+        .set_test_mode(test_mode)
+        .set_checked_mode(checked_mode);
 
     let step = Step::new("Type checking");
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
@@ -1009,8 +1021,8 @@ fn rprof_wrap(r_body: &str) -> String {
     )
 }
 
-pub fn run_project(profile: bool) {
-    build_project_impl(false, true, true, true);
+pub fn run_project(profile: bool, checked_mode: bool) {
+    build_project_impl(false, checked_mode, true, true, true);
     // Use the TypR loader instead of devtools to respect module encapsulation.
     // Top-level code in main.ty already runs as a side effect of sourcing it
     // (sys.source() inside load_module()). The `module Main { @pub let main
@@ -1069,14 +1081,14 @@ fn strip_shebang(content: &str) -> &str {
 }
 
 pub fn run_file(path: &Path) {
-    run_file_impl(path, false, false);
+    run_file_impl(path, false, false, false);
 }
 
-pub fn run_file_keep(path: &Path, profile: bool) {
-    run_file_impl(path, true, profile);
+pub fn run_file_keep(path: &Path, profile: bool, checked_mode: bool) {
+    run_file_impl(path, true, profile, checked_mode);
 }
 
-fn run_file_impl(path: &Path, keep_files: bool, profile: bool) {
+fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: bool) {
     let raw = fs::read_to_string(path).unwrap_or_else(|e| {
         eprintln!("Cannot read {:?}: {}", path, e);
         std::process::exit(1);
@@ -1101,7 +1113,7 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool) {
     };
 
     write_std_for_type_checking(&work_dir);
-    let context = Context::default();
+    let context = Context::default().set_checked_mode(checked_mode);
 
     let step = Step::new("Type checking");
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
@@ -1224,7 +1236,7 @@ fn write_context_json(context: &Context, output_dir: &Path) {
 }
 
 pub fn test(profile: bool) {
-    build_project(true, false);
+    build_project(true, false, false);
     // Load modules in test mode so @testable members are accessible in test files.
     // Then delegate test discovery to devtools::test().
     let base_command = concat!(

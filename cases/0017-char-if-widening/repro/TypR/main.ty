@@ -1,0 +1,8 @@
+#@case char-if-widening: `let x: char <- if (...) { "a" } else { "b" };` fails to
+# type-check because the if-expression's two char-literal branches produce a
+# union of singleton char types (`"a" | "b"`) that never widens to the plain
+# `char` annotation — found via the Phase B generative fuzzer
+# (soundness_transpilation.md). int/bool/num all widen correctly in the same
+# position; only char is affected.
+let x0: char <- if (true) { "a" } else { "b" };
+print(x0);

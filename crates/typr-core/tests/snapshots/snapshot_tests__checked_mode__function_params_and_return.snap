@@ -1,0 +1,11 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 476
+expression: r
+---
+`add.integer` <- (function(a, b) typr_assert_type({
+typr_assert_type(a, "integer", "<unknown>", "param a")
+typr_assert_type(b, "integer", "<unknown>", "param b")
+
+a + b
+}, "integer", "<unknown>", "return") |> as.Integer()) |> as.Function0()

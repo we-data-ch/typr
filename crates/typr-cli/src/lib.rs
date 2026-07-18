@@ -40,6 +40,7 @@ pub mod cache;
 pub mod cases;
 pub mod cli;
 pub mod engine;
+pub mod fuzz;
 pub mod io;
 pub mod metaprogramming;
 pub mod progress;

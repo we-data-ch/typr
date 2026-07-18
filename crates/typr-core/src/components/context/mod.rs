@@ -258,6 +258,17 @@ impl Context {
         self.config.test_mode
     }
 
+    pub fn set_checked_mode(self, val: bool) -> Context {
+        Self {
+            config: self.config.set_checked_mode(val),
+            ..self
+        }
+    }
+
+    pub fn get_checked_mode(&self) -> bool {
+        self.config.checked_mode
+    }
+
     pub fn set_test_preamble(self, lines: Vec<String>) -> Context {
         Self {
             test_preamble: lines,

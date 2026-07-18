@@ -76,6 +76,13 @@ pub struct Config {
     /// `break`/`next` be rejected outside of one (audit_type_checking.md C2).
     #[serde(default)]
     pub in_loop: bool,
+    /// When true (`typr build --checked` / `typr run --checked`), the
+    /// transpiler wraps typed boundaries (`let` annotations, function
+    /// params/return, constructor calls) in `typr_assert_type(...)` runtime
+    /// checks (soundness_transpilation.md Phase A). Test-only oracle, never
+    /// a production mode.
+    #[serde(default)]
+    pub checked_mode: bool,
 }
 
 //main
@@ -122,6 +129,13 @@ impl Config {
         }
     }
 
+    pub fn set_checked_mode(self, val: bool) -> Self {
+        Self {
+            checked_mode: val,
+            ..self
+        }
+    }
+
     pub fn get_target_language(&self) -> TargetLanguage {
         self.target_language
     }
@@ -140,6 +154,7 @@ impl Default for Config {
             in_module_body: false,
             test_mode: false,
             in_loop: false,
+            checked_mode: false,
         }
     }
 }

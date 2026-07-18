@@ -29,6 +29,10 @@ bincode = "1.3"
 
 [dev-dependencies]
 insta = { version = "1", features = ["yaml"] }
+# Self-dependency so integration tests under tests/ (compiled as separate
+# crates against the normal rlib) can see the `fuzz-gen`-gated program_gen
+# module. Plain `#[cfg(test)]` only covers typr-core's own unit tests.
+typr-core = { path = ".", features = ["fuzz-gen"] }
 
 # For WASM random number generation (getrandom 0.4 uses wasm_js feature)
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -42,3 +46,8 @@ default = []
 # binaries — feature unification with typr-wasm enabled it workspace-wide,
 # silently turning module-file writes into no-ops.
 wasm = []
+# Exposes utils::program_gen (Phase B type-directed generator) to integration
+# tests (tests/generative.rs, via the self-dependency below) and to typr-cli's
+# `typr fuzz` (Stage 2, crates/typr-cli/src/fuzz.rs), which depends on this
+# crate with the feature enabled normally.
+fuzz-gen = []

@@ -36,6 +36,10 @@ pub struct BuildManifest {
     pub cache_format: u32,
     pub typr_version: String,
     pub test_mode: bool,
+    /// Mirrors `test_mode`: a manifest written with a different `--checked`
+    /// state must never be reused (checked and non-checked R differ).
+    #[serde(default)]
+    pub checked_mode: bool,
     /// Relative path → content hash of every `.ty` file reached by module
     /// expansion (entry file included).
     pub source_hashes: BTreeMap<String, u64>,
@@ -48,21 +52,23 @@ pub struct BuildManifest {
 }
 
 impl BuildManifest {
-    pub fn new(test_mode: bool) -> Self {
+    pub fn new(test_mode: bool, checked_mode: bool) -> Self {
         BuildManifest {
             cache_format: CACHE_FORMAT_VERSION,
             typr_version: env!("CARGO_PKG_VERSION").to_string(),
             test_mode,
+            checked_mode,
             ..Default::default()
         }
     }
 
     /// A manifest written by another typr version, cache format, or build
     /// mode must be ignored entirely.
-    pub fn is_compatible(&self, test_mode: bool) -> bool {
+    pub fn is_compatible(&self, test_mode: bool, checked_mode: bool) -> bool {
         self.cache_format == CACHE_FORMAT_VERSION
             && self.typr_version == env!("CARGO_PKG_VERSION")
             && self.test_mode == test_mode
+            && self.checked_mode == checked_mode
     }
 
     /// True when every recorded source and output file still exists on disk
@@ -186,12 +192,13 @@ pub fn collect_output_hashes(root: &Path) -> BTreeMap<String, u64> {
 
 /// Salt folded into every per-module cache key: a different typr version,
 /// cache format or build mode must never share entries.
-pub fn module_cache_salt(test_mode: bool) -> u64 {
+pub fn module_cache_salt(test_mode: bool, checked_mode: bool) -> u64 {
     hash_str(&format!(
-        "module-cache|{}|{}|{}",
+        "module-cache|{}|{}|{}|{}",
         CACHE_FORMAT_VERSION,
         env!("CARGO_PKG_VERSION"),
-        test_mode
+        test_mode,
+        checked_mode
     ))
 }
 
@@ -306,13 +313,14 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("typr_manifest_test_{}", std::process::id()));
         let _ = fs::create_dir_all(&dir);
 
-        let mut manifest = BuildManifest::new(false);
+        let mut manifest = BuildManifest::new(false, false);
         manifest.source_hashes.insert("TypR/main.ty".into(), 42);
         save_manifest(&dir, &manifest);
 
         let loaded = load_manifest(&dir).expect("manifest should load");
-        assert!(loaded.is_compatible(false));
-        assert!(!loaded.is_compatible(true)); // test_mode mismatch
+        assert!(loaded.is_compatible(false, false));
+        assert!(!loaded.is_compatible(true, false)); // test_mode mismatch
+        assert!(!loaded.is_compatible(false, true)); // checked_mode mismatch
         assert_eq!(loaded.source_hashes.get("TypR/main.ty"), Some(&42));
 
         let _ = fs::remove_dir_all(&dir);
@@ -326,7 +334,7 @@ mod tests {
         fs::write(dir.join("TypR/main.ty"), "let x <- 1;\n").unwrap();
         fs::write(dir.join("R/main.R"), "x <- 1\n").unwrap();
 
-        let mut manifest = BuildManifest::new(false);
+        let mut manifest = BuildManifest::new(false, false);
         assert!(!manifest.is_up_to_date(&dir)); // empty hash sets
 
         manifest.source_hashes.insert(

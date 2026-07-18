@@ -6,6 +6,7 @@ mod cache;
 mod cases;
 mod cli;
 mod engine;
+mod fuzz;
 mod io;
 mod metaprogramming;
 mod progress;

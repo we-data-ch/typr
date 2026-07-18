@@ -1,0 +1,6 @@
+title = "if/else with two char-literal branches doesn't widen to a `char` annotation (int/bool/num do)"
+cmd = "check"
+layer = "type"
+status = "open"
+created = "2026-07-18"
+origin = "perso"

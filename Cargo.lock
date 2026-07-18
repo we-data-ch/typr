@@ -1689,6 +1689,7 @@ dependencies = [
  "serde_json",
  "tap",
  "thiserror",
+ "typr-core",
 ]
 
 [[package]]

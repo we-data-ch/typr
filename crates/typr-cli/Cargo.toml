@@ -18,8 +18,9 @@ name = "typr_cli"
 path = "src/lib.rs"
 
 [dependencies]
-# Use typr-core for core logic
-typr-core.workspace = true
+# Use typr-core for core logic. `fuzz-gen` exposes utils::program_gen (Phase B
+# Stage 2's `typr fuzz`, soundness_transpilation.md) — see typr-core/Cargo.toml.
+typr-core = { workspace = true, features = ["fuzz-gen"] }
 
 # Pure dependencies (needed for parsing/type manipulation)
 nom.workspace = true
