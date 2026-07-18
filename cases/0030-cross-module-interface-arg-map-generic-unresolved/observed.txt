@@ -1,0 +1,44 @@
+# exit=1
+
+## stdout/stderr
+
+  Parsing... done (36 ms)
+  Type checking... failed
+Type errors found:
+  × Type error: type [any, list{"id": char}] doesn't match type [#N, U]
+    ╭─[TypR/storyboard.ty:10:45]
+  9 │ @pub
+ 10 │ type Snapshot <- list { time: int, objects: [Object] };
+    ·                                             ▲
+    ·                                             ╰── Expected [any, list{"id": char}]
+ 11 │ 
+ 12 │ @pub
+ 13 │ type StoryBoard <- list { objects: [Object], snapshots: [Any] };
+ 14 │ 
+ 15 │ @pub
+ 16 │ let snapshot <- fn(self: StoryBoard, animation: Animation): StoryBoard {
+ 17 │     let objs = self$objects |> map(\(x) animate(x, animation));
+    ·                                 ┬
+    ·                                 ╰── Received [#N, U]
+ 18 │     let snap <- Snapshot:{ time: animation$time, objects: objs };
+    ╰────
+
+  × Type error: type [any, list{"id": char}] doesn't match type [#N, U]
+    ╭─[TypR/storyboard.ty:13:36]
+ 12 │ @pub
+ 13 │ type StoryBoard <- list { objects: [Object], snapshots: [Any] };
+    ·                                    ▲
+    ·                                    ╰── Expected [any, list{"id": char}]
+ 14 │ 
+ 15 │ @pub
+ 16 │ let snapshot <- fn(self: StoryBoard, animation: Animation): StoryBoard {
+ 17 │     let objs = self$objects |> map(\(x) animate(x, animation));
+    ·                                 ┬
+    ·                                 ╰── Received [#N, U]
+ 18 │     let snap <- Snapshot:{ time: animation$time, objects: objs };
+    ╰────
+
+
+
+## R généré
+

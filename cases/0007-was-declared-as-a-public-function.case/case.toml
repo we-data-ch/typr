@@ -1,6 +1,6 @@
 title = ": Was declared as a public function"
-cmd = "build"
-layer = "transpile"
+cmd = "run"
+layer = "r-run"
 status = "fixed"
 created = "2026-06-22"
 origin = "perso"

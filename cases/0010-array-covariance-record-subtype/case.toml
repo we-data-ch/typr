@@ -1,6 +1,6 @@
 title = "[T] parameter rejects an array of a record satisfying T via a Record & Interface intersection alias"
 cmd = "check"
 layer = "type"
-status = "fixed"
+status = "open"
 created = "2026-07-10"
 origin = "perso"

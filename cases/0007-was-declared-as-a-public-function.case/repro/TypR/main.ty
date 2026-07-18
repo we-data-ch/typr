@@ -16,4 +16,5 @@ use animation::animate_move;
 
 let c1 <- new_circle(4);
 
-c1.animate()
+let animated <- c1.animate();
+print("animate successful");

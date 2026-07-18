@@ -1,0 +1,9 @@
+# Découvert en creusant la régression de cases/0010-array-covariance-record-subtype
+# (`typr case run 0010` donnait REGRESS avec un message sans rapport avec ce que
+# 0010 teste). Isolé dans ce repro minimal, indépendant de 0010.
+[[rule]]
+file = "@run"
+must_not_contain = "doesn't match type"
+[[rule]]
+file = "@run"
+must_contain = "successful"

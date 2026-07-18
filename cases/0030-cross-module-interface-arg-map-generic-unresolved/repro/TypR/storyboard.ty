@@ -1,0 +1,23 @@
+mod animation;
+mod object;
+mod circle;
+
+use animation::Animation;
+use object::Object;
+use circle::animate;
+
+@pub
+type Snapshot <- list { time: int, objects: [Object] };
+
+@pub
+type StoryBoard <- list { objects: [Object], snapshots: [Any] };
+
+@pub
+let snapshot <- fn(self: StoryBoard, animation: Animation): StoryBoard {
+	let objs = self$objects |> map(\(x) animate(x, animation));
+	let snap <- Snapshot:{ time: animation$time, objects: objs };
+	StoryBoard:{
+		objects: objs,
+		snapshots: self$snapshots.extend(snap)
+	}
+};

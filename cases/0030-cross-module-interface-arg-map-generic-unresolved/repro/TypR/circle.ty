@@ -1,0 +1,8 @@
+mod animation;
+use animation::Animation;
+
+@pub
+type Circle <- list { id: char, radius: int };
+
+@pub
+let animate <- fn(self: Circle, animation: Animation): Circle { self };

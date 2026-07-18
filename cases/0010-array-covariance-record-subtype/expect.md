@@ -95,3 +95,19 @@ lui-même qui ne sont PAS des bugs typr-core.
   `animate` directement. C'est un comportement existant, potentiellement surprenant, pas quelque
   chose que cette session a changé ou corrigé ; le `repro/` de ce cas inclut cet import pour
   refléter ce qu'il faut réellement écrire aujourd'hui.
+
+## Statut remis à `open` le 2026-07-18 — bloqué transitivement par cases/0030, pas une régression du fix ci-dessus
+
+`typr case run 0010` redonnait `REGRESS`, mais le message d'erreur (`type [any, list{"id": char}]
+doesn't match type [#N, U]`, localisé dans `TypR/storyboard.ty`) n'a **aucun rapport** avec ce que
+ce cas teste (`new_scene([c1])` dans `main.ty`). Investigation : `storyboard.ty` fait partie du
+même repro (importé transitivement par `scene.ty` via `mod storyboard;`, donc impossible à retirer
+sans casser `scene.ty`), et son propre `snapshot()` déclenche un bug distinct et plus récent —
+`map(\(x) animate(x, animation))` sur un `[Object]` ne résout pas le type de retour générique
+quand `animate` est importé cross-module et typé pour un record concret (`Circle`) plutôt que pour
+l'interface elle-même. Catalogué séparément dans `cases/0030-cross-module-interface-arg-map-
+generic-unresolved` (repro minimal, indépendant), confirmé absent avant `efd627f` ("finished
+adding new edge cases") et présent après — une vraie régression de cette session-là, distincte du
+fix de ce cas-ci (0010). Les règles de ce cas (`expect.toml`) restent inchangées et continuent de
+décrire le bon comportement ; `status` repasse à `open` jusqu'à ce que 0030 soit corrigé, ce qui
+fera repasser ce cas-ci `READY` sans qu'aucun changement supplémentaire ne soit nécessaire ici.

@@ -76,3 +76,13 @@ Avec le seul fix #1, le second `let` réapparaît dans l'AST mais son `@pub` res
 `@` résiduel du `let` précédent (perte de la visibilité publique + pollution du corps du premier
 `let`). Le fix #2 est nécessaire pour que `@pub` soit correctement attribué à sa propre
 déclaration.
+
+## Statut remis à `open` le 2026-07-18 — bloqué transitivement par cases/0030, pas une régression du fix ci-dessus
+
+Même situation que `cases/0010-array-covariance-record-subtype` (même repro `framr`, même cause) :
+`typr case run 0012` redonne `REGRESS`, mais le message d'erreur actuel (`type [any,
+list{"id": char}] doesn't match type [#N, U]` dans `TypR/storyboard.ty`) n'a aucun rapport avec le
+piège `@`/`;` que ce cas teste. `storyboard.ty` fait partie du même repro (importé
+transitivement via `scene.ty`) et déclenche le bug catalogué séparément dans
+`cases/0030-cross-module-interface-arg-map-generic-unresolved`. `expect.toml` reste inchangé ;
+`status` repasse `open` jusqu'à ce que 0030 soit corrigé.

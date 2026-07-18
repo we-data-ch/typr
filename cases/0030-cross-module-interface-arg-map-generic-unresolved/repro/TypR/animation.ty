@@ -1,0 +1,2 @@
+@pub
+type Animation <- list { target: char, from: Any, to: Any, duration: int, time: int };

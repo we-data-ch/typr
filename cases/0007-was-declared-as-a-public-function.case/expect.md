@@ -55,3 +55,20 @@
   `Type::KindedGen` already get `.default` baked into `new_name` via the fixed
   `get_class` fallback, so they fall through the catch-all arm instead of being
   double-suffixed.
+
+## Faux "REGRESS" trouvé et corrigé le 2026-07-18
+
+Ce cas ressortait `REGRESS` (rules fail + golden diff sur `R/animation.R`) sur `main`, avant
+même la session Phase D. Investigation : le fix ci-dessus tient toujours — `registerS3method`
+utilise bien `"default"`/`animate.default` partout, aucune classe `"%T"` n'apparaît, et les deux
+sites (définition + export) utilisent bien le même contexte. Ce qui a dérivé, c'est purement le
+compteur interne `RecordN` : le type structurel anonyme `Animator & Position` s'appelait
+`Record4` au moment du gel du golden, `Record5` aujourd'hui — un type anonyme de plus a été
+enregistré ailleurs dans le programme entre-temps (dérive attendue et documentée, cf.
+`CLAUDE.md` § alias hoisting/RecordN). `typr run` sur ce repro exact réussit (exit 0, dispatch
+correct) à la fois avec `Record4` (golden original, vérifié en remontant l'historique git) et
+`Record5` (aujourd'hui) — donc aucun bug de comportement, seulement un identifiant interne qui a
+changé de nom. `expect.toml` pinnait ce nombre en dur (`must_contain =
+"animate_move.Record4"`) ; upgradé vers un oracle `r-run` qui teste l'invariant réel (le nom
+exporté correspond au nom défini, le dispatch aboutit) sans dépendre du numéro — voir le
+commentaire en tête d'`expect.toml`.
