@@ -1041,45 +1041,56 @@ pub fn run_file_keep(path: &Path, profile: bool, checked_mode: bool, strict_mode
     run_file_impl(path, true, profile, checked_mode, strict_mode);
 }
 
-fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: bool, strict_mode: bool) {
-    let raw = fs::read_to_string(path).unwrap_or_else(|e| {
-        eprintln!("Cannot read {:?}: {}", path, e);
-        std::process::exit(1);
-    });
-    let content = strip_shebang(&raw);
-    let file_name = path.to_str().unwrap().to_string();
+/// RAII guard that removes a temporary directory when dropped.
+struct TempDirGuard {
+    path: Option<PathBuf>,
+}
 
+impl TempDirGuard {
+    fn new(path: Option<PathBuf>) -> Self {
+        Self { path }
+    }
+
+    /// Drop the guard (clean up temp dir) and terminate.
+    fn fail(self) -> ! {
+        let _ = self;
+        std::process::exit(1);
+    }
+}
+
+impl Drop for TempDirGuard {
+    fn drop(&mut self) {
+        if let Some(path) = self.path.take() {
+            let _ = fs::remove_dir_all(&path);
+        }
+    }
+}
+
+fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: bool, strict_mode: bool) {
     let step = Step::new("Parsing");
-    let (lang, syntax_errors) = parse_code_from_str(content, &file_name, Environment::StandAlone);
+    let content = get_content(path);
+    let file_name = path.to_str().unwrap().to_string();
+    let (lang, syntax_errors) = parse_code_from_str(&content, &file_name, Environment::StandAlone);
     if report_syntax_errors(syntax_errors) {
         step.fail();
         std::process::exit(1);
     }
     step.done();
 
-    let work_dir = if keep_files {
-        PathBuf::from(".")
-    } else {
-        let tmp = std::env::temp_dir().join(format!("typr_{}", std::process::id()));
-        fs::create_dir_all(&tmp).unwrap();
-        tmp
-    };
-
+    let step = Step::new("Type checking");
+    let work_dir = get_working_directory(keep_files);
+    let guard = TempDirGuard::new(if keep_files { None } else { Some(work_dir.clone()) });
     write_std_for_type_checking(&work_dir);
     let context = Context::default().set_checked_mode(checked_mode);
-
-    let step = Step::new("Type checking");
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     if type_checker.has_errors() {
         step.fail();
         type_checker.show_errors();
-        if !keep_files {
-            let _ = fs::remove_dir_all(&work_dir);
-        }
-        std::process::exit(1);
+        guard.fail();
     }
     step.done();
 
+    let step = Step::new("Transpiling");
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("script");
     let r_file_name = format!("{}.R", stem);
 
@@ -1089,34 +1100,23 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: boo
     if !keep_files {
         if let Err(e) = std::env::set_current_dir(&work_dir) {
             eprintln!("Cannot set working directory: {}", e);
-            let _ = fs::remove_dir_all(&work_dir);
-            std::process::exit(1);
+            guard.fail();
         }
     }
-
-    let step = Step::new("Transpiling");
     let r_content = type_checker.clone().transpile();
     step.done();
 
-    if lint_r_names(&type_checker.get_context(), &r_content, strict_mode) {
-        if !keep_files {
-            let _ = fs::remove_dir_all(&work_dir);
-        }
-        std::process::exit(1);
-    }
-
     let step = Step::new("Writing R files");
+    if lint_r_names(&type_checker.get_context(), &r_content, strict_mode) {
+        guard.fail();
+    }
     write_header(type_checker.get_context(), &work_dir, Environment::StandAlone);
     write_to_r_lang(r_content, &work_dir, &r_file_name, context.get_environment());
     step.done();
 
-    let r_path = work_dir.join(&r_file_name);
     let step = Step::new("Running");
+    let r_path = work_dir.join(&r_file_name);
     let result = run_script(profile, &work_dir, r_path);
-
-    if !keep_files {
-        let _ = fs::remove_dir_all(&work_dir);
-    }
 
     match result {
         Ok(output) => {
@@ -1133,7 +1133,7 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: boo
                 if !stdout.is_empty() {
                     print!("{}", stdout);
                 }
-                std::process::exit(1);
+                guard.fail();
             }
         }
         Err(e) => {
@@ -1143,8 +1143,28 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: boo
     }
 }
 
+fn get_working_directory(keep_files: bool) -> PathBuf {
+    let work_dir = if keep_files {
+        PathBuf::from(".")
+    } else {
+        let tmp = std::env::temp_dir().join(format!("typr_{}", std::process::id()));
+        fs::create_dir_all(&tmp).unwrap();
+        tmp
+    };
+    work_dir
+}
+
+fn get_content(path: &Path) -> String {
+    let raw = fs::read_to_string(path).unwrap_or_else(|e| {
+        eprintln!("Cannot read {:?}: {}", path, e);
+        std::process::exit(1);
+    });
+    let content = strip_shebang(&raw);
+    content.to_string()
+}
+
 fn run_script(profile: bool, work_dir: &PathBuf, r_path: PathBuf) -> Result<std::process::Output, std::io::Error> {
-    let result = if profile {
+    if profile {
         let r_path_str = r_path.to_str().unwrap_or("script.R");
         let profile_script = format!(
             r#"
@@ -1173,8 +1193,7 @@ if (is.null(p) || nrow(p$by.self) == 0L) {{
             .output()
     } else {
         Command::new("Rscript").current_dir(work_dir).arg(&r_path).output()
-    };
-    result
+    }
 }
 
 fn write_context_json(context: &Context, output_dir: &Path) {

@@ -27,6 +27,7 @@ use nom::bytes::complete::tag;
 use nom::bytes::complete::take_until;
 use nom::bytes::complete::take_while1;
 use nom::character::complete::alpha1;
+use nom::character::complete::anychar;
 use nom::character::complete::alphanumeric1;
 use nom::character::complete::char;
 use nom::character::complete::digit1;
@@ -175,6 +176,7 @@ pub fn decode_escapes(s: &str) -> String {
                 Some('\\') => out.push('\\'),
                 Some('n') => out.push('\n'),
                 Some('t') => out.push('\t'),
+                Some('r') => out.push('\r'),
                 Some(other) => {
                     out.push('\\');
                     out.push(other);
@@ -191,7 +193,7 @@ pub fn decode_escapes(s: &str) -> String {
 pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
     let res = delimited(
         char('"'),
-        opt(escaped(is_not("\\\""), '\\', alt((char('"'), char('\''))))),
+        opt(escaped(is_not("\\\""), '\\', anychar)),
         char('"'),
     )
     .parse(input);
@@ -214,7 +216,7 @@ pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
 pub fn single_quotes(input: Span) -> IResult<Span, Lang> {
     let res = delimited(
         char('\''),
-        opt(escaped(is_not("\\'"), '\\', alt((char('"'), char('\''))))),
+        opt(escaped(is_not("\\'"), '\\', anychar)),
         char('\''),
     )
     .parse(input);
@@ -1688,6 +1690,25 @@ mod tests {
         assert_eq!(decode_escapes(r"it\'s"), "it's");
         assert_eq!(decode_escapes(r"a\\b"), r"a\b");
         assert_eq!(decode_escapes(r"line1\nline2"), "line1\nline2");
+    }
+
+    #[test]
+    fn test_backslash_escapes_parse_in_string_literals() {
+        // `"\n"`/`"\t"`/`"\\"` must parse as string literals, not fail the
+        // whole statement (historically only `\"`/`\'` were accepted after a
+        // backslash, so `cat("a", "\n")` broke the surrounding parse).
+        for (src, expected) in [
+            (r#""\n""#, "\n"),
+            (r#""\t""#, "\t"),
+            (r#""a\\b""#, r"a\b"),
+            (r#"'\n'"#, "\n"),
+            (r#""line1\nline2""#, "line1\nline2"),
+        ] {
+            match src.parse::<Lang>() {
+                Ok(Lang::Char { value, .. }) => assert_eq!(value, expected, "wrong decoded value for {src}"),
+                other => panic!("expected Lang::Char for {src}, got {:?}", other),
+            }
+        }
     }
 
     #[test]

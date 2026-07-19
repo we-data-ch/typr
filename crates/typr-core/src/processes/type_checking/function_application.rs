@@ -1233,6 +1233,33 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
                 h.clone(),
             )));
         }
+        None if !all_signatures.is_empty() => {
+            // The name IS bound to function signature(s) — the call just
+            // doesn't match any of them (wrong arity or argument types).
+            // Reporting `FunctionNotFound` here reads as "the variable
+            // doesn't exist", which is wrong and misleading (e.g. `f()` on
+            // a 1-parameter lambda looked like lambda-lets were unsupported).
+            let signatures = all_signatures
+                .iter()
+                .map(|sig| {
+                    format!(
+                        "({}) -> {}",
+                        sig.get_param_types()
+                            .iter()
+                            .map(|t| t.pretty())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        sig.get_return_type().pretty()
+                    )
+                })
+                .collect::<Vec<_>>();
+            errors.push(TypRError::Type(TypeError::NoMatchingSignature(
+                var.get_name(),
+                types.clone(),
+                signatures,
+                h.clone(),
+            )));
+        }
         None => {
             errors.push(TypRError::Type(TypeError::FunctionNotFound(
                 var.clone().set_type_from_params(parameters, context),
@@ -1375,6 +1402,24 @@ mod tests {
     use crate::processes::type_checking::typing_with_errors;
     use crate::utils::builder;
     use crate::utils::fluent_parser::FluentParser;
+
+    // --- variadic stdlib signatures ---
+
+    #[test]
+    fn test_cat_variadic_mixed_args_types_to_empty() {
+        // `@cat: (...values: Any) -> Empty;` (std_R.ty) — mixed argument
+        // types all match the Any variadic, and the Empty return satisfies
+        // an enclosing `-> Empty` annotation (the shape `cat("x:", v, "\n")`
+        // inside a printing function).
+        // FluentParser::new() starts from Context::empty() (no stdlib);
+        // the preloaded typed signatures live in Context::default().
+        let fp = FluentParser::new()
+            .set_context(Context::default())
+            .push(r#"cat("Todo:", "a", true, "\n");"#)
+            .parse_type_next();
+        assert_eq!(fp.get_last_type(), builder::empty_type());
+        assert_eq!(fp.get_last_log(), "The logs are empty");
+    }
 
     // --- interface constructors (interface_constructeurs.md) ---
 
@@ -2258,6 +2303,37 @@ mod tests {
             tc.get_errors().is_empty(),
             "map over [Any, int] with untyped lambda produced unexpected type errors:\n{}",
             errors.join("\n")
+        );
+    }
+
+    #[test]
+    fn test_lambda_let_call_with_matching_arity_type_checks() {
+        let src = "let ident <- \\(x) x;\nident(3);";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(!result.has_errors(), "expected no errors, got: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_arity_mismatch_reports_no_matching_signature_not_function_not_found() {
+        // `ident()` on a 1-parameter lambda used to report `FunctionNotFound`
+        // ("not defined in this scope"), which reads as lambda-lets being
+        // unsupported. The name is bound — the call just matches no signature.
+        let src = "let ident <- \\(x) x;\nident();";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.errors.iter().any(|e| matches!(
+                e,
+                crate::components::error_message::typr_error::TypRError::Type(TypeError::NoMatchingSignature(
+                    name,
+                    args,
+                    _,
+                    _
+                )) if name == "ident" && args.is_empty()
+            )),
+            "expected NoMatchingSignature for zero-arg call on a 1-param lambda, got: {:?}",
+            result.errors
         );
     }
 }

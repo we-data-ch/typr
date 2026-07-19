@@ -946,7 +946,7 @@ mod tests {
         let tc2 = tc1.typing_no_panic(&code2);
         assert!(
             tc2.has_errors(),
-            "expected FunctionNotFound for too-few-args call with no default"
+            "expected NoMatchingSignature for too-few-args call with no default"
         );
     }
 

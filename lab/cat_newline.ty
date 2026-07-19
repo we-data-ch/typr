@@ -1,0 +1,8 @@
+type Todo <- list { name: char, done: bool };
+
+let print2 <- fn(self: Todo): Empty {
+    cat("Todo:", self$name, self$done, "\n");
+};
+
+let t <- Todo:{ name = "a", done = true };
+print2(t);

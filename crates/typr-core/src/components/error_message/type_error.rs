@@ -138,6 +138,14 @@ pub enum TypeError {
     /// member of `Union`'s declared union type at all — `(variant_name,
     /// union_name, position)`.
     UnknownUnionVariant(String, String, HelpData),
+    /// The called name *is* bound to one or more function signatures, but none
+    /// of them accepts the argument types of this call (wrong arity, or no
+    /// overload matching the argument types). Distinguished from
+    /// `FunctionNotFound` (a genuinely unknown name) so a call like `f()` on a
+    /// 1-parameter function reads as an argument mismatch instead of the
+    /// misleading "not defined in this scope" —
+    /// `(function_name, call_arg_types, available_signatures_pretty, position)`.
+    NoMatchingSignature(String, Vec<Type>, Vec<String>, HelpData),
 }
 
 impl TypeError {
@@ -185,6 +193,7 @@ impl TypeError {
             TypeError::TagFieldConstructorNotSupported(_, _, h) => Some(h.clone()),
             TypeError::UnknownUnionVariant(_, _, h) => Some(h.clone()),
             TypeError::DataFrameColumnLengthMismatch(_, _, _, _, h) => Some(h.clone()),
+            TypeError::NoMatchingSignature(_, _, _, h) => Some(h.clone()),
         }
     }
 
@@ -391,6 +400,14 @@ impl TypeError {
             }
             TypeError::UnknownUnionVariant(variant_name, union_name, _) => {
                 format!("'{}' is not a variant of union '{}'", variant_name, union_name)
+            }
+            TypeError::NoMatchingSignature(name, arg_types, signatures, _) => {
+                format!(
+                    "No signature of '{}' matches this call with ({}); available: {}",
+                    name,
+                    arg_types.iter().map(|t| t.pretty()).collect::<Vec<_>>().join(", "),
+                    signatures.join(" | ")
+                )
             }
         }
     }
@@ -962,6 +979,24 @@ impl ErrorMsg for TypeError {
                     .text(format!("'{}' is not a variant of union '{}'", variant_name, union_name))
                     .pos_text("Unknown variant")
                     .help(format!("Check the variants declared by `type {} <- ...;`.", union_name))
+                    .build()
+            }
+            TypeError::NoMatchingSignature(name, arg_types, signatures, help_data) => {
+                let (file_data, pos) = safe_file_pos(&help_data, name.len());
+                let args_pretty = arg_types.iter().map(|t| t.pretty()).collect::<Vec<_>>().join(", ");
+                SingleBuilder::new(file_data.0, file_data.1)
+                    .pos(pos)
+                    .text(format!("No signature of function '{}' matches this call.", name))
+                    .pos_text(format!(
+                        "Called with {} argument(s): ({})",
+                        arg_types.len(),
+                        args_pretty
+                    ))
+                    .help(format!(
+                        "'{}' exists but none of its signature(s) accepts these arguments:\n    {}",
+                        name,
+                        signatures.join("\n    ")
+                    ))
                     .build()
             }
         };

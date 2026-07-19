@@ -47,7 +47,8 @@ pub fn escape_r_string(s: &str) -> String {
         .replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n")
-        .replace('\t', "\\t");
+        .replace('\t', "\\t")
+        .replace('\r', "\\r");
     format!("\"{}\"", escaped)
 }
 
@@ -2639,6 +2640,20 @@ impl RTranslatable<(String, Context)> for Lang {
                 }
             }
             Lang::Import { .. } | Lang::Test { .. } | Lang::Use { .. } => ("".to_string(), cont.clone()),
+            // `PartialApp` is desugared into a `Lang::Function` during typing and
+            // normally never reaches transpilation — except when an enclosing
+            // node re-transpiles its *original* parsed body (the `Lang::Module`
+            // arm above renders `body.iter()`, not the typed AST). Desugar on
+            // the fly here; the guard keeps a failed desugaring (unknown
+            // function) from recursing back into this arm.
+            Lang::PartialApp { .. } => {
+                let typed = typing(cont, self).lang;
+                if matches!(typed, Lang::PartialApp { .. }) {
+                    ("".to_string(), cont.clone())
+                } else {
+                    typed.to_r(cont)
+                }
+            }
             Lang::ValidatingCast {
                 expression,
                 type_name,
@@ -3106,6 +3121,33 @@ mod tests {
         assert!(
             !r_code.contains("Math$sq"),
             "private member should not be exported: {}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_partial_app_in_module_transpiles_to_closure() {
+        // A `\Truc:{ ok = true }` bound inside a module reaches the transpiler
+        // as a raw `Lang::PartialApp` (the `Lang::Module` arm re-renders the
+        // original parsed body, not the typed AST). It used to hit the `_ => ""`
+        // catch-all, emitting `new_truc <- ` with an empty RHS — R then parsed
+        // the *next* statement as the value.
+        let r_code = FluentParser::new()
+            .push("module M { @pub type Truc <- list { truc: bool, ok: bool }; @pub let new_truc <- \\Truc:{ ok = true }; };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("function(truc) Truc("),
+            "partial app should desugar to a single-hole closure: {}",
+            r_code
+        );
+        assert!(
+            !r_code.contains("`new_truc` <- \n"),
+            "partial app must not transpile to an empty RHS: {}",
             r_code
         );
     }
