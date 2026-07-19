@@ -40,6 +40,8 @@ type Iterable<T> <- interface { as_vec: (Self) -> [T] };
 
 @map: (a: [#N, T], f: (T) -> U) -> [#N, U];
 
+@filter: (a: [#N, T], f: (T) -> bool) -> [#N, T];
+
 @rev: (a: [#N, T]) -> [#N, T];
 
 @set_at: (a: [#N, T], i: int, val: T) -> [#N, T];
