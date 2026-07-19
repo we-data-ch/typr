@@ -1,0 +1,12 @@
+$ typr run
+  Parsing... done
+  Type checking... done
+  Transpiling... done
+  Writing R files... done
+  Running...
+TRUE
+
+Correct on first try: `let counter: Counter <- readRDS(...)` compiles to
+`identity() |> as.Generic()`, not `as.Counter()` -- confirmed directly in
+the generated R/main.R. isS4(counter) stays TRUE, matching
+0022-foreign-s4-matrix-let-annotation's fix for the Matrix::Matrix row.

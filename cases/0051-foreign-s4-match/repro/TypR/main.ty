@@ -1,0 +1,12 @@
+
+# Row 2 (S4, `Matrix::Matrix`) x column e (`match` subject) of
+# interop_matrix.md. Same deliberate hole as 0050-foreign-s3-match.
+type MatrixS4 <- Foreign<Any>;
+type Wrapped <- .Model(MatrixS4) | .Empty;
+@extern base::readRDS: (path: char) -> Wrapped;
+
+let w <- readRDS("fixtures/matrix_s4.rds");
+match w {
+    .Model(inner) => print(inner),
+    .Empty => print("none"),
+};

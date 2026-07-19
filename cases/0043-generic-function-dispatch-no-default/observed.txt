@@ -1,0 +1,11 @@
+$ typr run
+
+  Running... failed
+Error (code exit status: 1):
+Erreur dans UseMethod("id") :
+  pas de méthode pour 'id' applicable pour un objet de classe "c('integer', 'Integer', 'Any')"
+Appels : load_module -> sys.source -> eval -> eval -> print -> id
+Exécution arrêtée
+
+(Captured against a build with 0042's fix applied -- id's own definition no
+longer fails to build, but calling it still fails as shown above.)

@@ -1,0 +1,11 @@
+
+# Row 7 (base vector w/ attributes, ordered `factor`) x column d (record
+# field) of interop_matrix.md.
+type FactorExt <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> FactorExt;
+
+type Wrapper <- list { model: FactorExt, label: char };
+
+let m <- readRDS("fixtures/factor_ext.rds");
+let w <- Wrapper:{ model = m, label = "test" };
+print(w.model);

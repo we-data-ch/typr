@@ -1,0 +1,8 @@
+
+# Found while attempting Phase D.3 of soundness_plan.md (column j: generic
+# instantiation, `id(foreign_val)`). NOT Foreign<T>-specific: reproduces for
+# a plain int argument, no @extern/Foreign<T> involved at all.
+let id <- fn(x: T): T { x };
+
+let m <- 5;
+print(id(m));

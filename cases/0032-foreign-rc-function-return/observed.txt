@@ -1,0 +1,8 @@
+$ typr run
+  Running...
+TRUE
+
+Correct on first try (no as.Counter() cast applied to the return value --
+confirmed in the generated R/main.R, which uses `identity()`). See
+0031-foreign-rc-function-arg/observed.txt for the naming-collision detour
+that affected the sibling case, not this one.

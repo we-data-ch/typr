@@ -1,0 +1,7 @@
+
+# Row 2 (S4, `Matrix::Matrix`) x column g (pipe) of interop_matrix.md.
+type MatrixS4 <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> MatrixS4;
+
+let m <- readRDS("fixtures/matrix_s4.rds");
+m |> print();

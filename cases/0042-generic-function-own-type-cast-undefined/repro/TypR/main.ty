@@ -1,0 +1,7 @@
+
+# Found while attempting Phase D.3 of soundness_plan.md (column j: generic
+# instantiation, `id(foreign_val)`). NOT Foreign<T>-specific: any top-level
+# generic function declaration in project mode hits this, foreign value or
+# not. Reproduces from the *definition* alone -- id is never called here.
+let id <- fn(x: T): T { x };
+print("built ok");

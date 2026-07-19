@@ -1,0 +1,10 @@
+
+# Row 5 (S7, `S7::new_class`) x column b (return value of a TypR function)
+# of interop_matrix.md.
+type Counter7 <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> Counter7;
+
+let get_counter <- fn(): Counter7 { readRDS("fixtures/s7.rds") };
+
+let c <- get_counter();
+print(c);

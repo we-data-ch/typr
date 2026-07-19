@@ -1,0 +1,10 @@
+
+# Row 1 (S3 external, `lm`) x column d (record field) of interop_matrix.md.
+type LmModel <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> LmModel;
+
+type Wrapper <- list { model: LmModel, label: char };
+
+let m <- readRDS("fixtures/lm.rds");
+let w <- Wrapper:{ model = m, label = "test" };
+print(w.model);

@@ -1,0 +1,11 @@
+
+# Row 5 (S7, `S7::new_class`) x column f (dot/dollar access) of
+# interop_matrix.md. Deliberate hole, not a bug: Foreign<T> reduces to Any,
+# which has no structural fields, so `c.value` can never type-check.
+# Reaching a foreign S7 value's properties requires an explicit @extern
+# accessor instead (e.g. @extern S7::prop).
+type Counter7 <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> Counter7;
+
+let c <- readRDS("fixtures/s7.rds");
+print(c.value);

@@ -1,0 +1,7 @@
+$ typr run
+
+  Running... failed
+Le chargement a nécessité le package : Matrix
+Erreur dans match_val__[[1]] : this S4 class is not subsettable
+Appels : load_module -> sys.source -> eval -> eval
+Exécution arrêtée

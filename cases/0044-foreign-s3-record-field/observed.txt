@@ -1,0 +1,15 @@
+$ typr run
+  Running...
+
+Call:
+lm(formula = y ~ x, data = data.frame(x = 1:5, y = c(2, 4, 5,
+    4, 5)))
+
+Coefficients:
+(Intercept)            x
+        2.2          0.6
+
+Correct on first try: the generated `Wrapper(model = m, label = ...)`
+constructor passes `m` straight through with no per-field cast, and
+`validate_Wrapper`'s per-field `inherits()` check is only emitted for the
+concrete `label: char` field, not for `model: LmModel`.

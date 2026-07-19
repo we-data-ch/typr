@@ -1,0 +1,9 @@
+$ typr run
+  Running...
+TRUE
+
+Correct on first try. Initial repro attempt (mirroring 0031's original
+draft) named the wrapper function `show`, colliding with `methods::show`;
+renamed to `describe` before this case was ever run against the real
+sandbox -- see 0031-foreign-rc-function-arg/observed.txt for the full story
+of that (RC-side) detour.

@@ -465,6 +465,20 @@ impl VarType {
             // `identity()` is the real base-R passthrough.
             Type::Alias(name, _, _, _) if self.resolves_to_foreign(name) => "identity".to_string(),
             Type::Alias(name, _, _, _) => format!("as.{}", name),
+            // An unresolved generic (e.g. the function's own type `(T) -> T`
+            // for a generic `id`) has no fixed runtime shape to validate
+            // against, so `get_type_anotations()` (the definition emitter,
+            // `Context::get_type_anotations` in `components/context/mod.rs`)
+            // deliberately skips writing an `as.<AutoName>` cast for it. This
+            // arm must skip *calling* that same (never-emitted) cast for the
+            // same reason — otherwise a structurally-registered but
+            // generic-containing alias (e.g. an auto-numbered `FunctionN`
+            // hoisted while type-checking a generic function's own type)
+            // still matches the lookup below and produces a call to a
+            // function that was never defined, an R runtime "could not find
+            // function as.FunctionN" error at the very first typed generic
+            // function declared at project top level.
+            _ if t.has_generic() => "as.Generic".to_string(),
             _ => self
                 .aliases
                 .iter()

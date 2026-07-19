@@ -1,0 +1,23 @@
+Before the fix (`typr build --no-incremental` on this repro):
+
+  Updating NAMESPACE... failed
+  ...
+  Error in `load_all()`:
+  ! Failed to load 'R/main.R'
+  Caused by error in `as.Function15()`:
+  ! impossible de trouver la fonction "as.Function15"
+
+Generated R/main.R at the time:
+
+  #' @method id Generic
+  `id.Generic` <- (function(x) {
+  x
+  } |> as.Generic()) |> as.Function15()
+
+R/types.R had no `as.Function15` definition at all (correctly filtered out
+by `Context::get_type_anotations()`'s `!typ.has_generic()` guard) -- the
+bug was the call site not sharing that same guard.
+
+After the fix: builds cleanly, "R code successfully generated in the
+R/ folder", `id.Generic` is no longer wrapped in a self-cast at all (falls
+through to the always-defined `as.Generic()` passthrough).

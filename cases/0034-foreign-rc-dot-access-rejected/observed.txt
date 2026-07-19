@@ -1,0 +1,14 @@
+$ typr check TypR/main.ty
+
+  × Type error: Undefined variable 'value'
+   ╭─[TypR/main.ty:13:16]
+12 │ let counter <- readRDS("fixtures/rc.rds");
+13 │ print(counter.value);
+   ·                ▲
+   ·                ╰── Undefined variable 'value'
+   ╰────
+  help: - Check the orthograph
+        - if it's a function check if it's defined for the given type Empty
+
+Same documented limitation as 0021-foreign-lm-dot-access-rejected: Foreign<T>
+reduces to Any, no structural fields to resolve against.

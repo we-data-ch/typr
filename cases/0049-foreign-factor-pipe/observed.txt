@@ -1,0 +1,6 @@
+$ typr run
+  Running...
+[1] lo  hi  med
+Levels: lo < med < hi
+
+Correct on first try.

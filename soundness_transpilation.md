@@ -9,8 +9,44 @@ columns {argument, retour, `let` annoté, accès `.`/`$`}). Construire la toute 
 case a immédiatement fait remonter 4 bugs réels bloquant l'usage documenté de
 `Foreign<T>`/`@extern` (arité d'alias opaque, `@extern` shadowé par son propre stub
 `UseMethod`, corruption de classe S4 via `as.X`/`struct()`, dispatch S3 inatteignable
-sur paramètre `Foreign<T>`) — tous corrigés, détail dans `interop_matrix.md`. Le reste
-de la grille (RC/R6, colonnes d/e/g/h/i/j, ligne S7) reste un backlog priorisé.**
+sur paramètre `Foreign<T>`) — tous corrigés, détail dans `interop_matrix.md`. Phase D.1
+(`soundness_plan.md`, 2026-07-18) a rempli les lignes RC/R6 × colonnes {a,b,c,f}
+(`cases/0031`-`0038`) — zéro nouveau bug trouvé, le fix (3) ci-dessus généralise
+correctement aux deux (RC est réellement S4, R6 ne l'est pas ; oracle par
+`isS4()`/`inherits()` plutôt que `print()`, un objet désérialisé seul via `readRDS` n'a pas
+son générateur/package enregistré dans la session R fraîche). Phase D.2 (2026-07-18) a
+rempli la colonne i (frontière de module) pour les lignes 1/2/7 (`cases/0039`-`0041`) — un
+vrai 5e bug trouvé et corrigé : le fallback `.default` d'une méthode de module dont le
+paramètre de dispatch est `Foreign<T>` n'était jamais réexporté hors de `local({...})`,
+rendant la fonction inatteignable de l'extérieur (confirmé par reproduction directe :
+`UseMethod("describe") : pas de méthode ... pour un objet de classe "lm"` sans le fix).
+Corrigé dans `processes/transpiling/mod.rs` (bloc de post-traitement du module) + test
+unitaire dédié. Phase D.3 (2026-07-18, colonne j) a immédiatement buté sur DEUX bugs
+généraux, ni l'un ni l'autre spécifiques à `Foreign<T>` (reproduisent avec un `int` nu) :
+un 6e bug (corrigé) — la définition d'une fonction générique top-level référençait un
+`as.FunctionN` jamais émis (`cases/0042`) — et un 7e bug, PLUS PROFOND et volontairement
+LAISSÉ OUVERT — appeler une fonction générique quelconque échoue toujours à l'exécution,
+faute de fallback `.default` pour un paramètre de dispatch `Generic` nu (`cases/0043`).
+Ce second bug bloque toute observation du comportement de `Foreign<T>` à cette colonne
+tant qu'il n'est pas corrigé ; voir `interop_matrix.md` § "Column j" pour le détail complet.
+Phase D.4 (2026-07-18) a rempli les colonnes d (champ de record) et g (pipe) pour les
+lignes 1/2/7 (`cases/0044`-`0049`) — zéro nouveau bug, correct du premier coup. La colonne
+e (sujet de `match`) était prédite `wontfix` par le plan lui-même et se confirme ainsi
+(`cases/0050`-`0052`) : déclarer le type de retour d'un `@extern` directement comme une
+union contourne entièrement `Foreign<T>`, donc `match` (désucré en comparaisons sur
+`match_val__[[1]]`) opère sur une valeur qui ne porte jamais les classes tag synthétiques
+de TypR. Fait notable : la ligne `factor` échoue SILENCIEUSEMENT (aucune branche ne
+matche, pas de `else`, exit 0, aucune sortie) alors que S3/S4 plantent bruyamment — le pire
+des trois modes d'échec, voir `interop_matrix.md` § "Column e" et `cases/0052`. Phase D.5
+(2026-07-18) a installé le package `S7` (`install.packages("S7")`, absent avant) et rempli
+la ligne 5 × colonnes {a,b,c,f} (`cases/0056`-`0059`) — zéro nouveau bug. S7 est
+structurellement distinct des lignes déjà couvertes : ni S4 (`isS4()` `FALSE`) ni type
+référence (contrairement à RC/R6, propriétés posées par valeur à la construction) ; et
+contrairement à RC/R6, `print()` fonctionne seul sans `library(S7)` dans la session, donc
+ces cases utilisent `print()` comme oracle directement (comme les lignes 1/2/7), sans le
+contournement `isS4()`/`inherits()` de D.1. Reste en backlog : colonne h (toutes lignes,
+priorité basse), colonnes d/e/g/i/j pour les lignes 3/4/5/6, colonne j (bloquée par
+`cases/0043`), ligne 6 (closure).**
 
 ## Le problème
 
@@ -483,9 +519,34 @@ inexistantes dans le R émis. Fail-open si `Rscript` absent (même politique que
 > confirment que `val.field` sur un `Foreign<T>` échoue toujours à la compilation (Any n'a
 > aucun champ structurel) — accès volontairement fermé, contournable via un accesseur
 > `@extern` dédié. Ligne S7 marquée `n/a` (package absent de l'environnement de dev/CI, pas
-> testé) plutôt que silencieusement ignorée. Reste en backlog : lignes RC/R6 (packages
-> installés, pas encore exercées), colonnes d/e/g/h/i/j (record field, `match`, pipe, `for`,
-> frontière de module, instanciation générique) pour toutes les lignes.
+> testé) plutôt que silencieusement ignorée.
+>
+> **Phase D.1 (`soundness_plan.md`, 2026-07-18) : lignes RC/R6.** `cases/0031`-`0038`
+> remplissent RC (`setRefClass`) et R6 × colonnes {a,b,c,f} — zéro nouveau bug : le fix (3)
+> ci-dessus (`identity()` au lieu de `as.X()` pour tout type résolvant `Foreign<T>`)
+> généralise correctement aux deux, y compris RC qui est réellement S4 (`isS4()` `TRUE`,
+> confirmé destructible par le même mécanisme `class(x) <- multi-string` que
+> `Matrix::Matrix` si le fix régressait). R6 n'est PAS S4 (`isS4()` `FALSE`, un simple
+> `environment` avec classe `c("Counter6","R6")`). Les cases a/b/c n'utilisent PAS `print()`
+> comme oracle contrairement aux lignes 1/2/7 : un objet désérialisé seul via `readRDS()`
+> n'a pas son générateur (`refObjectGenerator`)/package attaché dans la session R fraîche,
+> donc le print spécifique (RC) ou `print.R6` ne sont jamais disponibles — un artefact R pur
+> sans rapport avec la propriété testée. Oracle utilisé à la place : `isS4()`/`inherits()`,
+> des invariants indépendants de la session.
+>
+> **Phase D.2 (`soundness_plan.md`, 2026-07-18) : colonne i, lignes 1/2/7.** `cases/0039`-
+> `0041` — un vrai bug (le 5e de la grille) : le fallback `.default` d'une méthode de module
+> dont le paramètre de dispatch résout vers `Foreign<T>` (ou une interface pure) n'était
+> jamais réexporté hors de `local({...})`, alors que `.default` est la SEULE méthode
+> qu'une vraie valeur étrangère (classe runtime jamais égale au suffixe synthétique
+> `.Foreign0`) peut jamais atteindre. Reproduit directement (fix retiré + cache
+> incrémental vidé) : `UseMethod("describe") : pas de méthode pour 'describe' applicable
+> pour un objet de classe "lm"`. Corrigé en ajoutant le même traitement export +
+> réexposition déjà appliqué à `typed_name`, dans `processes/transpiling/mod.rs` (bloc de
+> post-traitement du module), gardé par la même condition que le bug #4 ci-dessus. Testé
+> par `transpiling::tests::test_module_foreign_dispatch_default_exported_outside_local` +
+> les 3 cases. Reste en backlog : colonnes d/e/g/h/j (toutes lignes), colonne i pour les
+> lignes 3/4/5/6 (RC/R6/S7/closure), ligne S7 (package à installer), ligne 6 (closure).
 
 ### Objectif
 

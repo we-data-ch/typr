@@ -1,0 +1,10 @@
+
+# Row 2 (S4, `Matrix::Matrix`) x column d (record field) of interop_matrix.md.
+type MatrixS4 <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> MatrixS4;
+
+type Wrapper <- list { model: MatrixS4, label: char };
+
+let m <- readRDS("fixtures/matrix_s4.rds");
+let w <- Wrapper:{ model = m, label = "test" };
+print(w.model);

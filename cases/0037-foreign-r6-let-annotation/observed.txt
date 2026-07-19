@@ -1,0 +1,12 @@
+$ typr run
+  Parsing... done
+  Type checking... done
+  Transpiling... done
+  Writing R files... done
+  Running...
+TRUE
+
+Correct on first try: as expected, R6's class-append (even under the old
+pre-fix as.X() cast, hypothetically) is non-destructive since struct()
+appends new class entries after the existing ones and R6 isn't S4 -- but
+the fix means no cast is applied at all here (identity()).

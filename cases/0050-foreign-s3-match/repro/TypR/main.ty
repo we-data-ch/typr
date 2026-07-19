@@ -1,0 +1,16 @@
+
+# Row 1 (S3 external, `lm`) x column e (`match` subject) of interop_matrix.md.
+# Deliberate hole, not a fixable bug: a union type whose `@extern` accessor
+# returns it directly bypasses Foreign<T> entirely -- readRDS's real value
+# never carries TypR's synthetic union/tag classes, so match's runtime
+# dispatch (`match_val__[[1]] == 'Model'`) operates on whatever `[[1]]`
+# happens to mean for the real foreign object, not a tag string.
+type LmModel <- Foreign<Any>;
+type Wrapped <- .Model(LmModel) | .Empty;
+@extern base::readRDS: (path: char) -> Wrapped;
+
+let w <- readRDS("fixtures/lm.rds");
+match w {
+    .Model(inner) => print(inner),
+    .Empty => print("none"),
+};

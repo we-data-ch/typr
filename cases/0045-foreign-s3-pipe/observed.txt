@@ -1,0 +1,13 @@
+$ typr run
+  Running...
+
+Call:
+lm(formula = y ~ x, data = data.frame(x = 1:5, y = c(2, 4, 5,
+    4, 5)))
+
+Coefficients:
+(Intercept)            x
+        2.2          0.6
+
+Correct on first try: `m |> print()` desugars to a plain `print(m)` call,
+same as the already-covered plain function-argument case.

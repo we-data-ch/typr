@@ -1,0 +1,6 @@
+title = "Phase D interop matrix: column e (match subject) x row 7 (base vector w/ attributes, ordered `factor`) -- documented hole, silent failure"
+cmd = "run"
+layer = "r-run"
+status = "wontfix"
+created = "2026-07-18"
+origin = "perso"

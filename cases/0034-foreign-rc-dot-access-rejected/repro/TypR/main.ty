@@ -1,0 +1,13 @@
+
+# Row 3 (RC external, setRefClass) x column f (dot/dollar access) of
+# interop_matrix.md.
+# Deliberate hole, not a bug: Foreign<T> reduces to Any, which has no
+# structural fields, so `counter.value` can never type-check. Reaching a
+# foreign RC value's fields/methods requires an explicit @extern accessor
+# instead (same limitation as the S3/S4 rows, see
+# 0021-foreign-lm-dot-access-rejected).
+type Counter <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> Counter;
+
+let counter <- readRDS("fixtures/rc.rds");
+print(counter.value);

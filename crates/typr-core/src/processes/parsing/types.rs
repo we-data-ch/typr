@@ -559,7 +559,7 @@ fn number_literal(s: Span) -> IResult<Span, Type> {
 }
 
 fn boolean(s: Span) -> IResult<Span, Type> {
-    let res = terminated(tag("bool"), multispace0).parse(s);
+    let res = terminated(alt((tag("bool"), tag("logic"))), multispace0).parse(s);
     match res {
         Ok((s, b)) => Ok((s, Type::Boolean(Tbool::Unknown, b.into()))),
         Err(r) => Err(r),

@@ -1,0 +1,8 @@
+$ typr run
+
+  Running... failed
+Error (code exit status: 1):
+Erreur dans if (match_val__[[1]] == "Model") {  :
+  la condition est de longueur > 1
+Appels : load_module -> sys.source -> eval -> eval
+Exécution arrêtée

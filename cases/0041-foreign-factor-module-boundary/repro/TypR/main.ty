@@ -1,0 +1,16 @@
+
+# Column i (module boundary) x row 7 (base vector w/ attributes, ordered
+# `factor`) of interop_matrix.md. soundness_plan.md D.2: a @pub fn whose
+# dispatch param is Foreign<T> must be reachable from OUTSIDE the module
+# that declares it.
+type FactorExt <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> FactorExt;
+
+module Reporter {
+    @pub let describe <- fn(x: FactorExt): int { print(x); 1 };
+};
+
+use Reporter::describe;
+
+let m <- readRDS("fixtures/factor_ext.rds");
+print(describe(m));

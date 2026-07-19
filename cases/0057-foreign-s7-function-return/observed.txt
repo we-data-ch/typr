@@ -1,0 +1,7 @@
+$ typr run
+  Running...
+<Counter7>
+ @ value: num 5
+
+Correct on first try (no as.Counter7() cast applied to the return value --
+confirmed in the generated R/main.R, which uses `identity()`).

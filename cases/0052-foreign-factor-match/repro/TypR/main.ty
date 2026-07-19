@@ -1,0 +1,15 @@
+
+# Row 7 (base vector w/ attributes, ordered `factor`) x column e (`match`
+# subject) of interop_matrix.md. Same deliberate hole as 0050, but with a
+# distinctly worse failure mode: see expect.md -- this row fails SILENTLY
+# (exit 0, no output, no error) rather than crashing.
+type FactorExt <- Foreign<Any>;
+type Wrapped <- .Model(FactorExt) | .Empty;
+@extern base::readRDS: (path: char) -> Wrapped;
+
+let w <- readRDS("fixtures/factor_ext.rds");
+match w {
+    .Model(inner) => print(inner),
+    .Empty => print("none"),
+};
+print("reached end");

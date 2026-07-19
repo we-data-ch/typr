@@ -1,0 +1,6 @@
+title = "Phase D interop matrix: column e (match subject) x row 2 (S4, `Matrix::Matrix`) -- documented hole"
+cmd = "run"
+layer = "r-run"
+status = "wontfix"
+created = "2026-07-18"
+origin = "perso"

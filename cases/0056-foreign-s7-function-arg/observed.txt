@@ -1,0 +1,8 @@
+$ typr run
+  Running...
+<Counter7>
+ @ value: num 5
+1
+
+Correct on first try: the already-fixed Foreign<T> pass-through machinery
+covers S7 without further changes.

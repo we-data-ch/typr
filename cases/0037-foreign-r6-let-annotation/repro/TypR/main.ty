@@ -1,0 +1,10 @@
+
+# Row 4 (R6 external) x column c (`let x: T <- expr`) of interop_matrix.md.
+# See 0035's comment for why inherits() is used as the oracle instead of
+# print().
+type Counter6 <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> Counter6;
+@extern base::inherits: (x: Foreign<Any>, what: char) -> bool;
+
+let counter: Counter6 <- readRDS("fixtures/r6.rds");
+print(inherits(counter, "Counter6"));

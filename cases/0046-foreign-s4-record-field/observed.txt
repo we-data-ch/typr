@@ -1,0 +1,9 @@
+$ typr run
+  Running...
+2 x 2 Matrix of class "dgeMatrix"
+     [,1] [,2]
+[1,]    1    3
+[2,]    2    4
+
+Correct on first try. See 0044-foreign-s3-record-field/observed.txt for the
+mechanism (same for S4, no S4-ness lost through the record constructor).

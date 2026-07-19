@@ -1,0 +1,17 @@
+$ typr run
+  Running...
+TRUE
+
+Correct on first try: the already-fixed Foreign<T> pass-through machinery
+(no re-classing at a function-parameter boundary, and extern_fns excluded
+from Context::get_all_generic_functions so no UseMethod stub shadows
+base::readRDS/base::isS4) already covers RC (setRefClass) objects without
+further changes. Confirms 0022-foreign-s4-matrix-let-annotation's fix
+generalizes to a second, structurally different S4 object.
+
+Initial repro attempt named the wrapper function `show`, which collides
+with `methods::show` (a real S4 generic) -- the r-name lint (Phase C)
+correctly warned about it and the resulting `show <- function(x,...)
+UseMethod('show', x)` stub shadowed S4 dispatch, producing R's generic
+`<S4 Type Object>` fallback print instead of the RC's own output. Renamed
+to `describe` to avoid the self-inflicted collision; not a TypR bug.

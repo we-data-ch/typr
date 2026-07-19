@@ -690,13 +690,13 @@ impl Context {
     }
 
     pub fn get_class(&self, t: &Type) -> String {
-        // For a named alias whose underlying type is a record, return the alias name directly.
-        // push_types may have also registered the same record with an auto-generated "Record0"
-        // name; searching aliases by type value would find that first (insertion-order) and
-        // return the wrong name.
+        // For a named alias whose underlying type is a record or array, return the alias
+        // name directly. push_types may have also registered the same underlying type with
+        // an auto-generated "Record0"/"Array0" name; searching aliases by type value would
+        // find that first (insertion-order) and return the wrong name.
         if let Type::Alias(name, _, false, _) = t {
             if let Some((_, underlying)) = self.aliases().find(|(v, _)| v.get_name() == *name) {
-                if matches!(underlying, Type::Record(_, _)) {
+                if matches!(underlying, Type::Record(_, _) | Type::Vec(_, _, _, _)) {
                     return "'".to_string() + name + "'";
                 }
             }
@@ -711,10 +711,10 @@ impl Context {
     }
 
     pub fn get_class_unquoted(&self, t: &Type) -> String {
-        // Same rationale as get_class: bypass the record-type alias search for named aliases.
+        // Same rationale as get_class: bypass the record/array alias search for named aliases.
         if let Type::Alias(name, _, false, _) = t {
             if let Some((_, underlying)) = self.aliases().find(|(v, _)| v.get_name() == *name) {
-                if matches!(underlying, Type::Record(_, _)) {
+                if matches!(underlying, Type::Record(_, _) | Type::Vec(_, _, _, _)) {
                     return name.clone();
                 }
             }

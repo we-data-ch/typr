@@ -1,0 +1,25 @@
+$ typr run
+  Running...
+
+Call:
+lm(formula = y ~ x, data = data.frame(x = 1:5, y = c(2, 4, 5,
+    4, 5)))
+
+Coefficients:
+(Intercept)            x
+        2.2          0.6
+
+1
+
+Correct after the D.2 fix (transpiling/mod.rs module post-processing block
+now also exports/re-exposes `describe.default`, not just `describe.Foreign0`).
+
+Confirmed this reproduces the predicted bug before the fix: reverting the
+change (`git stash`) and rebuilding with `--no-incremental` (the
+incremental-build cache otherwise silently reuses the already-fixed R
+output) gives:
+
+  Erreur dans UseMethod("describe") :
+    pas de méthode pour 'describe' applicable pour un objet de classe "lm"
+  Appels : load_module -> sys.source -> eval -> eval -> print -> describe
+  Exécution arrêtée

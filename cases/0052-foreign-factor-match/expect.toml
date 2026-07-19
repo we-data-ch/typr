@@ -1,0 +1,12 @@
+# status = "wontfix": documented current limitation, see expect.md. Unlike
+# 0050/0051 (loud crash), this row fails SILENTLY -- neither match arm
+# fires, no error, execution just continues past the match block.
+[[rule]]
+file = "@run"
+must_contain = "reached end"
+[[rule]]
+file = "@run"
+must_not_contain = "lo"
+[[rule]]
+file = "@run"
+must_not_contain = "none"

@@ -1,0 +1,5 @@
+$ typr run
+  Running...
+TRUE
+
+Correct on first try.

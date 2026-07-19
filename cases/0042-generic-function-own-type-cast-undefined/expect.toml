@@ -1,0 +1,9 @@
+[[rule]]
+file = "@run"
+must_contain = "R code successfully generated"
+[[rule]]
+file = "@run"
+must_not_contain = "could not find function"
+[[rule]]
+file = "@run"
+must_not_contain = "impossible de trouver la fonction"

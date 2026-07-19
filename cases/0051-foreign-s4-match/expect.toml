@@ -1,0 +1,4 @@
+# status = "wontfix": documented current limitation, see expect.md.
+[[rule]]
+file = "@run"
+must_contain = "not subsettable"

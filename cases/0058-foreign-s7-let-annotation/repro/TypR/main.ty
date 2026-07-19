@@ -1,0 +1,8 @@
+
+# Row 5 (S7, `S7::new_class`) x column c (`let x: T <- expr`) of
+# interop_matrix.md.
+type Counter7 <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> Counter7;
+
+let c: Counter7 <- readRDS("fixtures/s7.rds");
+print(c);

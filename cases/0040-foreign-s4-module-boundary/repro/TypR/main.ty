@@ -1,0 +1,15 @@
+
+# Column i (module boundary) x row 2 (S4, `Matrix::Matrix`) of interop_matrix.md.
+# soundness_plan.md D.2: a @pub fn whose dispatch param is Foreign<T> must be
+# reachable from OUTSIDE the module that declares it.
+type MatrixS4 <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> MatrixS4;
+
+module Reporter {
+    @pub let describe <- fn(x: MatrixS4): int { print(x); 1 };
+};
+
+use Reporter::describe;
+
+let m <- readRDS("fixtures/matrix_s4.rds");
+print(describe(m));

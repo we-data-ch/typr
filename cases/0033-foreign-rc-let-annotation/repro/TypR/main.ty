@@ -1,0 +1,10 @@
+
+# Row 3 (RC external, setRefClass) x column c (`let x: T <- expr`) of
+# interop_matrix.md. See 0031's comment for why isS4() is used as the oracle
+# instead of print().
+type Counter <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> Counter;
+@extern base::isS4: (x: Foreign<Any>) -> bool;
+
+let counter: Counter <- readRDS("fixtures/rc.rds");
+print(isS4(counter));

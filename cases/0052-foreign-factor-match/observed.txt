@@ -1,0 +1,11 @@
+$ typr run
+
+  Running...
+reached end
+
+No crash, no error -- and critically, neither "lo"/"hi"/"med" (the
+.Model branch's print(inner)) nor "none" (the .Empty branch) appears.
+Confirmed directly with a standalone Rscript check against the same
+fixture: `w[[1]] == "Model"` and `w[[1]] == "Empty"` both evaluate to
+plain FALSE (not NA/error) for an ordered factor, so match's desugared
+if/else-if silently falls through with no else clause.

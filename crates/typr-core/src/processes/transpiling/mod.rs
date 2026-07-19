@@ -2221,6 +2221,33 @@ impl RTranslatable<(String, Context)> for Lang {
                                 // lexical scoping from any file that imports this module.
                                 generic_exports
                                     .push(format!("{} <- {}${}", typed_name, name_str, typed_name));
+
+                                // Same gap as above, but for the `.default` fallback (soundness_plan.md
+                                // D.2): the `Lang::Let` arm above emits `raw_name.default <-
+                                // typed_name` right next to `typed_name` itself whenever the dispatch
+                                // param is a pure interface or a `Foreign<T>`-family alias (see the
+                                // matching condition there) — that binding is just as local-only as
+                                // `typed_name`, so it needs the identical export + re-expose treatment
+                                // or it's unreachable from outside the module (a real foreign value's
+                                // runtime class never matches `typed_name`'s suffix, so calls from
+                                // outside this module can only ever reach it via `.default`).
+                                let is_foreign_dispatch = matches!(&var_type, Type::Alias(alias_name, _, _, _) if inner_cont.resolves_to_foreign_alias(alias_name));
+                                if class_name != "default"
+                                    && (is_foreign_dispatch
+                                        || (facets::interface_facet(&inner_cont, &var_type)
+                                            .is_some()
+                                            && facets::record_facet(&inner_cont, &var_type)
+                                                .is_none()))
+                                {
+                                    exports.push(format!(
+                                        "{}${}.default <- {}.default",
+                                        name_str, raw_name, raw_name
+                                    ));
+                                    generic_exports.push(format!(
+                                        "{}.default <- {}${}.default",
+                                        raw_name, name_str, raw_name
+                                    ));
+                                }
                             }
                         }
                     }
@@ -2769,6 +2796,61 @@ mod tests {
         assert!(
             r.contains("`double_up.default` <- `double_up.Incrementable`"),
             "expected .default fallback alias, got: {r}"
+        );
+    }
+
+    #[test]
+    fn test_generic_function_own_type_has_no_self_cast() {
+        // soundness_plan.md D.3 (cases/0042): a top-level generic function's
+        // own type (e.g. `(T) -> T`) still contains an unresolved generic,
+        // so `Context::get_type_anotations()` never emits an `as.FunctionN`
+        // definition for its auto-registered structural alias. The transpile
+        // site must not call that never-emitted cast either.
+        let r_code = FluentParser::new()
+            .push("let id <- fn(x: T): T { x };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            !r_code.contains("as.Function"),
+            "generic function must not reference an unemitted as.FunctionN self-cast: {}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_module_foreign_dispatch_default_exported_outside_local() {
+        // soundness_plan.md D.2: a @pub fn inside a module whose dispatch
+        // param is a Foreign<T>-family alias emits a `describe.default <-
+        // describe.Foreign0` fallback binding (same mechanism as
+        // `test_pure_interface_param_function_emits_default_fallback`), but
+        // that binding lives inside the module's `local({...})` block. It
+        // must be re-exported the same way `typed_name` already is, or it's
+        // unreachable from any file outside the module — real foreign
+        // values never carry the synthetic `.Foreign0` suffix, so `.default`
+        // is the only method that could ever catch them.
+        let r_code = FluentParser::new()
+            .push("type LmModel <- Foreign<Any>;")
+            .run()
+            .push("module Reporter { @pub let describe <- fn(x: LmModel): int { 1 }; };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("Reporter$describe.default <- describe.default"),
+            "missing module-env .default export: {}",
+            r_code
+        );
+        assert!(
+            r_code.contains("describe.default <- Reporter$describe.default"),
+            "missing top-level .default re-export: {}",
+            r_code
         );
     }
 

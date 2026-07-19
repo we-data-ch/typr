@@ -1,0 +1,18 @@
+# Todo
+type Todo <- list {
+	name: char,
+	done: bool
+};
+
+let new_todo <- \Todo:{done: false};
+
+# TodoList
+type TodoList <- [Todo];
+
+let add_todo <- fn(self: TodoList): TodoList {
+	self.extend(new_todo("new"))
+};
+
+let tdl <- TodoList:[];
+
+tdl.add_todo()

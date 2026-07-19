@@ -1,0 +1,9 @@
+$ typr run
+  Running...
+[1] lo  hi  med
+Levels: lo < med < hi
+1
+
+Correct after the D.2 fix. See 0039-foreign-s3-module-boundary/observed.txt
+for confirmation the same reproduces (with "class \"factor\"" not "lm")
+without the fix.

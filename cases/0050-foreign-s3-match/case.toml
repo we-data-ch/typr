@@ -1,0 +1,6 @@
+title = "Phase D interop matrix: column e (match subject) x row 1 (S3 external, `lm`) -- documented hole"
+cmd = "run"
+layer = "r-run"
+status = "wontfix"
+created = "2026-07-18"
+origin = "perso"

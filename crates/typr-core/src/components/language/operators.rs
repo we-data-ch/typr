@@ -63,7 +63,7 @@ fn lang_to_cast_type(lang: &Lang) -> Option<Type> {
         } => Some(match name.as_str() {
             "int" => builder::integer_type_default(),
             "num" => builder::number_type(),
-            "bool" => builder::boolean_type(),
+            "bool" | "logic" => builder::boolean_type(),
             "char" => builder::character_type_default(),
             "Any" => builder::any_type(),
             _ => Type::Alias(name.clone(), vec![], false, help_data.clone()),
@@ -122,7 +122,7 @@ fn primitive_cast_type(name: &str) -> Option<Type> {
         "int" => Some(builder::integer_type_default()),
         "num" => Some(builder::number_type()),
         "char" => Some(builder::character_type_default()),
-        "bool" => Some(builder::boolean_type()),
+        "bool" | "logic" => Some(builder::boolean_type()),
         _ => None,
     }
 }
@@ -363,10 +363,11 @@ pub fn get_string(op: &Op) -> String {
         Op::GreaterThan(_) => ">".to_string(),
         Op::LesserOrEqual(_) => "<=".to_string(),
         Op::GreaterOrEqual(_) => ">=".to_string(),
-        Op::Modulo(_) => "%".to_string(),
+        Op::Modulo(_) => "%%".to_string(),
         Op::Dollar(_) => "$".to_string(),
         Op::Eq(_) => "==".to_string(),
         Op::NotEq(_) => "!=".to_string(),
+        Op::Custom(s, _) => s.clone(),
         n => todo!("operator to_string not implemented for {:?}", n),
     }
 }

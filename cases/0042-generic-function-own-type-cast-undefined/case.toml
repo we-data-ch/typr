@@ -1,0 +1,7 @@
+title = "Generic function's own self-cast references an undefined as.FunctionN"
+cmd = "build"
+layer = "transpile"
+status = "fixed"
+created = "2026-07-18"
+origin = "perso"
+checked = false

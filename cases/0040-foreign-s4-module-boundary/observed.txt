@@ -1,0 +1,11 @@
+$ typr run
+  Running...
+2 x 2 Matrix of class "dgeMatrix"
+     [,1] [,2]
+[1,]    1    3
+[2,]    2    4
+1
+
+Correct after the D.2 fix. See 0039-foreign-s3-module-boundary/observed.txt
+for confirmation the same reproduces (with "class \"dgeMatrix\"" not "lm")
+without the fix.

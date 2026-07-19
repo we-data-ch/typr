@@ -1,0 +1,9 @@
+[[rule]]
+file = "@run"
+must_contain = "Levels"
+[[rule]]
+file = "@run"
+must_not_contain = "no applicable method"
+[[rule]]
+file = "@run"
+must_not_contain = "pas de méthode"

@@ -1,0 +1,12 @@
+$ typr run
+  Parsing... done
+  Type checking... done
+  Transpiling... done
+  Writing R files... done
+  Running...
+<Counter7>
+ @ value: num 5
+
+Correct on first try: `let c: Counter7 <- readRDS(...)` compiles to
+`identity() |> as.Generic()`, not `as.Counter7()` -- confirmed directly in
+the generated R/main.R.

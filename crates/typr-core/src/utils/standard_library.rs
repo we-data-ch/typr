@@ -8,13 +8,14 @@ use crate::components::r#type::Type;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-const BLACKLIST: [&str; 59] = [
+const BLACKLIST: [&str; 60] = [
     "test_that",
     "expect_true",
     "`+`",
     "`*`",
     "`-`",
     "`/`",
+    "`%%`",
     "while",
     "repeat",
     "for",

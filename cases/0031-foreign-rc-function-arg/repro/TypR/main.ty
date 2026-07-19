@@ -1,0 +1,19 @@
+
+# Row 3 (RC external, setRefClass) x column a (argument of a TypR function)
+# of interop_matrix.md.
+#
+# Uses base::isS4 rather than print() as the oracle: a bare readRDS()'d RC
+# instance has no defining generator registered in a fresh R session (the
+# generator was never serialized, only the instance data), so its
+# reference-class print dispatch is unavailable regardless of TypR -- a
+# pure-R quirk unrelated to the soundness property under test. isS4()
+# survives round-tripping and is exactly what a corrupting as.X()/struct()
+# cast would flip to FALSE (see 0033's expect.md).
+type Counter <- Foreign<Any>;
+@extern base::readRDS: (path: char) -> Counter;
+@extern base::isS4: (x: Foreign<Any>) -> bool;
+
+let describe <- fn(x: Counter): bool { isS4(x) };
+
+let counter <- readRDS("fixtures/rc.rds");
+print(describe(counter));
