@@ -1,0 +1,14 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 518
+expression: r
+---
+`add_k.integer` <- (function(n, k) {
+if(n > k) {
+n 
+} else k
+} |> as.Integer()) |> as.Generic()
+
+`v` <- c(1L |> as.Integer(), 2L |> as.Integer(), 3L |> as.Integer()) |> identity()
+
+`r` <- vapply(v, function(.typr_x) add_k(.typr_x, 5L |> as.Integer()), integer(1), USE.NAMES = FALSE)

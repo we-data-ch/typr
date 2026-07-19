@@ -346,11 +346,7 @@ impl CliInterface {
 
     /// Display welcome message
     pub fn show_welcome(&self) {
-        println!(
-            "{}TypR REPL{}: 'exit' to quit",
-            colors::KEYWORD,
-            colors::RESET
-        );
+        println!("{}TypR REPL{}: 'exit' to quit", colors::KEYWORD, colors::RESET);
     }
 
     /// Read a line with appropriate prompt
@@ -404,9 +400,7 @@ impl CliInterface {
         let open_brackets = cmd.matches('[').count();
         let close_brackets = cmd.matches(']').count();
 
-        open_braces == close_braces
-            && open_parens == close_parens
-            && open_brackets == close_brackets
+        open_braces == close_braces && open_parens == close_parens && open_brackets == close_brackets
     }
 
     /// Display an execution result with colors
@@ -523,9 +517,7 @@ impl RRepl {
                                     self.executor = executor;
                                     self.cli.display_result(&result)
                                 }
-                                Err(e) => {
-                                    self.cli.display_error(&format!("Execution failed: {}", e))
-                                }
+                                Err(e) => self.cli.display_error(&format!("Execution failed: {}", e)),
                             },
                             MyCommand::Exit => {
                                 println!("\nexiting...");
@@ -576,12 +568,7 @@ pub fn start() {
             }
         }
         Err(e) => {
-            eprintln!(
-                "{}Unable to start R process: {}{}",
-                colors::ERROR,
-                e,
-                colors::RESET
-            );
+            eprintln!("{}Unable to start R process: {}{}", colors::ERROR, e, colors::RESET);
             eprintln!("   Check that R is installed and in PATH");
             std::process::exit(1);
         }

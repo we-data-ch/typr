@@ -91,11 +91,7 @@ const ZERO_ARITY_STDLIB_EXEMPT: &[&str] = &["dir", "getwd"];
 /// UseMethod('name', x)` stub in `generic_functions.R` (see
 /// `Context::get_all_generic_functions`). `strict` escalates the S4-generic
 /// warning to an error.
-pub fn lint_generic_stub_names(
-    names: &[String],
-    generated_r: &str,
-    strict: bool,
-) -> Vec<LintFinding> {
+pub fn lint_generic_stub_names(names: &[String], generated_r: &str, strict: bool) -> Vec<LintFinding> {
     let db = load_db();
     let mut findings = Vec::new();
     for name in names {

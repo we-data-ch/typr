@@ -1,0 +1,16 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 555
+expression: r
+---
+`axpy.integer` <- (function(a, b) {
+`y` <- a * 2L |> as.Integer()
+
+y + b
+} |> as.Integer()) |> as.Function0()
+
+`v` <- c(1L |> as.Integer(), 2L |> as.Integer(), 3L |> as.Integer()) |> identity()
+
+`w` <- c(4L |> as.Integer(), 5L |> as.Integer(), 6L |> as.Integer()) |> identity()
+
+`r` <- axpy(v, w)

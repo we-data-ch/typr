@@ -116,17 +116,11 @@ impl Config {
     }
 
     pub fn set_test_mode(self, val: bool) -> Self {
-        Self {
-            test_mode: val,
-            ..self
-        }
+        Self { test_mode: val, ..self }
     }
 
     pub fn set_in_loop(self, val: bool) -> Self {
-        Self {
-            in_loop: val,
-            ..self
-        }
+        Self { in_loop: val, ..self }
     }
 
     pub fn set_checked_mode(self, val: bool) -> Self {

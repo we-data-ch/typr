@@ -16,11 +16,7 @@ pub fn dot_pipe_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang) -> 
     // Uniform function call over the native `c(...)` vector constructor:
     // `receiver.c(args)` desugars to `c(receiver, args)` (a Lang::Vector,
     // not a FunctionApp), so handle it before the generic method case.
-    if let Lang::Vector {
-        value: v,
-        help_data: h,
-    } = e2.clone()
-    {
+    if let Lang::Vector { value: v, help_data: h } = e2.clone() {
         let new_vec = Lang::Vector {
             value: [e1.clone()].iter().chain(v.iter()).cloned().collect(),
             help_data: h.clone(),
@@ -58,20 +54,11 @@ pub fn dot_pipe_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang) -> 
         let ty1 = e1.typing(context).value.reduce(context);
         if let Type::Record(fields, _) = ty1.clone() {
             let mut errors = Vec::new();
-            return field_access::find_field_or_push_error(
-                &fields,
-                name,
-                &ty1,
-                e2.get_help_data(),
-                &mut errors,
-            )
-            .map(|ty| {
-                TypeContext::new(ty, expr.clone(), context.clone()).with_errors(errors.clone())
-            })
-            .unwrap_or_else(|| {
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                    .with_errors(errors.clone())
-            });
+            return field_access::find_field_or_push_error(&fields, name, &ty1, e2.get_help_data(), &mut errors)
+                .map(|ty| TypeContext::new(ty, expr.clone(), context.clone()).with_errors(errors.clone()))
+                .unwrap_or_else(|| {
+                    TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors.clone())
+                });
         }
     }
 
@@ -80,19 +67,13 @@ pub fn dot_pipe_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang) -> 
     let ty2 = tc2.value.reduce(context);
 
     match (ty2.clone(), e1.clone()) {
-        (
-            Type::Record(fields, _),
-            Lang::Variable {
-                name, help_data: h, ..
-            },
-        ) => field_access::find_field_or_push_error(&fields, &name, &ty2, h, &mut errors)
-            .map(|ty| {
-                TypeContext::new(ty, expr.clone(), context.clone()).with_errors(errors.clone())
-            })
-            .unwrap_or_else(|| {
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                    .with_errors(errors.clone())
-            }),
+        (Type::Record(fields, _), Lang::Variable { name, help_data: h, .. }) => {
+            field_access::find_field_or_push_error(&fields, &name, &ty2, h, &mut errors)
+                .map(|ty| TypeContext::new(ty, expr.clone(), context.clone()).with_errors(errors.clone()))
+                .unwrap_or_else(|| {
+                    TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors.clone())
+                })
+        }
         (
             Type::Record(fields, _),
             Lang::Char {
@@ -100,27 +81,15 @@ pub fn dot_pipe_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang) -> 
                 help_data: h,
             },
         ) => field_access::find_field_or_push_error(&fields, &name, &ty2, h, &mut errors)
-            .map(|ty| {
-                TypeContext::new(ty, expr.clone(), context.clone()).with_errors(errors.clone())
-            })
+            .map(|ty| TypeContext::new(ty, expr.clone(), context.clone()).with_errors(errors.clone()))
             .unwrap_or_else(|| {
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                    .with_errors(errors.clone())
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors.clone())
             }),
-        (
-            Type::Tuple(vals, _),
-            Lang::Integer {
-                value: i,
-                help_data: h,
-            },
-        ) => match vals.get((i - 1) as usize) {
-            Some(typ) => {
-                TypeContext::new(typ.clone(), expr.clone(), context.clone()).with_errors(errors)
-            }
+        (Type::Tuple(vals, _), Lang::Integer { value: i, help_data: h }) => match vals.get((i - 1) as usize) {
+            Some(typ) => TypeContext::new(typ.clone(), expr.clone(), context.clone()).with_errors(errors),
             None => {
                 errors.push(TypRError::Type(TypeError::WrongExpression(h)));
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                    .with_errors(errors)
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
             }
         },
         // Record `.` merge with a `List`: adds/overrides fields by union,
@@ -131,18 +100,11 @@ pub fn dot_pipe_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang) -> 
             let fields3 = match tc1.value {
                 Type::Record(fields2, _) => fields1.union(&fields2).cloned().collect(),
                 _ => {
-                    errors.push(TypRError::Type(TypeError::WrongExpression(
-                        e1.get_help_data(),
-                    )));
+                    errors.push(TypRError::Type(TypeError::WrongExpression(e1.get_help_data())));
                     fields1
                 }
             };
-            TypeContext::new(
-                Type::Record(fields3, h.clone()),
-                expr.clone(),
-                context.clone(),
-            )
-            .with_errors(errors)
+            TypeContext::new(Type::Record(fields3, h.clone()), expr.clone(), context.clone()).with_errors(errors)
         }
         (Type::Generic(_, _), Lang::List { .. }) => {
             let tc1 = e1.typing(context);
@@ -155,9 +117,7 @@ pub fn dot_pipe_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang) -> 
             .with_errors(errors)
         }
         (_, _) => {
-            errors.push(TypRError::Type(TypeError::WrongExpression(
-                expr.get_help_data(),
-            )));
+            errors.push(TypRError::Type(TypeError::WrongExpression(expr.get_help_data())));
             TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
         }
     }

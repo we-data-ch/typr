@@ -23,10 +23,9 @@ impl SafeHashMap {
     /// `#J`). For any other key (including `Generic`), falls back to `==`.
     fn key_eq(a: &Type, b: &Type) -> bool {
         match b {
-            Type::Generic(_, _)
-            | Type::IndexGen(_, _)
-            | Type::LabelGen(_, _)
-            | Type::KindedGen(_, _, _) => unification::same_generic_key(a, b),
+            Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _) | Type::KindedGen(_, _, _) => {
+                unification::same_generic_key(a, b)
+            }
             _ => a == b,
         }
     }
@@ -43,9 +42,7 @@ impl SafeHashMap {
         match self.map.iter().find(|(k, _v)| Self::key_eq(k, &key)) {
             Some((Type::Generic(old_key_name, _), existing_val)) => {
                 let final_value = Self::resolve_generic(&self.map, existing_val);
-                if final_value.exact_equality(&resolved_value)
-                    || matches!(&final_value, Type::Generic(_, _))
-                {
+                if final_value.exact_equality(&resolved_value) || matches!(&final_value, Type::Generic(_, _)) {
                     self.map.push((key, resolved_value));
                     true
                 } else if matches!(&resolved_value, Type::Generic(_, _)) {
@@ -131,10 +128,9 @@ impl UnificationMap {
         let mut seen = HashSet::new();
         loop {
             let found = self.mapping.iter().find(|(typ1, _)| match &current {
-                Type::Generic(_, _)
-                | Type::IndexGen(_, _)
-                | Type::LabelGen(_, _)
-                | Type::KindedGen(_, _, _) => unification::same_generic_key(typ1, &current),
+                Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _) | Type::KindedGen(_, _, _) => {
+                    unification::same_generic_key(typ1, &current)
+                }
                 _ => *typ1 == current,
             });
             match found {

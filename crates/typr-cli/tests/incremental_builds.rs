@@ -50,10 +50,7 @@ fn stdout(output: &Output) -> String {
 
 fn devtools_available() -> bool {
     Command::new("R")
-        .args([
-            "-e",
-            "quit(status = !requireNamespace('devtools', quietly = TRUE))",
-        ])
+        .args(["-e", "quit(status = !requireNamespace('devtools', quietly = TRUE))"])
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
@@ -140,11 +137,7 @@ fn checked_mode_invalidates_cache() {
     // Switching to --checked must not reuse a manifest written without it,
     // and must emit runtime assertions in the regenerated R.
     let checked = typr(&project, &["build", "--checked"]);
-    assert!(
-        checked.status.success(),
-        "checked build failed: {:?}",
-        checked
-    );
+    assert!(checked.status.success(), "checked build failed: {:?}", checked);
     assert!(
         !stdout(&checked).contains("Project up to date"),
         "switching --checked must never short-circuit off a non-checked manifest"
@@ -159,11 +152,7 @@ fn checked_mode_invalidates_cache() {
     // And switching back off must invalidate again rather than reusing the
     // checked manifest.
     let back_off = typr(&project, &["build"]);
-    assert!(
-        back_off.status.success(),
-        "back-off build failed: {:?}",
-        back_off
-    );
+    assert!(back_off.status.success(), "back-off build failed: {:?}", back_off);
     assert!(
         !stdout(&back_off).contains("Project up to date"),
         "switching off --checked must never short-circuit off a checked manifest"
@@ -297,16 +286,8 @@ fn module_cache_output_is_byte_identical_to_clean_build() {
     // Clean build of the exact same (modified) sources in a fresh project.
     let reference = scaffold_project("module_cache_reference");
     fs::copy(project.join("TypR/main.ty"), reference.join("TypR/main.ty")).unwrap();
-    fs::copy(
-        project.join("TypR/helper.ty"),
-        reference.join("TypR/helper.ty"),
-    )
-    .unwrap();
-    fs::copy(
-        project.join("TypR/second.ty"),
-        reference.join("TypR/second.ty"),
-    )
-    .unwrap();
+    fs::copy(project.join("TypR/helper.ty"), reference.join("TypR/helper.ty")).unwrap();
+    fs::copy(project.join("TypR/second.ty"), reference.join("TypR/second.ty")).unwrap();
     let clean = typr(&reference, &["build", "--no-incremental"]);
     assert!(clean.status.success(), "clean build failed: {:?}", clean);
 

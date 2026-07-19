@@ -66,14 +66,10 @@ impl TypeContext {
         // But it also returns `Any` legitimately when the annotation IS `Any` (success), or when
         // there is no annotation (Empty) and the actual type is `Any`. Guard against both false
         // positives: only record an error when the annotation is an explicit non-Any, non-Empty type.
-        let annotation_is_constraining =
-            !typ.is_empty() && !matches!(typ.reduce(&self.context), Type::Any(_));
+        let annotation_is_constraining = !typ.is_empty() && !matches!(typ.reduce(&self.context), Type::Any(_));
         if annotation_is_constraining {
             if let crate::components::r#type::Type::Any(_) = new_type {
-                errors.push(TypRError::type_error(TypeError::Let(
-                    typ.clone(),
-                    self.value.clone(),
-                )));
+                errors.push(TypRError::type_error(TypeError::Let(typ.clone(), self.value.clone())));
             }
         }
         Self {

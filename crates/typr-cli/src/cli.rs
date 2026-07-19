@@ -10,9 +10,8 @@
 //! - `typr lsp`: Start Language Server Protocol server
 
 use crate::project::{
-    build_file, build_project, check_file, check_project, clean, cran, debug_file, document,
-    generate_spg, load, new, pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep,
-    run_project, test, use_package, DebugOptions,
+    build_file, build_project, check_file, check_project, clean, cran, debug_file, document, generate_spg, load, new,
+    pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep, run_project, test, use_package, DebugOptions,
 };
 use crate::repl;
 use crate::standard_library::standard_library;
@@ -266,17 +265,8 @@ pub fn start() {
         },
         Some(Commands::Case { case_command }) => match case_command {
             CaseCommands::List { status } => crate::cases::list(status),
-            CaseCommands::Run {
-                filter,
-                status,
-                keep,
-            } => crate::cases::run(filter, status, keep),
-            CaseCommands::Add {
-                slug,
-                from,
-                cmd,
-                layer,
-            } => crate::cases::add(&slug, from, &cmd, &layer),
+            CaseCommands::Run { filter, status, keep } => crate::cases::run(filter, status, keep),
+            CaseCommands::Add { slug, from, cmd, layer } => crate::cases::add(&slug, from, &cmd, &layer),
             CaseCommands::Snapshot { slug } => crate::cases::snapshot(slug),
             CaseCommands::Freeze { id } => crate::cases::freeze(&id),
             CaseCommands::Show { id } => crate::cases::show(&id),

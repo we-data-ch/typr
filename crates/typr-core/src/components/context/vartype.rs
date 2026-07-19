@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::context::config::Config;
 use crate::components::context::config::TargetLanguage;
 use crate::components::context::Context;
@@ -34,8 +28,7 @@ use std::io::Read;
 use std::io::Write;
 
 pub fn same_var_type(element1: &(Var, Type), element2: &(Var, Type)) -> bool {
-    (element1.0.get_name() == element2.0.get_name())
-        && (element1.0.get_type() == element2.0.get_type())
+    (element1.0.get_name() == element2.0.get_name()) && (element1.0.get_type() == element2.0.get_type())
 }
 
 /// True for names shaped like the ones `push_alias_increment` generates:
@@ -46,15 +39,10 @@ pub fn same_var_type(element1: &(Var, Type), element2: &(Var, Type)) -> bool {
 /// harmless, it only widens where that name resolves.
 pub fn is_generated_alias_name(name: &str) -> bool {
     let prefix = name.trim_end_matches(|c: char| c.is_ascii_digit());
-    prefix.len() < name.len()
-        && !prefix.is_empty()
-        && prefix.chars().all(|c| c.is_ascii_alphabetic())
+    prefix.len() < name.len() && !prefix.is_empty() && prefix.chars().all(|c| c.is_ascii_alphabetic())
 }
 
-pub fn merge_variables(
-    set1: IndexSet<(Var, Type)>,
-    set2: IndexSet<(Var, Type)>,
-) -> IndexSet<(Var, Type)> {
+pub fn merge_variables(set1: IndexSet<(Var, Type)>, set2: IndexSet<(Var, Type)>) -> IndexSet<(Var, Type)> {
     let mut result = IndexSet::new();
 
     for elem2 in &set2 {
@@ -138,10 +126,7 @@ impl PartialEq for VarType {
 fn build_name_index(variables: &IndexSet<(Var, Type)>) -> HashMap<String, Vec<(Var, Type)>> {
     let mut index: HashMap<String, Vec<(Var, Type)>> = HashMap::new();
     for pair in variables.iter().rev() {
-        index
-            .entry(pair.0.get_name())
-            .or_default()
-            .push(pair.clone());
+        index.entry(pair.0.get_name()).or_default().push(pair.clone());
     }
     index
 }
@@ -174,19 +159,11 @@ impl VarType {
             .unwrap_or_default()
     }
 
-    pub fn push_interface(
-        self,
-        var: Var,
-        typ: Type,
-        original_type: Type,
-        context: &Context,
-    ) -> VarType {
+    pub fn push_interface(self, var: Var, typ: Type, original_type: Type, context: &Context) -> VarType {
         match typ {
             Type::Interface(args, _) => {
                 let alias = match original_type.clone() {
-                    Type::Alias(name, params, _, h) => {
-                        Alias::new(format!("{}_", name), params, true, h).to_type()
-                    }
+                    Type::Alias(name, params, _, h) => Alias::new(format!("{}_", name), params, true, h).to_type(),
                     Type::Interface(_, _) => Alias::default().set_opacity(true).to_type(),
                     _ => Alias::default().set_opacity(true).to_type(),
                 };
@@ -194,10 +171,9 @@ impl VarType {
                     .map(|arg_typ| {
                         (
                             arg_typ.clone().to_var(context),
-                            arg_typ.get_type().replace_function_types(
-                                builder::self_generic_type(),
-                                alias.clone(),
-                            ),
+                            arg_typ
+                                .get_type()
+                                .replace_function_types(builder::self_generic_type(), alias.clone()),
                         )
                     })
                     .fold(self, |acc, x| acc.push_var_type(&[x]))
@@ -279,9 +255,9 @@ impl VarType {
     }
 
     pub fn push_types(self, types: &[Type]) -> Self {
-        types.iter().fold(self, |vartyp, typ| {
-            vartyp.push_type_if_not_exists(typ.clone())
-        })
+        types
+            .iter()
+            .fold(self, |vartyp, typ| vartyp.push_type_if_not_exists(typ.clone()))
     }
 
     /// Carries auto-generated structural type registrations (`Array0`,
@@ -313,9 +289,7 @@ impl VarType {
             .collect()
     }
 
-    pub fn separate_variables_aliases(
-        val: Vec<(Var, Type)>,
-    ) -> (IndexSet<(Var, Type)>, IndexSet<(Var, Type)>) {
+    pub fn separate_variables_aliases(val: Vec<(Var, Type)>) -> (IndexSet<(Var, Type)>, IndexSet<(Var, Type)>) {
         let variables = val
             .iter()
             .filter(|(var, _)| var.is_variable())
@@ -402,6 +376,18 @@ impl VarType {
         }
     }
 
+    /// The R implicit class of a bare atomic vector holding `elem`-typed
+    /// values — the class `UseMethod` dispatches on when a value carries no
+    /// class attribute at all (step ③, unification_arrays.md).
+    fn implicit_atomic_class(elem: &Type) -> &'static str {
+        match elem {
+            Type::Integer(_, _) => "integer",
+            Type::Char(_, _) => "character",
+            Type::Boolean(_, _) => "logical",
+            _ => "numeric",
+        }
+    }
+
     pub fn get_class(&self, t: &Type) -> String {
         let res = match t {
             Type::Integer(_, _) => "integer".to_string(),
@@ -409,6 +395,12 @@ impl VarType {
             Type::Boolean(_, _) => "logical".to_string(),
             Type::Number(_, _) => "numeric".to_string(),
             Type::Any(_) => "Any".to_string(),
+            // Atomic-representation arrays (step ③) are bare R atomic
+            // vectors: no `as.ArrayN` class is ever applied, so the only
+            // class S3 dispatch sees is the implicit one.
+            Type::Vec(_, _, _, _) if self.atomic_array_elem(t).is_some() => {
+                Self::implicit_atomic_class(&self.atomic_array_elem(t).unwrap()).to_string()
+            }
             // Unresolved type variables (`T`, `%T`, `#N`, `$L`, …) have no
             // fixed runtime class. R's `UseMethod` always falls back to
             // `<generic>.default` when no more specific class matches, so
@@ -447,13 +439,75 @@ impl VarType {
         false
     }
 
+    /// Step ③ of the vector/array unification plan (unification_arrays.md):
+    /// the single source of truth for an array type's runtime representation.
+    /// `Some(elem)` when `t` is an array (`Type::Vec`, any `VecType`) whose
+    /// element type resolves — through non-opaque alias hops, mirroring what
+    /// `reduce_type` pierces — to a structural primitive (`int`/`num`/`char`/
+    /// `bool`): the runtime value is a bare R atomic vector. `None` means the
+    /// list-backed `typed_vec` representation (records, unions, functions,
+    /// nested arrays, opaque/unresolved element types, …). Every site that
+    /// chooses between the two representations must call this predicate —
+    /// never re-derive the rule locally, or two sites can pick different
+    /// representations for the same value.
+    pub fn atomic_array_elem(&self, t: &Type) -> Option<Type> {
+        let resolve = |start: &Type| -> Type {
+            let mut current = start.clone();
+            for _ in 0..16 {
+                let Type::Alias(name, _, is_opaque, h) = &current else {
+                    break;
+                };
+                if *is_opaque {
+                    break;
+                }
+                // The builtin primitive aliases have no registered target.
+                let _ = h;
+                let builtin = match name.as_str() {
+                    "Integer" => Some(builder::integer_type_default()),
+                    "Number" => Some(builder::number_type()),
+                    "Character" => Some(builder::character_type_default()),
+                    "Boolean" => Some(builder::boolean_type()),
+                    _ => None,
+                };
+                if let Some(b) = builtin {
+                    return b;
+                }
+                // Opacity is carried by the *declaration* Var (see
+                // `Context::get_matching_alias_signature`), not by the
+                // use-site type node — an opaque alias must stop the walk
+                // exactly like it stops `reduce_type`.
+                match self.aliases.iter().find(|(v, _)| v.get_name() == *name) {
+                    Some((decl_var, _)) if decl_var.is_opaque() => break,
+                    Some((_, target)) => current = target.clone(),
+                    None => break,
+                }
+            }
+            current
+        };
+        let Type::Vec(_, _, elem, _) = resolve(t) else {
+            return None;
+        };
+        match resolve(&elem) {
+            e @ (Type::Integer(_, _) | Type::Number(_, _) | Type::Char(_, _) | Type::Boolean(_, _)) => Some(e),
+            _ => None,
+        }
+    }
+
     pub fn get_type_anotation(&self, t: &Type) -> String {
         let res = match t {
             Type::Boolean(_, _) => "as.Boolean".to_string(),
             Type::Integer(_, _) => "as.Integer".to_string(),
             Type::Number(_, _) => "as.Number".to_string(),
             Type::Char(_, _) => "as.Character".to_string(),
-            Type::Vec(vtype, _, _, _) if vtype.is_vector() => "".to_string(),
+            // `Vec[N, T]` values — and, since step ③ of the vector/array
+            // unification, any array whose element type is primitive
+            // (`atomic_array_elem`) — are plain R atomic vectors: there is
+            // no TypR-side class to append. `identity` keeps the
+            // `expr |> f()` emission shape valid (the empty string used to
+            // render as `expr |> ()`, which is not parseable R).
+            Type::Vec(vtype, _, _, _) if vtype.is_vector() || self.atomic_array_elem(t).is_some() => {
+                "identity".to_string()
+            }
             // `as.LmModel(x)` (`x |> struct(c('LmModel', ...))`) appends
             // classes onto the runtime value's class vector. For a genuine
             // foreign value that's actively harmful, not just redundant: R
@@ -512,6 +566,11 @@ impl VarType {
             Type::Boolean(_, _) => "logical".to_string(),
             Type::Number(_, _) => "numeric".to_string(),
             Type::Any(_) => "Any".to_string(),
+            // Same rationale as `get_class`: atomic arrays only carry R's
+            // implicit class (step ③, unification_arrays.md).
+            Type::Vec(_, _, _, _) if self.atomic_array_elem(t).is_some() => {
+                Self::implicit_atomic_class(&self.atomic_array_elem(t).unwrap()).to_string()
+            }
             // Same rationale as `get_class`'s fallback above: "default" is
             // the only suffix `UseMethod` actually finds for these.
             _ => self
@@ -528,19 +587,12 @@ impl VarType {
             .iter()
             .find(|(var, _)| var.get_name() == class)
             .map(|(_, typ)| typ)
-            .unwrap_or_else(|| {
-                panic!(
-                    "{} isn't an existing Alias name (don't know where it come from)",
-                    class
-                )
-            })
+            .unwrap_or_else(|| panic!("{} isn't an existing Alias name (don't know where it come from)", class))
             .clone()
     }
 
     fn in_aliases(&self, alias_name: &str) -> bool {
-        self.aliases
-            .iter()
-            .any(|(var, _)| var.get_name() == alias_name)
+        self.aliases.iter().any(|(var, _)| var.get_name() == alias_name)
     }
 
     pub fn push_alias(self, alias_name: String, typ: Type) -> Self {
@@ -839,5 +891,55 @@ impl Add for VarType {
             alias_counter,
             name_index: Arc::new(OnceLock::new()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::fluent_parser::FluentParser;
+
+    fn parse_type(s: &str) -> Type {
+        s.parse::<Type>().unwrap()
+    }
+
+    #[test]
+    fn atomic_array_elem_primitive_and_vec_are_atomic() {
+        let ctx = FluentParser::new().get_context();
+        assert!(ctx.atomic_array_elem(&parse_type("[3, int]")).is_some());
+        assert!(ctx.atomic_array_elem(&parse_type("Vec[3, num]")).is_some());
+        assert!(ctx.atomic_array_elem(&parse_type("[3, char]")).is_some());
+        assert!(ctx.atomic_array_elem(&parse_type("[3, bool]")).is_some());
+    }
+
+    #[test]
+    fn atomic_array_elem_composite_is_none() {
+        let ctx = FluentParser::new().get_context();
+        assert!(ctx.atomic_array_elem(&parse_type("[2, list { x: int }]")).is_none());
+        // nested array element → composite (v1 is 1-D only)
+        assert!(ctx.atomic_array_elem(&parse_type("[2, [3, int]]")).is_none());
+        // scalar (not an array at all)
+        assert!(ctx.atomic_array_elem(&parse_type("int")).is_none());
+    }
+
+    #[test]
+    fn atomic_array_elem_pierces_plain_alias_but_not_opaque() {
+        let ctx = FluentParser::new()
+            .push("type Meters <- int;")
+            .run()
+            .push("opaque Ident <- int;")
+            .run()
+            .get_context();
+        // non-opaque element alias resolves to int → atomic (mirrors what
+        // reduce_type pierces)
+        assert!(ctx.atomic_array_elem(&parse_type("[3, Meters]")).is_some());
+        // opaque element alias keeps its own runtime classing → typed_vec
+        assert!(ctx.atomic_array_elem(&parse_type("[3, Ident]")).is_none());
+    }
+
+    #[test]
+    fn atomic_array_elem_resolves_outer_alias_chain() {
+        let ctx = FluentParser::new().push("type IntArr <- [3, int];").run().get_context();
+        assert!(ctx.atomic_array_elem(&parse_type("IntArr")).is_some());
     }
 }

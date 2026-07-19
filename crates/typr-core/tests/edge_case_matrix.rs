@@ -88,10 +88,7 @@ fn matrix_construction_as_direct_argument() {
 #[test]
 fn matrix_construction_through_let_binding() {
     for c in CONSTRUCTIONS {
-        let source = format!(
-            "{ID_PRELUDE}let v <- {};\nid(v)",
-            context_source("{c}", c.expr)
-        );
+        let source = format!("{ID_PRELUDE}let v <- {};\nid(v)", context_source("{c}", c.expr));
         assert_never_silent_any(c.name, "let_binding", &source);
     }
 }
@@ -102,10 +99,7 @@ fn matrix_construction_as_sole_match_branch() {
         // The construction sits as the (only) branch body of an unrelated
         // outer match — a position distinct from the construction being a
         // match itself (covered by `match_expression` in CONSTRUCTIONS).
-        let source = format!(
-            "{ID_PRELUDE}id(match 1 {{ _ => {} }})",
-            context_source("{c}", c.expr)
-        );
+        let source = format!("{ID_PRELUDE}id(match 1 {{ _ => {} }})", context_source("{c}", c.expr));
         assert_never_silent_any(c.name, "sole_match_branch", &source);
     }
 }
@@ -141,18 +135,9 @@ fn matrix_construction_as_public_module_member() {
 #[test]
 fn matrix_construction_as_function_body() {
     let cases: &[(&str, &str)] = &[
-        (
-            "tag_literal",
-            "let f <- fn(): .Some(int) { .Some(1) };\nf()",
-        ),
-        (
-            "match_expression",
-            "let f <- fn(): int { match 1 { _ => 42 } };\nf()",
-        ),
-        (
-            "lambda_literal",
-            "let f <- fn(): (int) -> int { \\(x) x + 1 };\nf()",
-        ),
+        ("tag_literal", "let f <- fn(): .Some(int) { .Some(1) };\nf()"),
+        ("match_expression", "let f <- fn(): int { match 1 { _ => 42 } };\nf()"),
+        ("lambda_literal", "let f <- fn(): (int) -> int { \\(x) x + 1 };\nf()"),
         ("validating_cast", "let f <- fn(): int { 5 as! int };\nf()"),
     ];
     for (name, source) in cases {

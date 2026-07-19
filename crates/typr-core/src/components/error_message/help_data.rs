@@ -16,9 +16,7 @@ thread_local! {
 /// Register source content for a file (used for WASM and error display)
 pub fn register_source(file_name: &str, content: &str) {
     SOURCE_CACHE.with(|cache| {
-        cache
-            .borrow_mut()
-            .insert(file_name.to_string(), content.to_string());
+        cache.borrow_mut().insert(file_name.to_string(), content.to_string());
     });
 }
 

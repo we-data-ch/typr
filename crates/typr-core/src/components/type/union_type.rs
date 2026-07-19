@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::r#type::type_operator::TypeOperator;
@@ -80,14 +74,7 @@ impl UnionType {
         self.types
             .iter()
             .cloned()
-            .reduce(|acc, t| {
-                Type::Operator(
-                    TypeOperator::Union,
-                    Box::new(acc),
-                    Box::new(t),
-                    self.help_data.clone(),
-                )
-            })
+            .reduce(|acc, t| Type::Operator(TypeOperator::Union, Box::new(acc), Box::new(t), self.help_data.clone()))
             .unwrap_or(Type::Empty(self.help_data.clone()))
     }
 }

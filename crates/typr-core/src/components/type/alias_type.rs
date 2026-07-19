@@ -22,10 +22,7 @@ impl Alias {
     }
 
     pub fn set_opacity(self, val: bool) -> Self {
-        Self {
-            opacity: val,
-            ..self
-        }
+        Self { opacity: val, ..self }
     }
 
     pub fn to_type(self) -> Type {

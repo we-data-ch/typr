@@ -13,13 +13,7 @@ use std::fmt;
 
 // 3rd bool = is_embedded, 4th bool = is_variadic, 5th = default value expression
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ArgumentType(
-    pub Type,
-    pub Type,
-    pub bool,
-    pub bool,
-    pub Option<Box<Lang>>,
-);
+pub struct ArgumentType(pub Type, pub Type, pub bool, pub bool, pub Option<Box<Lang>>);
 
 impl PartialEq for ArgumentType {
     fn eq(&self, other: &Self) -> bool {
@@ -125,21 +119,13 @@ impl ArgumentType {
                 _ => panic!("A parameter can't be an empty value"),
             },
             Type::LabelGen(l, _) => l.to_string().to_uppercase(),
-            Type::Multi(t, _) => {
-                ArgumentType(*t, self.1.clone(), false, false, None).get_argument_str()
-            }
+            Type::Multi(t, _) => ArgumentType(*t, self.1.clone(), false, false, None).get_argument_str(),
             _ => panic!("The argument wasn't a label"),
         }
     }
 
     pub fn remove_embeddings(&self) -> ArgumentType {
-        ArgumentType(
-            self.0.clone(),
-            self.1.clone(),
-            false,
-            self.3,
-            self.4.clone(),
-        )
+        ArgumentType(self.0.clone(), self.1.clone(), false, self.3, self.4.clone())
     }
 
     pub fn is_embedded(&self) -> bool {

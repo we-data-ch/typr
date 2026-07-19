@@ -7,9 +7,7 @@
 //! - Package management
 
 use crate::cache;
-use crate::engine::{
-    parse_code, parse_code_from_str, parse_code_with_info, write_std_for_type_checking,
-};
+use crate::engine::{parse_code, parse_code_from_str, parse_code_with_info, write_std_for_type_checking};
 use crate::progress::Step;
 use std::fs;
 use std::fs::File;
@@ -120,9 +118,7 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
         Integer { value, .. } => format!("{}Integer({})", pad, value),
         Bool { value, .. } => format!("{}Bool({})", pad, value),
         Char { value, .. } => format!("{}Char({:?})", pad, value),
-        Variable {
-            name, is_opaque, ..
-        } => {
+        Variable { name, is_opaque, .. } => {
             let op = if *is_opaque { " (opaque)" } else { "" };
             format!("{}Variable({}{})", pad, name, op)
         }
@@ -171,9 +167,7 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
                 print_ast(body, indent + 1)
             )
         }
-        Lambda {
-            parameters, body, ..
-        } => {
+        Lambda { parameters, body, .. } => {
             let params: Vec<String> = parameters.iter().map(|p| p.simple_print()).collect();
             format!(
                 "{}fn({}) {{ ... }}\n{}",
@@ -183,9 +177,7 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
             )
         }
         FunctionApp {
-            identifier,
-            arguments,
-            ..
+            identifier, arguments, ..
         } => {
             let name = match identifier.as_ref() {
                 Variable { name, .. } => name.clone(),
@@ -211,14 +203,7 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
             } else {
                 format!("<{}>", params.join(", "))
             };
-            format!(
-                "{}{}type {}{} <- {}",
-                pad,
-                pub_,
-                name,
-                params_str,
-                target_type.pretty()
-            )
+            format!("{}{}type {}{} <- {}", pad, pub_, name, params_str, target_type.pretty())
         }
         Lines { value, .. } => {
             let items: Vec<String> = value.iter().map(|l| print_ast(l, indent + 1)).collect();
@@ -228,9 +213,7 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
             let items: Vec<String> = body.iter().map(|l| print_ast(l, indent + 1)).collect();
             format!("{}Scope\n{}", pad, items.join("\n"))
         }
-        Operator {
-            operator, rhs, lhs, ..
-        } => {
+        Operator { operator, rhs, lhs, .. } => {
             let op_str = format!("{}", operator);
             let rhs_str = print_ast(rhs, indent + 1);
             let lhs_str = print_ast(lhs, indent + 1);
@@ -252,19 +235,10 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
                 print_ast(else_block, indent + 1)
             )
         }
-        Match {
-            target, branches, ..
-        } => {
+        Match { target, branches, .. } => {
             let branches_str: Vec<String> = branches
                 .iter()
-                .map(|(pat, body)| {
-                    format!(
-                        "{}  {} =>\n{}",
-                        pad,
-                        print_ast(pat, 0),
-                        print_ast(body, indent + 2)
-                    )
-                })
+                .map(|(pat, body)| format!("{}  {} =>\n{}", pad, print_ast(pat, 0), print_ast(body, indent + 2)))
                 .collect();
             format!(
                 "{}match\n{}\n{}cases:\n{}",
@@ -278,9 +252,7 @@ fn print_ast(lang: &Lang, indent: usize) -> String {
             let items: Vec<String> = body.iter().map(|l| print_ast(l, indent + 1)).collect();
             format!("{}module {}\n{}", pad, name, items.join("\n"))
         }
-        ConstructorCall {
-            type_name, fields, ..
-        } => {
+        ConstructorCall { type_name, fields, .. } => {
             let args: Vec<String> = fields
                 .iter()
                 .map(|a| format!("{} = {}", a.0, print_ast(&a.1, 0)))
@@ -324,10 +296,7 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
     // Step 1: Parse
     if show_all || opts.show_ast {
         print_step("Parsing");
-        let result = typr_core::processes::parsing::parse_from_string_with_errors(
-            &source,
-            &path.to_string_lossy(),
-        );
+        let result = typr_core::processes::parsing::parse_from_string_with_errors(&source, &path.to_string_lossy());
         println!("  AST ({:?} nodes):", path);
         println!("{}", print_ast(&result.ast, 1));
 
@@ -343,8 +312,7 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
     if show_all || opts.show_types || opts.show_r || opts.show_files {
         print_step("Type Checking + Transpilation");
         let context = Context::default();
-        let ast =
-            typr_core::processes::parsing::parse_from_string(&source, &path.to_string_lossy());
+        let ast = typr_core::processes::parsing::parse_from_string(&source, &path.to_string_lossy());
         let type_checker = TypeChecker::new(context).typing_no_panic(&ast);
 
         if type_checker.has_errors() {
@@ -364,8 +332,7 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
         if show_all || opts.show_r {
             print_step("Full R File (as executed)");
             let transpiled = type_checker.clone().transpile();
-            let preamble =
-                "source('std.R', echo = FALSE)\nsource('generic_functions.R')\nsource('types.R')";
+            let preamble = "source('std.R', echo = FALSE)\nsource('generic_functions.R')\nsource('types.R')";
             println!("{}\n{}", preamble, transpiled);
         }
 
@@ -419,11 +386,8 @@ fn lint_r_names(context: &Context, generated_r: &str, strict_mode: bool) -> bool
         .map(|(name, _)| name.clone())
         .collect::<Vec<_>>();
 
-    let mut findings =
-        crate::r_name_lint::lint_generic_stub_names(&stub_names, generated_r, strict_mode);
-    findings.extend(crate::r_name_lint::lint_record_constructor_names(
-        &ctor_names,
-    ));
+    let mut findings = crate::r_name_lint::lint_generic_stub_names(&stub_names, generated_r, strict_mode);
+    findings.extend(crate::r_name_lint::lint_record_constructor_names(&ctor_names));
     crate::r_name_lint::report_findings(&findings)
 }
 
@@ -463,12 +427,7 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
         .map(|(var, _)| var.get_name())
         .filter(|x| !x.contains("<-"))
         .map(|fn_name| {
-            let export = if environment.is_project() {
-                "#' @export\n"
-            } else {
-                ""
-            }
-            .to_string();
+            let export = if environment.is_project() { "#' @export\n" } else { "" }.to_string();
             format!(
                 "{}{} <- function(x, ...) UseMethod('{}', x)",
                 export,
@@ -506,12 +465,7 @@ pub fn write_loader(project_root: &Path) {
     cache::write_if_changed(&dest, loader).expect("Cannot write load_module.R");
 }
 
-pub fn write_to_r_lang(
-    content: String,
-    output_dir: &Path,
-    file_name: &str,
-    environment: Environment,
-) {
+pub fn write_to_r_lang(content: String, output_dir: &Path, file_name: &str, environment: Environment) {
     let rstd = include_str!("../configs/src/std.R");
     let std_path = output_dir.join("std.R");
     cache::write_if_changed(&std_path, rstd).unwrap();
@@ -536,18 +490,13 @@ pub fn write_to_r_lang(
         }
         Environment::Repl | Environment::Wasm => String::new(),
         Environment::StandAlone => {
-            "source('std.R', echo = FALSE)\nsource('generic_functions.R')\nsource('types.R')\n"
-                .to_string()
+            "source('std.R', echo = FALSE)\nsource('generic_functions.R')\nsource('types.R')\n".to_string()
         }
     };
     let full_content = format!("{}{}", preamble, content);
     match environment {
         Environment::Repl => {
-            let mut app = OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open(app_path)
-                .unwrap();
+            let mut app = OpenOptions::new().append(true).create(true).open(app_path).unwrap();
             app.write_all(full_content.as_bytes()).unwrap();
         }
         _ => {
@@ -589,11 +538,7 @@ pub fn new(name: &str, renv: bool) {
     for folder in package_folders {
         let folder_path = project_path.join(folder);
         if let Err(e) = fs::create_dir(&folder_path) {
-            eprintln!(
-                "Warning: Unable to create the folder {}: {}",
-                folder_path.display(),
-                e
-            );
+            eprintln!("Warning: Unable to create the folder {}: {}", folder_path.display(), e);
         }
     }
 
@@ -639,21 +584,14 @@ pub fn new(name: &str, renv: bool) {
             "README.md",
             include_str!("../configs/README.md").replace("{{PACKAGE_NAME}}", name),
         ),
-        (
-            "rproj.Rproj",
-            include_str!("../configs/rproj.Rproj").to_string(),
-        ),
+        ("rproj.Rproj", include_str!("../configs/rproj.Rproj").to_string()),
     ];
 
     for (file_path, content) in package_files {
         let full_path = project_path.join(file_path);
         if let Some(parent) = full_path.parent() {
             if let Err(e) = fs::create_dir_all(parent) {
-                eprintln!(
-                    "Warning: Unable to create parent directory {}: {}",
-                    parent.display(),
-                    e
-                );
+                eprintln!("Warning: Unable to create parent directory {}: {}", parent.display(), e);
                 continue;
             }
         }
@@ -673,8 +611,7 @@ pub fn new(name: &str, renv: bool) {
         renv_init(&project_path);
     }
 
-    let package_structure =
-        include_str!("../configs/package_structure.md").replace("{{PACKAGE_NAME}}", name);
+    let package_structure = include_str!("../configs/package_structure.md").replace("{{PACKAGE_NAME}}", name);
     println!("{}", package_structure);
 
     let instructions = include_str!("../configs/instructions.md").replace("{{PACKAGE_NAME}}", name);
@@ -685,8 +622,7 @@ pub fn check_project() {
     let context = Context::default().set_environment(Environment::Project);
 
     let step = Step::new("Parsing");
-    let (lang, syntax_errors) =
-        parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    let (lang, syntax_errors) = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
     if report_syntax_errors(syntax_errors) {
         step.fail();
         std::process::exit(1);
@@ -850,14 +786,7 @@ fn inject_roxygen_into_module_files(r_dir: &Path, entries: &[(String, String)]) 
 }
 
 pub fn build_project(test_mode: bool, no_incremental: bool, checked_mode: bool, strict_mode: bool) {
-    build_project_impl(
-        test_mode,
-        checked_mode,
-        strict_mode,
-        false,
-        false,
-        !no_incremental,
-    );
+    build_project_impl(test_mode, checked_mode, strict_mode, false, false, !no_incremental);
 }
 
 fn build_project_impl(
@@ -878,10 +807,7 @@ fn build_project_impl(
     if incremental {
         if let Some(manifest) = cache::load_manifest(&dir) {
             let document_done = skip_document || manifest.devtools_input_hash.is_some();
-            if manifest.is_compatible(test_mode, checked_mode)
-                && document_done
-                && manifest.is_up_to_date(&dir)
-            {
+            if manifest.is_compatible(test_mode, checked_mode) && document_done && manifest.is_up_to_date(&dir) {
                 if !quiet {
                     println!("Project up to date — nothing to rebuild.");
                 }
@@ -896,8 +822,7 @@ fn build_project_impl(
         .set_checked_mode(checked_mode);
 
     let step = Step::new("Parsing");
-    let (lang, mut expansion_info) =
-        parse_code_with_info(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    let (lang, mut expansion_info) = parse_code_with_info(&PathBuf::from("TypR/main.ty"), context.get_environment());
     if report_syntax_errors(std::mem::take(&mut expansion_info.syntax_errors)) {
         step.fail();
         std::process::exit(1);
@@ -959,12 +884,7 @@ fn build_project_impl(
 
     let step = Step::new("Writing R files");
     write_header(type_checker.get_context(), &dir, Environment::Project);
-    write_to_r_lang(
-        content,
-        &PathBuf::from("R"),
-        "main.R",
-        context.get_environment(),
-    );
+    write_to_r_lang(content, &PathBuf::from("R"), "main.R", context.get_environment());
     write_loader(&dir);
     step.done();
 
@@ -979,11 +899,7 @@ fn build_project_impl(
     }
 
     if !skip_document {
-        let manifest_ref = if incremental {
-            Some(&mut manifest)
-        } else {
-            None
-        };
+        let manifest_ref = if incremental { Some(&mut manifest) } else { None };
         document_from_spg(&spg, quiet, manifest_ref);
     }
 
@@ -1017,12 +933,7 @@ pub fn build_file(path: &Path, test_mode: bool, checked_mode: bool, strict_mode:
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     step.done();
 
-    let r_file_name = path
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .replace(".ty", ".R");
+    let r_file_name = path.file_name().unwrap().to_str().unwrap().replace(".ty", ".R");
 
     let step = Step::new("Transpiling");
     let content = type_checker.clone().transpile();
@@ -1130,13 +1041,7 @@ pub fn run_file_keep(path: &Path, profile: bool, checked_mode: bool, strict_mode
     run_file_impl(path, true, profile, checked_mode, strict_mode);
 }
 
-fn run_file_impl(
-    path: &Path,
-    keep_files: bool,
-    profile: bool,
-    checked_mode: bool,
-    strict_mode: bool,
-) {
+fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: bool, strict_mode: bool) {
     let raw = fs::read_to_string(path).unwrap_or_else(|e| {
         eprintln!("Cannot read {:?}: {}", path, e);
         std::process::exit(1);
@@ -1175,10 +1080,7 @@ fn run_file_impl(
     }
     step.done();
 
-    let stem = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("script");
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("script");
     let r_file_name = format!("{}.R", stem);
 
     // Change CWD to work_dir before transpiling so that write_output_file
@@ -1204,54 +1106,13 @@ fn run_file_impl(
     }
 
     let step = Step::new("Writing R files");
-    write_header(
-        type_checker.get_context(),
-        &work_dir,
-        Environment::StandAlone,
-    );
-    write_to_r_lang(
-        r_content,
-        &work_dir,
-        &r_file_name,
-        context.get_environment(),
-    );
+    write_header(type_checker.get_context(), &work_dir, Environment::StandAlone);
+    write_to_r_lang(r_content, &work_dir, &r_file_name, context.get_environment());
     step.done();
 
     let r_path = work_dir.join(&r_file_name);
     let step = Step::new("Running");
-    let result = if profile {
-        let r_path_str = r_path.to_str().unwrap_or("script.R");
-        let profile_script = format!(
-            r#"
-prof_file <- tempfile(fileext = ".Rprof")
-Rprof(prof_file, interval = 0.005, memory.profiling = FALSE)
-source({r_path_str:?})
-Rprof(NULL)
-p <- tryCatch(summaryRprof(prof_file), error = function(e) NULL)
-if (is.null(p) || nrow(p$by.self) == 0L) {{
-  cat("\n[profile] No data collected (program too fast or no R activity sampled).\n")
-}} else {{
-  cat("\n=== TypR Profile: top functions by self time ===\n")
-  by_self <- p$by.self[order(-p$by.self$self.time), , drop = FALSE]
-  print(head(by_self, 30))
-  total <- p$sampling.interval * sum(p$by.self$self.time / p$sampling.interval)
-  cat(sprintf("\nTotal sampled time: %.3f s  (interval = %.0f ms)\n",
-              p$sampling.interval * nrow(p$by.self), p$sampling.interval * 1000))
-}}
-"#,
-            r_path_str = r_path_str
-        );
-        Command::new("Rscript")
-            .current_dir(&work_dir)
-            .arg("-e")
-            .arg(&profile_script)
-            .output()
-    } else {
-        Command::new("Rscript")
-            .current_dir(&work_dir)
-            .arg(&r_path)
-            .output()
-    };
+    let result = run_script(profile, &work_dir, r_path);
 
     if !keep_files {
         let _ = fs::remove_dir_all(&work_dir);
@@ -1282,12 +1143,45 @@ if (is.null(p) || nrow(p$by.self) == 0L) {{
     }
 }
 
+fn run_script(profile: bool, work_dir: &PathBuf, r_path: PathBuf) -> Result<std::process::Output, std::io::Error> {
+    let result = if profile {
+        let r_path_str = r_path.to_str().unwrap_or("script.R");
+        let profile_script = format!(
+            r#"
+prof_file <- tempfile(fileext = ".Rprof")
+Rprof(prof_file, interval = 0.005, memory.profiling = FALSE)
+source({r_path_str:?})
+Rprof(NULL)
+p <- tryCatch(summaryRprof(prof_file), error = function(e) NULL)
+if (is.null(p) || nrow(p$by.self) == 0L) {{
+  cat("\n[profile] No data collected (program too fast or no R activity sampled).\n")
+}} else {{
+  cat("\n=== TypR Profile: top functions by self time ===\n")
+  by_self <- p$by.self[order(-p$by.self$self.time), , drop = FALSE]
+  print(head(by_self, 30))
+  total <- p$sampling.interval * sum(p$by.self$self.time / p$sampling.interval)
+  cat(sprintf("\nTotal sampled time: %.3f s  (interval = %.0f ms)\n",
+              p$sampling.interval * nrow(p$by.self), p$sampling.interval * 1000))
+}}
+"#,
+            r_path_str = r_path_str
+        );
+        Command::new("Rscript")
+            .current_dir(work_dir)
+            .arg("-e")
+            .arg(&profile_script)
+            .output()
+    } else {
+        Command::new("Rscript").current_dir(work_dir).arg(&r_path).output()
+    };
+    result
+}
+
 fn write_context_json(context: &Context, output_dir: &Path) {
     let json = serde_json::to_string_pretty(context).expect("Failed to serialize context to JSON");
     let path = output_dir.join("context.json");
     let mut file = File::create(&path).expect("Failed to create context.json");
-    file.write_all(json.as_bytes())
-        .expect("Failed to write context.json");
+    file.write_all(json.as_bytes()).expect("Failed to write context.json");
 }
 
 pub fn test(profile: bool) {
@@ -1338,8 +1232,8 @@ pub fn get_package_name() -> Result<String, String> {
         return Err("DESCRIPTION file not found. Are you at the project root?".to_string());
     }
 
-    let content = fs::read_to_string(&description_path)
-        .map_err(|e| format!("Error reading file DESCRIPTION: {}", e))?;
+    let content =
+        fs::read_to_string(&description_path).map_err(|e| format!("Error reading file DESCRIPTION: {}", e))?;
 
     for line in content.lines() {
         if line.starts_with("Package:") {
@@ -1358,8 +1252,8 @@ pub fn get_package_version() -> Result<String, String> {
         return Err("DESCRIPTION file not found. Are you at the project root?".to_string());
     }
 
-    let content = fs::read_to_string(&description_path)
-        .map_err(|e| format!("Error reading file DESCRIPTION: {}", e))?;
+    let content =
+        fs::read_to_string(&description_path).map_err(|e| format!("Error reading file DESCRIPTION: {}", e))?;
 
     for line in content.lines() {
         if line.starts_with("Version:") {
@@ -1375,8 +1269,7 @@ pub fn generate_spg(output: Option<PathBuf>) {
     let context = Context::default().set_environment(Environment::Project);
 
     let step = Step::new("Parsing");
-    let (lang, syntax_errors) =
-        parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    let (lang, syntax_errors) = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
     if report_syntax_errors(syntax_errors) {
         step.fail();
         std::process::exit(1);
@@ -1403,8 +1296,7 @@ pub fn generate_spg(output: Option<PathBuf>) {
     let out_path = output.unwrap_or_else(|| PathBuf::from("spg.json"));
     let json = serde_json::to_string_pretty(&spg).expect("Failed to serialize SPG");
     let mut file = File::create(&out_path).expect("Failed to create SPG output file");
-    file.write_all(json.as_bytes())
-        .expect("Failed to write SPG file");
+    file.write_all(json.as_bytes()).expect("Failed to write SPG file");
     println!("Semantic graph written to {:?}", out_path);
 }
 
@@ -1484,19 +1376,11 @@ pub fn pkg_install(packages: Option<&[String]>) {
 
             let r_command = if renv {
                 println!("Installing packages via renv: {:?}", pkgs);
-                let pkgs_str = pkgs
-                    .iter()
-                    .map(|p| format!("'{}'", p))
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let pkgs_str = pkgs.iter().map(|p| format!("'{}'", p)).collect::<Vec<_>>().join(", ");
                 format!("renv::install(c({}))", pkgs_str)
             } else {
                 println!("Installing packages from CRAN: {:?}", pkgs);
-                let pkgs_str = pkgs
-                    .iter()
-                    .map(|p| format!("'{}'", p))
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let pkgs_str = pkgs.iter().map(|p| format!("'{}'", p)).collect::<Vec<_>>().join(", ");
                 format!("install.packages(c({}))", pkgs_str)
             };
             println!("Executing: R -e \"{}\"", r_command);
@@ -1661,8 +1545,7 @@ fn document_impl(quiet: bool) {
     let context = Context::default().set_environment(Environment::Project);
 
     let step = Step::new("Parsing");
-    let (lang, syntax_errors) =
-        parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
+    let (lang, syntax_errors) = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
     if report_syntax_errors(syntax_errors) {
         step.fail();
         std::process::exit(1);
@@ -1736,11 +1619,7 @@ fn document_from_spg(spg: &Spg, quiet: bool, manifest: Option<&mut cache::BuildM
     }
 
     let step = Step::new("Compiling vignette templates");
-    match crate::vignette_renderer::process_vignette_templates(
-        &fragments_dir,
-        &vignettes_dir,
-        &compiled_dir,
-    ) {
+    match crate::vignette_renderer::process_vignette_templates(&fragments_dir, &vignettes_dir, &compiled_dir) {
         Ok(count) => {
             step.done();
             if !quiet && count > 0 {
@@ -1768,10 +1647,7 @@ fn update_namespace(quiet: bool, manifest: Option<&mut cache::BuildManifest>) {
     let step = Step::new("Updating NAMESPACE");
     let input_hash = cache::devtools_input_hash(Path::new("."));
     if let Some(m) = &manifest {
-        if input_hash.is_some()
-            && m.devtools_input_hash == input_hash
-            && Path::new("NAMESPACE").exists()
-        {
+        if input_hash.is_some() && m.devtools_input_hash == input_hash && Path::new("NAMESPACE").exists() {
             step.done();
             if !quiet {
                 println!("  NAMESPACE up to date — devtools::document skipped");
@@ -1803,9 +1679,7 @@ fn update_namespace(quiet: bool, manifest: Option<&mut cache::BuildManifest>) {
             // devtools is optional; NAMESPACE may be stale but Rd files are ready.
             step.fail();
             if !quiet {
-                eprintln!(
-                    "Warning: NAMESPACE update failed (devtools/roxygen2 may not be installed)."
-                );
+                eprintln!("Warning: NAMESPACE update failed (devtools/roxygen2 may not be installed).");
                 // R routes progress messages to stderr and errors to stdout — show both.
                 if !out.stdout.is_empty() {
                     eprintln!("{}", String::from_utf8_lossy(&out.stdout));
@@ -1834,10 +1708,7 @@ pub fn use_package(package_name: &str) {
     match output {
         Ok(output) => {
             if output.status.success() {
-                println!(
-                    "Package '{}' successfully added to dependencies!",
-                    package_name
-                );
+                println!("Package '{}' successfully added to dependencies!", package_name);
 
                 if !output.stdout.is_empty() {
                     println!("\n{}", String::from_utf8_lossy(&output.stdout));

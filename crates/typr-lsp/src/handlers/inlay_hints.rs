@@ -125,25 +125,19 @@ fn collect_inlay_hints(lang: &Lang, context: &Context, content: &str, hints: &mu
             collect_inlay_hints(else_block, context, content, hints);
         }
 
-        Lang::Match {
-            target, branches, ..
-        } => {
+        Lang::Match { target, branches, .. } => {
             collect_inlay_hints(target, context, content, hints);
             for (_, body) in branches {
                 collect_inlay_hints(body, context, content, hints);
             }
         }
 
-        Lang::ForLoop {
-            expression, body, ..
-        } => {
+        Lang::ForLoop { expression, body, .. } => {
             collect_inlay_hints(expression, context, content, hints);
             collect_inlay_hints(body, context, content, hints);
         }
 
-        Lang::WhileLoop {
-            condition, body, ..
-        } => {
+        Lang::WhileLoop { condition, body, .. } => {
             collect_inlay_hints(condition, context, content, hints);
             collect_inlay_hints(body, context, content, hints);
         }
@@ -163,9 +157,7 @@ fn collect_inlay_hints(lang: &Lang, context: &Context, content: &str, hints: &mu
         }
 
         Lang::ArrayIndexing {
-            identifier,
-            indexing,
-            ..
+            identifier, indexing, ..
         } => {
             collect_inlay_hints(identifier, context, content, hints);
             collect_inlay_hints(indexing, context, content, hints);
@@ -203,9 +195,7 @@ fn collect_inlay_hints(lang: &Lang, context: &Context, content: &str, hints: &mu
             }
         }
 
-        Lang::ConstructorCall {
-            fields, spreads, ..
-        } => {
+        Lang::ConstructorCall { fields, spreads, .. } => {
             for arg in fields {
                 collect_inlay_hints(&arg.get_value(), context, content, hints);
             }
@@ -231,9 +221,7 @@ fn collect_inlay_hints(lang: &Lang, context: &Context, content: &str, hints: &mu
         }
 
         Lang::PartialApp {
-            function,
-            arguments,
-            ..
+            function, arguments, ..
         } => {
             collect_inlay_hints(function, context, content, hints);
             for arg in arguments {
@@ -242,14 +230,10 @@ fn collect_inlay_hints(lang: &Lang, context: &Context, content: &str, hints: &mu
         }
 
         Lang::FunctionApp {
-            identifier,
-            arguments,
-            ..
+            identifier, arguments, ..
         }
         | Lang::VecFunctionApp {
-            identifier,
-            arguments,
-            ..
+            identifier, arguments, ..
         } => {
             parameter_name_hints(identifier, arguments, context, content, hints);
             collect_inlay_hints(identifier, context, content, hints);
@@ -350,17 +334,14 @@ mod inlay_hint_tests {
     use tower_lsp_server::ls_types::Position;
 
     fn hints_for(content: &str) -> Vec<InlayHint> {
-        let analysis =
-            analyze_document(content, "test.ty").expect("analysis should succeed for valid code");
+        let analysis = analyze_document(content, "test.ty").expect("analysis should succeed for valid code");
         resolve_inlay_hints(&analysis, content)
     }
 
     fn label_text(hint: &InlayHint) -> String {
         match &hint.label {
             InlayHintLabel::String(s) => s.clone(),
-            InlayHintLabel::LabelParts(parts) => {
-                parts.iter().map(|p| p.value.clone()).collect::<String>()
-            }
+            InlayHintLabel::LabelParts(parts) => parts.iter().map(|p| p.value.clone()).collect::<String>(),
         }
     }
 
@@ -422,12 +403,7 @@ mod inlay_hint_tests {
             .iter()
             .filter(|h| h.kind == Some(InlayHintKind::PARAMETER))
             .collect();
-        assert_eq!(
-            param_hints.len(),
-            2,
-            "expected 2 parameter hints, got {:?}",
-            hints
-        );
+        assert_eq!(param_hints.len(), 2, "expected 2 parameter hints, got {:?}", hints);
         assert_eq!(label_text(param_hints[0]), "a:");
         assert_eq!(label_text(param_hints[1]), "b:");
 
@@ -442,20 +418,14 @@ mod inlay_hint_tests {
     /// name, the hint would be pure noise — it must be suppressed.
     #[test]
     fn parameter_hint_suppressed_when_argument_name_matches() {
-        let content =
-            "let add <- fn(a: int, b: int): int { a + b };\nlet a <- 1;\nlet r <- add(a, 2);\n";
+        let content = "let add <- fn(a: int, b: int): int { a + b };\nlet a <- 1;\nlet r <- add(a, 2);\n";
         let hints = hints_for(content);
 
         let param_hints: Vec<_> = hints
             .iter()
             .filter(|h| h.kind == Some(InlayHintKind::PARAMETER))
             .collect();
-        assert_eq!(
-            param_hints.len(),
-            1,
-            "expected only the `b` hint, got {:?}",
-            hints
-        );
+        assert_eq!(param_hints.len(), 1, "expected only the `b` hint, got {:?}", hints);
         assert_eq!(label_text(param_hints[0]), "b:");
     }
 
@@ -467,9 +437,7 @@ mod inlay_hint_tests {
         let content = "let sum <- fn(...xs: int): int { 0 };\nlet r <- sum(1, 2, 3);\n";
         let hints = hints_for(content);
         assert!(
-            hints
-                .iter()
-                .all(|h| h.kind != Some(InlayHintKind::PARAMETER)),
+            hints.iter().all(|h| h.kind != Some(InlayHintKind::PARAMETER)),
             "unexpected parameter hint(s): {:?}",
             hints
         );

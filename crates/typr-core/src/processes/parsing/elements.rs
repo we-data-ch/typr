@@ -197,13 +197,8 @@ pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
     .parse(input);
     match res {
         Ok((s, st)) => {
-            let content = st
-                .clone()
-                .map(|span| decode_escapes(span.as_ref()))
-                .unwrap_or_default();
-            let location = st
-                .map(|span| span.into())
-                .unwrap_or_else(|| s.clone().into());
+            let content = st.clone().map(|span| decode_escapes(span.as_ref())).unwrap_or_default();
+            let location = st.map(|span| span.into()).unwrap_or_else(|| s.clone().into());
             Ok((
                 s,
                 Lang::Char {
@@ -225,13 +220,8 @@ pub fn single_quotes(input: Span) -> IResult<Span, Lang> {
     .parse(input);
     match res {
         Ok((s, st)) => {
-            let content = st
-                .clone()
-                .map(|span| decode_escapes(span.as_ref()))
-                .unwrap_or_default();
-            let location = st
-                .map(|span| span.into())
-                .unwrap_or_else(|| s.clone().into());
+            let content = st.clone().map(|span| decode_escapes(span.as_ref())).unwrap_or_default();
+            let location = st.map(|span| span.into()).unwrap_or_else(|| s.clone().into());
             Ok((
                 s,
                 Lang::Char {
@@ -358,9 +348,7 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
     )
         .parse(s);
     match res {
-        Ok((s, (e1, _, e2, default, _))) => {
-            Ok((s, ArgumentType(e1, e2, false, false, default.map(Box::new))))
-        }
+        Ok((s, (e1, _, e2, default, _))) => Ok((s, ArgumentType(e1, e2, false, false, default.map(Box::new)))),
         Err(r) => Err(r),
     }
 }
@@ -511,12 +499,7 @@ fn function(s: Span) -> IResult<Span, Lang> {
 }
 
 fn key_value(s: Span) -> IResult<Span, Lang> {
-    let res = (
-        recognize(variable),
-        terminated(tag("="), multispace0),
-        single_element,
-    )
-        .parse(s);
+    let res = (recognize(variable), terminated(tag("="), multispace0), single_element).parse(s);
     match res {
         Ok((s, (v, _eq, el))) => Ok((
             s,
@@ -755,10 +738,7 @@ fn constructor_call(s: Span) -> IResult<Span, Lang> {
             // (spread_operator3.md §2.2): it maps to the constructor's one
             // `.spread` parameter, unlike record literals which allow several.
             if spreads.len() > 1 || runtime_spreads.len() > 1 {
-                return Err(nom::Err::Error(nom::error::Error::new(
-                    s,
-                    nom::error::ErrorKind::Many1,
-                )));
+                return Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Many1)));
             }
             Ok((
                 s,
@@ -885,10 +865,7 @@ pub fn record(s: Span) -> IResult<Span, Lang> {
 /// unchanged) and must not be affected.
 fn keyword_positional_record_exp(s: Span) -> IResult<Span, Lang> {
     let res = (
-        terminated(
-            alt((tag("list"), tag("record"), tag("object"))),
-            multispace0,
-        ),
+        terminated(alt((tag("list"), tag("record"), tag("object"))), multispace0),
         terminated(tag("{"), multispace0),
         values,
         preceded(ws0, terminated(tag("}"), multispace0)),
@@ -1231,19 +1208,11 @@ fn create_range(params: &[Lang]) -> Lang {
 }
 
 fn range(s: Span) -> IResult<Span, Lang> {
-    let res = (
-        int_or_var,
-        tag(":"),
-        opt(terminated(int_or_var, tag(":"))),
-        int_or_var,
-    )
-        .parse(s);
+    let res = (int_or_var, tag(":"), opt(terminated(int_or_var, tag(":"))), int_or_var).parse(s);
     //from_name().to_language()
     match res {
         Ok((s, (iv1, _sep, None, iv2))) => Ok((s, create_range(&[iv1.clone(), iv2.clone()]))),
-        Ok((s, (iv1, _sep, Some(iv0), iv2))) => {
-            Ok((s, create_range(&[iv1.clone(), iv2.clone(), iv0.clone()])))
-        }
+        Ok((s, (iv1, _sep, Some(iv0), iv2))) => Ok((s, create_range(&[iv1.clone(), iv2.clone(), iv0.clone()]))),
         Err(r) => Err(r),
     }
 }
@@ -1338,10 +1307,7 @@ fn partial_application(s: Span) -> IResult<Span, Lang> {
         tag("\\"),
         variable2,
         terminated(tag("("), multispace0),
-        many0(terminated(
-            key_value,
-            terminated(opt(tag(",")), multispace0),
-        )),
+        many0(terminated(key_value, terminated(opt(tag(",")), multispace0))),
         terminated(tag(")"), multispace0),
     )
         .parse(s);
@@ -1486,11 +1452,7 @@ fn primitive(s: Span) -> IResult<Span, Lang> {
 }
 
 pub fn return_exp(s: Span) -> IResult<Span, Lang> {
-    let res = terminated(
-        delimited(tag("return "), parse_elements, tag(";")),
-        multispace0,
-    )
-    .parse(s);
+    let res = terminated(delimited(tag("return "), parse_elements, tag(";")), multispace0).parse(s);
     match res {
         Ok((s, el)) => Ok((
             s,
@@ -1562,10 +1524,7 @@ pub fn scope(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(alt((tag("("), tag("{"))), multispace0),
         opt(base_parse),
-        terminated(
-            preceded(multispace0, alt((tag(")"), tag("}")))),
-            multispace0,
-        ),
+        terminated(preceded(multispace0, alt((tag(")"), tag("}")))), multispace0),
     )
         .parse(s);
     match res {
@@ -1633,11 +1592,7 @@ fn as_excl_operator_token(s: Span) -> IResult<Span, LangToken> {
 /// inside `elements()`'s expression-continuation loop, which the type
 /// grammar never calls.
 fn single_equals_recovery_token(s: Span) -> IResult<Span, LangToken> {
-    let res = terminated(
-        terminated(recognize(char('=')), not(char('>'))),
-        multispace0,
-    )
-    .parse(s);
+    let res = terminated(terminated(recognize(char('=')), not(char('>'))), multispace0).parse(s);
     match res {
         Ok((s, eq)) => {
             push_parse_error(SyntaxError::SingleEqualsComparison(eq.clone().into()));
@@ -1704,10 +1659,7 @@ mod tests {
     #[test]
     fn test_extern_block_parse() {
         let res = r##"extern (x: int, y: char) -> char r#"paste0(x, y)"#"##.parse::<Lang>();
-        println!(
-            "extern_block parse: {:?}",
-            res.as_ref().map(|l| l.simple_print())
-        );
+        println!("extern_block parse: {:?}", res.as_ref().map(|l| l.simple_print()));
         assert!(res.is_ok(), "extern_block should parse successfully");
         assert!(
             matches!(res.unwrap(), Lang::ExternBlock { .. }),
@@ -1718,10 +1670,7 @@ mod tests {
     #[test]
     fn test_extern_block_no_params_parse() {
         let res = r##"extern () -> int r#"42L"#"##.parse::<Lang>();
-        println!(
-            "extern_block no-params: {:?}",
-            res.as_ref().map(|l| l.simple_print())
-        );
+        println!("extern_block no-params: {:?}", res.as_ref().map(|l| l.simple_print()));
         assert!(res.is_ok(), "extern_block no-params should parse");
         assert!(matches!(res.unwrap(), Lang::ExternBlock { .. }));
     }
@@ -2001,10 +1950,7 @@ mod tests {
         let input = ".Some(a)";
         let res = tag_pattern_with_var(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Tag");
-        if let Lang::Tag {
-            name, value: inner, ..
-        } = &res
-        {
+        if let Lang::Tag { name, value: inner, .. } = &res {
             assert_eq!(name, "Some");
             assert_eq!(inner.simple_print(), "Variable(a)");
         } else {
@@ -2017,10 +1963,7 @@ mod tests {
         let input = ".None ";
         let res = tag_pattern_no_var(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Tag");
-        if let Lang::Tag {
-            name, value: inner, ..
-        } = &res
-        {
+        if let Lang::Tag { name, value: inner, .. } = &res {
             assert_eq!(name, "None");
             assert_eq!(inner.simple_print(), "Empty");
         } else {
@@ -2055,8 +1998,7 @@ mod tests {
             "Should parse 'x as int' as TypePattern"
         );
         if let Lang::TypePattern {
-            variable_name: name,
-            ..
+            variable_name: name, ..
         } = &res
         {
             assert_eq!(name, "x");
@@ -2070,8 +2012,7 @@ mod tests {
         let input = "y as bool ";
         let res = type_pattern(input.into()).unwrap().1;
         if let Lang::TypePattern {
-            variable_name: name,
-            ..
+            variable_name: name, ..
         } = &res
         {
             assert_eq!(name, "y");
@@ -2085,8 +2026,7 @@ mod tests {
         let input = "val as num ";
         let res = type_pattern(input.into()).unwrap().1;
         if let Lang::TypePattern {
-            variable_name: name,
-            ..
+            variable_name: name, ..
         } = &res
         {
             assert_eq!(name, "val");
@@ -2100,8 +2040,7 @@ mod tests {
         let input = "s as char ";
         let res = type_pattern(input.into()).unwrap().1;
         if let Lang::TypePattern {
-            variable_name: name,
-            ..
+            variable_name: name, ..
         } = &res
         {
             assert_eq!(name, "s");
@@ -2165,11 +2104,7 @@ mod tests {
     fn test_record_pattern_colon_syntax() {
         let input = ":{nom: n, age: a} ";
         let res = match_pattern(input.into()).unwrap().1;
-        assert_eq!(
-            res.simple_print(),
-            "Record",
-            "Should parse record pattern as Record"
-        );
+        assert_eq!(res.simple_print(), "Record", "Should parse record pattern as Record");
         if let Lang::List { value: fields, .. } = &res {
             assert_eq!(fields.len(), 2);
             assert_eq!(fields[0].get_argument(), "nom");
@@ -2265,10 +2200,7 @@ mod tests {
         let input = ":{a, b, c} ";
         let res = match_pattern(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Tuple");
-        if let Lang::Tuple {
-            value: elements, ..
-        } = &res
-        {
+        if let Lang::Tuple { value: elements, .. } = &res {
             assert_eq!(elements.len(), 3);
         } else {
             panic!("Expected Tuple variant");
@@ -2280,10 +2212,7 @@ mod tests {
         let input = "list(a, b, c) ";
         let res = match_pattern(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Tuple");
-        if let Lang::Tuple {
-            value: elements, ..
-        } = &res
-        {
+        if let Lang::Tuple { value: elements, .. } = &res {
             assert_eq!(elements.len(), 3);
         } else {
             panic!("Expected Tuple variant");
@@ -2295,10 +2224,7 @@ mod tests {
         let input = ":{x, y} ";
         let res = match_pattern(input.into()).unwrap().1;
         assert_eq!(res.simple_print(), "Tuple");
-        if let Lang::Tuple {
-            value: elements, ..
-        } = &res
-        {
+        if let Lang::Tuple { value: elements, .. } = &res {
             assert_eq!(elements.len(), 2);
         } else {
             panic!("Expected Tuple variant");
@@ -2392,8 +2318,7 @@ mod tests {
         let res = base_parse(input.into());
         println!(
             "base_parse result: {:?}",
-            res.as_ref()
-                .map(|(r, v): &(_, Vec<_>)| (*r.fragment(), v.len()))
+            res.as_ref().map(|(r, v): &(_, Vec<_>)| (*r.fragment(), v.len()))
         );
         assert!(res.is_ok());
         let (remaining, elems) = res.unwrap();
@@ -2439,11 +2364,7 @@ mod tests {
         let input = ":{ name: name, attack: attack, health: health }";
         let res = record(input.into());
         match &res {
-            Ok((remaining, lang)) => println!(
-                "record OK: {}, remaining: {:?}",
-                lang.simple_print(),
-                **remaining
-            ),
+            Ok((remaining, lang)) => println!("record OK: {}, remaining: {:?}", lang.simple_print(), **remaining),
             Err(e) => println!("record FAILED: {:?}", e),
         }
         assert!(res.is_ok(), "record should succeed");
@@ -2455,9 +2376,7 @@ mod tests {
             .expect("Should parse module constructor call");
         match lang {
             Lang::ConstructorCall {
-                module_path,
-                type_name,
-                ..
+                module_path, type_name, ..
             } => {
                 assert_eq!(module_path, vec!["person".to_string()]);
                 assert_eq!(type_name, "Person");
@@ -2519,8 +2438,7 @@ mod tests {
 
     #[test]
     fn test_record_literal_spread_parsing() {
-        let (_, lang) =
-            record(":{ ...x, a = 1 }".into()).expect("Should parse record literal with spread");
+        let (_, lang) = record(":{ ...x, a = 1 }".into()).expect("Should parse record literal with spread");
         match lang {
             Lang::List { value, spreads, .. } => {
                 assert_eq!(value.len(), 1);
@@ -2534,8 +2452,8 @@ mod tests {
 
     #[test]
     fn test_record_literal_multiple_spreads_parsing() {
-        let (_, lang) = record(":{ ...x, ...y, a = 1 }".into())
-            .expect("Should parse record literal with multiple spreads");
+        let (_, lang) =
+            record(":{ ...x, ...y, a = 1 }".into()).expect("Should parse record literal with multiple spreads");
         match lang {
             Lang::List { value, spreads, .. } => {
                 assert_eq!(value.len(), 1);
@@ -2547,8 +2465,7 @@ mod tests {
 
     #[test]
     fn test_record_literal_bare_spread_parsing() {
-        let (_, lang) =
-            record(":{ ...x }".into()).expect("Should parse record literal with bare spread");
+        let (_, lang) = record(":{ ...x }".into()).expect("Should parse record literal with bare spread");
         match lang {
             Lang::List { value, spreads, .. } => {
                 assert!(value.is_empty());

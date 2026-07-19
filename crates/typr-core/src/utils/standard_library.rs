@@ -97,9 +97,7 @@ pub fn not_in_blacklist(name: &str) -> bool {
 }
 
 /// Validate that vectorization is consistent across arguments
-pub fn validate_vectorization(
-    set: HashSet<(i32, VecType, Type)>,
-) -> Option<HashSet<(i32, VecType, Type)>> {
+pub fn validate_vectorization(set: HashSet<(i32, VecType, Type)>) -> Option<HashSet<(i32, VecType, Type)>> {
     // Check there is only one type of Vector (ignoring Unknown, which represents scalars)
     let concrete_vec_types: HashSet<_> = set
         .iter()
@@ -110,10 +108,7 @@ pub fn validate_vectorization(
         let mut number_by_type: HashMap<Type, HashSet<i32>> = HashMap::new();
 
         for (num, _, typ) in &set {
-            number_by_type
-                .entry((*typ).clone())
-                .or_default()
-                .insert(*num);
+            number_by_type.entry((*typ).clone()).or_default().insert(*num);
         }
 
         // Check if each type don't have more than two related number
@@ -153,13 +148,7 @@ pub fn validate_vectorization(
             }
         }
 
-        if set
-            .iter()
-            .max_by(|x, y| x.0.cmp(&y.0))
-            .map(|(i, _, _)| *i)
-            .unwrap_or(1)
-            > 1
-        {
+        if set.iter().max_by(|x, y| x.0.cmp(&y.0)).map(|(i, _, _)| *i).unwrap_or(1) > 1 {
             Some(set)
         } else {
             None

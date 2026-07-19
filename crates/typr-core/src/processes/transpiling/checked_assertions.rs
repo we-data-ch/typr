@@ -15,13 +15,7 @@ use crate::processes::transpiling::escape_r_string;
 /// call checking it against `typ`, unless checked mode is off or `typ` has
 /// no derivable runtime descriptor — in which case `r_expr` is returned
 /// unchanged.
-pub fn wrap_checked(
-    context: &Context,
-    r_expr: String,
-    typ: &Type,
-    loc: &HelpData,
-    what: &str,
-) -> String {
+pub fn wrap_checked(context: &Context, r_expr: String, typ: &Type, loc: &HelpData, what: &str) -> String {
     if !context.get_checked_mode() {
         return r_expr;
     }
@@ -40,12 +34,7 @@ pub fn wrap_checked(
 /// Statement form for a function-body prologue: `Some("typr_assert_type(a,
 /// ...)\n")`, or `None` when no assertion applies (nothing to emit — a bare
 /// `a\n` no-op statement would just be noise).
-pub fn param_assertion(
-    context: &Context,
-    param_name: &str,
-    typ: &Type,
-    loc: &HelpData,
-) -> Option<String> {
+pub fn param_assertion(context: &Context, param_name: &str, typ: &Type, loc: &HelpData) -> Option<String> {
     if !context.get_checked_mode() {
         return None;
     }
@@ -92,6 +81,20 @@ fn checked_descriptor(context: &Context, typ: &Type) -> Option<String> {
         // skipping the `as.X` cast for them (`vartype.rs`).
         Type::Alias(name, _, _, _) if context.resolves_to_foreign_alias(name) => None,
         _ => {
+            // Atomic-representation arrays (step ③, unification_arrays.md)
+            // are bare R atomic vectors: assert on `typeof`, exactly like the
+            // scalar primitives above (the `typr_assert_type` `is.*` checks
+            // are vector-safe). Composite (typed_vec) arrays fall through to
+            // the class-vector check below.
+            if let Some(elem) = context.atomic_array_elem(typ) {
+                let descriptor = match elem {
+                    Type::Integer(_, _) => "\"integer\"",
+                    Type::Char(_, _) => "\"character\"",
+                    Type::Boolean(_, _) => "\"logical\"",
+                    _ => "\"double\"",
+                };
+                return Some(descriptor.to_string());
+            }
             let head = context.get_class(typ);
             // `get_class`'s fallback for anything it can't resolve to a
             // registered alias is a literal `'default'`/`'Any'` — that's a
@@ -100,9 +103,7 @@ fn checked_descriptor(context: &Context, typ: &Type) -> Option<String> {
             if head == "'default'" || head == "'Any'" {
                 return None;
             }
-            let rest = context
-                .get_classes(typ)
-                .unwrap_or_else(|| "'None'".to_string());
+            let rest = context.get_classes(typ).unwrap_or_else(|| "'None'".to_string());
             Some(format!("c({}, {})", head, rest))
         }
     }
@@ -118,9 +119,7 @@ fn format_loc(loc: &HelpData) -> String {
     }
     let line = loc.get_file_data().and_then(|(_, content)| {
         let offset = loc.get_offset().min(content.len());
-        content
-            .get(..offset)
-            .map(|prefix| prefix.matches('\n').count() + 1)
+        content.get(..offset).map(|prefix| prefix.matches('\n').count() + 1)
     });
     match line {
         Some(line) => format!("{}:{}", file, line),

@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use nom::Parser;
 use nom::{
     branch::alt,
@@ -77,10 +71,7 @@ fn parse_range(s: &str) -> IResult<&str, RIndex> {
 fn parse_c_vector(input: &str) -> IResult<&str, Vec<i32>> {
     delimited(
         (char('c'), multispace0, char('('), multispace0),
-        separated_list0(
-            delimited(multispace0, char(','), multispace0),
-            parse_integer,
-        ),
+        separated_list0(delimited(multispace0, char(','), multispace0), parse_integer),
         (multispace0, char(')')),
     )
     .parse(input)
@@ -88,11 +79,7 @@ fn parse_c_vector(input: &str) -> IResult<&str, Vec<i32>> {
 
 /// Parse un vecteur négatif: -c(1, 2, 3)
 fn parse_negative_vector(input: &str) -> IResult<&str, RIndex> {
-    map(
-        preceded(char('-'), parse_c_vector),
-        RIndex::NegativeMultiple,
-    )
-    .parse(input)
+    map(preceded(char('-'), parse_c_vector), RIndex::NegativeMultiple).parse(input)
 }
 
 /// Parse un vecteur positif: c(1, 2, 3)
@@ -102,11 +89,7 @@ fn parse_positive_vector(input: &str) -> IResult<&str, RIndex> {
 
 /// Parse un index négatif simple: -5
 fn parse_negative_single(input: &str) -> IResult<&str, RIndex> {
-    map(
-        preceded(char('-'), parse_positive_integer),
-        RIndex::Negative,
-    )
-    .parse(input)
+    map(preceded(char('-'), parse_positive_integer), RIndex::Negative).parse(input)
 }
 
 /// Parse un index positif simple: 5
@@ -164,22 +147,13 @@ mod tests {
 
     #[test]
     fn test_multiple_index() {
-        assert_eq!(
-            parse_r_index("[c(1, 3, 5)]"),
-            Ok(("", RIndex::Multiple(vec![1, 3, 5])))
-        );
+        assert_eq!(parse_r_index("[c(1, 3, 5)]"), Ok(("", RIndex::Multiple(vec![1, 3, 5]))));
     }
 
     #[test]
     fn test_range() {
-        assert_eq!(
-            parse_r_index("[1:10]"),
-            Ok(("", RIndex::Range { start: 1, end: 10 }))
-        );
-        assert_eq!(
-            parse_r_index("[-5:5]"),
-            Ok(("", RIndex::Range { start: -5, end: 5 }))
-        );
+        assert_eq!(parse_r_index("[1:10]"), Ok(("", RIndex::Range { start: 1, end: 10 })));
+        assert_eq!(parse_r_index("[-5:5]"), Ok(("", RIndex::Range { start: -5, end: 5 })));
     }
 
     #[test]

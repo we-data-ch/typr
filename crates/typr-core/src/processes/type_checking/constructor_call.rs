@@ -60,21 +60,17 @@ pub fn constructor_call(
             None => (None, vec![]),
         }
     } else {
-        (
-            resolve_module_member_type(context, module_path, type_name),
-            vec![],
-        )
+        (resolve_module_member_type(context, module_path, type_name), vec![])
     };
     if resolved_alias.is_none() && module_path.is_empty() {
         if let Some(union_name) = find_tag_owner(context, type_name) {
-            return TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                .with_errors(vec![TypRError::Type(
-                    TypeError::TagFieldConstructorNotSupported(
-                        type_name.to_string(),
-                        union_name,
-                        h.clone(),
-                    ),
-                )]);
+            return TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(vec![
+                TypRError::Type(TypeError::TagFieldConstructorNotSupported(
+                    type_name.to_string(),
+                    union_name,
+                    h.clone(),
+                )),
+            ]);
         }
     }
     let Some(resolved_alias) = resolved_alias else {
@@ -106,19 +102,13 @@ pub fn constructor_call(
         let mut seen = std::collections::HashSet::new();
         for f in fields {
             if !seen.insert(f.get_argument()) {
-                errors.push(TypRError::Type(TypeError::DuplicateField(
-                    f.get_argument(),
-                    h.clone(),
-                )));
+                errors.push(TypRError::Type(TypeError::DuplicateField(f.get_argument(), h.clone())));
             }
         }
 
         for f in fields {
             let fname = f.get_argument();
-            match record_fields
-                .iter()
-                .find(|rf| rf.get_argument_str() == fname)
-            {
+            match record_fields.iter().find(|rf| rf.get_argument_str() == fname) {
                 Some(rf) => {
                     let value_tc = typing(&new_context, &f.get_value());
                     errors.extend(value_tc.errors);
@@ -129,10 +119,7 @@ pub fn constructor_call(
                     // alias — is_subtype would split the union before ever
                     // reducing the alias and spuriously fail.
                     if !value_tc.value.reduce_and_subtype(&rf.get_type(), context).0 {
-                        errors.push(TypRError::Type(TypeError::Param(
-                            rf.get_type(),
-                            value_tc.value.clone(),
-                        )));
+                        errors.push(TypRError::Type(TypeError::Param(rf.get_type(), value_tc.value.clone())));
                     }
                     unify_pairs.push((value_tc.value.clone(), rf.get_type()));
                     new_context = value_tc.context;
@@ -158,15 +145,11 @@ pub fn constructor_call(
             new_context = tc.context;
             match tc.value.reduce(context) {
                 Type::Record(spread_fields, _) => {
-                    spread_merged = merge_record_fields_override(
-                        &spread_merged,
-                        &spread_fields.into_iter().collect::<Vec<_>>(),
-                    );
+                    spread_merged =
+                        merge_record_fields_override(&spread_merged, &spread_fields.into_iter().collect::<Vec<_>>());
                 }
                 _ => {
-                    errors.push(TypRError::Type(TypeError::WrongExpression(
-                        spread_expr.get_help_data(),
-                    )));
+                    errors.push(TypRError::Type(TypeError::WrongExpression(spread_expr.get_help_data())));
                 }
             }
         }
@@ -174,9 +157,7 @@ pub fn constructor_call(
         match spread {
             Some((spread_path, spread_var, spread_h)) => {
                 let spread_type = if spread_path.is_empty() {
-                    context
-                        .get_type_from_variable(&Var::from_name(spread_var))
-                        .ok()
+                    context.get_type_from_variable(&Var::from_name(spread_var)).ok()
                 } else {
                     resolve_module_member_type(context, spread_path, spread_var)
                 };
@@ -190,37 +171,28 @@ pub fn constructor_call(
                         )));
                     }
                     None => {
-                        errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                            Lang::Variable {
-                                name: spread_var.clone(),
-                                is_opaque: false,
-                                related_type: builder::any_type(),
-                                help_data: spread_h.clone(),
-                            },
-                        )));
+                        errors.push(TypRError::Type(TypeError::UndefinedVariable(Lang::Variable {
+                            name: spread_var.clone(),
+                            is_opaque: false,
+                            related_type: builder::any_type(),
+                            help_data: spread_h.clone(),
+                        })));
                     }
                 }
             }
             None => {
                 // No static `..` spread: every record field must be covered
                 // either explicitly or by a runtime `...` spread above.
-                let provided: std::collections::HashSet<String> =
-                    fields.iter().map(|f| f.get_argument()).collect();
+                let provided: std::collections::HashSet<String> = fields.iter().map(|f| f.get_argument()).collect();
                 for rf in &record_fields {
                     let rname = rf.get_argument_str();
                     if provided.contains(&rname) {
                         continue;
                     }
-                    match spread_merged
-                        .iter()
-                        .find(|mf| mf.get_argument_str() == rname)
-                    {
+                    match spread_merged.iter().find(|mf| mf.get_argument_str() == rname) {
                         Some(mf) => {
                             if !mf.get_type().is_subtype(&rf.get_type(), context).0 {
-                                errors.push(TypRError::Type(TypeError::Param(
-                                    rf.get_type(),
-                                    mf.get_type(),
-                                )));
+                                errors.push(TypRError::Type(TypeError::Param(rf.get_type(), mf.get_type())));
                             }
                             unify_pairs.push((mf.get_type(), rf.get_type()));
                         }
@@ -283,11 +255,7 @@ mod tests {
             "test.ty",
         );
         let result = typing_with_errors(&Context::default(), &ast);
-        assert!(
-            !result.has_errors(),
-            "unexpected errors: {:?}",
-            result.get_errors()
-        );
+        assert!(!result.has_errors(), "unexpected errors: {:?}", result.get_errors());
         match result.get_type() {
             Type::Alias(name, args, _, _) => {
                 assert_eq!(name, "Box");
@@ -333,11 +301,7 @@ mod tests {
             "test.ty",
         );
         let result = typing_with_errors(&Context::default(), &ast);
-        assert!(
-            !result.has_errors(),
-            "unexpected errors: {:?}",
-            result.get_errors()
-        );
+        assert!(!result.has_errors(), "unexpected errors: {:?}", result.get_errors());
     }
 
     // ==================== U1: TagName:{...} rejected for tag members ====================
@@ -408,10 +372,7 @@ mod tests {
             "test.ty",
         );
         let result = typing_with_errors(&Context::default(), &ast);
-        assert!(
-            result.has_errors(),
-            "Shape.Circle:{{ r = 3.0 }} must be rejected"
-        );
+        assert!(result.has_errors(), "Shape.Circle:{{ r = 3.0 }} must be rejected");
         assert!(
             result.get_errors().iter().any(|e| matches!(
                 e,
@@ -488,11 +449,7 @@ mod tests {
             "test.ty",
         );
         let result = typing_with_errors(&Context::default(), &ast);
-        assert!(
-            !result.has_errors(),
-            "unexpected errors: {:?}",
-            result.get_errors()
-        );
+        assert!(!result.has_errors(), "unexpected errors: {:?}", result.get_errors());
     }
 
     #[test]
@@ -506,10 +463,6 @@ mod tests {
             "test.ty",
         );
         let result = typing_with_errors(&Context::default(), &ast);
-        assert!(
-            !result.has_errors(),
-            "unexpected errors: {:?}",
-            result.get_errors()
-        );
+        assert!(!result.has_errors(), "unexpected errors: {:?}", result.get_errors());
     }
 }

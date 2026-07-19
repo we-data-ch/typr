@@ -138,11 +138,7 @@ fn strip_named_params(type_str: &str) -> String {
 }
 
 /// Process parameters at depth 1, stripping `name: ` prefixes.
-fn strip_params_at_depth(
-    chars: &mut std::iter::Peekable<std::str::Chars>,
-    result: &mut String,
-    depth: &mut i32,
-) {
+fn strip_params_at_depth(chars: &mut std::iter::Peekable<std::str::Chars>, result: &mut String, depth: &mut i32) {
     // Skip leading whitespace
     while let Some(&ch) = chars.peek() {
         if ch.is_whitespace() {
@@ -467,13 +463,13 @@ pub fn standard_library() {
             "\n{RED}{BOLD}{} stdlib file(s) were skipped — see the SKIPPED messages above.{RESET}",
             skipped.len()
         );
-        eprintln!("{RED}The generated .bin files are MISSING every signature these files would have contributed:{RESET}");
+        eprintln!(
+            "{RED}The generated .bin files are MISSING every signature these files would have contributed:{RESET}"
+        );
         for (filename, _) in &skipped {
             eprintln!("{RED}  - {}{RESET}", filename);
         }
-        eprintln!(
-            "Fix the file(s) above and re-run `typr std` before committing the generated binaries."
-        );
+        eprintln!("Fix the file(s) above and re-run `typr std` before committing the generated binaries.");
         std::process::exit(1);
     }
 

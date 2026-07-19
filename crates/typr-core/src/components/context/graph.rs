@@ -102,9 +102,7 @@ impl<T: TypeSystem> Graph<T> {
     }
 
     pub fn add_types(self, typs: &[T], context: &Context) -> Self {
-        typs.iter()
-            .cloned()
-            .fold(self, |acc, x| acc.add_type(x, context))
+        typs.iter().cloned().fold(self, |acc, x| acc.add_type(x, context))
     }
 }
 
@@ -158,12 +156,7 @@ impl<T: TypeSystem> Node<T> {
     pub fn add_subtype(self, typ: T) -> Self {
         Node {
             value: self.value,
-            subtypes: self
-                .subtypes
-                .iter()
-                .chain([Node::from(typ)].iter())
-                .cloned()
-                .collect(),
+            subtypes: self.subtypes.iter().chain([Node::from(typ)].iter()).cloned().collect(),
         }
     }
 
@@ -189,10 +182,7 @@ impl<T: TypeSystem> Node<T> {
         if self.value == typ {
             self
         } else {
-            match (
-                typ.is_subtype_raw(&self.value, context),
-                self.subtypes.len(),
-            ) {
+            match (typ.is_subtype_raw(&self.value, context), self.subtypes.len()) {
                 (true, 0) => self.add_subtype(typ),
                 (true, _) => self.propagate(typ, context),
                 _ => self.switch_if_reverse_subtype(typ, context),

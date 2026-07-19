@@ -58,9 +58,7 @@ pub enum Op {
 /// matters for named aliases, which inline literals are not).
 fn lang_to_cast_type(lang: &Lang) -> Option<Type> {
     match lang {
-        Lang::Variable {
-            name, help_data, ..
-        } => Some(match name.as_str() {
+        Lang::Variable { name, help_data, .. } => Some(match name.as_str() {
             "int" => builder::integer_type_default(),
             "num" => builder::number_type(),
             "bool" | "logic" => builder::boolean_type(),
@@ -68,9 +66,7 @@ fn lang_to_cast_type(lang: &Lang) -> Option<Type> {
             "Any" => builder::any_type(),
             _ => Type::Alias(name.clone(), vec![], false, help_data.clone()),
         }),
-        Lang::Integer { value, help_data } => {
-            Some(Type::Integer(Tint::Val(*value), help_data.clone()))
-        }
+        Lang::Integer { value, help_data } => Some(Type::Integer(Tint::Val(*value), help_data.clone())),
         Lang::Array { value, help_data } => {
             let (idx, elem) = match value.as_slice() {
                 [elem] => (builder::any_type(), elem),
@@ -435,11 +431,7 @@ mod tests {
         ] {
             match (op(span(input)), leftover) {
                 (Ok((rest, _)), Some(expected)) => {
-                    assert_eq!(
-                        *rest.fragment(),
-                        expected,
-                        "leftover mismatch for {input:?}"
-                    )
+                    assert_eq!(*rest.fragment(), expected, "leftover mismatch for {input:?}")
                 }
                 (Err(_), None) => {}
                 (result, expected) => {
@@ -470,10 +462,7 @@ mod tests {
         // `index`/`input`/`instance` must never be tokenized as `Op::In` plus
         // a leftover suffix — `in` is only an operator at a word boundary.
         for input in ["index", "input", "instance", "in_valid"] {
-            assert!(
-                op(span(input)).is_err(),
-                "{input:?} should not tokenize as an operator"
-            );
+            assert!(op(span(input)).is_err(), "{input:?} should not tokenize as an operator");
         }
     }
 }

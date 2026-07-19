@@ -66,12 +66,7 @@ impl ModuleCacheEntry {
         inner_context.typing_context.std = std::sync::Arc::new(indexmap::IndexSet::new());
         ModuleCacheEntry {
             module_type: module_type.clone(),
-            alias_counter: inner
-                .typing_context
-                .alias_counter
-                .clone()
-                .into_iter()
-                .collect(),
+            alias_counter: inner.typing_context.alias_counter.clone().into_iter().collect(),
             inner_context,
         }
     }

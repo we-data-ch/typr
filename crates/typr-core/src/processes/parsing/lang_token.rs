@@ -6,6 +6,7 @@ use crate::processes::parsing::operation_priority::TokenKind;
 use std::fmt;
 
 #[derive(Debug, Default, Clone, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 pub enum LangToken {
     Operator(Op),
     Expression(Lang),

@@ -1,0 +1,27 @@
+# Step 1 of vector/array unification: Vec[N, T] soundness.
+# - annotated Vec let must not emit `|> ()` (now `|> identity()`)
+# - a vector-lifted call to a user scalar fn must be an explicit typed vapply
+#   (direct call crashes on any `if` in the body, R >= 4.2)
+
+let is_small <- fn(n: int): bool {
+    if (n < 3) {
+        true
+    } else {
+        false
+    }
+};
+
+let both <- fn(a: int, b: int): int {
+    if (a > b) {
+        a
+    } else {
+        b
+    }
+};
+
+let v: Vec[5, int] <- c(1, 2, 3, 4, 5);
+let w: Vec[5, int] <- c(10, 0, 30, 0, 50);
+let r1 <- is_small(v);
+let r2 <- both(v, w);
+print(r1);
+print(r2);

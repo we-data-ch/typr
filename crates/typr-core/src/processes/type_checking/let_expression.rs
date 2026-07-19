@@ -2,6 +2,7 @@ use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::processes::type_checking::r#Type;
+use crate::processes::type_checking::vectorizability::is_vectorizable_function;
 use crate::processes::type_checking::Context;
 use crate::processes::type_checking::HelpData;
 use crate::processes::type_checking::Lang;
@@ -11,22 +12,16 @@ use crate::processes::type_checking::Var;
 pub fn collect_undefined_aliases(context: &Context, ty: &Type) -> Vec<TypRError> {
     match ty {
         Type::Alias(name, params, is_opaque, h) => {
-            let is_builtin = matches!(
-                name.as_str(),
-                "Integer" | "Character" | "Boolean" | "Number"
-            );
-            let alias_signature = Var::from_type(ty.clone())
-                .and_then(|var| context.get_matching_alias_signature(&var));
+            let is_builtin = matches!(name.as_str(), "Integer" | "Character" | "Boolean" | "Number");
+            let alias_signature = Var::from_type(ty.clone()).and_then(|var| context.get_matching_alias_signature(&var));
             let is_defined = alias_signature.is_some();
 
             let mut errors = Vec::new();
             if !is_opaque && !is_builtin && !is_defined {
                 errors.push(match context.find_alias_source_module(name) {
-                    Some(module_name) => TypRError::type_error(TypeError::AliasNotImported(
-                        name.clone(),
-                        module_name,
-                        h.clone(),
-                    )),
+                    Some(module_name) => {
+                        TypRError::type_error(TypeError::AliasNotImported(name.clone(), module_name, h.clone()))
+                    }
                     None => TypRError::type_error(TypeError::AliasNotFound(ty.clone())),
                 });
             } else if !is_opaque {
@@ -133,9 +128,7 @@ pub fn let_expression(
     is_export: bool,
     h: &HelpData,
 ) -> TypeContext {
-    let new_context = context
-        .clone()
-        .push_types(&exp.extract_types_from_expression(context));
+    let new_context = context.clone().push_types(&exp.extract_types_from_expression(context));
 
     // Pre-inject the function's own type so the body can call it recursively.
     let new_context = if let Lang::Function {
@@ -147,11 +140,7 @@ pub fn let_expression(
     {
         if !matches!(return_type, Type::Empty(_)) {
             if let Ok(var) = Var::try_from(name) {
-                let fn_type = Type::Function(
-                    parameters.to_vec(),
-                    Box::new(return_type.clone()),
-                    help_data.clone(),
-                );
+                let fn_type = Type::Function(parameters.to_vec(), Box::new(return_type.clone()), help_data.clone());
                 new_context
                     .clone()
                     .push_var_type(var.set_type(fn_type.clone()), fn_type, context)
@@ -187,10 +176,29 @@ pub fn let_expression(
         }
     }
 
-    let res = exp
+    let mut res = exp
         .typing(&new_context)
         .get_covariant_type(ty)
         .add_to_context(Var::try_from(name).unwrap());
+
+    // Step 2 of the vector/array unification plan: record whether this
+    // function's body is safe to call directly on an atomic vector, so the
+    // `Lang::VecFunctionApp` transpilation arm can skip the `vapply` lift.
+    // Computed on the raw parsed body (the predicate is purely syntactic) and
+    // registered even when `false` so a later non-vectorizable overload of an
+    // already-registered name downgrades it.
+    if let Lang::Function {
+        parameters,
+        return_type,
+        body,
+        ..
+    } = exp.as_ref()
+    {
+        if let Ok(var) = Var::try_from(name) {
+            let vectorizable = is_vectorizable_function(&res.context, parameters, return_type, body);
+            res.context = res.context.register_vectorizable_fn(&var.get_name(), vectorizable);
+        }
+    }
 
     let new_expr = Lang::Let {
         variable: name.clone(),
@@ -239,9 +247,9 @@ mod tests {
         assert!(
             result.get_errors().iter().any(|e| matches!(
                 e,
-                TypRError::Type(
-                    crate::components::error_message::type_error::TypeError::AliasNotFound(_)
-                )
+                TypRError::Type(crate::components::error_message::type_error::TypeError::AliasNotFound(
+                    _
+                ))
             )),
             "Expected AliasNotFound error but got: {:?}",
             result.get_errors()
@@ -312,11 +320,9 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::typing_with_errors;
 
-        let expr = parse2(
-            "let factorial <- fn(n: int): int { if (n <= 1) { 1 } else { n * factorial(n - 1) } };"
-                .into(),
-        )
-        .unwrap();
+        let expr =
+            parse2("let factorial <- fn(n: int): int { if (n <= 1) { 1 } else { n * factorial(n - 1) } };".into())
+                .unwrap();
         let result = typing_with_errors(&Context::default(), &expr);
         assert!(
             !result.has_errors(),
@@ -388,9 +394,7 @@ mod tests {
         assert!(
             !result.get_errors().iter().any(|e| matches!(
                 e,
-                TypRError::Type(
-                    crate::components::error_message::type_error::TypeError::AliasArityMismatch(..)
-                )
+                TypRError::Type(crate::components::error_message::type_error::TypeError::AliasArityMismatch(..))
             )),
             "Correct arity should not raise AliasArityMismatch, got: {:?}",
             result.get_errors()

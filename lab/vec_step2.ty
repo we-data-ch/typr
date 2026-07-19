@@ -1,0 +1,13 @@
+# Step 2 of the vector/array unification plan (vectorizability analysis):
+# a user function whose body is provably element-wise is called directly on a
+# Vec (native R speed); a body with `if` keeps the step-1 vapply lift.
+let dbl <- fn(x: int): int { x * 2 };
+let axpy <- fn(a: int, b: int): int { let y <- a * 2; y + b };
+let is_small <- fn(n: int): bool { if (n < 3) { true } else { false } };
+
+let v: Vec[3, int] <- c(1, 2, 3);
+let w: Vec[3, int] <- c(4, 5, 6);
+
+print(dbl(v));
+print(axpy(v, w));
+print(is_small(v));

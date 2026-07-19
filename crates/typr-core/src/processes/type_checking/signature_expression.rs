@@ -21,26 +21,22 @@ pub fn signature_expression(
     let tc: TypeContext = if var.is_variable() {
         let new_var = FunctionType::try_from(typ.clone())
             .map(|ft| {
-                var.clone().set_type(
-                    ft.get_first_param()
-                        .unwrap_or(builder::unknown_function_type()),
-                )
+                var.clone()
+                    .set_type(ft.get_first_param().unwrap_or(builder::unknown_function_type()))
             })
             .unwrap_or(var.clone());
-        let mut new_context =
-            context
-                .clone()
-                .replace_or_push_var_type(new_var, typ.to_owned(), context);
+        let mut new_context = context
+            .clone()
+            .replace_or_push_var_type(new_var, typ.to_owned(), context);
         if is_extern {
             new_context.extern_fns.push((var.get_name(), extern_r_name));
         }
         (builder::unknown_function_type(), expr.clone(), new_context).into()
     } else {
         // is alias
-        let mut new_context =
-            context
-                .clone()
-                .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context);
+        let mut new_context = context
+            .clone()
+            .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context);
         if is_extern {
             new_context.extern_fns.push((var.get_name(), extern_r_name));
         }
@@ -105,20 +101,14 @@ mod tests {
 
     #[test]
     fn test_signature_function1() {
-        let res = FluentParser::new()
-            .push("@f: (int) -> int;")
-            .run()
-            .check_typing("f");
+        let res = FluentParser::new().push("@f: (int) -> int;").run().check_typing("f");
         let integer = builder::integer_type_default();
         assert_eq!(res, builder::function_type(&[integer.clone()], integer))
     }
 
     #[test]
     fn test_signature_function2() {
-        let res = FluentParser::new()
-            .push("@f: (int) -> bool;")
-            .run()
-            .check_typing("f");
+        let res = FluentParser::new().push("@f: (int) -> bool;").run().check_typing("f");
         let integer = builder::integer_type_default();
         let boolean = builder::boolean_type();
         assert_eq!(res, builder::function_type(&[integer.clone()], boolean))

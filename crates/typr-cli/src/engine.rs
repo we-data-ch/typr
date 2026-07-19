@@ -91,11 +91,7 @@ pub fn parse_code_with_info(path: &Path, environment: Environment) -> (Lang, Exp
 }
 
 /// Parse code from a string (content already loaded, e.g. after shebang stripping)
-pub fn parse_code_from_str(
-    content: &str,
-    file_name: &str,
-    environment: Environment,
-) -> (Lang, Vec<SyntaxError>) {
+pub fn parse_code_from_str(content: &str, file_name: &str, environment: Environment) -> (Lang, Vec<SyntaxError>) {
     let base_file = TypRFile::new(content, file_name.to_string());
     let parse_result = base_file.parse_with_errors();
     let mut errors = parse_result.errors;
@@ -135,11 +131,7 @@ impl CompileResult {
 }
 
 /// Compile code from a string (useful for REPL and testing)
-pub fn compile_string_with_errors(
-    code: &str,
-    file_name: &str,
-    environment: Environment,
-) -> CompileResult {
+pub fn compile_string_with_errors(code: &str, file_name: &str, environment: Environment) -> CompileResult {
     let base_file = TypRFile::new(code, file_name.to_string());
 
     // Parse with error collection

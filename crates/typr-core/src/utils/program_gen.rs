@@ -130,8 +130,7 @@ fn base_eq(a: &Type, b: &Type) -> bool {
             f1.len() == f2.len()
                 && f1.iter().all(|a1| {
                     f2.iter().any(|a2| {
-                        a1.get_argument_str() == a2.get_argument_str()
-                            && base_eq(&a1.get_type(), &a2.get_type())
+                        a1.get_argument_str() == a2.get_argument_str() && base_eq(&a1.get_type(), &a2.get_type())
                     })
                 })
         }
@@ -179,14 +178,7 @@ fn gen_literal(goal: &Type, rng: &mut impl Rng) -> Option<String> {
             let n = rng.random_range(-1000..1000) as f64 / 100.0;
             Some(format!("{n:.2}"))
         }
-        Type::Boolean(..) => Some(
-            if rng.random_bool(0.5) {
-                "true"
-            } else {
-                "false"
-            }
-            .to_string(),
-        ),
+        Type::Boolean(..) => Some(if rng.random_bool(0.5) { "true" } else { "false" }.to_string()),
         Type::Char(..) => {
             const WORDS: [&str; 5] = ["a", "b", "hello", "x", "typr"];
             let w = WORDS[rng.random_range(0..WORDS.len())];
@@ -197,10 +189,7 @@ fn gen_literal(goal: &Type, rng: &mut impl Rng) -> Option<String> {
 }
 
 fn gen_var(env: &GenEnv, goal: &Type) -> Option<String> {
-    env.vars
-        .iter()
-        .find(|(_, t)| base_eq(t, goal))
-        .map(|(n, _)| n.clone())
+    env.vars.iter().find(|(_, t)| base_eq(t, goal)).map(|(n, _)| n.clone())
 }
 
 /// Length encoded in a goal `Type::Vec`'s index type, as produced by
@@ -219,10 +208,7 @@ fn vec_len(goal: &Type) -> usize {
 fn record_fields_sorted(
     fields: &std::collections::HashSet<crate::components::r#type::argument_type::ArgumentType>,
 ) -> Vec<(String, Type)> {
-    let mut v: Vec<(String, Type)> = fields
-        .iter()
-        .map(|a| (a.get_argument_str(), a.get_type()))
-        .collect();
+    let mut v: Vec<(String, Type)> = fields.iter().map(|a| (a.get_argument_str(), a.get_type())).collect();
     v.sort_by(|a, b| a.0.cmp(&b.0));
     v
 }
@@ -283,14 +269,8 @@ const ALL_PRODUCTIONS: &[Production] = &[
     Production::DotAccess,
 ];
 
-fn union_variants<'a>(
-    env: &'a GenEnv,
-    alias_name: &str,
-) -> Option<&'a Vec<(String, Option<Type>)>> {
-    env.unions
-        .iter()
-        .find(|(n, _)| n == alias_name)
-        .map(|(_, v)| v)
+fn union_variants<'a>(env: &'a GenEnv, alias_name: &str) -> Option<&'a Vec<(String, Option<Type>)>> {
+    env.unions.iter().find(|(n, _)| n == alias_name).map(|(_, v)| v)
 }
 
 /// `(var_name, field_name)` pairs for every var in scope (bare record or
@@ -356,17 +336,11 @@ fn applicable(p: Production, env: &GenEnv, goal: &Type, depth: u32) -> bool {
         Production::If => depth >= 2 && !matches!(goal, Type::Char(..)),
         Production::Record => matches!(goal, Type::Record(..)) && depth >= 1,
         Production::Ctor => {
-            depth >= 1
-                && matches!(goal, Type::Alias(name, ..) if alias_record_fields(env, name).is_some())
+            depth >= 1 && matches!(goal, Type::Alias(name, ..) if alias_record_fields(env, name).is_some())
         }
         Production::Vector => matches!(goal, Type::Vec(..)) && depth >= 1,
-        Production::FunctionApp => {
-            depth >= 1 && env.fns.iter().any(|(_, _, ret)| base_eq(ret, goal))
-        }
-        Production::Tag => {
-            depth >= 1
-                && matches!(goal, Type::Alias(name, ..) if union_variants(env, name).is_some())
-        }
+        Production::FunctionApp => depth >= 1 && env.fns.iter().any(|(_, _, ret)| base_eq(ret, goal)),
+        Production::Tag => depth >= 1 && matches!(goal, Type::Alias(name, ..) if union_variants(env, name).is_some()),
         Production::Match => depth >= 2 && union_var_in_scope(env).is_some(),
         Production::DotAccess => !dot_access_candidates(env, goal).is_empty(),
     }
@@ -395,13 +369,7 @@ fn weight(p: Production) -> u32 {
 /// primitive-typed in v1 (record fields / array elements / union payloads
 /// are restricted to primitives — see module docs), so they always bottom
 /// out at `Literal` regardless of remaining budget.
-pub fn gen_expr(
-    env: &GenEnv,
-    goal: &Type,
-    depth: u32,
-    rng: &mut impl Rng,
-    cov: &mut Coverage,
-) -> String {
+pub fn gen_expr(env: &GenEnv, goal: &Type, depth: u32, rng: &mut impl Rng, cov: &mut Coverage) -> String {
     let candidates: Vec<(Production, u32)> = ALL_PRODUCTIONS
         .iter()
         .copied()
@@ -445,9 +413,7 @@ pub fn gen_expr(
                 Type::Alias(name, ..) => name.clone(),
                 _ => unreachable!("Ctor production only applicable to an Alias goal"),
             };
-            let fields = record_fields_sorted(
-                alias_record_fields(env, &alias_name).expect("checked applicable"),
-            );
+            let fields = record_fields_sorted(alias_record_fields(env, &alias_name).expect("checked applicable"));
             let parts: Vec<String> = fields
                 .iter()
                 .map(|(fname, fty)| {
@@ -463,9 +429,7 @@ pub fn gen_expr(
                 _ => unreachable!("Vector production only applicable to a Vec goal"),
             };
             let len = vec_len(goal);
-            let elems: Vec<String> = (0..len)
-                .map(|_| gen_expr(env, &inner, depth - 1, rng, cov))
-                .collect();
+            let elems: Vec<String> = (0..len).map(|_| gen_expr(env, &inner, depth - 1, rng, cov)).collect();
             format!("[{}]", elems.join(", "))
         }
         Production::FunctionApp => {
@@ -498,9 +462,7 @@ pub fn gen_expr(
         }
         Production::Match => {
             let (var_name, alias_name) = union_var_in_scope(env).expect("checked applicable");
-            let variants = union_variants(env, &alias_name)
-                .expect("checked applicable")
-                .clone();
+            let variants = union_variants(env, &alias_name).expect("checked applicable").clone();
             let arms: Vec<String> = variants
                 .iter()
                 .map(|(vname, payload)| {
@@ -539,12 +501,7 @@ fn random_record_field_type(rng: &mut impl Rng) -> Type {
 fn pick_goal_type(env: &GenEnv, rng: &mut impl Rng) -> Type {
     let mut candidates = primitive_types();
     for (name, _) in &env.aliases {
-        candidates.push(Type::Alias(
-            name.clone(),
-            vec![],
-            false,
-            HelpData::default(),
-        ));
+        candidates.push(Type::Alias(name.clone(), vec![], false, HelpData::default()));
     }
     if rng.random_bool(0.25) {
         let n_fields = rng.random_range(1..3u32);
@@ -594,11 +551,7 @@ fn gen_union_alias_decl(env: &mut GenEnv, rng: &mut impl Rng) -> String {
             None
         };
         let payload_ty = payload.clone().unwrap_or_else(builder::empty_type);
-        tag_types.push(Type::Tag(
-            vname.clone(),
-            Box::new(payload_ty),
-            HelpData::default(),
-        ));
+        tag_types.push(Type::Tag(vname.clone(), Box::new(payload_ty), HelpData::default()));
         variants.push((vname, payload));
     }
     let variant_strs: Vec<String> = variants
@@ -609,8 +562,7 @@ fn gen_union_alias_decl(env: &mut GenEnv, rng: &mut impl Rng) -> String {
         })
         .collect();
     let decl = format!("type {name} <- {};", variant_strs.join(" | "));
-    env.aliases
-        .push((name.clone(), builder::union_type(&tag_types)));
+    env.aliases.push((name.clone(), builder::union_type(&tag_types)));
     env.unions.push((name, variants));
     decl
 }
@@ -679,10 +631,7 @@ pub fn gen_program(rng: &mut impl Rng, max_depth: u32, cov: &mut Coverage) -> Ge
     let expr = gen_expr(&env, &goal, max_depth, rng, cov);
     let terminal = format!("print({expr})");
 
-    GenProgram {
-        declarations,
-        terminal,
-    }
+    GenProgram { declarations, terminal }
 }
 
 #[cfg(test)]
@@ -706,13 +655,7 @@ mod tests {
 
     #[test]
     fn base_eq_matches_same_shape_primitives() {
-        assert!(base_eq(
-            &builder::integer_type(1),
-            &builder::integer_type_default()
-        ));
-        assert!(!base_eq(
-            &builder::integer_type(1),
-            &builder::boolean_type()
-        ));
+        assert!(base_eq(&builder::integer_type(1), &builder::integer_type_default()));
+        assert!(!base_eq(&builder::integer_type(1), &builder::boolean_type()));
     }
 }

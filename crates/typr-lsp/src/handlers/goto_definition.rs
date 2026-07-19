@@ -85,8 +85,8 @@ pub fn resolve_definition(
     // qualifier isn't actually a module (e.g. record `$` access like
     // `personne$age`), this just finds nothing and falls through.
     if let Some(qualifier) = preceding_dollar_qualifier(content, line, word_range.start.character) {
-        if let Some(help_data) = find_module_in_ast(&analysis.ast, &qualifier)
-            .and_then(|members| find_field_help_data(members, &word))
+        if let Some(help_data) =
+            find_module_in_ast(&analysis.ast, &qualifier).and_then(|members| find_field_help_data(members, &word))
         {
             return Some(definition_info_from_help_data(
                 &help_data,
@@ -121,10 +121,7 @@ pub fn resolve_definition(
     }
 
     let range = find_param_declaration(content, &word, line)?;
-    Some(DefinitionInfo {
-        range,
-        file_path: None,
-    })
+    Some(DefinitionInfo { range, file_path: None })
 }
 
 /// Whether the character immediately before `col` on `line` is `ch`.
@@ -174,15 +171,14 @@ fn definition_info_from_help_data(
     let offset = help_data.get_offset();
     let definition_file = help_data.get_file_name();
 
-    let (source_content, file_path_result) =
-        if definition_file.is_empty() || definition_file == file_path {
-            (content.to_string(), None)
-        } else {
-            match std::fs::read_to_string(&definition_file) {
-                Ok(external_content) => (external_content, Some(definition_file)),
-                Err(_) => (content.to_string(), None),
-            }
-        };
+    let (source_content, file_path_result) = if definition_file.is_empty() || definition_file == file_path {
+        (content.to_string(), None)
+    } else {
+        match std::fs::read_to_string(&definition_file) {
+            Ok(external_content) => (external_content, Some(definition_file)),
+            Err(_) => (content.to_string(), None),
+        }
+    };
 
     let pos = offset_to_position(offset, &source_content);
     let end_col = pos.character + name_len as u32;
@@ -204,15 +200,9 @@ fn definition_info_from_help_data(
 fn find_tag_definition_in_ast(ast: &Lang, tag_name: &str) -> Option<HelpData> {
     match ast {
         Lang::Alias { target_type, .. } => find_tag_in_type(target_type, tag_name),
-        Lang::Lines { value, .. } => value
-            .iter()
-            .find_map(|m| find_tag_definition_in_ast(m, tag_name)),
-        Lang::Scope { body, .. } => body
-            .iter()
-            .find_map(|m| find_tag_definition_in_ast(m, tag_name)),
-        Lang::Module { body, .. } => body
-            .iter()
-            .find_map(|m| find_tag_definition_in_ast(m, tag_name)),
+        Lang::Lines { value, .. } => value.iter().find_map(|m| find_tag_definition_in_ast(m, tag_name)),
+        Lang::Scope { body, .. } => body.iter().find_map(|m| find_tag_definition_in_ast(m, tag_name)),
+        Lang::Module { body, .. } => body.iter().find_map(|m| find_tag_definition_in_ast(m, tag_name)),
         _ => None,
     }
 }
@@ -236,9 +226,7 @@ fn find_module_in_ast<'a>(ast: &'a Lang, module_name: &str) -> Option<&'a Vec<La
     match ast {
         Lang::Module { name, body, .. } if name == module_name => Some(body),
         Lang::Module { body, .. } => body.iter().find_map(|m| find_module_in_ast(m, module_name)),
-        Lang::Lines { value, .. } => value
-            .iter()
-            .find_map(|m| find_module_in_ast(m, module_name)),
+        Lang::Lines { value, .. } => value.iter().find_map(|m| find_module_in_ast(m, module_name)),
         Lang::Scope { body, .. } => body.iter().find_map(|m| find_module_in_ast(m, module_name)),
         _ => None,
     }
@@ -328,12 +316,7 @@ fn find_param_declaration(content: &str, word: &str, cursor_line: u32) -> Option
         search_from = close_paren + 1;
     }
 
-    best.map(|(s, e)| {
-        Range::new(
-            offset_to_position(s, content),
-            offset_to_position(e, content),
-        )
-    })
+    best.map(|(s, e)| Range::new(offset_to_position(s, content), offset_to_position(e, content)))
 }
 
 /// Split a comma-separated list into `(start_offset, text)` entries at depth
@@ -385,12 +368,7 @@ mod goto_definition_tests {
 
     /// Test-only convenience wrapper around `analyze_document` +
     /// `resolve_definition`, mirroring the old single-shot entry point.
-    fn find_definition_at(
-        content: &str,
-        line: u32,
-        character: u32,
-        file_path: &str,
-    ) -> Option<DefinitionInfo> {
+    fn find_definition_at(content: &str, line: u32, character: u32, file_path: &str) -> Option<DefinitionInfo> {
         let analysis = analyze_document(content, file_path)?;
         resolve_definition(&analysis, content, line, character, file_path)
     }
@@ -403,8 +381,7 @@ mod goto_definition_tests {
         let content = "type Shape <- .Circle(num) | .Square(num);\nlet s <- .Circle(3.14);\nlet area <- match s { .Circle(r) => r, .Square(side) => side };\n";
         // Cursor on `Circle` inside the `.Circle(3.14)` construction (line 1).
         let col = content.lines().nth(1).unwrap().find("Circle").unwrap() as u32;
-        let def = find_definition_at(content, 1, col, "test.ty")
-            .expect("expected a definition for the `.Circle` tag");
+        let def = find_definition_at(content, 1, col, "test.ty").expect("expected a definition for the `.Circle` tag");
 
         // Must land on the `.Circle` in the alias declaration (line 0), not
         // on the construction site itself. `Type::Tag`'s `HelpData` is the
@@ -421,12 +398,10 @@ mod goto_definition_tests {
     /// declaration inside the `module { ... }` body, not fail silently.
     #[test]
     fn module_field_access_resolves_to_member_let() {
-        let content =
-            "module Math {\n    @pub let pi_approx <- 3.14;\n};\nlet x <- Math$pi_approx;\n";
+        let content = "module Math {\n    @pub let pi_approx <- 3.14;\n};\nlet x <- Math$pi_approx;\n";
         let line3 = content.lines().nth(3).unwrap();
         let col = line3.find("pi_approx").unwrap() as u32;
-        let def = find_definition_at(content, 3, col, "test.ty")
-            .expect("expected a definition for `Math$pi_approx`");
+        let def = find_definition_at(content, 3, col, "test.ty").expect("expected a definition for `Math$pi_approx`");
 
         assert_eq!(def.range.start.line, 1);
         let decl_col = content.lines().nth(1).unwrap().find("pi_approx").unwrap() as u32;
@@ -445,8 +420,7 @@ mod goto_definition_tests {
     fn function_parameter_resolves_to_its_declaration() {
         let content = "let add <- fn(a: int, b: int): int { a + b };\n";
         let col = content.find("a + b").unwrap() as u32;
-        let def = find_definition_at(content, 0, col, "test.ty")
-            .expect("expected a definition for parameter `a`");
+        let def = find_definition_at(content, 0, col, "test.ty").expect("expected a definition for parameter `a`");
 
         assert_eq!(def.range.start.line, 0);
         let decl_col = content.find("a: int").unwrap() as u32;
@@ -459,8 +433,7 @@ mod goto_definition_tests {
     /// resolving to something unrelated.
     #[test]
     fn record_dollar_access_does_not_false_positive_as_module_field() {
-        let content =
-            "type Person <- list { age: int };\nlet p <- Person:{ age = 1 };\nlet a <- p$age;\n";
+        let content = "type Person <- list { age: int };\nlet p <- Person:{ age = 1 };\nlet a <- p$age;\n";
         let col = content.lines().nth(2).unwrap().find("age").unwrap() as u32;
         let def = find_definition_at(content, 2, col, "test.ty");
         assert!(def.is_none(), "expected no definition, got: {:?}", def);

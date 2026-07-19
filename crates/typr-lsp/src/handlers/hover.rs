@@ -23,12 +23,7 @@ pub struct HoverInfo {
 ///
 /// Returns `None` when the cursor is not on an identifier/literal.
 #[tracing::instrument(skip_all)]
-pub fn resolve_hover(
-    analysis: &DocumentAnalysis,
-    content: &str,
-    line: u32,
-    character: u32,
-) -> Option<HoverInfo> {
+pub fn resolve_hover(analysis: &DocumentAnalysis, content: &str, line: u32, character: u32) -> Option<HoverInfo> {
     // 1. Extract the word under the cursor.
     let (word, word_range) = extract_word_at(content, line, character)?;
 
@@ -83,10 +78,7 @@ pub fn highlight_type(type_str: &str) -> String {
         let ch = chars[i];
 
         // ── generic prefixes: #identifier or %identifier ──────────────
-        if (ch == '#' || ch == '%')
-            && i + 1 < len
-            && (chars[i + 1].is_alphanumeric() || chars[i + 1] == '_')
-        {
+        if (ch == '#' || ch == '%') && i + 1 < len && (chars[i + 1].is_alphanumeric() || chars[i + 1] == '_') {
             let start = i;
             i += 1;
             while i < len && (chars[i].is_alphanumeric() || chars[i] == '_') {

@@ -6,9 +6,7 @@ use super::utils::{infer_literal_type, Span};
 use crate::metaprogramming::metaprogrammation;
 use nom_locate::LocatedSpan;
 use std::collections::HashMap;
-use tower_lsp_server::ls_types::{
-    CompletionItem, CompletionItemKind, Documentation, MarkupContent, MarkupKind,
-};
+use tower_lsp_server::ls_types::{CompletionItem, CompletionItemKind, Documentation, MarkupContent, MarkupKind};
 use typr_core::components::context::config::Environment;
 use typr_core::components::context::Context;
 use typr_core::components::language::var::Var;
@@ -53,36 +51,32 @@ pub fn get_completions_at(
     }
 
     // 1. Parse + type-check the document WITHOUT the cursor line
-    let (final_context, doc_map) =
-        match parse_document_without_cursor_line(content, line, file_path) {
-            Some((ctx, ast)) => (ctx, build_name_doc_map(&ast)),
-            None => {
-                let environment = detect_environment(file_path);
-                let span: Span = LocatedSpan::new_extra(content, file_path.to_string());
-                let parse_result =
-                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
-                let context = Context::default().set_environment(environment);
-                match parse_result {
-                    Ok(result) => {
-                        let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                            metaprogrammation(result.ast, environment)
-                        }));
-                        match ast {
-                            Ok(ast) => {
-                                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                    typing(&context, &ast)
-                                })) {
-                                    Ok(tc) => (tc.context, build_name_doc_map(&ast)),
-                                    Err(_) => return (get_fallback_completions(), None),
-                                }
+    let (final_context, doc_map) = match parse_document_without_cursor_line(content, line, file_path) {
+        Some((ctx, ast)) => (ctx, build_name_doc_map(&ast)),
+        None => {
+            let environment = detect_environment(file_path);
+            let span: Span = LocatedSpan::new_extra(content, file_path.to_string());
+            let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)));
+            let context = Context::default().set_environment(environment);
+            match parse_result {
+                Ok(result) => {
+                    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        metaprogrammation(result.ast, environment)
+                    }));
+                    match ast {
+                        Ok(ast) => {
+                            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast))) {
+                                Ok(tc) => (tc.context, build_name_doc_map(&ast)),
+                                Err(_) => return (get_fallback_completions(), None),
                             }
-                            Err(_) => return (get_fallback_completions(), None),
                         }
+                        Err(_) => return (get_fallback_completions(), None),
                     }
-                    Err(_) => return (get_fallback_completions(), None),
                 }
+                Err(_) => return (get_fallback_completions(), None),
             }
-        };
+        }
+    };
 
     // 2. Generate completions based on the already-detected context.
     let mut items = match &ctx {
@@ -142,11 +136,7 @@ pub fn resolve_completion_item(ctx: &CompletionResolveCtx, item: &mut Completion
 /// Parse the document excluding the line containing the cursor. Returns the
 /// resulting `Context` alongside the (post-metaprogrammation) `ast`, so
 /// callers can derive a doc-comment map from it without a second parse.
-fn parse_document_without_cursor_line(
-    content: &str,
-    cursor_line: u32,
-    file_path: &str,
-) -> Option<(Context, Lang)> {
+fn parse_document_without_cursor_line(content: &str, cursor_line: u32, file_path: &str) -> Option<(Context, Lang)> {
     let lines: Vec<&str> = content.lines().collect();
 
     let mut filtered_lines = Vec::new();
@@ -159,8 +149,7 @@ fn parse_document_without_cursor_line(
     let filtered_content = filtered_lines.join("\n");
     let span: Span = LocatedSpan::new_extra(&filtered_content, file_path.to_string());
 
-    let parse_result =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span))).ok()?;
+    let parse_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span))).ok()?;
     let environment = detect_environment(file_path);
     let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         metaprogrammation(parse_result.ast, environment)
@@ -172,9 +161,7 @@ fn parse_document_without_cursor_line(
     let final_context = if let Lang::Lines { value: exprs, .. } = &ast {
         let mut ctx = context.clone();
         for expr in exprs {
-            if let Ok(tc) =
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&ctx, expr)))
-            {
+            if let Ok(tc) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&ctx, expr))) {
                 ctx = tc.context;
             }
         }
@@ -209,9 +196,7 @@ pub fn extract_multiline_prefix(content: &str, line: u32, character: u32) -> Str
         return String::new();
     }
 
-    let current_line_part = lines[current_line_idx]
-        .get(..character as usize)
-        .unwrap_or("");
+    let current_line_part = lines[current_line_idx].get(..character as usize).unwrap_or("");
 
     let lookback_lines = 10;
     let start_line = current_line_idx.saturating_sub(lookback_lines);
@@ -283,10 +268,7 @@ fn detect_completion_context(prefix: &str) -> CompletionCtx {
 fn extract_last_expression(s: &str) -> String {
     let trimmed = s.trim_end();
 
-    let parts: Vec<&str> = trimmed
-        .split([';', '\n'])
-        .filter(|p| !p.trim().is_empty())
-        .collect();
+    let parts: Vec<&str> = trimmed.split([';', '\n']).filter(|p| !p.trim().is_empty()).collect();
 
     let last_statement = parts.last().unwrap_or(&"").trim();
 
@@ -444,12 +426,7 @@ fn get_module_completions(
     }
 
     for (var, typ) in module_ctx.aliases() {
-        items.push(var_to_completion_item(
-            var,
-            typ,
-            CompletionItemKind::INTERFACE,
-            doc_map,
-        ));
+        items.push(var_to_completion_item(var, typ, CompletionItemKind::INTERFACE, doc_map));
     }
 
     items
@@ -464,12 +441,8 @@ fn get_module_file_completions(file_path: &str) -> Vec<CompletionItem> {
     }
 
     let scan_dir = match detect_environment(file_path) {
-        Environment::Project => {
-            crate::metaprogramming::find_project_root(file_path).map(|root| root.join("TypR"))
-        }
-        _ => std::path::Path::new(file_path)
-            .parent()
-            .map(|p| p.to_path_buf()),
+        Environment::Project => crate::metaprogramming::find_project_root(file_path).map(|root| root.join("TypR")),
+        _ => std::path::Path::new(file_path).parent().map(|p| p.to_path_buf()),
     };
 
     let Some(dir) = scan_dir else {
@@ -480,9 +453,7 @@ fn get_module_file_completions(file_path: &str) -> Vec<CompletionItem> {
         return Vec::new();
     };
 
-    let current_stem = std::path::Path::new(file_path)
-        .file_stem()
-        .and_then(|s| s.to_str());
+    let current_stem = std::path::Path::new(file_path).file_stem().and_then(|s| s.to_str());
 
     let mut items = Vec::new();
     for entry in entries.flatten() {
@@ -771,9 +742,7 @@ fn try_normalize_rightmost_dot_call(context: &Context, expr: &str) -> Option<Str
                 && (chars[i + 1].is_alphabetic() || chars[i + 1] == '_') =>
             {
                 let mut method_end = i + 1;
-                while method_end < len
-                    && (chars[method_end].is_alphanumeric() || chars[method_end] == '_')
-                {
+                while method_end < len && (chars[method_end].is_alphanumeric() || chars[method_end] == '_') {
                     method_end += 1;
                 }
                 let method_name: String = chars[i + 1..method_end].iter().collect();
@@ -865,11 +834,7 @@ fn var_to_completion_item(
 /// stamps the originating file path onto it afterwards, and
 /// `resolve_completion_item` uses both to fill `detail`/`documentation` in
 /// lazily, on `completionItem/resolve`.
-fn lazy_completion_item(
-    name: &str,
-    kind: CompletionItemKind,
-    insert_text: Option<String>,
-) -> CompletionItem {
+fn lazy_completion_item(name: &str, kind: CompletionItemKind, insert_text: Option<String>) -> CompletionItem {
     CompletionItem {
         label: name.to_string(),
         insert_text,
@@ -907,31 +872,21 @@ mod mod_completion_tests {
         std::fs::write(&main_file, "").unwrap();
 
         let content = "mod ";
-        let (items, _) = get_completions_at(
-            content,
-            0,
-            content.len() as u32,
-            main_file.to_str().unwrap(),
-        );
+        let (items, _) = get_completions_at(content, 0, content.len() as u32, main_file.to_str().unwrap());
 
         let _ = std::fs::remove_dir_all(&dir);
 
         let labels: Vec<_> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"person"), "labels: {:?}", labels);
         assert!(labels.contains(&"animal"), "labels: {:?}", labels);
-        assert!(
-            !labels.contains(&"main"),
-            "should not suggest itself: {:?}",
-            labels
-        );
+        assert!(!labels.contains(&"main"), "should not suggest itself: {:?}", labels);
     }
 
     /// In Project mode (DESCRIPTION + NAMESPACE present), `mod ` should scan
     /// `TypR/` under the detected project root, not the file's own directory.
     #[test]
     fn suggests_files_from_typr_dir_in_project_mode() {
-        let dir =
-            std::env::temp_dir().join(format!("typr_lsp_modcomp_proj_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("typr_lsp_modcomp_proj_{}", std::process::id()));
         let typr_dir = dir.join("TypR");
         let _ = std::fs::create_dir_all(&typr_dir);
         std::fs::write(dir.join("DESCRIPTION"), "Package: x\n").unwrap();
@@ -941,12 +896,7 @@ mod mod_completion_tests {
         std::fs::write(&main_file, "").unwrap();
 
         let content = "mod pe";
-        let (items, _) = get_completions_at(
-            content,
-            0,
-            content.len() as u32,
-            main_file.to_str().unwrap(),
-        );
+        let (items, _) = get_completions_at(content, 0, content.len() as u32, main_file.to_str().unwrap());
 
         let _ = std::fs::remove_dir_all(&dir);
 
@@ -960,8 +910,7 @@ mod mod_completion_tests {
     /// leave imported symbols entirely absent from the typing context.
     #[test]
     fn completions_include_function_imported_in_project_mode() {
-        let dir =
-            std::env::temp_dir().join(format!("typr_lsp_completion_proj_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("typr_lsp_completion_proj_{}", std::process::id()));
         let typr_dir = dir.join("TypR");
         let _ = std::fs::create_dir_all(&typr_dir);
         std::fs::write(dir.join("DESCRIPTION"), "Package: x\n").unwrap();
@@ -993,9 +942,7 @@ mod mod_completion_tests {
         );
         let mut resolved = add_two.unwrap().clone();
         resolve_completion_item(
-            resolve_ctx
-                .as_ref()
-                .expect("completions should have a resolve context"),
+            resolve_ctx.as_ref().expect("completions should have a resolve context"),
             &mut resolved,
         );
         let detail = resolved.detail.clone().unwrap_or_default();
@@ -1050,15 +997,11 @@ mod completion_resolve_tests {
 
         let mut resolved = bump_item.clone();
         resolve_completion_item(
-            resolve_ctx
-                .as_ref()
-                .expect("completions should have a resolve context"),
+            resolve_ctx.as_ref().expect("completions should have a resolve context"),
             &mut resolved,
         );
 
-        let detail = resolved
-            .detail
-            .expect("completionItem/resolve should fill in `detail`");
+        let detail = resolved.detail.expect("completionItem/resolve should fill in `detail`");
         assert!(
             detail.contains("int"),
             "expected the real function signature, got: {}",

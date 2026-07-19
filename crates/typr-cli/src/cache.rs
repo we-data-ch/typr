@@ -265,7 +265,7 @@ impl FsModuleStore {
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .and_then(|s| u64::from_str_radix(s, 16).ok())
-                .map_or(true, |key| !used.contains(&key));
+                .is_none_or(|key| !used.contains(&key));
             if stale {
                 let _ = fs::remove_file(&path);
             }
@@ -337,10 +337,9 @@ mod tests {
         let mut manifest = BuildManifest::new(false, false);
         assert!(!manifest.is_up_to_date(&dir)); // empty hash sets
 
-        manifest.source_hashes.insert(
-            "TypR/main.ty".into(),
-            hash_file(&dir.join("TypR/main.ty")).unwrap(),
-        );
+        manifest
+            .source_hashes
+            .insert("TypR/main.ty".into(), hash_file(&dir.join("TypR/main.ty")).unwrap());
         manifest
             .output_hashes
             .insert("R/main.R".into(), hash_file(&dir.join("R/main.R")).unwrap());

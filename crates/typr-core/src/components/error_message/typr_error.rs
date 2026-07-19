@@ -6,6 +6,7 @@ use std::fmt;
 /// Enum unifie pour toutes les erreurs TypR
 /// Permet de collecter les erreurs de type et de syntaxe ensemble
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum TypRError {
     Type(TypeError),
     Syntax(SyntaxError),
@@ -145,8 +146,6 @@ impl From<Vec<TypRError>> for ErrorCollector {
 
 impl From<TypRError> for ErrorCollector {
     fn from(error: TypRError) -> Self {
-        ErrorCollector {
-            errors: vec![error],
-        }
+        ErrorCollector { errors: vec![error] }
     }
 }

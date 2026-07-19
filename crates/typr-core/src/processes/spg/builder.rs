@@ -33,12 +33,7 @@ pub fn build_spg_from_items(items: &[Lang], package: &str, version: &str) -> Spg
     spg
 }
 
-fn collect_nodes(
-    lang: &Lang,
-    spg: &mut Spg,
-    module_path: &[String],
-    doc_map: &HashMap<usize, String>,
-) {
+fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &HashMap<usize, String>) {
     match lang {
         Lang::Lines { value, .. } => {
             for item in value {
@@ -47,10 +42,7 @@ fn collect_nodes(
         }
 
         Lang::Module {
-            name,
-            body,
-            help_data,
-            ..
+            name, body, help_data, ..
         } => {
             let exports = body.iter().filter_map(exported_name).collect::<Vec<_>>();
             let id = Node::make_id(&NodeKind::Module, module_path, name);
@@ -267,9 +259,7 @@ fn exported_name(lang: &Lang) -> Option<String> {
             }
         }
         Lang::Alias {
-            identifier,
-            is_public,
-            ..
+            identifier, is_public, ..
         } if *is_public => {
             let name = lang_var_name(identifier);
             if name.is_empty() {

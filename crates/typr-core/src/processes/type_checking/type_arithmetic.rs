@@ -56,8 +56,7 @@ pub fn accepts_record_kind(t: &Type) -> bool {
     if let Type::KindedGen(k, _, _) = t {
         return matches!(
             k,
-            crate::components::r#type::kind::Kind::Record
-                | crate::components::r#type::kind::Kind::Interface
+            crate::components::r#type::kind::Kind::Record | crate::components::r#type::kind::Kind::Interface
         );
     }
     matches!(
@@ -91,9 +90,7 @@ pub fn norm_arithmetic(op: TypeOperator, t1: Type, t2: Type, h: HelpData) -> Typ
                 TypeOperator::Addition => Type::Integer(Tint::Val(a + b), h),
                 TypeOperator::Substraction => Type::Integer(Tint::Val(a - b), h),
                 TypeOperator::Multiplication => Type::Integer(Tint::Val(a * b), h),
-                TypeOperator::Division if b == 0 => {
-                    Type::Failed(format!("division by zero: `{} / {}`", a, b), h)
-                }
+                TypeOperator::Division if b == 0 => Type::Failed(format!("division by zero: `{} / {}`", a, b), h),
                 TypeOperator::Division => Type::Integer(Tint::Val(a / b), h),
                 _ => Type::Operator(op, Box::new(t1), Box::new(t2), h),
             },
@@ -157,19 +154,9 @@ pub fn norm_intersection(t1: Type, t2: Type, h: HelpData) -> Type {
     }
 }
 
-fn merge_record_fields(
-    f1: &HashSet<ArgumentType>,
-    f2: &HashSet<ArgumentType>,
-    h: &HelpData,
-) -> Type {
-    let names1: HashMap<String, Type> = f1
-        .iter()
-        .map(|a| (a.get_argument_str(), a.get_type()))
-        .collect();
-    let names2: HashMap<String, Type> = f2
-        .iter()
-        .map(|a| (a.get_argument_str(), a.get_type()))
-        .collect();
+fn merge_record_fields(f1: &HashSet<ArgumentType>, f2: &HashSet<ArgumentType>, h: &HelpData) -> Type {
+    let names1: HashMap<String, Type> = f1.iter().map(|a| (a.get_argument_str(), a.get_type())).collect();
+    let names2: HashMap<String, Type> = f2.iter().map(|a| (a.get_argument_str(), a.get_type())).collect();
 
     let mut all_names: Vec<&String> = names1.keys().chain(names2.keys()).collect();
     all_names.sort();
@@ -198,19 +185,9 @@ fn merge_record_fields(
 /// (no covariant/contravariant merge attempted — that's future work), else
 /// the intersection is ill-formed. Unlike record fields, method types are
 /// never merged recursively (`Self`-shaped `Function` types, not records).
-fn merge_interface_methods(
-    m1: &HashSet<ArgumentType>,
-    m2: &HashSet<ArgumentType>,
-    h: &HelpData,
-) -> Type {
-    let names1: HashMap<String, Type> = m1
-        .iter()
-        .map(|a| (a.get_argument_str(), a.get_type()))
-        .collect();
-    let names2: HashMap<String, Type> = m2
-        .iter()
-        .map(|a| (a.get_argument_str(), a.get_type()))
-        .collect();
+fn merge_interface_methods(m1: &HashSet<ArgumentType>, m2: &HashSet<ArgumentType>, h: &HelpData) -> Type {
+    let names1: HashMap<String, Type> = m1.iter().map(|a| (a.get_argument_str(), a.get_type())).collect();
+    let names2: HashMap<String, Type> = m2.iter().map(|a| (a.get_argument_str(), a.get_type())).collect();
 
     let mut all_names: Vec<&String> = names1.keys().chain(names2.keys()).collect();
     all_names.sort();
@@ -257,13 +234,12 @@ fn collect_failed_types(typ: &Type, acc: &mut Vec<(String, HelpData)>) {
     match typ {
         Type::Failed(message, h) => acc.push((message.clone(), h.clone())),
         Type::Function(args, ret, _) => {
-            args.iter()
-                .for_each(|a| collect_failed_types(&a.get_type(), acc));
+            args.iter().for_each(|a| collect_failed_types(&a.get_type(), acc));
             collect_failed_types(ret, acc);
         }
-        Type::Record(fields, _) | Type::Interface(fields, _) => fields
-            .iter()
-            .for_each(|a| collect_failed_types(&a.get_type(), acc)),
+        Type::Record(fields, _) | Type::Interface(fields, _) => {
+            fields.iter().for_each(|a| collect_failed_types(&a.get_type(), acc))
+        }
         Type::Vec(_, idx, body, _) => {
             collect_failed_types(idx, acc);
             collect_failed_types(body, acc);
@@ -273,9 +249,7 @@ fn collect_failed_types(typ: &Type, acc: &mut Vec<(String, HelpData)>) {
             collect_failed_types(a, acc);
             collect_failed_types(b, acc);
         }
-        Type::Params(ts, _) | Type::Tuple(ts, _) => {
-            ts.iter().for_each(|t| collect_failed_types(t, acc))
-        }
+        Type::Params(ts, _) | Type::Tuple(ts, _) => ts.iter().for_each(|t| collect_failed_types(t, acc)),
         Type::Alias(_, params, _, _) => params.iter().for_each(|t| collect_failed_types(t, acc)),
         _ => {}
     }
@@ -300,23 +274,13 @@ mod tests {
             other => panic!("expected Integer(5), got {:?}", other),
         }
 
-        let res = norm_arithmetic(
-            TypeOperator::Substraction,
-            int(5),
-            int(3),
-            HelpData::default(),
-        );
+        let res = norm_arithmetic(TypeOperator::Substraction, int(5), int(3), HelpData::default());
         match res {
             Type::Integer(Tint::Val(v), _) => assert_eq!(v, 2),
             other => panic!("expected Integer(2), got {:?}", other),
         }
 
-        let res = norm_arithmetic(
-            TypeOperator::Multiplication,
-            int(4),
-            int(3),
-            HelpData::default(),
-        );
+        let res = norm_arithmetic(TypeOperator::Multiplication, int(4), int(3), HelpData::default());
         match res {
             Type::Integer(Tint::Val(v), _) => assert_eq!(v, 12),
             other => panic!("expected Integer(12), got {:?}", other),
@@ -361,10 +325,7 @@ mod tests {
     fn test_arithmetic_stays_symbolic_for_generics() {
         let index = Type::IndexGen("N".to_string(), HelpData::default());
         let res = norm_arithmetic(TypeOperator::Addition, index, int(1), HelpData::default());
-        assert!(matches!(
-            res,
-            Type::Operator(TypeOperator::Addition, _, _, _)
-        ));
+        assert!(matches!(res, Type::Operator(TypeOperator::Addition, _, _, _)));
     }
 
     #[test]
@@ -375,12 +336,7 @@ mod tests {
             "R".to_string(),
             HelpData::default(),
         );
-        let res = norm_arithmetic(
-            TypeOperator::Addition,
-            record_gen,
-            int(1),
-            HelpData::default(),
-        );
+        let res = norm_arithmetic(TypeOperator::Addition, record_gen, int(1), HelpData::default());
         assert!(matches!(res, Type::Failed(_, _)));
     }
 
@@ -403,11 +359,7 @@ mod tests {
             "S".to_string(),
             HelpData::default(),
         );
-        let res = norm_intersection(
-            string_gen,
-            builder::character_type_default(),
-            HelpData::default(),
-        );
+        let res = norm_intersection(string_gen, builder::character_type_default(), HelpData::default());
         assert!(matches!(res, Type::Failed(_, _)));
     }
 
@@ -479,17 +431,11 @@ mod tests {
     fn test_intersection_merges_disjoint_interface_methods() {
         let a = builder::interface_type(&[(
             "view",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::character_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::character_type_default()),
         )]);
         let b = builder::interface_type(&[(
             "len",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::integer_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::integer_type_default()),
         )]);
         let res = norm_intersection(a, b, HelpData::default());
         match res {
@@ -500,10 +446,7 @@ mod tests {
 
     #[test]
     fn test_intersection_merges_shared_identical_method() {
-        let view = builder::function_type(
-            &[builder::self_generic_type()],
-            builder::character_type_default(),
-        );
+        let view = builder::function_type(&[builder::self_generic_type()], builder::character_type_default());
         let a = builder::interface_type(&[("view", view.clone())]);
         let b = builder::interface_type(&[("view", view)]);
         let res = norm_intersection(a, b, HelpData::default());
@@ -517,17 +460,11 @@ mod tests {
     fn test_intersection_incompatible_shared_method_fails() {
         let a = builder::interface_type(&[(
             "view",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::character_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::character_type_default()),
         )]);
         let b = builder::interface_type(&[(
             "view",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::integer_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::integer_type_default()),
         )]);
         let res = norm_intersection(a, b, HelpData::default());
         assert!(matches!(res, Type::Failed(_, _)));
@@ -538,16 +475,10 @@ mod tests {
         let a = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
         let b = builder::interface_type(&[(
             "view",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::character_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::character_type_default()),
         )]);
         let res = norm_intersection(a, b, HelpData::default());
-        assert!(matches!(
-            res,
-            Type::Operator(TypeOperator::Intersection, _, _, _)
-        ));
+        assert!(matches!(res, Type::Operator(TypeOperator::Intersection, _, _, _)));
     }
 
     #[test]

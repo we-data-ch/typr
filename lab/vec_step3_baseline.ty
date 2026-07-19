@@ -1,0 +1,16 @@
+let a: [3, int] <- [1, 2, 3];
+let b <- [4, 5, 6];
+
+let dbl <- fn(x: int): int { x * 2 };
+let is_small <- fn(x: int): bool { if (x < 3) { true } else { false } };
+
+let d <- dbl(a);
+let s <- is_small(b);
+
+let m <- map(a, fn(x: int): int { x + 1 });
+let r <- reduce(a, fn(x: int, y: int): int { x + y });
+let idx <- a[[2]];
+
+let recs: [2, list { x: int }] <- [:{ x = 1 }, :{ x = 2 }];
+
+d

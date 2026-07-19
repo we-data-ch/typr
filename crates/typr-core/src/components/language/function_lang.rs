@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
@@ -18,12 +12,7 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn new(
-        arg_types: Vec<ArgumentType>,
-        return_type: Type,
-        body: Box<Lang>,
-        help_data: HelpData,
-    ) -> Function {
+    pub fn new(arg_types: Vec<ArgumentType>, return_type: Type, body: Box<Lang>, help_data: HelpData) -> Function {
         Function {
             arg_types,
             return_type,

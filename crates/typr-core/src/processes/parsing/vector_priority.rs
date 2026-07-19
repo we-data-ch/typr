@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::error_message::help_data::HelpData;
 use crate::processes::parsing::lang_token::LangToken;
 use crate::processes::parsing::operation_priority::PriorityToken;
@@ -46,10 +40,7 @@ impl<T: PriorityToken, E: From<T> + Default> PriorityTokens<T, E> for VectorPrio
 use std::fmt;
 impl<T: PriorityToken> fmt::Display for VectorPriority<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let txt = self
-            .body
-            .iter()
-            .fold("".to_string(), |x, y| format!("{} {}", x, y));
+        let txt = self.body.iter().fold("".to_string(), |x, y| format!("{} {}", x, y));
         write!(f, "{}", txt)
     }
 }
@@ -57,11 +48,7 @@ impl<T: PriorityToken> fmt::Display for VectorPriority<T> {
 impl From<Vec<TypeToken>> for VectorPriority<TypeToken> {
     fn from(val: Vec<TypeToken>) -> Self {
         let res = val.first().unwrap().clone();
-        let expression = val
-            .iter()
-            .map(|x| x.to_string())
-            .collect::<Vec<_>>()
-            .join(" ");
+        let expression = val.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(" ");
         VectorPriority {
             body: val,
             initial_expression: expression,
@@ -73,11 +60,7 @@ impl From<Vec<TypeToken>> for VectorPriority<TypeToken> {
 impl From<Vec<LangToken>> for VectorPriority<LangToken> {
     fn from(val: Vec<LangToken>) -> Self {
         let res = val.first().unwrap().clone();
-        let expression = val
-            .iter()
-            .map(|x| x.to_string())
-            .collect::<Vec<_>>()
-            .join(" ");
+        let expression = val.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(" ");
         VectorPriority {
             body: val,
             initial_expression: expression,

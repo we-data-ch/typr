@@ -263,6 +263,18 @@ length.typed_vec <- function(x) {
   length(x$data)
 }
 
+# No length.default: `length` is one of R's internal S3-primitive generics
+# (.S3PrimitiveGenerics), not a plain closure-based generic like nchar/sd.
+# `length` is also blacklisted from the typed UseMethod-stub codegen
+# (BLACKLIST in standard_library.rs), so bare `length()` still resolves to
+# the real base primitive, which already falls through to its internal C
+# implementation for any class with no matching method — no `.default`
+# needed. Adding one that forwards via `base::length(x)` would NOT bypass
+# dispatch (internal-generic re-dispatch fires again on the still-classed
+# `x` regardless of namespace-qualification) and recurses infinitely for
+# every classed value, confirmed with a minimal `length.default <-
+# function(x, ...) base::length(x); length(structure(1:3, class="foo"))`.
+
 `[[.typed_vec` <- function(x, i) {
   if (is.character(i)) {
     lapply(x$data, `[[`, i)
@@ -400,6 +412,22 @@ reduce.typed_vec <- function(vec, f, init = NULL) {
 
 sum.default <- function(x, ...) base::sum(x, ...)
 
+# Étape ③ : reduce sur un vecteur atomique nu — résultat scalaire, conforme à
+# la signature `@reduce: ([#N, T], (T, T) -> T) -> T` (contrairement au quirk
+# préexistant de reduce.typed_vec qui ré-emballe dans un typed_vec).
+reduce.default <- function(vec, f, init = NULL) {
+  vals <- as.list(unclass(vec))
+  if (length(vals) == 0) {
+    if (is.null(init)) stop("Cannot reduce empty vector without initial value")
+    return(init)
+  }
+  if (is.null(init)) {
+    Reduce(function(a, b) f(a, b), vals)
+  } else {
+    Reduce(function(a, b) f(a, b), vals, init = init)
+  }
+}
+
 sum.typed_vec <- function(x, ...) {
   reduce(x, `+`)
 }
@@ -410,9 +438,10 @@ fold.typed_vec <- function(vec, init, f, ...) {
   Reduce(function(acc, x) f(acc, x), vec$data, init)
 }
 
+# Étape ③ : version atomique directe (un scalaire isolé se comporte comme un
+# vecteur de longueur 1, comme avant via le wrap typed_vec).
 fold.default <- function(vec, init, f, ...) {
-  if (!inherits(vec, "typed_vec")) vec <- typed_vec(list(vec))
-  fold.typed_vec(vec, init, f)
+  Reduce(function(acc, el) f(acc, el), as.list(unclass(vec)), init)
 }
 
 extend <- function(vec, ...) UseMethod("extend")
@@ -423,6 +452,12 @@ extend.typed_vec <- function(vec, x) {
     class = "typed_vec",
     typed_dim = length(vec) + 1L
   )
+}
+
+# Étape ③ : extension d'un vecteur atomique nu — c() strip le boxing de
+# l'élément ajouté, TypR ré-annote depuis le type statique si nécessaire.
+extend.default <- function(vec, x) {
+  c(vec, x)
 }
 
 vec_extend <- function(vec, x) extend(vec, x)
@@ -605,19 +640,59 @@ update.State <- function(s, f, ...) {
 
 version.State <- function(s, ...) s$version
 
+# Étape ③ (unification_arrays.md) : les tableaux d'éléments primitifs sont
+# des vecteurs atomiques R nus. typr_collect est le collecteur commun de
+# map : résultats tous scalaires « strippables » (atomiques, longueur 1, sans
+# classe ou avec seulement le boxing transparent TypR) → vecteur atomique
+# (unlist strip le boxing par élément), sinon typed_vec (records, valeurs à
+# classe porteuse comme factor/alias opaques, éléments vecteurs). Helpers nus
+# sans @signature (même statut que typed_vec/vec_apply/struct : jamais de
+# stub UseMethod).
+typr_scalar_strippable <- function(el) {
+  if (!is.atomic(el) || length(el) != 1L) return(FALSE)
+  cls <- attr(el, "class")
+  is.null(cls) || all(cls %in% c(
+    "Integer", "Number", "Character", "Boolean",
+    "integer", "numeric", "character", "logical", "Any", "Generic"
+  ))
+}
+
+typr_collect <- function(results, dim = NULL) {
+  if (length(results) > 0L &&
+      all(vapply(results, typr_scalar_strippable, logical(1))) &&
+      length(unique(vapply(results, typeof, character(1)))) == 1L) {
+    unlist(results, use.names = FALSE)
+  } else if (is.null(dim)) {
+    do.call(typed_vec, results)
+  } else {
+    structure(list(data = results), class = "typed_vec", typed_dim = dim)
+  }
+}
+
+# map composite -> primitif : le type statique du résultat est un tableau
+# atomique, la valeur doit suivre (étape ③).
 map.typed_vec <- function(a, f, ...) {
+  typr_collect(lapply(a$data, f), dim = attr(a, "typed_dim"))
+}
+
+map.default <- function(a, f, ...) {
+  typr_collect(lapply(as.list(unclass(a)), f))
+}
+
+map.State <- function(s, f, ...) state(f(s$value))
+
+filter.typed_vec <- function(a, f, ...) {
   structure(
-    list(data = lapply(a$data, f)),
+    list(data = Filter(f, a$data)),
     class = "typed_vec",
     typed_dim = attr(a, "typed_dim")
   )
 }
 
-map.default <- function(a, f, ...) {
-  typed_vec(lapply(as.list(a), f))
+filter.default <- function(a, f, ...) {
+  keep <- vapply(as.list(unclass(a)), function(el) isTRUE(all(unclass(f(el)))), logical(1))
+  unclass(a)[keep]
 }
-
-map.State <- function(s, f, ...) state(f(s$value))
 
 derive.State <- function(s, f, ...) state(f(s$value))
 

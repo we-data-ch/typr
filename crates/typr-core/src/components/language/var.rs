@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::locatable::Locatable;
@@ -54,9 +48,7 @@ pub struct Var {
 
 impl PartialEq for Var {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.is_opaque == other.is_opaque
-            && self.related_type == other.related_type
+        self.name == other.name && self.is_opaque == other.is_opaque && self.related_type == other.related_type
     }
 }
 
@@ -168,10 +160,7 @@ impl Var {
         match t {
             Type::Alias(name, concret_types, opacity, h) => {
                 let var = Var::from_name(&name)
-                    .set_type(Type::Params(
-                        concret_types.to_vec(),
-                        concret_types.clone().into(),
-                    ))
+                    .set_type(Type::Params(concret_types.to_vec(), concret_types.clone().into()))
                     .set_help_data(h)
                     .set_opacity(opacity);
                 Some(var)
@@ -261,8 +250,7 @@ impl Var {
     }
 
     pub fn match_with(&self, var: &Var, context: &Context) -> bool {
-        (self.get_name() == var.get_name())
-            && self.get_type().is_subtype(&var.get_type(), context).0
+        (self.get_name() == var.get_name()) && self.get_type().is_subtype(&var.get_type(), context).0
     }
 
     pub fn set_help_data(self, h: HelpData) -> Var {
@@ -299,12 +287,7 @@ impl Var {
     }
 
     pub fn to_alias_type(self) -> Type {
-        Type::Alias(
-            self.get_name(),
-            vec![],
-            self.is_opaque(),
-            self.get_help_data(),
-        )
+        Type::Alias(self.get_name(), vec![], self.is_opaque(), self.get_help_data())
     }
 
     pub fn to_alias_lang(self) -> Lang {
@@ -463,9 +446,7 @@ impl TryFrom<Type> for Var {
             Type::Char(tchar, h) => match tchar {
                 Tchar::Val(name) => {
                     let var = if is_pascal_case(&name) {
-                        Var::from_name(&name)
-                            .set_help_data(h)
-                            .set_type(builder::params_type())
+                        Var::from_name(&name).set_help_data(h).set_type(builder::params_type())
                     } else {
                         Var::from_name(&name).set_help_data(h)
                     };

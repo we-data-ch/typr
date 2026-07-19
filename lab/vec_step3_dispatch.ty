@@ -1,0 +1,9 @@
+let first_arr <- fn(v: [3, int]): int { v[[1]] };
+let first_vec <- fn(v: Vec[3, int], k: int): int { k };
+let w: Vec[3, int] <- c(1, 2, 3);
+let a <- [1, 2, 3];
+let x <- first_arr(a);
+let y <- first_vec(w, 9);
+let s <- sum(a);
+let e <- extend(a, 4);
+x

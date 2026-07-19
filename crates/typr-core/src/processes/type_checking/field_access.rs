@@ -65,14 +65,12 @@ where
     match find_field(fields, name) {
         Some(ty) => Some(ty),
         None => {
-            errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                Lang::Variable {
-                    name: name.to_string(),
-                    is_opaque: false,
-                    related_type: builder::any_type(),
-                    help_data,
-                },
-            )));
+            errors.push(TypRError::Type(TypeError::UndefinedVariable(Lang::Variable {
+                name: name.to_string(),
+                is_opaque: false,
+                related_type: builder::any_type(),
+                help_data,
+            })));
             None
         }
     }

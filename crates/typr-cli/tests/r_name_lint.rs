@@ -106,11 +106,7 @@ fn s4_generic_collision_is_a_warning_unless_strict() {
         !strict.status.success(),
         "--strict must escalate the S4 generic warning to a build failure"
     );
-    assert!(
-        stderr(&strict).contains("error[r-name-lint]"),
-        "{}",
-        stderr(&strict)
-    );
+    assert!(stderr(&strict).contains("error[r-name-lint]"), "{}", stderr(&strict));
 }
 
 /// Row 4 of the Phase C table: a record constructor whose name collides

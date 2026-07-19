@@ -75,10 +75,7 @@ mod tests {
 
         assert!(provider.exists("test.ty"));
         assert!(!provider.exists("nonexistent.ty"));
-        assert_eq!(
-            provider.get_source("test.ty"),
-            Some("let x: Number = 42;".to_string())
-        );
+        assert_eq!(provider.get_source("test.ty"), Some("let x: Number = 42;".to_string()));
     }
 
     #[test]

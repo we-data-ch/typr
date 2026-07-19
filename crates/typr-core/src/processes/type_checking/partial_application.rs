@@ -62,20 +62,16 @@ pub fn partial_application(
                     }
                 }
                 let names: Vec<String> = params.iter().map(|p| p.get_argument_str()).collect();
-                fixed
-                    .iter()
-                    .all(|(k, _)| names.contains(k))
-                    .then_some((params, *ret))
+                fixed.iter().all(|(k, _)| names.contains(k)).then_some((params, *ret))
             }
             _ => None,
         });
 
     let Some((params, ret_ty)) = candidate else {
-        return record_constructor_partial_application(context, expr, &var, &fixed, h)
-            .unwrap_or_else(|| {
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                    .with_errors(vec![TypRError::Type(TypeError::FunctionNotFound(var))])
-            });
+        return record_constructor_partial_application(context, expr, &var, &fixed, h).unwrap_or_else(|| {
+            TypeContext::new(builder::any_type(), expr.clone(), context.clone())
+                .with_errors(vec![TypRError::Type(TypeError::FunctionNotFound(var))])
+        });
     };
 
     let mut hole_params: Vec<ArgumentType> = Vec::new();
@@ -261,11 +257,7 @@ mod tests {
             .push("let add <- fn(x: int, y: int): int { x + y };")
             .run()
             .check_typing("\\add(x = 2, y = 3)");
-        let expected = Type::Function(
-            vec![],
-            Box::new(builder::integer_type_default()),
-            HelpData::default(),
-        );
+        let expected = Type::Function(vec![], Box::new(builder::integer_type_default()), HelpData::default());
         assert_eq!(res, expected);
     }
 
@@ -277,12 +269,7 @@ mod tests {
             .check_typing("\\Point:{ x = 0 }");
         let expected = Type::Function(
             vec![ArgumentType::new("y", &builder::integer_type_default())],
-            Box::new(Type::Alias(
-                "Point".to_string(),
-                vec![],
-                false,
-                HelpData::default(),
-            )),
+            Box::new(Type::Alias("Point".to_string(), vec![], false, HelpData::default())),
             HelpData::default(),
         );
         assert_eq!(res, expected);

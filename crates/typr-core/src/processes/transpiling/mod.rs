@@ -58,8 +58,38 @@ pub fn escape_r_string(s: &str) -> String {
 /// literal's own would be redundant (or worse, `as.Generic()` when the
 /// literal's inferred type — e.g. `[0, Empty]` for `[]` — has no registered
 /// alias).
+/// Atomic-representation array literal (step ③, unification_arrays.md):
+/// `c(el1, …)`, or the typed empty vector (`integer(0)`, …) matching `elem`
+/// when there are no elements (`c()` alone would be `NULL`, a different R
+/// value entirely).
+fn atomic_array_literal(array: &Lang, cont: &Context, elem: &Type) -> String {
+    let lin_array = array
+        .linearize_array()
+        .iter()
+        .map(|lang| lang.to_r(cont).0)
+        .collect::<Vec<_>>()
+        .join(", ");
+    if lin_array.is_empty() {
+        let empty = match elem {
+            Type::Integer(_, _) => "integer(0)",
+            Type::Char(_, _) => "character(0)",
+            Type::Boolean(_, _) => "logical(0)",
+            _ => "numeric(0)",
+        };
+        return empty.to_string();
+    }
+    format!("c({})", lin_array)
+}
+
 fn array_literal_raw(array: &Lang, cont: &Context) -> String {
     let typ = array.typing(cont).value;
+    // Step ③ (unification_arrays.md): a primitive-element array is a bare R
+    // atomic vector. The elements keep their scalar transpilation (`1L |>
+    // as.Integer()`, …) — `c()` strips the per-element boxing classes, which
+    // is exactly the representation we want.
+    if let Some(elem) = cont.atomic_array_elem(&typ) {
+        return atomic_array_literal(array, cont, &elem);
+    }
     let dimension = ArrayType::try_from(typ)
         .expect("array literal should have an array type")
         .get_shape()
@@ -171,9 +201,7 @@ pub fn take_main_import_froms() -> Vec<String> {
 /// Register a generated file (used for WASM mode to capture file outputs)
 pub fn register_generated_file(path: &str, content: &str) {
     GENERATED_FILES.with(|files| {
-        files
-            .borrow_mut()
-            .insert(path.to_string(), content.to_string());
+        files.borrow_mut().insert(path.to_string(), content.to_string());
     });
 }
 
@@ -209,8 +237,7 @@ fn write_output_file(path: &str, content: &str) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let mut file = File::create(&path_buf).map_err(|e| e.to_string())?;
-    file.write_all(content.as_bytes())
-        .map_err(|e| e.to_string())?;
+    file.write_all(content.as_bytes()).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -234,11 +261,7 @@ impl<T: Sized> ToSome for T {
 
 const JS_HEADER: &str = "";
 
-fn to_pattern_match_statement(
-    exp: Lang,
-    branches: &[(Lang, Box<Lang>)],
-    context: &Context,
-) -> String {
+fn to_pattern_match_statement(exp: Lang, branches: &[(Lang, Box<Lang>)], context: &Context) -> String {
     let match_var = "match_val__";
     let res = branches
         .iter()
@@ -306,11 +329,7 @@ fn record_field_class(typ: &Type, cont: &Context) -> Option<String> {
         Type::Number(_, _) => Some("numeric".to_string()),
         Type::Char(_, _) => Some("character".to_string()),
         Type::Boolean(_, _) => Some("logical".to_string()),
-        Type::Alias(name, _, _, _) => match cont
-            .aliases()
-            .find(|(var, _)| var.get_name() == *name)
-            .map(|(_, t)| t)
-        {
+        Type::Alias(name, _, _, _) => match cont.aliases().find(|(var, _)| var.get_name() == *name).map(|(_, t)| t) {
             // Record aliases carry their alias name as the S3 class.
             Some(Type::Record(_, _)) => Some(name.clone()),
             // Primitive aliases (e.g. `type Meters <- int`) carry the underlying
@@ -331,12 +350,7 @@ fn find_union_for_tag(tag_name: &str, cont: &Context) -> Option<String> {
     cont.aliases().find_map(|(var, typ)| {
         let is_union = matches!(
             typ,
-            Type::Operator(
-                crate::components::r#type::type_operator::TypeOperator::Union,
-                _,
-                _,
-                _
-            )
+            Type::Operator(crate::components::r#type::type_operator::TypeOperator::Union, _, _, _)
         );
         if !is_union {
             return None;
@@ -412,9 +426,7 @@ fn tag_variant_pipeline(variant_name: &str, union_name: &str, inner_type: &Type)
     // Constructor: build the raw value, then delegate entirely to the
     // annotator. It neither sets the class nor validates.
     let constructor = if is_empty {
-        format!(
-            "{variant_name} <- function() {{\n  x <- list(\"{variant_name}\")\n  as.{variant_name}(x)\n}}"
-        )
+        format!("{variant_name} <- function() {{\n  x <- list(\"{variant_name}\")\n  as.{variant_name}(x)\n}}")
     } else {
         format!(
             "{variant_name} <- function(x) {{\n  v <- list(\"{variant_name}\", body = x)\n  as.{variant_name}(v)\n}}"
@@ -437,9 +449,7 @@ fn tag_variant_pipeline(variant_name: &str, union_name: &str, inner_type: &Type)
 fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> (String, String) {
     match pattern {
         // Tag with a binding variable: .Some(a)
-        Lang::Tag {
-            name, value: inner, ..
-        } => {
+        Lang::Tag { name, value: inner, .. } => {
             let cond = format!("{}[[1]] == '{}'", match_var, name);
             match inner.as_ref() {
                 Lang::Variable { name: var_name, .. } => {
@@ -462,9 +472,7 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
             (cond, binding)
         }
         // Tuple pattern: :{a, b, c}
-        Lang::Tuple {
-            value: elements, ..
-        } => {
+        Lang::Tuple { value: elements, .. } => {
             let cond = format!(
                 "inherits({}, 'Tuple') && length({}) == {}",
                 match_var,
@@ -492,9 +500,7 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
         Lang::List { value: fields, .. } => {
             let conditions: Vec<String> = fields
                 .iter()
-                .map(|arg_val: &ArgumentValue| {
-                    format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument())
-                })
+                .map(|arg_val: &ArgumentValue| format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument()))
                 .collect();
             let cond = if conditions.is_empty() {
                 "is.list(".to_string() + match_var + ")"
@@ -522,18 +528,12 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
         Lang::DataFrame { value: fields, .. } => {
             let conditions: Vec<String> = fields
                 .iter()
-                .map(|arg_val: &ArgumentValue| {
-                    format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument())
-                })
+                .map(|arg_val: &ArgumentValue| format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument()))
                 .collect();
             let cond = if conditions.is_empty() {
                 "is.data.frame(".to_string() + match_var + ")"
             } else {
-                format!(
-                    "is.data.frame({}) && {}",
-                    match_var,
-                    conditions.join(" && ")
-                )
+                format!("is.data.frame({}) && {}", match_var, conditions.join(" && "))
             };
             let bindings: Vec<String> = fields
                 .iter()
@@ -587,10 +587,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Char { value: s, .. } => {
                 let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
-                (
-                    format!("{} |> {}", escape_r_string(s), anotation),
-                    cont.clone(),
-                )
+                (format!("{} |> {}", escape_r_string(s), anotation), cont.clone())
             }
             Lang::Operator {
                 operator: op @ (Op::Dot(_) | Op::Pipe(_)),
@@ -691,9 +688,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let e2 = (**e2).clone();
                 let t1 = typing(cont, &e1).value;
                 let val = match (t1.clone(), e2.clone()) {
-                    (Type::Vec(vtype, _, _, _), Lang::Variable { name, .. })
-                        if vtype.is_array() =>
-                    {
+                    (Type::Vec(vtype, _, _, _), Lang::Variable { name, .. }) if vtype.is_array() => {
                         format!("vec_apply(get, {}, typed_vec('{}'))", e1.to_r(cont).0, name)
                     }
                     (Type::Vec(VecType::S3, _, _, _), Lang::Variable { name, .. }) => {
@@ -712,11 +707,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 ..
             } => {
                 let op_str = format!(" {} ", op);
-                Translatable::from(cont.clone())
-                    .to_r(e1)
-                    .add(&op_str)
-                    .to_r(e2)
-                    .into()
+                Translatable::from(cont.clone()).to_r(e1).add(&op_str).to_r(e2).into()
             }
             Lang::Scope { body: exps, .. } => Translatable::from(cont.clone())
                 .add("{\n")
@@ -765,10 +756,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 };
 
                 let has_variadic = params.last().map(|p| p.is_variadic()).unwrap_or(false);
-                let list_of_types = params
-                    .iter()
-                    .map(ArgumentType::body_type)
-                    .collect::<Vec<_>>();
+                let list_of_types = params.iter().map(ArgumentType::body_type).collect::<Vec<_>>();
                 let sub_context = params
                     .iter()
                     .map(|arg_typ| arg_typ.clone().set_type(arg_typ.body_type()).to_var(cont))
@@ -804,12 +792,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     .iter()
                     .filter(|p| !p.is_variadic())
                     .filter_map(|p| {
-                        checked_assertions::param_assertion(
-                            cont,
-                            &p.get_argument_str(),
-                            &p.body_type(),
-                            help_data,
-                        )
+                        checked_assertions::param_assertion(cont, &p.get_argument_str(), &p.body_type(), help_data)
                     })
                     .collect();
                 let final_body_r = if checked_prologue.is_empty() {
@@ -819,21 +802,12 @@ impl RTranslatable<(String, Context)> for Lang {
                 } else {
                     with_variadic_collector
                 };
-                let final_body_r = checked_assertions::wrap_checked(
-                    cont,
-                    final_body_r,
-                    &return_type,
-                    help_data,
-                    "return",
-                );
+                let final_body_r =
+                    checked_assertions::wrap_checked(cont, final_body_r, &return_type, help_data, "return");
                 (
                     format!(
                         "(function({}) {}{}) |> {}",
-                        params
-                            .iter()
-                            .map(|x| x.to_r(cont))
-                            .collect::<Vec<_>>()
-                            .join(", "),
+                        params.iter().map(|x| x.to_r(cont)).collect::<Vec<_>>().join(", "),
                         final_body_r,
                         res,
                         cont.get_type_anotation(&fn_type.into())
@@ -899,17 +873,14 @@ impl RTranslatable<(String, Context)> for Lang {
                             name.replace("__", ".")
                         };
                         if cont1.is_extern_fn(&name) {
-                            let r_name = cont1
-                                .get_extern_r_name(&name)
-                                .unwrap_or_else(|| new_name.clone());
+                            let r_name = cont1.get_extern_r_name(&name).unwrap_or_else(|| new_name.clone());
                             let return_type = fn_t_opt
                                 .as_ref()
                                 .map(|ft| ft.get_return_type())
                                 .expect("extern function application identifier should have a function type");
                             let lift_fn = extern_lift_fn(&return_type);
-                            let (args_vec, current_cont): (Vec<String>, Context) = new_vals
-                                .iter()
-                                .fold((Vec::new(), cont1.clone()), |(mut v, c), val| {
+                            let (args_vec, current_cont): (Vec<String>, Context) =
+                                new_vals.iter().fold((Vec::new(), cont1.clone()), |(mut v, c), val| {
                                     let (s, c2) = val.to_r(&c);
                                     v.push(format!("to_native({})", s));
                                     (v, c2)
@@ -922,22 +893,16 @@ impl RTranslatable<(String, Context)> for Lang {
                             };
                             (result, current_cont)
                         } else if cont1.is_import_from_fn(&name) {
-                            let r_name = cont1
-                                .get_import_from_r_name(&name)
-                                .unwrap_or_else(|| new_name.clone());
-                            let (args, current_cont) =
-                                Translatable::from(cont1).join(&new_vals, ", ").into();
+                            let r_name = cont1.get_import_from_r_name(&name).unwrap_or_else(|| new_name.clone());
+                            let (args, current_cont) = Translatable::from(cont1).join(&new_vals, ", ").into();
                             (format!("{}({})", r_name, args), current_cont)
                         } else {
-                            let (args, current_cont) =
-                                Translatable::from(cont1).join(&new_vals, ", ").into();
+                            let (args, current_cont) = Translatable::from(cont1).join(&new_vals, ", ").into();
                             (format!("{}({})", new_name, args), current_cont)
                         }
                     })
                     .unwrap_or_else(|| {
-                        let (args, current_cont) = Translatable::from(cont1_fallback)
-                            .join(&new_vals, ", ")
-                            .into();
+                        let (args, current_cont) = Translatable::from(cont1_fallback).join(&new_vals, ", ").into();
                         (format!("{}({})", exp_str, args), current_cont)
                     })
             }
@@ -949,26 +914,133 @@ impl RTranslatable<(String, Context)> for Lang {
             } => {
                 let var = Var::try_from(exp.clone()).unwrap();
                 let name = var.get_name();
-                let str_vals = vals
+                let str_vals = vals.iter().map(|x| x.to_r(cont).0).collect::<Vec<_>>().join(", ");
+                // Step ③ (unification_arrays.md): primitive-element arrays
+                // share the bare-atomic-vector representation with `Vec`, so
+                // a lifted call over them takes the same vapply/direct-call
+                // path. `vec_apply` (the list-based lift) only remains for
+                // composite-element (typed_vec) arrays.
+                let has_atomic_array_arg = vals
                     .iter()
-                    .map(|x| x.to_r(cont).0)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                if *vector_type == VecType::Vector {
+                    .any(|val| cont.atomic_array_elem(&val.typing(cont).value).is_some());
+                if *vector_type == VecType::Vector || has_atomic_array_arg {
                     // `Vec[N, T]` values transpile to plain R atomic vectors (see
-                    // vectors.md): R already vectorizes arithmetic/comparison
-                    // operators and ordinary scalar functions over them natively,
-                    // so no `vec_apply` (typed_vec normalization + manual
-                    // recycling, needed for the `[N, T]` / S3-array mechanism) is
-                    // required here — just call the function plainly.
-                    if cont.is_an_untyped_function(&name) {
-                        let name = name.replace("__", ".");
-                        let new_name = if &name[0..1] == "%" {
-                            format!("`{}`", name)
-                        } else {
-                            name.to_string()
+                    // vectors.md). Base-R/stdlib callees (no user declaration in
+                    // scope — NB `is_an_untyped_function` returns *false* for
+                    // them) keep the plain call: their R implementations are
+                    // natively vectorized. A user-declared scalar function must
+                    // NOT be called directly though: any `if`/`match` in its
+                    // transpiled body is scalar-only (`if` on a length > 1
+                    // condition is a fatal R error since 4.2), even when the
+                    // type-checker vector-lifted the call. The element-wise lift
+                    // is made explicit with a `vapply` whose `FUN.VALUE` comes
+                    // from the callee's static scalar return type (composite or
+                    // unresolved return → `lapply`). Exception (step 2 of the
+                    // vector/array unification plan): a user function whose
+                    // body was proven element-wise at declaration time
+                    // (`Context::is_vectorizable_fn`, computed by
+                    // `type_checking::vectorizability`) is called directly —
+                    // R runs the body once over the whole vector at native
+                    // speed, with identical element-wise semantics.
+                    if cont.is_an_untyped_function(&name)
+                        && !cont.is_vectorizable_fn(&name)
+                        && !crate::processes::type_checking::vectorizability::is_natively_vectorized_callee(&name)
+                    {
+                        let (_, cont1) = exp.to_r(cont);
+                        let fn_t_opt = cont1
+                            .get_type_from_variable(&var)
+                            .ok()
+                            .and_then(|t| FunctionType::try_from(t).ok());
+                        let new_vals = match &fn_t_opt {
+                            Some(fn_t) => {
+                                let new_args = fn_t
+                                    .get_param_types()
+                                    .iter()
+                                    .map(|arg| reduce_type(&cont1, arg))
+                                    .collect::<Vec<_>>();
+                                vals.iter()
+                                    .zip(new_args.iter())
+                                    .map(set_related_type_if_variable)
+                                    .collect::<Vec<_>>()
+                            }
+                            None => vals.clone(),
                         };
-                        (format!("{}({})", new_name, str_vals), cont.clone())
+                        let (arg_strs, current_cont) = new_vals.iter().fold(
+                            (Vec::new(), cont1.clone()),
+                            |(mut acc, c): (Vec<String>, Context), val| {
+                                let (s, c2) = val.to_r(&c);
+                                acc.push(s);
+                                (acc, c2)
+                            },
+                        );
+                        let dotted = name.replace("__", ".");
+                        let new_name = if &dotted[0..1] == "%" {
+                            format!("`{}`", dotted)
+                        } else {
+                            dotted
+                        };
+                        // Which argument positions actually carry the vector
+                        // being mapped over (the others are passed through as
+                        // scalar constants).
+                        let vec_positions: Vec<usize> = new_vals
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, val)| {
+                                let t = reduce_type(&cont1, &val.typing(&cont1).value);
+                                matches!(&t, Type::Vec(vt, _, _, _) if vt.is_vector())
+                                    || cont1.atomic_array_elem(&t).is_some()
+                            })
+                            .map(|(i, _)| i)
+                            .collect();
+                        let fun_value = fn_t_opt
+                            .as_ref()
+                            .map(|fn_t| reduce_type(&cont1, &fn_t.get_return_type()))
+                            .and_then(|ret| match ret {
+                                Type::Boolean(_, _) => Some("logical(1)"),
+                                Type::Integer(_, _) => Some("integer(1)"),
+                                Type::Number(_, _) => Some("numeric(1)"),
+                                Type::Char(_, _) => Some("character(1)"),
+                                _ => None,
+                            });
+                        let code = match vec_positions.as_slice() {
+                            [] => format!("{}({})", new_name, arg_strs.join(", ")),
+                            [i] => {
+                                let inner_args = arg_strs
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(j, s)| if j == *i { ".typr_x".to_string() } else { s.clone() })
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                let fun = format!("function(.typr_x) {}({})", new_name, inner_args);
+                                match fun_value {
+                                    Some(fv) => format!("vapply({}, {}, {}, USE.NAMES = FALSE)", arg_strs[*i], fun, fv),
+                                    None => format!("lapply({}, {})", arg_strs[*i], fun),
+                                }
+                            }
+                            many => {
+                                let first = &arg_strs[many[0]];
+                                let inner_args = arg_strs
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(j, s)| {
+                                        if many.contains(&j) {
+                                            format!("{}[[.typr_i]]", s)
+                                        } else {
+                                            s.clone()
+                                        }
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                let fun = format!("function(.typr_i) {}({})", new_name, inner_args);
+                                match fun_value {
+                                    Some(fv) => {
+                                        format!("vapply(seq_along({}), {}, {}, USE.NAMES = FALSE)", first, fun, fv)
+                                    }
+                                    None => format!("lapply(seq_along({}), {})", first, fun),
+                                }
+                            }
+                        };
+                        (code, current_cont)
                     } else {
                         let (exp_str, cont1) = exp.to_r(cont);
                         // See the comment on the analogous fallback in
@@ -993,8 +1065,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             }
                             None => vals.clone(),
                         };
-                        let (args, current_cont) =
-                            Translatable::from(cont1).join(&new_vals, ", ").into();
+                        let (args, current_cont) = Translatable::from(cont1).join(&new_vals, ", ").into();
                         Var::from_language(*exp.clone())
                             .map(|var| {
                                 let name = var.get_name();
@@ -1042,8 +1113,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         }
                         None => vals.clone(),
                     };
-                    let (args, current_cont) =
-                        Translatable::from(cont1).join(&new_vals, ", ").into();
+                    let (args, current_cont) = Translatable::from(cont1).join(&new_vals, ", ").into();
                     Var::from_language(*exp.clone())
                         .map(|var| {
                             let name = var.get_name();
@@ -1052,10 +1122,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             } else {
                                 name.replace("__", ".")
                             };
-                            (
-                                format!("vec_apply({}, {})", new_name, args),
-                                current_cont.clone(),
-                            )
+                            (format!("vec_apply({}, {})", new_name, args), current_cont.clone())
                         })
                         .unwrap_or((format!("vec_apply({}, {})", exp_str, args), current_cont))
                 }
@@ -1097,10 +1164,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 };
                 (res, cont.clone())
             }
-            Lang::GenFunc { name: func, .. } => (
-                format!("function(x, ...) UseMethod('{}')", func),
-                cont.clone(),
-            ),
+            Lang::GenFunc { name: func, .. } => (format!("function(x, ...) UseMethod('{}')", func), cont.clone()),
             Lang::Let {
                 variable: expr,
                 r#type: ttype,
@@ -1120,12 +1184,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let body_str = if ttype.is_empty() {
                     body_str
                 } else {
-                    let what = format!(
-                        "let {}",
-                        Var::try_from(expr)
-                            .map(|v| v.get_name())
-                            .unwrap_or_default()
-                    );
+                    let what = format!("let {}", Var::try_from(expr).map(|v| v.get_name()).unwrap_or_default());
                     checked_assertions::wrap_checked(&new_cont, body_str, ttype, help_data, &what)
                 };
                 let new_name = format_backtick(expr.clone().to_r(cont).0);
@@ -1242,13 +1301,9 @@ impl RTranslatable<(String, Context)> for Lang {
                 )
             }
             Lang::List {
-                value: args,
-                spreads,
-                ..
+                value: args, spreads, ..
             } if spreads.is_empty() => {
-                let (body, current_cont) = Translatable::from(cont.clone())
-                    .join_arg_val(args, ",\n ")
-                    .into();
+                let (body, current_cont) = Translatable::from(cont.clone()).join_arg_val(args, ",\n ").into();
                 let (typ, _, _) = typing(cont, self).to_tuple();
                 // For record-alias types use the constructor directly
                 if let Type::Alias(alias_name, _, _, _) = &typ {
@@ -1276,9 +1331,7 @@ impl RTranslatable<(String, Context)> for Lang {
             // expansion, so unknown/row-polymorphic fields carried by the
             // runtime value of `source` are preserved (§5-§7).
             Lang::List {
-                value: args,
-                spreads,
-                ..
+                value: args, spreads, ..
             } => {
                 let mut spreads_iter = spreads.iter();
                 let first = spreads_iter.next().expect("checked non-empty above");
@@ -1291,18 +1344,11 @@ impl RTranslatable<(String, Context)> for Lang {
                 if args.is_empty() {
                     return (base, current_cont);
                 }
-                let (overrides, current_cont) = Translatable::from(current_cont)
-                    .join_arg_val(args, ", ")
-                    .into();
-                (
-                    format!("spread({}, list({}))", base, overrides),
-                    current_cont,
-                )
+                let (overrides, current_cont) = Translatable::from(current_cont).join_arg_val(args, ", ").into();
+                (format!("spread({}, list({}))", base, overrides), current_cont)
             }
             Lang::DataFrame { value: args, .. } => {
-                let (body, current_cont) = Translatable::from(cont.clone())
-                    .join_arg_val(args, ",\n ")
-                    .into();
+                let (body, current_cont) = Translatable::from(cont.clone()).join_arg_val(args, ",\n ").into();
                 let (typ, _, _) = typing(cont, self).to_tuple();
                 let anotation = cont.get_type_anotation(&typ);
                 cont.get_classes(&typ)
@@ -1317,15 +1363,13 @@ impl RTranslatable<(String, Context)> for Lang {
                 if_block: exp,
                 else_block: els,
                 ..
-            } if els == &Box::new(Lang::Empty(HelpData::default())) => {
-                Translatable::from(cont.clone())
-                    .add("if(")
-                    .to_r(cond)
-                    .add(") {\n")
-                    .to_r(exp)
-                    .add(" \n}")
-                    .into()
-            }
+            } if els == &Box::new(Lang::Empty(HelpData::default())) => Translatable::from(cont.clone())
+                .add("if(")
+                .to_r(cond)
+                .add(") {\n")
+                .to_r(exp)
+                .add(" \n}")
+                .into(),
             Lang::If {
                 condition: cond,
                 if_block: exp,
@@ -1350,24 +1394,15 @@ impl RTranslatable<(String, Context)> for Lang {
                     .join(vals, ", ")
                     .add("), 'Tuple')")
                     .into();
-                (
-                    format!("{} |> {}", body, cont.get_type_anotation(&typ)),
-                    current_cont,
-                )
+                (format!("{} |> {}", body, cont.get_type_anotation(&typ)), current_cont)
             }
             Lang::Assign {
                 identifier: var,
                 expression: exp,
                 ..
-            } => Translatable::from(cont.clone())
-                .to_r(var)
-                .add(" <- ")
-                .to_r(exp)
-                .into(),
+            } => Translatable::from(cont.clone()).to_r(var).add(" <- ").to_r(exp).into(),
             Lang::Comment { value: txt, .. } => ("#".to_string() + txt, cont.clone()),
-            Lang::Tag {
-                name: s, value: t, ..
-            } => {
+            Lang::Tag { name: s, value: t, .. } => {
                 let (t_str, new_cont) = t.to_r(cont);
                 let is_empty = matches!(t.as_ref(), Lang::Empty(_));
                 // Canonical representation (see validation_variant_d_union.md §2):
@@ -1383,18 +1418,13 @@ impl RTranslatable<(String, Context)> for Lang {
                 let value = if is_empty {
                     format!("structure(list('{}'), class = {})", s, class)
                 } else {
-                    format!(
-                        "structure(list('{}', body = {}), class = {})",
-                        s, t_str, class
-                    )
+                    format!("structure(list('{}', body = {}), class = {})", s, t_str, class)
                 };
                 (value, new_cont)
             }
             Lang::Null(_) => ("NULL".to_string(), cont.clone()),
             Lang::Empty(_) => ("NA".to_string(), cont.clone()),
-            Lang::Lines { value: exps, .. } => {
-                Translatable::from(cont.clone()).join(exps, "\n").into()
-            }
+            Lang::Lines { value: exps, .. } => Translatable::from(cont.clone()).join(exps, "\n").into(),
             // `return X` is a syntax error in R — `return` is an ordinary
             // function there, not a statement keyword, so the argument must
             // be parenthesized (`return(X)`).
@@ -1416,20 +1446,14 @@ impl RTranslatable<(String, Context)> for Lang {
                     })
                     .collect();
                 (
-                    format!(
-                        "function({}) {{ {} }}",
-                        param_names.join(", "),
-                        bloc.to_r(cont).0
-                    ),
+                    format!("function({}) {{ {} }}", param_names.join(", "), bloc.to_r(cont).0),
                     cont.clone(),
                 )
             }
             Lang::VecBlock { value: bloc, .. } => (bloc.to_string(), cont.clone()),
             Lang::Library { value: name, .. } => (format!("library({})", name), cont.clone()),
             Lang::Match {
-                target: exp,
-                branches,
-                ..
+                target: exp, branches, ..
             } => (
                 to_pattern_match_statement((**exp).clone(), branches, cont),
                 cont.clone(),
@@ -1450,9 +1474,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 .add("\n}")
                 .into(),
             Lang::RFunction {
-                parameters: vars,
-                body,
-                ..
+                parameters: vars, body, ..
             } => Translatable::from(cont.clone())
                 .add("function (")
                 .join(vars, ", ")
@@ -1465,15 +1487,8 @@ impl RTranslatable<(String, Context)> for Lang {
                 body,
                 ..
             } => {
-                let param_names = params
-                    .iter()
-                    .map(|p| p.to_r(cont))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                (
-                    format!("function({}) {{\n{}\n}}", param_names, body),
-                    cont.clone(),
-                )
+                let param_names = params.iter().map(|p| p.to_r(cont)).collect::<Vec<_>>().join(", ");
+                (format!("function({}) {{\n{}\n}}", param_names, body), cont.clone())
             }
             Lang::Signature { .. } => ("".to_string(), cont.clone()),
             Lang::TypeConstructor { .. } => ("".to_string(), cont.clone()),
@@ -1503,11 +1518,9 @@ impl RTranslatable<(String, Context)> for Lang {
                 // at all for these shapes, leaving `validate_X`/`as.X`
                 // referenced elsewhere but never defined.
                 let typ_for_dispatch: Type = match typ {
-                    Type::Operator(TypeOperator::Intersection, _, _, h) => {
-                        facets::record_facet(cont, typ)
-                            .map(|fields| Type::Record(fields, h.clone()))
-                            .unwrap_or_else(|| typ.clone())
-                    }
+                    Type::Operator(TypeOperator::Intersection, _, _, h) => facets::record_facet(cont, typ)
+                        .map(|fields| Type::Record(fields, h.clone()))
+                        .unwrap_or_else(|| typ.clone()),
                     _ => typ.clone(),
                 };
                 match &typ_for_dispatch {
@@ -1553,8 +1566,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         // Built as an ordered Vec (not a HashMap) and deduplicated by
                         // first occurrence, so candidate order — and therefore the
                         // final sort below — stays deterministic across runs.
-                        let mut seen_names: std::collections::HashSet<String> =
-                            std::collections::HashSet::new();
+                        let mut seen_names: std::collections::HashSet<String> = std::collections::HashSet::new();
                         let candidates: Vec<(String, Type)> = cont
                             .aliases()
                             .map(|(var, typ)| (var.get_name(), typ.clone()))
@@ -1568,8 +1580,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                     return None;
                                 }
                                 if let Type::Record(other_fields, _) = typ {
-                                    if fields.is_superset(&other_fields) && other_fields != *fields
-                                    {
+                                    if fields.is_superset(&other_fields) && other_fields != *fields {
                                         Some((other_name, other_fields.len()))
                                     } else {
                                         None
@@ -1592,19 +1603,16 @@ impl RTranslatable<(String, Context)> for Lang {
                         // final whole-program context (transpiling runs after all
                         // typing), so implementing functions declared later in the
                         // source are already visible here.
-                        let self_alias =
-                            Type::Alias(name.clone(), vec![], false, HelpData::default());
-                        let mut seen_ifaces: std::collections::HashSet<String> =
-                            std::collections::HashSet::new();
+                        let self_alias = Type::Alias(name.clone(), vec![], false, HelpData::default());
+                        let mut seen_ifaces: std::collections::HashSet<String> = std::collections::HashSet::new();
                         let mut interface_entries: Vec<(String, usize)> = cont
                             .aliases()
                             .filter(|(var, _)| var.get_name() != name)
                             .filter(|(_, alias_typ)| !alias_typ.has_generic())
                             .filter_map(|(var, alias_typ)| {
                                 let methods = facets::interface_facet(cont, alias_typ)?;
-                                (seen_ifaces.insert(var.get_name())
-                                    && self_alias.is_subtype_raw(alias_typ, cont))
-                                .then(|| (var.get_name(), methods.len()))
+                                (seen_ifaces.insert(var.get_name()) && self_alias.is_subtype_raw(alias_typ, cont))
+                                    .then(|| (var.get_name(), methods.len()))
                             })
                             .collect();
                         // More methods = more specific; ties broken by name.
@@ -1659,10 +1667,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         let validator = format!(
                             "validate_{name} <- function(x) {{\n  required_fields <- c({fields_quoted})\n  missing_fields <- setdiff(required_fields, names(x))\n  if (length(missing_fields) > 0) {{\n    stop(paste0(\"Validation failed for type {name}: missing fields: \", paste(missing_fields, collapse = \", \")))\n  }}\n{field_checks_block}  x\n}}"
                         );
-                        (
-                            format!("{constructor}\n{annotator}\n{validator}"),
-                            cont.clone(),
-                        )
+                        (format!("{constructor}\n{annotator}\n{validator}"), cont.clone())
                     }
                     // Dataframe alias (`type Df <- dataframe[#N]{ ... }` /
                     // `df[3]{ ... }`): same constructor/annotator/validator
@@ -1741,10 +1746,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         let validator = format!(
                             "validate_{name} <- function(x) {{\n  if (!is.data.frame(x)) stop(\"Validation failed for type {name}: expected a data.frame\")\n  required_fields <- c({fields_quoted})\n  missing_fields <- setdiff(required_fields, names(x))\n  if (length(missing_fields) > 0) {{\n    stop(paste0(\"Validation failed for type {name}: missing columns: \", paste(missing_fields, collapse = \", \")))\n  }}\n{field_checks_block}{size_check}  x\n}}"
                         );
-                        (
-                            format!("{constructor}\n{annotator}\n{validator}"),
-                            cont.clone(),
-                        )
+                        (format!("{constructor}\n{annotator}\n{validator}"), cont.clone())
                     }
                     // Vector alias (`type V <- Vec[#N, T]` / `Vec[3, T]` /
                     // `Vec[T]`): no class is added (R already distinguishes
@@ -1755,8 +1757,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     // concrete literal.
                     Type::Vec(VecType::Vector, size, elem_type, _) => {
                         use crate::components::r#type::tint::Tint;
-                        let constructor =
-                            format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
+                        let constructor = format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
                         let elem_check = record_field_class(elem_type.as_ref(), cont).map(|cls| {
                             format!(
                                 "  if (!inherits(x, \"{cls}\")) stop(\"Validation failed for type {name}: expected vector of {cls}\")\n"
@@ -1769,9 +1770,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         } else {
                             String::new()
                         };
-                        let validator = format!(
-                            "validate_{name} <- function(x) {{\n{elem_check}{size_check}  x\n}}"
-                        );
+                        let validator = format!("validate_{name} <- function(x) {{\n{elem_check}{size_check}  x\n}}");
                         (format!("{constructor}\n{validator}"), cont.clone())
                     }
                     // Array alias (`type A <- [#N, T]` / `[3, T]` / bare
@@ -1784,8 +1783,46 @@ impl RTranslatable<(String, Context)> for Lang {
                     // `typed_vec` subclass — same annotator/validator shape
                     // as a record alias — so generic functions written
                     // against `typed_vec` dispatch on it.
-                    Type::Vec(VecType::S3, size, elem_type, _)
-                    | Type::Vec(VecType::Array, size, elem_type, _) => {
+                    // Atomic-representation array alias (step ③,
+                    // unification_arrays.md): the runtime value is a bare R
+                    // atomic vector, so the pipeline must neither coerce to
+                    // `typed_vec` nor validate against it. The annotator
+                    // still appends the alias class (S3 dispatch for
+                    // alias-typed parameters relies on it); `c()`/subsetting
+                    // strip it, but TypR re-annotates from the static type.
+                    Type::Vec(VecType::S3, size, elem_type, _) | Type::Vec(VecType::Array, size, elem_type, _)
+                        if cont.atomic_array_elem(typ).is_some() =>
+                    {
+                        use crate::components::r#type::tint::Tint;
+                        let constructor = format!("{name} <- function(x) {{\n  as.{name}(x)\n}}");
+                        let annotator = format!(
+                            "as.{name} <- function(x) {{\n  if (!inherits(x, \"{name}\")) class(x) <- c(\"{name}\", class(x))\n  x <- validate_{name}(x)\n  x <- validate(x)\n  x\n}}"
+                        );
+                        let elem_check = match cont.atomic_array_elem(typ) {
+                            Some(Type::Integer(_, _)) => format!(
+                                "  if (!(is.integer(x) || (is.numeric(x) && all(x == trunc(x))))) stop(\"Validation failed for type {name}: expected an integer vector\")\n"
+                            ),
+                            Some(Type::Char(_, _)) => format!(
+                                "  if (!is.character(x)) stop(\"Validation failed for type {name}: expected a character vector\")\n"
+                            ),
+                            Some(Type::Boolean(_, _)) => format!(
+                                "  if (!is.logical(x)) stop(\"Validation failed for type {name}: expected a logical vector\")\n"
+                            ),
+                            _ => format!(
+                                "  if (!is.numeric(x)) stop(\"Validation failed for type {name}: expected a numeric vector\")\n"
+                            ),
+                        };
+                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                            format!(
+                                "  if (length(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected length {n}, got \", length(x)))\n"
+                            )
+                        } else {
+                            String::new()
+                        };
+                        let validator = format!("validate_{name} <- function(x) {{\n{elem_check}{size_check}  x\n}}");
+                        (format!("{constructor}\n{annotator}\n{validator}"), cont.clone())
+                    }
+                    Type::Vec(VecType::S3, size, elem_type, _) | Type::Vec(VecType::Array, size, elem_type, _) => {
                         use crate::components::r#type::tint::Tint;
                         let constructor = format!(
                             "{name} <- function(x) {{\n  if (!inherits(x, \"typed_vec\")) x <- typed_vec(x)\n  as.{name}(x)\n}}"
@@ -1808,10 +1845,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         let validator = format!(
                             "validate_{name} <- function(x) {{\n  if (!inherits(x, \"typed_vec\")) stop(\"Validation failed for type {name}: expected typed_vec\")\n{elem_check}{size_check}  x\n}}"
                         );
-                        (
-                            format!("{constructor}\n{annotator}\n{validator}"),
-                            cont.clone(),
-                        )
+                        (format!("{constructor}\n{annotator}\n{validator}"), cont.clone())
                     }
                     Type::Operator(_, _, _, _) => {
                         // Union alias: generate the full constructor/annotator/
@@ -1881,8 +1915,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "validate_{name} <- function(x) {{\n  if (!is.integer(x)) stop(\"Validation failed for type {name}: expected int\")\n  x\n}}"
                             ),
                         };
-                        let constructor =
-                            format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
+                        let constructor = format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
                         (format!("{constructor}\n{validator}"), cont.clone())
                     }
                     Type::Char(tchar, _) => {
@@ -1895,8 +1928,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "validate_{name} <- function(x) {{\n  if (!is.character(x)) stop(\"Validation failed for type {name}: expected char\")\n  x\n}}"
                             ),
                         };
-                        let constructor =
-                            format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
+                        let constructor = format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
                         (format!("{constructor}\n{validator}"), cont.clone())
                     }
                     Type::Boolean(tbool, _) => {
@@ -1912,8 +1944,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "validate_{name} <- function(x) {{\n  if (!is.logical(x)) stop(\"Validation failed for type {name}: expected bool\")\n  x\n}}"
                             ),
                         };
-                        let constructor =
-                            format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
+                        let constructor = format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
                         (format!("{constructor}\n{validator}"), cont.clone())
                     }
                     Type::Number(tnum, _) => {
@@ -1926,8 +1957,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "validate_{name} <- function(x) {{\n  if (!is.numeric(x)) stop(\"Validation failed for type {name}: expected num\")\n  x\n}}"
                             ),
                         };
-                        let constructor =
-                            format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
+                        let constructor = format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
                         (format!("{constructor}\n{validator}"), cont.clone())
                     }
                     Type::Tag(tag_name, inner_type, _) => {
@@ -1942,29 +1972,21 @@ impl RTranslatable<(String, Context)> for Lang {
                     // instead of generating nothing — otherwise the module export step
                     // below (`module$Object <- Object`) would reference a binding that
                     // was never created.
-                    Type::Alias(target_name, ..) => {
-                        (format!("{name} <- {target_name}"), cont.clone())
-                    }
+                    Type::Alias(target_name, ..) => (format!("{name} <- {target_name}"), cont.clone()),
                     _ => ("".to_string(), cont.clone()),
                 }
             }
             Lang::UnionConstructor {
-                variant_name,
-                fields,
-                ..
+                variant_name, fields, ..
             } => {
                 if fields.is_empty() {
                     (format!("{}()", variant_name), cont.clone())
                 } else {
-                    let (body, current_cont) = Translatable::from(cont.clone())
-                        .join_arg_val(fields, ", ")
-                        .into();
+                    let (body, current_cont) = Translatable::from(cont.clone()).join_arg_val(fields, ", ").into();
                     (format!("{}({})", variant_name, body), current_cont)
                 }
             }
-            Lang::KeyValue {
-                key: k, value: v, ..
-            } => (format!("{} = {}", k, v.to_r(cont).0), cont.clone()),
+            Lang::KeyValue { key: k, value: v, .. } => (format!("{} = {}", k, v.to_r(cont).0), cont.clone()),
             Lang::Vector { value: vals, .. } => {
                 let res = "c(".to_string()
                     + &vals
@@ -2020,20 +2042,11 @@ impl RTranslatable<(String, Context)> for Lang {
                 let res = exp.to_js(&js_cont).0;
                 (format!("'{}{}'", JS_HEADER, res), cont.clone())
             }
-            Lang::WhileLoop {
-                condition, body, ..
-            } => (
-                format!(
-                    "while ({}) {{\n{}\n}}",
-                    condition.to_r(cont).0,
-                    body.to_r(cont).0
-                ),
+            Lang::WhileLoop { condition, body, .. } => (
+                format!("while ({}) {{\n{}\n}}", condition.to_r(cont).0, body.to_r(cont).0),
                 cont.clone(),
             ),
-            Lang::Loop { body, .. } => (
-                format!("while (TRUE) {{\n{}\n}}", body.to_r(cont).0),
-                cont.clone(),
-            ),
+            Lang::Loop { body, .. } => (format!("while (TRUE) {{\n{}\n}}", body.to_r(cont).0), cont.clone()),
             Lang::Break(_) => ("break".to_string(), cont.clone()),
             Lang::Next(_) => ("next".to_string(), cont.clone()),
             Lang::NA(_) => ("NA".to_string(), cont.clone()),
@@ -2053,8 +2066,8 @@ impl RTranslatable<(String, Context)> for Lang {
                 // A module that writes its own roxygen2 file (External in Project)
                 // gets a dedicated frame so the `@include` deps generated inside its
                 // body land in *its* header rather than the enclosing file's.
-                let writes_own_file = matches!(position, ModulePosition::External)
-                    && config.environment == Environment::Project;
+                let writes_own_file =
+                    matches!(position, ModulePosition::External) && config.environment == Environment::Project;
                 if writes_own_file {
                     push_include_frame();
                     push_import_from_frame();
@@ -2080,10 +2093,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     // scope from *other* modules after this one was typed —
                     // pull those in too so this module's own class chains
                     // (`class(x) <- c(..., "Record1", ...)`) still see them.
-                    cached.typing_context = cached
-                        .typing_context
-                        .clone()
-                        .hoist_aliases(&cont.typing_context);
+                    cached.typing_context = cached.typing_context.clone().hoist_aliases(&cont.typing_context);
                     cached
                 } else {
                     let module_expr = if body.len() > 1 {
@@ -2092,9 +2102,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             help_data: HelpData::default(),
                         }
                     } else {
-                        body.first()
-                            .cloned()
-                            .unwrap_or(Lang::Empty(HelpData::default()))
+                        body.first().cloned().unwrap_or(Lang::Empty(HelpData::default()))
                     };
                     typing(&cont.clone().set_in_module_body(), &module_expr).context
                 };
@@ -2125,18 +2133,17 @@ impl RTranslatable<(String, Context)> for Lang {
                 // and runtime content. Imports are processed first so their side-effects
                 // (file writes, register_include) happen before the new.env binding, and
                 // their output is emitted outside the local({}) block.
-                let (import_langs, runtime_langs): (Vec<_>, Vec<_>) =
-                    body.iter().partition(|lang| {
-                        matches!(
-                            lang,
-                            Lang::ModuleImport { .. }
-                                | Lang::ImportFrom { .. }
-                                | Lang::Module {
-                                    module_position: ModulePosition::External,
-                                    ..
-                                }
-                        )
-                    });
+                let (import_langs, runtime_langs): (Vec<_>, Vec<_>) = body.iter().partition(|lang| {
+                    matches!(
+                        lang,
+                        Lang::ModuleImport { .. }
+                            | Lang::ImportFrom { .. }
+                            | Lang::Module {
+                                module_position: ModulePosition::External,
+                                ..
+                            }
+                    )
+                });
 
                 let imports_parts: Vec<String> = import_langs
                     .iter()
@@ -2186,10 +2193,8 @@ impl RTranslatable<(String, Context)> for Lang {
 
                             // RFC-TR-032: @export also surfaces as a package-level function
                             if *is_export {
-                                package_exports.push(format!(
-                                    "#' @export\n{} <- {}${}",
-                                    raw_name, name_str, typed_name
-                                ));
+                                package_exports
+                                    .push(format!("#' @export\n{} <- {}${}", raw_name, name_str, typed_name));
                             }
 
                             // For typed functions: register as S3 method and create generic
@@ -2201,14 +2206,11 @@ impl RTranslatable<(String, Context)> for Lang {
                                     raw_name, class_name, typed_name
                                 ));
 
-                                let generic_def = format!(
-                                    "{} <- function(x, ...) UseMethod(\"{}\")",
-                                    raw_name, raw_name
-                                );
+                                let generic_def =
+                                    format!("{} <- function(x, ...) UseMethod(\"{}\")", raw_name, raw_name);
                                 if !generics.contains(&generic_def) {
                                     generics.push(generic_def);
-                                    generic_exports
-                                        .push(format!("{}${} <- {}", name_str, raw_name, raw_name));
+                                    generic_exports.push(format!("{}${} <- {}", name_str, raw_name, raw_name));
                                 }
 
                                 // The method implementation itself (e.g. `do.Object`) is only
@@ -2219,8 +2221,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 // is not. Re-expose it at top level (outside local) from the
                                 // module env so UseMethod can find `typed_name` via normal
                                 // lexical scoping from any file that imports this module.
-                                generic_exports
-                                    .push(format!("{} <- {}${}", typed_name, name_str, typed_name));
+                                generic_exports.push(format!("{} <- {}${}", typed_name, name_str, typed_name));
 
                                 // Same gap as above, but for the `.default` fallback (soundness_plan.md
                                 // D.2): the `Lang::Let` arm above emits `raw_name.default <-
@@ -2234,19 +2235,12 @@ impl RTranslatable<(String, Context)> for Lang {
                                 let is_foreign_dispatch = matches!(&var_type, Type::Alias(alias_name, _, _, _) if inner_cont.resolves_to_foreign_alias(alias_name));
                                 if class_name != "default"
                                     && (is_foreign_dispatch
-                                        || (facets::interface_facet(&inner_cont, &var_type)
-                                            .is_some()
-                                            && facets::record_facet(&inner_cont, &var_type)
-                                                .is_none()))
+                                        || (facets::interface_facet(&inner_cont, &var_type).is_some()
+                                            && facets::record_facet(&inner_cont, &var_type).is_none()))
                                 {
-                                    exports.push(format!(
-                                        "{}${}.default <- {}.default",
-                                        name_str, raw_name, raw_name
-                                    ));
-                                    generic_exports.push(format!(
-                                        "{}.default <- {}${}.default",
-                                        raw_name, name_str, raw_name
-                                    ));
+                                    exports.push(format!("{}${}.default <- {}.default", name_str, raw_name, raw_name));
+                                    generic_exports
+                                        .push(format!("{}.default <- {}${}.default", raw_name, name_str, raw_name));
                                 }
                             }
                         }
@@ -2269,13 +2263,9 @@ impl RTranslatable<(String, Context)> for Lang {
                             let var_type = v.get_type();
                             if !var_type.is_empty() && typed_name != raw_name {
                                 let class_name = inner_cont.get_class_unquoted(&var_type);
-                                let generic_def = format!(
-                                    "{} <- function(x, ...) UseMethod(\"{}\")",
-                                    raw_name, raw_name
-                                );
-                                if !generics.contains(&generic_def)
-                                    && !exports.contains(&generic_def)
-                                {
+                                let generic_def =
+                                    format!("{} <- function(x, ...) UseMethod(\"{}\")", raw_name, raw_name);
+                                if !generics.contains(&generic_def) && !exports.contains(&generic_def) {
                                     exports.push(generic_def);
                                 }
                                 exports.push(format!(
@@ -2301,10 +2291,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 // binding emitted in the module body. Must use
                                 // `inner_cont` for the same reason as above.
                                 let typed_name = v.clone().display_type(&inner_cont).get_name();
-                                exports.push(format!(
-                                    "{}$`.test_{}` <- {}",
-                                    name_str, raw_name, typed_name
-                                ));
+                                exports.push(format!("{}$`.test_{}` <- {}", name_str, raw_name, typed_name));
                             }
                         }
                     }
@@ -2323,8 +2310,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         if !target_type.is_interface() {
                             if let Some(v) = Var::from_language(*var.clone()) {
                                 let alias_name = v.get_name();
-                                exports
-                                    .push(format!("{}${} <- {}", name_str, alias_name, alias_name));
+                                exports.push(format!("{}${} <- {}", name_str, alias_name, alias_name));
                             }
                         }
                     }
@@ -2392,13 +2378,11 @@ impl RTranslatable<(String, Context)> for Lang {
                             .iter()
                             .map(|e| format!("#' @importFrom {}\n", e))
                             .collect::<String>();
-                        let project_preamble = "#' @include std.R\n#' @include generic_functions.R\n#' @include types.R\n";
+                        let project_preamble =
+                            "#' @include std.R\n#' @include generic_functions.R\n#' @include types.R\n";
                         let _ = write_output_file(
                             &file_path,
-                            &format!(
-                                "{}{}{}{}",
-                                project_preamble, nested_includes, nested_imports, content
-                            ),
+                            &format!("{}{}{}{}", project_preamble, nested_includes, nested_imports, content),
                         );
                         // The enclosing file depends on this one: hoist the tag to its
                         // header instead of emitting it inline inside a `local({...})`.
@@ -2408,9 +2392,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 }
             }
             Lang::UseModule {
-                module_path,
-                selector,
-                ..
+                module_path, selector, ..
             } => {
                 use crate::components::language::use_lang::UseSelector;
 
@@ -2419,16 +2401,10 @@ impl RTranslatable<(String, Context)> for Lang {
 
                 // Resolve the module type from context to enumerate public members for wildcards
                 let mod_type_opt = (|| {
-                    let root = cont
-                        .get_type_from_variable(&Var::from_name(&module_path[0]))
-                        .ok()?;
+                    let root = cont.get_type_from_variable(&Var::from_name(&module_path[0])).ok()?;
                     let mut current = root;
                     for seg in module_path.iter().skip(1) {
-                        current = current
-                            .to_module_type()
-                            .ok()?
-                            .get_type_from_name(seg)
-                            .ok()?;
+                        current = current.to_module_type().ok()?.get_type_from_name(seg).ok()?;
                     }
                     current.to_module_type().ok()
                 })();
@@ -2457,9 +2433,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 (bindings.join("\n"), cont.clone())
             }
             Lang::ModuleImport { .. } => ("".to_string(), cont.clone()),
-            Lang::ImportFrom {
-                package, functions, ..
-            } => {
+            Lang::ImportFrom { package, functions, .. } => {
                 let entry = format!("{} {}", package, functions.join(" "));
                 register_import_from(&entry);
                 ("".to_string(), cont.clone())
@@ -2497,9 +2471,8 @@ impl RTranslatable<(String, Context)> for Lang {
                         let (body, current_cont) = if fields.is_empty() {
                             (format!(".spread = {}", spread_r), current_cont)
                         } else {
-                            let (overrides, next_cont) = Translatable::from(current_cont)
-                                .join_arg_val(fields, ", ")
-                                .into();
+                            let (overrides, next_cont) =
+                                Translatable::from(current_cont).join_arg_val(fields, ", ").into();
                             (format!("{}, .spread = {}", overrides, spread_r), next_cont)
                         };
                         (format!("{}({})", name, body), current_cont)
@@ -2512,13 +2485,9 @@ impl RTranslatable<(String, Context)> for Lang {
                         if fields.is_empty() {
                             (base, current_cont)
                         } else {
-                            let (overrides, current_cont) = Translatable::from(current_cont)
-                                .join_arg_val(fields, ", ")
-                                .into();
-                            (
-                                format!("spread({}, list({}))", base, overrides),
-                                current_cont,
-                            )
+                            let (overrides, current_cont) =
+                                Translatable::from(current_cont).join_arg_val(fields, ", ").into();
+                            (format!("spread({}, list({}))", base, overrides), current_cont)
                         }
                     }
                     // No spread: ill-typed (type-checking already reports
@@ -2548,9 +2517,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 let (body, current_cont) = if fields.is_empty() {
                     (format!(".spread = {}", spread_r), current_cont)
                 } else {
-                    let (overrides, next_cont) = Translatable::from(current_cont)
-                        .join_arg_val(fields, ", ")
-                        .into();
+                    let (overrides, next_cont) = Translatable::from(current_cont).join_arg_val(fields, ", ").into();
                     (format!("{}, .spread = {}", overrides, spread_r), next_cont)
                 };
                 (format!("{}({})", qualified, body), current_cont)
@@ -2580,13 +2547,11 @@ impl RTranslatable<(String, Context)> for Lang {
                         let receiver = {
                             let qualifier = spread_path.split_first().map(|(first, rest)| {
                                 rest.iter()
-                                    .fold(Var::from_name(first).to_language(), |acc, seg| {
-                                        Lang::Operator {
-                                            operator: Op::Dollar(h.clone()),
-                                            rhs: Box::new(acc),
-                                            lhs: Box::new(Var::from_name(seg).to_language()),
-                                            help_data: h.clone(),
-                                        }
+                                    .fold(Var::from_name(first).to_language(), |acc, seg| Lang::Operator {
+                                        operator: Op::Dollar(h.clone()),
+                                        rhs: Box::new(acc),
+                                        lhs: Box::new(Var::from_name(seg).to_language()),
+                                        help_data: h.clone(),
                                     })
                             });
                             match qualifier {
@@ -2609,9 +2574,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 let field_access = Lang::Operator {
                                     operator: Op::Dollar(h.clone()),
                                     rhs: Box::new(receiver.clone()),
-                                    lhs: Box::new(
-                                        Var::from_name(&rf.get_argument_str()).to_language(),
-                                    ),
+                                    lhs: Box::new(Var::from_name(&rf.get_argument_str()).to_language()),
                                     help_data: h.clone(),
                                 };
                                 ArgumentValue(rf.get_argument_str(), field_access)
@@ -2620,9 +2583,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     }
                     None => fields.clone(),
                 };
-                let (body, current_cont) = Translatable::from(cont.clone())
-                    .join_arg_val(&all_fields, ", ")
-                    .into();
+                let (body, current_cont) = Translatable::from(cont.clone()).join_arg_val(&all_fields, ", ").into();
                 let qualified = if module_path.is_empty() {
                     type_name.clone()
                 } else {
@@ -2638,16 +2599,19 @@ impl RTranslatable<(String, Context)> for Lang {
                 let resolved_alias = cont
                     .get_type_from_aliases(&Var::from_name(type_name))
                     .map(|t| t.reduce(cont));
-                if let Some(Type::Vec(VecType::Vector, ..)) = resolved_alias {
+                let is_atomic_repr = match &resolved_alias {
+                    Some(Type::Vec(vt, _, _, _)) if vt.is_vector() => true,
+                    // Step ③ (unification_arrays.md): primitive-element array
+                    // aliases share the bare-atomic representation.
+                    Some(t @ Type::Vec(_, _, _, _)) => cont.atomic_array_elem(t).is_some(),
+                    _ => false,
+                };
+                if is_atomic_repr {
                     // Plain vector alias (`type V <- Vec[#N, T]`): the runtime
                     // value is a bare R vector (no `dim`/`typed_vec` wrapper, see
                     // the Vec constructor pipeline in `Lang::Alias`), so the
                     // elements are simply collected with `c(...)`.
-                    let inner = elements
-                        .iter()
-                        .map(|el| el.to_r(cont).0)
-                        .collect::<Vec<_>>()
-                        .join(", ");
+                    let inner = elements.iter().map(|el| el.to_r(cont).0).collect::<Vec<_>>().join(", ");
                     (format!("{}(c({}))", type_name, inner), cont.clone())
                 } else {
                     let temp_array = Lang::Array {
@@ -2674,9 +2638,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     (format!("{}({})", type_name, inner), cont.clone())
                 }
             }
-            Lang::Import { .. } | Lang::Test { .. } | Lang::Use { .. } => {
-                ("".to_string(), cont.clone())
-            }
+            Lang::Import { .. } | Lang::Test { .. } | Lang::Use { .. } => ("".to_string(), cont.clone()),
             Lang::ValidatingCast {
                 expression,
                 type_name,
@@ -2687,8 +2649,15 @@ impl RTranslatable<(String, Context)> for Lang {
                 // cast supplies the annotation, and the literal's own (based
                 // on its inferred type, e.g. `[0, Empty]` for `[]`) would be
                 // a redundant — usually unregistered → `as.Generic()` — cast.
+                // When the cast *target* is an atomic-representation array
+                // (step ③), the literal must take the atomic shape driven by
+                // the target's element type — an empty literal's own inferred
+                // type (`[0, Empty]`) would otherwise pick `typed_vec`.
                 let expr_r = if matches!(expression.as_ref(), Lang::Array { .. }) {
-                    array_literal_raw(expression, cont)
+                    match literal_type.as_ref().and_then(|t| cont.atomic_array_elem(t)) {
+                        Some(elem) => atomic_array_literal(expression, cont, &elem),
+                        None => array_literal_raw(expression, cont),
+                    }
                 } else {
                     expression.to_r(cont).0
                 };
@@ -2697,10 +2666,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     // call the auto-generated `as.ArrayN`-style cast (see
                     // `Context::get_type_anotations`) registered for it at
                     // typing time, instead of a named `validate_<name>`.
-                    Some(t) => (
-                        format!("{} |> {}", expr_r, cont.get_type_anotation(t)),
-                        cont.clone(),
-                    ),
+                    Some(t) => (format!("{} |> {}", expr_r, cont.get_type_anotation(t)), cont.clone()),
                     None => (format!("validate_{}({})", type_name, expr_r), cont.clone()),
                 }
             }
@@ -2758,12 +2724,10 @@ mod tests {
     fn transpile_program(stmts: &[&str]) -> String {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
-        let tc = stmts
-            .iter()
-            .fold(TypeChecker::new(Context::default()), |tc, s| {
-                let code = parse2((*s).into()).unwrap();
-                tc.typing_no_panic(&code)
-            });
+        let tc = stmts.iter().fold(TypeChecker::new(Context::default()), |tc, s| {
+            let code = parse2((*s).into()).unwrap();
+            tc.typing_no_panic(&code)
+        });
         assert!(!tc.has_errors(), "type errors: {:?}", tc.get_errors());
         tc.transpile()
     }
@@ -2904,11 +2868,13 @@ mod tests {
 
     #[test]
     fn test_validating_cast_literal_array_type() {
+        // Step ③ (unification_arrays.md): `[Any, int]` is an
+        // atomic-representation array — no `as.ArrayN` class is applied.
         let r_code = FluentParser::new().check_transpiling("c() as! [Any, int]");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains("c() |> as.Array0()"),
-            "expected c() |> as.Array0(), got: {}",
+            r_str.contains("c() |> identity()"),
+            "expected c() |> identity(), got: {}",
             r_str
         );
     }
@@ -2920,8 +2886,8 @@ mod tests {
         let r_code = FluentParser::new().check_transpiling("c() as! Vec[Any, int]");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains("c() |> as.Array0()"),
-            "expected c() |> as.Array0(), got: {}",
+            r_str.contains("c() |> identity()"),
+            "expected c() |> identity(), got: {}",
             r_str
         );
     }
@@ -2930,12 +2896,14 @@ mod tests {
     fn test_validating_cast_array_literal_single_annotation() {
         // `[] as! [T]`: the literal's own annotation (its inferred type
         // `[0, Empty]` has no registered alias → `as.Generic()`) must be
-        // suppressed; the cast provides the only annotation.
+        // suppressed; the cast provides the only annotation. Step ③: the
+        // atomic cast target drives the empty literal to the typed empty
+        // vector (`integer(0)`), never `typed_vec`/`c()` (`c()` is NULL).
         let r_code = FluentParser::new().check_transpiling("[] as! [Any, int]");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
-            r_str.contains("typed_vec(dim = c(0)) |> as.Array0()"),
-            "expected raw typed_vec |> as.Array0(), got: {}",
+            r_str.contains("integer(0) |> identity()"),
+            "expected integer(0) |> identity(), got: {}",
             r_str
         );
         assert!(
@@ -2981,18 +2949,20 @@ mod tests {
             .run()
             .get_r_code();
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
+        // Step ③: atomic-representation targets annotate with `identity()`;
+        // the shared registration is no longer visible in the emitted R,
+        // but both casts must agree on the same (atomic) shape.
         assert_eq!(
-            r_str.matches("as.Array0()").count(),
+            r_str.matches("|> identity()").count(),
             2,
-            "expected both casts to reuse as.Array0, got: {}",
+            "expected both casts to emit identity(), got: {}",
             r_str
         );
     }
 
     #[test]
     fn test_alias_record_generates_validator() {
-        let r_code =
-            FluentParser::new().check_transpiling("type Person <- list { name: char, age: int };");
+        let r_code = FluentParser::new().check_transpiling("type Person <- list { name: char, age: int };");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains("validate_Person <- function(x)"),
@@ -3020,12 +2990,7 @@ mod tests {
             .push("let combine <- fn(target: %T): %T { let more <- :{ extra = 1 }; :{ ...target, ...more } };")
             .run();
         assert_eq!(fp.get_last_log(), "The logs are empty");
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("spread(target, more)"),
             "expected the spread merge to transpile, got:\n{}",
@@ -3043,8 +3008,7 @@ mod tests {
         // fields are the only part with a fixed runtime shape, so the
         // constructor/annotator/validator pipeline should be generated from
         // them, exactly like a plain `Type::Record` alias.
-        let r_code = FluentParser::new()
-            .check_transpiling("type Animator<%T> <- %T & list { animations: int };");
+        let r_code = FluentParser::new().check_transpiling("type Animator<%T> <- %T & list { animations: int };");
         let r_str = r_code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_str.contains("Animator <- function(animations, .spread = NULL)"),
@@ -3092,8 +3056,7 @@ mod tests {
             r_str
         );
         assert!(
-            r_str.contains("validate_Combo <- function(x)")
-                && r_str.contains("required_fields <- c(\"x\", \"y\")"),
+            r_str.contains("validate_Combo <- function(x)") && r_str.contains("required_fields <- c(\"x\", \"y\")"),
             "expected a validator checking both merged fields, got:\n{}",
             r_str
         );
@@ -3138,16 +3101,8 @@ mod tests {
             "missing env init: {}",
             r_code
         );
-        assert!(
-            r_code.contains("local({"),
-            "missing local block: {}",
-            r_code
-        );
-        assert!(
-            r_code.contains("Math$pi <- pi"),
-            "missing public export: {}",
-            r_code
-        );
+        assert!(r_code.contains("local({"), "missing local block: {}", r_code);
+        assert!(r_code.contains("Math$pi <- pi"), "missing public export: {}", r_code);
         assert!(
             !r_code.contains("Math$sq"),
             "private member should not be exported: {}",
@@ -3207,11 +3162,7 @@ mod tests {
             "missing env init: {}",
             r_code
         );
-        assert!(
-            r_code.contains("local({"),
-            "missing local block: {}",
-            r_code
-        );
+        assert!(r_code.contains("local({"), "missing local block: {}", r_code);
         assert!(
             !r_code.contains("Empty$x"),
             "private member should not be exported: {}",
@@ -3266,11 +3217,7 @@ mod tests {
             "missing env init: {}",
             r_code
         );
-        assert!(
-            r_code.contains("Geo$pi <- pi"),
-            "missing public export: {}",
-            r_code
-        );
+        assert!(r_code.contains("Geo$pi <- pi"), "missing public export: {}", r_code);
     }
 
     #[test]
@@ -3328,16 +3275,8 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(
-            r_code.contains("pi <- Math$pi"),
-            "missing pi binding: {}",
-            r_code
-        );
-        assert!(
-            r_code.contains("euler <- Math$e"),
-            "missing euler binding: {}",
-            r_code
-        );
+        assert!(r_code.contains("pi <- Math$pi"), "missing pi binding: {}", r_code);
+        assert!(r_code.contains("euler <- Math$e"), "missing euler binding: {}", r_code);
     }
 
     #[test]
@@ -3352,16 +3291,8 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(
-            r_code.contains("pi <- Math$pi"),
-            "missing pi binding: {}",
-            r_code
-        );
-        assert!(
-            r_code.contains("e <- Math$e"),
-            "missing e binding: {}",
-            r_code
-        );
+        assert!(r_code.contains("pi <- Math$pi"), "missing pi binding: {}", r_code);
+        assert!(r_code.contains("e <- Math$e"), "missing e binding: {}", r_code);
         assert!(
             !r_code.contains("secret <- Math$secret"),
             "private member must not be imported: {}",
@@ -3381,11 +3312,7 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(
-            r_code.contains("#' @export"),
-            "missing #' @export tag: {}",
-            r_code
-        );
+        assert!(r_code.contains("#' @export"), "missing #' @export tag: {}", r_code);
         assert!(r_code.contains("answer"), "missing assignment: {}", r_code);
     }
 
@@ -3404,11 +3331,7 @@ mod tests {
             "missing module export: {}",
             r_code
         );
-        assert!(
-            r_code.contains("#' @export"),
-            "missing roxygen export tag: {}",
-            r_code
-        );
+        assert!(r_code.contains("#' @export"), "missing roxygen export tag: {}", r_code);
         assert!(
             r_code.contains("norm <- Math$norm"),
             "missing package-level re-export: {}",
@@ -3464,14 +3387,17 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
+        // Step ③ (unification_arrays.md): `Bits` targets a primitive-element
+        // array → atomic representation, so the constructor receives a bare
+        // `c(...)` instead of a `typed_vec`.
         assert!(
-            r_code.contains("Bits(typed_vec("),
-            "expected Bits(...) constructor: {}",
+            r_code.contains("Bits(c("),
+            "expected Bits(c(...)) constructor: {}",
             r_code
         );
         assert!(
-            r_code.contains("dim = c(3)"),
-            "expected dimension annotation: {}",
+            !r_code.contains("typed_vec"),
+            "no typed_vec for an atomic-representation alias: {}",
             r_code
         );
     }
@@ -3719,8 +3645,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
         assert!(
-            r_str.contains("structure(list('Loose', body =")
-                && r_str.contains("class = c('Loose', 'Tag', 'list')"),
+            r_str.contains("structure(list('Loose', body =") && r_str.contains("class = c('Loose', 'Tag', 'list')"),
             "expected canonical tag literal without union class, got: {r_str}"
         );
     }

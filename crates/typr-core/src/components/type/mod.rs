@@ -94,13 +94,7 @@ fn to_string<T: ToString>(v: &[T]) -> String {
 
 pub fn pretty(hs: HashSet<ArgumentType>) -> String {
     hs.iter()
-        .map(|arg_typ| {
-            format!(
-                "{}: {}",
-                arg_typ.get_argument_str(),
-                arg_typ.get_type().pretty()
-            )
-        })
+        .map(|arg_typ| format!("{}: {}", arg_typ.get_argument_str(), arg_typ.get_type().pretty()))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -161,8 +155,7 @@ fn interface_methods_satisfy(
     required.iter().all(|req| {
         have.iter().any(|candidate| {
             candidate.get_argument_str() == req.get_argument_str()
-                && reduce_type(context, &candidate.get_type())
-                    == reduce_type(context, &req.get_type())
+                && reduce_type(context, &candidate.get_type()) == reduce_type(context, &req.get_type())
         })
     })
 }
@@ -227,15 +220,11 @@ impl TypeSystem for Type {
             }
             (_, Type::UnknownFunction(_)) => true,
             (Type::Interface(args1, _), Type::Interface(args2, _)) => {
-                args1 == args2
-                    || args1.is_superset(args2)
-                    || interface_methods_satisfy(args1, args2, context)
+                args1 == args2 || args1.is_superset(args2) || interface_methods_satisfy(args1, args2, context)
             }
             (typ, Type::Interface(args2, _)) => match typ.to_interface(context) {
                 Type::Interface(args1, _) => {
-                    &args1 == args2
-                        || args1.is_superset(args2)
-                        || interface_methods_satisfy(&args1, args2, context)
+                    &args1 == args2 || args1.is_superset(args2) || interface_methods_satisfy(&args1, args2, context)
                 }
                 _ => todo!(),
             },
@@ -253,17 +242,12 @@ impl TypeSystem for Type {
             (Type::KindedGen(k1, _, _), Type::KindedGen(k2, _, _)) => k1 == k2,
             // Params subtyping
             (Type::Params(p1, _), Type::Params(p2, _)) => {
-                p1.len() == p2.len()
-                    && p1
-                        .iter()
-                        .zip(p2.iter())
-                        .all(|(t1, t2)| t1.is_subtype_raw(t2, context))
+                p1.len() == p2.len() && p1.iter().zip(p2.iter()).all(|(t1, t2)| t1.is_subtype_raw(t2, context))
             }
             (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(set2),
-            (
-                Type::Operator(TypeOperator::Union, _t1, _t2, _),
-                Type::Operator(TypeOperator::Union, _tp1, _tp2, _),
-            ) => true, //TODO: Fix this
+            (Type::Operator(TypeOperator::Union, _t1, _t2, _), Type::Operator(TypeOperator::Union, _tp1, _tp2, _)) => {
+                true
+            } //TODO: Fix this
             (typ, Type::Operator(TypeOperator::Union, t1, t2, _)) => {
                 typ.is_subtype_raw(t1, context) || typ.is_subtype_raw(t2, context)
             }
@@ -280,9 +264,7 @@ impl TypeSystem for Type {
                 typ.is_subtype_raw(t1, context) && typ.is_subtype_raw(t2, context)
             }
             // Opaque alias is subtype of original alias (e.g., Addable_ -> Addable)
-            (Type::Alias(name1, _, true, _), Type::Alias(name2, _, false, _)) => {
-                name1 == &format!("{}_", name2)
-            }
+            (Type::Alias(name1, _, true, _), Type::Alias(name2, _, false, _)) => name1 == &format!("{}_", name2),
             // Reduce non-opaque aliases before comparing
             (_, Type::Alias(_, _, false, _)) => {
                 let reduced = other.reduce(context);
@@ -333,12 +315,7 @@ impl Type {
     pub fn lift(self, max_index: &(VecType, i32)) -> Type {
         match self.clone() {
             Type::Vec(_, i, _, _) if i.equal(max_index.1) => self,
-            Type::Vec(v, _, t, h) => Type::Vec(
-                v,
-                Box::new(builder::integer_type(max_index.1)),
-                t.clone(),
-                h.clone(),
-            ),
+            Type::Vec(v, _, t, h) => Type::Vec(v, Box::new(builder::integer_type(max_index.1)), t.clone(), h.clone()),
             t => Type::Vec(
                 max_index.0.clone(),
                 Box::new(builder::integer_type(max_index.1)),
@@ -368,9 +345,7 @@ impl Type {
         } else {
             var.clone().set_type(self.clone())
         };
-        let cont = context
-            .clone()
-            .push_var_type(stored_var, self.clone(), &context);
+        let cont = context.clone().push_var_type(stored_var, self.clone(), &context);
         self.tuple(&cont)
     }
 
@@ -414,10 +389,7 @@ impl Type {
                 sol
             }
             Type::Module(argtypes, _, _) => {
-                let mut sol = argtypes
-                    .iter()
-                    .map(|argtype| argtype.get_type())
-                    .collect::<Vec<_>>();
+                let mut sol = argtypes.iter().map(|argtype| argtype.get_type()).collect::<Vec<_>>();
                 sol.push(self.clone());
                 sol
             }
@@ -486,9 +458,7 @@ impl Type {
                 let res = args
                     .iter()
                     .enumerate()
-                    .map(|(i, arg)| {
-                        format!("{}: {}", generate_arg(i), arg.get_type().to_typescript())
-                    })
+                    .map(|(i, arg)| format!("{}: {}", generate_arg(i), arg.get_type().to_typescript()))
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("({}) => {}", res, ret.to_typescript())
@@ -535,9 +505,7 @@ impl Type {
                 let res = args
                     .iter()
                     .enumerate()
-                    .map(|(i, arg)| {
-                        format!("{}: {}", generate_arg(i), arg.get_type().to_typescript())
-                    })
+                    .map(|(i, arg)| format!("{}: {}", generate_arg(i), arg.get_type().to_typescript()))
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("({}) => {}", res, ret.to_typescript())
@@ -564,10 +532,9 @@ impl Type {
 
     pub fn extract_generics(&self) -> Vec<Type> {
         match self {
-            Type::Generic(_, _)
-            | Type::IndexGen(_, _)
-            | Type::LabelGen(_, _)
-            | Type::KindedGen(_, _, _) => vec![self.clone()],
+            Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _) | Type::KindedGen(_, _, _) => {
+                vec![self.clone()]
+            }
             Type::Function(args, ret_typ, _) => args
                 .iter()
                 .flat_map(|arg| arg.get_type().extract_generics())
@@ -590,14 +557,14 @@ impl Type {
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect::<Vec<_>>(),
-            Type::Operator(TypeOperator::Union, t1, t2, _)
-            | Type::Operator(TypeOperator::Intersection, t1, t2, _) => t1
-                .extract_generics()
-                .into_iter()
-                .chain(t2.extract_generics())
-                .collect::<HashSet<_>>()
-                .into_iter()
-                .collect::<Vec<_>>(),
+            Type::Operator(TypeOperator::Union, t1, t2, _) | Type::Operator(TypeOperator::Intersection, t1, t2, _) => {
+                t1.extract_generics()
+                    .into_iter()
+                    .chain(t2.extract_generics())
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>()
+            }
             Type::Tag(_, inner, _) => inner.extract_generics(),
             _ => vec![],
         }
@@ -605,18 +572,14 @@ impl Type {
 
     pub fn index_calculation(&self) -> Type {
         match self {
-            Type::Operator(TypeOperator::Addition, a, b, _) => {
-                a.index_calculation().sum_index(&b.index_calculation())
-            }
+            Type::Operator(TypeOperator::Addition, a, b, _) => a.index_calculation().sum_index(&b.index_calculation()),
             Type::Operator(TypeOperator::Substraction, a, b, _) => {
                 a.index_calculation().minus_index(&b.index_calculation())
             }
             Type::Operator(TypeOperator::Multiplication, a, b, _) => {
                 a.index_calculation().mul_index(&b.index_calculation())
             }
-            Type::Operator(TypeOperator::Division, a, b, _) => {
-                a.index_calculation().div_index(&b.index_calculation())
-            }
+            Type::Operator(TypeOperator::Division, a, b, _) => a.index_calculation().div_index(&b.index_calculation()),
             Type::Vec(vtype, ind, typ, h) => Type::Vec(
                 vtype.clone(),
                 Box::new(ind.index_calculation()),
@@ -637,10 +600,9 @@ impl Type {
     fn sum_index(&self, i: &Type) -> Type {
         match (self, i) {
             (Type::Integer(a, h), Type::Integer(b, _)) => Type::Integer(*a + *b, h.clone()),
-            (Type::Record(a, h), Type::Record(b, _)) => Type::Record(
-                a.iter().chain(b.iter()).cloned().collect::<HashSet<_>>(),
-                h.clone(),
-            ),
+            (Type::Record(a, h), Type::Record(b, _)) => {
+                Type::Record(a.iter().chain(b.iter()).cloned().collect::<HashSet<_>>(), h.clone())
+            }
             _ => Type::Operator(
                 TypeOperator::Addition,
                 Box::new(self.clone()),
@@ -736,10 +698,7 @@ impl Type {
     pub fn is_generic(&self) -> bool {
         matches!(
             self,
-            Type::Generic(_, _)
-                | Type::IndexGen(_, _)
-                | Type::LabelGen(_, _)
-                | Type::KindedGen(_, _, _)
+            Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _) | Type::KindedGen(_, _, _)
         )
     }
 
@@ -960,9 +919,7 @@ impl Type {
     pub fn to_interface(&self, context: &Context) -> Type {
         match self {
             Type::Interface(_, _) => self.clone(),
-            Type::Function(_, _, _) => {
-                builder::interface_type(&[("_", builder::unknown_function_type())])
-            }
+            Type::Function(_, _, _) => builder::interface_type(&[("_", builder::unknown_function_type())]),
             typ => {
                 let function_signatures = context
                     .get_functions_from_type(typ)
@@ -978,8 +935,7 @@ impl Type {
                         // the literal type the function was declared against, so
                         // it's the only reliable anchor for the Self substitution.
                         let self_type = typ2.get_first_parameter().unwrap_or_else(|| typ.clone());
-                        let replaced =
-                            typ2.replace_function_types(self_type, builder::self_generic_type());
+                        let replaced = typ2.replace_function_types(self_type, builder::self_generic_type());
                         (var.get_name(), replaced.normalize_fn_param_names())
                     })
                     .collect::<Vec<_>>();
@@ -1002,9 +958,7 @@ impl Type {
     pub fn get_first_function_parameter_type(&self, name: &str) -> Option<Type> {
         match self {
             Type::Module(args, _, _) => {
-                let res = args
-                    .iter()
-                    .find(|arg_typ| arg_typ.get_argument_str() == name);
+                let res = args.iter().find(|arg_typ| arg_typ.get_argument_str() == name);
                 match res {
                     Some(arg_typ) => arg_typ.get_type().get_first_parameter(),
                     _ => None,
@@ -1038,11 +992,7 @@ impl Type {
 
     pub fn linearize(self) -> Vec<Type> {
         match self {
-            Type::Vec(_, t1, t2, _) => [*t1]
-                .iter()
-                .chain((*t2).linearize().iter())
-                .cloned()
-                .collect(),
+            Type::Vec(_, t1, t2, _) => [*t1].iter().chain((*t2).linearize().iter()).cloned().collect(),
             other => vec![other],
         }
     }
@@ -1056,12 +1006,7 @@ impl Type {
         match dims_and_base.pop() {
             None => builder::any_type(),
             Some(base) => dims_and_base.into_iter().rev().fold(base, |acc, dim| {
-                Type::Vec(
-                    VecType::S3,
-                    Box::new(dim),
-                    Box::new(acc),
-                    HelpData::default(),
-                )
+                Type::Vec(VecType::S3, Box::new(dim), Box::new(acc), HelpData::default())
             }),
         }
     }
@@ -1121,19 +1066,13 @@ impl Type {
             Type::Record(fields, _) | Type::Interface(fields, _) => fields
                 .iter()
                 .for_each(|a| a.get_type().collect_named_constructors_into(acc)),
-            Type::Tag(_, inner, _) | Type::Multi(inner, _) => {
-                inner.collect_named_constructors_into(acc)
-            }
+            Type::Tag(_, inner, _) | Type::Multi(inner, _) => inner.collect_named_constructors_into(acc),
             Type::Operator(_, a, b, _) => {
                 a.collect_named_constructors_into(acc);
                 b.collect_named_constructors_into(acc);
             }
-            Type::Params(ts, _) | Type::Tuple(ts, _) => ts
-                .iter()
-                .for_each(|t| t.collect_named_constructors_into(acc)),
-            Type::Alias(_, params, _, _) => params
-                .iter()
-                .for_each(|t| t.collect_named_constructors_into(acc)),
+            Type::Params(ts, _) | Type::Tuple(ts, _) => ts.iter().for_each(|t| t.collect_named_constructors_into(acc)),
+            Type::Alias(_, params, _, _) => params.iter().for_each(|t| t.collect_named_constructors_into(acc)),
             _ => {}
         }
     }
@@ -1208,9 +1147,7 @@ impl PartialEq for Type {
             (Type::KindedGen(k1, _, _), Type::KindedGen(k2, _, _)) => k1 == k2,
             (Type::Vec(_, a1, b1, _), Type::Vec(_, a2, b2, _)) => a1 == a2 && b1 == b2,
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
-            (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) => {
-                a1 == a2 && b1 == b2 && c1 == c2
-            }
+            (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) => a1 == a2 && b1 == b2 && c1 == c2,
             (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) => a1 == a2 && b1 == b2,
             (Type::Interface(e1, _), Type::Interface(e2, _)) => e1 == e2,
             (Type::Params(e1, _), Type::Params(e2, _)) => e1 == e2,
@@ -1219,9 +1156,7 @@ impl PartialEq for Type {
             (Type::Multi(e1, _), Type::Multi(e2, _)) => e1 == e2,
             (Type::Tuple(e1, _), Type::Tuple(e2, _)) => e1 == e2,
             (Type::If(a1, b1, _), Type::If(a2, b2, _)) => a1 == a2 && b1 == b2,
-            (Type::Condition(a1, b1, c1, _), Type::Condition(a2, b2, c2, _)) => {
-                a1 == a2 && b1 == b2 && c1 == c2
-            }
+            (Type::Condition(a1, b1, c1, _), Type::Condition(a2, b2, c2, _)) => a1 == a2 && b1 == b2 && c1 == c2,
             (Type::In(_), Type::In(_)) => true,
             (Type::Empty(_), Type::Empty(_)) => true,
             (Type::Any(_), Type::Any(_)) => true,
@@ -1232,20 +1167,14 @@ impl PartialEq for Type {
             (Type::UnknownFunction(_), Type::UnknownFunction(_)) => true,
             (Type::UnknownFunction(_), Type::Empty(_)) => true,
             (Type::Empty(_), Type::UnknownFunction(_)) => true,
-            (
-                Type::Operator(TypeOperator::Union, _, _, _),
-                Type::Operator(TypeOperator::Union, _, _, _),
-            ) => UnionType::try_from(self.clone()).ok() == UnionType::try_from(other.clone()).ok(),
+            (Type::Operator(TypeOperator::Union, _, _, _), Type::Operator(TypeOperator::Union, _, _, _)) => {
+                UnionType::try_from(self.clone()).ok() == UnionType::try_from(other.clone()).ok()
+            }
             (
                 Type::Operator(TypeOperator::Intersection, _, _, _),
                 Type::Operator(TypeOperator::Intersection, _, _, _),
-            ) => {
-                IntersectionType::try_from(self.clone()).ok()
-                    == IntersectionType::try_from(other.clone()).ok()
-            }
-            (Type::Operator(op1, a1, b1, _), Type::Operator(op2, a2, b2, _)) => {
-                op1 == op2 && a1 == a2 && b1 == b2
-            }
+            ) => IntersectionType::try_from(self.clone()).ok() == IntersectionType::try_from(other.clone()).ok(),
+            (Type::Operator(op1, a1, b1, _), Type::Operator(op2, a2, b2, _)) => op1 == op2 && a1 == a2 && b1 == b2,
             (Type::Module(a1, _, _), Type::Module(a2, _, _)) => a1 == a2,
             _ => false,
         }
@@ -1260,11 +1189,7 @@ impl fmt::Display for Type {
                 write!(f, "({}) -> {}", Type::Params(p_types, h.clone()), r)
             }
             Type::Params(v, _) => {
-                let res = v
-                    .iter()
-                    .map(|x| x.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let res = v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ");
                 write!(f, "{}", res)
             }
             _ => write!(f, "{}", format(self)),
@@ -1280,9 +1205,9 @@ impl PartialOrd for Type {
             (typ1, typ2) if typ1 == typ2 => Some(Ordering::Equal),
             // Array subtyping
             (_, Type::Any(_)) => Some(Ordering::Less),
-            (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => (n1.partial_cmp(n2).is_some()
-                && t1.partial_cmp(t2).is_some())
-            .then_some(Ordering::Less),
+            (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => {
+                (n1.partial_cmp(n2).is_some() && t1.partial_cmp(t2).is_some()).then_some(Ordering::Less)
+            }
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
                 let args1_types: Vec<Type> = args1.iter().map(|arg| arg.get_type()).collect();
                 let args2_types: Vec<Type> = args2.iter().map(|arg| arg.get_type()).collect();
@@ -1307,9 +1232,7 @@ impl PartialOrd for Type {
                 (args1 == args2 || args1.is_superset(args2)).then_some(Ordering::Less)
             }
             // Record subtyping
-            (Type::Record(r1, _), Type::Record(r2, _)) => {
-                (r1 == r2 || r1.is_superset(r2)).then_some(Ordering::Less)
-            }
+            (Type::Record(r1, _), Type::Record(r2, _)) => (r1 == r2 || r1.is_superset(r2)).then_some(Ordering::Less),
 
             (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
                 ((name1 == name2) && body1.partial_cmp(body2).is_some()).then_some(Ordering::Less)
@@ -1320,24 +1243,15 @@ impl PartialOrd for Type {
             (Type::Integer(_, _), Type::IndexGen(_, _)) => Some(Ordering::Less),
             (Type::Char(_, _), Type::LabelGen(_, _)) => Some(Ordering::Less),
             (Type::IndexGen(_, _), Type::IndexGen(_, _)) => Some(Ordering::Less),
-            (concrete, Type::KindedGen(k, _, _)) if kind::type_kind(concrete) == Some(*k) => {
-                Some(Ordering::Less)
-            }
-            (Type::KindedGen(k1, _, _), Type::KindedGen(k2, _, _)) if k1 == k2 => {
-                Some(Ordering::Less)
-            }
+            (concrete, Type::KindedGen(k, _, _)) if kind::type_kind(concrete) == Some(*k) => Some(Ordering::Less),
+            (Type::KindedGen(k1, _, _), Type::KindedGen(k2, _, _)) if k1 == k2 => Some(Ordering::Less),
 
             // Params subtyping
             (Type::Params(p1, _), Type::Params(p2, _)) => (p1.len() == p2.len()
-                && p1
-                    .iter()
-                    .zip(p2.iter())
-                    .all(|(t1, t2)| t1.partial_cmp(t2).is_some()))
+                && p1.iter().zip(p2.iter()).all(|(t1, t2)| t1.partial_cmp(t2).is_some()))
             .then_some(Ordering::Less),
 
-            (Type::RClass(set1, _), Type::RClass(set2, _)) => {
-                set1.is_subset(set2).then_some(Ordering::Less)
-            }
+            (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(set2).then_some(Ordering::Less),
             (Type::Char(_, _), Type::Char(_, _)) => Some(Ordering::Less),
             (Type::Integer(_, _), Type::Integer(_, _)) => Some(Ordering::Less),
             (Type::Tuple(types1, _), Type::Tuple(types2, _)) => types1
@@ -1345,17 +1259,15 @@ impl PartialOrd for Type {
                 .zip(types2.iter())
                 .all(|(typ1, typ2)| typ1.partial_cmp(typ2).is_some())
                 .then_some(Ordering::Less),
-            (typ, Type::Operator(TypeOperator::Intersection, _, _, _)) => {
-                IntersectionType::try_from(other.clone())
-                    .map(|intersection| {
-                        intersection
-                            .get_types()
-                            .iter()
-                            .all(|typ2| typ.partial_cmp(typ2) == Some(Ordering::Less))
-                    })
-                    .unwrap_or(false)
-                    .then_some(Ordering::Less)
-            }
+            (typ, Type::Operator(TypeOperator::Intersection, _, _, _)) => IntersectionType::try_from(other.clone())
+                .map(|intersection| {
+                    intersection
+                        .get_types()
+                        .iter()
+                        .all(|typ2| typ.partial_cmp(typ2) == Some(Ordering::Less))
+                })
+                .unwrap_or(false)
+                .then_some(Ordering::Less),
             _ => None,
         }
     }
@@ -1435,9 +1347,7 @@ impl FromStr for Type {
     type Err = ErrorStruct;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let val = ltype(s.into())
-            .map(|x| x.1)
-            .unwrap_or(builder::unknown_function_type());
+        let val = ltype(s.into()).map(|x| x.1).unwrap_or(builder::unknown_function_type());
         Ok(val)
     }
 }
@@ -1480,10 +1390,7 @@ mod tests {
     #[test]
     fn test_concrete_function_type_has_no_generic() {
         let concrete_fn = builder::function_type(
-            &[
-                builder::integer_type_default(),
-                builder::integer_type_default(),
-            ],
+            &[builder::integer_type_default(), builder::integer_type_default()],
             builder::integer_type_default(),
         );
         assert!(
@@ -1500,10 +1407,7 @@ mod tests {
         let generic_t = Type::Generic("T".to_string(), HelpData::default());
         let fn_with_generic_return = builder::function_type(
             &[builder::integer_type_default()],
-            builder::array_type(
-                Type::IndexGen("N".to_string(), HelpData::default()),
-                generic_t,
-            ),
+            builder::array_type(Type::IndexGen("N".to_string(), HelpData::default()), generic_t),
         );
         assert!(
             fn_with_generic_return.has_generic(),
@@ -1537,10 +1441,7 @@ mod tests {
             TypeCategory::GenericKinded(GKind::Number)
         );
         // bare `T` and label generics stay plain Generic.
-        assert_eq!(
-            Type::Generic(n.clone(), h.clone()).to_category(),
-            TypeCategory::Generic
-        );
+        assert_eq!(Type::Generic(n.clone(), h.clone()).to_category(), TypeCategory::Generic);
         assert_eq!(Type::LabelGen(n, h).to_category(), TypeCategory::Generic);
     }
 
@@ -1575,13 +1476,9 @@ mod tests {
 
     #[test]
     fn test_interface_and_type_subtyping1() {
-        let self_fn_type = builder::function_type(
-            &[builder::self_generic_type()],
-            builder::character_type_default(),
-        );
+        let self_fn_type = builder::function_type(&[builder::self_generic_type()], builder::character_type_default());
         let int_type = builder::integer_type_default();
-        let fn_type =
-            builder::function_type(&[int_type.clone()], builder::character_type_default());
+        let fn_type = builder::function_type(&[int_type.clone()], builder::character_type_default());
         let interface = builder::interface_type(&[("view", self_fn_type.clone())]);
 
         let var = Var::from_name("view").set_type(int_type.clone());
@@ -1593,13 +1490,9 @@ mod tests {
 
     #[test]
     fn test_interface_and_type_subtyping2() {
-        let self_fn_type = builder::function_type(
-            &[builder::self_generic_type()],
-            builder::character_type_default(),
-        );
+        let self_fn_type = builder::function_type(&[builder::self_generic_type()], builder::character_type_default());
         let int_type = builder::integer_type_default();
-        let fn_type =
-            builder::function_type(&[int_type.clone()], builder::character_type_default());
+        let fn_type = builder::function_type(&[int_type.clone()], builder::character_type_default());
         let interface = builder::interface_type(&[("view", self_fn_type.clone())]);
 
         let var = Var::from_name("view").set_type(int_type.clone());
@@ -1616,16 +1509,12 @@ mod tests {
     #[test]
     fn test_replace_function_type() {
         let int_type = builder::integer_type_default();
-        let fn_type =
-            builder::function_type(&[int_type.clone()], builder::character_type_default());
+        let fn_type = builder::function_type(&[int_type.clone()], builder::character_type_default());
 
         let new_type = fn_type.replace_function_types(int_type, builder::self_generic_type());
         assert_eq!(
             new_type,
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::character_type_default()
-            )
+            builder::function_type(&[builder::self_generic_type()], builder::character_type_default())
         );
     }
 
@@ -1650,10 +1539,7 @@ mod tests {
             .parse_type_next()
             .push("apply(v1, toto)")
             .parse_type_next();
-        assert_eq!(
-            fp.get_last_type(),
-            builder::array_type2(3, builder::boolean_type())
-        );
+        assert_eq!(fp.get_last_type(), builder::array_type2(3, builder::boolean_type()));
     }
 
     #[test]
@@ -1676,25 +1562,14 @@ mod tests {
 
     #[test]
     fn test_litteral_union_subtyping1() {
-        let my_union = builder::union_type(&[
-            builder::character_type("html"),
-            builder::character_type("h1"),
-        ]);
-        assert!(
-            builder::character_type("h1")
-                .is_subtype(&my_union, &Context::empty())
-                .0
-        );
+        let my_union = builder::union_type(&[builder::character_type("html"), builder::character_type("h1")]);
+        assert!(builder::character_type("h1").is_subtype(&my_union, &Context::empty()).0);
     }
 
     #[test]
     fn test_litteral_union_subtyping2() {
         let my_union = "\"html\" | \"h1\"".parse::<Type>().unwrap();
-        assert!(
-            builder::character_type("h1")
-                .is_subtype(&my_union, &Context::empty())
-                .0
-        );
+        assert!(builder::character_type("h1").is_subtype(&my_union, &Context::empty()).0);
     }
 
     #[test]
@@ -1711,10 +1586,7 @@ mod tests {
         let a = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
         let b = builder::record_type(&[("y".to_string(), builder::character_type_default())]);
         let inter = builder::intersection_type(&[a, b]);
-        assert!(matches!(
-            inter,
-            Type::Operator(TypeOperator::Intersection, _, _, _)
-        ));
+        assert!(matches!(inter, Type::Operator(TypeOperator::Intersection, _, _, _)));
         let pretty = inter.pretty();
         assert!(pretty.contains(" & "));
     }

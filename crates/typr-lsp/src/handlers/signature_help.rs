@@ -2,9 +2,7 @@
 
 use super::completions::extract_multiline_prefix;
 use super::document::DocumentAnalysis;
-use tower_lsp_server::ls_types::{
-    ParameterInformation, ParameterLabel, SignatureHelp, SignatureInformation,
-};
+use tower_lsp_server::ls_types::{ParameterInformation, ParameterLabel, SignatureHelp, SignatureInformation};
 use typr_core::components::r#type::type_system::TypeSystem;
 use typr_core::components::r#type::Type;
 
@@ -131,11 +129,7 @@ fn find_enclosing_call(content: &str, line: u32, character: u32) -> Option<(Stri
         end -= 1;
     }
     let mut start = end;
-    while start > 0
-        && (chars[start - 1].is_alphanumeric()
-            || chars[start - 1] == '_'
-            || chars[start - 1] == '.')
-    {
+    while start > 0 && (chars[start - 1].is_alphanumeric() || chars[start - 1] == '_' || chars[start - 1] == '.') {
         start -= 1;
     }
     if start == end {
@@ -153,12 +147,7 @@ mod signature_help_tests {
 
     /// Test-only convenience wrapper around `analyze_document` +
     /// `resolve_signature_help`, mirroring the old single-shot entry point.
-    fn find_signature_help_at(
-        content: &str,
-        line: u32,
-        character: u32,
-        file_path: &str,
-    ) -> Option<SignatureHelp> {
+    fn find_signature_help_at(content: &str, line: u32, character: u32, file_path: &str) -> Option<SignatureHelp> {
         let analysis = analyze_document(content, file_path)?;
         resolve_signature_help(&analysis, content, line, character)
     }
@@ -174,11 +163,7 @@ mod signature_help_tests {
 
         assert_eq!(help.active_parameter, Some(0));
         let sig = &help.signatures[help.active_signature.unwrap() as usize];
-        assert!(
-            sig.label.starts_with("add("),
-            "unexpected label: {}",
-            sig.label
-        );
+        assert!(sig.label.starts_with("add("), "unexpected label: {}", sig.label);
         assert_eq!(sig.parameters.as_ref().unwrap().len(), 2);
     }
 

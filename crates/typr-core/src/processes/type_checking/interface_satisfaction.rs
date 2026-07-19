@@ -44,20 +44,18 @@ pub enum InterfaceSatisfactionError {
 /// that lookup for every named-alias member.
 fn candidate_methods(context: &Context, concrete: &Type) -> HashSet<ArgumentType> {
     match concrete {
-        Type::Operator(TypeOperator::Intersection, ..) => {
-            match IntersectionType::try_from(concrete.clone()) {
-                Ok(flat) => flat
-                    .get_types()
-                    .iter()
-                    .filter(|member| matches!(reduce_type(context, member), Type::Record(_, _)))
-                    .flat_map(|member| match member.to_interface(context) {
-                        Type::Interface(methods, _) => methods,
-                        _ => HashSet::new(),
-                    })
-                    .collect(),
-                Err(_) => HashSet::new(),
-            }
-        }
+        Type::Operator(TypeOperator::Intersection, ..) => match IntersectionType::try_from(concrete.clone()) {
+            Ok(flat) => flat
+                .get_types()
+                .iter()
+                .filter(|member| matches!(reduce_type(context, member), Type::Record(_, _)))
+                .flat_map(|member| match member.to_interface(context) {
+                    Type::Interface(methods, _) => methods,
+                    _ => HashSet::new(),
+                })
+                .collect(),
+            Err(_) => HashSet::new(),
+        },
         _ => match concrete.to_interface(context) {
             Type::Interface(methods, _) => methods,
             _ => HashSet::new(),
@@ -81,15 +79,10 @@ pub fn check_interface_satisfaction(
     let mut missing = Vec::new();
     for required in required_methods {
         let name = required.get_argument_str();
-        match candidate_methods
-            .iter()
-            .find(|m| m.get_argument_str() == name)
-        {
+        match candidate_methods.iter().find(|m| m.get_argument_str() == name) {
             None => missing.push(name),
             Some(found) => {
-                if missing.is_empty()
-                    && !signatures_compatible(context, &required.get_type(), &found.get_type())
-                {
+                if missing.is_empty() && !signatures_compatible(context, &required.get_type(), &found.get_type()) {
                     return Err(InterfaceSatisfactionError::Incompatible(
                         name,
                         Box::new(required.get_type()),
@@ -174,8 +167,7 @@ mod tests {
             Type::Alias("Point".to_string(), vec![], false, Default::default()),
         );
         let concrete = Type::Alias("Point".to_string(), vec![], false, Default::default());
-        let move_var =
-            crate::components::language::var::Var::from_name("move").set_type(concrete.clone());
+        let move_var = crate::components::language::var::Var::from_name("move").set_type(concrete.clone());
         let context = base.clone().push_var_type(move_var, move_fn_type, &base);
         assert!(check_interface_satisfaction(&context, &concrete, &movable_methods()).is_ok());
     }
@@ -189,10 +181,7 @@ mod tests {
         // param types must be accepted.
         let context = Context::default();
         let required = builder::function_type(
-            &[
-                builder::integer_type_default(),
-                builder::integer_type_default(),
-            ],
+            &[builder::integer_type_default(), builder::integer_type_default()],
             builder::integer_type_default(),
         );
         let found = builder::function_type(
@@ -205,12 +194,8 @@ mod tests {
     #[test]
     fn test_incompatible_param_type() {
         let context = Context::default();
-        let required =
-            builder::function_type(&[builder::any_type()], builder::integer_type_default());
-        let found = builder::function_type(
-            &[builder::integer_type_default()],
-            builder::integer_type_default(),
-        );
+        let required = builder::function_type(&[builder::any_type()], builder::integer_type_default());
+        let found = builder::function_type(&[builder::integer_type_default()], builder::integer_type_default());
         // `found` only accepts int, but the interface promises callers can
         // pass Any — found is narrower than required, so incompatible.
         assert!(!signatures_compatible(&context, &required, &found));

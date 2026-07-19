@@ -63,17 +63,16 @@ pub fn record_facet(context: &Context, typ: &Type) -> Option<HashSet<ArgumentTyp
 pub fn interface_facet(context: &Context, typ: &Type) -> Option<HashSet<ArgumentType>> {
     match reduce_type(context, typ) {
         Type::Interface(methods, _) => Some(methods),
-        Type::Operator(
-            crate::components::r#type::type_operator::TypeOperator::Intersection,
-            ..,
-        ) => IntersectionType::try_from(reduce_type(context, typ))
-            .ok()?
-            .get_types()
-            .iter()
-            .find_map(|member| match reduce_type(context, member) {
-                Type::Interface(methods, _) => Some(methods),
-                _ => None,
-            }),
+        Type::Operator(crate::components::r#type::type_operator::TypeOperator::Intersection, ..) => {
+            IntersectionType::try_from(reduce_type(context, typ))
+                .ok()?
+                .get_types()
+                .iter()
+                .find_map(|member| match reduce_type(context, member) {
+                    Type::Interface(methods, _) => Some(methods),
+                    _ => None,
+                })
+        }
         Type::Generic(name, _) => {
             let bound = context.get_interface_constraint(&name)?.clone();
             interface_facet(context, &bound)
@@ -100,10 +99,7 @@ mod tests {
         let context = Context::default();
         let typ = builder::interface_type(&[(
             "view",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::character_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::character_type_default()),
         )]);
         let methods = interface_facet(&context, &typ).unwrap();
         assert_eq!(methods.len(), 1);
@@ -115,10 +111,7 @@ mod tests {
         let record = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
         let iface = builder::interface_type(&[(
             "view",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::character_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::character_type_default()),
         )]);
         let typ = builder::intersection_type(&[record, iface]);
         let fields = record_facet(&context, &typ).unwrap();
@@ -132,10 +125,7 @@ mod tests {
         let record = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
         let iface = builder::interface_type(&[(
             "view",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::character_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::character_type_default()),
         )]);
         let typ = builder::intersection_type(&[record, iface]);
         let methods = interface_facet(&context, &typ).unwrap();
@@ -161,10 +151,7 @@ mod tests {
         let record = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
         let iface = builder::interface_type(&[(
             "view",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::character_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::character_type_default()),
         )]);
         let bound = builder::intersection_type(&[record, iface]);
         let context = context.add_interface_constraint("R0".to_string(), bound);

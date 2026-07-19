@@ -46,9 +46,7 @@ impl TypeChecker {
     pub fn typing(self, exp: &Lang) -> Self {
         clear_subtype_cache();
         let res = match exp {
-            Lang::Lines { value: exps, .. } => exps
-                .iter()
-                .fold(self, |acc: TypeChecker, lang| acc.typing_helper(lang)),
+            Lang::Lines { value: exps, .. } => exps.iter().fold(self, |acc: TypeChecker, lang| acc.typing_helper(lang)),
             _ => self.typing_helper(exp),
         };
         res.has_errors().then(|| {
@@ -64,9 +62,7 @@ impl TypeChecker {
     pub fn typing_no_panic(self, exp: &Lang) -> Self {
         clear_subtype_cache();
         match exp {
-            Lang::Lines { value: exps, .. } => exps
-                .iter()
-                .fold(self, |acc: TypeChecker, lang| acc.typing_helper(lang)),
+            Lang::Lines { value: exps, .. } => exps.iter().fold(self, |acc: TypeChecker, lang| acc.typing_helper(lang)),
             _ => self.typing_helper(exp),
         }
     }

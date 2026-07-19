@@ -59,9 +59,7 @@ pub fn format(ty: &Type) -> String {
             format!("fn({}) -> {}", formatted_params.join(", "), format(ret_ty))
         }
         Type::Tag(name, param, _) => {
-            if (**param == Type::Any(HelpData::default()))
-                || (**param == Type::Empty(HelpData::default()))
-            {
+            if (**param == Type::Any(HelpData::default())) || (**param == Type::Empty(HelpData::default())) {
                 format!(".{}", name)
             } else {
                 format!(".{}({})", name, format(param))
@@ -70,13 +68,7 @@ pub fn format(ty: &Type) -> String {
         Type::Record(fields, _) => {
             let formatted_fields = fields
                 .iter()
-                .map(|arg_typ| {
-                    format!(
-                        "{}: {}",
-                        arg_typ.get_argument_str(),
-                        format(&arg_typ.get_type())
-                    )
-                })
+                .map(|arg_typ| format!("{}: {}", arg_typ.get_argument_str(), format(&arg_typ.get_type())))
                 .collect::<Vec<_>>();
             format!("list{{{}}}", formatted_fields.join(", "))
         }
@@ -115,31 +107,22 @@ pub fn format(ty: &Type) -> String {
             _,
         ) => format!("{}{}{}", a, op, b),
         Type::UnknownFunction(_) => "UnknownFunction".to_string(),
-        Type::RClass(elem, _) => format!(
-            "class({})",
-            elem.iter().cloned().collect::<Vec<_>>().join(", ")
-        ),
-        Type::Operator(TypeOperator::Intersection, _, _, _) => {
-            IntersectionType::try_from(ty.clone())
-                .map(|intersection| {
-                    intersection
-                        .get_types()
-                        .iter()
-                        .map(|x| x.pretty())
-                        .collect::<Vec<_>>()
-                        .join(" & ")
-                })
-                .unwrap_or_default()
-        }
+        Type::RClass(elem, _) => format!("class({})", elem.iter().cloned().collect::<Vec<_>>().join(", ")),
+        Type::Operator(TypeOperator::Intersection, _, _, _) => IntersectionType::try_from(ty.clone())
+            .map(|intersection| {
+                intersection
+                    .get_types()
+                    .iter()
+                    .map(|x| x.pretty())
+                    .collect::<Vec<_>>()
+                    .join(" & ")
+            })
+            .unwrap_or_default(),
         Type::Interface(args, _) => {
             format!("interface{{ {} }}", pretty(args.clone()))
         }
         Type::Module(args, _, _) => {
-            let body = args
-                .iter()
-                .map(|arg| arg.pretty2())
-                .collect::<Vec<_>>()
-                .join("\n");
+            let body = args.iter().map(|arg| arg.pretty2()).collect::<Vec<_>>().join("\n");
             format!("Module {{\n{}\n}}", body)
         }
         Type::Operator(TypeOperator::Access, left, right, _) => {
@@ -176,13 +159,7 @@ pub fn verbose(t: &Type) -> String {
         Type::Record(fields, _) => {
             let formatted_fields = fields
                 .iter()
-                .map(|arg_typ| {
-                    format!(
-                        "{}: {}",
-                        format(&arg_typ.get_argument()),
-                        format(&arg_typ.get_type())
-                    )
-                })
+                .map(|arg_typ| format!("{}: {}", format(&arg_typ.get_argument()), format(&arg_typ.get_type())))
                 .collect::<Vec<_>>();
             format!("list{{{}}}", formatted_fields.join(", "))
         }

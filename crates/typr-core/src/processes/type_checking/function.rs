@@ -60,19 +60,13 @@ fn collect_generic_kind_occurrences(typ: &Type, acc: &mut Vec<(String, ObservedK
         Type::Record(fields, _) | Type::Interface(fields, _) => fields
             .iter()
             .for_each(|a| collect_generic_kind_occurrences(&a.get_type(), acc)),
-        Type::Tag(_, inner, _) | Type::Multi(inner, _) => {
-            collect_generic_kind_occurrences(inner, acc)
-        }
+        Type::Tag(_, inner, _) | Type::Multi(inner, _) => collect_generic_kind_occurrences(inner, acc),
         Type::Operator(_, a, b, _) => {
             collect_generic_kind_occurrences(a, acc);
             collect_generic_kind_occurrences(b, acc);
         }
-        Type::Params(ts, _) | Type::Tuple(ts, _) => ts
-            .iter()
-            .for_each(|t| collect_generic_kind_occurrences(t, acc)),
-        Type::Alias(_, params, _, _) => params
-            .iter()
-            .for_each(|t| collect_generic_kind_occurrences(t, acc)),
+        Type::Params(ts, _) | Type::Tuple(ts, _) => ts.iter().for_each(|t| collect_generic_kind_occurrences(t, acc)),
+        Type::Alias(_, params, _, _) => params.iter().for_each(|t| collect_generic_kind_occurrences(t, acc)),
         _ => {}
     }
 }
@@ -148,17 +142,9 @@ fn check_default_params(params: &[ArgumentType], context: &Context) -> Vec<TypRE
                 let reduced_declared = reduce_type(context, &declared_type);
                 let is_bare_generic = matches!(
                     reduced_declared,
-                    Type::Generic(_, _)
-                        | Type::IndexGen(_, _)
-                        | Type::LabelGen(_, _)
-                        | Type::KindedGen(_, _, _)
+                    Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _) | Type::KindedGen(_, _, _)
                 );
-                if !is_bare_generic
-                    && !default_tc
-                        .value
-                        .reduce_and_subtype(&declared_type, context)
-                        .0
-                {
+                if !is_bare_generic && !default_tc.value.reduce_and_subtype(&declared_type, context).0 {
                     errors.push(TypRError::Type(TypeError::Param(
                         declared_type,
                         default_tc.value.clone(),
@@ -179,9 +165,7 @@ fn check_default_params(params: &[ArgumentType], context: &Context) -> Vec<TypRE
 
 fn is_opaque_of(body_type: &Type, declared_ret: &Type) -> bool {
     match (body_type, declared_ret) {
-        (Type::Alias(name1, _, true, _), Type::Alias(name2, _, false, _)) => {
-            name1 == &format!("{}_", name2)
-        }
+        (Type::Alias(name1, _, true, _), Type::Alias(name2, _, false, _)) => name1 == &format!("{}_", name2),
         _ => false,
     }
 }
@@ -213,16 +197,14 @@ fn collect_interface_leaf_types(context: &Context, typ: &Type, acc: &mut Vec<Typ
         Type::Record(fields, _) => fields
             .iter()
             .for_each(|a| collect_interface_leaf_types(context, &a.get_type(), acc)),
-        Type::Tag(_, inner, _) | Type::Multi(inner, _) => {
-            collect_interface_leaf_types(context, inner, acc)
-        }
+        Type::Tag(_, inner, _) | Type::Multi(inner, _) => collect_interface_leaf_types(context, inner, acc),
         Type::Operator(_, a, b, _) => {
             collect_interface_leaf_types(context, a, acc);
             collect_interface_leaf_types(context, b, acc);
         }
-        Type::Params(ts, _) | Type::Tuple(ts, _) => ts
-            .iter()
-            .for_each(|t| collect_interface_leaf_types(context, t, acc)),
+        Type::Params(ts, _) | Type::Tuple(ts, _) => {
+            ts.iter().for_each(|t| collect_interface_leaf_types(context, t, acc))
+        }
         Type::Alias(_, params, _, _) => params
             .iter()
             .for_each(|t| collect_interface_leaf_types(context, t, acc)),
@@ -312,9 +294,7 @@ pub fn function(
             expr.clone(),
             context.clone(),
         )
-        .with_errors(vec![TypRError::Type(TypeError::InterfaceReturnOnly(
-            ret_ty.clone(),
-        ))]);
+        .with_errors(vec![TypRError::Type(TypeError::InterfaceReturnOnly(ret_ty.clone()))]);
     }
 
     // RFC sigils.md §7 — intra-signature kind-consistency pass.
@@ -327,16 +307,9 @@ pub fn function(
     let undefined_alias_errors: Vec<TypRError> = params
         .iter()
         .flat_map(|p| {
-            crate::processes::type_checking::let_expression::collect_undefined_aliases(
-                context,
-                &p.get_type(),
-            )
+            crate::processes::type_checking::let_expression::collect_undefined_aliases(context, &p.get_type())
         })
-        .chain(
-            crate::processes::type_checking::let_expression::collect_undefined_aliases(
-                context, ret_ty,
-            ),
-        )
+        .chain(crate::processes::type_checking::let_expression::collect_undefined_aliases(context, ret_ty))
         .collect();
 
     // Build sub-context: interface parameters (including a `List & Interface`
@@ -352,21 +325,14 @@ pub fn function(
         if facets::interface_facet(&sub_context, &reduced).is_some() {
             let (rigid_name, new_ctx) = sub_context.clone().fresh_rigid_name();
             let rigid_type = Type::Generic(rigid_name.clone(), h.clone());
-            sub_context = new_ctx
-                .add_interface_constraint(rigid_name, reduced)
-                .push_var_type(
-                    Var::from_name(&arg_typ.get_argument_str()).set_type(rigid_type.clone()),
-                    rigid_type,
-                    &sub_context,
-                );
+            sub_context = new_ctx.add_interface_constraint(rigid_name, reduced).push_var_type(
+                Var::from_name(&arg_typ.get_argument_str()).set_type(rigid_type.clone()),
+                rigid_type,
+                &sub_context,
+            );
         } else {
-            let var = arg_typ
-                .clone()
-                .set_type(param_type.clone())
-                .to_var(&sub_context);
-            sub_context = sub_context
-                .clone()
-                .push_var_type(var, param_type.clone(), &sub_context);
+            let var = arg_typ.clone().set_type(param_type.clone()).to_var(&sub_context);
+            sub_context = sub_context.clone().push_var_type(var, param_type.clone(), &sub_context);
         }
     }
 
@@ -375,9 +341,7 @@ pub fn function(
     // type, or a fresh rigid generic for an interface param), so it's only
     // valid for the duration of typing this body.
     if let Some(first_param) = params.first() {
-        if let Ok(first_type) =
-            sub_context.get_type_from_variable(&Var::from_name(&first_param.get_argument_str()))
-        {
+        if let Ok(first_type) = sub_context.get_type_from_variable(&Var::from_name(&first_param.get_argument_str())) {
             sub_context = sub_context.set_self_type(Some(first_type));
         }
     }
@@ -393,8 +357,7 @@ pub fn function(
     errors.extend(default_param_errors);
     errors.extend(undefined_alias_errors);
     let is_compatible = is_compatible_return_type(&body_type.value, ret_ty, &sub_context);
-    (!is_compatible)
-        .then(|| errors.push(builder::unmatching_return_type(ret_ty, &body_type.value)));
+    (!is_compatible).then(|| errors.push(builder::unmatching_return_type(ret_ty, &body_type.value)));
     // Structural types registered on the fly while typing the body (e.g. the
     // `ArrayN` alias created by an inline `expr as! [T]` cast) must survive
     // into the outer context: the transpiler resolves them there to emit the
@@ -438,14 +401,10 @@ mod tests {
     /// should type-check successfully when the body calls that method.
     #[test]
     fn test_function_with_interface_param_single_method() {
-        let res = FluentParser::new()
-            .check_typing("fn(x: interface { view: (Self) -> char }): char { view(x) }");
+        let res = FluentParser::new().check_typing("fn(x: interface { view: (Self) -> char }): char { view(x) }");
         let interface = builder::interface_type(&[(
             "view",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::character_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::character_type_default()),
         )]);
         let expected = Type::Function(
             vec![ArgumentType::new("x", &interface)],
@@ -460,23 +419,15 @@ mod tests {
     #[test]
     fn test_function_with_interface_param_multiple_methods() {
         let res = FluentParser::new()
-            .check_typing(
-                "fn(x: interface { to_char: (Self) -> char, to_int: (Self) -> int }): char { to_char(x) }"
-            );
+            .check_typing("fn(x: interface { to_char: (Self) -> char, to_int: (Self) -> int }): char { to_char(x) }");
         let interface = builder::interface_type(&[
             (
                 "to_char",
-                builder::function_type(
-                    &[builder::self_generic_type()],
-                    builder::character_type_default(),
-                ),
+                builder::function_type(&[builder::self_generic_type()], builder::character_type_default()),
             ),
             (
                 "to_int",
-                builder::function_type(
-                    &[builder::self_generic_type()],
-                    builder::integer_type_default(),
-                ),
+                builder::function_type(&[builder::self_generic_type()], builder::integer_type_default()),
             ),
         ]);
         let expected = Type::Function(
@@ -513,10 +464,7 @@ mod tests {
         // This should produce an error
         let interface = builder::interface_type(&[(
             "view",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::character_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::character_type_default()),
         )]);
         let expected = Type::Function(
             vec![ArgumentType::new("x", &interface)],
@@ -529,14 +477,11 @@ mod tests {
     /// A function with an interface parameter alongside a regular parameter.
     #[test]
     fn test_function_with_interface_and_regular_params() {
-        let res = FluentParser::new()
-            .check_typing("fn(x: interface { view: (Self) -> char }, y: int): char { view(x) }");
+        let res =
+            FluentParser::new().check_typing("fn(x: interface { view: (Self) -> char }, y: int): char { view(x) }");
         let interface = builder::interface_type(&[(
             "view",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::character_type_default(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::character_type_default()),
         )]);
         let expected = Type::Function(
             vec![
@@ -554,15 +499,11 @@ mod tests {
     /// preserving other parameter types.
     #[test]
     fn test_function_with_interface_multi_param_method() {
-        let res = FluentParser::new()
-            .check_typing("fn(x: interface { add: (Self, int) -> Self }): int { 5 }");
+        let res = FluentParser::new().check_typing("fn(x: interface { add: (Self, int) -> Self }): int { 5 }");
         let interface = builder::interface_type(&[(
             "add",
             builder::function_type(
-                &[
-                    builder::self_generic_type(),
-                    builder::integer_type_default(),
-                ],
+                &[builder::self_generic_type(), builder::integer_type_default()],
                 builder::self_generic_type(),
             ),
         )]);
@@ -591,14 +532,10 @@ mod tests {
     /// in one of its methods. The body calls the method and returns the result.
     #[test]
     fn test_function_with_interface_self_return() {
-        let res = FluentParser::new()
-            .check_typing("fn(x: interface { identity: (Self) -> Self }): int { 5 }");
+        let res = FluentParser::new().check_typing("fn(x: interface { identity: (Self) -> Self }): int { 5 }");
         let interface = builder::interface_type(&[(
             "identity",
-            builder::function_type(
-                &[builder::self_generic_type()],
-                builder::self_generic_type(),
-            ),
+            builder::function_type(&[builder::self_generic_type()], builder::self_generic_type()),
         )]);
         let expected = Type::Function(
             vec![ArgumentType::new("x", &interface)],
@@ -656,8 +593,7 @@ mod tests {
         use crate::processes::type_checking::type_checker::TypeChecker;
 
         // First, parse and type-check the type alias
-        let code1 =
-            parse2("type Addable <- interface { `+`: (Self, Self) -> Self };".into()).unwrap();
+        let code1 = parse2("type Addable <- interface { `+`: (Self, Self) -> Self };".into()).unwrap();
         let tc = TypeChecker::new(Context::empty()).typing_no_panic(&code1);
 
         // Then parse and type-check the function
@@ -682,17 +618,11 @@ mod tests {
         use crate::components::context::Context;
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
-        let code = parse2(
-            "fn(o: Option<int>, f: (int) -> int): int { match o { .Some(x) => f(x), .None => 0 } }"
-                .into(),
-        )
-        .unwrap();
+        let code =
+            parse2("fn(o: Option<int>, f: (int) -> int): int { match o { .Some(x) => f(x), .None => 0 } }".into())
+                .unwrap();
         let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
-        assert!(
-            !tc.has_errors(),
-            "Expected no type errors, got: {:?}",
-            tc.get_errors()
-        );
+        assert!(!tc.has_errors(), "Expected no type errors, got: {:?}", tc.get_errors());
     }
 
     /// A parameter typed `list { ... } & interface { ... }` should support
@@ -704,16 +634,9 @@ mod tests {
         use crate::components::context::Context;
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
-        let code = parse2(
-            "fn(v: list { x: int } & interface { view: (Self) -> char }): int { v$x }".into(),
-        )
-        .unwrap();
+        let code = parse2("fn(v: list { x: int } & interface { view: (Self) -> char }): int { v$x }".into()).unwrap();
         let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
-        assert!(
-            !tc.has_errors(),
-            "Expected no type errors, got: {:?}",
-            tc.get_errors()
-        );
+        assert!(!tc.has_errors(), "Expected no type errors, got: {:?}", tc.get_errors());
     }
 
     #[test]
@@ -721,16 +644,10 @@ mod tests {
         use crate::components::context::Context;
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
-        let code = parse2(
-            "fn(v: list { x: int } & interface { view: (Self) -> char }): char { view(v) }".into(),
-        )
-        .unwrap();
+        let code =
+            parse2("fn(v: list { x: int } & interface { view: (Self) -> char }): char { view(v) }".into()).unwrap();
         let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
-        assert!(
-            !tc.has_errors(),
-            "Expected no type errors, got: {:?}",
-            tc.get_errors()
-        );
+        assert!(!tc.has_errors(), "Expected no type errors, got: {:?}", tc.get_errors());
     }
 
     #[test]
@@ -739,16 +656,11 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
         let code = parse2(
-            "fn(v: list { x: int } & interface { view: (Self) -> char }): char { let n <- v$x; view(v) }"
-                .into(),
+            "fn(v: list { x: int } & interface { view: (Self) -> char }): char { let n <- v$x; view(v) }".into(),
         )
         .unwrap();
         let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
-        assert!(
-            !tc.has_errors(),
-            "Expected no type errors, got: {:?}",
-            tc.get_errors()
-        );
+        assert!(!tc.has_errors(), "Expected no type errors, got: {:?}", tc.get_errors());
     }
 
     #[test]
@@ -760,10 +672,7 @@ mod tests {
         use crate::processes::type_checking::type_checker::TypeChecker;
         let code = parse2("fn(): Any {}".into()).unwrap();
         let tc = TypeChecker::new(Context::empty()).typing_no_panic(&code);
-        assert!(
-            tc.has_errors(),
-            "Expected at least one error for empty function body"
-        );
+        assert!(tc.has_errors(), "Expected at least one error for empty function body");
         let errors = tc.get_errors();
         assert!(
             errors
@@ -855,10 +764,7 @@ mod tests {
         use crate::processes::type_checking::type_checker::TypeChecker;
         let code = parse2("fn(a: %R, b: @R): %R { a }".into()).unwrap();
         let tc = TypeChecker::new(Context::default()).typing_no_panic(&code);
-        assert!(
-            tc.has_errors(),
-            "Expected a kind-conflict error for %R vs @R"
-        );
+        assert!(tc.has_errors(), "Expected a kind-conflict error for %R vs @R");
     }
 
     #[test]
@@ -891,19 +797,11 @@ mod tests {
 
         let code1 = parse2("let f <- fn(...xs: num): num { sum(xs) };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
-        assert!(
-            !tc1.has_errors(),
-            "variadic decl errors: {:?}",
-            tc1.get_errors()
-        );
+        assert!(!tc1.has_errors(), "variadic decl errors: {:?}", tc1.get_errors());
 
         let code2 = parse2("f(1.0, 2.0, 3.0)".into()).unwrap();
         let tc2 = tc1.typing_no_panic(&code2);
-        assert!(
-            !tc2.has_errors(),
-            "variadic call errors: {:?}",
-            tc2.get_errors()
-        );
+        assert!(!tc2.has_errors(), "variadic call errors: {:?}", tc2.get_errors());
     }
 
     #[test]
@@ -944,9 +842,7 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
 
-        let code1 =
-            parse2("let concat <- fn(sep: char, ...args: char): [#N, char] { args };".into())
-                .unwrap();
+        let code1 = parse2("let concat <- fn(sep: char, ...args: char): [#N, char] { args };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
         assert!(
             !tc1.has_errors(),
@@ -1012,11 +908,7 @@ mod tests {
 
         let code3 = parse2("f(1, 2)".into()).unwrap();
         let tc3 = tc1.typing_no_panic(&code3);
-        assert!(
-            !tc3.has_errors(),
-            "call with all args errors: {:?}",
-            tc3.get_errors()
-        );
+        assert!(!tc3.has_errors(), "call with all args errors: {:?}", tc3.get_errors());
     }
 
     #[test]
@@ -1031,11 +923,7 @@ mod tests {
 
         let code2 = parse2("f()".into()).unwrap();
         let tc2 = tc1.typing_no_panic(&code2);
-        assert!(
-            !tc2.has_errors(),
-            "zero-arg call errors: {:?}",
-            tc2.get_errors()
-        );
+        assert!(!tc2.has_errors(), "zero-arg call errors: {:?}", tc2.get_errors());
     }
 
     #[test]
@@ -1114,20 +1002,14 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
 
-        let code1 =
-            parse2("type Character <- list { name: char, attack: int, health: int };".into())
-                .unwrap();
+        let code1 = parse2("type Character <- list { name: char, attack: int, health: int };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::default()).typing_no_panic(&code1);
 
         let code2 = parse2(
             "let new_character <- fn(name: char, attack: int, health: int): Character { list(name=name, attack=attack, health=health) };".into()
         ).unwrap();
         let tc2 = tc1.typing_no_panic(&code2);
-        assert!(
-            !tc2.has_errors(),
-            "Expected no errors, got: {:?}",
-            tc2.get_errors()
-        );
+        assert!(!tc2.has_errors(), "Expected no errors, got: {:?}", tc2.get_errors());
     }
 
     // =====================================================================
@@ -1144,8 +1026,7 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
 
-        let code1 =
-            parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
+        let code1 = parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::empty()).typing_no_panic(&code1);
 
         let code2 = parse2("fn(): Incrementable { ... }".into()).unwrap();
@@ -1171,8 +1052,7 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
 
-        let code1 =
-            parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
+        let code1 = parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::empty()).typing_no_panic(&code1);
 
         let code2 = parse2("fn(x: int): Incrementable { ... }".into()).unwrap();
@@ -1198,8 +1078,7 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
 
-        let code1 =
-            parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
+        let code1 = parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::empty()).typing_no_panic(&code1);
 
         let code2 = parse2("fn(i: Incrementable): Incrementable { i.incr() }".into()).unwrap();
@@ -1226,12 +1105,10 @@ mod tests {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::type_checker::TypeChecker;
 
-        let code1 =
-            parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
+        let code1 = parse2("type Incrementable <- interface { incr: (Self) -> Self };".into()).unwrap();
         let tc1 = TypeChecker::new(Context::empty()).typing_no_panic(&code1);
 
-        let code2 =
-            parse2("fn(items: [Incrementable]): Incrementable { items[0] }".into()).unwrap();
+        let code2 = parse2("fn(items: [Incrementable]): Incrementable { items[0] }".into()).unwrap();
         let tc2 = tc1.typing_no_panic(&code2);
 
         assert!(

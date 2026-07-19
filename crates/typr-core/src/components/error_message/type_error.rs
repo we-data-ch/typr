@@ -192,18 +192,10 @@ impl TypeError {
     pub fn simple_message(&self) -> String {
         match self {
             TypeError::Let(t1, t2) => {
-                format!(
-                    "Type mismatch: expected {}, got {}",
-                    t1.pretty(),
-                    t2.pretty()
-                )
+                format!("Type mismatch: expected {}, got {}", t1.pretty(), t2.pretty())
             }
             TypeError::Param(t1, t2) => {
-                format!(
-                    "Parameter type mismatch: expected {}, got {}",
-                    t1.pretty(),
-                    t2.pretty()
-                )
+                format!("Parameter type mismatch: expected {}, got {}", t1.pretty(), t2.pretty())
             }
             TypeError::UndefinedFunction(var) => {
                 format!("Undefined function: {}", var.get_name())
@@ -216,11 +208,7 @@ impl TypeError {
                 }
             }
             TypeError::UnmatchingReturnType(t1, t2) => {
-                format!(
-                    "Return type mismatch: expected {}, got {}",
-                    t1.pretty(),
-                    t2.pretty()
-                )
+                format!("Return type mismatch: expected {}, got {}", t1.pretty(), t2.pretty())
             }
             TypeError::ImmutableVariable(var, _) => {
                 format!("Cannot assign to immutable variable: {}", var.get_name())
@@ -301,11 +289,7 @@ impl TypeError {
             }
             TypeError::InvalidTypeOperatorDomain(message, _) => message.clone(),
             TypeError::EmbedNonRecord(name, typ, _) => {
-                format!(
-                    "Cannot embed non-record type '{}' in field '{}'",
-                    typ.pretty(),
-                    name
-                )
+                format!("Cannot embed non-record type '{}' in field '{}'", typ.pretty(), name)
             }
             TypeError::EmbedCollision(name, fields, _) => {
                 format!(
@@ -373,11 +357,7 @@ impl TypeError {
                 )
             }
             TypeError::PatternTypeMismatch(pattern, typ, _) => {
-                format!(
-                    "Pattern {} can never match value of type {}",
-                    pattern,
-                    typ.pretty()
-                )
+                format!("Pattern {} can never match value of type {}", pattern, typ.pretty())
             }
             TypeError::UnsupportedPattern(pattern, _) => {
                 format!("Unsupported match pattern: {}", pattern)
@@ -395,11 +375,7 @@ impl TypeError {
                 format!("'{}' used outside of a loop", keyword)
             }
             TypeError::DataFrameColumnNotVector(name, typ, _) => {
-                format!(
-                    "DataFrame column '{}' must be a vector, found {}",
-                    name,
-                    typ.pretty()
-                )
+                format!("DataFrame column '{}' must be a vector, found {}", name, typ.pretty())
             }
             TypeError::DataFrameColumnLengthMismatch(name1, len1, name2, len2, _) => {
                 format!(
@@ -414,10 +390,7 @@ impl TypeError {
                 )
             }
             TypeError::UnknownUnionVariant(variant_name, union_name, _) => {
-                format!(
-                    "'{}' is not a variant of union '{}'",
-                    variant_name, union_name
-                )
+                format!("'{}' is not a variant of union '{}'", variant_name, union_name)
             }
         }
     }
@@ -486,10 +459,7 @@ impl ErrorMsg for TypeError {
             TypeError::VariableNotImported(name, module, is_public, help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 let help = if is_public {
-                    format!(
-                        "Add `use {}::{};` or `use {}::*;` to import it.",
-                        module, name, module
-                    )
+                    format!("Add `use {}::{};` or `use {}::*;` to import it.", module, name, module)
                 } else {
                     format!(
                         "It's declared without `@pub`/`@export` in '{}', so mark it public first, \
@@ -530,11 +500,7 @@ impl ErrorMsg for TypeError {
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1(pos1)
                     .pos2(pos2)
-                    .text(format!(
-                        "type {} doesn't match type {}",
-                        t1.pretty(),
-                        t2.pretty()
-                    ))
+                    .text(format!("type {} doesn't match type {}", t1.pretty(), t2.pretty()))
                     .pos_text1(format!("Expected {}", t1.pretty()))
                     .pos_text2(format!("Received {}", t2.pretty()))
                     .build()
@@ -547,11 +513,7 @@ impl ErrorMsg for TypeError {
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1(pos1)
                     .pos2(pos2)
-                    .text(format!(
-                        "type {} doesn't match type {}",
-                        t1.pretty(),
-                        t2.pretty()
-                    ))
+                    .text(format!("type {} doesn't match type {}", t1.pretty(), t2.pretty()))
                     .pos_text1(format!("Expected {}", t1.pretty()))
                     .pos_text2(format!("Received {}", t2.pretty()))
                     .build()
@@ -564,11 +526,7 @@ impl ErrorMsg for TypeError {
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1(pos1)
                     .pos2(pos2)
-                    .text(format!(
-                        "can't pattern match {{{} => {}}}",
-                        t1.pretty2(),
-                        t2.pretty2()
-                    ))
+                    .text(format!("can't pattern match {{{} => {}}}", t1.pretty2(), t2.pretty2()))
                     .pos_text1(format!("{} should be a generic variable", t1.pretty2()))
                     .pos_text2(format!("Substitution type: {}", t2.pretty2()))
                     .build()
@@ -581,7 +539,11 @@ impl ErrorMsg for TypeError {
                 DoubleBuilder::new(file_name1, text1, file_name2, text2)
                     .pos1(pos1)
                     .pos2(pos2)
-                    .text(format!("The output type of the function don't match it's type annotation\nExpected: {}\nFound: {}", t1.pretty(), t2.pretty()))
+                    .text(format!(
+                        "The output type of the function don't match it's type annotation\nExpected: {}\nFound: {}",
+                        t1.pretty(),
+                        t2.pretty()
+                    ))
                     .pos_text1(format!("Expected {}", t1.pretty()))
                     .pos_text2(format!("Received {}", t2.pretty()))
                     .build()
@@ -607,11 +569,14 @@ impl ErrorMsg for TypeError {
                     .get_file_data()
                     .unwrap_or_else(|| ("std.ty".to_string(), "".to_string()));
                 SingleBuilder::new(file_name, text)
-                        .pos((help_data.get_offset(), 0))
-                        .pos_text(format!("Undefined variable '{}'", var2.get_name()))
-                        .text(format!("Undefined variable '{}'", var2.get_name()))
-                        .help(format!("- Check the orthograph \n- if it's a function check if it's defined for the given type {}", var2.get_type()))
-                        .build()
+                    .pos((help_data.get_offset(), 0))
+                    .pos_text(format!("Undefined variable '{}'", var2.get_name()))
+                    .text(format!("Undefined variable '{}'", var2.get_name()))
+                    .help(format!(
+                        "- Check the orthograph \n- if it's a function check if it's defined for the given type {}",
+                        var2.get_type()
+                    ))
+                    .build()
             }
             TypeError::ImmutableVariable(var_assign, var) => {
                 let var = var.clone().set_type(var.get_type().generalize());
@@ -660,12 +625,7 @@ impl ErrorMsg for TypeError {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 let offset = help_data.get_offset().min(text.len());
                 let line = (text[..offset].lines().count() + 1) as u32;
-                let element = text[offset..]
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .trim()
-                    .to_string();
+                let element = text[offset..].lines().next().unwrap_or("").trim().to_string();
                 SingleBuilder::new(file_name.clone(), text)
                     .pos((offset, 0))
                     .text(format!(
@@ -692,10 +652,7 @@ impl ErrorMsg for TypeError {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
                     .pos((help_data.get_offset(), 0))
-                    .text(format!(
-                        "Interface '{}' appears only in return position.",
-                        typ.pretty()
-                    ))
+                    .text(format!("Interface '{}' appears only in return position.", typ.pretty()))
                     .pos_text("Interface type used as existential return")
                     .help(
                         "An interface in return position (without a matching parameter) \
@@ -713,10 +670,7 @@ impl ErrorMsg for TypeError {
                         name
                     ))
                     .pos_text("Undeclared type constructor")
-                    .help(format!(
-                        "Declare it first: `typeconstructor {}[N] record;`",
-                        name
-                    ))
+                    .help(format!("Declare it first: `typeconstructor {}[N] record;`", name))
                     .build()
             }
             TypeError::DuplicateField(name, help_data) => {
@@ -844,10 +798,7 @@ impl ErrorMsg for TypeError {
                     ))
                     .build()
             }
-            TypeError::CircularModuleDependency {
-                module_name,
-                help_data,
-            } => {
+            TypeError::CircularModuleDependency { module_name, help_data } => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
                     .pos((help_data.get_offset(), 0))
@@ -1008,15 +959,9 @@ impl ErrorMsg for TypeError {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
                     .pos((help_data.get_offset(), 0))
-                    .text(format!(
-                        "'{}' is not a variant of union '{}'",
-                        variant_name, union_name
-                    ))
+                    .text(format!("'{}' is not a variant of union '{}'", variant_name, union_name))
                     .pos_text("Unknown variant")
-                    .help(format!(
-                        "Check the variants declared by `type {} <- ...;`.",
-                        union_name
-                    ))
+                    .help(format!("Check the variants declared by `type {} <- ...;`.", union_name))
                     .build()
             }
         };

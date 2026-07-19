@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::var::Var;
 use crate::components::r#type::argument_type::ArgumentType;
@@ -20,11 +14,7 @@ pub struct ModuleType {
 }
 
 impl ModuleType {
-    pub fn new(
-        pub_members: Vec<ArgumentType>,
-        priv_members: Vec<ArgumentType>,
-        help_data: HelpData,
-    ) -> Self {
+    pub fn new(pub_members: Vec<ArgumentType>, priv_members: Vec<ArgumentType>, help_data: HelpData) -> Self {
         ModuleType {
             pub_members,
             priv_members,

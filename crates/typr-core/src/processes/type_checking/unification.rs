@@ -35,9 +35,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     match type_ {
         // Generic type substitution
         Type::Generic(_, _) => {
-            if let Some((_, replacement)) =
-                substitutions.iter().find(|(gen_name, _)| gen_name == type_)
-            {
+            if let Some((_, replacement)) = substitutions.iter().find(|(gen_name, _)| gen_name == type_) {
                 replacement.clone()
             } else {
                 type_.clone()
@@ -70,10 +68,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
 
         // Kinded generic substitution
         Type::KindedGen(_, _, _) => {
-            if let Some((_, replacement)) = substitutions
-                .iter()
-                .find(|(key, _)| same_generic_key(key, type_))
-            {
+            if let Some((_, replacement)) = substitutions.iter().find(|(key, _)| same_generic_key(key, type_)) {
                 replacement.clone()
             } else {
                 type_.clone()
@@ -87,12 +82,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             match (v1.clone(), v2.clone()) {
                 (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 + i2, h),
-                _ => Type::Operator(
-                    TypeOperator::Addition,
-                    Box::new(v1),
-                    Box::new(v2),
-                    h.clone(),
-                ),
+                _ => Type::Operator(TypeOperator::Addition, Box::new(v1), Box::new(v2), h.clone()),
             }
         }
 
@@ -102,12 +92,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             match (v1.clone(), v2.clone()) {
                 (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 - i2, h),
-                _ => Type::Operator(
-                    TypeOperator::Substraction,
-                    Box::new(v1),
-                    Box::new(v2),
-                    h.clone(),
-                ),
+                _ => Type::Operator(TypeOperator::Substraction, Box::new(v1), Box::new(v2), h.clone()),
             }
         }
 
@@ -117,12 +102,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             match (v1.clone(), v2.clone()) {
                 (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 * i2, h),
-                _ => Type::Operator(
-                    TypeOperator::Multiplication,
-                    Box::new(v1),
-                    Box::new(v2),
-                    h.clone(),
-                ),
+                _ => Type::Operator(TypeOperator::Multiplication, Box::new(v1), Box::new(v2), h.clone()),
             }
         }
 
@@ -132,12 +112,7 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
             match (v1.clone(), v2.clone()) {
                 (Type::Number(n, h), Type::Number(_, _)) => Type::Number(n, h),
                 (Type::Integer(i1, h), Type::Integer(i2, _)) => Type::Integer(i1 / i2, h),
-                _ => Type::Operator(
-                    TypeOperator::Division,
-                    Box::new(v1),
-                    Box::new(v2),
-                    h.clone(),
-                ),
+                _ => Type::Operator(TypeOperator::Division, Box::new(v1), Box::new(v2), h.clone()),
             }
         }
 
@@ -219,48 +194,29 @@ fn type_contains_generic(typ: &Type, name: &str) -> bool {
     match typ {
         Type::Generic(g, _) => g == name,
         Type::Function(params, ret, _) => {
-            params
-                .iter()
-                .any(|p| type_contains_generic(&p.get_type(), name))
-                || type_contains_generic(ret, name)
+            params.iter().any(|p| type_contains_generic(&p.get_type(), name)) || type_contains_generic(ret, name)
         }
-        Type::Vec(_, size, elem, _) => {
-            type_contains_generic(size, name) || type_contains_generic(elem, name)
-        }
-        Type::Record(fields, _) => fields
-            .iter()
-            .any(|f| type_contains_generic(&f.get_type(), name)),
+        Type::Vec(_, size, elem, _) => type_contains_generic(size, name) || type_contains_generic(elem, name),
+        Type::Record(fields, _) => fields.iter().any(|f| type_contains_generic(&f.get_type(), name)),
         Type::Alias(_, params, _, _) => params.iter().any(|p| type_contains_generic(p, name)),
         Type::Tag(_, inner, _) => type_contains_generic(inner, name),
-        Type::Interface(fields, _) => fields
-            .iter()
-            .any(|f| type_contains_generic(&f.get_type(), name)),
+        Type::Interface(fields, _) => fields.iter().any(|f| type_contains_generic(&f.get_type(), name)),
         Type::Multi(inner, _) => type_contains_generic(inner, name),
         Type::Tuple(elems, _) => elems.iter().any(|e| type_contains_generic(e, name)),
-        Type::Operator(_, t1, t2, _) => {
-            type_contains_generic(t1, name) || type_contains_generic(t2, name)
-        }
+        Type::Operator(_, t1, t2, _) => type_contains_generic(t1, name) || type_contains_generic(t2, name),
         _ => false,
     }
 }
 
 fn match_wildcard(fields: &HashSet<ArgumentType>, arg_type: ArgumentType) -> Vec<(Type, Type)> {
-    let (labels, types) = fields
-        .iter()
-        .fold((vec![], vec![]), |(mut lbl, mut typ), el| {
-            lbl.push(el.get_argument());
-            typ.push(el.get_type());
-            (lbl, typ)
-        });
+    let (labels, types) = fields.iter().fold((vec![], vec![]), |(mut lbl, mut typ), el| {
+        lbl.push(el.get_argument());
+        typ.push(el.get_type());
+        (lbl, typ)
+    });
     vec![
-        (
-            arg_type.get_argument(),
-            Type::Tuple(labels.clone(), labels.into()),
-        ),
-        (
-            arg_type.get_type(),
-            Type::Tuple(types.clone(), types.into()),
-        ),
+        (arg_type.get_argument(), Type::Tuple(labels.clone(), labels.into())),
+        (arg_type.get_type(), Type::Tuple(types.clone(), types.into())),
     ]
 }
 
@@ -296,16 +252,13 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Option<Vec
         }
 
         // label generic case with label
-        (Type::Char(s, h), Type::LabelGen(g, h2)) | (Type::LabelGen(g, h2), Type::Char(s, h)) => {
-            Some(vec![(
-                Type::LabelGen(g.clone(), h2.clone()),
-                Type::Char(s.clone(), h.clone()),
-            )])
-        }
+        (Type::Char(s, h), Type::LabelGen(g, h2)) | (Type::LabelGen(g, h2), Type::Char(s, h)) => Some(vec![(
+            Type::LabelGen(g.clone(), h2.clone()),
+            Type::Char(s.clone(), h.clone()),
+        )]),
 
         // Index generic case with number
-        (Type::Integer(i, h), Type::IndexGen(g, h2))
-        | (Type::IndexGen(g, h2), Type::Integer(i, h)) => Some(vec![(
+        (Type::Integer(i, h), Type::IndexGen(g, h2)) | (Type::IndexGen(g, h2), Type::Integer(i, h)) => Some(vec![(
             Type::IndexGen(g.clone(), h2.clone()),
             Type::Integer(*i, h.clone()),
         )]),
@@ -333,15 +286,11 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Option<Vec
                 None
             } else {
                 match crate::components::r#type::kind::type_kind(concrete) {
-                    Some(actual) if actual == *k => Some(vec![(
-                        Type::KindedGen(*k, g.clone(), h2.clone()),
-                        concrete.clone(),
-                    )]),
+                    Some(actual) if actual == *k => {
+                        Some(vec![(Type::KindedGen(*k, g.clone(), h2.clone()), concrete.clone())])
+                    }
                     Some(_) => None,
-                    None => Some(vec![(
-                        Type::KindedGen(*k, g.clone(), h2.clone()),
-                        concrete.clone(),
-                    )]),
+                    None => Some(vec![(Type::KindedGen(*k, g.clone(), h2.clone()), concrete.clone())]),
                 }
             }
         }
@@ -501,16 +450,8 @@ pub fn record_intersection(
     let mut values2 = Vec::new();
 
     for label in &common_labels {
-        if let Some(value1) = record1
-            .iter()
-            .find(|arg| arg.get_argument_str() == *label)
-            .cloned()
-        {
-            if let Some(value2) = record2
-                .iter()
-                .find(|arg| arg.get_argument_str() == *label)
-                .cloned()
-            {
+        if let Some(value1) = record1.iter().find(|arg| arg.get_argument_str() == *label).cloned() {
+            if let Some(value2) = record2.iter().find(|arg| arg.get_argument_str() == *label).cloned() {
                 values1.push(value1);
                 values2.push(value2);
             }
@@ -550,10 +491,7 @@ mod tests {
         let kinded = Type::KindedGen(Kind::Record, "R".to_string(), HelpData::default());
         let record = builder::record_type(&[("x".to_string(), builder::integer_type_default())]);
         let bindings = unify(&context, &record, &kinded);
-        assert!(
-            !bindings.is_empty(),
-            "a record should unify with a %R-kinded generic"
-        );
+        assert!(!bindings.is_empty(), "a record should unify with a %R-kinded generic");
     }
 
     // G2: `try_unify` must distinguish real failure (`None`) from success
@@ -562,11 +500,7 @@ mod tests {
     #[test]
     fn test_try_unify_none_on_incompatible_concrete_types() {
         let context = Context::default();
-        let result = try_unify(
-            &context,
-            &builder::integer_type_default(),
-            &builder::boolean_type(),
-        );
+        let result = try_unify(&context, &builder::integer_type_default(), &builder::boolean_type());
         assert!(
             result.is_none(),
             "an int and a bool should not unify at all, got: {:?}",
@@ -601,10 +535,7 @@ mod tests {
             builder::generic_type(),
         );
         let concrete_fn = builder::function_type(
-            &[
-                builder::integer_type_default(),
-                builder::character_type_default(),
-            ],
+            &[builder::integer_type_default(), builder::character_type_default()],
             builder::integer_type_default(),
         );
         let result = try_unify(&context, &generic_fn, &concrete_fn);
@@ -623,10 +554,7 @@ mod tests {
             builder::generic_type(),
         );
         let concrete_fn = builder::function_type(
-            &[
-                builder::integer_type_default(),
-                builder::integer_type_default(),
-            ],
+            &[builder::integer_type_default(), builder::integer_type_default()],
             builder::integer_type_default(),
         );
         let result = try_unify(&context, &generic_fn, &concrete_fn);
@@ -659,10 +587,6 @@ mod tests {
         let t1 = builder::generic_type();
         let t2 = builder::generic_type();
         let result = try_unify(&context, &t1, &t2);
-        assert_eq!(
-            result,
-            Some(vec![]),
-            "T unifying with T itself is trivial, not a cycle"
-        );
+        assert_eq!(result, Some(vec![]), "T unifying with T itself is trivial, not a cycle");
     }
 }

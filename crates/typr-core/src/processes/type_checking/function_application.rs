@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::set_related_type_if_variable;
@@ -29,11 +23,7 @@ use crate::utils::builder;
 /// Try to resolve a method call on a constrained rigid generic variable.
 /// §5 elimination rule: when the receiver has type `A` with constraint `A: I`,
 /// and `m: (Self, …) -> T` is a method of `I`, then `e.m(x₁, …, xⱼ) : T[Self ↦ A]`.
-fn try_constrained_variable_match(
-    var: &Var,
-    types: &[Type],
-    context: &Context,
-) -> Option<FunctionType> {
+fn try_constrained_variable_match(var: &Var, types: &[Type], context: &Context) -> Option<FunctionType> {
     let first_type = types.first()?;
     if !matches!(first_type, Type::Generic(_, _)) {
         return None;
@@ -43,9 +33,7 @@ fn try_constrained_variable_match(
     // `List & Interface` intersection — either way this recovers the method
     // set, so a mixed-intersection parameter can still dispatch method calls.
     let methods = facets::interface_facet(context, first_type)?;
-    let method = methods
-        .iter()
-        .find(|m| m.get_argument_str() == var.get_name())?;
+    let method = methods.iter().find(|m| m.get_argument_str() == var.get_name())?;
     let method_type = method.get_type(); // e.g. Function([Self], Self) or Function([Self, Self], Self)
 
     // Substitute Self → receiver type in the method signature
@@ -97,11 +85,7 @@ fn build_success(
     TypeContext::new(return_type, new_expr, context.clone()).with_errors(param_errors)
 }
 
-fn filter_by_first_param(
-    signatures: &[FunctionType],
-    first_arg_type: &Type,
-    context: &Context,
-) -> Vec<FunctionType> {
+fn filter_by_first_param(signatures: &[FunctionType], first_arg_type: &Type, context: &Context) -> Vec<FunctionType> {
     let reduced_arg = reduce_type(context, first_arg_type);
     // Reduce each candidate's first param exactly once — this used to be
     // recomputed a second time for every signature that fell through to the
@@ -119,10 +103,7 @@ fn filter_by_first_param(
         *reduced_p == reduced_arg
             || matches!(
                 reduced_p,
-                Type::Generic(_, _)
-                    | Type::IndexGen(_, _)
-                    | Type::LabelGen(_, _)
-                    | Type::KindedGen(_, _, _)
+                Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _) | Type::KindedGen(_, _, _)
             )
     });
     // Composite generic params (e.g. `[#N, T]` against an argument `[#N, num]`)
@@ -153,11 +134,7 @@ fn filter_by_first_param(
         .collect()
 }
 
-fn try_direct_match(
-    candidates: &[FunctionType],
-    types: &[Type],
-    context: &Context,
-) -> Option<FunctionType> {
+fn try_direct_match(candidates: &[FunctionType], types: &[Type], context: &Context) -> Option<FunctionType> {
     candidates
         .iter()
         .flat_map(|x| x.clone().infer_return_type_direct(types, context))
@@ -231,9 +208,9 @@ fn collect_tuple_spread(
     concrete: &[Type],
     params: &[Type],
 ) -> Option<()> {
-    let spread_pos = params.iter().position(
-        |p| matches!(p, Type::Multi(inner, _) if matches!(inner.as_ref(), Type::Generic(_, _))),
-    );
+    let spread_pos = params
+        .iter()
+        .position(|p| matches!(p, Type::Multi(inner, _) if matches!(inner.as_ref(), Type::Generic(_, _))));
 
     match spread_pos {
         None => {
@@ -260,10 +237,7 @@ fn collect_tuple_spread(
             }
             if let Type::Multi(inner, _) = &params[pos] {
                 if let Type::Generic(name, _) = inner.as_ref() {
-                    subs.insert(
-                        name.clone(),
-                        SpreadSub::Seq(concrete[pos..spread_end].to_vec()),
-                    );
+                    subs.insert(name.clone(), SpreadSub::Seq(concrete[pos..spread_end].to_vec()));
                 }
             }
             for (c, p) in concrete[spread_end..].iter().zip(params[pos + 1..].iter()) {
@@ -369,11 +343,7 @@ fn try_spread_tuple_match(
 // This alternative path builds a `String`-keyed map so that T and U are kept
 // separate.  It is tried *after* the standard paths fail.
 
-fn collect_named_generics(
-    concrete: &Type,
-    param: &Type,
-    subs: &mut std::collections::HashMap<String, Type>,
-) {
+fn collect_named_generics(concrete: &Type, param: &Type, subs: &mut std::collections::HashMap<String, Type>) {
     // Any is the error sentinel (lambda body failed to type with abstract params).
     // Don't let it bind generics — it would produce spurious [any, any] returns.
     if matches!(concrete, Type::Any(_)) {
@@ -452,9 +422,11 @@ fn verify_named_generics(
         }
         Type::Function(params_p, ret_p, _) => {
             if let Type::Function(params_c, ret_c, _) = concrete {
-                params_c.iter().zip(params_p.iter()).all(|(pc, pp)| {
-                    verify_named_generics(&pc.get_type(), &pp.get_type(), subs, context)
-                }) && verify_named_generics(ret_c, ret_p, subs, context)
+                params_c
+                    .iter()
+                    .zip(params_p.iter())
+                    .all(|(pc, pp)| verify_named_generics(&pc.get_type(), &pp.get_type(), subs, context))
+                    && verify_named_generics(ret_c, ret_p, subs, context)
             } else {
                 false
             }
@@ -494,22 +466,14 @@ fn apply_named_generics(ty: &Type, subs: &std::collections::HashMap<String, Type
         Type::Function(params, ret, h) => Type::Function(
             params
                 .iter()
-                .map(|p| {
-                    ArgumentType::new(
-                        &p.get_argument_str(),
-                        &apply_named_generics(&p.get_type(), subs),
-                    )
-                })
+                .map(|p| ArgumentType::new(&p.get_argument_str(), &apply_named_generics(&p.get_type(), subs)))
                 .collect(),
             Box::new(apply_named_generics(ret, subs)),
             h.clone(),
         ),
         Type::Alias(name, params, opacity, h) => Type::Alias(
             name.clone(),
-            params
-                .iter()
-                .map(|p| apply_named_generics(p, subs))
-                .collect(),
+            params.iter().map(|p| apply_named_generics(p, subs)).collect(),
             *opacity,
             h.clone(),
         ),
@@ -517,11 +481,7 @@ fn apply_named_generics(ty: &Type, subs: &std::collections::HashMap<String, Type
     }
 }
 
-fn try_named_generic_match(
-    all_signatures: &[FunctionType],
-    types: &[Type],
-    context: &Context,
-) -> Option<FunctionType> {
+fn try_named_generic_match(all_signatures: &[FunctionType], types: &[Type], context: &Context) -> Option<FunctionType> {
     for sig in all_signatures {
         let param_types = sig.get_param_types();
         if param_types.len() != types.len() {
@@ -554,11 +514,7 @@ fn try_named_generic_match(
                 .iter()
                 .map(|arg| apply_named_generics(arg, &subs))
                 .collect();
-            return Some(
-                sig.clone()
-                    .set_params(new_args)
-                    .set_infered_return_type(new_return),
-            );
+            return Some(sig.clone().set_params(new_args).set_infered_return_type(new_return));
         }
     }
     None
@@ -584,27 +540,21 @@ fn try_interface_subtype_match(
 
         // Collect interface-param → concrete-arg mappings while verifying all params match.
         let mut interface_to_concrete: Vec<(Type, Type)> = Vec::new();
-        let all_match = param_types
-            .iter()
-            .zip(arg_types.iter())
-            .all(|(param, arg)| {
-                let reduced_param = reduce_type(context, param);
-                if facets::interface_facet(context, &reduced_param).is_some() {
-                    if arg.is_subtype_raw(&reduced_param, context) {
-                        if !interface_to_concrete
-                            .iter()
-                            .any(|(k, _)| k == &reduced_param)
-                        {
-                            interface_to_concrete.push((reduced_param, arg.clone()));
-                        }
-                        true
-                    } else {
-                        false
+        let all_match = param_types.iter().zip(arg_types.iter()).all(|(param, arg)| {
+            let reduced_param = reduce_type(context, param);
+            if facets::interface_facet(context, &reduced_param).is_some() {
+                if arg.is_subtype_raw(&reduced_param, context) {
+                    if !interface_to_concrete.iter().any(|(k, _)| k == &reduced_param) {
+                        interface_to_concrete.push((reduced_param, arg.clone()));
                     }
+                    true
                 } else {
-                    arg.is_subtype_raw(&reduced_param, context)
+                    false
                 }
-            });
+            } else {
+                arg.is_subtype_raw(&reduced_param, context)
+            }
+        });
 
         if !all_match {
             continue;
@@ -643,9 +593,7 @@ fn get_generic_params_from_type(typ: &Type) -> Vec<(String, Type)> {
     }
 }
 
-fn build_substitution_map(
-    lambda_types: &[(Type, Type)],
-) -> std::collections::HashMap<String, Type> {
+fn build_substitution_map(lambda_types: &[(Type, Type)]) -> std::collections::HashMap<String, Type> {
     let mut subs = std::collections::HashMap::new();
     for (fresh_type, concrete_type) in lambda_types {
         if let Type::Generic(name, _) = fresh_type {
@@ -752,10 +700,7 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             help_data: h,
         } => Lang::FunctionApp {
             identifier: Box::new(substitute_type_in_lang(func, subs)),
-            arguments: args
-                .iter()
-                .map(|a| substitute_type_in_lang(a, subs))
-                .collect(),
+            arguments: args.iter().map(|a| substitute_type_in_lang(a, subs)).collect(),
             help_data: h.clone(),
         },
         Lang::VecFunctionApp {
@@ -766,10 +711,7 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
         } => Lang::VecFunctionApp {
             vector_type: vec_type.clone(),
             identifier: Box::new(substitute_type_in_lang(func, subs)),
-            arguments: args
-                .iter()
-                .map(|a| substitute_type_in_lang(a, subs))
-                .collect(),
+            arguments: args.iter().map(|a| substitute_type_in_lang(a, subs)).collect(),
             help_data: h.clone(),
         },
         Lang::Operator {
@@ -829,20 +771,14 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             body: exprs,
             help_data: h,
         } => Lang::Scope {
-            body: exprs
-                .iter()
-                .map(|e| substitute_type_in_lang(e, subs))
-                .collect(),
+            body: exprs.iter().map(|e| substitute_type_in_lang(e, subs)).collect(),
             help_data: h.clone(),
         },
         Lang::Lines {
             value: exprs,
             help_data: h,
         } => Lang::Lines {
-            value: exprs
-                .iter()
-                .map(|e| substitute_type_in_lang(e, subs))
-                .collect(),
+            value: exprs.iter().map(|e| substitute_type_in_lang(e, subs)).collect(),
             help_data: h.clone(),
         },
         Lang::Assign {
@@ -886,9 +822,7 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             target: Box::new(substitute_type_in_lang(exp, subs)),
             branches: branches
                 .iter()
-                .map(|(pat, exp): &(Lang, Box<Lang>)| {
-                    (pat.clone(), Box::new(substitute_type_in_lang(exp, subs)))
-                })
+                .map(|(pat, exp): &(Lang, Box<Lang>)| (pat.clone(), Box::new(substitute_type_in_lang(exp, subs))))
                 .collect(),
             help_data: h.clone(),
         },
@@ -896,30 +830,21 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             value: elems,
             help_data: h,
         } => Lang::Array {
-            value: elems
-                .iter()
-                .map(|e| substitute_type_in_lang(e, subs))
-                .collect(),
+            value: elems.iter().map(|e| substitute_type_in_lang(e, subs)).collect(),
             help_data: h.clone(),
         },
         Lang::Vector {
             value: elems,
             help_data: h,
         } => Lang::Vector {
-            value: elems
-                .iter()
-                .map(|e| substitute_type_in_lang(e, subs))
-                .collect(),
+            value: elems.iter().map(|e| substitute_type_in_lang(e, subs)).collect(),
             help_data: h.clone(),
         },
         Lang::Tuple {
             value: elems,
             help_data: h,
         } => Lang::Tuple {
-            value: elems
-                .iter()
-                .map(|e| substitute_type_in_lang(e, subs))
-                .collect(),
+            value: elems.iter().map(|e| substitute_type_in_lang(e, subs)).collect(),
             help_data: h.clone(),
         },
         Lang::ArrayIndexing {
@@ -946,10 +871,7 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             help_data: h,
         } => Lang::List {
             value: fields.clone(),
-            spreads: spreads
-                .iter()
-                .map(|e| substitute_type_in_lang(e, subs))
-                .collect(),
+            spreads: spreads.iter().map(|e| substitute_type_in_lang(e, subs)).collect(),
             help_data: h.clone(),
         },
         Lang::DataFrame {
@@ -967,10 +889,7 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             help_data: h,
         } => Lang::Module {
             name: name.clone(),
-            body: exprs
-                .iter()
-                .map(|e| substitute_type_in_lang(e, subs))
-                .collect(),
+            body: exprs.iter().map(|e| substitute_type_in_lang(e, subs)).collect(),
             module_position: pos.clone(),
             config: config.clone(),
             help_data: h.clone(),
@@ -980,11 +899,7 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
             Box::new(substitute_type_in_lang(right, subs)),
             h.clone(),
         ),
-        Lang::JSBlock(body, id, h) => Lang::JSBlock(
-            Box::new(substitute_type_in_lang(body, subs)),
-            *id,
-            h.clone(),
-        ),
+        Lang::JSBlock(body, id, h) => Lang::JSBlock(Box::new(substitute_type_in_lang(body, subs)), *id, h.clone()),
         Lang::VecBlock { .. } => lang.clone(),
         Lang::RFunction { help_data: h, .. } => lang.clone(),
         Lang::Signature { help_data: h, .. } => lang.clone(),
@@ -996,24 +911,16 @@ fn substitute_type_in_lang(lang: &Lang, subs: &std::collections::HashMap<String,
     }
 }
 
-fn specialize_lambda(
-    lambda_lang: &Lang,
-    lambda_type: &Type,
-    expected_type: &Type,
-    context: &Context,
-) -> (Lang, Type) {
-    if let (
-        Type::Function(expected_params, expected_ret, _),
-        Type::Function(_lambda_params, lambda_ret, _),
-    ) = (expected_type, lambda_type)
+fn specialize_lambda(lambda_lang: &Lang, lambda_type: &Type, expected_type: &Type, context: &Context) -> (Lang, Type) {
+    if let (Type::Function(expected_params, expected_ret, _), Type::Function(_lambda_params, lambda_ret, _)) =
+        (expected_type, lambda_type)
     {
         // Map the lambda's parameter *names* (e.g. "x") to the concrete
         // expected types. Keying by name is what both substitute_type_in_lang
         // (which matches Lang::Variable by name) and the body re-typing below
         // need — the fresh generic names (T0, T1, …) assigned during the
         // initial abstract typing never appear as variable names in the Lang.
-        let mut substitutions: std::collections::HashMap<String, Type> =
-            std::collections::HashMap::new();
+        let mut substitutions: std::collections::HashMap<String, Type> = std::collections::HashMap::new();
 
         let (parameters, body, help_data) = match lambda_lang {
             Lang::Lambda {
@@ -1057,24 +964,22 @@ fn specialize_lambda(
         // method call resolves `Self` to the rigid variable itself, so a
         // body that just returns the receiver unchanged (`fn(a: Self) -> Self`)
         // types to the bare rigid generic, not the concrete type.
-        let mut rigid_to_concrete: std::collections::HashMap<String, Type> =
-            std::collections::HashMap::new();
-        let specialized_context = substitutions
-            .iter()
-            .fold(context.clone(), |ctx, (name, typ)| {
-                let reduced = reduce_type(&ctx, typ);
-                if facets::interface_facet(&ctx, &reduced).is_some() {
-                    let (rigid_name, new_ctx) = ctx.clone().fresh_rigid_name();
-                    rigid_to_concrete.insert(rigid_name.clone(), typ.clone());
-                    let rigid_type = Type::Generic(rigid_name.clone(), HelpData::default());
-                    new_ctx
-                        .add_interface_constraint(rigid_name, reduced)
-                        .push_var_type(Var::from_name(name), rigid_type, &ctx)
-                } else {
-                    ctx.clone()
-                        .push_var_type(Var::from_name(name), typ.clone(), &ctx)
-                }
-            });
+        let mut rigid_to_concrete: std::collections::HashMap<String, Type> = std::collections::HashMap::new();
+        let specialized_context = substitutions.iter().fold(context.clone(), |ctx, (name, typ)| {
+            let reduced = reduce_type(&ctx, typ);
+            if facets::interface_facet(&ctx, &reduced).is_some() {
+                let (rigid_name, new_ctx) = ctx.clone().fresh_rigid_name();
+                rigid_to_concrete.insert(rigid_name.clone(), typ.clone());
+                let rigid_type = Type::Generic(rigid_name.clone(), HelpData::default());
+                new_ctx.add_interface_constraint(rigid_name, reduced).push_var_type(
+                    Var::from_name(name),
+                    rigid_type,
+                    &ctx,
+                )
+            } else {
+                ctx.clone().push_var_type(Var::from_name(name), typ.clone(), &ctx)
+            }
+        });
         let body_tc = typing(&specialized_context, body);
 
         // Keep the concrete body type when re-typing succeeded; otherwise fall
@@ -1107,12 +1012,7 @@ fn specialize_lambda(
     (lambda_lang.clone(), lambda_type.clone())
 }
 
-pub fn apply_from_variable(
-    var: Var,
-    context: &Context,
-    parameters: &[Lang],
-    h: &HelpData,
-) -> TypeContext {
+pub fn apply_from_variable(var: Var, context: &Context, parameters: &[Lang], h: &HelpData) -> TypeContext {
     thread_local! {
         static DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     }
@@ -1124,9 +1024,7 @@ pub fn apply_from_variable(
     if prev > 200 {
         DEPTH.with(|d| d.set(d.get() - 1));
         return TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
-            .with_errors(vec![TypRError::Type(TypeError::FunctionNotFound(
-                var.clone(),
-            ))]);
+            .with_errors(vec![TypRError::Type(TypeError::FunctionNotFound(var.clone()))]);
     }
     let result = apply_from_variable_inner(var, context, parameters, h);
     DEPTH.with(|d| d.set(d.get() - 1));
@@ -1141,8 +1039,7 @@ pub fn apply_from_variable(
 // not in every step.
 
 /// Signature of a single filter: `(all_signatures, arg_types, fn_var, context) -> Option<matched_signature>`
-type FilterFn =
-    for<'a> fn(&'a [FunctionType], &'a [Type], &'a Var, &'a Context) -> Option<FunctionType>;
+type FilterFn = for<'a> fn(&'a [FunctionType], &'a [Type], &'a Var, &'a Context) -> Option<FunctionType>;
 
 /// Refinement function: re-run after lambda specialization with concrete arg types.
 type RefineFn = fn(&[FunctionType], &[Type], &Context) -> Option<FunctionType>;
@@ -1165,12 +1062,7 @@ fn filter_constrained_variable(
 }
 
 /// FILTERING 0.5: zero-argument call to a plain (non-variadic) function
-fn filter_zero_arg(
-    sigs: &[FunctionType],
-    types: &[Type],
-    _var: &Var,
-    ctx: &Context,
-) -> Option<FunctionType> {
+fn filter_zero_arg(sigs: &[FunctionType], types: &[Type], _var: &Var, ctx: &Context) -> Option<FunctionType> {
     if !types.is_empty() {
         return None;
     }
@@ -1187,12 +1079,7 @@ fn filter_zero_arg(
 }
 
 /// FILTERING 1: first-param equality, then full unification
-fn filter_first_param_match(
-    sigs: &[FunctionType],
-    types: &[Type],
-    _var: &Var,
-    ctx: &Context,
-) -> Option<FunctionType> {
+fn filter_first_param_match(sigs: &[FunctionType], types: &[Type], _var: &Var, ctx: &Context) -> Option<FunctionType> {
     let first_arg_type = types.first()?;
     let candidates = filter_by_first_param(sigs, first_arg_type, ctx);
     if candidates.is_empty() {
@@ -1202,12 +1089,7 @@ fn filter_first_param_match(
 }
 
 /// FILTERING 2: super-type chain (walk ancestors of the first argument)
-fn filter_supertype_match(
-    sigs: &[FunctionType],
-    types: &[Type],
-    _var: &Var,
-    ctx: &Context,
-) -> Option<FunctionType> {
+fn filter_supertype_match(sigs: &[FunctionType], types: &[Type], _var: &Var, ctx: &Context) -> Option<FunctionType> {
     let first_arg_type = types.first()?;
     let super_types = ctx.subtypes.get_ordered_supertypes(first_arg_type, ctx);
     for super_type in &super_types {
@@ -1239,12 +1121,7 @@ fn has_interface_facet(ctx: &Context, typ: &Type) -> bool {
 }
 
 /// FILTERING 2.5: interface structural subtyping
-fn filter_interface_match(
-    sigs: &[FunctionType],
-    types: &[Type],
-    _var: &Var,
-    ctx: &Context,
-) -> Option<FunctionType> {
+fn filter_interface_match(sigs: &[FunctionType], types: &[Type], _var: &Var, ctx: &Context) -> Option<FunctionType> {
     let first_arg_type = types.first()?;
     let interface_candidates: Vec<FunctionType> = sigs
         .iter()
@@ -1252,8 +1129,7 @@ fn filter_interface_match(
             sig.get_first_param()
                 .map(|p| {
                     let reduced_param = reduce_type(ctx, &p);
-                    has_interface_facet(ctx, &reduced_param)
-                        && first_arg_type.is_subtype_raw(&reduced_param, ctx)
+                    has_interface_facet(ctx, &reduced_param) && first_arg_type.is_subtype_raw(&reduced_param, ctx)
                 })
                 .unwrap_or(false)
         })
@@ -1266,21 +1142,11 @@ fn filter_interface_match(
 }
 
 /// Wrapper so `try_named_generic_match` can serve as a `FilterFn`.
-fn filter_named_generic(
-    sigs: &[FunctionType],
-    types: &[Type],
-    _var: &Var,
-    ctx: &Context,
-) -> Option<FunctionType> {
+fn filter_named_generic(sigs: &[FunctionType], types: &[Type], _var: &Var, ctx: &Context) -> Option<FunctionType> {
     try_named_generic_match(sigs, types, ctx)
 }
 
-fn apply_from_variable_inner(
-    var: Var,
-    context: &Context,
-    parameters: &[Lang],
-    h: &HelpData,
-) -> TypeContext {
+fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h: &HelpData) -> TypeContext {
     let (expanded_parameters, types, param_errors, arg_context) =
         get_expanded_parameters_with_their_types(context, parameters);
     let context = &arg_context;
@@ -1331,8 +1197,7 @@ fn apply_from_variable_inner(
 
     for step in filters {
         if let Some(fun_typ) = (step.filter)(&all_signatures, &types, &var, context) {
-            let (final_params, final_types) =
-                specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
+            let (final_params, final_types) = specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
             let final_fun_typ = match step.refine {
                 Some(refine) => refine(&all_signatures, &final_types, context).unwrap_or(fun_typ),
                 None => fun_typ,
@@ -1374,8 +1239,7 @@ fn apply_from_variable_inner(
             )));
         }
     }
-    TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
-        .with_errors(errors)
+    TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone()).with_errors(errors)
 }
 
 fn specialize_lambdas(
@@ -1391,8 +1255,7 @@ fn specialize_lambdas(
     for (i, (param, param_type)) in params.iter().zip(types.iter()).enumerate() {
         if let Lang::Lambda { .. } = param {
             if let Some(expected_type) = fun_params.get(i) {
-                let (specialized_lang, specialized_type) =
-                    specialize_lambda(param, param_type, expected_type, context);
+                let (specialized_lang, specialized_type) = specialize_lambda(param, param_type, expected_type, context);
                 new_params[i] = specialized_lang;
                 new_types[i] = specialized_type;
             }
@@ -1425,12 +1288,7 @@ fn get_expanded_parameters_with_their_types(
     (new_values, types, errors, new_context)
 }
 
-fn build_function_lang(
-    h: &HelpData,
-    new_values: Vec<Lang>,
-    fun_typ: &FunctionType,
-    lang: Lang,
-) -> Lang {
+fn build_function_lang(h: &HelpData, new_values: Vec<Lang>, fun_typ: &FunctionType, lang: Lang) -> Lang {
     if fun_typ.is_vectorized() {
         Lang::VecFunctionApp {
             vector_type: fun_typ.get_vec_type(),
@@ -1447,27 +1305,15 @@ fn build_function_lang(
     }
 }
 
-pub fn apply_from_expression(
-    context: &Context,
-    fn_var_name: &Lang,
-    values: &[Lang],
-    h: &HelpData,
-) -> TypeContext {
+pub fn apply_from_expression(context: &Context, fn_var_name: &Lang, values: &[Lang], h: &HelpData) -> TypeContext {
     // Collect errors from parameters but return Any type
-    let (_expanded_parameters, _types, param_errors, _) =
-        get_expanded_parameters_with_their_types(context, values);
+    let (_expanded_parameters, _types, param_errors, _) = get_expanded_parameters_with_their_types(context, values);
     let mut errors = param_errors;
     errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
-    TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
-        .with_errors(errors)
+    TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone()).with_errors(errors)
 }
 
-pub fn function_application(
-    context: &Context,
-    fn_var_name: &Lang,
-    values: &[Lang],
-    h: &HelpData,
-) -> TypeContext {
+pub fn function_application(context: &Context, fn_var_name: &Lang, values: &[Lang], h: &HelpData) -> TypeContext {
     // Interface constructor call (`I(x)`, interface_constructeurs.md §3/§4):
     // when the callee name resolves to an alias with an interface facet, this
     // isn't an ordinary function call — aliases live in a separate namespace
@@ -1479,17 +1325,9 @@ pub fn function_application(
     // unchanged, exactly like `Self:{...}`/`PartialApp` desugaring elsewhere.
     if values.len() == 1 {
         if let Ok(var) = Var::try_from(fn_var_name.clone()) {
-            if let Some(alias_type) =
-                context.get_type_from_aliases(&Var::from_name(&var.get_name()))
-            {
+            if let Some(alias_type) = context.get_type_from_aliases(&Var::from_name(&var.get_name())) {
                 if let Some(required_methods) = facets::interface_facet(context, &alias_type) {
-                    return interface_constructor_call(
-                        context,
-                        &var.get_name(),
-                        &required_methods,
-                        &values[0],
-                        h,
-                    );
+                    return interface_constructor_call(context, &var.get_name(), &required_methods, &values[0], h);
                 }
             }
         }
@@ -1514,26 +1352,17 @@ fn interface_constructor_call(
 ) -> TypeContext {
     let arg_tc = typing(context, argument);
     let mut errors = arg_tc.errors;
-    if let Err(err) = interface_satisfaction::check_interface_satisfaction(
-        &arg_tc.context,
-        &arg_tc.value,
-        required_methods,
-    ) {
+    if let Err(err) =
+        interface_satisfaction::check_interface_satisfaction(&arg_tc.context, &arg_tc.value, required_methods)
+    {
         let interface_typ = Type::Alias(interface_name.to_string(), vec![], false, h.clone());
         errors.push(TypRError::Type(match err {
             interface_satisfaction::InterfaceSatisfactionError::Missing(names) => {
-                TypeError::InterfaceNotSatisfied(
-                    arg_tc.value.clone(),
-                    interface_typ,
-                    names,
-                    h.clone(),
-                )
+                TypeError::InterfaceNotSatisfied(arg_tc.value.clone(), interface_typ, names, h.clone())
             }
-            interface_satisfaction::InterfaceSatisfactionError::Incompatible(
-                name,
-                expected,
-                found,
-            ) => TypeError::IncompatibleInterfaceMethod(name, *expected, *found, h.clone()),
+            interface_satisfaction::InterfaceSatisfactionError::Incompatible(name, expected, found) => {
+                TypeError::IncompatibleInterfaceMethod(name, *expected, *found, h.clone())
+            }
         }));
     }
     TypeContext::new(arg_tc.value, arg_tc.lang, arg_tc.context).with_errors(errors)
@@ -1558,11 +1387,7 @@ mod tests {
                    Movable(p);";
         let ast = parse_from_string(src, "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
-        assert!(
-            !result.has_errors(),
-            "expected no errors, got: {:?}",
-            result.errors
-        );
+        assert!(!result.has_errors(), "expected no errors, got: {:?}", result.errors);
     }
 
     #[test]
@@ -1579,12 +1404,7 @@ mod tests {
             .push("Movable(p)")
             .run();
         assert_eq!(fp.get_last_log(), "The logs are empty");
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         // `I(x)` desugars to `x` itself: no wrapper call in the generated R.
         assert!(
             !r_code.contains("Movable("),
@@ -1605,10 +1425,10 @@ mod tests {
         let ast = parse_from_string(src, "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
         assert!(result.has_errors(), "expected a missing-method error");
-        assert!(result.errors.iter().any(|e| matches!(
-            e,
-            TypRError::Type(TypeError::InterfaceNotSatisfied(_, _, _, _))
-        )));
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e, TypRError::Type(TypeError::InterfaceNotSatisfied(_, _, _, _)))));
     }
 
     #[test]
@@ -1620,10 +1440,7 @@ mod tests {
                    Movable(p);";
         let ast = parse_from_string(src, "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
-        assert!(
-            result.has_errors(),
-            "expected an incompatible-signature error"
-        );
+        assert!(result.has_errors(), "expected an incompatible-signature error");
         assert!(result.errors.iter().any(|e| matches!(
             e,
             TypRError::Type(TypeError::InterfaceNotSatisfied(_, _, _, _))
@@ -1647,11 +1464,7 @@ mod tests {
                    DrawableMovable(p);";
         let ast = parse_from_string(src, "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
-        assert!(
-            !result.has_errors(),
-            "expected no errors, got: {:?}",
-            result.errors
-        );
+        assert!(!result.has_errors(), "expected no errors, got: {:?}", result.errors);
     }
 
     #[test]
@@ -1678,8 +1491,7 @@ mod tests {
             .push("@f1: (int) -> int;")
             .run()
             .check_typing("f1([1, 2])");
-        let fun_typ =
-            builder::array_type(builder::integer_type(2), builder::integer_type_default());
+        let fun_typ = builder::array_type(builder::integer_type(2), builder::integer_type_default());
         assert_eq!(res, fun_typ);
     }
 
@@ -1718,8 +1530,7 @@ mod tests {
             .push("@f2: (int, int) -> int;")
             .run()
             .check_typing("f2([1, 2, 3, 4], 1)");
-        let expected =
-            builder::array_type(builder::integer_type(4), builder::integer_type_default());
+        let expected = builder::array_type(builder::integer_type(4), builder::integer_type_default());
         assert_eq!(res, expected);
     }
 
@@ -1732,7 +1543,8 @@ mod tests {
         assert_eq!(
             res.iter().cloned().collect::<Vec<_>>(),
             vec![
-                "`f3.Union0` <- (function(a) {\n\"hello\" |> as.Character()\n} |> as.Character()) |> as.Function0()\n".to_string(),
+                "`f3.Union0` <- (function(a) {\n\"hello\" |> as.Character()\n} |> as.Character()) |> as.Function0()\n"
+                    .to_string(),
                 "f3(\"h1\" |> as.Character())".to_string(),
             ]
         );
@@ -1774,8 +1586,7 @@ mod tests {
             .push("@add: (int, int) -> int;")
             .run()
             .check_typing("add([1, 2], 1)");
-        let expected =
-            builder::array_type(builder::integer_type(2), builder::integer_type_default());
+        let expected = builder::array_type(builder::integer_type(2), builder::integer_type_default());
         assert_eq!(res, expected);
     }
 
@@ -1786,8 +1597,7 @@ mod tests {
             .push("@add: (int, int) -> int;")
             .run()
             .check_typing("add(1, [1, 2])");
-        let expected =
-            builder::array_type(builder::integer_type(2), builder::integer_type_default());
+        let expected = builder::array_type(builder::integer_type(2), builder::integer_type_default());
         assert_eq!(res, expected);
     }
 
@@ -1798,8 +1608,7 @@ mod tests {
             .push("@add: (int, int) -> int;")
             .run()
             .check_typing("add([1, 2], [3, 4])");
-        let expected =
-            builder::array_type(builder::integer_type(2), builder::integer_type_default());
+        let expected = builder::array_type(builder::integer_type(2), builder::integer_type_default());
         assert_eq!(res, expected);
     }
 
@@ -1810,8 +1619,7 @@ mod tests {
             .push("@add: (int, int) -> int;")
             .run()
             .check_typing("add([1, 2, 3, 4, 5], 1)");
-        let expected =
-            builder::array_type(builder::integer_type(5), builder::integer_type_default());
+        let expected = builder::array_type(builder::integer_type(5), builder::integer_type_default());
         assert_eq!(res, expected);
     }
 
@@ -1832,8 +1640,7 @@ mod tests {
             .push("@sub: (int, int) -> int;")
             .run()
             .check_typing("sub([1, 2, 3], 1)");
-        let expected =
-            builder::array_type(builder::integer_type(3), builder::integer_type_default());
+        let expected = builder::array_type(builder::integer_type(3), builder::integer_type_default());
         assert_eq!(res, expected);
     }
 
@@ -1844,8 +1651,7 @@ mod tests {
             .push("@mul: (int, int) -> int;")
             .run()
             .check_typing("mul(2, [1, 2, 3])");
-        let expected =
-            builder::array_type(builder::integer_type(3), builder::integer_type_default());
+        let expected = builder::array_type(builder::integer_type(3), builder::integer_type_default());
         assert_eq!(res, expected);
     }
 
@@ -1856,8 +1662,7 @@ mod tests {
             .push("@div: (int, int) -> int;")
             .run()
             .check_typing("div([10, 20], [2, 4])");
-        let expected =
-            builder::array_type(builder::integer_type(2), builder::integer_type_default());
+        let expected = builder::array_type(builder::integer_type(2), builder::integer_type_default());
         assert_eq!(res, expected);
     }
 
@@ -1942,8 +1747,7 @@ mod tests {
             .push("@`+`: (int, int) -> int;")
             .run()
             .check_typing("1 + [1, 2]");
-        let expected =
-            builder::array_type(builder::integer_type(2), builder::integer_type_default());
+        let expected = builder::array_type(builder::integer_type(2), builder::integer_type_default());
         assert_eq!(res, expected);
     }
 
@@ -1954,8 +1758,7 @@ mod tests {
             .push("@`*`: (int, int) -> int;")
             .run()
             .check_typing("2 * [1, 2, 3]");
-        let expected =
-            builder::array_type(builder::integer_type(3), builder::integer_type_default());
+        let expected = builder::array_type(builder::integer_type(3), builder::integer_type_default());
         assert_eq!(res, expected);
     }
 
@@ -1995,9 +1798,12 @@ mod tests {
             .transpile_next();
         let r_code = fp.get_r_code();
         let code = r_code.iter().last().unwrap().clone();
+        // Step ③ (unification_arrays.md): `[1, 2, 3]` is a bare atomic
+        // vector and `*` is natively element-wise in R, so the lifted call
+        // is emitted directly (no vec_apply/vapply wrapper).
         assert!(
-            code.contains("vec_apply"),
-            "Expected vec_apply in transpiled code, got: {}",
+            code.contains("`*`(") && !code.contains("vec_apply") && !code.contains("vapply"),
+            "Expected a direct `*` call on the atomic vector, got: {}",
             code
         );
     }
@@ -2444,13 +2250,8 @@ mod tests {
         use crate::processes::parsing::parse;
         use crate::processes::type_checking::type_checker::TypeChecker;
         // Use the same parse path as the CLI (parse → Lang::Lines).
-        let src =
-            "let f <- fn(a: [Any, int]): [Any, int] {\n    a\n        |> map(\\(x) x + 1)\n};";
-        let lang = parse(nom_locate::LocatedSpan::new_extra(
-            src,
-            "test.ty".to_string(),
-        ))
-        .ast;
+        let src = "let f <- fn(a: [Any, int]): [Any, int] {\n    a\n        |> map(\\(x) x + 1)\n};";
+        let lang = parse(nom_locate::LocatedSpan::new_extra(src, "test.ty".to_string())).ast;
         let tc = TypeChecker::new(Context::default()).typing_no_panic(&lang);
         let errors: Vec<String> = tc.get_errors().iter().map(|e| format!("{e:?}")).collect();
         assert!(

@@ -1,0 +1,14 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 586
+expression: r
+---
+`is_small.integer` <- (function(n) {
+if(n < 3L |> as.Integer()) {
+TRUE |> as.Boolean() 
+} else FALSE |> as.Boolean()
+} |> as.Boolean()) |> as.Generic()
+
+`a` <- c(1L |> as.Integer(), 2L |> as.Integer(), 3L |> as.Integer()) |> identity()
+
+`r` <- vapply(a, function(.typr_x) is_small(.typr_x), logical(1), USE.NAMES = FALSE)

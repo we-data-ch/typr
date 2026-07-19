@@ -64,9 +64,7 @@ impl SyntaxError {
             SyntaxError::LetInsteadOfType { help_data, .. } => Some(help_data.clone()),
             SyntaxError::TypeInsteadOfLet { help_data, .. } => Some(help_data.clone()),
             SyntaxError::SingleLetterTypeName { help_data, .. } => Some(help_data.clone()),
-            SyntaxError::KeywordRecordPositionalElements { help_data, .. } => {
-                Some(help_data.clone())
-            }
+            SyntaxError::KeywordRecordPositionalElements { help_data, .. } => Some(help_data.clone()),
             SyntaxError::MutationTargetNotAssignable(h) => Some(h.clone()),
             SyntaxError::WrongCommentSyntax(h) => Some(h.clone()),
             SyntaxError::SingleEqualsComparison(h) => Some(h.clone()),
@@ -78,23 +76,18 @@ impl SyntaxError {
     /// Get a simple error message without file access (for LSP use).
     pub fn simple_message(&self) -> String {
         match self {
-            SyntaxError::FunctionWithoutType(_) => {
-                "Function parameter is missing a type annotation".to_string()
-            }
+            SyntaxError::FunctionWithoutType(_) => "Function parameter is missing a type annotation".to_string(),
             SyntaxError::FunctionWithoutReturnType(_) => {
                 "Function is missing a return type annotation after ':'".to_string()
             }
-            SyntaxError::ForgottenSemicolon(_) => {
-                "Missing semicolon at the end of the statement".to_string()
-            }
-            SyntaxError::MissingListPrefix(_) => {
-                "Missing list prefix ('list' or ':') before the braces".to_string()
-            }
+            SyntaxError::ForgottenSemicolon(_) => "Missing semicolon at the end of the statement".to_string(),
+            SyntaxError::MissingListPrefix(_) => "Missing list prefix ('list' or ':') before the braces".to_string(),
             SyntaxError::EmptyFunctionBody(_) => {
                 "Empty function body is not allowed. Use `...` as a placeholder.".to_string()
             }
             SyntaxError::FunctionTypeSyntax(_) => {
-                "Function types use parentheses without 'fn': use `(args) -> Type` instead of `fn(args) -> Type`".to_string()
+                "Function types use parentheses without 'fn': use `(args) -> Type` instead of `fn(args) -> Type`"
+                    .to_string()
             }
             SyntaxError::RecordConstructorIndex(_) => {
                 "A record constructor takes exactly one integer length: `Name[N]{ ... }`".to_string()
@@ -102,7 +95,11 @@ impl SyntaxError {
             SyntaxError::RecordInRecursiveParams(_) => {
                 "Record blocks `{ ... }` are not allowed inside recursive type parameters".to_string()
             }
-            SyntaxError::UnknownElement { element, line, help_data } => {
+            SyntaxError::UnknownElement {
+                element,
+                line,
+                help_data,
+            } => {
                 format!(
                     "Unknown element `{}` in `{}` at `{}`",
                     element,
@@ -111,14 +108,10 @@ impl SyntaxError {
                 )
             }
             SyntaxError::LetInsteadOfType { name, .. } => {
-                format!(
-                    "Use `type` instead of `let` to create a type alias: `type {name} <- ...`"
-                )
+                format!("Use `type` instead of `let` to create a type alias: `type {name} <- ...`")
             }
             SyntaxError::TypeInsteadOfLet { name, .. } => {
-                format!(
-                    "Use `let` instead of `type` to create a variable binding: `let {name} <- ...`"
-                )
+                format!("Use `let` instead of `type` to create a variable binding: `let {name} <- ...`")
             }
             SyntaxError::SingleLetterTypeName { name, .. } => {
                 format!(
@@ -131,18 +124,15 @@ impl SyntaxError {
                 )
             }
             SyntaxError::MutationTargetNotAssignable(_) => {
-                "Mutation target is not assignable: `!;` requires a variable or pipeline/UFC starting with a variable".to_string()
+                "Mutation target is not assignable: `!;` requires a variable or pipeline/UFC starting with a variable"
+                    .to_string()
             }
-            SyntaxError::WrongCommentSyntax(_) => {
-                "TypR comments use `#`, not `//`".to_string()
-            }
+            SyntaxError::WrongCommentSyntax(_) => "TypR comments use `#`, not `//`".to_string(),
             SyntaxError::SingleEqualsComparison(_) => {
                 "`=` is not a comparison operator — did you mean `==`?".to_string()
             }
             SyntaxError::TupleDestructureArityMismatch { expected, found, .. } => {
-                format!(
-                    "Tuple destructuring expects {expected} element(s), but the source tuple has {found}"
-                )
+                format!("Tuple destructuring expects {expected} element(s), but the source tuple has {found}")
             }
             SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
@@ -232,9 +222,7 @@ impl ErrorMsg for SyntaxError {
                 SingleBuilder::new(file_name, text)
                     .kind("Syntax error")
                     .pos((help_data.get_offset(), 0))
-                    .text(
-                        "Record blocks `{ ... }` are not allowed inside recursive type parameters",
-                    )
+                    .text("Record blocks `{ ... }` are not allowed inside recursive type parameters")
                     .pos_text("Here")
                     .help("Recursive types only take types or integers, e.g. `Matrix[3, 4, num]`")
                     .build()
@@ -282,7 +270,9 @@ impl ErrorMsg for SyntaxError {
                     .pos((help_data.get_offset(), name.len()))
                     .text("Single uppercase letters are reserved for generic type variables")
                     .pos_text("Here")
-                    .help(format!("Rename `{name}` to a longer alias name, e.g. `{name}b` or a descriptive name"))
+                    .help(format!(
+                        "Rename `{name}` to a longer alias name, e.g. `{name}b` or a descriptive name"
+                    ))
                     .build()
             }
             SyntaxError::KeywordRecordPositionalElements { keyword, help_data } => {
@@ -290,9 +280,7 @@ impl ErrorMsg for SyntaxError {
                 SingleBuilder::new(file_name, text)
                     .kind("Syntax error")
                     .pos((help_data.get_offset(), keyword.len()))
-                    .text(format!(
-                        "`{keyword}{{...}}` requires named fields (`name = value`)"
-                    ))
+                    .text(format!("`{keyword}{{...}}` requires named fields (`name = value`)"))
                     .pos_text("Positional element found here")
                     .help("Use `:{...}` for a positional tuple instead, e.g. `:{1, 2, 3}`")
                     .build()

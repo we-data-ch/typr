@@ -103,12 +103,7 @@ impl ParseResult {
 fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
     let res = alt((tag_exp, variable2)).parse(s);
     match res {
-        Ok((
-            s,
-            Lang::Tag {
-                name, value: val, ..
-            },
-        )) => {
+        Ok((s, Lang::Tag { name, value: val, .. })) => {
             if let Lang::Variable {
                 name: name2,
                 is_opaque: mutopa,
@@ -201,10 +196,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             let newvar = Var::from_language(pat_var[0].clone())
                 .unwrap()
                 .set_type(params[0].1.clone());
-            if let Lang::Variable {
-                name, help_data, ..
-            } = &pat_var[0]
-            {
+            if let Lang::Variable { name, help_data, .. } = &pat_var[0] {
                 if name.chars().next().is_some_and(|c| c.is_uppercase()) {
                     push_parse_error(SyntaxError::LetInsteadOfType {
                         name: name.clone(),
@@ -231,10 +223,7 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             ))
         }
         Ok((s, (_let, (pat_var, None), typ, _eq, body))) => {
-            if let Lang::Variable {
-                name, help_data, ..
-            } = &pat_var[0]
-            {
+            if let Lang::Variable { name, help_data, .. } = &pat_var[0] {
                 if name.chars().next().is_some_and(|c| c.is_uppercase()) {
                     push_parse_error(SyntaxError::LetInsteadOfType {
                         name: name.clone(),
@@ -327,8 +316,7 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
             // type-checking. A generic expression (function call, variable, ...)
             // still falls through to the existing generic tuple-indexing checks.
             if let Lang::Tuple {
-                value: body_elements,
-                ..
+                value: body_elements, ..
             } = &body
             {
                 if elements.len() != body_elements.len() {
@@ -419,9 +407,7 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                         is_export: _,
                         help_data: h,
                     } => {
-                        let vari = Var::from_language(var.deref().clone())
-                            .unwrap()
-                            .to_language();
+                        let vari = Var::from_language(var.deref().clone()).unwrap().to_language();
                         Lang::Let {
                             variable: Box::new(vari),
                             r#type: typ.clone(),
@@ -450,10 +436,7 @@ fn typeconstructor_exp(s: Span) -> IResult<Span, Vec<Lang>> {
         pascal_case_no_space,
         delimited(
             terminated(tag("["), multispace0),
-            separated_list0(
-                terminated(tag(","), multispace0),
-                terminated(ltype, multispace0),
-            ),
+            separated_list0(terminated(tag(","), multispace0), terminated(ltype, multispace0)),
             terminated(tag("]"), multispace0),
         ),
         terminated(alt((tag("recursive"), tag("record"))), multispace0),
@@ -602,9 +585,7 @@ fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 },
             ),
         )) => {
-            let vari = Var::from_language(var.deref().clone())
-                .unwrap()
-                .to_language();
+            let vari = Var::from_language(var.deref().clone()).unwrap().to_language();
             Ok((
                 s,
                 vec![Lang::Alias {
@@ -855,10 +836,7 @@ fn import_from_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         variable,
-        alt((
-            terminated(tag("="), multispace0),
-            terminated(tag("<-"), multispace0),
-        )),
+        alt((terminated(tag("="), multispace0), terminated(tag("<-"), multispace0))),
         parse_elements,
         opt(terminated(tag(";"), multispace0)),
     )
@@ -1011,14 +989,7 @@ fn tests(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn library(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (
-        tag("library("),
-        variable_exp,
-        tag(")"),
-        opt(tag(";")),
-        multispace0,
-    )
-        .parse(s);
+    let res = (tag("library("), variable_exp, tag(")"), opt(tag(";")), multispace0).parse(s);
 
     match res {
         Ok((s, (_lib, (var, h), _cl, Some(_col), _))) => Ok((
@@ -1055,9 +1026,7 @@ fn use_item_exp(s: Span) -> IResult<Span, crate::components::language::use_lang:
     }
 }
 
-fn use_items_selector(
-    s: Span,
-) -> IResult<Span, crate::components::language::use_lang::UseSelector> {
+fn use_items_selector(s: Span) -> IResult<Span, crate::components::language::use_lang::UseSelector> {
     use crate::components::language::use_lang::UseSelector;
     let res = (
         pair(tag("{"), multispace0),
@@ -1107,8 +1076,7 @@ fn use_module_directive(s: Span) -> IResult<Span, Vec<Lang>> {
             }
             Err(_) => match terminated(variable_recognizer, multispace0).parse(current_s.clone()) {
                 Ok((s2, (seg, _))) => {
-                    let colon_res: IResult<Span, (Span, Span)> =
-                        pair(tag("::"), multispace0).parse(s2.clone());
+                    let colon_res: IResult<Span, (Span, Span)> = pair(tag("::"), multispace0).parse(s2.clone());
                     match colon_res {
                         Ok((s3, _)) => {
                             path.push(seg);
@@ -1116,10 +1084,7 @@ fn use_module_directive(s: Span) -> IResult<Span, Vec<Lang>> {
                         }
                         Err(_) => {
                             use crate::components::language::use_lang::UseItem;
-                            selector = UseSelector::Items(vec![UseItem {
-                                name: seg,
-                                alias: None,
-                            }]);
+                            selector = UseSelector::Items(vec![UseItem { name: seg, alias: None }]);
                             current_s = s2;
                             break;
                         }
@@ -1211,13 +1176,8 @@ fn implicit_mutate(s: Span) -> IResult<Span, Vec<Lang>> {
                 }],
             )),
             None => {
-                push_parse_error(SyntaxError::MutationTargetNotAssignable(
-                    expr.clone().into(),
-                ));
-                Err(nom::Err::Error(nom::error::Error::new(
-                    s,
-                    nom::error::ErrorKind::Tag,
-                )))
+                push_parse_error(SyntaxError::MutationTargetNotAssignable(expr.clone().into()));
+                Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Tag)))
             }
         },
         Err(r) => Err(r),
@@ -1262,9 +1222,7 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
         .parse(s);
     match res {
         Ok((s, (at, Type::Alias(name, _params, _, h), _, typ, _))) => {
-            let var2 = Var::from_name(&name)
-                .set_help_data(h.clone())
-                .set_type(typ.clone());
+            let var2 = Var::from_name(&name).set_help_data(h.clone()).set_type(typ.clone());
             Ok((
                 s,
                 vec![Lang::Signature {
@@ -1471,13 +1429,7 @@ pub fn parse(s: Span) -> ParseResult {
     match res {
         Ok((remaining, v)) => {
             if !remaining.fragment().is_empty() {
-                let element = remaining
-                    .fragment()
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .trim()
-                    .to_string();
+                let element = remaining.fragment().lines().next().unwrap_or("").trim().to_string();
                 let line = remaining.location_line();
                 let help_data = HelpData::from(remaining);
                 push_parse_error(SyntaxError::UnknownElement {
@@ -1553,10 +1505,7 @@ mod tesus {
     fn test_semicolon1() {
         let res = parse("let a <- 5".into());
         // This should now collect a ForgottenSemicolon error
-        assert!(
-            res.has_errors(),
-            "Missing semicolon should produce a syntax error"
-        );
+        assert!(res.has_errors(), "Missing semicolon should produce a syntax error");
         assert_eq!(res.errors.len(), 1, "Should have exactly one error");
         match &res.errors[0] {
             SyntaxError::ForgottenSemicolon(_) => (),
@@ -1602,10 +1551,7 @@ mod tesus {
     #[test]
     fn test_let_instead_of_type() {
         let res = parse("let MyType <- int;".into());
-        assert!(
-            res.has_errors(),
-            "let with PascalCase should produce a syntax error"
-        );
+        assert!(res.has_errors(), "let with PascalCase should produce a syntax error");
         assert_eq!(res.errors.len(), 1, "Should have exactly one error");
         match &res.errors[0] {
             SyntaxError::LetInsteadOfType { name, .. } => {
@@ -1640,10 +1586,7 @@ mod tesus {
     #[test]
     fn test_type_instead_of_let() {
         let res = parse("type my_var <- 42;".into());
-        assert!(
-            res.has_errors(),
-            "type with snake_case should produce a syntax error"
-        );
+        assert!(res.has_errors(), "type with snake_case should produce a syntax error");
         assert_eq!(res.errors.len(), 1, "Should have exactly one error");
         match &res.errors[0] {
             SyntaxError::TypeInsteadOfLet { name, .. } => {
@@ -1761,10 +1704,7 @@ mod tesus {
             SyntaxError::KeywordRecordPositionalElements { keyword, .. } => {
                 assert_eq!(keyword, "list");
             }
-            other => panic!(
-                "Expected KeywordRecordPositionalElements error, got {:?}",
-                other
-            ),
+            other => panic!("Expected KeywordRecordPositionalElements error, got {:?}", other),
         }
         // Recovers a full Lang::Tuple — nothing lost from the AST.
         match extract_let_expression(&res.ast) {
@@ -1784,10 +1724,7 @@ mod tesus {
             SyntaxError::KeywordRecordPositionalElements { keyword, .. } => {
                 assert_eq!(keyword, "record");
             }
-            other => panic!(
-                "Expected KeywordRecordPositionalElements error, got {:?}",
-                other
-            ),
+            other => panic!("Expected KeywordRecordPositionalElements error, got {:?}", other),
         }
         match extract_let_expression(&res.ast) {
             Lang::Tuple { value, .. } => assert_eq!(value.len(), 3),
@@ -1806,10 +1743,7 @@ mod tesus {
             SyntaxError::KeywordRecordPositionalElements { keyword, .. } => {
                 assert_eq!(keyword, "object");
             }
-            other => panic!(
-                "Expected KeywordRecordPositionalElements error, got {:?}",
-                other
-            ),
+            other => panic!("Expected KeywordRecordPositionalElements error, got {:?}", other),
         }
         match extract_let_expression(&res.ast) {
             Lang::Tuple { value, .. } => assert_eq!(value.len(), 3),
@@ -1917,9 +1851,7 @@ mod tesus {
         // default parameter values (`name: T = value`) consume their own
         // `=` before recursing into the value expression, so they must never
         // see the new recovery trigger.
-        let res = parse(
-            "let greet <- fn(name: char, greeting: char = \"Hello\"): char { greeting };".into(),
-        );
+        let res = parse("let greet <- fn(name: char, greeting: char = \"Hello\"): char { greeting };".into());
         assert!(
             !res.has_errors(),
             "default parameter `=` should not trigger SingleEqualsComparison"
@@ -1930,15 +1862,9 @@ mod tesus {
 
     #[test]
     fn test_let_tuple_basic() {
-        let res = let_tuple_exp("let :{a, b, c} <- :{1, 2, 3};".into())
-            .unwrap()
-            .1;
+        let res = let_tuple_exp("let :{a, b, c} <- :{1, 2, 3};".into()).unwrap().1;
         // Should produce 4 Let statements: 1 tmp + 3 bindings
-        assert_eq!(
-            res.len(),
-            4,
-            "Should produce 4 Let statements (1 tmp + 3 bindings)"
-        );
+        assert_eq!(res.len(), 4, "Should produce 4 Let statements (1 tmp + 3 bindings)");
         for item in &res {
             assert!(
                 item.simple_print().starts_with("let"),
@@ -1978,11 +1904,7 @@ mod tesus {
             } else {
                 panic!("Expected Variable 'x'");
             }
-            assert_eq!(
-                body.simple_print(),
-                "Operator",
-                "Body should be a Dot operator"
-            );
+            assert_eq!(body.simple_print(), "Operator", "Body should be a Dot operator");
         } else {
             panic!("Expected Let");
         }
@@ -2000,15 +1922,9 @@ mod tesus {
 
     #[test]
     fn test_let_tuple_wildcard() {
-        let res = let_tuple_exp("let :{a, _, c} <- :{1, 2, 3};".into())
-            .unwrap()
-            .1;
+        let res = let_tuple_exp("let :{a, _, c} <- :{1, 2, 3};".into()).unwrap().1;
         // Should produce 3 Let statements: 1 tmp + 2 bindings (wildcard skipped)
-        assert_eq!(
-            res.len(),
-            3,
-            "Should produce 3 Let statements (wildcard skipped)"
-        );
+        assert_eq!(res.len(), 3, "Should produce 3 Let statements (wildcard skipped)");
         // Second Let should bind 'a'
         if let Lang::Let { variable: var, .. } = &res[1] {
             if let Lang::Variable { name, .. } = var.as_ref() {
@@ -2034,19 +1950,11 @@ mod tesus {
     #[test]
     fn test_let_tuple_under_binding_is_arity_error() {
         let _ = take_parse_errors();
-        let _ = let_tuple_exp("let :{a, b} <- :{1, 2, 3};".into())
-            .unwrap()
-            .1;
+        let _ = let_tuple_exp("let :{a, b} <- :{1, 2, 3};".into()).unwrap().1;
         let errors = take_parse_errors();
-        assert_eq!(
-            errors.len(),
-            1,
-            "under-binding must raise exactly one error"
-        );
+        assert_eq!(errors.len(), 1, "under-binding must raise exactly one error");
         match &errors[0] {
-            SyntaxError::TupleDestructureArityMismatch {
-                expected, found, ..
-            } => {
+            SyntaxError::TupleDestructureArityMismatch { expected, found, .. } => {
                 assert_eq!(*expected, 2);
                 assert_eq!(*found, 3);
             }
@@ -2057,15 +1965,11 @@ mod tesus {
     #[test]
     fn test_let_tuple_over_binding_is_arity_error() {
         let _ = take_parse_errors();
-        let _ = let_tuple_exp("let :{a, b, c, d} <- :{1, 2, 3};".into())
-            .unwrap()
-            .1;
+        let _ = let_tuple_exp("let :{a, b, c, d} <- :{1, 2, 3};".into()).unwrap().1;
         let errors = take_parse_errors();
         assert_eq!(errors.len(), 1, "over-binding must raise exactly one error");
         match &errors[0] {
-            SyntaxError::TupleDestructureArityMismatch {
-                expected, found, ..
-            } => {
+            SyntaxError::TupleDestructureArityMismatch { expected, found, .. } => {
                 assert_eq!(*expected, 4);
                 assert_eq!(*found, 3);
             }
@@ -2076,9 +1980,7 @@ mod tesus {
     #[test]
     fn test_let_tuple_matching_arity_no_error() {
         let _ = take_parse_errors();
-        let _ = let_tuple_exp("let :{a, b, c} <- :{1, 2, 3};".into())
-            .unwrap()
-            .1;
+        let _ = let_tuple_exp("let :{a, b, c} <- :{1, 2, 3};".into()).unwrap().1;
         let errors = take_parse_errors();
         assert!(errors.is_empty(), "matching arity must not raise an error");
     }
@@ -2086,9 +1988,7 @@ mod tesus {
     #[test]
     fn test_let_tuple_wildcard_counts_toward_arity() {
         let _ = take_parse_errors();
-        let _ = let_tuple_exp("let :{a, _} <- :{1, 2, 3};".into())
-            .unwrap()
-            .1;
+        let _ = let_tuple_exp("let :{a, _} <- :{1, 2, 3};".into()).unwrap().1;
         let errors = take_parse_errors();
         assert_eq!(
             errors.len(),
@@ -2102,9 +2002,7 @@ mod tesus {
         // Source is not a syntactic tuple literal (a function call) — arity is
         // unknown at parse time, so no error should be raised here.
         let _ = take_parse_errors();
-        let _ = let_tuple_exp("let :{a, b} <- get_pair();".into())
-            .unwrap()
-            .1;
+        let _ = let_tuple_exp("let :{a, b} <- get_pair();".into()).unwrap().1;
         let errors = take_parse_errors();
         assert!(
             errors.is_empty(),
@@ -2124,10 +2022,7 @@ mod tesus {
     #[test]
     fn test_let_tuple_in_full_parse() {
         let res = parse("let :{a, b, c} <- :{1, 2, 3};".into());
-        assert!(
-            !res.has_errors(),
-            "Let tuple destructuring should parse without errors"
-        );
+        assert!(!res.has_errors(), "Let tuple destructuring should parse without errors");
     }
 
     #[test]
@@ -2157,21 +2052,9 @@ mod tesus {
             .context
             .get_type_from_existing_variable(crate::components::language::var::Var::from_name("c"));
 
-        assert_eq!(
-            ty_a,
-            builder::integer_type(1),
-            "Variable 'a' should be Integer(1)"
-        );
-        assert_eq!(
-            ty_b,
-            builder::integer_type(2),
-            "Variable 'b' should be Integer(2)"
-        );
-        assert_eq!(
-            ty_c,
-            builder::integer_type(3),
-            "Variable 'c' should be Integer(3)"
-        );
+        assert_eq!(ty_a, builder::integer_type(1), "Variable 'a' should be Integer(1)");
+        assert_eq!(ty_b, builder::integer_type(2), "Variable 'b' should be Integer(2)");
+        assert_eq!(ty_c, builder::integer_type(3), "Variable 'c' should be Integer(3)");
     }
 
     #[test]
@@ -2191,11 +2074,7 @@ mod tesus {
             .context
             .get_type_from_existing_variable(crate::components::language::var::Var::from_name("y"));
 
-        assert_eq!(
-            ty_x,
-            builder::integer_type(1),
-            "Variable 'x' should be Integer(1)"
-        );
+        assert_eq!(ty_x, builder::integer_type(1), "Variable 'x' should be Integer(1)");
         assert_eq!(
             ty_y,
             builder::character_type("hello"),
@@ -2227,9 +2106,7 @@ mod tesus {
         let lang = parse2("use Math::*;".into()).expect("parse failed");
         match lang {
             Lang::UseModule {
-                module_path,
-                selector,
-                ..
+                module_path, selector, ..
             } => {
                 assert_eq!(module_path, vec!["Math".to_string()]);
                 assert_eq!(selector, UseSelector::Wildcard);
@@ -2244,9 +2121,7 @@ mod tesus {
         let lang = parse2("use Math::{pi, sin as s};".into()).expect("parse failed");
         match lang {
             Lang::UseModule {
-                module_path,
-                selector,
-                ..
+                module_path, selector, ..
             } => {
                 assert_eq!(module_path, vec!["Math".to_string()]);
                 assert_eq!(
@@ -2273,14 +2148,9 @@ mod tesus {
         let lang = parse2("use Aa::Bb::Cc::*;".into()).expect("parse failed");
         match lang {
             Lang::UseModule {
-                module_path,
-                selector,
-                ..
+                module_path, selector, ..
             } => {
-                assert_eq!(
-                    module_path,
-                    vec!["Aa".to_string(), "Bb".to_string(), "Cc".to_string()]
-                );
+                assert_eq!(module_path, vec!["Aa".to_string(), "Bb".to_string(), "Cc".to_string()]);
                 assert_eq!(selector, UseSelector::Wildcard);
             }
             other => panic!("Expected UseModule, got {:?}", other),
@@ -2293,9 +2163,7 @@ mod tesus {
         assert_eq!(res.len(), 1);
         match &res[0] {
             Lang::Assign {
-                identifier,
-                expression,
-                ..
+                identifier, expression, ..
             } => {
                 assert!(matches!(identifier.as_ref(), Lang::Variable { .. }));
                 assert!(matches!(expression.as_ref(), Lang::Variable { .. }));
@@ -2310,9 +2178,7 @@ mod tesus {
         assert_eq!(res.len(), 1);
         match &res[0] {
             Lang::Assign {
-                identifier,
-                expression,
-                ..
+                identifier, expression, ..
             } => {
                 assert!(matches!(identifier.as_ref(), Lang::Variable { .. }));
                 assert!(matches!(expression.as_ref(), Lang::Operator { .. }));
@@ -2349,9 +2215,7 @@ mod tesus {
 
     #[test]
     fn test_implicit_mutate_ufc_pipeline() {
-        let res = implicit_mutate("shape.scale(2) |> rotate(90)!;".into())
-            .unwrap()
-            .1;
+        let res = implicit_mutate("shape.scale(2) |> rotate(90)!;".into()).unwrap().1;
         assert_eq!(res.len(), 1);
         match &res[0] {
             Lang::Assign { identifier, .. } => match identifier.as_ref() {

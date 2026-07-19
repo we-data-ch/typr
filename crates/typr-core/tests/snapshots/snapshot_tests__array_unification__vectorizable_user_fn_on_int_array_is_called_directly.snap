@@ -1,0 +1,12 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 596
+expression: r
+---
+`double.integer` <- (function(x) {
+x * 2L |> as.Integer()
+} |> as.Integer()) |> as.Generic()
+
+`a` <- c(1L |> as.Integer(), 2L |> as.Integer(), 3L |> as.Integer()) |> identity()
+
+`r` <- double(a)

@@ -160,10 +160,7 @@ mod tests {
 
     #[test]
     fn test_generic_kinded_category_display() {
-        assert_eq!(
-            format!("{}", TypeCategory::GenericKinded(GKind::Record)),
-            "GRecord"
-        );
+        assert_eq!(format!("{}", TypeCategory::GenericKinded(GKind::Record)), "GRecord");
     }
 
     #[test]

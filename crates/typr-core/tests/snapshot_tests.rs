@@ -8,16 +8,12 @@ use typr_core::processes::spg::build_spg_from_items;
 use typr_core::utils::fluent_parser::FluentParser;
 
 fn c_types(lines: &[&str]) -> String {
-    let fp = lines
-        .iter()
-        .fold(FluentParser::new(), |acc, line| acc.push(line).run());
+    let fp = lines.iter().fold(FluentParser::new(), |acc, line| acc.push(line).run());
     fp.get_context().get_type_anotations()
 }
 
 fn b_generic_functions(lines: &[&str]) -> String {
-    let fp = lines
-        .iter()
-        .fold(FluentParser::new(), |acc, line| acc.push(line).run());
+    let fp = lines.iter().fold(FluentParser::new(), |acc, line| acc.push(line).run());
     fp.get_context()
         .get_all_generic_functions()
         .iter()
@@ -46,14 +42,8 @@ fn transpile(code: &str) -> String {
 }
 
 fn transpile_all(lines: &[&str]) -> String {
-    let fp = lines
-        .iter()
-        .fold(FluentParser::new(), |acc, line| acc.push(line).run());
-    fp.get_r_code()
-        .iter()
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n")
+    let fp = lines.iter().fold(FluentParser::new(), |acc, line| acc.push(line).run());
+    fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n")
 }
 
 /// Same as `transpile_all`, but with `Context::checked_mode` on
@@ -64,11 +54,7 @@ fn transpile_all_checked(lines: &[&str]) -> String {
         FluentParser::new().set_context(Context::empty().set_checked_mode(true)),
         |acc, line| acc.push(line).run(),
     );
-    fp.get_r_code()
-        .iter()
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n")
+    fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n")
 }
 
 mod transpilation {
@@ -132,10 +118,7 @@ mod transpilation {
 
     #[test]
     fn type_alias_record() {
-        let r = transpile_all(&[
-            "type Point <- list { x: int, y: int };",
-            "Point:{ x = 1, y = 2 }",
-        ]);
+        let r = transpile_all(&["type Point <- list { x: int, y: int };", "Point:{ x = 1, y = 2 }"]);
         insta::assert_snapshot!(r);
     }
 
@@ -165,10 +148,7 @@ mod transpilation {
 
     #[test]
     fn vector_alias_array_constructor_call() {
-        let r = transpile_all(&[
-            "type Binaire <- Vec[Any, bool];",
-            "Binaire:[true, true, false, true]",
-        ]);
+        let r = transpile_all(&["type Binaire <- Vec[Any, bool];", "Binaire:[true, true, false, true]"]);
         insta::assert_snapshot!(r);
     }
 
@@ -272,10 +252,7 @@ mod generated_files {
             "let double <- fn(i: Incrementable): Incrementable { i.incr().incr() };",
             "let incr <- fn(s: int): int { s + 1 };",
         ]);
-        assert!(
-            result.contains("double <- function"),
-            "double generic missing"
-        );
+        assert!(result.contains("double <- function"), "double generic missing");
         assert!(result.contains("incr <- function"), "incr generic missing");
     }
 }
@@ -286,10 +263,7 @@ mod typing {
 
     #[test]
     fn integer_type() {
-        let ty = FluentParser::new()
-            .push("42")
-            .parse_type_next()
-            .get_last_type();
+        let ty = FluentParser::new().push("42").parse_type_next().get_last_type();
         insta::assert_debug_snapshot!(ty);
     }
 
@@ -386,9 +360,7 @@ mod diagnostics {
 
     #[test]
     fn c1_unmatching_return_type() {
-        insta::assert_snapshot!(diagnose(
-            "fn(x: int): int { if (x > 0) { return \"a\"; } else { 1 } };"
-        ));
+        insta::assert_snapshot!(diagnose("fn(x: int): int { if (x > 0) { return \"a\"; } else { 1 } };"));
     }
 
     #[test]
@@ -479,6 +451,138 @@ mod checked_mode {
     #[test]
     fn unannotated_let_is_not_instrumented() {
         let r = transpile_all_checked(&["let x <- 5;"]);
+        insta::assert_snapshot!(r);
+    }
+}
+
+/// `Vec[N, T]` soundness (project_vector_array_unification.md, step 1): an
+/// annotated `Vec` `let` pipes through `identity()` (never the unparseable
+/// `|> ()`), and a vector-lifted call to a user-declared scalar function is
+/// an explicit element-wise `vapply` typed by the callee's static scalar
+/// return type — a direct call would crash at runtime on any `if` in the
+/// body (`if` on a length > 1 condition is fatal in R ≥ 4.2).
+mod vec_vectorized_calls {
+    use super::*;
+
+    #[test]
+    fn annotated_vec_let_pipes_identity() {
+        let r = transpile_all(&["let v: Vec[3, int] <- c(1, 2, 3);"]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn user_fn_on_vec_becomes_typed_vapply() {
+        let r = transpile_all(&[
+            "let is_small <- fn(n: int): bool { if (n < 3) { true } else { false } };",
+            "let v: Vec[3, int] <- c(1, 2, 3);",
+            "let r <- is_small(v);",
+        ]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn user_fn_on_vec_with_scalar_arg_keeps_scalar_constant() {
+        let r = transpile_all(&[
+            "let add_k <- fn(n: int, k: int): int { if (n > k) { n } else { k } };",
+            "let v: Vec[3, int] <- c(1, 2, 3);",
+            "let r <- add_k(v, 5);",
+        ]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn user_fn_on_two_vecs_maps_by_index() {
+        let r = transpile_all(&[
+            "let both <- fn(a: int, b: int): int { if (a > b) { a } else { b } };",
+            "let v: Vec[3, int] <- c(1, 2, 3);",
+            "let w: Vec[3, int] <- c(4, 5, 6);",
+            "let r <- both(v, w);",
+        ]);
+        insta::assert_snapshot!(r);
+    }
+
+    // Step 2 (vectorizability analysis): a user function whose body is
+    // provably element-wise (arithmetic/comparison ops only, no `if`) is
+    // called directly on the vector — no `vapply` wrapper — at native R
+    // speed. A non-vectorizable body keeps the step-1 `vapply` lift (pinned
+    // by the tests above).
+    #[test]
+    fn vectorizable_user_fn_is_called_directly() {
+        let r = transpile_all(&[
+            "let double <- fn(x: int): int { x * 2 };",
+            "let v: Vec[3, int] <- c(1, 2, 3);",
+            "let r <- double(v);",
+        ]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn vectorizable_fn_with_local_let_and_two_vecs_is_called_directly() {
+        let r = transpile_all(&[
+            "let axpy <- fn(a: int, b: int): int { let y <- a * 2; y + b };",
+            "let v: Vec[3, int] <- c(1, 2, 3);",
+            "let w: Vec[3, int] <- c(4, 5, 6);",
+            "let r <- axpy(v, w);",
+        ]);
+        insta::assert_snapshot!(r);
+    }
+}
+
+/// Step ③ of the vector/array unification (unification_arrays.md): a single
+/// surface type `[N, T]` whose runtime representation is chosen at compile
+/// time — primitive element type → bare R atomic vector (`c(...)`, identity
+/// annotation, implicit-class S3 dispatch, vapply/direct lifted calls),
+/// anything else → the list-backed `typed_vec` exactly as before.
+mod array_unification {
+    use super::*;
+
+    #[test]
+    fn int_array_literal_is_bare_atomic() {
+        let r = transpile_all(&["let a: [3, int] <- [1, 2, 3];"]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn record_array_literal_stays_typed_vec() {
+        let r = transpile_all(&["let recs: [2, list { x: int }] <- [:{ x = 1 }, :{ x = 2 }];"]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn user_fn_on_int_array_becomes_typed_vapply() {
+        let r = transpile_all(&[
+            "let is_small <- fn(n: int): bool { if (n < 3) { true } else { false } };",
+            "let a <- [1, 2, 3];",
+            "let r <- is_small(a);",
+        ]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn vectorizable_user_fn_on_int_array_is_called_directly() {
+        let r = transpile_all(&[
+            "let double <- fn(x: int): int { x * 2 };",
+            "let a <- [1, 2, 3];",
+            "let r <- double(a);",
+        ]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn native_op_on_int_array_is_called_directly() {
+        let r = transpile_all(&["@`*`: (int, int) -> int;", "let a <- [1, 2, 3];", "let r <- 2 * a;"]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn atomic_array_alias_gets_atomic_pipeline() {
+        let r = transpile_all(&["type IntArr <- [3, int];", "let a: IntArr <- [1, 2, 3];"]);
+        insta::assert_snapshot!(r);
+    }
+
+    #[test]
+    fn array_param_dispatches_on_implicit_class() {
+        let r = transpile_all(&["let first <- fn(v: [3, int]): int { v[[1]] };"]);
         insta::assert_snapshot!(r);
     }
 }

@@ -66,10 +66,7 @@ fn generated_programs_typecheck_and_transpile() {
     eprintln!("{}", cov.summary());
 
     if !rejections.is_empty() {
-        let mut dump = format!(
-            "{} rejected program(s) out of {N_CASES}:\n",
-            rejections.len()
-        );
+        let mut dump = format!("{} rejected program(s) out of {N_CASES}:\n", rejections.len());
         for (seed, src, msg) in &rejections {
             dump.push_str(&format!("\n--- seed {seed} ---\n{src}\n{msg}\n"));
         }

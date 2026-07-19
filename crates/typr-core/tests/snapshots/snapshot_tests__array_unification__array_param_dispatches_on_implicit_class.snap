@@ -1,0 +1,8 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 621
+expression: r
+---
+`first.integer` <- (function(v) {
+v[[1L |> as.Integer()]]
+} |> as.Integer()) |> as.Generic()

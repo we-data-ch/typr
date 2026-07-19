@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::context::Context;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
@@ -129,10 +123,7 @@ impl FluentParser {
     }
 
     fn set_last_type(self, typ: Type) -> Self {
-        Self {
-            last_type: typ,
-            ..self
-        }
+        Self { last_type: typ, ..self }
     }
 
     pub fn push_new_code(self, code: Lang) -> Self {
@@ -147,22 +138,21 @@ impl FluentParser {
         match self.clone().next_code() {
             Some((code, rest)) => {
                 let (typ, lang, new_context) = typing(&self.context, &code).to_tuple();
-                rest.set_context(new_context)
-                    .push_new_code(lang)
-                    .set_last_type(typ)
+                rest.set_context(new_context).push_new_code(lang).set_last_type(typ)
             }
             _ => self.push_log("No more Lang code left"),
         }
     }
 
     pub fn type_all(self) -> Self {
-        let (new_context, new_type) = self.clone().code.iter().fold(
-            (self.clone().context, builder::empty_type()),
-            |(cont, typ), x| {
-                let (new_type, _, new_cont) = typing(&cont, x).to_tuple();
-                (new_cont, new_type)
-            },
-        );
+        let (new_context, new_type) =
+            self.clone()
+                .code
+                .iter()
+                .fold((self.clone().context, builder::empty_type()), |(cont, typ), x| {
+                    let (new_type, _, new_cont) = typing(&cont, x).to_tuple();
+                    (new_cont, new_type)
+                });
         self.set_context(new_context).set_last_type(new_type)
     }
 
@@ -321,11 +311,7 @@ impl fmt::Display for FluentParser {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = format!(
             "raw_code: {}\ncode: {}\nnew_code: {}\nr_code: {}\nlast_type: {}",
-            self.raw_code
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(" | "),
+            self.raw_code.iter().cloned().collect::<Vec<_>>().join(" | "),
             self.code
                 .iter()
                 .map(|x| x.simple_print())
@@ -349,10 +335,7 @@ mod tests {
 
     #[test]
     fn test_fluent_parser0() {
-        let typ = FluentParser::new()
-            .push("8")
-            .parse_type_next()
-            .get_last_type();
+        let typ = FluentParser::new().push("8").parse_type_next().get_last_type();
         assert_eq!(typ, builder::integer_type(8))
     }
 

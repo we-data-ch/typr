@@ -1,0 +1,6 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 576
+expression: r
+---
+`recs` <- typed_vec(list(x = 1L |> as.Integer()) |> as.Generic(), list(x = 2L |> as.Integer()) |> as.Generic(), dim = c(2)) |> as.Array0() |> as.Array0()

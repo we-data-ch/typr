@@ -33,8 +33,7 @@ pub const SEMANTIC_TOKEN_TYPES: &[SemanticTokenType] = &[
 /// name, `type` name, `module` name, `@signature` name) rather than a use.
 pub const TOKEN_MODIFIER_DECLARATION: u32 = 1;
 
-pub const SEMANTIC_TOKEN_MODIFIERS: &[SemanticTokenModifier] =
-    &[SemanticTokenModifier::DECLARATION];
+pub const SEMANTIC_TOKEN_MODIFIERS: &[SemanticTokenModifier] = &[SemanticTokenModifier::DECLARATION];
 
 /// One token before delta-encoding: an absolute byte span plus its
 /// classification.
@@ -262,12 +261,7 @@ fn collect_type_tokens(typ: &Type, tokens: &mut Vec<RawToken>) {
 /// need visiting), but the emission logic differs enough — declaration vs.
 /// use classification, `Type` sub-trees to walk — that it's its own
 /// function rather than piggy-backing on the hints walk.
-fn collect_semantic_tokens(
-    lang: &Lang,
-    context: &Context,
-    content: &str,
-    tokens: &mut Vec<RawToken>,
-) {
+fn collect_semantic_tokens(lang: &Lang, context: &Context, content: &str, tokens: &mut Vec<RawToken>) {
     match lang {
         Lang::Lines { value, .. }
         | Lang::Scope { body: value, .. }
@@ -282,10 +276,7 @@ fn collect_semantic_tokens(
         }
 
         Lang::Module {
-            name,
-            body,
-            help_data,
-            ..
+            name, body, help_data, ..
         } => {
             if let Some((start, end)) = module_name_span(help_data, name, content) {
                 tokens.push(RawToken {
@@ -316,9 +307,7 @@ fn collect_semantic_tokens(
             collect_semantic_tokens(body, context, content, tokens);
         }
 
-        Lang::Lambda {
-            parameters, body, ..
-        } => {
+        Lang::Lambda { parameters, body, .. } => {
             for param in parameters {
                 if let Lang::Variable {
                     name,
@@ -343,9 +332,7 @@ fn collect_semantic_tokens(
             collect_semantic_tokens(body, context, content, tokens);
         }
 
-        Lang::Variable {
-            name, help_data, ..
-        } => {
+        Lang::Variable { name, help_data, .. } => {
             if let Some((start, end)) = lang_variable_span(name, help_data) {
                 tokens.push(RawToken {
                     start,
@@ -460,11 +447,7 @@ fn collect_semantic_tokens(
             collect_type_tokens(matched_type, tokens);
         }
 
-        Lang::Tag {
-            name,
-            value,
-            help_data,
-        } => {
+        Lang::Tag { name, value, help_data } => {
             if let Some((start, end)) = tag_span(name, help_data) {
                 tokens.push(RawToken {
                     start,
@@ -487,9 +470,7 @@ fn collect_semantic_tokens(
             collect_semantic_tokens(else_block, context, content, tokens);
         }
 
-        Lang::Match {
-            target, branches, ..
-        } => {
+        Lang::Match { target, branches, .. } => {
             collect_semantic_tokens(target, context, content, tokens);
             for (pattern, body) in branches {
                 collect_semantic_tokens(pattern, context, content, tokens);
@@ -497,16 +478,12 @@ fn collect_semantic_tokens(
             }
         }
 
-        Lang::ForLoop {
-            expression, body, ..
-        } => {
+        Lang::ForLoop { expression, body, .. } => {
             collect_semantic_tokens(expression, context, content, tokens);
             collect_semantic_tokens(body, context, content, tokens);
         }
 
-        Lang::WhileLoop {
-            condition, body, ..
-        } => {
+        Lang::WhileLoop { condition, body, .. } => {
             collect_semantic_tokens(condition, context, content, tokens);
             collect_semantic_tokens(body, context, content, tokens);
         }
@@ -521,18 +498,14 @@ fn collect_semantic_tokens(
         }
 
         Lang::Assign {
-            identifier,
-            expression,
-            ..
+            identifier, expression, ..
         } => {
             collect_semantic_tokens(identifier, context, content, tokens);
             collect_semantic_tokens(expression, context, content, tokens);
         }
 
         Lang::ArrayIndexing {
-            identifier,
-            indexing,
-            ..
+            identifier, indexing, ..
         } => {
             collect_semantic_tokens(identifier, context, content, tokens);
             collect_semantic_tokens(indexing, context, content, tokens);
@@ -570,9 +543,7 @@ fn collect_semantic_tokens(
             }
         }
 
-        Lang::ConstructorCall {
-            fields, spreads, ..
-        } => {
+        Lang::ConstructorCall { fields, spreads, .. } => {
             for arg in fields {
                 collect_semantic_tokens(&arg.get_value(), context, content, tokens);
             }
@@ -594,9 +565,7 @@ fn collect_semantic_tokens(
         }
 
         Lang::PartialApp {
-            function,
-            arguments,
-            ..
+            function, arguments, ..
         } => {
             collect_semantic_tokens(function, context, content, tokens);
             for arg in arguments {
@@ -605,14 +574,10 @@ fn collect_semantic_tokens(
         }
 
         Lang::FunctionApp {
-            identifier,
-            arguments,
-            ..
+            identifier, arguments, ..
         }
         | Lang::VecFunctionApp {
-            identifier,
-            arguments,
-            ..
+            identifier, arguments, ..
         } => {
             collect_semantic_tokens(identifier, context, content, tokens);
             for arg in arguments {
@@ -673,9 +638,7 @@ mod semantic_tokens_tests {
     }
 
     fn find<'a>(tokens: &'a [Decoded], line: u32, character: u32) -> Option<&'a Decoded> {
-        tokens
-            .iter()
-            .find(|t| t.line == line && t.character == character)
+        tokens.iter().find(|t| t.line == line && t.character == character)
     }
 
     /// A `let`-bound function name gets a `FUNCTION` token at its
@@ -717,8 +680,7 @@ mod semantic_tokens_tests {
     /// the annotation site.
     #[test]
     fn type_alias_declaration_and_annotation_usage() {
-        let content =
-            "type Point <- list { x: int, y: int };\nlet p: Point <- Point:{ x = 1, y = 2 };\n";
+        let content = "type Point <- list { x: int, y: int };\nlet p: Point <- Point:{ x = 1, y = 2 };\n";
         let tokens = resolve_tokens(content);
 
         let decl = find(&tokens, 0, 5).expect("expected a token at `Point`'s declaration");
@@ -726,8 +688,7 @@ mod semantic_tokens_tests {
         assert_eq!(decl.length, 5);
         assert!(decl.has_declaration);
 
-        let annotation =
-            find(&tokens, 1, 7).expect("expected a TYPE token at the `: Point` annotation");
+        let annotation = find(&tokens, 1, 7).expect("expected a TYPE token at the `: Point` annotation");
         assert_eq!(annotation.token_type, SemanticTokenType::TYPE);
         assert_eq!(annotation.length, 5);
     }
@@ -736,8 +697,7 @@ mod semantic_tokens_tests {
     /// spanning the leading dot and the tag name.
     #[test]
     fn tag_usage_is_enum_member() {
-        let content =
-            "type Shape <- .Circle(num) | .Square(num);\nlet s: Shape <- .Circle(3.14);\n";
+        let content = "type Shape <- .Circle(num) | .Square(num);\nlet s: Shape <- .Circle(3.14);\n";
         let tokens = resolve_tokens(content);
 
         let tag = find(&tokens, 1, 16).expect("expected a token at `.Circle`");

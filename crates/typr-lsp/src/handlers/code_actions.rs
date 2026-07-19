@@ -40,10 +40,7 @@ fn range_overlaps_lines(range: Range, start_line: u32, end_line: u32) -> bool {
 /// else, so reusing one traversal keeps them from duplicating this list of
 /// `Lang` variants (mirrors the same tradeoff already made between
 /// `collect_inlay_hints` and `collect_semantic_tokens`).
-fn walk_for_quick_fix(
-    lang: &Lang,
-    find: &mut impl FnMut(&Lang) -> Option<QuickFix>,
-) -> Option<QuickFix> {
+fn walk_for_quick_fix(lang: &Lang, find: &mut impl FnMut(&Lang) -> Option<QuickFix>) -> Option<QuickFix> {
     let from_children = match lang {
         Lang::Lines { value, .. }
         | Lang::Scope { body: value, .. }
@@ -52,9 +49,7 @@ fn walk_for_quick_fix(
         | Lang::Array { value, .. }
         | Lang::Vector { value, .. }
         | Lang::Tuple { value, .. }
-        | Lang::Module { body: value, .. } => {
-            value.iter().find_map(|item| walk_for_quick_fix(item, find))
-        }
+        | Lang::Module { body: value, .. } => value.iter().find_map(|item| walk_for_quick_fix(item, find)),
 
         Lang::Function { body, .. } | Lang::Lambda { body, .. } => walk_for_quick_fix(body, find),
 
@@ -69,21 +64,16 @@ fn walk_for_quick_fix(
             .or_else(|| walk_for_quick_fix(if_block, find))
             .or_else(|| walk_for_quick_fix(else_block, find)),
 
-        Lang::Match {
-            target, branches, ..
-        } => walk_for_quick_fix(target, find).or_else(|| {
-            branches
-                .iter()
-                .find_map(|(_, body)| walk_for_quick_fix(body, find))
-        }),
+        Lang::Match { target, branches, .. } => walk_for_quick_fix(target, find)
+            .or_else(|| branches.iter().find_map(|(_, body)| walk_for_quick_fix(body, find))),
 
-        Lang::ForLoop {
-            expression, body, ..
-        } => walk_for_quick_fix(expression, find).or_else(|| walk_for_quick_fix(body, find)),
+        Lang::ForLoop { expression, body, .. } => {
+            walk_for_quick_fix(expression, find).or_else(|| walk_for_quick_fix(body, find))
+        }
 
-        Lang::WhileLoop {
-            condition, body, ..
-        } => walk_for_quick_fix(condition, find).or_else(|| walk_for_quick_fix(body, find)),
+        Lang::WhileLoop { condition, body, .. } => {
+            walk_for_quick_fix(condition, find).or_else(|| walk_for_quick_fix(body, find))
+        }
 
         Lang::Loop { body, .. } => walk_for_quick_fix(body, find),
 
@@ -96,26 +86,19 @@ fn walk_for_quick_fix(
         Lang::Assign { expression, .. } => walk_for_quick_fix(expression, find),
 
         Lang::ArrayIndexing {
-            identifier,
-            indexing,
-            ..
+            identifier, indexing, ..
         } => walk_for_quick_fix(identifier, find).or_else(|| walk_for_quick_fix(indexing, find)),
 
-        Lang::Operator { lhs, rhs, .. } => {
-            walk_for_quick_fix(lhs, find).or_else(|| walk_for_quick_fix(rhs, find))
-        }
+        Lang::Operator { lhs, rhs, .. } => walk_for_quick_fix(lhs, find).or_else(|| walk_for_quick_fix(rhs, find)),
 
         Lang::FunctionApp {
-            identifier,
-            arguments,
-            ..
+            identifier, arguments, ..
         }
         | Lang::VecFunctionApp {
-            identifier,
-            arguments,
-            ..
-        } => walk_for_quick_fix(identifier, find)
-            .or_else(|| arguments.iter().find_map(|a| walk_for_quick_fix(a, find))),
+            identifier, arguments, ..
+        } => {
+            walk_for_quick_fix(identifier, find).or_else(|| arguments.iter().find_map(|a| walk_for_quick_fix(a, find)))
+        }
 
         _ => None,
     };
@@ -129,23 +112,14 @@ fn walk_for_quick_fix(
 /// name in the final `Context`), just narrowed to the one `let` under the
 /// cursor and turned into an edit instead of a rendered hint.
 #[tracing::instrument(skip_all)]
-pub fn type_annotation_action(
-    analysis: &DocumentAnalysis,
-    content: &str,
-    range: Range,
-) -> Option<QuickFix> {
+pub fn type_annotation_action(analysis: &DocumentAnalysis, content: &str, range: Range) -> Option<QuickFix> {
     let context = &analysis.context;
     walk_for_quick_fix(&analysis.ast, &mut |lang| {
         annotation_quick_fix(lang, context, content, range)
     })
 }
 
-fn annotation_quick_fix(
-    lang: &Lang,
-    context: &Context,
-    content: &str,
-    range: Range,
-) -> Option<QuickFix> {
+fn annotation_quick_fix(lang: &Lang, context: &Context, content: &str, range: Range) -> Option<QuickFix> {
     let Lang::Let {
         variable,
         r#type,
@@ -198,20 +172,9 @@ fn annotation_quick_fix(
 /// a local parameter (e.g. a top-level `let` used directly as a match
 /// target).
 #[tracing::instrument(skip_all)]
-pub fn missing_match_arms_action(
-    analysis: &DocumentAnalysis,
-    content: &str,
-    range: Range,
-) -> Option<QuickFix> {
+pub fn missing_match_arms_action(analysis: &DocumentAnalysis, content: &str, range: Range) -> Option<QuickFix> {
     let locals = HashMap::new();
-    find_match_for_quick_fix(
-        &analysis.ast,
-        &analysis.ast,
-        &analysis.context,
-        content,
-        range,
-        &locals,
-    )
+    find_match_for_quick_fix(&analysis.ast, &analysis.ast, &analysis.context, content, range, &locals)
 }
 
 /// Children-first walk (so a nested `match` wins over an enclosing one) that
@@ -238,9 +201,7 @@ fn find_match_for_quick_fix(
             .iter()
             .find_map(|item| find_match_for_quick_fix(item, ast, context, content, range, locals)),
 
-        Lang::Function {
-            parameters, body, ..
-        } => {
+        Lang::Function { parameters, body, .. } => {
             let mut scoped = locals.clone();
             for param in parameters {
                 scoped.insert(param.get_argument_str(), param.get_type());
@@ -248,13 +209,9 @@ fn find_match_for_quick_fix(
             find_match_for_quick_fix(body, ast, context, content, range, &scoped)
         }
 
-        Lang::Lambda { body, .. } => {
-            find_match_for_quick_fix(body, ast, context, content, range, locals)
-        }
+        Lang::Lambda { body, .. } => find_match_for_quick_fix(body, ast, context, content, range, locals),
 
-        Lang::Let { expression, .. } => {
-            find_match_for_quick_fix(expression, ast, context, content, range, locals)
-        }
+        Lang::Let { expression, .. } => find_match_for_quick_fix(expression, ast, context, content, range, locals),
 
         Lang::If {
             condition,
@@ -265,69 +222,49 @@ fn find_match_for_quick_fix(
             .or_else(|| find_match_for_quick_fix(if_block, ast, context, content, range, locals))
             .or_else(|| find_match_for_quick_fix(else_block, ast, context, content, range, locals)),
 
-        Lang::Match {
-            target, branches, ..
-        } => branches
+        Lang::Match { target, branches, .. } => branches
             .iter()
-            .find_map(|(_, body)| {
-                find_match_for_quick_fix(body, ast, context, content, range, locals)
-            })
+            .find_map(|(_, body)| find_match_for_quick_fix(body, ast, context, content, range, locals))
             .or_else(|| find_match_for_quick_fix(target, ast, context, content, range, locals)),
 
-        Lang::ForLoop {
-            expression, body, ..
-        } => find_match_for_quick_fix(expression, ast, context, content, range, locals)
-            .or_else(|| find_match_for_quick_fix(body, ast, context, content, range, locals)),
-
-        Lang::WhileLoop {
-            condition, body, ..
-        } => find_match_for_quick_fix(condition, ast, context, content, range, locals)
-            .or_else(|| find_match_for_quick_fix(body, ast, context, content, range, locals)),
-
-        Lang::Loop { body, .. } => {
-            find_match_for_quick_fix(body, ast, context, content, range, locals)
+        Lang::ForLoop { expression, body, .. } => {
+            find_match_for_quick_fix(expression, ast, context, content, range, locals)
+                .or_else(|| find_match_for_quick_fix(body, ast, context, content, range, locals))
         }
+
+        Lang::WhileLoop { condition, body, .. } => {
+            find_match_for_quick_fix(condition, ast, context, content, range, locals)
+                .or_else(|| find_match_for_quick_fix(body, ast, context, content, range, locals))
+        }
+
+        Lang::Loop { body, .. } => find_match_for_quick_fix(body, ast, context, content, range, locals),
 
         Lang::Return { value, .. }
         | Lang::Not { value, .. }
         | Lang::Tag { value, .. }
         | Lang::TestBlock { value, .. }
-        | Lang::KeyValue { value, .. } => {
-            find_match_for_quick_fix(value, ast, context, content, range, locals)
-        }
+        | Lang::KeyValue { value, .. } => find_match_for_quick_fix(value, ast, context, content, range, locals),
 
-        Lang::Assign { expression, .. } => {
-            find_match_for_quick_fix(expression, ast, context, content, range, locals)
-        }
+        Lang::Assign { expression, .. } => find_match_for_quick_fix(expression, ast, context, content, range, locals),
 
         Lang::ArrayIndexing {
-            identifier,
-            indexing,
-            ..
+            identifier, indexing, ..
         } => find_match_for_quick_fix(identifier, ast, context, content, range, locals)
             .or_else(|| find_match_for_quick_fix(indexing, ast, context, content, range, locals)),
 
-        Lang::Operator { lhs, rhs, .. } => {
-            find_match_for_quick_fix(lhs, ast, context, content, range, locals)
-                .or_else(|| find_match_for_quick_fix(rhs, ast, context, content, range, locals))
-        }
+        Lang::Operator { lhs, rhs, .. } => find_match_for_quick_fix(lhs, ast, context, content, range, locals)
+            .or_else(|| find_match_for_quick_fix(rhs, ast, context, content, range, locals)),
 
         Lang::FunctionApp {
-            identifier,
-            arguments,
-            ..
+            identifier, arguments, ..
         }
         | Lang::VecFunctionApp {
-            identifier,
-            arguments,
-            ..
-        } => find_match_for_quick_fix(identifier, ast, context, content, range, locals).or_else(
-            || {
-                arguments
-                    .iter()
-                    .find_map(|a| find_match_for_quick_fix(a, ast, context, content, range, locals))
-            },
-        ),
+            identifier, arguments, ..
+        } => find_match_for_quick_fix(identifier, ast, context, content, range, locals).or_else(|| {
+            arguments
+                .iter()
+                .find_map(|a| find_match_for_quick_fix(a, ast, context, content, range, locals))
+        }),
 
         _ => None,
     };
@@ -365,17 +302,11 @@ fn match_arms_quick_fix(
 
     // A bare-variable pattern (`_ => ...` or `other => ...`) already makes the
     // match exhaustive by convention — nothing to fill in.
-    if branches
-        .iter()
-        .any(|(pat, _)| matches!(pat, Lang::Variable { .. }))
-    {
+    if branches.iter().any(|(pat, _)| matches!(pat, Lang::Variable { .. })) {
         return None;
     }
 
-    let Lang::Variable {
-        name: target_name, ..
-    } = target.as_ref()
-    else {
+    let Lang::Variable { name: target_name, .. } = target.as_ref() else {
         return None;
     };
     let target_type = locals.get(target_name).cloned().or_else(|| {
@@ -420,9 +351,7 @@ fn match_arms_quick_fix(
     for (name, has_payload) in &missing {
         names.push(name.as_str());
         if *has_payload {
-            new_text.push_str(&format!(
-                "{arm_indent}.{name}(v) => stop(\"todo: {name}\"),\n"
-            ));
+            new_text.push_str(&format!("{arm_indent}.{name}(v) => stop(\"todo: {name}\"),\n"));
         } else {
             new_text.push_str(&format!("{arm_indent}.{name} => stop(\"todo: {name}\"),\n"));
         }
@@ -491,10 +420,9 @@ fn line_leading_whitespace(content: &str, line: u32) -> String {
 /// user AST, so there is no `Lang::Alias` to walk for it.
 fn resolve_union_variants(typ: &Type, ast: &Lang) -> Option<Vec<(String, bool)>> {
     match typ {
-        Type::Alias(name, _, _, _) if name == "Option" => Some(vec![
-            ("Some".to_string(), true),
-            ("None".to_string(), false),
-        ]),
+        Type::Alias(name, _, _, _) if name == "Option" => {
+            Some(vec![("Some".to_string(), true), ("None".to_string(), false)])
+        }
         Type::Alias(name, _, _, _) => {
             let target = find_alias_target_type(ast, name)?;
             let mut out = Vec::new();
@@ -539,9 +467,7 @@ fn find_alias_target_type(ast: &Lang, name: &str) -> Option<Type> {
             let var = Var::try_from(identifier).ok()?;
             (var.get_name() == name).then(|| target_type.clone())
         }
-        Lang::Lines { value, .. }
-        | Lang::Scope { body: value, .. }
-        | Lang::Module { body: value, .. } => {
+        Lang::Lines { value, .. } | Lang::Scope { body: value, .. } | Lang::Module { body: value, .. } => {
             value.iter().find_map(|m| find_alias_target_type(m, name))
         }
         _ => None,
@@ -578,8 +504,7 @@ pub fn import_missing_member_actions(
 
         for (path, content) in all_docs {
             let span: Span = LocatedSpan::new_extra(content.as_str(), path.clone());
-            let Ok(parsed) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span)))
-            else {
+            let Ok(parsed) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parse(span))) else {
                 continue;
             };
 

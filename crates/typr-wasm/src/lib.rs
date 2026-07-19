@@ -164,8 +164,7 @@ pub fn parse(source: &str) -> Result<String, JsValue> {
 
     let compiler = Compiler::new_wasm(sources);
     match compiler.parse("main.ty") {
-        Ok(ast) => serde_json::to_string(&format!("{:?}", ast))
-            .map_err(|e| JsValue::from_str(&e.to_string())),
+        Ok(ast) => serde_json::to_string(&format!("{:?}", ast)).map_err(|e| JsValue::from_str(&e.to_string())),
         Err(e) => Err(JsValue::from_str(&e.to_string())),
     }
 }
@@ -192,8 +191,8 @@ pub fn transpile(source: &str) -> Result<String, JsValue> {
 pub fn compile_multiple(files_json: &str) -> Result<CompileResult, JsValue> {
     clear_generated_files();
 
-    let files: std::collections::HashMap<String, String> = serde_json::from_str(files_json)
-        .map_err(|e| JsValue::from_str(&format!("Invalid JSON: {}", e)))?;
+    let files: std::collections::HashMap<String, String> =
+        serde_json::from_str(files_json).map_err(|e| JsValue::from_str(&format!("Invalid JSON: {}", e)))?;
 
     let mut sources = InMemorySourceProvider::new();
     for (filename, content) in files {

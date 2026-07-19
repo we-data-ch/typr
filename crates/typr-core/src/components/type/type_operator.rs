@@ -21,12 +21,7 @@ pub enum TypeOperator {
 
 impl TypeOperator {
     pub fn combine(self, exp1: Type, exp2: Type) -> Type {
-        Type::Operator(
-            self,
-            Box::new(exp1.clone()),
-            Box::new(exp2),
-            exp1.get_help_data(),
-        )
+        Type::Operator(self, Box::new(exp1.clone()), Box::new(exp2), exp1.get_help_data())
     }
 
     pub fn get_token_type(&self) -> TokenKind {
@@ -73,14 +68,7 @@ impl TypeOperator {
         match self {
             TypeOperator::Union => types
                 .into_iter()
-                .reduce(|acc, t| {
-                    Type::Operator(
-                        TypeOperator::Union,
-                        Box::new(acc),
-                        Box::new(t),
-                        help_data.clone(),
-                    )
-                })
+                .reduce(|acc, t| Type::Operator(TypeOperator::Union, Box::new(acc), Box::new(t), help_data.clone()))
                 .unwrap_or(Type::Empty(help_data)),
             TypeOperator::Intersection => types
                 .into_iter()

@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::error_message::help_data::HelpData;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
@@ -20,11 +14,7 @@ impl ArrayType {
     //Return None if we encounter a generic index
     pub fn get_shape(&self) -> Option<String> {
         ArrayType::try_from(self.type_.clone())
-            .map(|arr_t| {
-                arr_t
-                    .get_shape()
-                    .map(|arr| self.index.pretty3() + ", " + &arr)
-            })
+            .map(|arr_t| arr_t.get_shape().map(|arr| self.index.pretty3() + ", " + &arr))
             .unwrap_or(
                 (!self.index.is_generic()) //onl3y return None if is a generic
                     .then_some(self.index.pretty3()),

@@ -63,33 +63,24 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
                 .collect(),
             h.clone(),
         ),
-        Type::Alias(name, concret_types, is_opaque, h) => {
-            match (is_opaque, is_in_memory(name, &memory)) {
-                (true, _) | (_, true) => type_.clone(),
-                (false, _) => match Var::from_type(type_.clone()) {
-                    Some(var) => context
-                        .get_matching_alias_signature(&var)
-                        .map(|(aliased_type, generics)| {
-                            reduce_alias(
-                                aliased_type,
-                                &generics,
-                                concret_types,
-                                name,
-                                memory,
-                                context,
-                            )
-                        })
-                        .unwrap_or_else(|| match name.as_str() {
-                            "Integer" => builder::integer_type_default(),
-                            "Character" => builder::character_type_default(),
-                            "Boolean" => builder::boolean_type(),
-                            "Number" => builder::number_type(),
-                            _ => Type::Any(h.clone()),
-                        }),
-                    None => Type::Any(h.clone()),
-                },
-            }
-        }
+        Type::Alias(name, concret_types, is_opaque, h) => match (is_opaque, is_in_memory(name, &memory)) {
+            (true, _) | (_, true) => type_.clone(),
+            (false, _) => match Var::from_type(type_.clone()) {
+                Some(var) => context
+                    .get_matching_alias_signature(&var)
+                    .map(|(aliased_type, generics)| {
+                        reduce_alias(aliased_type, &generics, concret_types, name, memory, context)
+                    })
+                    .unwrap_or_else(|| match name.as_str() {
+                        "Integer" => builder::integer_type_default(),
+                        "Character" => builder::character_type_default(),
+                        "Boolean" => builder::boolean_type(),
+                        "Number" => builder::number_type(),
+                        _ => Type::Any(h.clone()),
+                    }),
+                None => Type::Any(h.clone()),
+            },
+        },
         Type::Tag(name, inner, h) => Type::Tag(
             name.clone(),
             Box::new(reduce_type_helper(context, inner, memory.clone())),
@@ -128,12 +119,7 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
             } else if typ2.is_subtype(&typ1, context).0 {
                 typ2
             } else {
-                Type::Operator(
-                    TypeOperator::Union,
-                    Box::new(typ1),
-                    Box::new(typ2),
-                    h.clone(),
-                )
+                Type::Operator(TypeOperator::Union, Box::new(typ1), Box::new(typ2), h.clone())
             }
         }
         Type::Operator(
@@ -192,8 +178,7 @@ mod tests {
 
     #[test]
     fn test_reduce_record_reduces_field_types() {
-        let context =
-            Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
+        let context = Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
         let alias_field = Type::Alias("Meters".to_string(), vec![], false, HelpData::default());
         // Not `builder::record_type`: its `From<(String, Type)>` derives a
         // field's `HelpData` from the field's `Type` via `.into()`, which
@@ -217,20 +202,15 @@ mod tests {
 
     #[test]
     fn test_reduce_alias_resolves_through_context() {
-        let context =
-            Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
+        let context = Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
         let alias = Type::Alias("Meters".to_string(), vec![], false, HelpData::default());
 
-        assert_eq!(
-            reduce_type(&context, &alias),
-            builder::integer_type_default()
-        );
+        assert_eq!(reduce_type(&context, &alias), builder::integer_type_default());
     }
 
     #[test]
     fn test_reduce_alias_opaque_is_left_untouched() {
-        let context =
-            Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
+        let context = Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
         let opaque_alias = Type::Alias("Meters".to_string(), vec![], true, HelpData::default());
 
         assert_eq!(reduce_type(&context, &opaque_alias), opaque_alias);
@@ -239,12 +219,7 @@ mod tests {
     #[test]
     fn test_reduce_alias_unresolved_unknown_name_is_any() {
         let context = Context::default();
-        let alias = Type::Alias(
-            "NotDeclared".to_string(),
-            vec![],
-            false,
-            HelpData::default(),
-        );
+        let alias = Type::Alias("NotDeclared".to_string(), vec![], false, HelpData::default());
 
         assert!(matches!(reduce_type(&context, &alias), Type::Any(_)));
     }
@@ -256,10 +231,7 @@ mod tests {
         let context = Context::default();
         let alias = Type::Alias("Integer".to_string(), vec![], false, HelpData::default());
 
-        assert_eq!(
-            reduce_type(&context, &alias),
-            builder::integer_type_default()
-        );
+        assert_eq!(reduce_type(&context, &alias), builder::integer_type_default());
     }
 
     #[test]
@@ -276,14 +248,9 @@ mod tests {
 
     #[test]
     fn test_reduce_tag_reduces_inner_type() {
-        let context =
-            Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
+        let context = Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
         let alias_field = Type::Alias("Meters".to_string(), vec![], false, HelpData::default());
-        let tag = Type::Tag(
-            "Some".to_string(),
-            Box::new(alias_field),
-            HelpData::default(),
-        );
+        let tag = Type::Tag("Some".to_string(), Box::new(alias_field), HelpData::default());
 
         match reduce_type(&context, &tag) {
             Type::Tag(name, inner, _) => {
@@ -311,22 +278,14 @@ mod tests {
         // giving conditions real meaning is a full feature design (what do
         // they constrain, checked when/where), out of scope for this audit.
         let context = Context::default();
-        let if_type = Type::If(
-            Box::new(builder::integer_type_default()),
-            vec![],
-            HelpData::default(),
-        );
+        let if_type = Type::If(Box::new(builder::integer_type_default()), vec![], HelpData::default());
 
-        assert_eq!(
-            reduce_type(&context, &if_type),
-            builder::integer_type_default()
-        );
+        assert_eq!(reduce_type(&context, &if_type), builder::integer_type_default());
     }
 
     #[test]
     fn test_reduce_function_reduces_args_and_return() {
-        let context =
-            Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
+        let context = Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
         let alias_field = Type::Alias("Meters".to_string(), vec![], false, HelpData::default());
         let fn_type = builder::function_type(&[alias_field.clone()], alias_field);
 
@@ -341,8 +300,7 @@ mod tests {
 
     #[test]
     fn test_reduce_vec_reduces_element_type() {
-        let context =
-            Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
+        let context = Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
         let alias_field = Type::Alias("Meters".to_string(), vec![], false, HelpData::default());
         let vec_type = builder::array_type(builder::integer_type(3), alias_field);
 
@@ -374,16 +332,12 @@ mod tests {
         // subtype of the other, reduce_type_helper now recurses into both
         // branches before rebuilding the union, so an alias buried inside an
         // unrelated union member does get resolved.
-        let context =
-            Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
+        let context = Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
         let alias_field = Type::Alias("Meters".to_string(), vec![], false, HelpData::default());
         let union = builder::union_type(&[builder::character_type_default(), alias_field]);
 
         let reduced = reduce_type(&context, &union);
-        let expected = builder::union_type(&[
-            builder::character_type_default(),
-            builder::integer_type_default(),
-        ]);
+        let expected = builder::union_type(&[builder::character_type_default(), builder::integer_type_default()]);
         assert_eq!(reduced, expected);
     }
 
@@ -437,10 +391,7 @@ mod tests {
     #[test]
     fn test_reduce_fallback_leaves_scalar_types_untouched() {
         let context = Context::default();
-        assert_eq!(
-            reduce_type(&context, &builder::boolean_type()),
-            builder::boolean_type()
-        );
+        assert_eq!(reduce_type(&context, &builder::boolean_type()), builder::boolean_type());
         assert_eq!(
             reduce_type(&context, &builder::character_type_default()),
             builder::character_type_default()
@@ -449,8 +400,7 @@ mod tests {
 
     #[test]
     fn test_reduce_param_reduces_argument_type() {
-        let context =
-            Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
+        let context = Context::default().push_alias("Meters".to_string(), builder::integer_type_default());
         let alias_field = Type::Alias("Meters".to_string(), vec![], false, HelpData::default());
         let param = ArgumentType::new("x", &alias_field);
 

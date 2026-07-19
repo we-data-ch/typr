@@ -50,18 +50,13 @@ fn find_word_occurrences_in_line(line: &str, word: &str, line_idx: u32) -> Vec<R
     let mut i = 0;
     while i + wlen <= chars.len() {
         if chars[i..i + wlen] == word_chars[..] {
-            let before_ok = i == 0
-                || (!is_plain_word_char_ch(chars[i - 1])
-                    && chars[i - 1] != '.'
-                    && chars[i - 1] != '$');
+            let before_ok =
+                i == 0 || (!is_plain_word_char_ch(chars[i - 1]) && chars[i - 1] != '.' && chars[i - 1] != '$');
             let after_ok = i + wlen == chars.len() || !is_plain_word_char_ch(chars[i + wlen]);
 
             if before_ok && after_ok {
                 let start_col: u32 = chars[..i].iter().map(|c| c.len_utf16() as u32).sum();
-                let token_width: u32 = chars[i..i + wlen]
-                    .iter()
-                    .map(|c| c.len_utf16() as u32)
-                    .sum();
+                let token_width: u32 = chars[i..i + wlen].iter().map(|c| c.len_utf16() as u32).sum();
                 ranges.push(Range::new(
                     Position::new(line_idx, start_col),
                     Position::new(line_idx, start_col + token_width),
@@ -156,8 +151,7 @@ mod rename_and_references_tests {
     fn finds_all_occurrences_of_a_variable() {
         let content = "let pi <- 3;\nlet pi_approx <- 3.14;\nlet x <- pi + pi;\n";
         // Cursor on the `pi` in `let pi <- 3;` (line 0, col 4).
-        let ranges =
-            find_word_occurrences_at(content, 0, 5).expect("expected occurrences for `pi`");
+        let ranges = find_word_occurrences_at(content, 0, 5).expect("expected occurrences for `pi`");
 
         // Exactly 3: the declaration plus the two uses in `pi + pi` — not the
         // `pi` inside `pi_approx`.
@@ -170,12 +164,7 @@ mod rename_and_references_tests {
     fn skips_dot_prefixed_occurrences() {
         let content = "let pi <- 3;\nlet y <- obj.pi;\n";
         let ranges = find_word_occurrences_at(content, 0, 5).unwrap();
-        assert_eq!(
-            ranges.len(),
-            1,
-            "expected only the declaration, got: {:?}",
-            ranges
-        );
+        assert_eq!(ranges.len(), 1, "expected only the declaration, got: {:?}", ranges);
     }
 
     /// Text after a `#` comment marker on a line must not be scanned for
@@ -184,12 +173,7 @@ mod rename_and_references_tests {
     fn skips_occurrences_in_comments() {
         let content = "let pi <- 3; # pi note\n";
         let ranges = find_word_occurrences_at(content, 0, 5).unwrap();
-        assert_eq!(
-            ranges.len(),
-            1,
-            "expected only the declaration, got: {:?}",
-            ranges
-        );
+        assert_eq!(ranges.len(), 1, "expected only the declaration, got: {:?}", ranges);
     }
 
     /// `prepareRename` must report the bare identifier's range, not a

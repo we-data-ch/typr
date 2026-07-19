@@ -50,12 +50,7 @@ fn embedded_fields(fields: &HashSet<ArgumentType>) -> Vec<(String, Type)> {
 /// Render the TypR source for one auto-generated forwarding function. Returns
 /// `None` for shapes out of v1 scope (no parameters, or a variadic parameter
 /// after the first — see §12.1/§12.3 of the RFC).
-fn render_forwarding_fn(
-    a_name: &str,
-    field_name: &str,
-    method_name: &str,
-    fn_type: &Type,
-) -> Option<String> {
+fn render_forwarding_fn(a_name: &str, field_name: &str, method_name: &str, fn_type: &Type) -> Option<String> {
     let Type::Function(params, _ret, _) = fn_type else {
         return None;
     };
@@ -167,11 +162,9 @@ pub fn synthesize_embedding(
         };
         let tc = typing(&acc_context, &parsed);
         errors.extend(tc.errors);
-        acc_context = tc.context.push_embedded_method(
-            a_name.to_string(),
-            method_name.clone(),
-            field_name.clone(),
-        );
+        acc_context = tc
+            .context
+            .push_embedded_method(a_name.to_string(), method_name.clone(), field_name.clone());
         synthesized.push(tc.lang);
     }
 
@@ -188,9 +181,7 @@ mod tests {
     fn run_program(src: &[&str]) -> TypeChecker {
         let lines: Vec<Lang> = src
             .iter()
-            .map(|s| {
-                parse2((*s).into()).unwrap_or_else(|e| panic!("parse error in {:?}: {}", s, e))
-            })
+            .map(|s| parse2((*s).into()).unwrap_or_else(|e| panic!("parse error in {:?}: {}", s, e)))
             .collect();
         let program = Lang::Lines {
             value: lines,

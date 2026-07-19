@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::type_error::TypeError;
@@ -57,17 +51,11 @@ pub fn character_type_default() -> Type {
 }
 
 pub fn number_type() -> Type {
-    Type::Number(
-        crate::components::r#type::tnumber::Tnum::Unknown,
-        HelpData::default(),
-    )
+    Type::Number(crate::components::r#type::tnumber::Tnum::Unknown, HelpData::default())
 }
 
 pub fn boolean_type() -> Type {
-    Type::Boolean(
-        crate::components::r#type::tbool::Tbool::Unknown,
-        HelpData::default(),
-    )
+    Type::Boolean(crate::components::r#type::tbool::Tbool::Unknown, HelpData::default())
 }
 
 pub fn record_type(params: &[(String, Type)]) -> Type {
@@ -169,14 +157,7 @@ pub fn union_type(types: &[Type]) -> Type {
     types
         .iter()
         .cloned()
-        .reduce(|acc, t| {
-            Type::Operator(
-                TypeOperator::Union,
-                Box::new(acc),
-                Box::new(t),
-                HelpData::default(),
-            )
-        })
+        .reduce(|acc, t| Type::Operator(TypeOperator::Union, Box::new(acc), Box::new(t), HelpData::default()))
         .unwrap_or(Type::Empty(HelpData::default()))
 }
 

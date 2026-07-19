@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 pub mod constructor_call;
 pub mod dollar_access;
 pub mod dot_pipe_access;
@@ -25,6 +19,7 @@ pub mod type_comparison;
 pub mod type_context;
 pub mod unification;
 pub mod unification_map;
+pub mod vectorizability;
 
 use crate::components::context::config::TargetLanguage;
 use crate::components::context::Context;
@@ -229,16 +224,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             is_testable,
             is_export,
             help_data: h,
-        } => let_expression(
-            context,
-            name,
-            ty,
-            exp,
-            *is_public,
-            *is_testable,
-            *is_export,
-            h,
-        ),
+        } => let_expression(context, name, ty, exp, *is_public, *is_testable, *is_export, h),
         Lang::Alias {
             identifier: exp,
             parameters: params,
@@ -248,13 +234,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
         } => {
             let var = match Var::try_from(exp) {
                 Ok(v) => v.set_type(Type::Params(params.to_vec(), h.clone())),
-                Err(_) => {
-                    return TypeContext::new(
-                        builder::unknown_function_type(),
-                        expr.clone(),
-                        context.clone(),
-                    )
-                }
+                Err(_) => return TypeContext::new(builder::unknown_function_type(), expr.clone(), context.clone()),
             };
             // Inside a module body, opaque aliases are transparent so internal
             // functions can use operators on the underlying type.
@@ -263,13 +243,10 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             } else {
                 var.clone()
             };
-            let alias_context = context
+            let alias_context = context.clone().push_alias(effective_var.get_name(), typ.to_owned());
+            let new_context = context
                 .clone()
-                .push_alias(effective_var.get_name(), typ.to_owned());
-            let new_context =
-                context
-                    .clone()
-                    .push_var_type(effective_var.clone(), typ.clone(), &alias_context);
+                .push_var_type(effective_var.clone(), typ.clone(), &alias_context);
 
             let mut errors = Vec::new();
             let generics_in_type = typ.extract_generics();
@@ -319,11 +296,9 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let final_context = if let Type::Operator(TypeOperator::Union, _, _, _) = typ {
                 let alias_type = Type::Alias(effective_var.get_name(), vec![], false, h.clone());
                 let members = flatten_operator_union(typ);
-                let new_subtypes = members
-                    .iter()
-                    .fold(ctx_with_alias.subtypes.clone(), |graph, member| {
-                        graph.cache_subtype(member.clone(), alias_type.clone(), true)
-                    });
+                let new_subtypes = members.iter().fold(ctx_with_alias.subtypes.clone(), |graph, member| {
+                    graph.cache_subtype(member.clone(), alias_type.clone(), true)
+                });
                 ctx_with_alias.with_subtypes(new_subtypes)
             } else {
                 ctx_with_alias
@@ -342,12 +317,8 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             // in `get_functions_from_type`.
             let (final_lang, final_context) = if let Type::Record(fields, _) = typ {
                 if fields.iter().any(|f| f.is_embedded()) {
-                    let (synthesized, ctx, embed_errors) = embedding::synthesize_embedding(
-                        &final_context,
-                        &effective_var.get_name(),
-                        fields,
-                        h,
-                    );
+                    let (synthesized, ctx, embed_errors) =
+                        embedding::synthesize_embedding(&final_context, &effective_var.get_name(), fields, h);
                     errors.extend(embed_errors);
                     let mut lines = vec![expr.clone()];
                     lines.extend(synthesized);
@@ -365,8 +336,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 (expr.clone(), final_context)
             };
 
-            TypeContext::new(builder::unknown_function_type(), final_lang, final_context)
-                .with_errors(errors)
+            TypeContext::new(builder::unknown_function_type(), final_lang, final_context).with_errors(errors)
         }
         Lang::Assign {
             identifier: left_expr,
@@ -385,11 +355,9 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let reduced_right_type = reduce_type(context, &right_type);
 
             if reduced_right_type.is_subtype(&reduced_left_type, context).0 {
-                let Some(var) = Var::from_language((**left_expr).clone())
-                    .map(|v| v.set_type(right_type.clone()))
+                let Some(var) = Var::from_language((**left_expr).clone()).map(|v| v.set_type(right_type.clone()))
                 else {
-                    return TypeContext::new(right_type, expr.clone(), context.clone())
-                        .with_errors(errors);
+                    return TypeContext::new(right_type, expr.clone(), context.clone()).with_errors(errors);
                 };
                 TypeContext::new(
                     right_type.clone(),
@@ -402,8 +370,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                     left_type.clone().set_help_data(h.clone()),
                     right_type.clone(),
                 )));
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                    .with_errors(errors)
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
             }
         }
         Lang::Library {
@@ -416,12 +383,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
 
             // For now, just return unknown function type
             // The package types should be pre-loaded in the context for WASM
-            (
-                builder::unknown_function_type(),
-                expr.clone(),
-                context.clone(),
-            )
-                .into()
+            (builder::unknown_function_type(), expr.clone(), context.clone()).into()
         }
         Lang::Signature {
             identifier: var,
@@ -436,21 +398,15 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             category,
             ..
         } => {
-            let new_context =
-                context
-                    .clone()
-                    .push_type_constructor(name.clone(), parameters.to_vec(), *category);
+            let new_context = context
+                .clone()
+                .push_type_constructor(name.clone(), parameters.to_vec(), *category);
             (builder::empty_type(), expr.clone(), new_context).into()
         }
         Lang::TestBlock { value: body, .. } => {
             //Needed to be type checked
             let tc = typing(context, body);
-            TypeContext::new(
-                builder::unknown_function_type(),
-                expr.clone(),
-                context.clone(),
-            )
-            .with_errors(tc.errors)
+            TypeContext::new(builder::unknown_function_type(), expr.clone(), context.clone()).with_errors(tc.errors)
         }
         Lang::Module {
             name: module_name,
@@ -462,11 +418,12 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             // (modules_in_progress set), a `use Module::*;` inside its body
             // has created a circular dependency chain.
             if context.is_module_in_progress(module_name) {
-                return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
-                    .with_errors(vec![TypRError::Type(TypeError::CircularModuleDependency {
+                return TypeContext::new(builder::empty_type(), expr.clone(), context.clone()).with_errors(vec![
+                    TypRError::Type(TypeError::CircularModuleDependency {
                         module_name: module_name.clone(),
                         help_data: h.clone(),
-                    })]);
+                    }),
+                ]);
             }
 
             // Per-module incremental cache (project builds only; inert
@@ -516,10 +473,9 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let opaque_names: std::collections::HashSet<String> = members
                 .iter()
                 .filter_map(|m| match m {
-                    Lang::Alias { identifier: id, .. } => Var::try_from(id)
-                        .ok()
-                        .filter(|v| v.get_opacity())
-                        .map(|v| v.get_name()),
+                    Lang::Alias { identifier: id, .. } => {
+                        Var::try_from(id).ok().filter(|v| v.get_opacity()).map(|v| v.get_name())
+                    }
                     _ => None,
                 })
                 .collect();
@@ -533,10 +489,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                     Type::Function(args, ret, h) => Type::Function(
                         args.into_iter()
                             .map(|a| {
-                                ArgumentType::new(
-                                    &a.get_argument_str(),
-                                    &reify_opaque(a.get_type(), opaque_names),
-                                )
+                                ArgumentType::new(&a.get_argument_str(), &reify_opaque(a.get_type(), opaque_names))
                             })
                             .collect(),
                         Box::new(reify_opaque(*ret, opaque_names)),
@@ -635,16 +588,12 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 if typing_context.errors.is_empty() {
                     module_cache::put(
                         key,
-                        &module_cache::ModuleCacheEntry::capture(
-                            &module_type,
-                            &typing_context.context,
-                        ),
+                        &module_cache::ModuleCacheEntry::capture(&module_type, &typing_context.context),
                     );
                 }
             }
 
-            TypeContext::new(builder::empty_type(), expr.clone(), final_context)
-                .with_errors(typing_context.errors)
+            TypeContext::new(builder::empty_type(), expr.clone(), final_context).with_errors(typing_context.errors)
         }
         Lang::ImportFrom {
             package,
@@ -654,11 +603,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let mut new_context = context.clone();
             for fn_name in functions {
                 let r_name = format!("{}::{}", package, fn_name);
-                if !new_context
-                    .import_from_fns
-                    .iter()
-                    .any(|(n, _)| n == fn_name)
-                {
+                if !new_context.import_from_fns.iter().any(|(n, _)| n == fn_name) {
                     new_context.import_from_fns.push((fn_name.clone(), r_name));
                 }
             }
@@ -728,12 +673,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
         | Lang::ArrayConstructorCall { .. }
         | Lang::ValidatingCast { .. }
         | Lang::UnionConstructor { .. }
-        | Lang::PartialApp { .. } => (
-            builder::unknown_function_type(),
-            expr.clone(),
-            context.clone(),
-        )
-            .into(),
+        | Lang::PartialApp { .. } => (builder::unknown_function_type(), expr.clone(), context.clone()).into(),
     }
 }
 
@@ -794,8 +734,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                 .iter()
                 .zip(v2.iter())
                 .flat_map(|(argt1, argt2)| {
-                    let gen1 = get_gen_type(&argt1.get_argument(), &argt2.get_argument())
-                        .unwrap_or(vec![]);
+                    let gen1 = get_gen_type(&argt1.get_argument(), &argt2.get_argument()).unwrap_or(vec![]);
                     let gen2 = get_gen_type(&argt1.get_type(), &argt2.get_type()).unwrap_or(vec![]);
                     gen1.iter().chain(gen2.iter()).cloned().collect::<Vec<_>>()
                 })
@@ -807,10 +746,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         (Type::Tag(name1, inner1, _), Type::Tag(name2, inner2, _)) if name1 == name2 => {
             if matches!(
                 inner2.as_ref(),
-                Type::Generic(_, _)
-                    | Type::IndexGen(_, _)
-                    | Type::LabelGen(_, _)
-                    | Type::KindedGen(_, _, _)
+                Type::Generic(_, _) | Type::IndexGen(_, _) | Type::LabelGen(_, _) | Type::KindedGen(_, _, _)
             ) {
                 let inner_type: Type = (**inner2).clone();
                 Some(vec![(type1.clone(), inner_type)])
@@ -846,11 +782,7 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
 }
 
 //Check if we really have a type (type1) matched with a genery (type2)
-pub fn match_types_to_generic(
-    ctx: &Context,
-    type1: &Type,
-    type2: &Type,
-) -> Option<Vec<(Type, Type)>> {
+pub fn match_types_to_generic(ctx: &Context, type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
     // Try unification on the unreduced types first so that alias type parameters
     // are preserved (e.g. Factor<[2, char]> vs Factor<L> → L = [2, char]).
     // Reducing non-opaque aliases first would collapse both to `int`, losing L.
@@ -878,9 +810,7 @@ pub fn match_types_to_generic(
 }
 
 fn are_homogenous_types(types: &[Type]) -> bool {
-    types
-        .windows(2)
-        .all(|w| w[0].to_category() == w[1].to_category())
+    types.windows(2).all(|w| w[0].to_category() == w[1].to_category())
 }
 
 trait WithLang2 {
@@ -910,10 +840,7 @@ fn typing_container(
     generalize: bool,
 ) -> TypeContext {
     let type_contexts: Vec<_> = exprs.iter().map(|e| typing(context, e)).collect();
-    let mut errors: Vec<TypRError> = type_contexts
-        .iter()
-        .flat_map(|tc| tc.errors.clone())
-        .collect();
+    let mut errors: Vec<TypRError> = type_contexts.iter().flat_map(|tc| tc.errors.clone()).collect();
     let types: Vec<_> = type_contexts
         .iter()
         .map(|tc| {
@@ -948,12 +875,7 @@ fn typing_container(
             .set_help_data(h.clone())
     };
 
-    TypeContext::new(
-        new_type.clone(),
-        expr.clone(),
-        context.clone().push_types(&[new_type]),
-    )
-    .with_errors(errors)
+    TypeContext::new(new_type.clone(), expr.clone(), context.clone().push_types(&[new_type])).with_errors(errors)
 }
 
 /// A type is *scalar* (in the `c(...)` sense) when it is not a container,
@@ -975,9 +897,7 @@ fn vec_index_sum(indices: &[Type], h: &HelpData) -> Type {
         None => indices
             .iter()
             .cloned()
-            .reduce(|a, b| {
-                Type::Operator(TypeOperator::Addition, Box::new(a), Box::new(b), h.clone())
-            })
+            .reduce(|a, b| Type::Operator(TypeOperator::Addition, Box::new(a), Box::new(b), h.clone()))
             .unwrap_or_else(|| Type::Integer(Tint::Unknown, h.clone())),
     }
 }
@@ -1062,14 +982,8 @@ fn try_homogeneous_scalars(types: &[Type], n: usize, h: &HelpData) -> Option<Typ
 ///   4. type error.
 fn typing_vector(context: &Context, expr: &Lang, exprs: &[Lang], h: &HelpData) -> TypeContext {
     let type_contexts: Vec<_> = exprs.iter().map(|e| typing(context, e)).collect();
-    let mut errors: Vec<TypRError> = type_contexts
-        .iter()
-        .flat_map(|tc| tc.errors.clone())
-        .collect();
-    let types: Vec<Type> = type_contexts
-        .iter()
-        .map(|tc| tc.value.reduce(context))
-        .collect();
+    let mut errors: Vec<TypRError> = type_contexts.iter().flat_map(|tc| tc.errors.clone()).collect();
+    let types: Vec<Type> = type_contexts.iter().map(|tc| tc.value.reduce(context)).collect();
 
     let new_type = if types.is_empty() {
         // c() -> Vec[0, Any]
@@ -1098,30 +1012,18 @@ fn typing_vector(context: &Context, expr: &Lang, exprs: &[Lang], h: &HelpData) -
         )
     };
 
-    TypeContext::new(
-        new_type.clone(),
-        expr.clone(),
-        context.clone().push_types(&[new_type]),
-    )
-    .with_errors(errors)
+    TypeContext::new(new_type.clone(), expr.clone(), context.clone().push_types(&[new_type])).with_errors(errors)
 }
 
 /// Resolves the type of a module member (alias or variable) reached by walking
 /// `module_path` (e.g. `["a", "b"]` for `a$b$<member_name>`) through nested
 /// `Type::Module` values. Returns `None` if `module_path` is empty, or if any
 /// segment (including the final `member_name`) can't be resolved.
-pub fn resolve_module_member_type(
-    context: &Context,
-    module_path: &[String],
-    member_name: &str,
-) -> Option<Type> {
+pub fn resolve_module_member_type(context: &Context, module_path: &[String], member_name: &str) -> Option<Type> {
     if module_path.is_empty() {
         return None;
     }
-    let module_type = context
-        .get_types_from_name(&module_path[0])
-        .into_iter()
-        .next();
+    let module_type = context.get_types_from_name(&module_path[0]).into_iter().next();
     let resolved = module_path[1..].iter().fold(module_type, |acc, seg| {
         acc.and_then(|t| {
             if let Type::Module(fields, _, _) = t.reduce(context) {
@@ -1155,10 +1057,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             context.clone(),
         )
             .into(),
-        Lang::Integer {
-            value: i,
-            help_data: h,
-        } => (
+        Lang::Integer { value: i, help_data: h } => (
             builder::integer_type(*i).set_help_data(h.clone()),
             expr.clone(),
             context.clone(),
@@ -1170,10 +1069,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             context.clone(),
         )
             .into(),
-        Lang::Char {
-            value: s,
-            help_data: h,
-        } => (
+        Lang::Char { value: s, help_data: h } => (
             builder::character_type(s).set_help_data(h.clone()),
             expr.clone(),
             context.clone(),
@@ -1189,8 +1085,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     h.clone(),
                 )));
             }
-            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
-                .with_errors(errors)
+            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone()).with_errors(errors)
         }
         Lang::Next(h) => {
             let mut errors = Vec::new();
@@ -1200,15 +1095,11 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     h.clone(),
                 )));
             }
-            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
-                .with_errors(errors)
+            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone()).with_errors(errors)
         }
-        Lang::Loop {
-            body, help_data: h, ..
-        } => {
+        Lang::Loop { body, help_data: h, .. } => {
             let tc = typing(&context.clone().set_in_loop(true), body);
-            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
-                .with_errors(tc.errors)
+            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone()).with_errors(tc.errors)
         }
         Lang::Operator {
             operator: Op::And(_),
@@ -1229,17 +1120,11 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
 
             // O2 (audit_type_checking.md): reduce before checking booleanness so
             // an alias to `bool` (`type Flag <- bool;`) is accepted.
-            if reduce_type(context, &tc1.value).is_boolean()
-                && reduce_type(context, &tc2.value).is_boolean()
-            {
-                TypeContext::new(builder::boolean_type(), expr.clone(), context.clone())
-                    .with_errors(errors)
+            if reduce_type(context, &tc1.value).is_boolean() && reduce_type(context, &tc2.value).is_boolean() {
+                TypeContext::new(builder::boolean_type(), expr.clone(), context.clone()).with_errors(errors)
             } else {
-                errors.push(TypRError::Type(TypeError::WrongExpression(
-                    expr.get_help_data(),
-                )));
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                    .with_errors(errors)
+                errors.push(TypRError::Type(TypeError::WrongExpression(expr.get_help_data())));
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
             }
         }
         Lang::Operator {
@@ -1294,14 +1179,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 || reduced2.is_subtype(&reduced1, context).0;
 
             if comparable {
-                TypeContext::new(builder::boolean_type(), expr.clone(), context.clone())
-                    .with_errors(errors)
+                TypeContext::new(builder::boolean_type(), expr.clone(), context.clone()).with_errors(errors)
             } else {
-                errors.push(TypRError::Type(TypeError::WrongExpression(
-                    expr.get_help_data(),
-                )));
-                TypeContext::new(builder::boolean_type(), expr.clone(), context.clone())
-                    .with_errors(errors)
+                errors.push(TypRError::Type(TypeError::WrongExpression(expr.get_help_data())));
+                TypeContext::new(builder::boolean_type(), expr.clone(), context.clone()).with_errors(errors)
             }
         }
         Lang::Operator {
@@ -1366,11 +1247,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 )
                 .with_errors(errors)
             } else if exprs.is_empty() {
-                TypeContext::new(
-                    builder::unknown_function_type(),
-                    expr.clone(),
-                    context.clone(),
-                )
+                TypeContext::new(builder::unknown_function_type(), expr.clone(), context.clone())
             } else {
                 let context2 = context.clone();
                 let mut exprs2 = exprs.clone();
@@ -1390,8 +1267,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 });
                 let final_tc = typing(&new_context, &exp);
                 all_errors.extend(final_tc.errors);
-                TypeContext::new(final_tc.value, final_tc.lang, final_tc.context)
-                    .with_errors(all_errors)
+                TypeContext::new(final_tc.value, final_tc.lang, final_tc.context).with_errors(all_errors)
             }
         }
         Lang::FunctionApp {
@@ -1448,11 +1324,8 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 };
                 TypeContext::new(result_type, expr.clone(), context.clone()).with_errors(errors)
             } else {
-                errors.push(TypRError::Type(TypeError::WrongExpression(
-                    cond.get_help_data(),
-                )));
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                    .with_errors(errors)
+                errors.push(TypRError::Type(TypeError::WrongExpression(cond.get_help_data())));
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
             }
         }
         Lang::Array {
@@ -1476,10 +1349,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .iter()
                 .map(|arg_val: &ArgumentValue| typing(context, &arg_val.get_value()))
                 .collect();
-            let mut errors: Vec<TypRError> = type_contexts
-                .iter()
-                .flat_map(|tc| tc.errors.clone())
-                .collect();
+            let mut errors: Vec<TypRError> = type_contexts.iter().flat_map(|tc| tc.errors.clone()).collect();
             let field_types: Vec<ArgumentType> = fields
                 .iter()
                 .zip(type_contexts.iter())
@@ -1501,8 +1371,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             if spreads.len() == 1 && fields.is_empty() {
                 let tc = typing(context, &spreads[0]);
                 errors.extend(tc.errors);
-                return TypeContext::new(tc.value, expr.clone(), context.clone())
-                    .with_errors(errors);
+                return TypeContext::new(tc.value, expr.clone(), context.clone()).with_errors(errors);
             }
 
             // Several spreads merge sequentially (later wins on overlap, §4.3),
@@ -1519,18 +1388,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 errors.extend(tc.errors);
                 match tc.value.reduce(context) {
                     Type::Record(spread_fields, _) => {
-                        merged = merge_record_fields_override(
-                            &merged,
-                            &spread_fields.into_iter().collect::<Vec<_>>(),
-                        );
+                        merged = merge_record_fields_override(&merged, &spread_fields.into_iter().collect::<Vec<_>>());
                     }
                     kinded @ Type::KindedGen(Kind::Record, _, _) => {
                         unresolved.push(kinded);
                     }
                     _ => {
-                        errors.push(TypRError::Type(TypeError::WrongExpression(
-                            spread_expr.get_help_data(),
-                        )));
+                        errors.push(TypRError::Type(TypeError::WrongExpression(spread_expr.get_help_data())));
                     }
                 }
             }
@@ -1542,12 +1406,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 let mut parts = unresolved.into_iter();
                 let mut combined = parts.next().expect("checked non-empty above");
                 for t in parts {
-                    combined = Type::Operator(
-                        TypeOperator::Intersection,
-                        Box::new(combined),
-                        Box::new(t),
-                        h.clone(),
-                    );
+                    combined = Type::Operator(TypeOperator::Intersection, Box::new(combined), Box::new(t), h.clone());
                 }
                 if !merged.is_empty() {
                     combined = Type::Operator(
@@ -1570,10 +1429,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .iter()
                 .map(|arg_val: &ArgumentValue| typing(context, &arg_val.get_value()))
                 .collect();
-            let mut errors: Vec<TypRError> = type_contexts
-                .iter()
-                .flat_map(|tc| tc.errors.clone())
-                .collect();
+            let mut errors: Vec<TypRError> = type_contexts.iter().flat_map(|tc| tc.errors.clone()).collect();
             let field_types = fields
                 .iter()
                 .zip(type_contexts.iter())
@@ -1595,15 +1451,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                             match &known_length {
                                 None => known_length = Some((name.clone(), *len)),
                                 Some((first_name, first_len)) if first_len != len => {
-                                    errors.push(TypRError::Type(
-                                        TypeError::DataFrameColumnLengthMismatch(
-                                            first_name.clone(),
-                                            *first_len,
-                                            name.clone(),
-                                            *len,
-                                            h.clone(),
-                                        ),
-                                    ));
+                                    errors.push(TypRError::Type(TypeError::DataFrameColumnLengthMismatch(
+                                        first_name.clone(),
+                                        *first_len,
+                                        name.clone(),
+                                        *len,
+                                        h.clone(),
+                                    )));
                                 }
                                 _ => {}
                             }
@@ -1661,15 +1515,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 if let Some(i) = scalar_idx {
                     let i = i as usize;
                     return if i >= 1 && i <= types.len() {
-                        TypeContext::new(types[i - 1].clone(), expr.clone(), context.clone())
-                            .with_errors(errors)
+                        TypeContext::new(types[i - 1].clone(), expr.clone(), context.clone()).with_errors(errors)
                     } else {
                         errors.push(TypRError::Type(TypeError::WrongIndexing(
                             typ1.clone(),
                             builder::integer_type(i as i32),
                         )));
-                        TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                            .with_errors(errors)
+                        TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
                     };
                 }
             }
@@ -1695,8 +1547,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     Type::Vec(_, _, t2, _) => *t2.clone(),
                     _ => builder::any_type(),
                 };
-                return TypeContext::new(element_type, expr.clone(), context.clone())
-                    .with_errors(errors);
+                return TypeContext::new(element_type, expr.clone(), context.clone()).with_errors(errors);
             }
 
             let args_target = typ1.clone().linearize();
@@ -1722,10 +1573,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                             _ => {
                                 let idx_tc = typing(context, x);
                                 errors.extend(idx_tc.errors);
-                                if !matches!(
-                                    reduce_type(context, &idx_tc.value),
-                                    Type::Integer(_, _)
-                                ) {
+                                if !matches!(reduce_type(context, &idx_tc.value), Type::Integer(_, _)) {
                                     errors.push(TypRError::Type(TypeError::WrongIndexing(
                                         typ1.clone(),
                                         idx_tc.value.clone(),
@@ -1749,10 +1597,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     // (fewer members than dimensions) still yields a sub-array
                     // over the untouched trailing dimensions.
                     let typ2 = if args_index.len() >= args_target.len().saturating_sub(1) {
-                        args_target
-                            .last()
-                            .cloned()
-                            .unwrap_or_else(builder::any_type)
+                        args_target.last().cloned().unwrap_or_else(builder::any_type)
                     } else {
                         Type::from_linear(args_target[args_index.len()..].to_vec())
                     }
@@ -1761,17 +1606,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     if is_indexable {
                         TypeContext::new(typ2, expr.clone(), context.clone()).with_errors(errors)
                     } else {
-                        errors.push(TypRError::Type(TypeError::WrongIndexing(
-                            typ1,
-                            typ2.clone(),
-                        )));
+                        errors.push(TypRError::Type(TypeError::WrongIndexing(typ1, typ2.clone())));
                         TypeContext::new(typ2, expr.clone(), context.clone()).with_errors(errors)
                     }
                 }
                 None => {
                     errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
-                    TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                        .with_errors(errors)
+                    TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
                 }
             }
         }
@@ -1787,9 +1628,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 // `use`d: point the error at the fix instead of letting it
                 // surface later as a confusing downstream type mismatch (see
                 // AliasNotImported for the same idea applied to type aliases).
-                if let Some((module_name, is_public)) =
-                    context.find_variable_source_module(&old_var.get_name())
-                {
+                if let Some((module_name, is_public)) = context.find_variable_source_module(&old_var.get_name()) {
                     return tc.with_errors(vec![TypRError::Type(TypeError::VariableNotImported(
                         old_var.get_name(),
                         module_name,
@@ -1803,9 +1642,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 // for the preloaded untyped-R/JS-builtin placeholders (they
                 // sit in `variables` too), so this only fires for names that
                 // were never registered at all.
-                return tc.with_errors(vec![TypRError::Type(TypeError::UndefinedVariable(
-                    expr.clone(),
-                ))]);
+                return tc.with_errors(vec![TypRError::Type(TypeError::UndefinedVariable(expr.clone()))]);
             }
             tc
         }
@@ -1827,17 +1664,12 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let tcs: Vec<_> = elements.iter().map(|x| typing(context, x)).collect();
             let errors: Vec<TypRError> = tcs.iter().flat_map(|tc| tc.errors.clone()).collect();
             let types: Vec<_> = tcs.iter().map(|tc| tc.value.clone()).collect();
-            TypeContext::new(Type::Tuple(types, h.clone()), expr.clone(), context.clone())
-                .with_errors(errors)
+            TypeContext::new(Type::Tuple(types, h.clone()), expr.clone(), context.clone()).with_errors(errors)
         }
-        Lang::VecBlock { help_data: h, .. } => {
-            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
+        Lang::VecBlock { help_data: h, .. } => TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone()),
+        Lang::RFunction { help_data: h, .. } => {
+            TypeContext::new(Type::UnknownFunction(h.clone()), expr.clone(), context.clone())
         }
-        Lang::RFunction { help_data: h, .. } => TypeContext::new(
-            Type::UnknownFunction(h.clone()),
-            expr.clone(),
-            context.clone(),
-        ),
         Lang::ExternBlock {
             parameters: params,
             return_type: ret_ty,
@@ -1868,11 +1700,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 Some(arr) => Some((arr.base_type, (**iter).clone())),
                 None => {
                     let as_vec_call = Lang::FunctionApp {
-                        identifier: Box::new(
-                            Var::from_name("as_vec")
-                                .set_help_data(h.clone())
-                                .to_language(),
-                        ),
+                        identifier: Box::new(Var::from_name("as_vec").set_help_data(h.clone()).to_language()),
                         arguments: vec![iter_tc.lang.clone()],
                         help_data: h.clone(),
                     };
@@ -1883,21 +1711,19 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         .or_else(|| {
                             let record_fields = match &iter_tc.value {
                                 Type::Record(fields, _) => Some(fields.clone()),
-                                Type::Alias(name, _, _, _) => context
-                                    .aliases()
-                                    .find(|(var, _)| &var.name == name)
-                                    .and_then(|(_, t)| {
+                                Type::Alias(name, _, _, _) => {
+                                    context.aliases().find(|(var, _)| &var.name == name).and_then(|(_, t)| {
                                         if let Type::Record(fields, _) = t {
                                             Some(fields.clone())
                                         } else {
                                             None
                                         }
-                                    }),
+                                    })
+                                }
                                 _ => None,
                             };
                             record_fields.map(|fields| {
-                                let types: Vec<Type> =
-                                    fields.iter().map(|f| f.get_type()).collect();
+                                let types: Vec<Type> = fields.iter().map(|f| f.get_type()).collect();
                                 let element_type = builder::union_type(&types);
                                 (element_type, iter_tc.lang.clone())
                             })
@@ -1911,11 +1737,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     // block scope (T = element type) and type-check the body.
                     let body_context = context
                         .clone()
-                        .push_var_type(
-                            var.clone().set_type(base_type.clone()),
-                            base_type.clone(),
-                            context,
-                        )
+                        .push_var_type(var.clone().set_type(base_type.clone()), base_type.clone(), context)
                         .set_in_loop(true);
                     let body_tc = typing(&body_context, body);
                     errors.extend(body_tc.errors);
@@ -1925,15 +1747,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         body: body.clone(),
                         help_data: h.clone(),
                     };
-                    TypeContext::new(Type::Empty(h.clone()), new_for, context.clone())
-                        .with_errors(errors)
+                    TypeContext::new(Type::Empty(h.clone()), new_for, context.clone()).with_errors(errors)
                 }
                 None => {
                     // `it` is not of a type implementing `Iterable<T>`: typing error,
                     // no coercion.
                     errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
-                    TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
-                        .with_errors(errors)
+                    TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone()).with_errors(errors)
                 }
             }
         }
@@ -1952,11 +1772,8 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 )
                 .with_errors(errors),
                 _ => {
-                    errors.push(TypRError::Type(TypeError::WrongExpression(
-                        not_exp.get_help_data(),
-                    )));
-                    TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                        .with_errors(errors)
+                    errors.push(TypRError::Type(TypeError::WrongExpression(not_exp.get_help_data())));
+                    TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
                 }
             }
         }
@@ -2010,8 +1827,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .collect();
             let sub_context = params.iter().zip(fresh_param_types.iter()).fold(
                 context.clone(),
-                |ctx: Context, (param, typ): (&Lang, &Type)| match Var::from_language(param.clone())
-                {
+                |ctx: Context, (param, typ): (&Lang, &Type)| match Var::from_language(param.clone()) {
                     Some(var) => ctx.clone().push_var_type(var, typ.clone(), &ctx),
                     None => ctx,
                 },
@@ -2032,8 +1848,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     ArgumentType::new(&arg_name, typ)
                 })
                 .collect();
-            let func_type =
-                Type::Function(fresh_arg_types, Box::new(body_tc.value.clone()), h.clone());
+            let func_type = Type::Function(fresh_arg_types, Box::new(body_tc.value.clone()), h.clone());
             // Don't propagate errors from the initial lambda typing:
             // the body will be re-typed after specialization in apply_from_variable
             // with concrete types substituted for the fresh type variables.
@@ -2061,8 +1876,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     module_name: root_module_name.clone(),
                     help_data: help_data.clone(),
                 }));
-                return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
-                    .with_errors(errors);
+                return TypeContext::new(builder::empty_type(), expr.clone(), context.clone()).with_errors(errors);
             }
 
             // Resolve first segment of path in context.
@@ -2074,20 +1888,14 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 match context.get_type_from_variable(&module_var) {
                     Ok(t) => t,
                     Err(_) => {
-                        errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                            Lang::Variable {
-                                name: module_path[0].clone(),
-                                is_opaque: false,
-                                related_type: builder::any_type(),
-                                help_data: help_data.clone(),
-                            },
-                        )));
-                        return TypeContext::new(
-                            builder::empty_type(),
-                            expr.clone(),
-                            context.clone(),
-                        )
-                        .with_errors(errors);
+                        errors.push(TypRError::Type(TypeError::UndefinedVariable(Lang::Variable {
+                            name: module_path[0].clone(),
+                            is_opaque: false,
+                            related_type: builder::any_type(),
+                            help_data: help_data.clone(),
+                        })));
+                        return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
+                            .with_errors(errors);
                     }
                 }
             };
@@ -2098,37 +1906,25 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                     Ok(mt) => match mt.get_type_from_name(segment) {
                         Ok(t) => current_type = t,
                         Err(_) => {
-                            errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                                Lang::Variable {
-                                    name: segment.clone(),
-                                    is_opaque: false,
-                                    related_type: builder::any_type(),
-                                    help_data: help_data.clone(),
-                                },
-                            )));
-                            return TypeContext::new(
-                                builder::empty_type(),
-                                expr.clone(),
-                                context.clone(),
-                            )
-                            .with_errors(errors);
-                        }
-                    },
-                    Err(_) => {
-                        errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                            Lang::Variable {
+                            errors.push(TypRError::Type(TypeError::UndefinedVariable(Lang::Variable {
                                 name: segment.clone(),
                                 is_opaque: false,
                                 related_type: builder::any_type(),
                                 help_data: help_data.clone(),
-                            },
-                        )));
-                        return TypeContext::new(
-                            builder::empty_type(),
-                            expr.clone(),
-                            context.clone(),
-                        )
-                        .with_errors(errors);
+                            })));
+                            return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
+                                .with_errors(errors);
+                        }
+                    },
+                    Err(_) => {
+                        errors.push(TypRError::Type(TypeError::UndefinedVariable(Lang::Variable {
+                            name: segment.clone(),
+                            is_opaque: false,
+                            related_type: builder::any_type(),
+                            help_data: help_data.clone(),
+                        })));
+                        return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
+                            .with_errors(errors);
                     }
                 }
             }
@@ -2136,22 +1932,18 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let mod_type = match current_type.to_module_type() {
                 Ok(mt) => mt,
                 Err(_) => {
-                    errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                        Lang::Variable {
-                            name: module_path.last().cloned().unwrap_or_default(),
-                            is_opaque: false,
-                            related_type: builder::any_type(),
-                            help_data: help_data.clone(),
-                        },
-                    )));
-                    return TypeContext::new(builder::empty_type(), expr.clone(), context.clone())
-                        .with_errors(errors);
+                    errors.push(TypRError::Type(TypeError::UndefinedVariable(Lang::Variable {
+                        name: module_path.last().cloned().unwrap_or_default(),
+                        is_opaque: false,
+                        related_type: builder::any_type(),
+                        help_data: help_data.clone(),
+                    })));
+                    return TypeContext::new(builder::empty_type(), expr.clone(), context.clone()).with_errors(errors);
                 }
             };
 
             // Track names imported in this directive to detect intra-directive conflicts
-            let mut imported_names: std::collections::HashSet<String> =
-                std::collections::HashSet::new();
+            let mut imported_names: std::collections::HashSet<String> = std::collections::HashSet::new();
 
             match selector {
                 UseSelector::Wildcard => {
@@ -2186,11 +1978,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                     &local_name,
                                     &member_type,
                                 );
-                                new_context = new_context.clone().push_var_type(
-                                    alias_var,
-                                    alias_type,
-                                    &new_context,
-                                );
+                                new_context = new_context.clone().push_var_type(alias_var, alias_type, &new_context);
                             }
                         }
                     }
@@ -2210,14 +1998,12 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                                         help_data.clone(),
                                     )));
                                 } else {
-                                    errors.push(TypRError::Type(TypeError::UndefinedVariable(
-                                        Lang::Variable {
-                                            name: item.name.clone(),
-                                            is_opaque: false,
-                                            related_type: builder::any_type(),
-                                            help_data: help_data.clone(),
-                                        },
-                                    )));
+                                    errors.push(TypRError::Type(TypeError::UndefinedVariable(Lang::Variable {
+                                        name: item.name.clone(),
+                                        is_opaque: false,
+                                        related_type: builder::any_type(),
+                                        help_data: help_data.clone(),
+                                    })));
                                 }
                                 continue;
                             }
@@ -2252,18 +2038,9 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         // Record types imported from a module must also be registered
                         // as aliases so that ConstructorCall (TypeName:{...}) can find them.
                         if !matches!(member_type, Type::Function(..)) {
-                            let (alias_var, alias_type) = resolve_imported_alias(
-                                context,
-                                module_path,
-                                &item.name,
-                                &local_name,
-                                &member_type,
-                            );
-                            new_context = new_context.clone().push_var_type(
-                                alias_var,
-                                alias_type,
-                                &new_context,
-                            );
+                            let (alias_var, alias_type) =
+                                resolve_imported_alias(context, module_path, &item.name, &local_name, &member_type);
+                            new_context = new_context.clone().push_var_type(alias_var, alias_type, &new_context);
                         }
                     }
                 }
@@ -2285,16 +2062,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             spread,
             spreads,
             help_data: h,
-        } => constructor_call(
-            context,
-            expr,
-            module_path,
-            type_name,
-            fields,
-            spread,
-            spreads,
-            h,
-        ),
+        } => constructor_call(context, expr, module_path, type_name, fields, spread, spreads, h),
         Lang::ArrayConstructorCall {
             type_name,
             elements,
@@ -2313,10 +2081,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         let el_tc = typing(context, el);
                         errors.extend(el_tc.errors);
                         if !el_tc.value.is_subtype(&elem_type, context).0 {
-                            errors.push(TypRError::Type(TypeError::Param(
-                                (*elem_type).clone(),
-                                el_tc.value,
-                            )));
+                            errors.push(TypRError::Type(TypeError::Param((*elem_type).clone(), el_tc.value)));
                         }
                     }
                     TypeContext::new(
@@ -2344,10 +2109,14 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .get_matching_alias_signature(&Var::from_name(union_name))
                 .map(|(target, _)| target);
             let Some(union_target) = union_target else {
-                return TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                    .with_errors(vec![TypRError::Type(TypeError::AliasNotFound(
-                        Type::Alias(union_name.clone(), vec![], false, h.clone()),
-                    ))]);
+                return TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(vec![
+                    TypRError::Type(TypeError::AliasNotFound(Type::Alias(
+                        union_name.clone(),
+                        vec![],
+                        false,
+                        h.clone(),
+                    ))),
+                ]);
             };
             let members = flatten_operator_union(&union_target);
             let tag_member = members.iter().find_map(|m| match m {
@@ -2373,14 +2142,13 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                         context.clone(),
                     )
                 } else {
-                    TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-                        .with_errors(vec![TypRError::Type(
-                            TypeError::TagFieldConstructorNotSupported(
-                                variant_name.clone(),
-                                union_name.clone(),
-                                h.clone(),
-                            ),
-                        )])
+                    TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(vec![
+                        TypRError::Type(TypeError::TagFieldConstructorNotSupported(
+                            variant_name.clone(),
+                            union_name.clone(),
+                            h.clone(),
+                        )),
+                    ])
                 }
             } else if alias_member {
                 // Record-alias union member (e.g. `type Color <- .Red | Rgb;`
@@ -2390,13 +2158,9 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 // as a standalone constructor call.
                 constructor_call(context, expr, &[], variant_name, fields, &None, &[], h)
             } else {
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(
-                    vec![TypRError::Type(TypeError::UnknownUnionVariant(
-                        variant_name.clone(),
-                        union_name.clone(),
-                        h.clone(),
-                    ))],
-                )
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(vec![TypRError::Type(
+                    TypeError::UnknownUnionVariant(variant_name.clone(), union_name.clone(), h.clone()),
+                )])
             }
         }
         Lang::ValidatingCast {
@@ -2420,8 +2184,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 .with_errors(expr_tc.errors),
                 None => {
                     let alias_type = Type::Alias(type_name.clone(), vec![], false, h.clone());
-                    TypeContext::new(alias_type, expr.clone(), context.clone())
-                        .with_errors(expr_tc.errors)
+                    TypeContext::new(alias_type, expr.clone(), context.clone()).with_errors(expr_tc.errors)
                 }
             }
         }
@@ -2430,14 +2193,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         | Lang::ModuleImport { help_data: h, .. }
         | Lang::Import { help_data: h, .. }
         | Lang::Test { help_data: h, .. }
-        | Lang::Use { help_data: h, .. } => {
-            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
+        | Lang::Use { help_data: h, .. } => TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone()),
+        Lang::GenFunc { help_data: h, .. } => {
+            TypeContext::new(builder::unknown_function_type(), expr.clone(), context.clone())
         }
-        Lang::GenFunc { help_data: h, .. } => TypeContext::new(
-            builder::unknown_function_type(),
-            expr.clone(),
-            context.clone(),
-        ),
         Lang::KeyValue { value, .. } => typing(context, value),
         Lang::NA(h) => (Type::NA(h.clone()), expr.clone(), context.clone()).into(),
         Lang::WhileLoop {
@@ -2448,14 +2207,11 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             let cond_tc = typing(context, condition);
             let mut errors = cond_tc.errors;
             if !reduce_type(context, &cond_tc.value).is_boolean() {
-                errors.push(TypRError::Type(TypeError::WrongExpression(
-                    condition.get_help_data(),
-                )));
+                errors.push(TypRError::Type(TypeError::WrongExpression(condition.get_help_data())));
             }
             let body_tc = typing(&context.clone().set_in_loop(true), body);
             errors.extend(body_tc.errors);
-            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone())
-                .with_errors(errors)
+            TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone()).with_errors(errors)
         }
         // The following variants are never a live input to typing(): each is
         // synthesized *after* typing already ran, as an AST-rewrite artifact,
@@ -2475,10 +2231,9 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         //   - `Union`: a vestigial tuple variant with no parser construction
         //     site (superseded by `Type::Operator(Union, ...)` /
         //     `UnionConstructor`); dead code kept only for exhaustiveness.
-        Lang::VecFunctionApp { .. }
-        | Lang::Exp { .. }
-        | Lang::TypePattern { .. }
-        | Lang::Union(_, _, _) => builder::any_type().with_lang(expr, context).into(),
+        Lang::VecFunctionApp { .. } | Lang::Exp { .. } | Lang::TypePattern { .. } | Lang::Union(_, _, _) => {
+            builder::any_type().with_lang(expr, context).into()
+        }
     }
 }
 
@@ -2588,8 +2343,7 @@ fn typing_self_constructor(
 
     let Some(self_type) = context.self_type.clone() else {
         errors.push(TypRError::Type(TypeError::SelfOutsideContext(h.clone())));
-        return TypeContext::new(builder::any_type(), expr.clone(), context.clone())
-            .with_errors(errors);
+        return TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors);
     };
     let Some(base_expr) = spreads.first() else {
         errors.push(TypRError::Type(TypeError::SelfOutsideContext(h.clone())));
@@ -2611,10 +2365,7 @@ fn typing_self_constructor(
     let mut seen = std::collections::HashSet::new();
     for f in fields {
         if !seen.insert(f.get_argument()) {
-            errors.push(TypRError::Type(TypeError::DuplicateField(
-                f.get_argument(),
-                h.clone(),
-            )));
+            errors.push(TypRError::Type(TypeError::DuplicateField(f.get_argument(), h.clone())));
         }
     }
 
@@ -2622,18 +2373,12 @@ fn typing_self_constructor(
         Type::Record(record_fields, _) => {
             for f in fields {
                 let fname = f.get_argument();
-                match record_fields
-                    .iter()
-                    .find(|rf| rf.get_argument_str() == fname)
-                {
+                match record_fields.iter().find(|rf| rf.get_argument_str() == fname) {
                     Some(rf) => {
                         let value_tc = typing(context, &f.get_value());
                         errors.extend(value_tc.errors);
                         if !value_tc.value.is_subtype(&rf.get_type(), context).0 {
-                            errors.push(TypRError::Type(TypeError::Param(
-                                rf.get_type(),
-                                value_tc.value,
-                            )));
+                            errors.push(TypRError::Type(TypeError::Param(rf.get_type(), value_tc.value)));
                         }
                     }
                     None => {
@@ -2660,10 +2405,7 @@ fn typing_self_constructor(
 
 /// Shallow merge of record field types by name, override winning on
 /// conflict and order-of-appearance otherwise preserved (spread_operator2.md).
-pub fn merge_record_fields_override(
-    base: &[ArgumentType],
-    overrides: &[ArgumentType],
-) -> Vec<ArgumentType> {
+pub fn merge_record_fields_override(base: &[ArgumentType], overrides: &[ArgumentType]) -> Vec<ArgumentType> {
     let mut result = base.to_vec();
     for over in overrides {
         let name = over.get_argument_str();
@@ -2689,10 +2431,7 @@ mod tests {
         let result = typing_with_errors(&context, &res);
 
         // Should have collected an error for the unknown function
-        assert!(
-            result.has_errors(),
-            "Expected an error for unknown function 'typr'"
-        );
+        assert!(result.has_errors(), "Expected an error for unknown function 'typr'");
 
         // The inferred type should be Any when the function is not found
         assert_eq!(result.get_type().clone(), builder::any_type());
@@ -2720,10 +2459,8 @@ mod tests {
         let typ = FluentParser::new().check_typing("c(:{a = 1}, :{b = 2})");
         match typ {
             Type::Record(fields, _) => {
-                let names: std::collections::HashSet<String> = fields
-                    .iter()
-                    .map(|f| f.get_argument_str().to_string())
-                    .collect();
+                let names: std::collections::HashSet<String> =
+                    fields.iter().map(|f| f.get_argument_str().to_string()).collect();
                 assert!(names.contains("a") && names.contains("b"));
             }
             other => panic!("Expected a record, got {}", other.pretty()),
@@ -2741,10 +2478,7 @@ mod tests {
     fn test_c_scalar_with_vector_is_error() {
         // Rule 4: c(1, c(2, 3)) is a type error (no rule applies)
         let fp = FluentParser::new().push("c(1, c(2, 3))").parse_type_next();
-        assert!(
-            !fp.get_last_log().is_empty(),
-            "Expected a type error for c(1, c(2, 3))"
-        );
+        assert!(!fp.get_last_log().is_empty(), "Expected a type error for c(1, c(2, 3))");
     }
 
     #[test]
@@ -2762,9 +2496,7 @@ mod tests {
         let context = Context::default();
         let lang = Var::default().set_name("a");
         let typ = builder::integer_type_default();
-        let context2 = context
-            .clone()
-            .push_var_type(lang.clone(), typ.clone(), &context);
+        let context2 = context.clone().push_var_type(lang.clone(), typ.clone(), &context);
         assert_eq!(context2.get_type_from_variable(&lang), Ok(typ));
     }
 
@@ -2798,10 +2530,7 @@ mod tests {
             .push("incr([1, 2])")
             .parse_type_next()
             .get_last_type();
-        assert_eq!(
-            typ,
-            builder::array_type2(2, builder::integer_type_default())
-        );
+        assert_eq!(typ, builder::array_type2(2, builder::integer_type_default()));
     }
 
     #[test]
@@ -2876,10 +2605,7 @@ mod tests {
         use crate::processes::parsing::parse_from_string;
         let expr = parse_from_string("df$unknown", "test");
         let result = typing_with_errors(&context, &expr);
-        assert!(
-            result.has_errors(),
-            "Expected a FieldNotFound error for df$unknown"
-        );
+        assert!(result.has_errors(), "Expected a FieldNotFound error for df$unknown");
     }
 
     #[test]
@@ -2935,10 +2661,7 @@ mod tests {
         use std::collections::HashSet;
 
         let mut fields = HashSet::new();
-        fields.insert(ArgumentType::new(
-            "Training",
-            &builder::character_type_default(),
-        ));
+        fields.insert(ArgumentType::new("Training", &builder::character_type_default()));
         fields.insert(ArgumentType::new("Pulse", &builder::integer_type_default()));
 
         let record_type = Type::Record(fields, HelpData::default());
@@ -2963,10 +2686,7 @@ mod tests {
         use std::collections::HashSet;
 
         let mut fields = HashSet::new();
-        fields.insert(ArgumentType::new(
-            "Training",
-            &builder::character_type_default(),
-        ));
+        fields.insert(ArgumentType::new("Training", &builder::character_type_default()));
         fields.insert(ArgumentType::new("Pulse", &builder::integer_type_default()));
 
         let record_type = Type::Record(fields, HelpData::default());
@@ -3073,10 +2793,7 @@ mod tests {
         let context = fp.context.clone();
         let expr = parse_from_string("use mymod::secret;", "test");
         let result = typing_with_errors(&context, &expr);
-        assert!(
-            result.has_errors(),
-            "Expected PrivateImport error for private member"
-        );
+        assert!(result.has_errors(), "Expected PrivateImport error for private member");
         assert!(
             result.get_errors().iter().any(|e| matches!(
                 e,
@@ -3240,10 +2957,7 @@ mod tests {
                 ret
             );
         } else {
-            panic!(
-                "Expected function type for make_unit, got {:?}",
-                make_unit_type
-            );
+            panic!("Expected function type for make_unit, got {:?}", make_unit_type);
         }
     }
 
@@ -3269,13 +2983,11 @@ mod tests {
             .parse_type_next();
         let ctx = fp.context.clone();
         assert!(
-            ctx.get_type_from_variable(&Var::from_name("new_person"))
-                .is_ok(),
+            ctx.get_type_from_variable(&Var::from_name("new_person")).is_ok(),
             "new_person should be in context after 'use person::new_person'"
         );
         assert!(
-            ctx.get_type_from_variable(&Var::from_name("is_minor"))
-                .is_err(),
+            ctx.get_type_from_variable(&Var::from_name("is_minor")).is_err(),
             "is_minor should NOT be in context (not imported)"
         );
     }
@@ -3322,9 +3034,7 @@ p"#;
         let person_type = ctx_after_module
             .get_type_from_variable(&Var::from_name("person"))
             .unwrap();
-        let mod_type = person_type
-            .to_module_type()
-            .expect("person should be a module type");
+        let mod_type = person_type.to_module_type().expect("person should be a module type");
         let new_person_exported = mod_type.get_type_from_name("new_person");
         assert!(
             new_person_exported.is_ok(),
@@ -3382,10 +3092,7 @@ p"#;
                 .get_ordered_supertypes(&char_unknown, &ctx_after_module);
             println!(
                 "supertypes of Char(Unknown) after module: {:?}",
-                in_graph_after_module
-                    .iter()
-                    .map(|t| t.pretty())
-                    .collect::<Vec<_>>()
+                in_graph_after_module.iter().map(|t| t.pretty()).collect::<Vec<_>>()
             );
 
             // Check if Char(Unknown) is in graph after use
@@ -3394,10 +3101,7 @@ p"#;
                 .get_ordered_supertypes(&char_unknown, &ctx_after_use);
             println!(
                 "supertypes of Char(Unknown) after use: {:?}",
-                in_graph_after_use
-                    .iter()
-                    .map(|t| t.pretty())
-                    .collect::<Vec<_>>()
+                in_graph_after_use.iter().map(|t| t.pretty()).collect::<Vec<_>>()
             );
 
             // Check supertypes of Char(Val("Anna"))
@@ -3476,15 +3180,8 @@ p"#;
 
     #[test]
     fn test_record_constructor_generated() {
-        let fp = FluentParser::new()
-            .push("type Point <- list { x: int, y: int };")
-            .run();
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let fp = FluentParser::new().push("type Point <- list { x: int, y: int };").run();
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("Point <- function("),
             "Expected constructor function for Point, got:\n{}",
@@ -3514,12 +3211,7 @@ p"#;
             .run()
             .push("let p <- Point:{ x = 1, y = 2 };")
             .run();
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("Point("),
             "Expected Point(...) call from constructor syntax, got:\n{}",
@@ -3551,12 +3243,7 @@ p"#;
             .push("let alice <- Person:{ name = \"Alice\", age = 99, ..bob };")
             .run();
         assert_eq!(fp.get_last_log(), "The logs are empty");
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("age = 99"),
             "Explicit field should win over the spread, got:\n{}",
@@ -3645,12 +3332,7 @@ p"#;
             .run()
             .push("let alice <- Person:{ name = \"Alice\", ..bob };")
             .run();
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("bob$age"),
             "Expected the missing field to be expanded to `bob$age`, got:\n{}",
@@ -3718,12 +3400,7 @@ p"#;
             .run()
             .push("let alice <- Person:{ name = \"Alice\", ...bob };")
             .run();
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("Person(name = \"Alice\"") && r_code.contains(", .spread = bob)"),
             "Expected a `.spread = ...` parameter transpilation, got:\n{}",
@@ -3781,12 +3458,7 @@ p"#;
             .run()
             .push("let y <- :{ ...cfg, b = 10 };")
             .run();
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("spread(cfg, list(b = "),
             "Expected a runtime `spread(...)` call, got:\n{}",
@@ -3801,12 +3473,7 @@ p"#;
             .run()
             .push("let y <- :{ ...cfg };")
             .run();
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.trim_end().ends_with("`y` <- cfg"),
             "Expected a bare passthrough (no spread() call), got:\n{}",
@@ -3835,12 +3502,7 @@ p"#;
             }
             other => panic!("Expected Type::Record, got: {:?}", other),
         }
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("spread(x1, x2)"),
             "Expected nested spread() merging the two sources, got:\n{}",
@@ -3886,12 +3548,7 @@ p"#;
         );
         let expr = parse_from_string("let extra <- :{ a = 1 }; :{ ...target, ...extra }", "test");
         let result = typing_with_errors(&context, &expr);
-        assert_eq!(
-            result.errors.len(),
-            0,
-            "Expected no errors, got: {:?}",
-            result.errors
-        );
+        assert_eq!(result.errors.len(), 0, "Expected no errors, got: {:?}", result.errors);
         match result.type_context.value.reduce(&context) {
             Type::Operator(TypeOperator::Intersection, t1, t2, _) => {
                 assert!(
@@ -3905,10 +3562,7 @@ p"#;
                     t2
                 );
             }
-            other => panic!(
-                "Expected Type::Operator(Intersection, ..), got: {:?}",
-                other
-            ),
+            other => panic!("Expected Type::Operator(Intersection, ..), got: {:?}", other),
         }
     }
 
@@ -3959,14 +3613,9 @@ p"#;
     fn test_self_constructor_unknown_field_errors() {
         // RFC §8.2: a field not present on Self's record.
         use crate::processes::parsing::parse_from_string;
-        let fp = FluentParser::new()
-            .push("type HasX <- list { x: int };")
-            .run();
+        let fp = FluentParser::new().push("type HasX <- list { x: int };").run();
         let context = fp.context.clone();
-        let expr = parse_from_string(
-            "let f <- fn(a: HasX): HasX { Self:{ y = 1, ...a } };",
-            "test",
-        );
+        let expr = parse_from_string("let f <- fn(a: HasX): HasX { Self:{ y = 1, ...a } };", "test");
         let result = typing_with_errors(&context, &expr);
         assert!(
             result
@@ -3982,14 +3631,9 @@ p"#;
     fn test_self_constructor_field_type_mismatch_errors() {
         // RFC §8.3: an override value incompatible with the field's declared type.
         use crate::processes::parsing::parse_from_string;
-        let fp = FluentParser::new()
-            .push("type HasX <- list { x: int };")
-            .run();
+        let fp = FluentParser::new().push("type HasX <- list { x: int };").run();
         let context = fp.context.clone();
-        let expr = parse_from_string(
-            "let f <- fn(a: HasX): HasX { Self:{ x = \"hello\", ...a } };",
-            "test",
-        );
+        let expr = parse_from_string("let f <- fn(a: HasX): HasX { Self:{ x = \"hello\", ...a } };", "test");
         let result = typing_with_errors(&context, &expr);
         assert!(
             result
@@ -4008,12 +3652,7 @@ p"#;
             .run()
             .push("let translateX <- fn(p: Point, dx: int): Point { Self:{ x = p.x + dx, ...p } };")
             .run();
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("Point(x = ") && r_code.contains(".spread = p"),
             "Expected Self:{{...}} to transpile via Point's constructor with .spread = p, got:\n{}",
@@ -4040,12 +3679,7 @@ p"#;
             )
             .run();
         assert_eq!(fp.get_last_log(), "The logs are empty");
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("Character(coords = newCoords, .spread = self)"),
             "Expected Self:{{...}} to preserve `name` via Character's .spread, got:\n{}",
@@ -4063,9 +3697,7 @@ p"#;
 
     #[test]
     fn test_union_record_constructor_parsing() {
-        let res = "Color.Rgb:{ r = 10, g = 20, b = 30 }"
-            .parse::<Lang>()
-            .unwrap();
+        let res = "Color.Rgb:{ r = 10, g = 20, b = 30 }".parse::<Lang>().unwrap();
         assert_eq!(res.simple_print(), "UnionConstructor(Color.Rgb)");
         if let Lang::UnionConstructor {
             union_name,
@@ -4104,12 +3736,7 @@ p"#;
             .run()
             .push("Color.Red")
             .run();
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("Red()"),
             "Expected Red() in transpiled code, got:\n{}",
@@ -4126,30 +3753,14 @@ p"#;
             .run()
             .push("Color.Rgb:{ r = 10, g = 20, b = 30 }")
             .run();
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert!(
-            r_code.contains("Rgb("),
-            "Expected Rgb(...) call, got:\n{}",
-            r_code
-        );
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        assert!(r_code.contains("Rgb("), "Expected Rgb(...) call, got:\n{}", r_code);
     }
 
     #[test]
     fn test_union_alias_generates_tag_constructors() {
-        let fp = FluentParser::new()
-            .push("type Color <- .Red | .Blue;")
-            .run();
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let fp = FluentParser::new().push("type Color <- .Red | .Blue;").run();
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains("Red <- function()"),
             "Expected Red constructor, got:\n{}",
@@ -4174,12 +3785,7 @@ p"#;
             .run()
             .push("type Color <- .Red | Rgb;")
             .run();
-        let r_code = fp
-            .get_r_code()
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(
             r_code.contains(r#"class = c("Rgb", "Color", "list")"#),
             "Expected S3 class hierarchy for Rgb, got:\n{}",
@@ -4194,10 +3800,7 @@ p"#;
         let ast = parse_from_string(src, "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
         assert!(
-            !result
-                .display_errors()
-                .iter()
-                .any(|e| e.contains("not declared")),
+            !result.display_errors().iter().any(|e| e.contains("not declared")),
             "Declared record constructor should validate, errors: {:?}",
             result.display_errors()
         );
@@ -4322,11 +3925,7 @@ p"#;
             .cloned()
             .collect::<Vec<_>>()
             .join("\n");
-        assert!(
-            !r.contains("as_vec"),
-            "array iteration should elide as_vec, got: {}",
-            r
-        );
+        assert!(!r.contains("as_vec"), "array iteration should elide as_vec, got: {}", r);
         assert!(r.contains("for (x in"), "expected a for loop, got: {}", r);
     }
 
@@ -4536,15 +4135,13 @@ p"#;
 
     #[test]
     fn test_extern_block_typing() {
-        let typ = FluentParser::new()
-            .check_typing(r##"extern (x: int, y: char) -> char r#"paste0(x, y)"#"##);
+        let typ = FluentParser::new().check_typing(r##"extern (x: int, y: char) -> char r#"paste0(x, y)"#"##);
         assert_eq!(typ.pretty(), "fn(x: int, y: char) -> char");
     }
 
     #[test]
     fn test_extern_block_transpile() {
-        let code = FluentParser::new()
-            .check_transpiling(r##"let f <- extern (x: int) -> int r#"x + 1L"#;"##);
+        let code = FluentParser::new().check_transpiling(r##"let f <- extern (x: int) -> int r#"x + 1L"#;"##);
         let r = code.iter().cloned().collect::<Vec<_>>().join("\n");
         assert!(r.contains("function(x)"), "expected function(x) in: {r}");
         assert!(r.contains("x + 1L"), "expected body in: {r}");
@@ -4560,9 +4157,7 @@ p"#;
     /// `use Module::*` directives can resolve it from the cache.
     #[test]
     fn test_module_is_cached_after_eval() {
-        let fp = FluentParser::new()
-            .push("module M { @pub let x <- 42; }")
-            .run();
+        let fp = FluentParser::new().push("module M { @pub let x <- 42; }").run();
         let ctx = fp.get_context();
         let cached = ctx.get_processed_module("M");
         assert!(
@@ -4575,9 +4170,7 @@ p"#;
     /// in-progress so that a circular `use` inside the body can be detected.
     #[test]
     fn test_modules_in_progress_is_set_during_eval() {
-        let fp = FluentParser::new()
-            .push("module A { @pub let a <- 1; }")
-            .run();
+        let fp = FluentParser::new().push("module A { @pub let a <- 1; }").run();
         let ctx = fp.get_context();
         // After eval completes, module A should no longer be in-progress.
         assert!(
@@ -4708,10 +4301,7 @@ p"#;
         // O2: `&&`/`||` checked `is_boolean()` on the un-reduced type, so an
         // alias to `bool` was rejected.
         use crate::processes::parsing::parse_from_string;
-        let ast = parse_from_string(
-            "type Flag <- bool; let f: Flag <- true; f && true;",
-            "test.ty",
-        );
+        let ast = parse_from_string("type Flag <- bool; let f: Flag <- true; f && true;", "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
         assert!(
             !result.has_errors(),
@@ -4771,10 +4361,7 @@ p"#;
         // Companion to the above: a `return` whose type does match the
         // declared return type must not be a false positive.
         use crate::processes::parsing::parse_from_string;
-        let ast = parse_from_string(
-            "fn(x: int): int { if (x > 0) { return 5; } else { 1 } };",
-            "test.ty",
-        );
+        let ast = parse_from_string("fn(x: int): int { if (x > 0) { return 5; } else { 1 } };", "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
         assert!(
             !result.has_errors(),
@@ -4805,12 +4392,7 @@ p"#;
         assert!(
             !matches!(
                 result_type,
-                Type::Operator(
-                    crate::components::r#type::type_operator::TypeOperator::Union,
-                    _,
-                    _,
-                    _
-                )
+                Type::Operator(crate::components::r#type::type_operator::TypeOperator::Union, _, _, _)
             ),
             "structurally identical if/else branches should collapse, got: {:?}",
             result_type
@@ -4949,10 +4531,7 @@ p"#;
         use crate::processes::parsing::parse_from_string;
         let ast = parse_from_string("break;", "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
-        assert!(
-            result.has_errors(),
-            "`break` outside of a loop should be a type error"
-        );
+        assert!(result.has_errors(), "`break` outside of a loop should be a type error");
     }
 
     #[test]
@@ -4960,10 +4539,7 @@ p"#;
         use crate::processes::parsing::parse_from_string;
         let ast = parse_from_string("next;", "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
-        assert!(
-            result.has_errors(),
-            "`next` outside of a loop should be a type error"
-        );
+        assert!(result.has_errors(), "`next` outside of a loop should be a type error");
     }
 
     #[test]
@@ -5115,9 +4691,7 @@ p"#;
         let count = source.matches("_ => any_type()").count()
             + source.matches("_ => builder::any_type()").count()
             + source.matches("_ => unknown_function_type()").count()
-            + source
-                .matches("_ => builder::unknown_function_type()")
-                .count();
+            + source.matches("_ => builder::unknown_function_type()").count();
         assert!(
             count <= BASELINE,
             "a new `_ => any_type()`-style wildcard fallback appeared in mod.rs ({count} vs \

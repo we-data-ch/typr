@@ -44,12 +44,7 @@ type Span<'a> = LocatedSpan<&'a str, String>;
 // Handles the `name: type` form in function type signatures, e.g. `(a: char) -> .None`.
 // The parameter name is discarded — only the type matters for type checking.
 fn labeled_ltype(s: Span) -> IResult<Span, Type> {
-    let res = (
-        terminated(label, multispace0),
-        terminated(tag(":"), multispace0),
-        ltype,
-    )
-        .parse(s);
+    let res = (terminated(label, multispace0), terminated(tag(":"), multispace0), ltype).parse(s);
     match res {
         Ok((s, (_, _, typ))) => Ok((s, typ)),
         Err(r) => Err(r),
@@ -161,10 +156,7 @@ fn generic(s: Span) -> IResult<Span, Type> {
 fn simple_index(s: Span) -> IResult<Span, Type> {
     let res = terminated(digit1, multispace0).parse(s);
     match res {
-        Ok((s, fl)) => Ok((
-            s,
-            Type::Integer(fl.parse::<i32>().unwrap().into(), fl.into()),
-        )),
+        Ok((s, fl)) => Ok((s, Type::Integer(fl.parse::<i32>().unwrap().into(), fl.into()))),
         Err(r) => Err(r),
     }
 }
@@ -184,10 +176,7 @@ fn array_type_full(s: Span) -> IResult<Span, Type> {
         .parse(s);
 
     match res {
-        Ok((s, (start, num, _, typ, _))) => Ok((
-            s,
-            Type::Vec(VecType::S3, Box::new(num), Box::new(typ), start.into()),
-        )),
+        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::Vec(VecType::S3, Box::new(num), Box::new(typ), start.into()))),
         Err(r) => Err(r),
     }
 }
@@ -235,10 +224,9 @@ fn named_array_type_full(s: Span) -> IResult<Span, Type> {
         .parse(s);
 
     match res {
-        Ok((s, (start, num, _, typ, _))) => Ok((
-            s,
-            Type::Vec(VecType::Array, Box::new(num), Box::new(typ), start.into()),
-        )),
+        Ok((s, (start, num, _, typ, _))) => {
+            Ok((s, Type::Vec(VecType::Array, Box::new(num), Box::new(typ), start.into())))
+        }
         Err(r) => Err(r),
     }
 }
@@ -331,10 +319,7 @@ fn dataframe_type_full(s: Span) -> IResult<Span, Type> {
             Type::Vec(
                 VecType::DataFrame,
                 Box::new(num),
-                Box::new(Type::Record(
-                    columns.iter().cloned().collect(),
-                    start.clone().into(),
-                )),
+                Box::new(Type::Record(columns.iter().cloned().collect(), start.clone().into())),
                 start.into(),
             ),
         )),
@@ -357,10 +342,7 @@ fn dataframe_type_short(s: Span) -> IResult<Span, Type> {
             Type::Vec(
                 VecType::DataFrame,
                 Box::new(Type::Any(start.clone().into())),
-                Box::new(Type::Record(
-                    columns.iter().cloned().collect(),
-                    start.clone().into(),
-                )),
+                Box::new(Type::Record(columns.iter().cloned().collect(), start.clone().into())),
                 start.into(),
             ),
         )),
@@ -473,16 +455,8 @@ fn recursive_with_record_error(s: Span) -> IResult<Span, Type> {
 fn simple_label(s: Span) -> IResult<Span, Type> {
     let res = variable2(s);
     match res.clone() {
-        Ok((
-            s,
-            Lang::Variable {
-                name, help_data: h, ..
-            },
-        )) => Ok((s, Type::Char(name.to_owned().into(), h.clone()))),
-        Ok((_s, _)) => panic!(
-            "Error: {:?} shouldn't be something different from a variable",
-            res
-        ),
+        Ok((s, Lang::Variable { name, help_data: h, .. })) => Ok((s, Type::Char(name.to_owned().into(), h.clone()))),
+        Ok((_s, _)) => panic!("Error: {:?} shouldn't be something different from a variable", res),
         Err(r) => Err(r),
     }
 }
@@ -510,9 +484,7 @@ pub fn argument(s: Span) -> IResult<Span, ArgumentType> {
     )
         .parse(s);
     match res {
-        Ok((s, (embed, e1, _, e2, _))) => {
-            Ok((s, ArgumentType(e1, e2, embed.is_some(), false, None)))
-        }
+        Ok((s, (embed, e1, _, e2, _))) => Ok((s, ArgumentType(e1, e2, embed.is_some(), false, None))),
         Err(r) => Err(r),
     }
 }
@@ -526,9 +498,7 @@ fn record_type(s: Span) -> IResult<Span, Type> {
     )
         .parse(s);
     match res {
-        Ok((s, (_, start, v, _))) => {
-            Ok((s, Type::Record(v.iter().cloned().collect(), start.into())))
-        }
+        Ok((s, (_, start, v, _))) => Ok((s, Type::Record(v.iter().cloned().collect(), start.into()))),
         Err(r) => Err(r),
     }
 }
@@ -544,11 +514,7 @@ fn number(s: Span) -> IResult<Span, Type> {
 fn number_literal(s: Span) -> IResult<Span, Type> {
     use nom::character::complete::char as nchar;
     use nom::combinator::recognize;
-    let res = terminated(
-        recognize((opt(nchar('-')), digit1, nchar('.'), digit1)),
-        multispace0,
-    )
-    .parse(s);
+    let res = terminated(recognize((opt(nchar('-')), digit1, nchar('.'), digit1)), multispace0).parse(s);
     match res {
         Ok((s, span)) => {
             let val: f64 = (*span).parse().unwrap_or(0.0);
@@ -634,11 +600,7 @@ pub fn pascal_case_no_space(s: Span) -> IResult<Span, (String, HelpData)> {
 }
 
 pub fn type_alias(s: Span) -> IResult<Span, Type> {
-    let res = (
-        pascal_case_no_space,
-        terminated(opt(type_params), multispace0),
-    )
-        .parse(s);
+    let res = (pascal_case_no_space, terminated(opt(type_params), multispace0)).parse(s);
     match res {
         Ok((s, ((name, h), Some(v)))) => Ok((s, Type::Alias(name, v.clone(), false, h))),
         Ok((s, ((name, h), None))) => Ok((s, Type::Alias(name, vec![], false, h))),
@@ -658,11 +620,7 @@ pub fn single_letter_type_name(s: Span) -> IResult<Span, (String, HelpData)> {
     // `terminated(opt(type_params), multispace0)` needs that leading space to
     // still be there so `type_params`'s `tag("<")` can't misfire against the
     // `<` of a following `<-`/`=` (e.g. `type A <- int;`).
-    let res = recognize(terminated(
-        one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
-        not(alphanumeric1),
-    ))
-    .parse(s);
+    let res = recognize(terminated(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), not(alphanumeric1))).parse(s);
     match res {
         Ok((s, letter)) => {
             let h: HelpData = letter.clone().into();
@@ -674,11 +632,7 @@ pub fn single_letter_type_name(s: Span) -> IResult<Span, (String, HelpData)> {
 
 /// Same shape as `type_alias`, but for a single-letter name (see `single_letter_type_name`).
 pub fn single_letter_type_alias(s: Span) -> IResult<Span, Type> {
-    let res = (
-        single_letter_type_name,
-        terminated(opt(type_params), multispace0),
-    )
-        .parse(s);
+    let res = (single_letter_type_name, terminated(opt(type_params), multispace0)).parse(s);
     match res {
         Ok((s, ((name, h), Some(v)))) => Ok((s, Type::Alias(name, v.clone(), false, h))),
         Ok((s, ((name, h), None))) => Ok((s, Type::Alias(name, vec![], false, h))),
@@ -784,9 +738,7 @@ fn explicit_record_type(s: Span) -> IResult<Span, Type> {
     )
         .parse(s);
     match res {
-        Ok((s, (start, _, v, _))) => {
-            Ok((s, Type::Record(v.iter().cloned().collect(), start.into())))
-        }
+        Ok((s, (start, _, v, _))) => Ok((s, Type::Record(v.iter().cloned().collect(), start.into()))),
         Err(r) => Err(r),
     }
 }
@@ -864,22 +816,14 @@ fn record_bracket_type(s: Span) -> IResult<Span, Type> {
     )
         .parse(s);
     match res {
-        Ok((s, (start, _, v, _))) => {
-            Ok((s, Type::Record(v.iter().cloned().collect(), start.into())))
-        }
+        Ok((s, (start, _, v, _))) => Ok((s, Type::Record(v.iter().cloned().collect(), start.into()))),
         Err(r) => Err(r),
     }
 }
 
 /// Groups all `list`/`tuple`/`record` brace-delimited types (spec §2).
 fn list_types(s: Span) -> IResult<Span, Type> {
-    alt((
-        explicit_tuple_type,
-        explicit_record_type,
-        record_type,
-        tuple_type,
-    ))
-    .parse(s)
+    alt((explicit_tuple_type, explicit_record_type, record_type, tuple_type)).parse(s)
 }
 
 /// `Tuple[...]` and `Record[...]` bracket notation — must be tried before `type_alias`
@@ -909,9 +853,7 @@ fn label_generic(s: Span) -> IResult<Span, Type> {
 fn record_kinded_generic(s: Span) -> IResult<Span, Type> {
     let res = (tag("%"), generic).parse(s);
     match res {
-        Ok((s, (tag, Type::Generic(r#gen, _)))) => {
-            Ok((s, Type::KindedGen(Kind::Record, r#gen, tag.into())))
-        }
+        Ok((s, (tag, Type::Generic(r#gen, _)))) => Ok((s, Type::KindedGen(Kind::Record, r#gen, tag.into()))),
         Err(r) => Err(r),
         _ => todo!(),
     }
@@ -920,9 +862,7 @@ fn record_kinded_generic(s: Span) -> IResult<Span, Type> {
 fn interface_kinded_generic(s: Span) -> IResult<Span, Type> {
     let res = (tag("@"), generic).parse(s);
     match res {
-        Ok((s, (tag, Type::Generic(r#gen, _)))) => {
-            Ok((s, Type::KindedGen(Kind::Interface, r#gen, tag.into())))
-        }
+        Ok((s, (tag, Type::Generic(r#gen, _)))) => Ok((s, Type::KindedGen(Kind::Interface, r#gen, tag.into()))),
         Err(r) => Err(r),
         _ => todo!(),
     }
@@ -931,9 +871,7 @@ fn interface_kinded_generic(s: Span) -> IResult<Span, Type> {
 fn string_kinded_generic(s: Span) -> IResult<Span, Type> {
     let res = (tag("^"), generic).parse(s);
     match res {
-        Ok((s, (tag, Type::Generic(r#gen, _)))) => {
-            Ok((s, Type::KindedGen(Kind::String, r#gen, tag.into())))
-        }
+        Ok((s, (tag, Type::Generic(r#gen, _)))) => Ok((s, Type::KindedGen(Kind::String, r#gen, tag.into()))),
         Err(r) => Err(r),
         _ => todo!(),
     }
@@ -942,9 +880,7 @@ fn string_kinded_generic(s: Span) -> IResult<Span, Type> {
 fn boolean_kinded_generic(s: Span) -> IResult<Span, Type> {
     let res = (tag("?"), generic).parse(s);
     match res {
-        Ok((s, (tag, Type::Generic(r#gen, _)))) => {
-            Ok((s, Type::KindedGen(Kind::Boolean, r#gen, tag.into())))
-        }
+        Ok((s, (tag, Type::Generic(r#gen, _)))) => Ok((s, Type::KindedGen(Kind::Boolean, r#gen, tag.into()))),
         Err(r) => Err(r),
         _ => todo!(),
     }
@@ -999,12 +935,7 @@ fn compute_operators(v: &mut Vec<(Type, Op)>) -> Type {
         (p, Op::Add(_)) => {
             let res = compute_operators(v);
             let pp = p;
-            Type::Operator(
-                TypeOperator::Addition,
-                Box::new(res.clone()),
-                Box::new(pp),
-                res.into(),
-            )
+            Type::Operator(TypeOperator::Addition, Box::new(res.clone()), Box::new(pp), res.into())
         }
         (p, Op::Minus(_)) => {
             let res = compute_operators(v);
@@ -1029,12 +960,7 @@ fn compute_operators(v: &mut Vec<(Type, Op)>) -> Type {
         (p, Op::Div(_)) => {
             let res = compute_operators(v);
             let pp = p;
-            Type::Operator(
-                TypeOperator::Division,
-                Box::new(res.clone()),
-                Box::new(pp),
-                res.into(),
-            )
+            Type::Operator(TypeOperator::Division, Box::new(res.clone()), Box::new(pp), res.into())
         }
         (p, Op::Empty(_)) => p,
         _ => panic!(),
@@ -1069,12 +995,7 @@ fn type_condition(s: Span) -> IResult<Span, Type> {
             let new_ope = ope.to_type().expect("This is not a valid type operator");
             Ok((
                 s,
-                Type::Condition(
-                    Box::new(t1),
-                    Box::new(new_ope.clone()),
-                    Box::new(t2),
-                    new_ope.into(),
-                ),
+                Type::Condition(Box::new(t1), Box::new(new_ope.clone()), Box::new(t2), new_ope.into()),
             ))
         }
         Err(r) => Err(r),
@@ -1085,9 +1006,7 @@ pub fn if_type(s: Span) -> IResult<Span, Type> {
     // if conditions
     let res = (ltype, tag("if "), many1(type_condition)).parse(s);
     match res {
-        Ok((s, (typ, _if, t_conds))) => {
-            Ok((s, Type::If(Box::new(typ.clone()), t_conds, typ.into())))
-        }
+        Ok((s, (typ, _if, t_conds))) => Ok((s, Type::If(Box::new(typ.clone()), t_conds, typ.into()))),
         Err(r) => Err(r),
     }
 }
@@ -1208,16 +1127,9 @@ fn unknown_function(s: Span) -> IResult<Span, Type> {
 }
 
 fn tag_type(s: Span) -> IResult<Span, Type> {
-    let res = (
-        tag("."),
-        pascal_case_no_space,
-        opt((tag("("), ltype, tag(")"))),
-    )
-        .parse(s);
+    let res = (tag("."), pascal_case_no_space, opt((tag("("), ltype, tag(")")))).parse(s);
     match res {
-        Ok((s, (dot, (name, _), Some(body)))) => {
-            Ok((s, Type::Tag(name, Box::new(body.1), dot.into())))
-        }
+        Ok((s, (dot, (name, _), Some(body)))) => Ok((s, Type::Tag(name, Box::new(body.1), dot.into()))),
         Ok((s, (dot, (name, h), None))) => {
             let empty = builder::empty_type().set_help_data(h);
             Ok((s, Type::Tag(name, Box::new(empty), dot.into())))
@@ -1294,36 +1206,24 @@ mod tests {
 
     #[test]
     fn test_interface_parsing1() {
-        let res = interface("interface { hey: (num, num) -> num }".into())
-            .unwrap()
-            .1;
+        let res = interface("interface { hey: (num, num) -> num }".into()).unwrap().1;
         let num = builder::number_type();
-        let inter = builder::interface_type(&[(
-            "hey",
-            builder::function_type(&[num.clone(), num.clone()], num),
-        )]);
+        let inter = builder::interface_type(&[("hey", builder::function_type(&[num.clone(), num.clone()], num))]);
         assert_eq!(res, inter);
     }
 
     #[test]
     fn test_interface_parsing2() {
-        let res = interface("interface { hey: (Self, num) -> num }".into())
-            .unwrap()
-            .1;
+        let res = interface("interface { hey: (Self, num) -> num }".into()).unwrap().1;
         let num = builder::number_type();
         let self_t = builder::self_generic_type();
-        let inter = builder::interface_type(&[(
-            "hey",
-            builder::function_type(&[self_t, num.clone()], num),
-        )]);
+        let inter = builder::interface_type(&[("hey", builder::function_type(&[self_t, num.clone()], num))]);
         assert_eq!(res, inter);
     }
 
     #[test]
     fn test_interface_parsing3() {
-        let res = interface("interface { hey: (Self) -> num }".into())
-            .unwrap()
-            .1;
+        let res = interface("interface { hey: (Self) -> num }".into()).unwrap().1;
         let num = builder::number_type();
         let self_t = builder::self_generic_type();
         let inter = builder::interface_type(&[("hey", builder::function_type(&[self_t], num))]);
@@ -1375,10 +1275,7 @@ mod tests {
     #[test]
     fn test_dataframe_parsing2() {
         let res = dataframe_type("dataframe[3]{ x: num }".into());
-        assert!(
-            res.is_ok(),
-            "dataframe type with numeric index should parse"
-        );
+        assert!(res.is_ok(), "dataframe type with numeric index should parse");
         let typ = res.unwrap().1;
         match &typ {
             Type::Vec(VecType::DataFrame, idx, body, _) => {
@@ -1597,10 +1494,7 @@ mod tests {
     #[test]
     fn test_named_param_function_type_parses() {
         let res = ltype("(a: char) -> .None".into());
-        assert!(
-            res.is_ok(),
-            "Should parse (a: char) -> .None as a function type"
-        );
+        assert!(res.is_ok(), "Should parse (a: char) -> .None as a function type");
     }
 
     #[test]
@@ -1624,19 +1518,14 @@ mod tests {
     #[test]
     fn test_named_param_multi_args() {
         let res = ltype("(a: int, b: int) -> int".into());
-        assert!(
-            res.is_ok(),
-            "Should parse (a: int, b: int) -> int as a function type"
-        );
+        assert!(res.is_ok(), "Should parse (a: int, b: int) -> int as a function type");
     }
 
     // ==================== Generic record constructors (typeconstructor) ====================
 
     #[test]
     fn test_named_record_constructor_parses() {
-        let typ = ltype("Tibble[3]{ id: int, active: bool }".into())
-            .unwrap()
-            .1;
+        let typ = ltype("Tibble[3]{ id: int, active: bool }".into()).unwrap().1;
         match &typ {
             Type::Vec(VecType::Named(name), idx, body, _) => {
                 assert_eq!(name, "Tibble");
@@ -1859,9 +1748,7 @@ mod tests {
     #[test]
     fn test_function_type_with_variadic_tuple_params() {
         // @append: (tuple{T...}, U) -> tuple{T..., U}
-        let typ = ltype("(tuple{T...}, U) -> tuple{T..., U}".into())
-            .unwrap()
-            .1;
+        let typ = ltype("(tuple{T...}, U) -> tuple{T..., U}".into()).unwrap().1;
         assert!(
             matches!(&typ, Type::Function(params, ret, _)
                 if params.len() == 2

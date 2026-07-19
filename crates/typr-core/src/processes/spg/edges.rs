@@ -8,11 +8,7 @@ use std::collections::HashSet;
 /// Called by `build_spg` after the node-collection pass.
 pub fn infer_edges(spg: &mut Spg) {
     // name → id index; on collision (same name in different modules) first wins.
-    let name_to_id: HashMap<String, String> = spg
-        .nodes
-        .iter()
-        .map(|n| (n.name.clone(), n.id.clone()))
-        .collect();
+    let name_to_id: HashMap<String, String> = spg.nodes.iter().map(|n| (n.name.clone(), n.id.clone())).collect();
 
     let id_set: HashSet<String> = spg.nodes.iter().map(|n| n.id.clone()).collect();
 

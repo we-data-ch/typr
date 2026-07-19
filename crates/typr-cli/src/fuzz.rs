@@ -83,10 +83,8 @@ fn scaffold_project(src: &str) -> PathBuf {
     std::fs::create_dir_all(work.join("TypR")).expect("create TypR/ dir");
     std::fs::create_dir_all(work.join("R")).expect("create R/ dir");
     std::fs::write(work.join("TypR/main.ty"), src).expect("write TypR/main.ty");
-    std::fs::write(work.join("DESCRIPTION"), crate::cases::MINIMAL_DESCRIPTION)
-        .expect("write DESCRIPTION");
-    std::fs::write(work.join("NAMESPACE"), crate::cases::MINIMAL_NAMESPACE)
-        .expect("write NAMESPACE");
+    std::fs::write(work.join("DESCRIPTION"), crate::cases::MINIMAL_DESCRIPTION).expect("write DESCRIPTION");
+    std::fs::write(work.join("NAMESPACE"), crate::cases::MINIMAL_NAMESPACE).expect("write NAMESPACE");
     work
 }
 
@@ -195,10 +193,7 @@ pub fn run(n: u32, seed: Option<u64>, max_depth: u32, keep: bool) {
             .iter()
             .filter(|f| f.outcome == Outcome::CheckedAssertionFailure)
             .count(),
-        failures
-            .iter()
-            .filter(|f| f.outcome == Outcome::OtherFailure)
-            .count(),
+        failures.iter().filter(|f| f.outcome == Outcome::OtherFailure).count(),
     );
 
     for case in &failures {

@@ -38,11 +38,7 @@ impl DocumentAnalysis {
     /// caller, which type-checks separately for diagnostics purposes).
     pub fn new(context: Context, ast: Lang) -> Self {
         let doc_map = build_name_doc_map(&ast);
-        Self {
-            context,
-            ast,
-            doc_map,
-        }
+        Self { context, ast, doc_map }
     }
 }
 
@@ -57,14 +53,10 @@ pub fn analyze_document(content: &str, file_path: &str) -> Option<DocumentAnalys
     let ast = parse_result.ok()?.ast;
 
     let environment = detect_environment(file_path);
-    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        metaprogrammation(ast, environment)
-    }))
-    .ok()?;
+    let ast = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| metaprogrammation(ast, environment))).ok()?;
 
     let context = Context::default().set_environment(environment);
-    let type_context =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast)));
+    let type_context = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| typing(&context, &ast)));
     let context = type_context.ok()?.context;
 
     Some(DocumentAnalysis::new(context, ast))
@@ -156,8 +148,7 @@ mod doc_comment_tests {
                         # Returns their sum.\n\
                         let add <- fn(a: int, b: int): int { a + b };\n\
                         let result <- add(1, 2);\n";
-        let analysis =
-            analyze_document(content, "test.ty").expect("analysis should succeed for valid code");
+        let analysis = analyze_document(content, "test.ty").expect("analysis should succeed for valid code");
 
         let name_col = content.rfind("add(1, 2)").unwrap() as u32;
         let line = content[..name_col as usize].matches('\n').count() as u32;
@@ -165,8 +156,7 @@ mod doc_comment_tests {
             .rfind('\n')
             .map_or(name_col, |nl| name_col - nl as u32 - 1);
 
-        let info = resolve_hover(&analysis, content, line, col_on_line + 1)
-            .expect("hover should resolve `add`");
+        let info = resolve_hover(&analysis, content, line, col_on_line + 1).expect("hover should resolve `add`");
         assert!(
             info.type_display.contains("Adds two integers together."),
             "expected the doc-comment in hover output, got: {}",
@@ -193,9 +183,7 @@ mod doc_comment_tests {
 
         let mut resolved = add_item.clone();
         resolve_completion_item(
-            resolve_ctx
-                .as_ref()
-                .expect("completions should have a resolve context"),
+            resolve_ctx.as_ref().expect("completions should have a resolve context"),
             &mut resolved,
         );
 

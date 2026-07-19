@@ -56,9 +56,7 @@ pub fn parse_doc(raw: &str) -> ParsedDoc {
 }
 
 fn escape_rd(s: &str) -> String {
-    s.replace('%', "\\%")
-        .replace('{', "\\{")
-        .replace('}', "\\}")
+    s.replace('%', "\\%").replace('{', "\\{").replace('}', "\\}")
 }
 
 /// Build the set of node names that will have their own .Rd page.
@@ -108,11 +106,7 @@ fn linkify(text: &str, linkable: &HashSet<String>, self_name: &str) -> String {
 }
 
 fn render_usage(name: &str, params: &[(String, String)]) -> String {
-    let args = params
-        .iter()
-        .map(|(p, _)| p.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
+    let args = params.iter().map(|(p, _)| p.as_str()).collect::<Vec<_>>().join(", ");
     format!("{}({})", name, args)
 }
 
@@ -130,11 +124,7 @@ fn render_arguments(
             let desc = if doc.is_empty() {
                 ty_linked
             } else {
-                format!(
-                    "{}. {}",
-                    ty_linked,
-                    linkify(&escape_rd(&doc), linkable, self_name)
-                )
+                format!("{}. {}", ty_linked, linkify(&escape_rd(&doc), linkable, self_name))
             };
             format!("  \\item{{{}}}{{{}}}", escape_rd(name), desc)
         })
@@ -150,17 +140,13 @@ fn render_rd_for_node(node: &Node, linkable: &HashSet<String>) -> Option<String>
     let self_name = node.name.as_str();
     let lk = |s: &str| linkify(&escape_rd(s), linkable, self_name);
 
-    let parsed = node
-        .doc
-        .as_deref()
-        .map(parse_doc)
-        .unwrap_or_else(|| ParsedDoc {
-            title: node.name.clone(),
-            description: String::new(),
-            param_docs: HashMap::new(),
-            return_doc: String::new(),
-            examples: Vec::new(),
-        });
+    let parsed = node.doc.as_deref().map(parse_doc).unwrap_or_else(|| ParsedDoc {
+        title: node.name.clone(),
+        description: String::new(),
+        param_docs: HashMap::new(),
+        return_doc: String::new(),
+        examples: Vec::new(),
+    });
 
     match &node.payload {
         NodePayload::Function { params, returns } => {
@@ -191,10 +177,7 @@ fn render_rd_for_node(node: &Node, linkable: &HashSet<String>) -> Option<String>
             }
             rd.push_str(&format!("\\value{{{}}}\n", value_str));
             if !parsed.examples.is_empty() {
-                rd.push_str(&format!(
-                    "\\examples{{\n{}\n}}\n",
-                    parsed.examples.join("\n")
-                ));
+                rd.push_str(&format!("\\examples{{\n{}\n}}\n", parsed.examples.join("\n")));
             }
             Some(rd)
         }

@@ -1,0 +1,9 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 606
+expression: r
+---
+
+`a` <- c(1L |> as.Integer(), 2L |> as.Integer(), 3L |> as.Integer()) |> identity()
+
+`r` <- `*`(2L |> as.Integer(), a)

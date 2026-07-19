@@ -83,9 +83,7 @@ impl LanguageServer for Backend {
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncCapability::Kind(
-                    TextDocumentSyncKind::FULL,
-                )),
+                text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 completion_provider: Some(CompletionOptions {
                     trigger_characters: Some(vec![".".into(), "$".into(), ">".into(), ":".into()]),
@@ -106,13 +104,11 @@ impl LanguageServer for Backend {
                 })),
                 references_provider: Some(OneOf::Left(true)),
                 inlay_hint_provider: Some(OneOf::Left(true)),
-                code_action_provider: Some(CodeActionProviderCapability::Options(
-                    CodeActionOptions {
-                        code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
-                        resolve_provider: None,
-                        work_done_progress_options: Default::default(),
-                    },
-                )),
+                code_action_provider: Some(CodeActionProviderCapability::Options(CodeActionOptions {
+                    code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                    resolve_provider: None,
+                    work_done_progress_options: Default::default(),
+                })),
                 semantic_tokens_provider: Some(
                     SemanticTokensOptions {
                         legend: SemanticTokensLegend {
@@ -152,9 +148,7 @@ impl LanguageServer for Backend {
 
         // Compute and publish diagnostics
         let diagnostics = self.compute_diagnostics(&content, &uri).await;
-        self.client
-            .publish_diagnostics(uri, diagnostics, None)
-            .await;
+        self.client.publish_diagnostics(uri, diagnostics, None).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -192,10 +186,7 @@ impl LanguageServer for Backend {
                 }
 
                 let diagnostics = backend.compute_diagnostics(&content, &uri).await;
-                backend
-                    .client
-                    .publish_diagnostics(uri, diagnostics, None)
-                    .await;
+                backend.client.publish_diagnostics(uri, diagnostics, None).await;
             });
         }
     }
@@ -268,12 +259,7 @@ impl LanguageServer for Backend {
         let content_owned = content.clone();
         let file_path_for_task = file_path.clone();
         let (items, resolve_ctx) = tokio::task::spawn_blocking(move || {
-            handlers::get_completions_at(
-                &content_owned,
-                position.line,
-                position.character,
-                &file_path_for_task,
-            )
+            handlers::get_completions_at(&content_owned, position.line, position.character, &file_path_for_task)
         })
         .await
         .ok()
@@ -311,10 +297,7 @@ impl LanguageServer for Backend {
     }
 
     // ── workspace/symbol ─────────────────────────────────────────────────────
-    async fn symbol(
-        &self,
-        params: WorkspaceSymbolParams,
-    ) -> Result<Option<WorkspaceSymbolResponse>> {
+    async fn symbol(&self, params: WorkspaceSymbolParams) -> Result<Option<WorkspaceSymbolResponse>> {
         let query = params.query.to_lowercase();
         let docs = self.documents.read().await;
 
@@ -325,12 +308,10 @@ impl LanguageServer for Backend {
             let uri_owned = uri.clone();
 
             // Offload parsing to a blocking thread
-            let symbols = tokio::task::spawn_blocking(move || {
-                get_workspace_symbols(&content_owned, &uri_owned)
-            })
-            .await
-            .ok()
-            .unwrap_or_default();
+            let symbols = tokio::task::spawn_blocking(move || get_workspace_symbols(&content_owned, &uri_owned))
+                .await
+                .ok()
+                .unwrap_or_default();
 
             all_symbols.extend(symbols);
         }
@@ -348,10 +329,7 @@ impl LanguageServer for Backend {
     }
 
     // ── textDocument/documentSymbol ─────────────────────────────────────────
-    async fn document_symbol(
-        &self,
-        params: DocumentSymbolParams,
-    ) -> Result<Option<DocumentSymbolResponse>> {
+    async fn document_symbol(&self, params: DocumentSymbolParams) -> Result<Option<DocumentSymbolResponse>> {
         let uri = params.text_document.uri;
         let docs = self.documents.read().await;
         let content = match docs.get(&uri) {
@@ -373,10 +351,7 @@ impl LanguageServer for Backend {
     }
 
     // ── textDocument/definition ───────────────────────────────────────────────
-    async fn goto_definition(
-        &self,
-        params: GotoDefinitionParams,
-    ) -> Result<Option<GotoDefinitionResponse>> {
+    async fn goto_definition(&self, params: GotoDefinitionParams) -> Result<Option<GotoDefinitionResponse>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
 
@@ -465,10 +440,7 @@ impl LanguageServer for Backend {
     }
 
     // ── textDocument/prepareRename ───────────────────────────────────────────
-    async fn prepare_rename(
-        &self,
-        params: TextDocumentPositionParams,
-    ) -> Result<Option<PrepareRenameResponse>> {
+    async fn prepare_rename(&self, params: TextDocumentPositionParams) -> Result<Option<PrepareRenameResponse>> {
         let uri = params.text_document.uri;
         let position = params.position;
 
@@ -587,10 +559,9 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
 
-        let hints =
-            tokio::task::spawn_blocking(move || handlers::resolve_inlay_hints(&analysis, &content))
-                .await
-                .unwrap_or_default();
+        let hints = tokio::task::spawn_blocking(move || handlers::resolve_inlay_hints(&analysis, &content))
+            .await
+            .unwrap_or_default();
 
         if hints.is_empty() {
             Ok(None)
@@ -600,10 +571,7 @@ impl LanguageServer for Backend {
     }
 
     // ── textDocument/semanticTokens/full ────────────────────────────────────
-    async fn semantic_tokens_full(
-        &self,
-        params: SemanticTokensParams,
-    ) -> Result<Option<SemanticTokensResult>> {
+    async fn semantic_tokens_full(&self, params: SemanticTokensParams) -> Result<Option<SemanticTokensResult>> {
         let uri = params.text_document.uri;
 
         let docs = self.documents.read().await;
@@ -623,11 +591,9 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
 
-        let data = tokio::task::spawn_blocking(move || {
-            handlers::resolve_semantic_tokens(&analysis, &content)
-        })
-        .await
-        .unwrap_or_default();
+        let data = tokio::task::spawn_blocking(move || handlers::resolve_semantic_tokens(&analysis, &content))
+            .await
+            .unwrap_or_default();
 
         Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
             result_id: None,
@@ -659,14 +625,10 @@ impl LanguageServer for Backend {
             let content_owned = content.clone();
             let quick_fixes = tokio::task::spawn_blocking(move || {
                 let mut fixes = Vec::new();
-                if let Some(action) =
-                    handlers::type_annotation_action(&analysis, &content_owned, range)
-                {
+                if let Some(action) = handlers::type_annotation_action(&analysis, &content_owned, range) {
                     fixes.push(action);
                 }
-                if let Some(action) =
-                    handlers::missing_match_arms_action(&analysis, &content_owned, range)
-                {
+                if let Some(action) = handlers::missing_match_arms_action(&analysis, &content_owned, range) {
                     fixes.push(action);
                 }
                 fixes
@@ -674,9 +636,9 @@ impl LanguageServer for Backend {
             .await
             .unwrap_or_default();
             actions.extend(
-                quick_fixes.into_iter().map(|fix| {
-                    CodeActionOrCommand::CodeAction(quick_fix_to_code_action(&uri, fix))
-                }),
+                quick_fixes
+                    .into_iter()
+                    .map(|fix| CodeActionOrCommand::CodeAction(quick_fix_to_code_action(&uri, fix))),
             );
         }
 
@@ -687,10 +649,7 @@ impl LanguageServer for Backend {
         // document on demand rather than maintaining a persistent index.
         if !diagnostics.is_empty() {
             let docs = self.documents.read().await;
-            let all_docs: Vec<(String, String)> = docs
-                .iter()
-                .map(|(u, c)| (u.to_string(), c.clone()))
-                .collect();
+            let all_docs: Vec<(String, String)> = docs.iter().map(|(u, c)| (u.to_string(), c.clone())).collect();
             drop(docs);
 
             let uri_string = uri.to_string();
@@ -700,9 +659,9 @@ impl LanguageServer for Backend {
             .await
             .unwrap_or_default();
             actions.extend(
-                import_fixes.into_iter().map(|fix| {
-                    CodeActionOrCommand::CodeAction(quick_fix_to_code_action(&uri, fix))
-                }),
+                import_fixes
+                    .into_iter()
+                    .map(|fix| CodeActionOrCommand::CodeAction(quick_fix_to_code_action(&uri, fix))),
             );
         }
 
@@ -748,24 +707,23 @@ impl Backend {
         let content_owned = content.to_string();
         let file_name = uri.to_string();
 
-        let (diagnostics, context, ast) = tokio::task::spawn_blocking(move || {
-            check_code_and_extract_errors(&content_owned, &file_name)
-        })
-        .await
-        .unwrap_or_else(|_| {
-            // If the blocking task panicked, return a generic diagnostic
-            (
-                vec![Diagnostic {
-                    range: Range::new(Position::new(0, 0), Position::new(0, 0)),
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    message: "Internal error while checking code".to_string(),
-                    source: Some("typr".to_string()),
-                    ..Default::default()
-                }],
-                None,
-                None,
-            )
-        });
+        let (diagnostics, context, ast) =
+            tokio::task::spawn_blocking(move || check_code_and_extract_errors(&content_owned, &file_name))
+                .await
+                .unwrap_or_else(|_| {
+                    // If the blocking task panicked, return a generic diagnostic
+                    (
+                        vec![Diagnostic {
+                            range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            message: "Internal error while checking code".to_string(),
+                            source: Some("typr".to_string()),
+                            ..Default::default()
+                        }],
+                        None,
+                        None,
+                    )
+                });
 
         if let (Some(context), Some(ast)) = (context, ast) {
             self.store_analysis(uri, content, handlers::DocumentAnalysis::new(context, ast))
@@ -778,11 +736,7 @@ impl Backend {
     /// Look up a cached `DocumentAnalysis` for `uri`, but only if it was
     /// computed from exactly this `content` (compared via a content hash,
     /// not the full string, to keep the cache cheap to consult).
-    async fn get_cached_analysis(
-        &self,
-        uri: &Uri,
-        content: &str,
-    ) -> Option<Arc<handlers::DocumentAnalysis>> {
+    async fn get_cached_analysis(&self, uri: &Uri, content: &str) -> Option<Arc<handlers::DocumentAnalysis>> {
         let hash = hash_content(content);
         let cache = self.analysis_cache.read().await;
         cache
@@ -805,24 +759,18 @@ impl Backend {
     /// result) otherwise. Used by hover/goto-definition/signatureHelp, which
     /// all need the same `Context` and previously each rebuilt it from
     /// scratch on every request.
-    async fn analysis_for(
-        &self,
-        uri: &Uri,
-        content: &str,
-        file_path: &str,
-    ) -> Option<Arc<handlers::DocumentAnalysis>> {
+    async fn analysis_for(&self, uri: &Uri, content: &str, file_path: &str) -> Option<Arc<handlers::DocumentAnalysis>> {
         if let Some(analysis) = self.get_cached_analysis(uri, content).await {
             return Some(analysis);
         }
 
         let content_owned = content.to_string();
         let file_path_owned = file_path.to_string();
-        let analysis = tokio::task::spawn_blocking(move || {
-            handlers::analyze_document(&content_owned, &file_path_owned)
-        })
-        .await
-        .ok()
-        .flatten()?;
+        let analysis =
+            tokio::task::spawn_blocking(move || handlers::analyze_document(&content_owned, &file_path_owned))
+                .await
+                .ok()
+                .flatten()?;
 
         self.store_analysis(uri, content, analysis.clone()).await;
         Some(Arc::new(analysis))
@@ -983,10 +931,7 @@ pub fn check_code_and_extract_errors(
 /// those first; only fall back to the brittle text-scraping path
 /// (`extract_position_from_error`) for panics that carry a plain string
 /// (e.g. `.unwrap()`/`panic!("...")` with no structured payload).
-fn extract_diagnostic_from_panic(
-    panic_info: &Box<dyn std::any::Any + Send>,
-    content: &str,
-) -> Option<Diagnostic> {
+fn extract_diagnostic_from_panic(panic_info: &Box<dyn std::any::Any + Send>, content: &str) -> Option<Diagnostic> {
     if let Some(err) = panic_info.downcast_ref::<SyntaxError>() {
         return Some(diagnostic_from_help_data(
             err.get_help_data(),
@@ -1110,17 +1055,12 @@ fn extract_position_from_error(message: &str, content: &str) -> Option<Range> {
                         let line_str = &location[second_last_colon + 1..last_colon];
                         let col_str = &location[last_colon + 1..];
 
-                        if let (Ok(line_num), Ok(col_num)) =
-                            (line_str.parse::<u32>(), col_str.parse::<u32>())
-                        {
+                        if let (Ok(line_num), Ok(col_num)) = (line_str.parse::<u32>(), col_str.parse::<u32>()) {
                             let line = line_num.saturating_sub(1);
                             let col = col_num.saturating_sub(1);
                             let length = extract_error_length(&without_ansi, content, line);
 
-                            return Some(Range::new(
-                                Position::new(line, col),
-                                Position::new(line, col + length),
-                            ));
+                            return Some(Range::new(Position::new(line, col), Position::new(line, col + length)));
                         }
                     }
                 }
@@ -1228,17 +1168,13 @@ fn collect_symbols_from_ast(
     symbols: &mut Vec<SymbolInformation>,
 ) {
     match lang {
-        Lang::Lines {
-            value: statements, ..
-        } => {
+        Lang::Lines { value: statements, .. } => {
             for stmt in statements {
                 collect_symbols_from_ast(stmt, content, file_uri, container_name.clone(), symbols);
             }
         }
 
-        Lang::Scope {
-            body: statements, ..
-        } => {
+        Lang::Scope { body: statements, .. } => {
             for stmt in statements {
                 collect_symbols_from_ast(stmt, content, file_uri, container_name.clone(), symbols);
             }
@@ -1283,8 +1219,7 @@ fn collect_symbols_from_ast(
         }
 
         Lang::Alias {
-            identifier: var_lang,
-            ..
+            identifier: var_lang, ..
         } => {
             if let Ok(var) = Var::try_from(var_lang) {
                 let name = var.get_name();
@@ -1334,9 +1269,7 @@ fn collect_symbols_from_ast(
             }
         }
 
-        Lang::Signature {
-            identifier: var, ..
-        } => {
+        Lang::Signature { identifier: var, .. } => {
             let name = var.get_name();
             let help_data = var.get_help_data();
             let offset = help_data.get_offset();
@@ -1389,23 +1322,15 @@ fn get_document_symbols(content: &str) -> Vec<DocumentSymbol> {
 /// Mirrors `collect_symbols_from_ast`, but nests children under their
 /// enclosing `let`/`module` instead of flattening with a `container_name`.
 #[allow(deprecated)]
-fn collect_document_symbols_from_ast(
-    lang: &Lang,
-    content: &str,
-    symbols: &mut Vec<DocumentSymbol>,
-) {
+fn collect_document_symbols_from_ast(lang: &Lang, content: &str, symbols: &mut Vec<DocumentSymbol>) {
     match lang {
-        Lang::Lines {
-            value: statements, ..
-        } => {
+        Lang::Lines { value: statements, .. } => {
             for stmt in statements {
                 collect_document_symbols_from_ast(stmt, content, symbols);
             }
         }
 
-        Lang::Scope {
-            body: statements, ..
-        } => {
+        Lang::Scope { body: statements, .. } => {
             for stmt in statements {
                 collect_document_symbols_from_ast(stmt, content, symbols);
             }
@@ -1451,8 +1376,7 @@ fn collect_document_symbols_from_ast(
         }
 
         Lang::Alias {
-            identifier: var_lang,
-            ..
+            identifier: var_lang, ..
         } => {
             if let Ok(var) = Var::try_from(var_lang) {
                 let name = var.get_name();
@@ -1503,9 +1427,7 @@ fn collect_document_symbols_from_ast(
             });
         }
 
-        Lang::Signature {
-            identifier: var, ..
-        } => {
+        Lang::Signature { identifier: var, .. } => {
             let name = var.get_name();
             let help_data = var.get_help_data();
             let offset = help_data.get_offset();
@@ -1603,10 +1525,7 @@ use Math::pi;
 let x <- pi;
 ";
         let (diags, _, _) = check_code_and_extract_errors(content, "test.ty");
-        let undefined: Vec<_> = diags
-            .iter()
-            .filter(|d| d.message.contains("Undefined"))
-            .collect();
+        let undefined: Vec<_> = diags.iter().filter(|d| d.message.contains("Undefined")).collect();
         assert!(
             undefined.is_empty(),
             "unexpected undefined diagnostics: {:?}",
@@ -1646,10 +1565,7 @@ let x <- pi;
 
         let _ = std::fs::remove_dir_all(&dir);
 
-        let undefined: Vec<_> = diags
-            .iter()
-            .filter(|d| d.message.contains("Undefined"))
-            .collect();
+        let undefined: Vec<_> = diags.iter().filter(|d| d.message.contains("Undefined")).collect();
         assert!(
             undefined.is_empty(),
             "imported module member wrongly flagged undefined: {:?}",
@@ -1682,10 +1598,7 @@ let x <- pi;
 
         let _ = std::fs::remove_dir_all(&dir);
 
-        let undefined: Vec<_> = diags
-            .iter()
-            .filter(|d| d.message.contains("Undefined"))
-            .collect();
+        let undefined: Vec<_> = diags.iter().filter(|d| d.message.contains("Undefined")).collect();
         assert!(
             undefined.is_empty(),
             "imported module member wrongly flagged undefined: {:?}",
@@ -1828,11 +1741,7 @@ let x <- 5;
         let backend = test_backend();
         let uri = "file:///test.ty".parse::<Uri>().unwrap();
         let content = "let x <- 5;\nlet y <- x;\n";
-        backend
-            .documents
-            .write()
-            .await
-            .insert(uri.clone(), content.to_string());
+        backend.documents.write().await.insert(uri.clone(), content.to_string());
 
         let params = CodeActionParams {
             text_document: TextDocumentIdentifier { uri: uri.clone() },

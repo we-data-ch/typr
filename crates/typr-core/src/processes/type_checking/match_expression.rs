@@ -122,9 +122,10 @@ fn build_match_branch_context(
                     help_data.clone(),
                 )));
             }
-            elements.iter().enumerate().fold(
-                context.clone(),
-                |ctx: Context, (i, elem)| match elem {
+            elements
+                .iter()
+                .enumerate()
+                .fold(context.clone(), |ctx: Context, (i, elem)| match elem {
                     Lang::Variable { name: var_name, .. } if var_name == "_" => ctx,
                     Lang::Variable { name: var_name, .. } => {
                         let elem_type = tuple_types
@@ -141,8 +142,7 @@ fn build_match_branch_context(
                         )));
                         ctx
                     }
-                },
-            )
+                })
         }
         // For list/record patterns `:{nom: n, age: a}`, bind each variable
         Lang::List {
@@ -162,42 +162,34 @@ fn build_match_branch_context(
                     help_data.clone(),
                 )));
             }
-            fields
-                .iter()
-                .fold(
-                    context.clone(),
-                    |ctx: Context, arg_val: &ArgumentValue| match &arg_val.get_value() {
-                        Lang::Variable { name: var_name, .. } => {
-                            let field_type = record_fields
-                                .as_ref()
-                                .and_then(|fields| {
-                                    fields
-                                        .iter()
-                                        .find(|at| at.get_argument_str() == arg_val.get_argument())
-                                })
-                                .map(|at| at.get_type())
-                                .unwrap_or_else(builder::any_type);
-                            let var = Var::from_name(var_name);
-                            ctx.push_var_type(var, field_type, context)
-                        }
-                        other => {
-                            errors.push(TypRError::Type(TypeError::UnsupportedPattern(
-                                "nested pattern inside record pattern".to_string(),
-                                other.get_help_data(),
-                            )));
-                            ctx
-                        }
-                    },
-                )
+            fields.iter().fold(
+                context.clone(),
+                |ctx: Context, arg_val: &ArgumentValue| match &arg_val.get_value() {
+                    Lang::Variable { name: var_name, .. } => {
+                        let field_type = record_fields
+                            .as_ref()
+                            .and_then(|fields| fields.iter().find(|at| at.get_argument_str() == arg_val.get_argument()))
+                            .map(|at| at.get_type())
+                            .unwrap_or_else(builder::any_type);
+                        let var = Var::from_name(var_name);
+                        ctx.push_var_type(var, field_type, context)
+                    }
+                    other => {
+                        errors.push(TypRError::Type(TypeError::UnsupportedPattern(
+                            "nested pattern inside record pattern".to_string(),
+                            other.get_help_data(),
+                        )));
+                        ctx
+                    }
+                },
+            )
         }
         // Wildcard `_` binds nothing; a named catch-all binds the whole
         // scrutinee type to that name.
         Lang::Variable { name: var_name, .. } if var_name == "_" => context.clone(),
         Lang::Variable { name: var_name, .. } => {
             let var = Var::from_name(var_name);
-            context
-                .clone()
-                .push_var_type(var, match_type.clone(), context)
+            context.clone().push_var_type(var, match_type.clone(), context)
         }
         _ => context.clone(),
     }
@@ -217,8 +209,7 @@ pub fn match_expression(
         .iter()
         .map(|(pattern, bexp)| {
             let mut pattern_errors = Vec::new();
-            let new_context =
-                build_match_branch_context(context, pattern, &match_type, &mut pattern_errors);
+            let new_context = build_match_branch_context(context, pattern, &match_type, &mut pattern_errors);
             let mut tc = typing(&new_context, bexp);
             tc.errors.extend(pattern_errors);
             tc
@@ -283,12 +274,10 @@ mod tests {
     /// string here would silently lose everything after the first `;` and
     /// make every "expect no error" assertion pass vacuously.
     fn typecheck(stmts: &[&str]) -> TypeChecker {
-        stmts
-            .iter()
-            .fold(TypeChecker::new(Context::default()), |tc, stmt| {
-                let code = parse2((*stmt).into()).unwrap();
-                tc.typing_no_panic(&code)
-            })
+        stmts.iter().fold(TypeChecker::new(Context::default()), |tc, stmt| {
+            let code = parse2((*stmt).into()).unwrap();
+            tc.typing_no_panic(&code)
+        })
     }
 
     // NOTE: these tests deliberately type the scrutinee through a *function
@@ -313,11 +302,7 @@ mod tests {
             "type Shape <- .Circle(int) | .Square(int);",
             "fn(s: Shape): int { match s { .Circle(r) => r + 1, .Square(sq) => sq } }",
         ]);
-        assert!(
-            !tc.has_errors(),
-            "Expected no type errors, got: {:?}",
-            tc.get_errors()
-        );
+        assert!(!tc.has_errors(), "Expected no type errors, got: {:?}", tc.get_errors());
     }
 
     /// M2 (still): binding through a tag pattern against a mistyped payload
@@ -343,11 +328,7 @@ mod tests {
             "type Point <- list { x: int, y: int };",
             "fn(p: Point): int { match p { :{x: xx, y: yy} => xx + 1 } }",
         ]);
-        assert!(
-            !tc.has_errors(),
-            "Expected no type errors, got: {:?}",
-            tc.get_errors()
-        );
+        assert!(!tc.has_errors(), "Expected no type errors, got: {:?}", tc.get_errors());
     }
 
     /// M1: a match over a 3-variant union covering only 2 must be rejected.
@@ -357,10 +338,7 @@ mod tests {
             "type Color <- .Red | .Green | .Blue;",
             "fn(c: Color): int { match c { .Red => 1, .Green => 2 } }",
         ]);
-        assert!(
-            tc.has_errors(),
-            "Expected a non-exhaustive match error, got none"
-        );
+        assert!(tc.has_errors(), "Expected a non-exhaustive match error, got none");
     }
 
     /// M1 (still): a catch-all branch makes the match exhaustive even
@@ -371,11 +349,7 @@ mod tests {
             "type Color <- .Red | .Green | .Blue;",
             "fn(c: Color): int { match c { .Red => 1, _ => 0 } }",
         ]);
-        assert!(
-            !tc.has_errors(),
-            "Expected no type errors, got: {:?}",
-            tc.get_errors()
-        );
+        assert!(!tc.has_errors(), "Expected no type errors, got: {:?}", tc.get_errors());
     }
 
     /// M4: a tag pattern naming a variant the scrutinee's union doesn't have
@@ -401,11 +375,7 @@ mod tests {
             "let c <- .Red;",
             "fn(): int { match c { .Red => 1, other => 0 } }",
         ]);
-        assert!(
-            !tc.has_errors(),
-            "Expected no type errors, got: {:?}",
-            tc.get_errors()
-        );
+        assert!(!tc.has_errors(), "Expected no type errors, got: {:?}", tc.get_errors());
     }
 
     /// The generic `Option<T>` still resolves through the same, no-longer-
@@ -413,13 +383,7 @@ mod tests {
     /// special case).
     #[test]
     fn edge_option_tag_binding_still_works_generically() {
-        let tc = typecheck(&[
-            "fn(o: Option<int>, f: (int) -> int): int { match o { .Some(x) => f(x), .None => 0 } }",
-        ]);
-        assert!(
-            !tc.has_errors(),
-            "Expected no type errors, got: {:?}",
-            tc.get_errors()
-        );
+        let tc = typecheck(&["fn(o: Option<int>, f: (int) -> int): int { match o { .Some(x) => f(x), .None => 0 } }"]);
+        assert!(!tc.has_errors(), "Expected no type errors, got: {:?}", tc.get_errors());
     }
 }

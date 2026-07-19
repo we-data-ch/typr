@@ -67,6 +67,7 @@ impl Context {
         let _ = write!(w, "em{:?}", self.embedded_methods);
         let _ = write!(w, "ef{:?}", self.extern_fns);
         let _ = write!(w, "if{:?}", self.import_from_fns);
+        let _ = write!(w, "vf{:?}", self.vectorizable_fns);
 
         // HashMap-backed: sort.
         let mut constraints: Vec<String> = self
@@ -110,18 +111,18 @@ mod tests {
     #[test]
     fn fingerprint_changes_when_a_binding_is_added() {
         let base = Context::default();
-        let with_var =
-            base.clone()
-                .push_var_type(Var::from_name("x"), builder::integer_type_default(), &base);
+        let with_var = base
+            .clone()
+            .push_var_type(Var::from_name("x"), builder::integer_type_default(), &base);
         assert_ne!(base.fingerprint(), with_var.fingerprint());
     }
 
     #[test]
     fn fingerprint_survives_clone() {
         let base = Context::default();
-        let with_var =
-            base.clone()
-                .push_var_type(Var::from_name("x"), builder::integer_type_default(), &base);
+        let with_var = base
+            .clone()
+            .push_var_type(Var::from_name("x"), builder::integer_type_default(), &base);
         assert_eq!(with_var.fingerprint(), with_var.clone().fingerprint());
     }
 }

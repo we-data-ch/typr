@@ -1,0 +1,6 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 498
+expression: r
+---
+`v` <- c(1L |> as.Integer(), 2L |> as.Integer(), 3L |> as.Integer()) |> identity()

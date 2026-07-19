@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::type_error::TypeError;
@@ -76,9 +70,9 @@ pub trait PriorityTokens<T: PriorityToken, E: From<T> + Default>: Sized {
     }
 
     fn run_helper(&mut self, binding_power: i32) -> T {
-        let mut left = self.get_expression().unwrap_or_else(|_| {
-            std::panic::panic_any(TypeError::WrongExpression(self.get_initial_expression()))
-        });
+        let mut left = self
+            .get_expression()
+            .unwrap_or_else(|_| std::panic::panic_any(TypeError::WrongExpression(self.get_initial_expression())));
         loop {
             let op = match self.peak_operator() {
                 Ok(op) => op,

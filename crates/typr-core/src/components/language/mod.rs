@@ -495,27 +495,19 @@ impl PartialEq for Lang {
             ) => a1 == b1 && a2 == b2,
             (
                 Lang::List {
-                    value: a,
-                    spreads: sa,
-                    ..
+                    value: a, spreads: sa, ..
                 },
                 Lang::List {
-                    value: b,
-                    spreads: sb,
-                    ..
+                    value: b, spreads: sb, ..
                 },
             ) => a == b && sa == sb,
             (Lang::DataFrame { value: a, .. }, Lang::DataFrame { value: b, .. }) => a == b,
             (
                 Lang::Tag {
-                    name: a1,
-                    value: a2,
-                    ..
+                    name: a1, value: a2, ..
                 },
                 Lang::Tag {
-                    name: b1,
-                    value: b2,
-                    ..
+                    name: b1, value: b2, ..
                 },
             ) => a1 == b1 && a2 == b2,
             (
@@ -641,14 +633,9 @@ impl PartialEq for Lang {
                     ..
                 },
             ) => a1 == b1 && a2 == b2 && a3 == b3,
-            (
-                Lang::KeyValue {
-                    key: a1, value: a2, ..
-                },
-                Lang::KeyValue {
-                    key: b1, value: b2, ..
-                },
-            ) => a1 == b1 && a2 == b2,
+            (Lang::KeyValue { key: a1, value: a2, .. }, Lang::KeyValue { key: b1, value: b2, .. }) => {
+                a1 == b1 && a2 == b2
+            }
             (Lang::Vector { value: a, .. }, Lang::Vector { value: b, .. }) => a == b,
             (Lang::Sequence { body: a, .. }, Lang::Sequence { body: b, .. }) => a == b,
             (Lang::Not { value: a, .. }, Lang::Not { value: b, .. }) => a == b,
@@ -656,14 +643,10 @@ impl PartialEq for Lang {
             (Lang::JSBlock(a1, a2, _), Lang::JSBlock(b1, b2, _)) => a1 == b1 && a2 == b2,
             (
                 Lang::Use {
-                    lang: a1,
-                    members: a2,
-                    ..
+                    lang: a1, members: a2, ..
                 },
                 Lang::Use {
-                    lang: b1,
-                    members: b2,
-                    ..
+                    lang: b1, members: b2, ..
                 },
             ) => a1 == b1 && a2 == b2,
             (Lang::Empty(_), Lang::Empty(_)) => true,
@@ -820,10 +803,7 @@ impl Lang {
 
     pub fn to_module(self, name: &str, environment: Environment) -> Self {
         match self {
-            Lang::Lines {
-                value: v,
-                help_data: h,
-            } => Lang::Module {
+            Lang::Lines { value: v, help_data: h } => Lang::Module {
                 name: name.to_string(),
                 body: v,
                 module_position: ModulePosition::External,
@@ -942,9 +922,7 @@ impl Lang {
     pub fn infer_var_name(&self, args: &[Lang], context: &Context) -> Var {
         if let Some(first) = args.first() {
             let first = typing(context, first).value;
-            Var::from_language(self.clone())
-                .unwrap()
-                .set_type(first.clone())
+            Var::from_language(self.clone()).unwrap().set_type(first.clone())
         } else {
             Var::from_language(self.clone()).unwrap()
         }
@@ -1042,10 +1020,7 @@ impl Lang {
     pub fn linearize_array(&self) -> Vec<Lang> {
         match self {
             Lang::Array { value: v, .. } => v.iter().fold(Vec::<Lang>::new(), |acc, x: &Lang| {
-                acc.iter()
-                    .chain(x.linearize_array().iter())
-                    .cloned()
-                    .collect()
+                acc.iter().chain(x.linearize_array().iter()).cloned().collect()
             }),
             _ => vec![self.to_owned()],
         }
@@ -1058,9 +1033,7 @@ impl Lang {
     pub fn nb_params(&self) -> usize {
         self.simple_print();
         match self {
-            Lang::Function {
-                parameters: params, ..
-            } => params.len(),
+            Lang::Function { parameters: params, .. } => params.len(),
             _ => 0_usize,
         }
     }
@@ -1076,9 +1049,7 @@ impl Lang {
             Lang::Function { .. } => "Function".to_string(),
             Lang::Module { .. } => "Module".to_string(),
             Lang::Variable { name, .. } => format!("Variable({})", name),
-            Lang::FunctionApp {
-                identifier: var, ..
-            } => format!(
+            Lang::FunctionApp { identifier: var, .. } => format!(
                 "FunctionApp({})",
                 Var::from_language(*(var.clone())).unwrap().get_name()
             ),
@@ -1092,10 +1063,9 @@ impl Lang {
                 Var::from_language(*(var.clone())).unwrap().get_name()
             ),
             Lang::ArrayIndexing { .. } => "ArrayIndexing".to_string(),
-            Lang::Let { variable: var, .. } => format!(
-                "let {}",
-                Var::from_language((**var).clone()).unwrap().get_name()
-            ),
+            Lang::Let { variable: var, .. } => {
+                format!("let {}", Var::from_language((**var).clone()).unwrap().get_name())
+            }
             Lang::Array { .. } => "Array".to_string(),
             Lang::List { .. } => "Record".to_string(),
             Lang::DataFrame { .. } => "DataFrame".to_string(),
@@ -1201,16 +1171,10 @@ impl Lang {
                 context.clone(),
             ),
             Lang::Scope { body: langs, .. } => {
-                let res = langs
-                    .iter()
-                    .map(|x| x.to_js(context).0)
-                    .collect::<Vec<_>>()
-                    .join("\n");
+                let res = langs.iter().map(|x| x.to_js(context).0).collect::<Vec<_>>().join("\n");
                 (res, context.clone())
             }
-            Lang::Return { value: exp, .. } => {
-                (format!("return {};", exp.to_js(context).0), context.clone())
-            }
+            Lang::Return { value: exp, .. } => (format!("return {};", exp.to_js(context).0), context.clone()),
             Lang::FunctionApp {
                 identifier: exp,
                 arguments: params,
@@ -1220,11 +1184,7 @@ impl Lang {
                 let res = format!(
                     "{}({})",
                     var.get_name().replace("__", "."),
-                    params
-                        .iter()
-                        .map(|x| x.to_js(context).0)
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    params.iter().map(|x| x.to_js(context).0).collect::<Vec<_>>().join(", ")
                 );
                 (res, context.clone())
             }
@@ -1243,9 +1203,7 @@ impl Lang {
                     context.clone(),
                 )
             }
-            Lang::Use {
-                lang: lib, members, ..
-            } => {
+            Lang::Use { lang: lib, members, .. } => {
                 let body = match (**members).clone() {
                     Lang::Vector { value: v, .. } => v
                         .iter()
@@ -1294,16 +1252,9 @@ impl Lang {
             } => {
                 let spread_parts = spreads.iter().map(|s| format!("...{}", s.to_js(context).0));
                 let field_parts = arg_vals.iter().map(|arg_val: &ArgumentValue| {
-                    arg_val.get_argument().replace("'", "")
-                        + ": "
-                        + &arg_val.get_value().to_js(context).0
+                    arg_val.get_argument().replace("'", "") + ": " + &arg_val.get_value().to_js(context).0
                 });
-                let res = "{".to_string()
-                    + &spread_parts
-                        .chain(field_parts)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                    + "}";
+                let res = "{".to_string() + &spread_parts.chain(field_parts).collect::<Vec<_>>().join(", ") + "}";
                 (res, context.clone())
             }
             Lang::Lambda {
@@ -1323,10 +1274,7 @@ impl Lang {
                 } else {
                     format!("({})", param_names.join(", "))
                 };
-                (
-                    format!("{} => {}", params_str, body.to_js(context).0),
-                    context.clone(),
-                )
+                (format!("{} => {}", params_str, body.to_js(context).0), context.clone())
             }
             Lang::Operator {
                 operator: op,

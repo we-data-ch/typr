@@ -1,0 +1,20 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 615
+expression: r
+---
+IntArr <- function(x) {
+  as.IntArr(x)
+}
+as.IntArr <- function(x) {
+  if (!inherits(x, "IntArr")) class(x) <- c("IntArr", class(x))
+  x <- validate_IntArr(x)
+  x <- validate(x)
+  x
+}
+validate_IntArr <- function(x) {
+  if (!(is.integer(x) || (is.numeric(x) && all(x == trunc(x))))) stop("Validation failed for type IntArr: expected an integer vector")
+  if (length(x) != 3) stop(paste0("Validation failed for type IntArr: expected length 3, got ", length(x)))
+  x
+}
+`a` <- c(1L |> as.Integer(), 2L |> as.Integer(), 3L |> as.Integer()) |> identity() |> as.IntArr()

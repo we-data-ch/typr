@@ -1,10 +1,4 @@
-#![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
-    unreachable_code,
-    unused_assignments
-)]
+#![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
@@ -31,20 +25,12 @@ pub struct FunctionType {
 }
 
 fn lift(max_index: &(VecType, i32), types: &[Type]) -> Vec<Type> {
-    types
-        .iter()
-        .map(|typ| typ.clone().lift(max_index))
-        .collect()
+    types.iter().map(|typ| typ.clone().lift(max_index)).collect()
 }
 
 //main
 impl FunctionType {
-    pub fn new(
-        vec_type: VecType,
-        arguments: Vec<ArgumentType>,
-        return_type: Type,
-        help_data: HelpData,
-    ) -> Self {
+    pub fn new(vec_type: VecType, arguments: Vec<ArgumentType>, return_type: Type, help_data: HelpData) -> Self {
         let is_variadic = arguments.last().map(|a| a.is_variadic()).unwrap_or(false);
         let min_arity = arguments.iter().take_while(|a| !a.has_default()).count();
         let arguments: Vec<Type> = arguments.iter().map(|arg| arg.get_type()).collect();
@@ -63,11 +49,7 @@ impl FunctionType {
         let arguments = if self.is_variadic {
             let fixed_count = self.arguments.len().saturating_sub(1);
             if nb >= fixed_count {
-                let variadic_type = self
-                    .arguments
-                    .last()
-                    .cloned()
-                    .unwrap_or(builder::any_type());
+                let variadic_type = self.arguments.last().cloned().unwrap_or(builder::any_type());
                 let mut expanded = self.arguments[..fixed_count].to_vec();
                 for _ in fixed_count..nb {
                     expanded.push(variadic_type.clone());
@@ -109,19 +91,10 @@ impl FunctionType {
         self.vec_type.clone()
     }
 
-    fn lift_and_unification(
-        context: &Context,
-        types: &[Type],
-        param_types: &[Type],
-    ) -> Option<UnificationMap> {
-        let unique_types = types
-            .iter()
-            .map(|x| x.get_size_type())
-            .collect::<HashSet<_>>();
+    fn lift_and_unification(context: &Context, types: &[Type], param_types: &[Type]) -> Option<UnificationMap> {
+        let unique_types = types.iter().map(|x| x.get_size_type()).collect::<HashSet<_>>();
         validate_vectorization(unique_types)
-            .and_then(|hash: HashSet<(i32, VecType, Type)>| {
-                hash.iter().cloned().max_by_key(|x| x.0)
-            })
+            .and_then(|hash: HashSet<(i32, VecType, Type)>| hash.iter().cloned().max_by_key(|x| x.0))
             .map(|(index, vectyp, _)| (vectyp, index))
             .and_then(|max_index| {
                 context
@@ -200,40 +173,24 @@ impl FunctionType {
         let truncated_self = self.clone().set_params(truncated_params.clone());
         context
             .get_unification_map(types, &truncated_params)
-            .or(Self::lift_and_unification(
-                context,
-                types,
-                &truncated_params,
-            ))
+            .or(Self::lift_and_unification(context, types, &truncated_params))
             .map(|um| truncated_self.apply_unification_to_return_type(context, um))
     }
 
     fn lift(self, index: (VecType, i32)) -> Self {
         Self {
-            arguments: self
-                .arguments
-                .iter()
-                .map(|typ| typ.clone().lift(&index))
-                .collect(),
+            arguments: self.arguments.iter().map(|typ| typ.clone().lift(&index)).collect(),
             return_type: self.return_type.lift(&index),
             vec_type: index.0,
             ..self
         }
     }
 
-    fn apply_unification_to_return_type(
-        self,
-        context: &Context,
-        um: UnificationMap,
-    ) -> FunctionType {
+    fn apply_unification_to_return_type(self, context: &Context, um: UnificationMap) -> FunctionType {
         let fun_typ = um
             .get_vectorization()
-            .map_or(self.clone(), |(vec_type, index)| {
-                self.lift((vec_type, index))
-            });
-        let new_return_type = um
-            .apply_unification_type(context, &fun_typ.get_return_type())
-            .0;
+            .map_or(self.clone(), |(vec_type, index)| self.lift((vec_type, index)));
+        let new_return_type = um.apply_unification_type(context, &fun_typ.get_return_type()).0;
         let new_args: Vec<Type> = fun_typ
             .get_param_types()
             .iter()
@@ -282,10 +239,7 @@ impl FunctionType {
     }
 
     pub fn set_help_data(self, h: HelpData) -> Self {
-        Self {
-            help_data: h,
-            ..self
-        }
+        Self { help_data: h, ..self }
     }
 
     pub fn set_params(self, params: Vec<Type>) -> Self {
@@ -310,10 +264,7 @@ impl TryFrom<Type> for FunctionType {
         match value {
             Type::Function(args, ret, h) => Ok(FunctionType::new(VecType::Empty, args, *ret, h)),
             Type::UnknownFunction(h) => Ok(FunctionType::default().set_help_data(h.clone())),
-            _ => Err(format!(
-                "{} is a type not convertible to FunctionType",
-                value
-            )),
+            _ => Err(format!("{} is a type not convertible to FunctionType", value)),
         }
     }
 }

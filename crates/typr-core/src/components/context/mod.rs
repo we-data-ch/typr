@@ -114,6 +114,16 @@ pub struct Context {
     /// bypassing TypR's own S3 generic stubs for names like `get`, `map`, `factor`.
     #[serde(default)]
     pub import_from_fns: Vec<(String, String)>,
+    /// Static vectorizability of user-declared functions, keyed by name:
+    /// `true` means every declaration seen so far for that name has a body
+    /// made only of natively-vectorized R operations (see
+    /// `processes::type_checking::vectorizability`), so a `Vec[N, T]` call
+    /// site may call it directly instead of wrapping it in `vapply`. Any
+    /// non-vectorizable overload of the same name downgrades the entry to
+    /// `false` for good (S3 dispatch at the call site can't tell overloads
+    /// apart by name alone).
+    #[serde(default)]
+    pub vectorizable_fns: Vec<(String, bool)>,
     config: Config,
 }
 
@@ -165,6 +175,7 @@ impl Default for Context {
             expected_return_type: None,
             extern_fns: Vec::new(),
             import_from_fns: Vec::new(),
+            vectorizable_fns: Vec::new(),
             module_inner_contexts: HashMap::new(),
             processed_modules: HashMap::new(),
             modules_in_progress: HashSet::new(),
@@ -208,6 +219,7 @@ impl Context {
             expected_return_type: None,
             extern_fns: Vec::new(),
             import_from_fns: Vec::new(),
+            vectorizable_fns: Vec::new(),
             module_inner_contexts: HashMap::new(),
             processed_modules: HashMap::new(),
             modules_in_progress: HashSet::new(),
@@ -234,6 +246,21 @@ impl Context {
             .iter()
             .find(|(n, _)| n == name)
             .map(|(_, r)| r.clone())
+    }
+
+    /// Record whether a user function declaration has a natively-vectorizable
+    /// body. A name is only vectorizable while *every* declaration seen for it
+    /// is — one non-vectorizable overload downgrades the entry permanently.
+    pub fn register_vectorizable_fn(mut self, name: &str, is_vectorizable: bool) -> Self {
+        match self.vectorizable_fns.iter_mut().find(|(n, _)| n == name) {
+            Some(entry) => entry.1 = entry.1 && is_vectorizable,
+            None => self.vectorizable_fns.push((name.to_string(), is_vectorizable)),
+        }
+        self
+    }
+
+    pub fn is_vectorizable_fn(&self, name: &str) -> bool {
+        self.vectorizable_fns.iter().any(|(n, v)| n == name && *v)
     }
 
     pub fn set_config(self, config: Config) -> Self {
@@ -316,8 +343,7 @@ impl Context {
             .collect();
         let mut trimmed = inner.clone();
         trimmed.module_inner_contexts = new_entries;
-        self.module_inner_contexts
-            .insert(name.to_string(), Arc::new(trimmed));
+        self.module_inner_contexts.insert(name.to_string(), Arc::new(trimmed));
         self
     }
 
@@ -419,8 +445,8 @@ impl Context {
             .entries_named(&var.get_name())
             .into_iter()
             .flat_map(|(var2, typ)| {
-                let conditions = (var.is_opaque == var2.is_opaque)
-                    && var.related_type.is_subtype(&var2.related_type, self).0;
+                let conditions =
+                    (var.is_opaque == var2.is_opaque) && var.related_type.is_subtype(&var2.related_type, self).0;
                 if conditions {
                     Some(typ)
                 } else {
@@ -637,10 +663,7 @@ impl Context {
             .collect();
         let new_subtypes = self.subtypes.clone().add_types(&hoisted_types, &self);
         Self {
-            typing_context: self
-                .typing_context
-                .clone()
-                .hoist_aliases(&inner.typing_context),
+            typing_context: self.typing_context.clone().hoist_aliases(&inner.typing_context),
             subtypes: new_subtypes,
             ..self
         }
@@ -672,8 +695,7 @@ impl Context {
                 // Return the variable with UnknownFunction type if it's a standard function
                 // Otherwise return with Any type to allow error collection
                 if self.is_an_untyped_function(&var.get_name()) {
-                    var.clone()
-                        .set_type(Type::UnknownFunction(var.get_help_data()))
+                    var.clone().set_type(Type::UnknownFunction(var.get_help_data()))
                 } else {
                     var.clone().set_type(Type::Any(var.get_help_data()))
                 }
@@ -687,6 +709,13 @@ impl Context {
 
     pub fn is_an_untyped_function(&self, name: &str) -> bool {
         self.is_a_standard_function(name)
+    }
+
+    /// Step ③ (unification_arrays.md): does `t` denote an array with the
+    /// bare-atomic-vector runtime representation? See
+    /// `VarType::atomic_array_elem` — the single representation predicate.
+    pub fn atomic_array_elem(&self, t: &Type) -> Option<Type> {
+        self.typing_context.atomic_array_elem(t)
     }
 
     pub fn get_class(&self, t: &Type) -> String {
@@ -740,10 +769,7 @@ impl Context {
             .chain(
                 [
                     (Var::from_name("Integer"), builder::integer_type_default()),
-                    (
-                        Var::from_name("Character"),
-                        builder::character_type_default(),
-                    ),
+                    (Var::from_name("Character"), builder::character_type_default()),
                     (Var::from_name("Number"), builder::number_type()),
                     (Var::from_name("Boolean"), builder::boolean_type()),
                 ]
@@ -756,9 +782,7 @@ impl Context {
             // is emitted by the inline constructor/validator pipeline. Anonymous
             // records (auto-named `Record0`, `Record1`, …) have no constructor, so
             // they still need their `as.RecordN` annotation generated here.
-            .filter(|(var, typ)| {
-                !matches!(typ, Type::Record(_, _)) || is_anonymous_record_name(&var.get_name())
-            })
+            .filter(|(var, typ)| !matches!(typ, Type::Record(_, _)) || is_anonymous_record_name(&var.get_name()))
             // Aliases whose underlying type still mentions an unresolved generic
             // (e.g. `type Animator<%T> <- %T & list { ... }`) have no single
             // fixed runtime class — there's no monomorphization, so a static
@@ -767,10 +791,7 @@ impl Context {
             .filter(|(_, typ)| !typ.has_generic())
             .map(|(var, typ)| (typ, var.get_name()))
             .map(|(typ, name)| {
-                let name0 = if ["Integer", "Character", "Boolean", "Number"]
-                    .iter()
-                    .any(|x| name == *x)
-                {
+                let name0 = if ["Integer", "Character", "Boolean", "Number"].iter().any(|x| name == *x) {
                     format!("'{}', ", name)
                 } else {
                     Default::default()
@@ -878,8 +899,7 @@ impl Context {
             let reduced_type2 = var2.get_type().reduce(self);
             var1.get_name() == var2.get_name()
                 && typ.is_function()
-                && (reduced_type1.is_subtype(&reduced_type2, self).0
-                    || reduced_type1.is_upperrank_of(&reduced_type2))
+                && (reduced_type1.is_subtype(&reduced_type2, self).0 || reduced_type1.is_upperrank_of(&reduced_type2))
         });
         if let Some(res) = res {
             res.1.clone()
@@ -965,8 +985,7 @@ impl Context {
             .zip(param_types.clone())
             .map(|(arg_typ, par_typ): (&ArgumentType, Type)| {
                 (
-                    Var::from_name(&arg_typ.get_argument_str())
-                        .set_type(reduce_type(self, &par_typ)),
+                    Var::from_name(&arg_typ.get_argument_str()).set_type(reduce_type(self, &par_typ)),
                     reduce_type(self, &arg_typ.get_type()),
                 )
             })
@@ -1004,12 +1023,7 @@ impl Context {
     }
 
     /// Register a user-declared `typeconstructor` in the registry.
-    pub fn push_type_constructor(
-        self,
-        name: String,
-        parameters: Vec<Type>,
-        category: ConstructorCategory,
-    ) -> Self {
+    pub fn push_type_constructor(self, name: String, parameters: Vec<Type>, category: ConstructorCategory) -> Self {
         let mut type_constructors = self.type_constructors.clone();
         // Last declaration wins: drop any previous entry with the same name.
         type_constructors.retain(|(n, _, _)| n != &name);
@@ -1021,10 +1035,7 @@ impl Context {
     }
 
     /// Look up a declared `typeconstructor` by name.
-    pub fn get_type_constructor(
-        &self,
-        name: &str,
-    ) -> Option<&(String, Vec<Type>, ConstructorCategory)> {
+    pub fn get_type_constructor(&self, name: &str) -> Option<&(String, Vec<Type>, ConstructorCategory)> {
         self.type_constructors.iter().find(|(n, _, _)| n == name)
     }
 
@@ -1038,10 +1049,7 @@ impl Context {
         let mut record_aliases = self.record_aliases.clone();
         record_aliases.retain(|(n, _)| n != &name);
         record_aliases.push((name, typ));
-        Context {
-            record_aliases,
-            ..self
-        }
+        Context { record_aliases, ..self }
     }
 
     /// Merge another context's whole-program record-alias registry into this
@@ -1055,21 +1063,13 @@ impl Context {
                 record_aliases.push((name.clone(), typ.clone()));
             }
         }
-        Context {
-            record_aliases,
-            ..self
-        }
+        Context { record_aliases, ..self }
     }
 
     /// Record that `method_name` on `type_name` was auto-generated by named type
     /// embedding (`embed field: Type`), forwarded from `field_name`. See
     /// `processes::type_checking::embedding`.
-    pub fn push_embedded_method(
-        self,
-        type_name: String,
-        method_name: String,
-        field_name: String,
-    ) -> Self {
+    pub fn push_embedded_method(self, type_name: String, method_name: String, field_name: String) -> Self {
         let mut embedded_methods = self.embedded_methods.clone();
         embedded_methods.push((type_name, method_name, field_name));
         Context {
@@ -1098,11 +1098,7 @@ impl Context {
         self.config.environment == Environment::Project
     }
 
-    pub fn get_unification_map(
-        &self,
-        entered_types: &[Type],
-        param_types: &[Type],
-    ) -> Option<UnificationMap> {
+    pub fn get_unification_map(&self, entered_types: &[Type], param_types: &[Type]) -> Option<UnificationMap> {
         let res = entered_types
             .iter()
             .zip(param_types.iter())
@@ -1139,13 +1135,9 @@ impl Context {
             ("Number", builder::number_type()),
             ("Boolean", builder::boolean_type()),
         ];
-        let new_context = self.clone().push_types(
-            &primitives
-                .iter()
-                .map(|(_, typ)| typ)
-                .cloned()
-                .collect::<Vec<_>>(),
-        );
+        let new_context = self
+            .clone()
+            .push_types(&primitives.iter().map(|(_, typ)| typ).cloned().collect::<Vec<_>>());
         primitives
             .iter()
             .map(|(name, prim)| {
@@ -1155,9 +1147,7 @@ impl Context {
                     new_context.get_class(prim),
                 )
             })
-            .map(|(name, cls, cl)| {
-                format!("{} <- function(x) x |> struct(c({}, {}))", name, cls, cl)
-            })
+            .map(|(name, cls, cl)| format!("{} <- function(x) x |> struct(c({}, {}))", name, cls, cl))
             .collect::<Vec<_>>()
     }
 
@@ -1264,12 +1254,7 @@ impl Context {
             Type::Module(args, _, _) => {
                 args.iter()
                     .rev()
-                    .map(|arg_type| {
-                        (
-                            Var::try_from(arg_type.0.clone()).unwrap(),
-                            arg_type.1.clone(),
-                        )
-                    }) //TODO: Differenciate between pushing variable and
+                    .map(|arg_type| (Var::try_from(arg_type.0.clone()).unwrap(), arg_type.1.clone())) //TODO: Differenciate between pushing variable and
                     //aliases
                     .fold(empty_context.clone(), |acc, (var, typ)| {
                         acc.clone().push_var_type(var, typ, &acc)
@@ -1335,6 +1320,13 @@ impl Add for Context {
                 import_from_fns.push(entry);
             }
         }
+        let mut vectorizable_fns = self.vectorizable_fns;
+        for (name, is_vec) in other.vectorizable_fns {
+            match vectorizable_fns.iter_mut().find(|(n, _)| n == &name) {
+                Some(entry) => entry.1 = entry.1 && is_vec,
+                None => vectorizable_fns.push((name, is_vec)),
+            }
+        }
         let mut module_inner_contexts = self.module_inner_contexts;
         module_inner_contexts.extend(other.module_inner_contexts);
         let mut processed_modules = self.processed_modules;
@@ -1354,6 +1346,7 @@ impl Add for Context {
             expected_return_type: None,
             extern_fns,
             import_from_fns,
+            vectorizable_fns,
             config: self.config,
             module_inner_contexts,
             processed_modules,
@@ -1379,9 +1372,7 @@ mod tests {
         let graph = ctx.subtypes.clone().add_type(rec.clone(), &ctx);
         let supers = graph.get_supertypes(&rec, &ctx);
         assert!(
-            supers
-                .iter()
-                .any(|t| matches!(t, Type::KindedGen(Kind::Record, _, _))),
+            supers.iter().any(|t| matches!(t, Type::KindedGen(Kind::Record, _, _))),
             "a record must nest under the GRecord (%_) sentinel; supers = {:?}",
             supers
         );

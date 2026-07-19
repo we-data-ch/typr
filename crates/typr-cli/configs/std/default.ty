@@ -46,6 +46,8 @@ type Iterable<T> <- interface { as_vec: (Self) -> [T] };
 
 @set_at: (a: [#N, T], i: int, val: T) -> [#N, T];
 
+@length: (a: [#N, T]) -> int;
+
 @mean: (a: [#N, T]) -> T;
 
 @sd: (a: [#N, T]) -> T;
