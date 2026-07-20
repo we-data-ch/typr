@@ -1,0 +1,9 @@
+type Numbers <- [int];
+
+let incr <- fn(i: int): int {
+    i + 1
+};
+
+let a <- incr([1, 2, 3, 4]);
+let b <- incr(Numbers:[1, 2, 3, 4]);
+b

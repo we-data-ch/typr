@@ -1668,6 +1668,62 @@ mod tests {
         assert_eq!(res, expected);
     }
 
+    // --- Array alias argument: `type Numbers <- [int]` lifts like the array itself ---
+    #[test]
+    fn test_lift_array_alias_argument() {
+        let res = FluentParser::new()
+            .push("type Numbers <- [int];")
+            .run()
+            .push("@f1: (int) -> int;")
+            .run()
+            .check_typing("f1(Numbers:[1, 2, 3, 4])");
+        // The alias carries no static size, so the lifted result is an
+        // unknown-size (index 0) array.
+        let expected = builder::array_type(builder::integer_type(0), builder::integer_type_default());
+        assert_eq!(res, expected);
+    }
+
+    // --- Opaque array alias argument stays scalar: no lifting through opacity ---
+    #[test]
+    fn test_no_lift_through_opaque_array_alias() {
+        let res = FluentParser::new()
+            .set_context(Context::default())
+            .push("opaque Numbers <- [int];")
+            .run()
+            .push("@f1: (int) -> int;")
+            .run()
+            .check_typing("f1(Numbers:[1, 2, 3, 4])");
+        assert!(
+            !matches!(res, Type::Vec(_, _, _, _)),
+            "opaque alias got lifted: {:?}",
+            res
+        );
+    }
+
+    // --- Generic-size array argument ([#N, int]) lifts too ---
+    #[test]
+    fn test_lift_generic_size_array_argument() {
+        let res = FluentParser::new()
+            .push("@f1: (int) -> int;")
+            .run()
+            .push("let g <- fn(v: [#N, int]): [#N, int] { f1(v) };")
+            .run()
+            .check_typing("g([1, 2, 3])");
+        let expected = builder::array_type(builder::integer_type(3), builder::integer_type_default());
+        assert_eq!(res, expected);
+    }
+
+    // --- Single-element array [1, int] lifts (used to be rejected by the size > 1 gate) ---
+    #[test]
+    fn test_lift_single_element_array() {
+        let res = FluentParser::new()
+            .push("@f1: (int) -> int;")
+            .run()
+            .check_typing("f1([1])");
+        let expected = builder::array_type(builder::integer_type(1), builder::integer_type_default());
+        assert_eq!(res, expected);
+    }
+
     // --- Subtraction: scalar - scalar (no lifting) ---
     #[test]
     fn test_lift_sub_scalar_scalar() {

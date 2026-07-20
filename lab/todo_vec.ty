@@ -1,0 +1,12 @@
+type Todo <- list { name: char, done: bool };
+type TodoList <- [Todo];
+
+let check_if_name <- fn(self: Todo, name: char): Todo {
+    self
+};
+
+let check <- fn(self: TodoList, name: char): TodoList {
+    check_if_name(self, name)
+};
+
+check(TodoList:[Todo:{ name = "a", done = false }], "a")

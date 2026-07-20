@@ -3,6 +3,7 @@ use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use crate::components::r#type::VecType;
 use crate::processes::type_checking::unification_map::UnificationMap;
@@ -92,13 +93,33 @@ impl FunctionType {
     }
 
     fn lift_and_unification(context: &Context, types: &[Type], param_types: &[Type]) -> Option<UnificationMap> {
+        // A non-opaque alias hiding an array (`type Numbers <- [int]`) must
+        // vectorize like the array itself, so alias arguments whose reduction
+        // is a Vec are replaced by that Vec before size detection and lifting
+        // (an opaque alias reduces to itself and stays scalar, matching the
+        // representation rule in `Context::atomic_array_elem`).
+        let types: Vec<Type> = types
+            .iter()
+            .map(|typ| match typ {
+                Type::Alias(_, _, _, _) => match typ.reduce(context) {
+                    reduced @ Type::Vec(_, _, _, _) => reduced,
+                    _ => typ.clone(),
+                },
+                _ => typ.clone(),
+            })
+            .collect();
         let unique_types = types.iter().map(|x| x.get_size_type()).collect::<HashSet<_>>();
         validate_vectorization(unique_types)
-            .and_then(|hash: HashSet<(i32, VecType, Type)>| hash.iter().cloned().max_by_key(|x| x.0))
+            // The lift target must be an actual array entry, never a scalar:
+            // an unknown-size array carries index 0, which would otherwise
+            // lose the max_by_key against a scalar's rank of 1.
+            .and_then(|hash: HashSet<(i32, VecType, Type)>| {
+                hash.iter().cloned().max_by_key(|x| (x.1 != VecType::Empty, x.0))
+            })
             .map(|(index, vectyp, _)| (vectyp, index))
             .and_then(|max_index| {
                 context
-                    .get_unification_map(&lift(&max_index, types), &lift(&max_index, param_types))
+                    .get_unification_map(&lift(&max_index, &types), &lift(&max_index, param_types))
                     .map(|um| um.set_vectorized(max_index.0.clone(), max_index.1))
             })
     }

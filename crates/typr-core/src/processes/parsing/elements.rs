@@ -27,8 +27,8 @@ use nom::bytes::complete::tag;
 use nom::bytes::complete::take_until;
 use nom::bytes::complete::take_while1;
 use nom::character::complete::alpha1;
-use nom::character::complete::anychar;
 use nom::character::complete::alphanumeric1;
+use nom::character::complete::anychar;
 use nom::character::complete::char;
 use nom::character::complete::digit1;
 use nom::character::complete::line_ending;
@@ -191,12 +191,7 @@ pub fn decode_escapes(s: &str) -> String {
 }
 
 pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
-    let res = delimited(
-        char('"'),
-        opt(escaped(is_not("\\\""), '\\', anychar)),
-        char('"'),
-    )
-    .parse(input);
+    let res = delimited(char('"'), opt(escaped(is_not("\\\""), '\\', anychar)), char('"')).parse(input);
     match res {
         Ok((s, st)) => {
             let content = st.clone().map(|span| decode_escapes(span.as_ref())).unwrap_or_default();
@@ -214,12 +209,7 @@ pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
 }
 
 pub fn single_quotes(input: Span) -> IResult<Span, Lang> {
-    let res = delimited(
-        char('\''),
-        opt(escaped(is_not("\\'"), '\\', anychar)),
-        char('\''),
-    )
-    .parse(input);
+    let res = delimited(char('\''), opt(escaped(is_not("\\'"), '\\', anychar)), char('\'')).parse(input);
     match res {
         Ok((s, st)) => {
             let content = st.clone().map(|span| decode_escapes(span.as_ref())).unwrap_or_default();
@@ -413,6 +403,30 @@ pub fn r_function(s: Span) -> IResult<Span, Lang> {
                 },
             ))
         }
+        Err(r) => Err(r),
+    }
+}
+
+/// `R { ... }` — an untyped raw-R value block. The body is captured
+/// verbatim, brace-balanced, via `parse_block` (the same technique as
+/// `r_function` above) and never re-parsed as TypR, unlike `@{...}@`
+/// (`vectorial_bloc` below), which re-lexes its contents as a sequence of
+/// TypR elements and so can't hold real R-only syntax (pipes, formulas,
+/// NSE). `parse_block`'s output already includes the delimiting `{`/`}`,
+/// and R's own `{ ... }` is itself a value-producing expression (it
+/// evaluates to its last statement), so the captured text is emitted
+/// straight through at transpile time with no wrapper/call — see
+/// `Lang::RBlock` in `transpiling/mod.rs`.
+pub fn r_block(s: Span) -> IResult<Span, Lang> {
+    let res = (terminated(tag("R"), multispace0), terminated(parse_block, multispace0)).parse(s);
+    match res {
+        Ok((s, (kw, body))) => Ok((
+            s,
+            Lang::RBlock {
+                value: body.to_string(),
+                help_data: kw.into(),
+            },
+        )),
         Err(r) => Err(r),
     }
 }
@@ -1509,6 +1523,7 @@ pub fn single_element(s: Span) -> IResult<Span, Lang> {
             record,
             keyword_positional_record_exp,
             r_function,
+            r_block,
             extern_block,
             function,
             tuple_exp,
@@ -1675,6 +1690,34 @@ mod tests {
         println!("extern_block no-params: {:?}", res.as_ref().map(|l| l.simple_print()));
         assert!(res.is_ok(), "extern_block no-params should parse");
         assert!(matches!(res.unwrap(), Lang::ExternBlock { .. }));
+    }
+
+    #[test]
+    fn test_r_block_parse() {
+        let res = "R { sum(c(1,2,3)) }".parse::<Lang>();
+        assert!(res.is_ok(), "r_block should parse successfully");
+        match res.unwrap() {
+            Lang::RBlock { value, .. } => assert_eq!(value, "{ sum(c(1,2,3)) }"),
+            other => panic!("expected RBlock, got {}", other.simple_print()),
+        }
+    }
+
+    #[test]
+    fn test_r_block_multiline_with_pipe() {
+        // Real R-only syntax (`%>%`) has no TypR equivalent and would break
+        // `@{...}@` (which re-lexes as TypR elements) — `R { ... }` must
+        // accept it verbatim, brace-balanced, across multiple lines.
+        let src = "R {\n  df %>%\n    filter(x > 1) %>%\n    mutate(z = if (y) { 1 } else { 2 })\n}";
+        let res = src.parse::<Lang>();
+        assert!(res.is_ok(), "multiline r_block with nested braces should parse");
+        assert!(matches!(res.unwrap(), Lang::RBlock { .. }));
+    }
+
+    #[test]
+    fn test_r_block_transpiles_to_bare_r_block() {
+        let fp = FluentParser::new().push("R { 1 + 2 }").run();
+        let r_code = fp.get_r_code().iter().cloned().collect::<Vec<_>>().join("\n");
+        assert_eq!(r_code.trim(), "{ 1 + 2 }");
     }
 
     #[test]

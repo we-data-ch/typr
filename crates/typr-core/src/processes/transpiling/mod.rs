@@ -831,6 +831,19 @@ impl RTranslatable<(String, Context)> for Lang {
                 arguments: vals,
                 ..
             } => {
+                // The vector lift decided at type-check time (this node
+                // becoming a `Lang::VecFunctionApp`) never survives inside a
+                // function body: `function()` returns the original expression
+                // and `Lines`/`Scope` typing only rebuilds its last statement,
+                // so a lifted call reaches transpilation as a plain
+                // FunctionApp again. Re-derive it on the fly — same pattern
+                // as the Module arm's PartialApp desugaring — and transpile
+                // the lifted node instead (no recursion back here: we only
+                // delegate when the variant changed).
+                let retyped = typing(cont, self).lang;
+                if matches!(retyped, Lang::VecFunctionApp { .. }) {
+                    return retyped.to_r(cont);
+                }
                 let var = Var::try_from(exp.clone()).unwrap();
 
                 let (exp_str, cont1) = exp.to_r(cont);
@@ -1452,6 +1465,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 )
             }
             Lang::VecBlock { value: bloc, .. } => (bloc.to_string(), cont.clone()),
+            Lang::RBlock { value: bloc, .. } => (bloc.to_string(), cont.clone()),
             Lang::Library { value: name, .. } => (format!("library({})", name), cont.clone()),
             Lang::Match {
                 target: exp, branches, ..
@@ -3148,6 +3162,59 @@ mod tests {
         assert!(
             !r_code.contains("`new_truc` <- \n"),
             "partial app must not transpile to an empty RHS: {}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_fn_body_lifted_call_is_vapply_not_direct() {
+        // The `Lang::VecFunctionApp` built by the type-checker's vector lift
+        // never survives inside a function body (`function()` returns the
+        // original expression; `Lines` typing only rebuilds its last
+        // statement), so the FunctionApp transpile arm re-derives the lift on
+        // the fly. Without it, a non-element-wise callee (`if` in the body)
+        // was called directly on the whole vector — a fatal R error since 4.2.
+        let r_code = FluentParser::new()
+            .set_context(Context::default())
+            .push("let clamp <- fn(i: int): int { if (i > 2) { 2 } else { i } };")
+            .run()
+            .push("let clamp_all <- fn(v: [#N, int]): [#N, int] { clamp(v) };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("vapply(v, function(.typr_x) clamp(.typr_x)"),
+            "fn-body lifted call over a non-vectorizable callee must vapply: {}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_fn_body_lifted_call_over_record_array_alias_uses_vec_apply() {
+        // Same fn-body re-lift, composite flavor: an alias of `[Record]`
+        // (typed_vec representation) must go through `vec_apply`, never a
+        // direct call that would S3-dispatch on the typed_vec itself.
+        let r_code = FluentParser::new()
+            .set_context(Context::default())
+            .push("type Todo <- list { name: char, done: bool };")
+            .run()
+            .push("type TodoList <- [Todo];")
+            .run()
+            .push("let check_if_name <- fn(self: Todo, name: char): Todo { self };")
+            .run()
+            .push("let check <- fn(self: TodoList, name: char): TodoList { check_if_name(self, name) };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("vec_apply(check_if_name, self, name)"),
+            "fn-body lifted call over a record-array alias must vec_apply: {}",
             r_code
         );
     }

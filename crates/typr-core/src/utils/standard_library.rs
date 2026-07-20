@@ -148,7 +148,12 @@ pub fn validate_vectorization(set: HashSet<(i32, VecType, Type)>) -> Option<Hash
             }
         }
 
-        if set.iter().max_by(|x, y| x.0.cmp(&y.0)).map(|(i, _, _)| *i).unwrap_or(1) > 1 {
+        // Vectorize as soon as at least one argument is an actual array/vec
+        // value. Index 0 means an unknown or generic size (`type A <- [int]`,
+        // `[#N, int]` — see `Type::get_index`), which is just as liftable as a
+        // literal size, so gating on a concrete index > 1 would wrongly keep
+        // those (and single-element literals) scalar.
+        if set.iter().any(|(_, vectyp, _)| *vectyp != VecType::Empty) {
             Some(set)
         } else {
             None

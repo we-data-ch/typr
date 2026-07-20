@@ -64,7 +64,7 @@ StoryBoard(objects = objects, snapshots = typed_vec(dim = c(0)) |> as.Array2())
 
 `snap` <- Snapshot(time = animation$time, objects = objs)
 
-StoryBoard(objects = objs, snapshots = extend(self$snapshots, snap))
+StoryBoard(objects = objs, snapshots = vec_extend(self$snapshots, snap))
 }) |> as.Generic()
 
 #' @method snapshots StoryBoard

@@ -1,0 +1,9 @@
+let incr <- fn(i: int): int {
+    i + 1
+};
+
+let g <- fn(v: [#N, int]): [#N, int] {
+    incr(v)
+};
+
+g([1, 2, 3])

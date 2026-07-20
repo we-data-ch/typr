@@ -1,0 +1,13 @@
+let clamp <- fn(i: int): int {
+    if (i > 2) {
+        2
+    } else {
+        i
+    }
+};
+
+let clamp_all <- fn(v: [#N, int]): [#N, int] {
+    clamp(v)
+};
+
+clamp_all([1, 2, 3, 4])

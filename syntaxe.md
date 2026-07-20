@@ -458,16 +458,28 @@ extern (x: int, y: char) -> char r#"paste0(x, y)"#;   # corps R brut, typé en e
 
 function(x, y) { x + y }     # fonction R brute non typée (RFunction), corps capturé tel quel
 
+R {                             # bloc R brut non typé (RBlock) : valeur immédiate, pas un appel
+  df %>%
+    dplyr::filter(x > 1) %>%
+    dplyr::mutate(z = y + 1)
+}
+
 JS { /* ... */ }               # bloc JavaScript brut (cible JS)
 
 Class("data.frame", "tbl")    # type dénotant une classe R existante (RClass)
 
-@{ 1 + x * 2 }@                # bloc vectoriel : capture littérale, non re-parsée élément par élément
+@{ 1 + x * 2 }@                # bloc vectoriel : re-parsé comme une séquence d'éléments TypR
+                                # (littéraux/appels/variables) — pas du R arbitraire, contrairement à `R { ... }`
 ```
 
 Ce sont les points de sortie délibérés du système de types : `extern` garde une signature
-vérifiée par TypR autour d'un corps R opaque ; `function(...)` / `JS { ... }` n'ont aucune
-vérification du tout.
+vérifiée par TypR autour d'un corps R opaque ; `function(...)` / `R { ... }` / `JS { ... }` n'ont
+aucune vérification du tout. `R { ... }` capture son corps tel quel, accolades équilibrées (comme
+`function(...)`), et transpile en un simple bloc R `{ ... }` — qui s'évalue déjà à la valeur de sa
+dernière instruction, donc aucun wrapper ni appel n'est émis. C'est la forme à privilégier pour du
+R idiomatique difficilement typable (pipes `%>%`/`|>`, NSE dplyr, formules `~`, ...) qu'on veut
+juste utiliser pour produire une valeur, sans se soucier du système de types — contrairement à
+`@{ ... }@`, dont le contenu doit rester une séquence d'éléments TypR valides.
 
 ---
 

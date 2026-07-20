@@ -176,6 +176,16 @@ pub enum Lang {
         value: String,
         help_data: HelpData,
     },
+    /// `R { ... }` — an untyped raw-R value block (see `syntaxe.md` §12).
+    /// Unlike `VecBlock`, the body is captured verbatim (brace-balanced, via
+    /// `parse_block`) and never re-parsed as TypR — it can hold any real R
+    /// syntax (pipes, formulas, NSE). Transpiles to a bare R `{ ... }`
+    /// expression, which already evaluates to its last statement's value, so
+    /// no wrapper/call is emitted.
+    RBlock {
+        value: String,
+        help_data: HelpData,
+    },
     Library {
         value: String,
         help_data: HelpData,
@@ -578,6 +588,7 @@ impl PartialEq for Lang {
             (Lang::Test { value: a, .. }, Lang::Test { value: b, .. }) => a == b,
             (Lang::Return { value: a, .. }, Lang::Return { value: b, .. }) => a == b,
             (Lang::VecBlock { value: a, .. }, Lang::VecBlock { value: b, .. }) => a == b,
+            (Lang::RBlock { value: a, .. }, Lang::RBlock { value: b, .. }) => a == b,
             (Lang::Lambda { parameters: a, .. }, Lang::Lambda { parameters: b, .. }) => a == b,
             (Lang::Library { value: a, .. }, Lang::Library { value: b, .. }) => a == b,
             (Lang::Exp { value: a, .. }, Lang::Exp { value: b, .. }) => a == b,
@@ -982,6 +993,7 @@ impl Lang {
             Lang::Test { help_data: h, .. } => h,
             Lang::Return { help_data: h, .. } => h,
             Lang::VecBlock { help_data: h, .. } => h,
+            Lang::RBlock { help_data: h, .. } => h,
             Lang::Lambda { help_data: h, .. } => h,
             Lang::Library { help_data: h, .. } => h,
             Lang::Exp { help_data: h, .. } => h,
@@ -1084,6 +1096,7 @@ impl Lang {
             Lang::Test { .. } => "Test".to_string(),
             Lang::Return { .. } => "Return".to_string(),
             Lang::VecBlock { .. } => "VecBloc".to_string(),
+            Lang::RBlock { .. } => "RBlock".to_string(),
             Lang::Lambda { .. } => "Lambda".to_string(),
             Lang::Library { .. } => "Library".to_string(),
             Lang::Exp { .. } => "Exp".to_string(),
@@ -1495,6 +1508,7 @@ impl From<Lang> for HelpData {
             Lang::Lambda { help_data: h, .. } => h,
             Lang::Function { help_data: h, .. } => h,
             Lang::VecBlock { help_data: h, .. } => h,
+            Lang::RBlock { help_data: h, .. } => h,
             Lang::If { help_data: h, .. } => h,
             Lang::Assign { help_data: h, .. } => h,
             Lang::Union(_, _, h) => h,

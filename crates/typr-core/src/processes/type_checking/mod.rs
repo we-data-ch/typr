@@ -643,6 +643,7 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
         | Lang::Test { .. }
         | Lang::Return { .. }
         | Lang::VecBlock { .. }
+        | Lang::RBlock { .. }
         | Lang::Exp { .. }
         | Lang::Vector { .. }
         | Lang::Not { .. }
@@ -1667,6 +1668,7 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             TypeContext::new(Type::Tuple(types, h.clone()), expr.clone(), context.clone()).with_errors(errors)
         }
         Lang::VecBlock { help_data: h, .. } => TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone()),
+        Lang::RBlock { help_data: h, .. } => TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone()),
         Lang::RFunction { help_data: h, .. } => {
             TypeContext::new(Type::UnknownFunction(h.clone()), expr.clone(), context.clone())
         }

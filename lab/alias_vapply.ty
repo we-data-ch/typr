@@ -1,0 +1,11 @@
+type Numbers <- [int];
+
+let clamp <- fn(i: int): int {
+    if (i > 2) {
+        2
+    } else {
+        i
+    }
+};
+
+clamp(Numbers:[1, 2, 3, 4])
