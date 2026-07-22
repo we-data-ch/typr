@@ -474,7 +474,7 @@ fn typeconstructor_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 /// alias names are forbidden outright (not legalized) to avoid colliding with generics.
 fn single_letter_type_name_exp(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
-        opt(terminated(tag("@pub"), multispace0)),
+        opt(terminated(alt((tag("@export"), tag("@pub"))), multispace0)),
         terminated(alt((tag("type"), tag("opaque"))), multispace0),
         single_letter_type_alias,
         equality_operator,
@@ -503,6 +503,7 @@ fn single_letter_type_name_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     parameters: params,
                     target_type: ty,
                     is_public: false,
+                    is_export: false,
                     help_data: h,
                 }],
             ))
@@ -538,6 +539,7 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
                     parameters: params,
                     target_type: ty,
                     is_public: false,
+                    is_export: false,
                     help_data: h,
                 },
             ))
@@ -548,12 +550,16 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (opt(terminated(tag("@pub"), multispace0)), base_type_exp).parse(s);
+    let res = (
+        opt(terminated(alt((tag("@export"), tag("@pub"))), multispace0)),
+        base_type_exp,
+    )
+        .parse(s);
     match res {
         Ok((
             s,
             (
-                Some(_pu),
+                Some(annotation),
                 Lang::Alias {
                     identifier: var,
                     parameters: params,
@@ -562,16 +568,22 @@ fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     ..
                 },
             ),
-        )) => Ok((
-            s,
-            vec![Lang::Alias {
-                identifier: var,
-                parameters: params,
-                target_type: typ,
-                is_public: true,
-                help_data: h,
-            }],
-        )),
+        )) => {
+            // `@export` → public + exported in R package (mirrors `Let`'s RFC-TR-032).
+            // `@pub`    → public only.
+            let is_exp = *annotation.fragment() == "@export";
+            Ok((
+                s,
+                vec![Lang::Alias {
+                    identifier: var,
+                    parameters: params,
+                    target_type: typ,
+                    is_public: true,
+                    is_export: is_exp,
+                    help_data: h,
+                }],
+            ))
+        }
         Ok((
             s,
             (
@@ -593,6 +605,7 @@ fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     parameters: params,
                     target_type: typ,
                     is_public: false,
+                    is_export: false,
                     help_data: h,
                 }],
             ))
@@ -664,6 +677,7 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
                     parameters: params,
                     target_type: ty,
                     is_public: false,
+                    is_export: false,
                     help_data: h,
                 },
             ))
@@ -674,12 +688,16 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
-    let res = (opt(terminated(tag("@pub"), multispace0)), base_opaque_exp).parse(s);
+    let res = (
+        opt(terminated(alt((tag("@export"), tag("@pub"))), multispace0)),
+        base_opaque_exp,
+    )
+        .parse(s);
     match res {
         Ok((
             s,
             (
-                Some(_pu),
+                Some(annotation),
                 Lang::Alias {
                     identifier: var,
                     parameters: params,
@@ -689,6 +707,7 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                 },
             ),
         )) => {
+            let is_exp = *annotation.fragment() == "@export";
             let vari = Var::from_language(var.deref().clone())
                 .unwrap()
                 .set_opacity(true)
@@ -700,6 +719,7 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     parameters: params,
                     target_type: typ,
                     is_public: true,
+                    is_export: is_exp,
                     help_data: h,
                 }],
             ))
@@ -728,6 +748,7 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
                     parameters: params,
                     target_type: typ,
                     is_public: false,
+                    is_export: false,
                     help_data: h,
                 }],
             ))

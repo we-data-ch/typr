@@ -296,6 +296,7 @@ impl Var {
             parameters: vec![],
             target_type: builder::unknown_function_type(),
             is_public: false,
+            is_export: false,
             help_data: self.get_help_data(),
         }
     }

@@ -120,6 +120,12 @@ pub enum Lang {
         parameters: Vec<Type>,
         target_type: Type,
         is_public: bool,
+        /// When true, the `@export` annotation was applied: the generated
+        /// constructor function is emitted with `#' @export` (package API),
+        /// same convention as `Lang::Let::is_export` (RFC-TR-032). Implies
+        /// `is_public`.
+        #[serde(default)]
+        is_export: bool,
         help_data: HelpData,
     },
     Array {
@@ -1370,6 +1376,7 @@ impl Lang {
                 parameters: types,
                 target_type: typ,
                 is_public: is_pub,
+                is_export: is_exp,
                 help_data: h,
             } => {
                 let expr = Lang::Operator {
@@ -1383,6 +1390,7 @@ impl Lang {
                     parameters: types,
                     target_type: typ,
                     is_public: is_pub,
+                    is_export: is_exp,
                     help_data: h,
                 }
             }

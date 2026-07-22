@@ -1510,6 +1510,7 @@ impl RTranslatable<(String, Context)> for Lang {
             Lang::Alias {
                 identifier: ident,
                 target_type: typ,
+                is_export,
                 ..
             } => {
                 let name = Var::from_language(*ident.clone())
@@ -1538,7 +1539,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         .unwrap_or_else(|| typ.clone()),
                     _ => typ.clone(),
                 };
-                match &typ_for_dispatch {
+                let (alias_code, alias_cont) = match &typ_for_dispatch {
                     Type::Record(fields, _) => {
                         let mut sorted_fields: Vec<&ArgumentType> = fields.iter().collect();
                         sorted_fields.sort_by_key(|f| f.get_argument_str());
@@ -1989,7 +1990,17 @@ impl RTranslatable<(String, Context)> for Lang {
                     // was never created.
                     Type::Alias(target_name, ..) => (format!("{name} <- {target_name}"), cont.clone()),
                     _ => ("".to_string(), cont.clone()),
-                }
+                };
+                // RFC-TR-032 parity with `Lang::Let`: `@export` prepends
+                // `#' @export` so the generated constructor becomes real R
+                // package API (picked up by roxygen2/NAMESPACE), instead of
+                // just being visible to other TypR modules like plain `@pub`.
+                let alias_code = if *is_export && !alias_code.is_empty() {
+                    format!("#' @export\n{}", alias_code)
+                } else {
+                    alias_code
+                };
+                (alias_code, alias_cont)
             }
             Lang::UnionConstructor {
                 variant_name, fields, ..
@@ -2318,6 +2329,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     if let Lang::Alias {
                         identifier: var,
                         is_public: true,
+                        is_export,
                         target_type,
                         ..
                     } = lang
@@ -2326,6 +2338,14 @@ impl RTranslatable<(String, Context)> for Lang {
                             if let Some(v) = Var::from_language(*var.clone()) {
                                 let alias_name = v.get_name();
                                 exports.push(format!("{}${} <- {}", name_str, alias_name, alias_name));
+
+                                // RFC-TR-032 parity: @export type aliases also get a
+                                // top-level package-level re-export, same as @export
+                                // functions above.
+                                if *is_export {
+                                    package_exports
+                                        .push(format!("#' @export\n{} <- {}${}", alias_name, name_str, alias_name));
+                                }
                             }
                         }
                     }
@@ -3426,6 +3446,33 @@ mod tests {
     }
 
     #[test]
+    fn test_export_type_alias_prepends_roxygen_tag_on_constructor() {
+        let r_code = FluentParser::new()
+            .push("@export type Point <- list { x: int, y: int };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(r_code.contains("#' @export"), "missing #' @export tag: {}", r_code);
+        assert!(r_code.contains("Point <- function"), "missing constructor: {}", r_code);
+    }
+
+    #[test]
+    fn test_pub_type_alias_does_not_get_roxygen_tag() {
+        let r_code = FluentParser::new()
+            .push("@pub type Point <- list { x: int, y: int };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!r_code.contains("#' @export"), "unexpected #' @export tag: {}", r_code);
+    }
+
+    #[test]
     fn test_export_in_module_is_public_and_package_exported() {
         let r_code = FluentParser::new()
             .push("module Math { @export let norm <- fn(x: int): int { x }; };")
@@ -3443,6 +3490,29 @@ mod tests {
         assert!(r_code.contains("#' @export"), "missing roxygen export tag: {}", r_code);
         assert!(
             r_code.contains("norm <- Math$norm"),
+            "missing package-level re-export: {}",
+            r_code
+        );
+    }
+
+    #[test]
+    fn test_export_type_alias_in_module_is_public_and_package_exported() {
+        let r_code = FluentParser::new()
+            .push("module Shapes { @export type Point <- list { x: int, y: int }; };")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_code.contains("Shapes$Point <- Point"),
+            "missing module export: {}",
+            r_code
+        );
+        assert!(r_code.contains("#' @export"), "missing roxygen export tag: {}", r_code);
+        assert!(
+            r_code.contains("Point <- Shapes$Point"),
             "missing package-level re-export: {}",
             r_code
         );

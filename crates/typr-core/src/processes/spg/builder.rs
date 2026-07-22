@@ -132,6 +132,7 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
             identifier,
             target_type,
             is_public,
+            is_export,
             help_data,
             ..
         } => {
@@ -146,7 +147,7 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                 kind,
                 name,
                 module_path: module_path.to_vec(),
-                visibility: to_visibility(*is_public, false),
+                visibility: to_visibility(*is_public, *is_export),
                 doc: doc_map.get(&help_data.get_offset()).cloned(),
                 source: source_from_help(help_data),
                 payload,
