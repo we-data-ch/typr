@@ -431,7 +431,13 @@ fn verify_named_generics(
                 false
             }
         }
-        concrete_param => concrete.is_subtype_raw(concrete_param, context),
+        // Reduce first: an interface-bound slot (e.g. `Eq` in `[#N, Eq]`)
+        // arrives here as the raw, unreduced alias, and `is_subtype_raw`'s
+        // `(_, Interface)` arm only matches a literal `Type::Interface` —
+        // without reducing, `Point.is_subtype_raw(Alias("Eq"), _)` falls
+        // through to a plain (and false) alias-name comparison instead of
+        // the interface-satisfaction check.
+        concrete_param => concrete.is_subtype_raw(&reduce_type(context, concrete_param), context),
     }
 }
 
@@ -481,6 +487,68 @@ fn apply_named_generics(ty: &Type, subs: &std::collections::HashMap<String, Type
     }
 }
 
+// Interface-typed slots (e.g. `Eq` in `[#N, Eq]`) are not `Type::Generic`, so
+// `collect_named_generics`/`apply_named_generics` above leave them untouched —
+// `subs` is a name-keyed map and an interface position has no generic name to
+// key on. `collect_interface_bindings`/`substitute_interface_types` mirror the
+// same idea structurally instead (`Vec<(Type, Type)>`, matched by type
+// equality rather than by name), so a signature mixing a real generic with an
+// interface-bound element — `@unique: (a: [#N, Eq]) -> [#N, Eq];` — keeps the
+// caller's concrete element type (e.g. `Point`) in its inferred return type,
+// same desugaring as `try_interface_subtype_match` (`fn(i: I): I => forall
+// A: I. A -> A`) but reachable even when `try_named_generic_match` wins the
+// candidate first (it always does when the signature also has a true generic
+// like the array's `#N` size).
+fn collect_interface_bindings(concrete: &Type, param: &Type, context: &Context, mapping: &mut Vec<(Type, Type)>) {
+    let reduced_param = reduce_type(context, param);
+    if facets::interface_facet(context, &reduced_param).is_some() {
+        // Key by the *raw* (unreduced) `param` node — e.g. `Type::Alias("Eq",
+        // …)` — not `reduced_param`: `apply_named_generics` preserves aliases
+        // structurally unchanged, so `substitute_interface_types` walks a
+        // tree that still has the unreduced alias node and must match it.
+        if concrete.is_subtype_raw(&reduced_param, context) && !mapping.iter().any(|(k, _)| k == param) {
+            mapping.push((param.clone(), concrete.clone()));
+        }
+        return;
+    }
+    match (concrete, param) {
+        (Type::Vec(_, size_c, elem_c, _), Type::Vec(_, size_p, elem_p, _)) => {
+            collect_interface_bindings(size_c, size_p, context, mapping);
+            collect_interface_bindings(elem_c, elem_p, context, mapping);
+        }
+        (Type::Function(params_c, ret_c, _), Type::Function(params_p, ret_p, _)) => {
+            for (pc, pp) in params_c.iter().zip(params_p.iter()) {
+                collect_interface_bindings(&pc.get_type(), &pp.get_type(), context, mapping);
+            }
+            collect_interface_bindings(ret_c, ret_p, context, mapping);
+        }
+        _ => {}
+    }
+}
+
+fn substitute_interface_types(ty: &Type, mapping: &[(Type, Type)]) -> Type {
+    if let Some((_, concrete)) = mapping.iter().find(|(iface, _)| iface == ty) {
+        return concrete.clone();
+    }
+    match ty {
+        Type::Vec(vt, size, elem, h) => Type::Vec(
+            vt.clone(),
+            Box::new(substitute_interface_types(size, mapping)),
+            Box::new(substitute_interface_types(elem, mapping)),
+            h.clone(),
+        ),
+        Type::Function(params, ret, h) => Type::Function(
+            params
+                .iter()
+                .map(|p| ArgumentType::new(&p.get_argument_str(), &substitute_interface_types(&p.get_type(), mapping)))
+                .collect(),
+            Box::new(substitute_interface_types(ret, mapping)),
+            h.clone(),
+        ),
+        _ => ty.clone(),
+    }
+}
+
 fn try_named_generic_match(all_signatures: &[FunctionType], types: &[Type], context: &Context) -> Option<FunctionType> {
     for sig in all_signatures {
         let param_types = sig.get_param_types();
@@ -502,7 +570,16 @@ fn try_named_generic_match(all_signatures: &[FunctionType], types: &[Type], cont
         if !valid {
             continue;
         }
+        let mut iface_mapping = Vec::new();
+        for (arg, param) in types.iter().zip(param_types.iter()) {
+            collect_interface_bindings(arg, param, context, &mut iface_mapping);
+        }
         let new_return = apply_named_generics(&sig.get_return_type(), &subs);
+        let new_return = if iface_mapping.is_empty() {
+            new_return
+        } else {
+            substitute_interface_types(&new_return, &iface_mapping)
+        };
         if !matches!(new_return, Type::Generic(_, _)) {
             // Also apply subs to argument types so that specialize_lambdas can
             // see the concrete expected type for each lambda parameter (e.g. T
@@ -526,7 +603,12 @@ fn try_named_generic_match(all_signatures: &[FunctionType], types: &[Type], cont
 /// parameter (using is_subtype_raw for interface params, subtype check otherwise).
 /// When the return type reduces to the same interface as one of the matched
 /// parameters, it is replaced by the concrete argument type for that parameter.
-/// This implements the desugaring: fn(i: I): I  =>  forall A: I. A -> A.
+/// This implements the desugaring: fn(i: I): I  =>  forall A: I. A -> A. Also
+/// covers one level of array wrapping (`has_interface_facet`, shared with
+/// FILTERING 2.5's candidate selection): `fn(a: [N, I]): [N, I]` desugars the
+/// same way to `forall A: I. [N, A] -> [N, A]`, so `unique`/`sort`-shaped
+/// stdlib signatures keep the caller's concrete element type (e.g. `Point`)
+/// instead of widening the result to `[N, I]`.
 fn try_interface_subtype_match(
     candidates: &[FunctionType],
     arg_types: &[Type],
@@ -542,7 +624,7 @@ fn try_interface_subtype_match(
         let mut interface_to_concrete: Vec<(Type, Type)> = Vec::new();
         let all_match = param_types.iter().zip(arg_types.iter()).all(|(param, arg)| {
             let reduced_param = reduce_type(context, param);
-            if facets::interface_facet(context, &reduced_param).is_some() {
+            if has_interface_facet(context, &reduced_param) {
                 if arg.is_subtype_raw(&reduced_param, context) {
                     if !interface_to_concrete.iter().any(|(k, _)| k == &reduced_param) {
                         interface_to_concrete.push((reduced_param, arg.clone()));

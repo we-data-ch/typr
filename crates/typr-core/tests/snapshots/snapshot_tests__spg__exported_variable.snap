@@ -1,0 +1,26 @@
+---
+source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 442
+expression: json
+---
+{
+  "@context": "https://typr-lang.dev/spg/v1/context.jsonld",
+  "package": "mypkg",
+  "version": "0.1.0",
+  "nodes": [
+    {
+      "id": "variable:pi",
+      "kind": "variable",
+      "name": "pi",
+      "module_path": [],
+      "visibility": "export",
+      "doc": null,
+      "source": null,
+      "payload": {
+        "kind": "variable",
+        "type_str": "num"
+      }
+    }
+  ],
+  "edges": []
+}

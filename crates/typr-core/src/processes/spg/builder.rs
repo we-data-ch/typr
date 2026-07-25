@@ -125,6 +125,27 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                         returns,
                     },
                 });
+            } else if !matches!(r#type, Type::Empty(_)) {
+                // A plain `let name: T <- expr;` binding. Only the explicitly
+                // annotated case is documented — an un-annotated binding keeps
+                // `r#type == Type::Empty` even after type-checking (see
+                // `let_expression.rs`: the stored `ty` is the user's own
+                // annotation, never the inferred type), so there is no static
+                // type to show without threading a `Context` through the SPG
+                // builder, same tradeoff `--checked` makes for the same reason.
+                let id = Node::make_id(&NodeKind::Variable, module_path, &name);
+                spg.add_node(Node {
+                    id,
+                    kind: NodeKind::Variable,
+                    name,
+                    module_path: module_path.to_vec(),
+                    visibility: to_visibility(*is_public, *is_export),
+                    doc: doc_map.get(&help_data.get_offset()).cloned(),
+                    source: source_from_help(help_data),
+                    payload: NodePayload::Variable {
+                        type_str: r#type.to_string(),
+                    },
+                });
             }
         }
 

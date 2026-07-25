@@ -668,28 +668,16 @@ pub fn check_file(path: &PathBuf) {
 }
 
 /// Build a ROxygen2 comment block for a function node from the SPG.
-/// Returns an empty string if there is nothing worth emitting.
-fn roxygen_function_block(doc: Option<&str>, params: &[(String, String)], returns: &str) -> String {
+///
+/// Deliberately does *not* repeat the node's title/description here: a TypR
+/// doc-comment is itself a real `Lang::Comment` AST node sitting right above
+/// the declaration, so the transpiler already emits it verbatim as a plain
+/// `# ...` R comment immediately before this block gets injected. Re-stating
+/// the same text as `#' ...` roxygen prose would just duplicate it — this
+/// block only adds information the plain comment doesn't carry (the
+/// per-parameter/return types).
+fn roxygen_function_block(params: &[(String, String)], returns: &str) -> String {
     let mut lines: Vec<String> = Vec::new();
-    if let Some(d) = doc {
-        let mut it = d.lines();
-        if let Some(title) = it.next() {
-            let t = title.trim();
-            if !t.is_empty() {
-                lines.push(format!("#' {}", t));
-            }
-        }
-        let rest: Vec<&str> = it.map(str::trim).filter(|l| !l.is_empty()).collect();
-        if !rest.is_empty() {
-            lines.push("#'".to_string());
-            for l in rest {
-                lines.push(format!("#' {}", l));
-            }
-        }
-        if !lines.is_empty() {
-            lines.push("#'".to_string());
-        }
-    }
     for (name, ty) in params {
         lines.push(format!("#' @param {} \\code{{{}}}", name, ty));
     }
@@ -699,12 +687,52 @@ fn roxygen_function_block(doc: Option<&str>, params: &[(String, String)], return
     lines.join("\n")
 }
 
+/// Build a ROxygen2 comment block for a plain exported/public variable's
+/// type — the `@format` analogue of a function's `@param`/`@return` block,
+/// since a `name <- <value>` binding isn't function-shaped in the generated R.
+/// Same rationale as `roxygen_function_block` for not repeating the doc-comment.
+fn roxygen_variable_block(type_str: &str) -> String {
+    format!("#' @format \\code{{{}}}", type_str)
+}
+
+/// P1 (`name <- function`) / P3 (`name <- Mod$name`) injection pair shared by
+/// every node whose generated R is a `name <- function(...)` constructor
+/// (typed functions, and record/scalar alias constructor/annotator/validator
+/// pipelines — see the `Lang::Alias` transpilation arm). Unlike a typed
+/// function, an alias constructor never gets an S3 `@method` stub, so there
+/// is no P2 pattern here.
+fn ctor_roxygen_entries(node: &typr_core::processes::spg::model::Node, block: &str) -> Option<Vec<(String, String)>> {
+    if block.is_empty() {
+        return None;
+    }
+    let name = &node.name;
+    let mut entries = vec![(
+        format!("#' @export\n{} <- function", name),
+        format!("{}\n#' @export\n{} <- function", block, name),
+    )];
+    if !node.module_path.is_empty() {
+        let mod_path = node.module_path.join("$");
+        entries.push((
+            format!("#' @export\n{} <- {}${}", name, mod_path, name),
+            format!("{}\n#' @export\n{} <- {}${}", block, name, mod_path, name),
+        ));
+    }
+    Some(entries)
+}
+
 /// Build (pattern, replacement) pairs for ROxygen2 injection from the SPG.
 ///
-/// Three patterns per function node:
-/// - P2: S3 method     `#' @export\n#' @method name Class`  (typed functions)
-/// - P1: plain fn      `#' @export\nname <- function`        (untyped / Empty)
-/// - P3: re-export     `#' @export\nname <- Module$name`     (inline module @export)
+/// Per-payload injection patterns, all keyed off the literal `#' @export`
+/// tag the transpiler already emits at that binding's declaration site:
+/// - `Function`: P2 S3 method (`#' @export\n#' @method name Class`), P1 plain
+///   fn (`#' @export\nname <- function`), P3 re-export
+///   (`#' @export\nname <- Module$name`).
+/// - `Record`/`Alias` (record and scalar type aliases): P1/P3 only, via
+///   `ctor_roxygen_entries` — their generated constructor is also
+///   `name <- function(...)`, so they reuse the same patterns with a
+///   `@param`/`@return` block built from their fields/underlying type.
+/// - `Variable` (a plain annotated `let`): its own P1'/P3' pair, since the
+///   generated R is a bare assignment (`name <- value`), not a function.
 ///
 /// P1/P2 match in main.R (top-level) and in external module R files.
 /// P3 matches inline-module re-exports in main.R; is a no-op in module files.
@@ -713,33 +741,65 @@ fn build_roxygen_entries(spg: &Spg) -> Vec<(String, String)> {
         .iter()
         .filter(|n| n.visibility != Visibility::Private)
         .filter_map(|node| {
-            let block = match &node.payload {
-                NodePayload::Function { params, returns } => {
-                    roxygen_function_block(node.doc.as_deref(), params, returns)
-                }
-                _ => return None,
-            };
-            if block.is_empty() {
-                return None;
-            }
             let name = &node.name;
-            let mut entries: Vec<(String, String)> = Vec::new();
-            entries.push((
-                format!("#' @export\n#' @method {} ", name),
-                format!("{}\n#' @export\n#' @method {} ", block, name),
-            ));
-            entries.push((
-                format!("#' @export\n{} <- function", name),
-                format!("{}\n#' @export\n{} <- function", block, name),
-            ));
-            if !node.module_path.is_empty() {
-                let mod_path = node.module_path.join("$");
-                entries.push((
-                    format!("#' @export\n{} <- {}${}", name, mod_path, name),
-                    format!("{}\n#' @export\n{} <- {}${}", block, name, mod_path, name),
-                ));
+            match &node.payload {
+                NodePayload::Function { params, returns } => {
+                    let block = roxygen_function_block(params, returns);
+                    if block.is_empty() {
+                        return None;
+                    }
+                    let mut entries: Vec<(String, String)> = Vec::new();
+                    entries.push((
+                        format!("#' @export\n#' @method {} ", name),
+                        format!("{}\n#' @export\n#' @method {} ", block, name),
+                    ));
+                    entries.push((
+                        format!("#' @export\n{} <- function", name),
+                        format!("{}\n#' @export\n{} <- function", block, name),
+                    ));
+                    if !node.module_path.is_empty() {
+                        let mod_path = node.module_path.join("$");
+                        entries.push((
+                            format!("#' @export\n{} <- {}${}", name, mod_path, name),
+                            format!("{}\n#' @export\n{} <- {}${}", block, name, mod_path, name),
+                        ));
+                    }
+                    Some(entries)
+                }
+                NodePayload::Record { fields } => {
+                    let block = roxygen_function_block(fields, name);
+                    ctor_roxygen_entries(node, &block)
+                }
+                NodePayload::Alias { underlying, .. } => {
+                    let params = [("x".to_string(), underlying.clone())];
+                    let block = roxygen_function_block(&params, name);
+                    ctor_roxygen_entries(node, &block)
+                }
+                NodePayload::Variable { type_str } => {
+                    let block = roxygen_variable_block(type_str);
+                    // A plain `let`'s own declaration is always backtick-quoted
+                    // by the transpiler (`format_backtick`, unconditional for
+                    // every `Lang::Let` binding) — `` `name` <- value `` — while
+                    // the inline-module re-export line below is emitted as a
+                    // literal, unquoted `name <- Module$name`. Quoting P1' here
+                    // isn't just cosmetic: it also keeps the two patterns from
+                    // overlapping (an unquoted P1' would be a substring of P3'
+                    // and double-inject into the re-export line).
+                    let mut entries = vec![(
+                        format!("#' @export\n`{}` <-", name),
+                        format!("{}\n#' @export\n`{}` <-", block, name),
+                    )];
+                    if !node.module_path.is_empty() {
+                        let mod_path = node.module_path.join("$");
+                        entries.push((
+                            format!("#' @export\n{} <- {}${}", name, mod_path, name),
+                            format!("{}\n#' @export\n{} <- {}${}", block, name, mod_path, name),
+                        ));
+                    }
+                    Some(entries)
+                }
+                _ => None,
             }
-            Some(entries)
         })
         .flatten()
         .collect()
@@ -1827,4 +1887,91 @@ pub fn clean() {
         }
     };
     let _ = fs::remove_dir_all(cache::CACHE_DIR);
+}
+
+#[cfg(test)]
+mod roxygen_injection_tests {
+    use super::*;
+    use typr_core::processes::spg::model::Node;
+    use typr_core::processes::spg::model::NodeKind;
+
+    fn variable_node(name: &str, module_path: &[&str], type_str: &str) -> Node {
+        Node {
+            id: Node::make_id(
+                &NodeKind::Variable,
+                &module_path.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                name,
+            ),
+            kind: NodeKind::Variable,
+            name: name.to_string(),
+            module_path: module_path.iter().map(|s| s.to_string()).collect(),
+            visibility: Visibility::Export,
+            doc: None,
+            source: None,
+            payload: NodePayload::Variable {
+                type_str: type_str.to_string(),
+            },
+        }
+    }
+
+    /// A top-level plain `let` is always backtick-quoted by the transpiler
+    /// (`format_backtick`) — the injected `@format` block must target that
+    /// exact shape, not the unquoted `name <- value` a naive pattern would.
+    #[test]
+    fn top_level_variable_gets_format_block_on_backtick_quoted_declaration() {
+        let spg = Spg {
+            context: String::new(),
+            package: "pkg".into(),
+            version: "0.1.0".into(),
+            nodes: vec![variable_node("pi", &[], "num")],
+            edges: vec![],
+        };
+        let entries = build_roxygen_entries(&spg);
+        let content = "#' @export\n`pi` <- 3.14159 |> as.Number()\n".to_string();
+        let injected = inject_roxygen_headers(content, &entries);
+        assert!(injected.contains("#' @format \\code{num}"), "{}", injected);
+        assert!(injected.contains("`pi` <- 3.14159"), "{}", injected);
+    }
+
+    /// A module-nested exported variable is emitted twice in R: once as the
+    /// real (backtick-quoted) declaration inside `local({...})`, once as an
+    /// unquoted top-level re-export (`name <- Module$name`). Both must get
+    /// exactly one `@format` block each — this is a regression test for a bug
+    /// where an unquoted P1 pattern was a substring of the P3 re-export
+    /// pattern, causing `.replace()` to double-inject into the re-export line.
+    #[test]
+    fn module_nested_variable_gets_exactly_one_block_per_occurrence() {
+        let spg = Spg {
+            context: String::new(),
+            package: "pkg".into(),
+            version: "0.1.0".into(),
+            nodes: vec![variable_node("degrees", &["Geo"], "num")],
+            edges: vec![],
+        };
+        let entries = build_roxygen_entries(&spg);
+        let content = "local({\n#' @export\n`degrees` <- 90 |> as.Number()\nGeo$degrees <- degrees\n})\n#' @export\ndegrees <- Geo$degrees\n".to_string();
+        let injected = inject_roxygen_headers(content, &entries);
+        let occurrences = injected.matches("#' @format \\code{num}").count();
+        assert_eq!(
+            occurrences, 2,
+            "expected exactly one block for the local() declaration and one for the re-export, got:\n{}",
+            injected
+        );
+    }
+
+    /// An un-annotated `let` never reaches the SPG at all (see the
+    /// `Lang::Let` arm in `builder.rs`), so there is nothing to inject —
+    /// `build_roxygen_entries` must simply produce no entry for it.
+    #[test]
+    fn no_entry_without_a_variable_node() {
+        let spg = Spg {
+            context: String::new(),
+            package: "pkg".into(),
+            version: "0.1.0".into(),
+            nodes: vec![],
+            edges: vec![],
+        };
+        let entries = build_roxygen_entries(&spg);
+        assert!(entries.is_empty());
+    }
 }

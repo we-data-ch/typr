@@ -255,6 +255,26 @@ fn render_rd_for_node(node: &Node, linkable: &HashSet<String>) -> Option<String>
             ))
         }
 
+        NodePayload::Variable { type_str } => {
+            let title = if parsed.title.is_empty() {
+                escape_rd(self_name)
+            } else {
+                lk(&parsed.title)
+            };
+            let description = if parsed.description.is_empty() {
+                title.clone()
+            } else {
+                lk(&parsed.description)
+            };
+
+            let mut rd = format!(
+                "\\name{{{}}}\n\\alias{{{}}}\n\\title{{{}}}\n\\description{{{}}}\n",
+                self_name, self_name, title, description
+            );
+            rd.push_str(&format!("\\format{{An object of type \\code{{{}}}.}}\n", lk(type_str)));
+            Some(rd)
+        }
+
         NodePayload::Module { exports } => {
             let title = if parsed.title.is_empty() {
                 format!("Module {}", self_name)

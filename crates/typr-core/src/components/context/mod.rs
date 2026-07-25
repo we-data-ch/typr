@@ -18,6 +18,7 @@ use crate::components::r#type::kind::Kind;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::Type;
+use crate::processes::type_checking::facets;
 use crate::processes::type_checking::match_types_to_generic;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::unification_map;
@@ -830,7 +831,7 @@ impl Context {
     }
 
     pub fn get_classes(&self, t: &Type) -> Option<String> {
-        let res = self
+        let mut classes: Vec<String> = self
             .subtypes
             .get_supertypes(t, self)
             .iter()
@@ -842,8 +843,36 @@ impl Context {
             // it's a compile-time-only constraint, never render it.
             .filter(|typ| !typ.has_generic())
             .map(|typ| self.get_class(typ))
-            .collect::<Vec<_>>()
-            .join(", ");
+            .collect();
+        // A record's own class chain gets interface names injected ad hoc
+        // where its constructor is generated (transpiling/mod.rs, "Interfaces
+        // as classes"), keyed on structural interface satisfaction. Array
+        // aliases (`ArrayN`) never went through an equivalent step: an array
+        // of `Point` never gained `ArrayK` (registered for `[N, Eq]`) in its
+        // own class chain, even though `Point` satisfies `Eq` — so a function
+        // whose first param is `[N, Eq]` had no runtime class to dispatch on
+        // for a real `[N, Point]` value. Mirror the record injection here,
+        // generically, for any array whose element structurally satisfies
+        // another registered array's (pure-interface) element type.
+        if let Type::Vec(_, _, elem, _) = t {
+            let mut iface_array_classes: Vec<String> = self
+                .aliases()
+                .filter_map(|(_, other_typ)| match &other_typ {
+                    Type::Vec(_, _, other_elem, _)
+                        if facets::interface_facet(self, other_elem).is_some()
+                            && elem.is_subtype_raw(other_elem, self) =>
+                    {
+                        Some(self.get_class(&other_typ))
+                    }
+                    _ => None,
+                })
+                .filter(|cls| !classes.contains(cls))
+                .collect();
+            iface_array_classes.sort();
+            iface_array_classes.dedup();
+            classes.extend(iface_array_classes);
+        }
+        let res = classes.join(", ");
         if res.is_empty() {
             Some("'None'".to_string())
         } else {

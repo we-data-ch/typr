@@ -60,6 +60,12 @@ pub fn infer_edges(spg: &mut Spg) {
                 }
             }
 
+            NodePayload::Variable { type_str } => {
+                if let Some(tid) = resolve_type(type_str, &name_to_id) {
+                    new_edges.push(mk_edge(node_id, &tid, EdgeKind::Uses));
+                }
+            }
+
             NodePayload::Module { .. } | NodePayload::None => {}
         }
 

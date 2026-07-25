@@ -1,0 +1,2 @@
+type Eq <- interface { eq: (Self, Self) -> bool };
+Eq(5)

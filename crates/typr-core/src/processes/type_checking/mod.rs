@@ -842,6 +842,7 @@ fn typing_container(
 ) -> TypeContext {
     let type_contexts: Vec<_> = exprs.iter().map(|e| typing(context, e)).collect();
     let mut errors: Vec<TypRError> = type_contexts.iter().flat_map(|tc| tc.errors.clone()).collect();
+    let raw_types: Vec<_> = type_contexts.iter().map(|tc| tc.value.clone()).collect();
     let types: Vec<_> = type_contexts
         .iter()
         .map(|tc| {
@@ -859,10 +860,24 @@ fn typing_container(
             .unwrap()
             .set_help_data(h.clone())
     } else if are_homogenous_types(&types) {
-        let elem_str = if generalize {
-            types[0].clone().generalize().pretty()
+        // `reduce` exists so a *mixed* nominal/anonymous-record literal
+        // (`[Point:{...}, :{x=1,y=2}]`) still unifies once both sides reduce
+        // to the same structural shape — it isn't meant to erase the nominal
+        // alias name of an otherwise-homogeneous array. Prefer the raw
+        // (unreduced) element type when the elements already agree on it
+        // without reduction: losing the name here (e.g. `Point` collapsing
+        // to `list{x:int,y:int}`) breaks any later interface-method dispatch
+        // keyed on the alias name (`Context::get_functions_from_type` looks
+        // up by nominal type, not structural shape).
+        let representative = if are_homogenous_types(&raw_types) {
+            &raw_types[0]
         } else {
-            types[0].clone().pretty()
+            &types[0]
+        };
+        let elem_str = if generalize {
+            representative.clone().generalize().pretty()
+        } else {
+            representative.clone().pretty()
         };
         format!("{}[{}, {}]", type_prefix, exprs.len(), elem_str)
             .parse::<Type>()

@@ -425,6 +425,22 @@ mod spg {
         let json = serde_json::to_string_pretty(&spg).unwrap();
         insta::assert_snapshot!(json);
     }
+
+    /// An annotated exported plain variable gets a `Variable` node carrying
+    /// its type; an un-annotated one gets no node at all (no static type
+    /// available on the AST alone — see the `Lang::Let` arm in builder.rs).
+    #[test]
+    fn exported_variable() {
+        let fp = FluentParser::new()
+            .push("@export let pi: num <- 3.14159;")
+            .parse_type_next()
+            .push("@export let unannotated <- 42;")
+            .parse_type_next();
+        let items: Vec<_> = fp.get_new_code().iter().cloned().collect();
+        let spg = build_spg_from_items(&items, "mypkg", "0.1.0");
+        let json = serde_json::to_string_pretty(&spg).unwrap();
+        insta::assert_snapshot!(json);
+    }
 }
 
 /// `typr build --checked` (soundness_transpilation.md Phase A): pins the

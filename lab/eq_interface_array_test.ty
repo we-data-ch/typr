@@ -1,0 +1,7 @@
+type Eq <- interface { eq: (Self, Self) -> bool };
+type Point <- list { x: int, y: int };
+let eq <- fn(a: Point, b: Point): bool { a.x == b.x };
+let ident <- fn(a: [#N, Eq]): [#N, Eq] { a };
+let pts <- [Point:{ x = 1, y = 2 }, Point:{ x = 3, y = 4 }];
+let out <- ident(pts);
+out

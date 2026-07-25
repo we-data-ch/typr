@@ -702,6 +702,84 @@ filter.default <- function(a, f, ...) {
   unclass(a)[keep]
 }
 
+# --- Eq / Ord (ord.ty) ---
+# Atomic element arrays dispatch to base R's own (already S3-generic)
+# unique()/sort() — real ordering/equality on int/num/char/bool at C speed.
+# Composite (typed_vec) arrays call the element type's own eq()/compare(),
+# resolved by ordinary S3 dispatch at each call, exactly like unique.Point
+# would if it existed as a dedicated method.
+#
+# Same footgun as `length.default` above, generalized: `unique`/`sort` are
+# themselves plain closure-based S3 generics in base R (`function(x, ...)
+# UseMethod("unique")`), so calling `base::unique(a, ...)` from inside our
+# OWN `unique.default` re-enters `UseMethod("unique")`, which (namespace
+# qualification notwithstanding — S3 dispatch resolves by search path, not
+# lexical scope) finds our shadowing `unique.default` again and recurses
+# forever (confirmed with a minimal repro: "C stack usage ... too close to
+# the limit"). Call the base *method* directly instead of the generic.
+unique.default <- function(a, ...) base:::unique.default(a, ...)
+sort.default <- function(a, ...) base:::sort.default(a, ...)
+
+#' @title Invoke an implicit typeclass method (`eq`, `compare`, …) by name
+#'
+#' `unique.typed_vec`/`sort.typed_vec` live in std.R, sourced by
+#' `load_module.R` into their own isolated environment (`parent = baseenv()`)
+#' — a project file that `@include`s std.R gets a one-way COPY of its
+#' bindings into its own separate environment, so a bare `eq(...)` call from
+#' inside a std.R-defined function can never see a user's `eq.Point` (defined
+#' only in the project's own environment): the copy doesn't create a shared
+#' scope, and the function's closure still points at std.R's own (unrelated)
+#' environment.
+#'
+#' Simply *fetching* the `eq` generic stub via `get(..., envir = parent.frame())`
+#' and calling it directly isn't enough either: `eq` itself is a `UseMethod`
+#' stub (`function(x, ...) UseMethod("eq")`, from generic_functions.R, a
+#' *third*, separately-isolated environment) — dispatching to `eq.Point`
+#' happens inside *that* call, whose own calling context is then this
+#' function's frame, not the original project caller, so the inner dispatch
+#' still fails to find `eq.Point`. Evaluating the call expression itself
+#' (`eval(as.call(...), envir = ...)`) inside the caller's environment fixes
+#' this at every level: any `UseMethod` dispatch that happens *during* that
+#' evaluation resolves against that environment's lexical chain, where the
+#' project's own `eq.Point` (or `eq.<AnyType>`) is visible — confirmed with a
+#' minimal repro mirroring load_module.R's three-environment split (std.R /
+#' generic_functions.R / project file).
+typr_call_method <- function(name, ...) {
+  eval(as.call(c(as.name(name), list(...))), envir = parent.frame(2))
+}
+
+unique.typed_vec <- function(a, ...) {
+  out <- list()
+  for (el in a$data) {
+    is_dup <- FALSE
+    for (o in out) {
+      if (isTRUE(typr_call_method("eq", el, o))) {
+        is_dup <- TRUE
+        break
+      }
+    }
+    if (!is_dup) out[[length(out) + 1L]] <- el
+  }
+  structure(list(data = out), class = "typed_vec", typed_dim = length(out))
+}
+
+sort.typed_vec <- function(a, ...) {
+  data <- a$data
+  n <- length(data)
+  if (n >= 2) {
+    for (i in seq(2L, n)) {
+      key <- data[[i]]
+      j <- i - 1L
+      while (j >= 1L && typr_call_method("compare", data[[j]], key) > 0L) {
+        data[[j + 1L]] <- data[[j]]
+        j <- j - 1L
+      }
+      data[[j + 1L]] <- key
+    }
+  }
+  structure(list(data = data), class = "typed_vec", typed_dim = attr(a, "typed_dim"))
+}
+
 derive.State <- function(s, f, ...) state(f(s$value))
 
 # --- Interop (Niveau 0) ---

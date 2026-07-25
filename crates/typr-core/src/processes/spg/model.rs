@@ -34,6 +34,7 @@ pub enum NodeKind {
     Alias,
     TypeDef,
     Module,
+    Variable,
 }
 
 impl NodeKind {
@@ -43,6 +44,7 @@ impl NodeKind {
             NodeKind::Alias => "alias",
             NodeKind::TypeDef => "type",
             NodeKind::Module => "module",
+            NodeKind::Variable => "variable",
         }
     }
 }
@@ -78,6 +80,15 @@ pub enum NodePayload {
     },
     Module {
         exports: Vec<String>,
+    },
+    /// A plain (non-function) `let` binding with an explicit type annotation —
+    /// e.g. `@export let PI: num <- 3.14159;`. Un-annotated bindings carry no
+    /// static type on the AST alone (see `builder.rs`'s `Lang::Let` arm), so
+    /// they are not represented here; this mirrors the same annotated-only
+    /// scope `--checked` uses for the same reason (soundness_transpilation.md
+    /// Phase A).
+    Variable {
+        type_str: String,
     },
     None,
 }

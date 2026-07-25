@@ -1,0 +1,23 @@
+# Eq / Ord — structural typeclasses via free-function S3 dispatch, same
+# technique as `Iterable<T>` in default.ty: any type providing a free `eq`/
+# `compare` function with `Self` in both argument positions satisfies these,
+# no `impl` syntax needed. Placing the interface itself as the array element
+# type (`[#N, Eq]`, not a bounded generic `T: Eq` — TypR has no bound syntax)
+# lets call-site inference keep the caller's concrete element type (e.g.
+# `Point`) in the result instead of widening it to `[#N, Eq]`.
+type Eq <- interface { eq: (Self, Self) -> bool };
+
+# `compare(a, b)` follows the classic three-way convention: negative when
+# `a < b`, zero when equal, positive when `a > b`.
+type Ord <- interface { compare: (Self, Self) -> int };
+
+# Distinct-values filter. Atomic element arrays (int/num/char/bool) dispatch
+# straight to base R's own `unique()` (already a real S3 generic); composite
+# arrays (records, unions) dispatch to `unique.typed_vec`, which calls the
+# element type's own `eq` at runtime — see std.R.
+@unique: (a: [#N, Eq]) -> [#N, Eq];
+
+# Stable sort. Same dual dispatch as `unique`: atomic arrays go through base
+# R's `sort()`; composite arrays use `sort.typed_vec`, an insertion sort
+# calling the element type's own `compare` at runtime — see std.R.
+@sort: (a: [#N, Ord]) -> [#N, Ord];
