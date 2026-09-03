@@ -115,6 +115,15 @@ pub struct Context {
     /// bypassing TypR's own S3 generic stubs for names like `get`, `map`, `factor`.
     #[serde(default)]
     pub import_from_fns: Vec<(String, String)>,
+    /// Names declared signature-only (`@name: T;`), i.e. typed here but
+    /// implemented in R somewhere else — base R, a package, or hand-written R.
+    /// Unlike an ordinary `let`, such a name has no TypR body to transpile
+    /// into `name.<Type>` methods, so shadowing it with a `UseMethod` stub
+    /// strands whatever R implementation it was declared for. `typr build`
+    /// reads this to tell the two cases apart when deciding whether a missing
+    /// `<name>.default` is worth reporting (see `r_name_lint`).
+    #[serde(default)]
+    pub signature_fns: Vec<String>,
     /// Static vectorizability of user-declared functions, keyed by name:
     /// `true` means every declaration seen so far for that name has a body
     /// made only of natively-vectorized R operations (see
@@ -176,6 +185,7 @@ impl Default for Context {
             expected_return_type: None,
             extern_fns: Vec::new(),
             import_from_fns: Vec::new(),
+            signature_fns: Vec::new(),
             vectorizable_fns: Vec::new(),
             module_inner_contexts: HashMap::new(),
             processed_modules: HashMap::new(),
@@ -220,6 +230,7 @@ impl Context {
             expected_return_type: None,
             extern_fns: Vec::new(),
             import_from_fns: Vec::new(),
+            signature_fns: Vec::new(),
             vectorizable_fns: Vec::new(),
             module_inner_contexts: HashMap::new(),
             processed_modules: HashMap::new(),
@@ -229,6 +240,12 @@ impl Context {
 
     pub fn is_extern_fn(&self, name: &str) -> bool {
         self.extern_fns.iter().any(|(n, _)| n == name)
+    }
+
+    /// Whether `name` was introduced by a signature declaration (`@name: T;`)
+    /// rather than by a TypR definition with a body.
+    pub fn is_signature_fn(&self, name: &str) -> bool {
+        self.signature_fns.iter().any(|n| n == name)
     }
 
     pub fn get_extern_r_name(&self, name: &str) -> Option<String> {
@@ -1349,6 +1366,12 @@ impl Add for Context {
                 import_from_fns.push(entry);
             }
         }
+        let mut signature_fns = self.signature_fns;
+        for name in other.signature_fns {
+            if !signature_fns.contains(&name) {
+                signature_fns.push(name);
+            }
+        }
         let mut vectorizable_fns = self.vectorizable_fns;
         for (name, is_vec) in other.vectorizable_fns {
             match vectorizable_fns.iter_mut().find(|(n, _)| n == &name) {
@@ -1375,6 +1398,7 @@ impl Add for Context {
             expected_return_type: None,
             extern_fns,
             import_from_fns,
+            signature_fns,
             vectorizable_fns,
             config: self.config,
             module_inner_contexts,

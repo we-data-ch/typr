@@ -9,6 +9,7 @@
 use crate::cache;
 use crate::engine::{parse_code, parse_code_from_str, parse_code_with_info, write_std_for_type_checking};
 use crate::progress::Step;
+use std::collections::BTreeSet;
 use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -368,30 +369,117 @@ pub fn debug_file(path: &Path, opts: DebugOptions) {
     }
 }
 
-/// Phase C of soundness_transpilation.md: static base-R/S4 name-collision
-/// lint, run right before `R/*.R` is written. `generated_r` is the
-/// transpiled program body (used to detect a user-supplied `<name>.default`
-/// fallback alongside typr's own `std.R`). Returns whether any error-level
-/// finding was reported (callers abort the build in that case).
-fn lint_r_names(context: &Context, generated_r: &str, strict_mode: bool) -> bool {
+/// Every R package the project names, in the order they become relevant:
+/// `@extern pkg::fn` and `@importFrom pkg fn` declarations, then the
+/// `Imports`/`Depends` fields of DESCRIPTION. These are the packages the
+/// R-name cache is asked to cover.
+fn project_r_packages(context: &Context, root: &Path) -> Vec<String> {
+    let mut pkgs: Vec<String> = Vec::new();
+    let mut push = |candidate: &str| {
+        let name = candidate.trim();
+        // Drop a version constraint (`dplyr (>= 1.0)`) and the `R` pseudo-dep.
+        let name = name.split('(').next().unwrap_or(name).trim();
+        if name.is_empty() || name == "R" || pkgs.iter().any(|p| p == name) {
+            return;
+        }
+        pkgs.push(name.to_string());
+    };
+
+    let qualified = context
+        .extern_fns
+        .iter()
+        .filter_map(|(_, r_name)| r_name.clone())
+        .chain(context.import_from_fns.iter().map(|(_, target)| target.clone()));
+    for target in qualified {
+        if let Some((pkg, _)) = target.split_once("::") {
+            push(pkg);
+        }
+    }
+
+    if let Ok(description) = fs::read_to_string(root.join("DESCRIPTION")) {
+        // DESCRIPTION fields continue onto following lines while indented, so
+        // a field is read until the next line that starts in column zero.
+        let mut in_dep_field = false;
+        for line in description.lines() {
+            let starts_field = line.chars().next().map(|c| !c.is_whitespace()).unwrap_or(false);
+            if starts_field {
+                in_dep_field = matches!(
+                    line.split_once(':').map(|(f, _)| f.trim()),
+                    Some("Imports") | Some("Depends")
+                );
+            }
+            if !in_dep_field {
+                continue;
+            }
+            let payload = line.split_once(':').map(|(_, v)| v).unwrap_or(line);
+            for candidate in payload.split(',') {
+                push(candidate);
+            }
+        }
+    }
+    pkgs
+}
+
+/// Phase C of soundness_transpilation.md: the base-R/S4 name-collision pass,
+/// run right before `R/*.R` is written. `generated_r` is the transpiled
+/// program body (used to detect a user-supplied `<name>.default` fallback
+/// alongside typr's own `std.R`), `root` the directory holding `.typr_cache`.
+///
+/// Returns `(had_error, auto_defaults_r)`: whether an error-level finding was
+/// reported (callers abort the build in that case), and the `<name>.default`
+/// definitions `write_header` must emit next to the `UseMethod` stubs so a
+/// shadowed plain R function stays reachable.
+fn plan_r_names(context: &Context, generated_r: &str, root: &Path, strict_mode: bool) -> (bool, String) {
+    // Overloads make `get_all_generic_functions` yield the same name several
+    // times (one stub line per overload). Planning is per name, so collapse
+    // them or a collision would be reported — and its `.default` generated —
+    // once per overload.
     let stub_names = context
         .get_all_generic_functions()
         .iter()
         .map(|(var, _)| var.get_name().replace('`', ""))
         .filter(|x| !x.contains("<-"))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .collect::<Vec<_>>();
     let ctor_names = context
         .record_aliases
         .iter()
         .map(|(name, _)| name.clone())
         .collect::<Vec<_>>();
+    let signature_only = context
+        .signature_fns
+        .iter()
+        .map(|n| n.replace('`', ""))
+        .collect::<BTreeSet<_>>();
 
-    let mut findings = crate::r_name_lint::lint_generic_stub_names(&stub_names, generated_r, strict_mode);
-    findings.extend(crate::r_name_lint::lint_record_constructor_names(&ctor_names));
-    crate::r_name_lint::report_findings(&findings)
+    // The cache only has to cover packages this project actually names; the
+    // embedded seed already covers base/stats/utils/methods, so a project with
+    // no external dependency spawns no R subprocess here.
+    let mut cache = crate::r_name_cache::RNameCache::load(root);
+    let notes = cache.ensure_packages(&project_r_packages(context, root));
+    let _ = cache.save(root);
+
+    let plan = crate::r_name_lint::plan_generic_stubs(&stub_names, &signature_only, generated_r, &cache, strict_mode);
+    let mut findings = plan.findings.clone();
+    findings.extend(crate::r_name_lint::lint_record_constructor_names(&ctor_names, &cache));
+    for note in notes {
+        findings.push(crate::r_name_lint::LintFinding {
+            severity: crate::r_name_lint::LintSeverity::Warning,
+            name: String::new(),
+            message: note,
+        });
+    }
+    (
+        crate::r_name_lint::report_findings(&findings),
+        plan.render_auto_defaults(),
+    )
 }
 
-pub fn write_header(context: Context, output_dir: &Path, environment: Environment) {
+/// `auto_defaults` is the R source planned by [`plan_r_names`]: the
+/// `<name>.default` fallbacks that keep a plain R function reachable after the
+/// `UseMethod` stub below shadows it. Empty when nothing needs one.
+pub fn write_header(context: Context, output_dir: &Path, environment: Environment, auto_defaults: &str) {
     let type_anotations = context.get_type_anotations();
     let c_types_include = if environment.is_project() {
         "#' @include generic_functions.R\n"
@@ -438,7 +526,7 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
         .collect::<Vec<_>>()
         .join("\n");
 
-    let generic_content = format!("{}{}\n", include_tag, generic_functions);
+    let generic_content = format!("{}{}\n{}", include_tag, generic_functions, auto_defaults);
     match environment {
         Environment::Repl => {
             let mut app = OpenOptions::new()
@@ -938,12 +1026,13 @@ fn build_project_impl(
     inject_roxygen_into_module_files(&PathBuf::from("R"), &roxygen_entries);
     step.done();
 
-    if lint_r_names(&type_checker.get_context(), &content, strict_mode) {
+    let (had_error, auto_defaults) = plan_r_names(&type_checker.get_context(), &content, &dir, strict_mode);
+    if had_error {
         std::process::exit(1);
     }
 
     let step = Step::new("Writing R files");
-    write_header(type_checker.get_context(), &dir, Environment::Project);
+    write_header(type_checker.get_context(), &dir, Environment::Project, &auto_defaults);
     write_to_r_lang(content, &PathBuf::from("R"), "main.R", context.get_environment());
     write_loader(&dir);
     step.done();
@@ -999,12 +1088,18 @@ pub fn build_file(path: &Path, test_mode: bool, checked_mode: bool, strict_mode:
     let content = type_checker.clone().transpile();
     step.done();
 
-    if lint_r_names(&type_checker.get_context(), &content, strict_mode) {
+    let (had_error, auto_defaults) = plan_r_names(&type_checker.get_context(), &content, &dir, strict_mode);
+    if had_error {
         std::process::exit(1);
     }
 
     let step = Step::new("Writing R files");
-    write_header(type_checker.get_context(), &dir, Environment::StandAlone);
+    write_header(
+        type_checker.get_context(),
+        &dir,
+        Environment::StandAlone,
+        &auto_defaults,
+    );
     write_to_r_lang(content, &dir, &r_file_name, context.get_environment());
     step.done();
 
@@ -1167,10 +1262,16 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: boo
     step.done();
 
     let step = Step::new("Writing R files");
-    if lint_r_names(&type_checker.get_context(), &r_content, strict_mode) {
+    let (had_error, auto_defaults) = plan_r_names(&type_checker.get_context(), &r_content, &work_dir, strict_mode);
+    if had_error {
         guard.fail();
     }
-    write_header(type_checker.get_context(), &work_dir, Environment::StandAlone);
+    write_header(
+        type_checker.get_context(),
+        &work_dir,
+        Environment::StandAlone,
+        &auto_defaults,
+    );
     write_to_r_lang(r_content, &work_dir, &r_file_name, context.get_environment());
     step.done();
 

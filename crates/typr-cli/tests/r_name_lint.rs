@@ -63,25 +63,68 @@ fn fresh_project_builds_with_no_lint_errors() {
     );
 }
 
-/// Row 1 of the Phase C table: a user function named after a plain
-/// (non-S3-generic) base-R name with no `.default` anywhere fails the build
-/// — the exact shape of the historical `nlevels` bug. `crossprod` is base-R,
-/// non-generic, and typr never defines `crossprod.default`.
+/// Row 1 of the Phase C table: a name that shadows a plain (non-S3-generic)
+/// base-R function with no `.default` anywhere — the exact shape of the
+/// historical `nlevels` bug. It used to fail the build and demand a
+/// hand-written fallback in `std.R`; it is now fixed by codegen, which emits
+/// `crossprod.default` forwarding to `base::crossprod` next to the stub so the
+/// shadowed implementation stays reachable.
 #[test]
-fn plain_base_collision_without_default_fails_the_build() {
+fn plain_base_collision_gets_a_generated_default() {
     let project = scaffold_project("collision", "let crossprod <- fn(x: int): int { x };\n");
     let result = typr(&project, &["build"]);
     assert!(
-        !result.status.success(),
-        "a plain base-R name collision with no fallback must fail the build"
+        result.status.success(),
+        "a plain base-R collision must now be fixed by codegen, not reported: {}",
+        stderr(&result)
     );
-    let err = stderr(&result);
-    assert!(err.contains("error[r-name-lint]"), "{err}");
-    assert!(err.contains("crossprod"), "{err}");
+    let generic_functions = fs::read_to_string(project.join("R/generic_functions.R")).unwrap();
     assert!(
-        err.contains("nlevels"),
-        "message should reference the historical bug: {err}"
+        generic_functions.contains("crossprod.default <- function(...) base::crossprod(...)"),
+        "expected a generated fallback in generic_functions.R:\n{generic_functions}"
     );
+    // The stub itself is still emitted — the fallback complements it.
+    assert!(
+        generic_functions.contains("crossprod <- function(x, ...) UseMethod('crossprod', x)"),
+        "{generic_functions}"
+    );
+}
+
+/// A name typr's own `std.R` already gives a `.default` to must not get a
+/// second, generated one: the hand-written body is authoritative (several
+/// deliberately differ from base R, e.g. `strsplit.default` returning `[[1]]`).
+#[test]
+fn hand_written_std_r_default_is_not_duplicated() {
+    let project = scaffold_project("nodup", "let x <- nlevels(factor(c(\"a\", \"b\")));\n");
+    let result = typr(&project, &["build"]);
+    assert!(result.status.success(), "{}", stderr(&result));
+    let generic_functions = fs::read_to_string(project.join("R/generic_functions.R")).unwrap();
+    assert!(
+        !generic_functions.contains("nlevels.default"),
+        "std.R already defines nlevels.default; it must not be generated again:\n{generic_functions}"
+    );
+}
+
+/// A signature-only declaration (`@name: T;`) whose name exists in no known
+/// package is the one case codegen cannot fix: there is nothing to forward to.
+/// It warns — naming the two ways out — without failing the build.
+///
+/// The first parameter is typed `int` rather than `Any` on purpose:
+/// `get_all_generic_functions` filters names whose first parameter is `Any`,
+/// so an `(Any) -> Any` signature receives no stub at all and there is
+/// nothing to warn about.
+#[test]
+fn unknown_signature_only_name_warns_without_failing() {
+    let project = scaffold_project("unknown_sig", "@zz_not_a_real_r_function: (int) -> int;\nlet y <- 1;\n");
+    let result = typr(&project, &["build"]);
+    assert!(
+        result.status.success(),
+        "an unresolvable signature must warn, not fail: {}",
+        stderr(&result)
+    );
+    let warn = stderr(&result);
+    assert!(warn.contains("warning[r-name-lint]"), "{warn}");
+    assert!(warn.contains("zz_not_a_real_r_function"), "{warn}");
 }
 
 /// Row 2 of the Phase C table: shadowing a known S4 generic (`show`, package

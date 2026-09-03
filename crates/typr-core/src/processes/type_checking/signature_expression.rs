@@ -28,6 +28,12 @@ pub fn signature_expression(
         let mut new_context = context
             .clone()
             .replace_or_push_var_type(new_var, typ.to_owned(), context);
+        // Recorded for every signature, `@extern` included: the name has no
+        // TypR body either way, and the build needs to tell such names apart
+        // from ordinary definitions (see `Context::signature_fns`).
+        if !new_context.signature_fns.contains(&var.get_name()) {
+            new_context.signature_fns.push(var.get_name());
+        }
         if is_extern {
             new_context.extern_fns.push((var.get_name(), extern_r_name));
         }

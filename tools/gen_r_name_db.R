@@ -1,13 +1,21 @@
 #!/usr/bin/env Rscript
-# Regenerates crates/typr-cli/configs/src/r_name_db.json — the static oracle
-# for the Phase C lint (soundness_transpilation.md § Phase C). This is the
-# database the typr-cli build pipeline intersects, at compile time, against
-# every top-level name it is about to emit (UseMethod stubs, record
-# constructors) to catch the "collision with the rest of R's object systems"
-# bug family (historical example: the `nlevels` bug, see CLAUDE.md).
+# Regenerates crates/typr-cli/configs/src/r_name_db.json — the base-R *seed*
+# for the R-name cache (crates/typr-cli/src/r_name_cache.rs), which the
+# typr-cli build pipeline intersects against every top-level name it is about
+# to emit (UseMethod stubs, record constructors) to catch the "collision with
+# the rest of R's object systems" bug family (historical example: the
+# `nlevels` bug) and to generate the `<name>.default` fallbacks that keep a
+# shadowed plain R function reachable.
+#
+# This file covers base/stats/utils/methods only. Packages the user installs
+# are introspected at build time by the runtime counterpart of this script,
+# crates/typr-cli/configs/src/introspect_pkg.R, and merged into
+# `.typr_cache/r_names.json`; keep the dispatch predicates below in sync with
+# that script's.
 #
 # Run by hand, commit the result. Regenerate when bumping the R version this
-# project targets (see the `r_version` field in the output).
+# project targets (see the `r_version` field in the output). Users do not need
+# to run it: `typr cache refresh` re-introspects their own packages.
 #
 # Usage:
 #   Rscript tools/gen_r_name_db.R > crates/typr-cli/configs/src/r_name_db.json

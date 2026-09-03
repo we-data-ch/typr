@@ -123,6 +123,13 @@ enum Commands {
     Cran,
     Std,
     Clean,
+    /// Inspect or invalidate the R-name cache (.typr_cache/r_names.json), the
+    /// table of which R functions are S3/S4-generic that `typr build` uses to
+    /// decide whether shadowing a name needs a generated `.default` fallback.
+    Cache {
+        #[command(subcommand)]
+        cache_command: CacheCommands,
+    },
     Repl,
     Lsp,
     /// Generate a Semantic Package Graph (spg.json) from the current project.
@@ -167,6 +174,26 @@ enum CaseCommands {
     Freeze { id: String },
     /// Show a case (case.toml + expect.md + expect.toml).
     Show { id: String },
+}
+
+#[derive(Subcommand, Debug)]
+enum CacheCommands {
+    /// Delete the cached table. The next build re-seeds it from the embedded
+    /// base-R snapshot and re-introspects the project's packages.
+    Clear,
+    /// Re-introspect installed packages, discarding what was known about them
+    /// first. Use after updating or reinstalling a package. With no argument,
+    /// refreshes every package the cache learned beyond the base-R seed.
+    Refresh {
+        /// Packages to re-introspect.
+        packages: Vec<String>,
+    },
+    /// Show what the cache knows about an R name, or a summary when no name
+    /// is given.
+    Show {
+        /// The R function name to look up.
+        name: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -216,7 +243,10 @@ enum PkgCommands {
 fn skips_r_deps_check(command: &Option<Commands>) -> bool {
     matches!(
         command,
-        Some(Commands::Init) | Some(Commands::Lsp) | Some(Commands::Std)
+        // `cache` maintains typr's own R-name table; `refresh` needs Rscript
+        // and says so itself when it is missing, but none of these need the
+        // package set (devtools/roxygen2) `warn_if_missing` checks for.
+        Some(Commands::Init) | Some(Commands::Lsp) | Some(Commands::Std) | Some(Commands::Cache { .. })
     )
 }
 
@@ -308,6 +338,7 @@ pub fn start() {
         Some(Commands::Cran) => cran(),
         Some(Commands::Std) => standard_library(),
         Some(Commands::Clean) => clean(),
+        Some(Commands::Cache { cache_command }) => run_cache_command(cache_command),
         Some(Commands::Lsp) => {
             // Use a larger stack size (8MB) to avoid stack overflow
             // during deep recursive parsing/type-checking operations
@@ -323,6 +354,91 @@ pub fn start() {
         _ => {
             println!("Please specify a subcommand or file to execute");
             std::process::exit(1);
+        }
+    }
+}
+
+/// `typr cache <clear|refresh|show>` — maintenance for the R-name cache.
+///
+/// The cache is not something a build ever needs the user to touch: it fills
+/// itself in and `typr clean` removes it with the rest of `.typr_cache`. These
+/// commands exist for the one case it cannot detect on its own — a package
+/// that changed on disk since it was introspected.
+fn run_cache_command(command: CacheCommands) {
+    use crate::r_name_cache::RNameCache;
+    let root = std::path::Path::new(".");
+
+    match command {
+        CacheCommands::Clear => match RNameCache::clear(root) {
+            Ok(()) => println!("R-name cache cleared ({}).", RNameCache::path(root).display()),
+            Err(e) => {
+                eprintln!("error: could not clear the R-name cache: {e}");
+                std::process::exit(1);
+            }
+        },
+        CacheCommands::Refresh { packages } => {
+            let mut cache = RNameCache::load(root);
+            let notes = cache.refresh(&packages);
+            for note in &notes {
+                eprintln!("\x1b[33mwarning\x1b[0m: {note}");
+            }
+            if let Err(e) = cache.save(root) {
+                eprintln!("error: could not write the R-name cache: {e}");
+                std::process::exit(1);
+            }
+            if packages.is_empty() {
+                println!("R-name cache refreshed ({} names known).", cache.names.len());
+            } else {
+                println!(
+                    "R-name cache refreshed for {} ({} names known).",
+                    packages.join(", "),
+                    cache.names.len()
+                );
+            }
+        }
+        CacheCommands::Show { name: None } => {
+            let cache = RNameCache::load(root);
+            println!("file:       {}", RNameCache::path(root).display());
+            println!("R version:  {}", cache.r_version);
+            println!("names:      {}", cache.names.len());
+            println!("S4 classes: {}", cache.s4_classes.len());
+            println!(
+                "packages:   {}",
+                cache.packages.iter().cloned().collect::<Vec<_>>().join(", ")
+            );
+            if !cache.failed_packages.is_empty() {
+                println!(
+                    "not loadable: {}",
+                    cache.failed_packages.iter().cloned().collect::<Vec<_>>().join(", ")
+                );
+            }
+        }
+        CacheCommands::Show { name: Some(name) } => {
+            let cache = RNameCache::load(root);
+            match cache.lookup(&name) {
+                None => {
+                    println!("`{name}` is not known to the R-name cache.");
+                    println!(
+                        "  → typr would emit a bare `UseMethod` stub for it and generate no \
+                         `.default` fallback."
+                    );
+                }
+                Some(entry) => {
+                    println!("`{name}` (package `{}`)", entry.pkg);
+                    println!("  S3 generic:  {}", entry.s3_generic);
+                    println!("  S4 generic:  {}", entry.s4_generic);
+                    println!("  has default: {}", entry.has_default);
+                    if entry.needs_generated_default() {
+                        println!(
+                            "  → typr generates `{name}.default <- function(...) {}::{name}(...)` \
+                             so its stub does not strand the original.",
+                            entry.pkg
+                        );
+                    } else {
+                        println!("  → nothing to generate: the name already dispatches.");
+                    }
+                }
+            }
         }
     }
 }

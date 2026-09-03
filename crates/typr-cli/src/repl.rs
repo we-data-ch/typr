@@ -474,7 +474,8 @@ impl TypRExecutor {
             .open(r_file_name)
             .unwrap();
         let _ = file.write_all("source('std.R')\n".as_bytes());
-        write_header(context, &dir, Environment::Repl);
+        // The REPL writes no generic_functions.R of its own to plan against.
+        write_header(context, &dir, Environment::Repl, "");
         write_to_r_lang(r_code.to_string(), &dir, r_file_name, Environment::Repl);
         println!("{}{}{}", colors::NUMBER, r_type, colors::RESET);
 

@@ -67,6 +67,7 @@ impl Context {
         let _ = write!(w, "em{:?}", self.embedded_methods);
         let _ = write!(w, "ef{:?}", self.extern_fns);
         let _ = write!(w, "if{:?}", self.import_from_fns);
+        let _ = write!(w, "sf{:?}", self.signature_fns);
         let _ = write!(w, "vf{:?}", self.vectorizable_fns);
 
         // HashMap-backed: sort.
