@@ -221,7 +221,10 @@ fn build_sandbox(case: &Path) -> Sandbox {
     }
     let exe = std::env::current_exe().expect("current exe path");
     let mut command = Command::new(exe);
-    command.arg(&meta.cmd).current_dir(&work);
+    command
+        .arg(&meta.cmd)
+        .current_dir(&work)
+        .env(crate::r_deps::SKIP_ENV_VAR, "1");
     if meta.checked && (meta.cmd == "build" || meta.cmd == "run") {
         command.arg("--checked");
     }
@@ -772,7 +775,12 @@ fn capture_observed(repro: &Path) -> String {
         return String::new();
     }
     let exe = std::env::current_exe().expect("current exe path");
-    let result = match Command::new(exe).arg("build").current_dir(&work).output() {
+    let result = match Command::new(exe)
+        .arg("build")
+        .current_dir(&work)
+        .env(crate::r_deps::SKIP_ENV_VAR, "1")
+        .output()
+    {
         Ok(o) => format!(
             "# exit={}\n\n## stdout/stderr\n{}\n{}\n\n## R généré\n{}\n",
             o.status.code().unwrap_or(-1),

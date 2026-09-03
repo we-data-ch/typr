@@ -101,6 +101,7 @@ fn execute(work: &Path) -> (String, Outcome) {
         .arg("run")
         .arg("--checked")
         .current_dir(work)
+        .env(crate::r_deps::SKIP_ENV_VAR, "1")
         .output()
     {
         Ok(out) => {

@@ -169,6 +169,10 @@ impl TypeSystem for Type {
         reduce_type(context, self)
     }
 
+    fn reduce_bis(&self, context: &Context) -> Type {
+        reduce_type(context, self)
+    }
+
     fn is_subtype(&self, other: &Type, context: &Context) -> (bool, Option<Context>) {
         let key = (self.clone(), other.clone());
         let cached = SUBTYPE_CACHE.with(|c| c.borrow().get(&key).copied());

@@ -1,6 +1,7 @@
 //! Command-line interface for TypR
 //!
 //! Provides the main CLI commands:
+//! - `typr init`: Install the R packages TypR needs (devtools, testthat)
 //! - `typr new <name>`: Create a new TypR project
 //! - `typr check [file]`: Type-check a file or project
 //! - `typr build [file]`: Transpile to R
@@ -33,6 +34,8 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Install the R packages TypR needs (devtools, testthat).
+    Init,
     New {
         name: String,
         #[arg(long, default_value = "true")]
@@ -206,9 +209,25 @@ enum PkgCommands {
     Uninstall,
 }
 
+/// Commands that must not run the R dependency check: `init` does its own
+/// (and is the fix being advertised), `lsp` speaks a protocol over stdio and
+/// is driven by an editor rather than a human, and `std` only touches TypR's
+/// own `.bin` files — no R involved.
+fn skips_r_deps_check(command: &Option<Commands>) -> bool {
+    matches!(
+        command,
+        Some(Commands::Init) | Some(Commands::Lsp) | Some(Commands::Std)
+    )
+}
+
 /// Main entry point for the CLI
 pub fn start() {
     let cli = Cli::parse();
+
+    if !skips_r_deps_check(&cli.command) {
+        crate::r_deps::warn_if_missing();
+    }
+
     if let Some(path) = cli.file {
         if cli.command.is_none() {
             run_file(&path);
@@ -217,6 +236,7 @@ pub fn start() {
     }
 
     match cli.command {
+        Some(Commands::Init) => crate::r_deps::init(),
         Some(Commands::New { name, renv }) => new(&name, renv),
         Some(Commands::Check { file }) => match file {
             Some(path) => check_file(&path),

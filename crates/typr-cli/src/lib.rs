@@ -13,6 +13,9 @@
 //! ## Usage
 //!
 //! ```bash
+//! # Install the R packages TypR needs (devtools, testthat)
+//! typr init
+//!
 //! # Create a new project
 //! typr new myproject
 //!
@@ -45,6 +48,7 @@ pub mod io;
 pub mod metaprogramming;
 pub mod progress;
 pub mod project;
+pub mod r_deps;
 pub mod r_name_lint;
 pub mod rd_renderer;
 pub mod repl;

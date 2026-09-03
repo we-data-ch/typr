@@ -1230,7 +1230,14 @@ impl RTranslatable<(String, Context)> for Lang {
                             // `get_class`'s "default" fallback, so they fall through to
                             // the catch-all `_` arm below and use `new_name` as-is.
                             Type::Any(_) => (
-                                format!("{}.default <- {}", new_name, body_str),
+                                format!(
+                                    "{} <- {}",
+                                    format_backtick(format!(
+                                        "{}.default",
+                                        new_name.trim_matches('`')
+                                    )),
+                                    body_str
+                                ),
                                 new_name.clone(),
                             ),
                             _ => {
@@ -2809,6 +2816,24 @@ mod tests {
         assert!(
             r.contains("`double_up.default` <- `double_up.Incrementable`"),
             "expected .default fallback alias, got: {r}"
+        );
+    }
+
+    #[test]
+    fn test_any_first_param_default_name_backticks_wrap_whole_name() {
+        // `Type::Any` is left unsuffixed by `display_type`, so `.default`
+        // must be appended before backtick-wrapping, not after: the
+        // generated name must be `` `describe.default` ``, never
+        // `` `describe`.default `` (which R would parse as `describe`
+        // followed by an invalid bare `.default` member access).
+        let r = transpile_program(&["let describe <- fn(x: Any): char { \"any\" };"]);
+        assert!(
+            r.contains("`describe.default` <-"),
+            "expected backticks around the whole `name.default`, got: {r}"
+        );
+        assert!(
+            !r.contains("`describe`.default"),
+            "backticks must not wrap only the base name, got: {r}"
         );
     }
 

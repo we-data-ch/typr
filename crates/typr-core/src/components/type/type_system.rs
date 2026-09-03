@@ -18,6 +18,8 @@ pub trait TypeSystem: PartialOrd + Debug + Eq + Hash + Clone + Default {
 
     fn reduce(&self, context: &Context) -> Self;
 
+    fn reduce_bis(&self, context: &Context) -> Self;
+
     fn reduce_and_subtype(&self, other: &Self, context: &Context) -> (bool, Option<Context>) {
         let reduced_self = self.reduce(context);
         let reduced_other = other.reduce(context);
