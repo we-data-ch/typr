@@ -1064,6 +1064,58 @@ pub fn resolve_module_member_type(context: &Context, module_path: &[String], mem
     })
 }
 
+/// `name<Type>` (turbofish-style forced S3 dispatch): the parser already
+/// stores an explicit `<Type>` annotation on an identifier as that
+/// identifier's `related_type` (see `variable_helper`, parsing/elements.rs).
+/// The transpiler's `Lang::FunctionApp`/`Lang::Variable` arms bind straight
+/// to `name.<Suffix>`, bypassing `UseMethod` at runtime — so without this
+/// check, forcing a type with no matching implementation would silently
+/// transpile to a call to a nonexistent R function and only fail at runtime.
+/// Called both from the bare-reference `Lang::Variable` arm below and from
+/// `function_application::function_application` (the call-site case),
+/// since a call's callee never reaches this module's generic `typing()`
+/// dispatch — `apply_from_variable` resolves it directly from the `Var`.
+/// Only applies to genuine dispatch functions — the same `is_method`
+/// predicate `Var::display_type` uses (var.rs) to decide whether to suffix
+/// at all.
+pub fn validate_forced_dispatch(context: &Context, var: &Var) -> Option<TypRError> {
+    let forced_type = var.get_type();
+    if matches!(forced_type, Type::Empty(_)) {
+        return None;
+    }
+    let overloads = context.get_functions_from_name(&var.get_name());
+    let is_dispatch_fn = overloads.iter().any(|(v, _)| !matches!(v.get_type(), Type::Empty(_)));
+    if !is_dispatch_fn {
+        return None;
+    }
+    let dispatch_types: Vec<Type> = overloads
+        .iter()
+        .map(|(v, _)| v.get_type())
+        .filter(|t| !matches!(t, Type::Empty(_)))
+        .collect();
+    let has_match = match &forced_type {
+        Type::Any(_) => dispatch_types.iter().any(|t| {
+            matches!(t, Type::Any(_))
+                || matches!(t, Type::Alias(n, _, _, _) if context.resolves_to_foreign_alias(n))
+                || (facets::interface_facet(context, t).is_some() && facets::record_facet(context, t).is_none())
+        }),
+        ty => {
+            let forced_class = context.get_class_unquoted(ty);
+            dispatch_types.iter().any(|t| context.get_class_unquoted(t) == forced_class)
+        }
+    };
+    if has_match {
+        None
+    } else {
+        Some(TypRError::Type(TypeError::NoDispatchImplementation(
+            var.get_name(),
+            forced_type,
+            dispatch_types,
+            var.get_help_data(),
+        )))
+    }
+}
+
 //main
 pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
     match expr {
@@ -1660,7 +1712,10 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
                 // were never registered at all.
                 return tc.with_errors(vec![TypRError::Type(TypeError::UndefinedVariable(expr.clone()))]);
             }
-            tc
+            match validate_forced_dispatch(context, &old_var) {
+                Some(err) => tc.with_errors(vec![err]),
+                None => tc,
+            }
         }
         Lang::Scope { body: expr, .. } if expr.len() == 1 => typing(context, &expr[0]),
         Lang::Scope {

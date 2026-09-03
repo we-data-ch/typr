@@ -146,6 +146,12 @@ pub enum TypeError {
     /// misleading "not defined in this scope" —
     /// `(function_name, call_arg_types, available_signatures_pretty, position)`.
     NoMatchingSignature(String, Vec<Type>, Vec<String>, HelpData),
+    /// `name<Type>` (turbofish-style forced S3 dispatch) names a type with no
+    /// registered implementation of `name` — the compile-time counterpart of
+    /// what would otherwise be a runtime "could not find function
+    /// `name.Suffix`" error in the generated R —
+    /// `(function_name, forced_type, available_types, position)`.
+    NoDispatchImplementation(String, Type, Vec<Type>, HelpData),
 }
 
 impl TypeError {
@@ -194,6 +200,7 @@ impl TypeError {
             TypeError::UnknownUnionVariant(_, _, h) => Some(h.clone()),
             TypeError::DataFrameColumnLengthMismatch(_, _, _, _, h) => Some(h.clone()),
             TypeError::NoMatchingSignature(_, _, _, h) => Some(h.clone()),
+            TypeError::NoDispatchImplementation(_, _, _, h) => Some(h.clone()),
         }
     }
 
@@ -407,6 +414,14 @@ impl TypeError {
                     name,
                     arg_types.iter().map(|t| t.pretty()).collect::<Vec<_>>().join(", "),
                     signatures.join(" | ")
+                )
+            }
+            TypeError::NoDispatchImplementation(name, forced_type, available, _) => {
+                format!(
+                    "No implementation of '{}' for type '{}'; available: {}",
+                    name,
+                    forced_type.pretty(),
+                    available.iter().map(|t| t.pretty()).collect::<Vec<_>>().join(", ")
                 )
             }
         }
@@ -996,6 +1011,23 @@ impl ErrorMsg for TypeError {
                         "'{}' exists but none of its signature(s) accepts these arguments:\n    {}",
                         name,
                         signatures.join("\n    ")
+                    ))
+                    .build()
+            }
+            TypeError::NoDispatchImplementation(name, forced_type, available, help_data) => {
+                let (file_data, pos) = safe_file_pos(&help_data, name.len());
+                let available_pretty = available.iter().map(|t| t.pretty()).collect::<Vec<_>>().join(", ");
+                SingleBuilder::new(file_data.0, file_data.1)
+                    .pos(pos)
+                    .text(format!(
+                        "No implementation of '{}' for forced type '{}'.",
+                        name,
+                        forced_type.pretty()
+                    ))
+                    .pos_text(format!("Forced to '{}' here", forced_type.pretty()))
+                    .help(format!(
+                        "'{}' exists but has no implementation for this type; available: {}",
+                        name, available_pretty
                     ))
                     .build()
             }

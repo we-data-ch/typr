@@ -1442,7 +1442,20 @@ pub fn function_application(context: &Context, fn_var_name: &Lang, values: &[Lan
         }
     }
     match Var::try_from(fn_var_name.clone()) {
-        Ok(var) => apply_from_variable(var, context, values, h),
+        Ok(var) => {
+            // `name<Type>(...)` (turbofish-style forced S3 dispatch): the
+            // callee never reaches the generic `typing()` dispatcher's
+            // `Lang::Variable` arm from here (the filter chain below
+            // resolves purely from argument types), so the forced-type
+            // validation has to run explicitly on this path too — see
+            // `validate_forced_dispatch`.
+            let forced_dispatch_error = crate::processes::type_checking::validate_forced_dispatch(context, &var);
+            let tc = apply_from_variable(var, context, values, h);
+            match forced_dispatch_error {
+                Some(err) => tc.with_errors(vec![err]),
+                None => tc,
+            }
+        }
         _ => apply_from_expression(context, fn_var_name, values, h),
     }
 }
@@ -2473,5 +2486,45 @@ mod tests {
             "expected NoMatchingSignature for zero-arg call on a 1-param lambda, got: {:?}",
             result.errors
         );
+    }
+
+    #[test]
+    fn test_forced_dispatch_with_no_implementation_reports_no_dispatch_implementation() {
+        // `greet<Voiture>(...)` (turbofish-style forced S3 dispatch) names a
+        // type with no registered `greet` implementation — must be a
+        // compile-time error, not a silent transpile to a nonexistent R
+        // function (`greet.Voiture`) that would only fail at runtime.
+        let src = "type Personne <- list{ name: char };\n\
+                   type Voiture <- list{ marque: char };\n\
+                   let greet <- fn(x: Personne, y: Personne): Personne { x };\n\
+                   let p1 <- Personne:{ name = \"a\" };\n\
+                   let p2 <- Personne:{ name = \"b\" };\n\
+                   greet<Voiture>(p1, p2);";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(
+            result.errors.iter().any(|e| matches!(
+                e,
+                crate::components::error_message::typr_error::TypRError::Type(
+                    TypeError::NoDispatchImplementation(name, _, _, _)
+                ) if name == "greet"
+            )),
+            "expected NoDispatchImplementation for a forced type with no implementation, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_forced_dispatch_with_matching_implementation_type_checks() {
+        let src = "type Personne <- list{ name: char };\n\
+                   type Animal <- list{ name: char };\n\
+                   let greet <- fn(x: Personne, y: Personne): Personne { x };\n\
+                   let greet <- fn(x: Animal, y: Animal): Animal { x };\n\
+                   let p1 <- Personne:{ name = \"a\" };\n\
+                   let p2 <- Personne:{ name = \"b\" };\n\
+                   greet<Personne>(p1, p2);";
+        let ast = parse_from_string(src, "test.ty");
+        let result = typing_with_errors(&Context::default(), &ast);
+        assert!(!result.has_errors(), "expected no errors, got: {:?}", result.errors);
     }
 }

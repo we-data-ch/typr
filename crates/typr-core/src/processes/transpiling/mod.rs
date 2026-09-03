@@ -911,8 +911,25 @@ impl RTranslatable<(String, Context)> for Lang {
                             let (args, current_cont) = Translatable::from(cont1).join(&new_vals, ", ").into();
                             (format!("{}({})", r_name, args), current_cont)
                         } else {
+                            // `name<Type>(...)` (turbofish-style forced dispatch):
+                            // the callee's `related_type` is only ever non-Empty
+                            // here when the user wrote an explicit `<Type>`
+                            // annotation on this identifier (never set by
+                            // unification or argument-position inference, which
+                            // only ever touch `vals`/`new_vals`, not `exp`
+                            // itself) — so it's always safe to bind straight to
+                            // the concrete S3 method, skipping `UseMethod` at
+                            // runtime. `Any` maps to `.default`, mirroring the
+                            // definition-site precedent (`Lang::Let` arm above)
+                            // rather than relying on `get_class`, which
+                            // deliberately leaves `Any` unsuffixed.
+                            let forced_name = match var.get_type() {
+                                Type::Empty(_) => new_name.clone(),
+                                Type::Any(_) => format!("{}.default", new_name),
+                                ty => format!("{}.{}", new_name, cont1.get_class_unquoted(&ty)),
+                            };
                             let (args, current_cont) = Translatable::from(cont1).join(&new_vals, ", ").into();
-                            (format!("{}({})", new_name, args), current_cont)
+                            (format!("{}({})", forced_name, args), current_cont)
                         }
                     })
                     .unwrap_or_else(|| {
@@ -3952,6 +3969,89 @@ mod tests {
         assert!(
             r_str.contains("class(x) <- c(\"Person\", \"Position\", \"list\")"),
             "expected Person's annotator to include Position, got: {r_str}"
+        );
+    }
+
+    #[test]
+    fn test_forced_dispatch_call_binds_directly_to_suffixed_method() {
+        // `greet<Personne>(...)` (turbofish-style forced S3 dispatch) must
+        // bind straight to `greet.Personne(...)`, bypassing `UseMethod` at
+        // runtime, while a plain unforced call stays exactly as it was.
+        let r_str = FluentParser::new()
+            .push("type Personne <- list{ name: char };")
+            .run()
+            .push("type Animal <- list{ name: char };")
+            .run()
+            .push("let greet <- fn(x: Personne, y: Personne): Personne { x };")
+            .run()
+            .push("let greet <- fn(x: Animal, y: Animal): Animal { x };")
+            .run()
+            .push("let p1 <- Personne:{ name = \"a\" };")
+            .run()
+            .push("let p2 <- Personne:{ name = \"b\" };")
+            .run()
+            .check_transpiling("greet<Personne>(p1, p2)")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_str.contains("greet.Personne(p1, p2)"),
+            "expected a direct `greet.Personne(...)` call, got: {r_str}"
+        );
+    }
+
+    #[test]
+    fn test_unforced_call_stays_plain() {
+        let r_str = FluentParser::new()
+            .push("type Personne <- list{ name: char };")
+            .run()
+            .push("type Animal <- list{ name: char };")
+            .run()
+            .push("let greet <- fn(x: Personne, y: Personne): Personne { x };")
+            .run()
+            .push("let greet <- fn(x: Animal, y: Animal): Animal { x };")
+            .run()
+            .push("let p1 <- Personne:{ name = \"a\" };")
+            .run()
+            .push("let p2 <- Personne:{ name = \"b\" };")
+            .run()
+            .check_transpiling("greet(p1, p2)")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_str.contains("greet(p1, p2)") && !r_str.contains("greet.Personne(p1, p2)"),
+            "expected a plain, unsuffixed `greet(...)` call relying on runtime UseMethod dispatch, got: {r_str}"
+        );
+    }
+
+    #[test]
+    fn test_forced_dispatch_any_binds_to_default() {
+        // `greet<Any>(...)` must bind to the `.default` fallback — mirroring
+        // the same `Any -> .default` precedent already used at the
+        // definition site (see the `Lang::Let` arm above), not to a literal
+        // `.Any` suffix.
+        let r_str = FluentParser::new()
+            .push("type Personne <- list{ name: char };")
+            .run()
+            .push("let greet <- fn(x: Personne, y: Personne): Personne { x };")
+            .run()
+            .push("let greet <- fn(x: Any, y: Any): Any { x };")
+            .run()
+            .push("let p1 <- Personne:{ name = \"a\" };")
+            .run()
+            .push("let p2 <- Personne:{ name = \"b\" };")
+            .run()
+            .check_transpiling("greet<Any>(p1, p2)")
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_str.contains("greet.default(p1, p2)"),
+            "expected a direct `greet.default(...)` call, got: {r_str}"
         );
     }
 
