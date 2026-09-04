@@ -204,6 +204,15 @@ impl RNameCache {
     pub fn knows_package(&self, pkg: &str) -> bool {
         self.packages.contains(pkg)
     }
+
+    /// Whether `pkg` is one of the R packages the embedded seed covers, i.e.
+    /// part of every R installation rather than something the user chose to
+    /// depend on. Forwarding a name to one of these is the deliberate
+    /// `max`/`base::max` pattern; forwarding to a package the user merely
+    /// happens to import is a coincidence, not an intent.
+    pub fn is_seed_package(&self, pkg: &str) -> bool {
+        SEED_PACKAGES.contains(&pkg)
+    }
 }
 
 impl RNameCache {

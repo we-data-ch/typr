@@ -272,6 +272,41 @@ const FOREIGN_TY: &str = include_str!("../configs/std/foreign.ty");
 const FUNCTIONS_JS: &str = include_str!("../configs/src/functions_JS.txt");
 const STD_JS_TY: &str = include_str!("../configs/std/std_JS.ty");
 
+/// Every name TypR's own bundled standard library declares (`@name: T;` in
+/// `configs/std/*.ty`), R and JS alike.
+///
+/// This is the set of names TypR itself owns the meaning of. It matters
+/// because an R package the user imports may export a homonym — Shiny's `div`
+/// builds an HTML tag, TypR's `div` divides two numbers — and wiring TypR's
+/// generic to that homonym's implementation would silently return the wrong
+/// kind of value (see `r_name_lint::plan_generic_stubs`).
+///
+/// Derived from the same sources the stdlib binaries are built from, so a
+/// signature added to a `.ty` file is covered without touching this list.
+pub fn stdlib_declared_names() -> std::collections::BTreeSet<String> {
+    [
+        STD_R_TY, DEFAULT_TY, FILE_TY, OPTION_TY, PLOT_TY, LIN_ALG_TY, SYSTEM_TY, FACTOR_TY, STATE_TY, ORD_TY,
+        FOREIGN_TY, STD_JS_TY,
+    ]
+    .iter()
+    .flat_map(|source| source.lines())
+    .filter_map(|line| {
+        // `@name: Type;`, or `@extern [pkg::]name: Type;`.
+        let rest = line.trim().strip_prefix('@')?;
+        let (head, _) = rest.split_once(':')?;
+        let name = head
+            .strip_prefix("extern ")
+            .map(|n| n.rsplit("::").next().unwrap_or(n))
+            .unwrap_or(head)
+            .trim();
+        // `@extern pkg::name` splits on the first `:` of `::`, leaving a
+        // trailing colon fragment; and an empty head is not a name.
+        let name = name.trim_end_matches(':').trim();
+        (!name.is_empty()).then(|| name.to_string())
+    })
+    .collect()
+}
+
 /// Build a VarType containing all known function names from a function list file.
 ///
 /// Each function name is stored as:

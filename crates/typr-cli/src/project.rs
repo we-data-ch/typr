@@ -452,6 +452,10 @@ fn plan_r_names(context: &Context, generated_r: &str, root: &Path, strict_mode: 
         .iter()
         .map(|n| n.replace('`', ""))
         .collect::<BTreeSet<_>>();
+    // Names TypR's own bundled stdlib declares. A package the user imports may
+    // export a homonym (Shiny's `div` vs TypR's arithmetic `div`); those must
+    // never be forwarded to it — see `plan_generic_stubs`.
+    let stdlib_owned = crate::standard_library::stdlib_declared_names();
 
     // The cache only has to cover packages this project actually names; the
     // embedded seed already covers base/stats/utils/methods, so a project with
@@ -460,7 +464,14 @@ fn plan_r_names(context: &Context, generated_r: &str, root: &Path, strict_mode: 
     let notes = cache.ensure_packages(&project_r_packages(context, root));
     let _ = cache.save(root);
 
-    let plan = crate::r_name_lint::plan_generic_stubs(&stub_names, &signature_only, generated_r, &cache, strict_mode);
+    let plan = crate::r_name_lint::plan_generic_stubs(
+        &stub_names,
+        &signature_only,
+        &stdlib_owned,
+        generated_r,
+        &cache,
+        strict_mode,
+    );
     let mut findings = plan.findings.clone();
     findings.extend(crate::r_name_lint::lint_record_constructor_names(&ctor_names, &cache));
     for note in notes {

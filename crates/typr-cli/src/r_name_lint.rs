@@ -144,6 +144,7 @@ const ZERO_ARITY_STDLIB_EXEMPT: &[&str] = &["dir", "getwd"];
 pub fn plan_generic_stubs(
     names: &[String],
     signature_only: &BTreeSet<String>,
+    stdlib_owned: &BTreeSet<String>,
     generated_r: &str,
     cache: &RNameCache,
     strict: bool,
@@ -185,6 +186,18 @@ pub fn plan_generic_stubs(
         // name that IS a known S4 generic gets only the S4 warning (row 2),
         // since S4 objects do not dispatch through an S3 `.default` anyway.
         if entry.needs_generated_default() && !emits_default(name, generated_r) {
+            // …unless TypR's own stdlib owns the name and the only candidate
+            // is a package the user merely imports. `div` is TypR's arithmetic
+            // division; that Shiny also exports a `div` (an HTML tag builder)
+            // is a homonym, not an implementation of it. Forwarding there
+            // would turn a loud "no applicable method" into a silently wrong
+            // value — `div(6, 2)` returning `<div>` instead of `3` — and would
+            // rewire `filter`, `map`, `get`… the moment a project imports
+            // dplyr. Base R is the exception: `max.default <- base::max` is
+            // the deliberate, long-standing pattern in std.R.
+            if stdlib_owned.contains(name) && !cache.is_seed_package(&entry.pkg) {
+                continue;
+            }
             plan.auto_defaults.push((name.clone(), entry.pkg.clone()));
             continue;
         }
@@ -265,7 +278,14 @@ mod tests {
 
     fn plan(names: &[&str], generated_r: &str, strict: bool) -> StubPlan {
         let names: Vec<String> = names.iter().map(|n| n.to_string()).collect();
-        plan_generic_stubs(&names, &BTreeSet::new(), generated_r, &RNameCache::seed(), strict)
+        plan_generic_stubs(
+            &names,
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+            generated_r,
+            &RNameCache::seed(),
+            strict,
+        )
     }
 
     #[test]
@@ -344,7 +364,14 @@ mod tests {
     #[test]
     fn unknown_name_warns_when_it_was_declared_as_a_signature() {
         let signature_only: BTreeSet<String> = ["div".to_string()].into_iter().collect();
-        let plan = plan_generic_stubs(&["div".to_string()], &signature_only, "", &RNameCache::seed(), false);
+        let plan = plan_generic_stubs(
+            &["div".to_string()],
+            &signature_only,
+            &BTreeSet::new(),
+            "",
+            &RNameCache::seed(),
+            false,
+        );
         assert_eq!(plan.findings.len(), 1);
         assert_eq!(plan.findings[0].severity, LintSeverity::Warning);
         assert!(
@@ -352,6 +379,85 @@ mod tests {
             "{}",
             plan.findings[0].message
         );
+    }
+
+    /// A name TypR's own stdlib owns must never be wired to a homonym from a
+    /// package the user merely imports. Shiny exports a `div` that builds an
+    /// HTML tag; TypR's `div` divides. Generating
+    /// `div.default <- shiny::div` made `div(6, 2)` return `<div>` instead of
+    /// failing loudly — a silently wrong value, which is worse than the
+    /// pre-existing error. Same shape for `filter`/dplyr, `map`/purrr.
+    fn cache_with(name: &str, pkg: &str) -> RNameCache {
+        let mut cache = RNameCache::seed();
+        cache.names.insert(
+            name.to_string(),
+            crate::r_name_cache::RNameEntry {
+                pkg: pkg.to_string(),
+                s3_generic: false,
+                s4_generic: false,
+                has_default: false,
+            },
+        );
+        cache
+    }
+
+    #[test]
+    fn a_stdlib_name_is_never_forwarded_to_a_user_package_homonym() {
+        let stdlib_owned: BTreeSet<String> = ["div".to_string()].into_iter().collect();
+        let plan = plan_generic_stubs(
+            &["div".to_string()],
+            &BTreeSet::new(),
+            &stdlib_owned,
+            "",
+            &cache_with("div", "shiny"),
+            false,
+        );
+        assert!(plan.auto_defaults.is_empty(), "{:?}", plan.auto_defaults);
+    }
+
+    /// Base R is the exception: `max.default <- base::max` is the deliberate,
+    /// long-standing pattern in std.R, so a stdlib name that collides with a
+    /// *base* function is still forwarded.
+    #[test]
+    fn a_stdlib_name_colliding_with_base_r_is_still_forwarded() {
+        let stdlib_owned: BTreeSet<String> = ["zz_std_name".to_string()].into_iter().collect();
+        let plan = plan_generic_stubs(
+            &["zz_std_name".to_string()],
+            &BTreeSet::new(),
+            &stdlib_owned,
+            "",
+            &cache_with("zz_std_name", "base"),
+            false,
+        );
+        assert_eq!(
+            plan.auto_defaults,
+            vec![("zz_std_name".to_string(), "base".to_string())]
+        );
+    }
+
+    /// The guard is about *stdlib-owned* names only: a name the user declares
+    /// for a package function keeps its generated fallback.
+    #[test]
+    fn a_user_declared_name_is_still_forwarded_to_its_package() {
+        let plan = plan_generic_stubs(
+            &["path_file".to_string()],
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+            "",
+            &cache_with("path_file", "fs"),
+            false,
+        );
+        assert_eq!(plan.auto_defaults, vec![("path_file".to_string(), "fs".to_string())]);
+    }
+
+    #[test]
+    fn stdlib_declared_names_covers_the_bundled_ty_signatures() {
+        let names = crate::standard_library::stdlib_declared_names();
+        // `div`/`add` come from default.ty, `readRDS`-style externs are
+        // unwrapped from their `pkg::` prefix.
+        assert!(names.contains("div"), "{names:?}");
+        assert!(names.contains("add"));
+        assert!(!names.contains("crossprod"), "base-R-only names must not appear");
     }
 
     #[test]
