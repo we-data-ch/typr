@@ -1,0 +1,13 @@
+Package: typr.runner
+Title: Run TypR from RStudio and Positron
+Version: 0.5.7
+Authors@R: person("Fabrice", "Hategekimana", email = "fab.hatege15@gmail.com", role = c("aut", "cre"))
+Description: RStudio addins to create, check, build, test and run TypR projects
+    without leaving the IDE. Wraps the TypR compiler binary, which is bundled in
+    the release build of this package and otherwise looked up on the PATH.
+License: Apache License (>= 2)
+URL: https://github.com/we-data-ch/typr
+BugReports: https://github.com/we-data-ch/typr/issues
+Imports: rstudioapi, utils
+Encoding: UTF-8
+Config/roxygen2/version: 8.1.0

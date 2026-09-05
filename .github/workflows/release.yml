@@ -1,9 +1,17 @@
 name: Release
 
+# Le tag est l'unique déclencheur de toute la distribution.
+# workflow_dispatch permet de relancer l'éventail si une branche a échoué,
+# sans avoir à re-taguer.
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag à publier (ex. v0.5.8)"
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,14 +21,53 @@ permissions:
   contents: write
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # 0. Garde-fou : le tag et Cargo.toml doivent dire la même chose.
+  #    C'est ce qui empêche structurellement la dérive entre canaux.
+  # ---------------------------------------------------------------------------
+  verify:
+    name: Verify version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - id: v
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          CARGO_VERSION=$(sed -n '/^\[workspace\.package\]/,/^\[/p' Cargo.toml \
+                          | grep '^version' | head -1 | cut -d'"' -f2)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$CARGO_VERSION" >> "$GITHUB_OUTPUT"
+
+          if [ "$TAG" != "v$CARGO_VERSION" ]; then
+            echo "::error::Le tag ($TAG) ne correspond pas à Cargo.toml (v$CARGO_VERSION)."
+            exit 1
+          fi
+
+          # Les périphériques doivent porter la même version (nu publish.nu sync)
+          VSCODE_VERSION=$(grep -m1 '"version"' editors/vscode/package.json | cut -d'"' -f4)
+          RSTUDIO_VERSION=$(grep -m1 '^Version:' editors/rstudio/DESCRIPTION | awk '{print $2}')
+          FAIL=0
+          [ "$VSCODE_VERSION" != "$CARGO_VERSION" ] && { echo "::error::extension VS Code en $VSCODE_VERSION au lieu de $CARGO_VERSION — lance 'nu publish.nu sync'"; FAIL=1; }
+          [ "$RSTUDIO_VERSION" != "$CARGO_VERSION" ] && { echo "::error::runner RStudio en $RSTUDIO_VERSION au lieu de $CARGO_VERSION — lance 'nu publish.nu sync'"; FAIL=1; }
+          exit $FAIL
+
+  # ---------------------------------------------------------------------------
+  # 1. Binaires multi-plateformes
+  # ---------------------------------------------------------------------------
   build:
     name: Build ${{ matrix.target }}
+    needs: verify
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             archive: tar.gz
@@ -28,16 +75,12 @@ jobs:
             os: ubuntu-latest
             archive: tar.gz
             cross: true
-            
-          # Windows
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             archive: zip
           - target: aarch64-pc-windows-msvc
             os: windows-latest
             archive: zip
-            
-          # macOS
           - target: x86_64-apple-darwin
             os: macos-latest
             archive: tar.gz
@@ -47,11 +90,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
 
       - name: Install cross (Linux ARM)
         if: matrix.cross
@@ -69,30 +117,33 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: |
           cd target/${{ matrix.target }}/release
-          tar -czvf ../../../${{ env.BINARY_NAME }}-${{ github.ref_name }}-${{ matrix.target }}.tar.gz ${{ env.BINARY_NAME }}
+          tar -czvf ../../../${{ env.BINARY_NAME }}-${{ needs.verify.outputs.tag }}-${{ matrix.target }}.tar.gz ${{ env.BINARY_NAME }}
 
       - name: Prepare artifacts (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           cd target/${{ matrix.target }}/release
-          Compress-Archive -Path ${{ env.BINARY_NAME }}.exe -DestinationPath ../../../${{ env.BINARY_NAME }}-${{ github.ref_name }}-${{ matrix.target }}.zip
+          Compress-Archive -Path ${{ env.BINARY_NAME }}.exe -DestinationPath ../../../${{ env.BINARY_NAME }}-${{ needs.verify.outputs.tag }}-${{ matrix.target }}.zip
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.BINARY_NAME }}-${{ matrix.target }}
-          path: ${{ env.BINARY_NAME }}-${{ github.ref_name }}-${{ matrix.target }}.${{ matrix.archive }}
+          path: ${{ env.BINARY_NAME }}-${{ needs.verify.outputs.tag }}-${{ matrix.target }}.${{ matrix.archive }}
 
+  # ---------------------------------------------------------------------------
+  # 2. Release GitHub — la source dont tous les autres canaux tirent le binaire
+  # ---------------------------------------------------------------------------
   release:
     name: Create Release
-    needs: build
+    needs: [verify, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
@@ -103,27 +154,103 @@ jobs:
           sha256sum * > checksums.txt
           cat checksums.txt
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/*
+          tag_name: ${{ needs.verify.outputs.tag }}
+          files: artifacts/*
           generate_release_notes: true
           draft: false
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: ${{ contains(needs.verify.outputs.tag, 'alpha') || contains(needs.verify.outputs.tag, 'beta') || contains(needs.verify.outputs.tag, 'rc') }}
 
-  build-wasm:
-    name: Build WASM
+  # ---------------------------------------------------------------------------
+  # 3. crates.io — l'ordre suit le graphe de dépendances.
+  #    typr-lsp DOIT passer avant typr-cli : une dépendance `path` porteuse d'un
+  #    numéro de version exige que le crate existe déjà sur le registre.
+  # ---------------------------------------------------------------------------
+  crates-io:
+    name: Publish to crates.io
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Publish crates in dependency order
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          for crate in typr-core typr-lsp typr-cli typr; do
+            PUBLISHED=$(curl -s -H "User-Agent: typr-release" \
+              "https://crates.io/api/v1/crates/$crate/$VERSION" \
+              | grep -c '"num":"'"$VERSION"'"' || true)
+            if [ "$PUBLISHED" != "0" ]; then
+              echo "→ $crate $VERSION déjà publié, on passe"
+              continue
+            fi
+            echo "→ cargo publish -p $crate"
+            # cargo attend nativement la propagation de l'index depuis 1.66
+            cargo publish -p "$crate"
+          done
+
+  # ---------------------------------------------------------------------------
+  # 4. Docker — consomme le binaire déjà construit, ne recompile rien.
+  #    Étiquette la version ET latest : on peut enfin épingler une version.
+  # ---------------------------------------------------------------------------
+  docker:
+    name: Docker image
+    needs: [verify, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Fetch the released Linux binary
+        run: |
+          mkdir -p docker/bin
+          curl -sSfL \
+            "https://github.com/${{ github.repository }}/releases/download/${{ needs.verify.outputs.tag }}/typr-${{ needs.verify.outputs.tag }}-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C docker/bin
+          chmod +x docker/bin/typr
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: docker
+          push: true
+          tags: |
+            fabricehategekimana/typr:${{ needs.verify.outputs.version }}
+            fabricehategekimana/typr:latest
+
+  # ---------------------------------------------------------------------------
+  # 5. WASM → playground
+  # ---------------------------------------------------------------------------
+  wasm:
+    name: WASM → playground
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
@@ -131,53 +258,134 @@ jobs:
       - name: Build WASM
         run: wasm-pack build --release --target web crates/typr-wasm
 
-      - name: Prepare WASM artifacts
+      - name: Attach WASM to the release
         run: |
           mkdir -p wasm-dist
-          cp crates/typr-wasm/pkg/*.wasm wasm-dist/
-          cp crates/typr-wasm/pkg/*.js wasm-dist/
-          cd wasm-dist
-          tar -czvf ../typr-wasm-${{ github.ref_name }}.tar.gz *
+          cp crates/typr-wasm/pkg/*.wasm crates/typr-wasm/pkg/*.js wasm-dist/
+          tar -czvf typr-wasm-${{ needs.verify.outputs.tag }}.tar.gz -C wasm-dist .
 
-      - name: Upload WASM artifact
-        uses: actions/upload-artifact@v4
+      - uses: softprops/action-gh-release@v2
         with:
-          name: typr-wasm
-          path: typr-wasm-${{ github.ref_name }}.tar.gz
+          tag_name: ${{ needs.verify.outputs.tag }}
+          files: typr-wasm-${{ needs.verify.outputs.tag }}.tar.gz
 
-      - name: Add WASM to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: typr-wasm-${{ github.ref_name }}.tar.gz
+      - name: Push to the playground repository
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Deploy to Playground
-        continue-on-error: true
-        env:
-          PLAYGROUND_TOKEN: ${{ secrets.PLAYGROUND_DEPLOY_TOKEN }}
+          VERSION: ${{ needs.verify.outputs.version }}
         run: |
+          set -euo pipefail
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
-          
-          # Clone the playground repository using the PAT for authentication
-          git clone https://x-access-token:${{ secrets.PLAYGROUND_DEPLOY_TOKEN }}@github.com/we-data-ch/typr-playground.github.io.git playground
-          
-          # Ensure destination directory exists
-          mkdir -p playground/public/wasm/
-          
-          # Copy new WASM and JS files
-          cp crates/typr-wasm/pkg/*.wasm playground/public/wasm/
-          cp crates/typr-wasm/pkg/*.js playground/public/wasm/
-          
-          # Commit and push changes to playground
+
+          git clone --depth 1 \
+            "https://x-access-token:${{ secrets.PLAYGROUND_DEPLOY_TOKEN }}@github.com/we-data-ch/typr-playground.github.io.git" \
+            playground
+
+          mkdir -p playground/public/wasm
+          cp crates/typr-wasm/pkg/*.wasm crates/typr-wasm/pkg/*.js playground/public/wasm/
+
+          # Le playground lit sa version ici au lieu de la coder en dur
+          # dans Header.tsx (ce que faisait set_version.nu, à la main).
+          printf '{"version":"%s"}\n' "$VERSION" > playground/public/wasm/version.json
+
           cd playground
           git add public/wasm/
-          
-          # Only commit and push if there are changes
           if git diff --staged --quiet; then
-            echo "No changes to deploy to playground."
+            echo "Aucun changement à déployer."
           else
-            git commit -m "Update WASM to version ${{ github.ref_name }}"
+            git commit -m "Update WASM to $VERSION"
             git push origin main
           fi
+
+  # ---------------------------------------------------------------------------
+  # 6. Extension VS Code → Marketplace
+  # ---------------------------------------------------------------------------
+  vscode:
+    name: VS Code Marketplace
+    needs: verify
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: editors/vscode
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - name: Package the extension
+        run: npx vsce package --out typr-${{ needs.verify.outputs.version }}.vsix
+
+      - name: Attach the .vsix to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.verify.outputs.tag }}
+          files: editors/vscode/typr-${{ needs.verify.outputs.version }}.vsix
+
+      - name: Publish to the Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish --packagePath typr-${{ needs.verify.outputs.version }}.vsix
+
+  # ---------------------------------------------------------------------------
+  # 7. Runner RStudio — le tarball est assemblé ici avec les binaires frais.
+  #    C'est ce qui remplace les 33 commits "[auto] updated binaries".
+  # ---------------------------------------------------------------------------
+  rstudio:
+    name: RStudio runner package
+    needs: [verify, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+
+      - name: Embed the released binaries
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/${{ github.repository }}/releases/download/$TAG"
+          mkdir -p editors/rstudio/inst/bin
+
+          curl -sSfL "$BASE/typr-$TAG-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C editors/rstudio/inst/bin
+
+          curl -sSfL -o win.zip "$BASE/typr-$TAG-x86_64-pc-windows-msvc.zip"
+          unzip -o win.zip -d editors/rstudio/inst/bin
+          rm win.zip
+
+          chmod +x editors/rstudio/inst/bin/typr
+          ls -la editors/rstudio/inst/bin/
+
+      - name: Build the R source package
+        run: |
+          sudo apt-get update && sudo apt-get install -y r-base-core
+          R CMD build editors/rstudio
+          ls -la *.tar.gz
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.verify.outputs.tag }}
+          files: typr.runner_*.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # 8. Documentation — reconstruite pour refléter la nouvelle version
+  # ---------------------------------------------------------------------------
+  docs:
+    name: Trigger docs rebuild
+    needs: [verify, release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch to typr.github.io
+        run: |
+          curl -sSfL -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.DOCS_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/we-data-ch/typr.github.io/dispatches \
+            -d '{"event_type":"typr-release","client_payload":{"version":"${{ needs.verify.outputs.version }}"}}'

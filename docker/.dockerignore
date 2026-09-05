@@ -1,0 +1,3 @@
+# Le contexte n'a besoin que de bin/typr — le reste alourdit le build inutilement.
+workspace/
+deploy.nu

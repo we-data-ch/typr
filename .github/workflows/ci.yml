@@ -52,3 +52,58 @@ jobs:
         
       - name: Build
         run: cargo build --release
+
+  coherence:
+    name: Version coherence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cargo.toml et les éditeurs doivent porter la même version
+        run: |
+          CARGO_VERSION=$(sed -n '/^\[workspace\.package\]/,/^\[/p' Cargo.toml \
+                          | grep '^version' | head -1 | cut -d'"' -f2)
+          VSCODE_VERSION=$(grep -m1 '"version"' editors/vscode/package.json | cut -d'"' -f4)
+          RSTUDIO_VERSION=$(grep -m1 '^Version:' editors/rstudio/DESCRIPTION | awk '{print $2}')
+
+          echo "compilateur : $CARGO_VERSION"
+          echo "vscode      : $VSCODE_VERSION"
+          echo "rstudio     : $RSTUDIO_VERSION"
+
+          FAIL=0
+          [ "$VSCODE_VERSION" != "$CARGO_VERSION" ] && { echo "::error file=editors/vscode/package.json::désaligné — lance 'nu publish.nu sync'"; FAIL=1; }
+          [ "$RSTUDIO_VERSION" != "$CARGO_VERSION" ] && { echo "::error file=editors/rstudio/DESCRIPTION::désaligné — lance 'nu publish.nu sync'"; FAIL=1; }
+          exit $FAIL
+
+      - name: Aucun binaire ne doit être commité
+        run: |
+          # Ce qui a fait gonfler l'ancien dépôt du runner à 140 Mo pour 100 Ko
+          # de source : les binaires sont désormais assemblés par la release.
+          FOUND=$(git ls-files | grep -E '(^|/)(typr|typr\.exe)$' || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::binaire commité détecté :"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "Aucun binaire commité."
+
+  editors:
+    name: Editors build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Extension VS Code — compilation
+        working-directory: editors/vscode
+        run: |
+          npm ci
+          npm run compile
+
+      - name: Runner RStudio — analyse syntaxique
+        run: |
+          sudo apt-get update && sudo apt-get install -y r-base-core
+          Rscript -e 'invisible(lapply(list.files("editors/rstudio/R", full.names=TRUE), parse)); cat("parse OK\n")'
