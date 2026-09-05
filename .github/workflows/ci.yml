@@ -33,13 +33,14 @@ jobs:
           
       - name: Run tests
         run: cargo test --workspace
-        continue-on-error: true
         
       - name: Check formatting
         run: cargo fmt --all -- --check
         
+      # Non bloquant tant que les ~17 avertissements existants ne sont pas
+      # résorbés — passer à `-- -D warnings` une fois le nettoyage fait.
       - name: Clippy
-        run: cargo clippy --workspace
+        run: cargo clippy --workspace --all-targets
 
   build-check:
     name: Build Check
@@ -107,3 +108,30 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y r-base-core
           Rscript -e 'invisible(lapply(list.files("editors/rstudio/R", full.names=TRUE), parse)); cat("parse OK\n")'
+
+  cases:
+    name: Regression catalog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install R and the packages the cases exercise
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y r-base-core
+          sudo Rscript -e "install.packages(c('R6','S7','Matrix'), repos='https://cloud.r-project.org')"
+
+      - name: Build typr
+        run: cargo build --release
+
+      - name: Replay the catalog
+        run: |
+          # `typr case run` ne sort en erreur que sur REGRESS : un cas marqué
+          # `fixed` qui casse à nouveau. Les cas OPEN/SKIP n'échouent pas.
+          ./target/release/typr case run | tee case-run.log
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -5 case-run.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

@@ -20,6 +20,12 @@ env:
 permissions:
   contents: write
 
+# Deux releases ne doivent jamais publier en parallèle : elles écriraient sur
+# les mêmes canaux (crates.io, Docker Hub, dépôt du playground).
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   # ---------------------------------------------------------------------------
   # 0. Garde-fou : le tag et Cargo.toml doivent dire la même chose.
@@ -292,10 +298,24 @@ jobs:
           git add public/wasm/
           if git diff --staged --quiet; then
             echo "Aucun changement à déployer."
-          else
-            git commit -m "Update WASM to $VERSION"
-            git push origin main
+            exit 0
           fi
+          git commit -m "Update WASM to $VERSION"
+
+          # Le dépôt du playground a ses propres contributeurs : si main a bougé
+          # entre le clone et le push, on rebase et on réessaie plutôt que
+          # d'échouer (ou pire, d'écraser leur travail).
+          for attempt in 1 2 3; do
+            if git push origin main; then
+              echo "WASM $VERSION poussé (tentative $attempt)."
+              exit 0
+            fi
+            echo "push refusé — rebase sur origin/main et nouvelle tentative"
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo "::error::impossible de pousser le WASM vers le playground après 3 tentatives"
+          exit 1
 
   # ---------------------------------------------------------------------------
   # 6. Extension VS Code → Marketplace

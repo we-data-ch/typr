@@ -1,0 +1,18 @@
+# Chaque zone a un relecteur par défaut : GitHub l'assigne automatiquement
+# à toute PR qui la touche. Le but n'est pas de verrouiller, c'est que
+# personne ne découvre un changement dans son domaine après coup.
+
+# Par défaut
+*                                       @fabriceHategekimana
+
+# Parseur
+/crates/typr-core/src/processes/parsing/    @kpagacz @fabriceHategekimana
+/crates/typr-core/src/components/language/  @kpagacz @fabriceHategekimana
+/cases/                                     @kpagacz @fabriceHategekimana
+
+# Chaîne de distribution : toute modification ici change ce qui est publié
+/.github/workflows/                     @fabriceHategekimana
+/publish.nu                             @fabriceHategekimana
+/docker/                                @fabriceHategekimana
+/RELEASING.md                           @fabriceHategekimana
+/Cargo.toml                             @fabriceHategekimana

@@ -540,7 +540,12 @@ fn substitute_interface_types(ty: &Type, mapping: &[(Type, Type)]) -> Type {
         Type::Function(params, ret, h) => Type::Function(
             params
                 .iter()
-                .map(|p| ArgumentType::new(&p.get_argument_str(), &substitute_interface_types(&p.get_type(), mapping)))
+                .map(|p| {
+                    ArgumentType::new(
+                        &p.get_argument_str(),
+                        &substitute_interface_types(&p.get_type(), mapping),
+                    )
+                })
                 .collect(),
             Box::new(substitute_interface_types(ret, mapping)),
             h.clone(),
