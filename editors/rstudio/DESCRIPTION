@@ -1,6 +1,6 @@
 Package: typr.runner
 Title: Run TypR from RStudio and Positron
-Version: 0.5.8
+Version: 0.5.9
 Authors@R: person("Fabrice", "Hategekimana", email = "fab.hatege15@gmail.com", role = c("aut", "cre"))
 Description: RStudio addins to create, check, build, test and run TypR projects
     without leaving the IDE. Wraps the TypR compiler binary, which is bundled in
