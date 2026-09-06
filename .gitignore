@@ -92,3 +92,13 @@ problem/
 # typr fuzz (soundness_transpilation.md Phase B Stage 2) persisted failures —
 # promote interesting ones into cases/ via `typr fuzz promote <hash>`.
 /fuzz_failures/
+
+# Éditeurs — artefacts de build (les sources vivent dans editors/, pas les binaires)
+editors/vscode/node_modules/
+editors/vscode/out/
+editors/vscode/*.vsix
+editors/rstudio/inst/bin/
+editors/rstudio/*.tar.gz
+
+# Binaire injecté dans le contexte de build Docker
+docker/bin/

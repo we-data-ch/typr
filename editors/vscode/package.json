@@ -1,0 +1,259 @@
+{
+  "name": "typr-language",
+  "displayName": "TypR Tooling and Language Support",
+  "description": "Language support for typR - A typed version of R with TypeScript-like typing and Rust-like syntax",
+  "version": "0.5.7",
+  "publisher": "wedata-ch",
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "icon": "icons/typr_carre.png",
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Formatters"
+  ],
+  "keywords": [
+    "typr",
+    "typed R",
+    "R language",
+    "type checking"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/we-data-ch/typr"
+  },
+  "activationEvents": [
+    "onLanguage:typr"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "typr",
+        "aliases": [
+          "typR",
+          "typr"
+        ],
+        "extensions": [
+          ".ty"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "typr",
+        "scopeName": "source.typr",
+        "path": "./syntaxes/typr.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "typr.check",
+        "title": "typR: Check Project",
+        "category": "typR"
+      },
+      {
+        "command": "typr.build",
+        "title": "typR: Build Project",
+        "category": "typR"
+      },
+      {
+        "command": "typr.run",
+        "title": "typR: Run Project",
+        "category": "typR"
+      },
+      {
+        "command": "typr.checkFile",
+        "title": "typR: Check Current File",
+        "category": "typR"
+      },
+      {
+        "command": "typr.runFile",
+        "title": "typR: Run Current File",
+        "category": "typR"
+      },
+      {
+        "command": "typr.test",
+        "title": "typR: Test Project",
+        "category": "typR"
+      },
+      {
+        "command": "typr.testFile",
+        "title": "typR: Test Current File",
+        "category": "typR"
+      },
+      {
+        "command": "typr.buildFile",
+        "title": "typR: Build Current File",
+        "category": "typR"
+      },
+      {
+        "command": "typr.restartLsp",
+        "title": "typR: Restart Language Server",
+        "category": "typR"
+      },
+      {
+        "command": "typr.showCheckMenu",
+        "title": "Check",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "typr.showBuildMenu",
+        "title": "Build",
+        "icon": "$(package)"
+      },
+      {
+        "command": "typr.showRunMenu",
+        "title": "Run",
+        "icon": "$(play)"
+      },
+      {
+        "command": "typr.showTestMenu",
+        "title": "Test",
+        "icon": "$(beaker)"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "typr.checkSubmenu",
+        "label": "typR Check"
+      },
+      {
+        "id": "typr.buildSubmenu",
+        "label": "typR Build"
+      },
+      {
+        "id": "typr.runSubmenu",
+        "label": "typR Run"
+      },
+      {
+        "id": "typr.testSubmenu",
+        "label": "typR Test"
+      }
+    ],
+    "menus": {
+      "typr.checkSubmenu": [
+        {
+          "command": "typr.check",
+          "group": "1_project"
+        },
+        {
+          "command": "typr.checkFile",
+          "group": "2_file"
+        }
+      ],
+      "typr.buildSubmenu": [
+        {
+          "command": "typr.build",
+          "group": "1_project"
+        },
+        {
+          "command": "typr.buildFile",
+          "group": "2_file"
+        }
+      ],
+      "typr.runSubmenu": [
+        {
+          "command": "typr.run",
+          "group": "1_project"
+        },
+        {
+          "command": "typr.runFile",
+          "group": "2_file"
+        }
+      ],
+      "typr.testSubmenu": [
+        {
+          "command": "typr.test",
+          "group": "1_project"
+        },
+        {
+          "command": "typr.testFile",
+          "group": "2_file"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "typr.build",
+        "key": "ctrl+shift+b",
+        "when": "editorLangId == typr"
+      },
+      {
+        "command": "typr.run",
+        "key": "f5",
+        "when": "editorLangId == typr && !inDebugMode"
+      },
+      {
+        "command": "typr.check",
+        "key": "ctrl+shift+c",
+        "when": "editorLangId == typr"
+      }
+    ],
+    "configuration": {
+      "title": "typR",
+      "properties": {
+        "typr.path": {
+          "type": "string",
+          "default": "typr",
+          "description": "Path to the typr binary. Default assumes typr is in your PATH."
+        },
+        "typr.enableLsp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the typR Language Server for hover, go-to-definition, and autocompletion."
+        },
+        "typr.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the typR language server."
+        },
+        "typr.showStatusBarButtons": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show typR toolset buttons (Check, Build, Run, Test) in the status bar."
+        }
+      }
+    },
+    "problemMatchers": [
+      {
+        "name": "typr",
+        "owner": "typr",
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(.+):(\\d+):(\\d+):\\s+(error|warning|info):\\s+(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --minify",
+    "watch": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --watch",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "@types/vscode": "^1.109.0",
+    "@vscode/vsce": "^3.7.1",
+    "esbuild": "^0.27.3",
+    "typescript": "^5.9.3",
+    "vscode-languageclient": "^9.0.1"
+  }
+}

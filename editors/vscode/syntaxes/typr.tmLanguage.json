@@ -1,0 +1,217 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "typR",
+  "scopeName": "source.typr",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#operators" },
+    { "include": "#functions" },
+    { "include": "#variables" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.typr",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.typr",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.typr",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.typr",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.typr",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.backtick.typr",
+          "begin": "`",
+          "end": "`"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.typr",
+          "match": "\\b[0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?\\b"
+        },
+        {
+          "name": "constant.numeric.integer.typr",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.typr",
+          "match": "\\b(if|else|match|for|while|loop|break|continue|return)\\b"
+        },
+        {
+          "name": "keyword.other.typr",
+          "match": "\\b(let|fn|type|pub|use|mod|impl|trait|struct|enum|where|as|in|mut)\\b"
+        },
+        {
+          "name": "constant.language.boolean.typr",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.null.typr",
+          "match": "\\b(NULL|NA|NaN|Inf)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.primitive.typr",
+          "match": "\\b(int|num|char|bool|Empty|Any)\\b"
+        },
+        {
+          "name": "storage.type.generic.typr",
+          "match": "\\b(Option|Vec|Result|List|Matrix)\\b"
+        },
+        {
+          "name": "entity.name.type.variant.typr",
+          "match": "\\.(Some|None|Ok|Err|[A-Z][a-zA-Z0-9_]*)\\b"
+        },
+        {
+          "name": "variable.other.generic.typr",
+          "match": "#[A-Z][a-zA-Z0-9_]*\\b"
+        },
+        {
+          "name": "entity.name.type.parameter.typr",
+          "match": "\\b[A-Z]\\b(?![a-z])"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.typr",
+          "match": "->|=>"
+        },
+        {
+          "name": "keyword.operator.assignment.typr",
+          "match": "<-|="
+        },
+        {
+          "name": "keyword.operator.logical.typr",
+          "match": "&&|\\|\\||!"
+        },
+        {
+          "name": "keyword.operator.comparison.typr",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.arithmetic.typr",
+          "match": "\\+|-|\\*|/|%|\\^"
+        },
+        {
+          "name": "keyword.operator.pipe.typr",
+          "match": "\\|>"
+        },
+        {
+          "name": "keyword.operator.type-union.typr",
+          "match": "\\|(?!>)"
+        },
+        {
+          "name": "keyword.operator.external.typr",
+          "match": "@"
+        },
+        {
+          "name": "keyword.operator.accessor.typr",
+          "match": "\\."
+        },
+        {
+          "name": "keyword.operator.namespace.typr",
+          "match": "::"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "entity.name.function.typr",
+          "match": "\\b([a-z_][a-zA-Z0-9_]*)\\s*(?=\\()"
+        },
+        {
+          "name": "entity.name.function.external.typr",
+          "match": "@([a-z_][a-zA-Z0-9_]*)\\b"
+        },
+        {
+          "name": "entity.name.function.definition.typr",
+          "match": "(?<=fn\\s+)([a-z_][a-zA-Z0-9_]*)\\b"
+        },
+        {
+          "name": "entity.name.function.definition.typr",
+          "match": "(?<=let\\s+)([a-z_][a-zA-Z0-9_]*)(?=\\s*<-\\s*fn)"
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.parameter.typr",
+          "match": "\\b([a-z_][a-zA-Z0-9_]*)\\s*:"
+        },
+        {
+          "name": "variable.other.typr",
+          "match": "\\b[a-z_][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.statement.typr",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.separator.comma.typr",
+          "match": ","
+        },
+        {
+          "name": "punctuation.bracket.round.typr",
+          "match": "[()]"
+        },
+        {
+          "name": "punctuation.bracket.square.typr",
+          "match": "[\\[\\]]"
+        },
+        {
+          "name": "punctuation.bracket.curly.typr",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.bracket.angle.typr",
+          "match": "[<>]"
+        }
+      ]
+    }
+  }
+}

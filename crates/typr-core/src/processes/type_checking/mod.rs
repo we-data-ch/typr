@@ -1101,7 +1101,9 @@ pub fn validate_forced_dispatch(context: &Context, var: &Var) -> Option<TypRErro
         }),
         ty => {
             let forced_class = context.get_class_unquoted(ty);
-            dispatch_types.iter().any(|t| context.get_class_unquoted(t) == forced_class)
+            dispatch_types
+                .iter()
+                .any(|t| context.get_class_unquoted(t) == forced_class)
         }
     };
     if has_match {

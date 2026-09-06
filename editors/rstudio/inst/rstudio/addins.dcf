@@ -1,0 +1,24 @@
+Name: Run TypR file
+Description: Run the commande with the file name
+Binding: run_file
+Interactive: false
+
+Name: Run TypR project
+Description: Run the commande with the file name
+Binding: run
+Interactive: false
+
+Name: Build TypR project
+Description: Run the commande with the file name
+Binding: build
+Interactive: false
+
+Name: Check TypR project
+Description: Run the commande with the file name
+Binding: check
+Interactive: false
+
+Name: Test TypR project
+Description: Run the commande with the file name
+Binding: test
+Interactive: false

@@ -35,7 +35,7 @@ version = "0.5.7"
 edition = "2021"
 authors = ["Fabrice Hategekimana <fab.hatege15@gmail.com>"]
 license = "Apache-2.0"
-repository = "https://github.com/fabriceHategekimana/typr"
+repository = "https://github.com/we-data-ch/typr"
 
 [workspace.dependencies]
 nom = "8.0.0"

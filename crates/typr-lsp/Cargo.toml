@@ -2,6 +2,8 @@
 name = "typr-lsp"
 description = "LSP server for TypR"
 keywords = ["R", "type-checker", "lsp"]
+categories = ["development-tools"]
+readme = "../../README.md"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
