@@ -15,18 +15,37 @@ et le même contrôle tourne sur chaque PR (job `coherence` de `ci.yml`).
 
 ## Procédure
 
-```bash
-git switch main && git pull
+`main` est protégée : on n'y commite pas directement. La montée de version se
+prépare sur `develop`, arrive sur `main` par une pull request, et seul le tag
+est poussé ensuite.
 
+```bash
+# 1. Préparer la version sur develop
+git switch develop && git pull
 nu publish.nu bump patch      # ou minor / major — synchronise les éditeurs
 cargo check --workspace       # met Cargo.lock à jour
+git commit -am "release v$(nu publish.nu version | head -1)"
+git push origin develop
 
-git add -A
-git commit -m "release v$(nu publish.nu version | head -1)"
+# 2. La faire passer sur main (la CI doit être verte, un relecteur doit approuver)
+gh pr create --base main --head develop --fill
+gh pr merge --merge --delete-branch=false
 
-nu publish.nu release --dry-run   # vérifie branche, propreté, tag
-nu publish.nu release             # tag + push → la CI prend le relais
+# 3. Taguer depuis main
+git switch main && git pull
+nu publish.nu release --dry-run   # branche, propreté, écart avec origin/main, tag
+nu publish.nu release             # pousse le tag seul → la CI prend le relais
+
+# 4. Remettre develop au niveau de main
+git switch develop && git merge main && git push origin develop
 ```
+
+`release` ne pousse **que le tag**. S'il détecte que `main` locale diverge de
+`origin/main`, il s'arrête : le contenu doit d'abord être passé par l'étape 2.
+
+Un numéro de version déjà publié ne se réutilise pas. `release` refuse un tag
+existant en local comme sur le distant, et `cargo publish` refuserait de toute
+façon d'écraser une version présente sur crates.io.
 
 `nu publish.nu check` compare ensuite ce qui est réellement publié sur chaque canal.
 
