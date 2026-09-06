@@ -12,6 +12,7 @@
 #   nu publish.nu sync                     # propage la version aux éditeurs
 #   nu publish.nu check                    # compare tous les canaux publiés
 #   nu publish.nu release [--dry-run]      # tag + push du tag → la CI prend le relais
+#   nu publish.nu ship patch|minor|major   # TOUT : bump, PR, attente CI, fusion, tag
 #
 # `release` ne pousse QUE le tag : main est protégée, son contenu y arrive par PR.
 
@@ -199,6 +200,141 @@ def "main release" [--dry-run] {
   print $"  https://github.com/($GH_REPO)/actions"
 }
 
+# `ship` enchaîne tout ce qu'une release demande, de la version au tag.
+#
+# Il n'y a qu'un seul arrêt : une confirmation, une fois la CI verte, juste
+# avant la fusion et le tag. C'est le dernier moment réversible — après, le
+# numéro est publié sur crates.io et ne peut plus être repris, seulement yanké.
+#
+# En cas d'échec ou de refus, rien n'est perdu : la PR reste ouverte et
+# `ship --resume` reprend là où on s'est arrêté.
+def "main ship" [
+  level: string = "patch"   # patch | minor | major
+  --yes                     # ne pas demander confirmation (usage non interactif)
+  --resume                  # reprendre après une PR déjà ouverte
+] {
+  # --- 0. préconditions -------------------------------------------------------
+  if (which gh | is-empty) {
+    error make { msg: "gh introuvable — nécessaire pour ouvrir et fusionner la PR" }
+  }
+  if (gh auth status | complete | get exit_code) != 0 {
+    error make { msg: "gh n'est pas authentifié — lance `gh auth login`" }
+  }
+
+  let branch = (git rev-parse --abbrev-ref HEAD | complete | get stdout | str trim)
+  if $branch != "develop" {
+    error make { msg: $"ship part de develop, pas de ($branch)" }
+  }
+
+  git fetch --quiet origin
+
+  if not $resume {
+    let dirty = (git status --porcelain | complete | get stdout | str trim)
+    if $dirty != "" {
+      print $"(ansi red)L'arbre de travail n'est pas propre :(ansi reset)"
+      print $dirty
+      error make { msg: "commite ou remise tes changements avant de publier" }
+    }
+
+    # develop doit être à jour, sinon on pousserait par-dessus le travail d'un autre
+    let local = (git rev-parse HEAD | complete | get stdout | str trim)
+    let remote = (git rev-parse origin/develop | complete | get stdout | str trim)
+    if $local != $remote {
+      error make { msg: "develop locale et origin/develop divergent — `git pull` d'abord" }
+    }
+  }
+
+  # --- 1. préparer la version -------------------------------------------------
+  mut pr = ""
+
+  if $resume {
+    let open_pr = (gh pr list --base main --head develop --state open --json number
+                   | complete | get stdout | from json)
+    if ($open_pr | is-empty) {
+      error make { msg: "--resume mais aucune PR develop → main ouverte" }
+    }
+    $pr = ($open_pr | first | get number | into string)
+    print $"reprise sur la PR #($pr)"
+  } else {
+    # develop doit contenir main, sinon la PR embarquerait une régression
+    let merged = (git merge --no-edit origin/main | complete)
+    if $merged.exit_code != 0 {
+      print $merged.stdout
+      error make { msg: "conflit en fusionnant main dans develop — résous-le puis relance" }
+    }
+
+    let before = (current-version)
+    main bump $level
+    let v = (current-version)
+
+    print $"(char nl)vérification de la compilation…"
+    let chk = (cargo check --workspace | complete)
+    if $chk.exit_code != 0 {
+      print $chk.stderr
+      # on remet la version d'avant : une version qui ne compile pas ne doit
+      # pas rester dans l'arbre de travail
+      write-version $before
+      error make { msg: $"cargo check a échoué — version restaurée à ($before)" }
+    }
+
+    git add -A
+    git commit --quiet -m $"release v($v)"
+    git push --quiet origin develop
+    print $"(ansi green)✓(ansi reset) ($before) → ($v), commité et poussé"
+
+    let url = (gh pr create --base main --head develop
+                 --title $"release v($v)"
+                 --body $"Bump de version : ($before) → ($v).(char nl)(char nl)Aucun changement de code — ce commit n'existe que pour porter le numéro de version jusqu'à `main`, d'où le tag sera posé."
+               | complete | get stdout | str trim)
+    $pr = ($url | split row "/" | last)
+    print $"(ansi green)✓(ansi reset) PR #($pr) ouverte — ($url)"
+  }
+
+  # --- 2. attendre la CI ------------------------------------------------------
+  # GitHub met quelques secondes à enregistrer les checks d'une PR neuve ;
+  # sans ce délai `gh pr checks` sort sur « no checks reported ».
+  if not $resume { sleep 15sec }
+  print $"(char nl)attente des checks obligatoires…"
+  let checks = (gh pr checks $pr --watch --fail-fast | complete)
+  if $checks.exit_code != 0 {
+    print $checks.stdout
+    print $"(ansi red)La CI a échoué.(ansi reset) La PR #($pr) reste ouverte."
+    print $"Corrige, pousse sur develop, puis : nu publish.nu ship --resume"
+    error make { msg: "checks en échec — rien n'a été fusionné ni tagué" }
+  }
+  print $"(ansi green)✓(ansi reset) tous les checks sont verts"
+
+  # --- 3. le seul point d'arrêt ----------------------------------------------
+  let v = (current-version)
+  if not $yes {
+    print $"(char nl)Prêt à fusionner la PR #($pr) et à poser (ansi cyan)v($v)(ansi reset)."
+    print "Le tag déclenche la publication sur crates.io, où un numéro ne peut plus être repris."
+    let answer = (input "Continuer ? [o/N] ")
+    if ($answer | str lowercase | str trim) not-in ["o" "oui" "y" "yes"] {
+      print $"(char nl)Abandonné. La PR #($pr) reste ouverte ; reprends avec :"
+      print "  nu publish.nu ship --resume"
+      return
+    }
+  }
+
+  # --- 4. fusionner, taguer, resynchroniser -----------------------------------
+  gh pr merge $pr --merge --admin --delete-branch=false
+  print $"(ansi green)✓(ansi reset) PR #($pr) fusionnée"
+
+  git switch --quiet main
+  git pull --quiet --ff-only origin main
+
+  # release refait ses quatre gardes : arbre propre, branche main, main alignée
+  # sur origin/main, tag inexistant. C'est volontairement redondant — c'est la
+  # dernière barrière avant l'irréversible.
+  main release
+
+  git switch --quiet develop
+  git merge --quiet --no-edit origin/main
+  git push --quiet origin develop
+  print $"(ansi green)✓(ansi reset) develop resynchronisé sur main"
+}
+
 def main [] {
-  print "nu publish.nu <version|bump|sync|check|release> — voir l'en-tête du fichier"
+  print "nu publish.nu <version|bump|sync|check|release|ship> — voir l'en-tête du fichier"
 }
