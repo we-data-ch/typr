@@ -11,7 +11,9 @@
 #   nu publish.nu bump patch|minor|major   # incrémente et synchronise
 #   nu publish.nu sync                     # propage la version aux éditeurs
 #   nu publish.nu check                    # compare tous les canaux publiés
-#   nu publish.nu release [--dry-run]      # commit + tag + push → la CI prend le relais
+#   nu publish.nu release [--dry-run]      # tag + push du tag → la CI prend le relais
+#
+# `release` ne pousse QUE le tag : main est protégée, son contenu y arrive par PR.
 
 const CARGO_FILE = "Cargo.toml"
 const VSCODE_PKG = "editors/vscode/package.json"
@@ -154,20 +156,44 @@ def "main release" [--dry-run] {
     error make { msg: $"release depuis ($branch) — bascule sur main d'abord" }
   }
 
-  # 3. le tag ne doit pas déjà exister
+  # 3. main est protégée : ce script ne pousse que le tag, jamais la branche.
+  #    Le contenu doit donc déjà être sur origin/main, arrivé par une PR.
+  git fetch --quiet origin main
+  let local_sha = (git rev-parse HEAD | complete | get stdout | str trim)
+  let remote_sha = (git rev-parse origin/main | complete | get stdout | str trim)
+  if $local_sha != $remote_sha {
+    let ahead = (git rev-list --count origin/main..HEAD | complete | get stdout | str trim)
+    let behind = (git rev-list --count HEAD..origin/main | complete | get stdout | str trim)
+    if $ahead != "0" {
+      print $"(ansi red)main locale en avance de ($ahead) commit\(s\) sur origin/main.(ansi reset)"
+      print "main est protégée : ce contenu doit arriver par une pull request."
+      print $"  gh pr create --base main --head develop --fill"
+      print $"  gh pr merge --merge --delete-branch=false"
+      print "  git checkout main; git pull"
+    }
+    if $behind != "0" {
+      print $"(ansi red)main locale en retard de ($behind) commit\(s\).(ansi reset) Fais `git pull` d'abord."
+    }
+    error make { msg: "main locale et origin/main divergent — on ne tague pas dans le vide" }
+  }
+
+  # 4. le tag ne doit exister ni en local ni sur le distant
   let existing = (git tag -l $tag | complete | get stdout | str trim)
   if $existing != "" {
-    error make { msg: $"le tag ($tag) existe déjà" }
+    error make { msg: $"le tag ($tag) existe déjà en local" }
+  }
+  let remote_tag = (git ls-remote --tags origin $tag | complete | get stdout | str trim)
+  if $remote_tag != "" {
+    error make { msg: $"le tag ($tag) existe déjà sur ($GH_REPO)" }
   }
 
   if $dry_run {
-    print $"(ansi yellow)[dry-run](ansi reset) taguerait ($tag) sur ($branch) et pousserait vers ($GH_REPO)"
+    print $"(ansi yellow)[dry-run](ansi reset) taguerait ($tag) sur ($local_sha | str substring 0..7) et pousserait le tag vers ($GH_REPO)"
     print "la CI publierait alors : crates.io, binaires, Docker, WASM→playground, Marketplace"
     return
   }
 
   git tag -a $tag -m $"release ($tag)"
-  git push origin main
   git push origin $tag
   print $"(char nl)(ansi green)($tag) poussé.(ansi reset) La CI prend le relais :"
   print $"  https://github.com/($GH_REPO)/actions"

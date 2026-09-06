@@ -327,6 +327,10 @@ jobs:
     defaults:
       run:
         working-directory: editors/vscode
+    # Au niveau du job pour que l'etape de publication puisse tester sa presence
+    # dans son `if` : un `env` de step n'est pas visible depuis son propre `if`.
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -347,10 +351,16 @@ jobs:
           tag_name: ${{ needs.verify.outputs.tag }}
           files: editors/vscode/typr-${{ needs.verify.outputs.version }}.vsix
 
+      # Sans VSCE_PAT le .vsix reste attache a la release et reste installable
+      # a la main : on n'echoue pas toute la release pour ce seul canal.
       - name: Publish to the Marketplace
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        if: env.VSCE_PAT != ''
         run: npx vsce publish --packagePath typr-${{ needs.verify.outputs.version }}.vsix
+
+      - name: VSCE_PAT absent — publication ignoree
+        if: env.VSCE_PAT == ''
+        run: |
+          echo "::warning title=Marketplace non mise a jour::VSCE_PAT absent ; le .vsix est attache a la release mais n'a pas ete publie."
 
   # ---------------------------------------------------------------------------
   # 7. Runner RStudio — le tarball est assemblé ici avec les binaires frais.
@@ -401,11 +411,22 @@ jobs:
     name: Trigger docs rebuild
     needs: [verify, release]
     runs-on: ubuntu-latest
+    # Au niveau du job pour rester testable depuis le `if` des steps.
+    env:
+      DOCS_DISPATCH_TOKEN: ${{ secrets.DOCS_DISPATCH_TOKEN }}
     steps:
       - name: Dispatch to typr.github.io
+        if: env.DOCS_DISPATCH_TOKEN != ''
         run: |
           curl -sSfL -X POST \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.DOCS_DISPATCH_TOKEN }}" \
+            -H "Authorization: Bearer $DOCS_DISPATCH_TOKEN" \
             https://api.github.com/repos/we-data-ch/typr.github.io/dispatches \
             -d '{"event_type":"typr-release","client_payload":{"version":"${{ needs.verify.outputs.version }}"}}'
+
+      # La doc se redeploie de toute facon a chaque push sur son propre depot ;
+      # ce dispatch ne sert qu'a la rafraichir au moment d'une release.
+      - name: DOCS_DISPATCH_TOKEN absent — doc non rafraichie
+        if: env.DOCS_DISPATCH_TOKEN == ''
+        run: |
+          echo "::warning title=Doc non rafraichie::DOCS_DISPATCH_TOKEN absent ; typr.github.io n'a pas ete redeploye pour cette release."
