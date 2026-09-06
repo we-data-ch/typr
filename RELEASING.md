@@ -106,8 +106,27 @@ tag vX.Y.Z
 ```
 
 Les branches sont indépendantes : si le Marketplace échoue, les binaires et
-crates.io sont quand même publiés. Relancer une branche seule se fait via
-`workflow_dispatch` en fournissant le tag, sans re-taguer.
+crates.io sont quand même publiés.
+
+### Rejouer une branche qui a échoué
+
+```bash
+gh workflow run release.yml -f tag=v0.5.9
+```
+
+Le workflow accepte un tag en entrée, ce qui évite d'avoir à re-taguer.
+
+**Avec une limite qu'il faut connaître : il recharge le dépôt *au tag*.** Un
+correctif poussé après coup n'est donc pas pris en compte — le rejeu recompile
+exactement le même arbre.
+
+Le rejeu sert aux échecs d'**environnement** : jeton expiré, registre
+indisponible, réseau. Pour un échec de **code**, il faut un tag neuf, donc une
+nouvelle version.
+
+C'est ce qui s'est produit à la v0.5.8 : le job Docker échouait sur le
+`Dockerfile` lui-même, et il a fallu sortir une v0.5.9 pour livrer le correctif.
+Rejouer la v0.5.8 aurait rebuté sur le même fichier.
 
 ## L'ordre de crates.io n'est pas négociable
 
