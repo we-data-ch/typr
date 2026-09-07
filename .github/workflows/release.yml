@@ -367,11 +367,11 @@ jobs:
       # VSCodium et Cursor n'ont pas acces au Marketplace. On republie le .vsix
       # deja empaquete, donc bit pour bit identique a celui de la release.
       - name: Publish to Open VSX
-        if: env.OVSX_PAT != ''
+        if: always() && env.OVSX_PAT != ''
         run: npx ovsx publish typr-${{ needs.verify.outputs.version }}.vsix -p "$OVSX_PAT"
 
       - name: OVSX_PAT absent — publication ignoree
-        if: env.OVSX_PAT == ''
+        if: always() && env.OVSX_PAT == ''
         run: |
           echo "::warning title=Open VSX non mis a jour::OVSX_PAT absent ; Positron et VSCodium ne verront pas cette version."
 
