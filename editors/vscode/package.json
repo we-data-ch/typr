@@ -2,7 +2,7 @@
   "name": "typr-language",
   "displayName": "TypR Tooling and Language Support",
   "description": "Language support for typR - A typed version of R with TypeScript-like typing and Rust-like syntax",
-  "version": "0.5.9",
+  "version": "0.5.10",
   "publisher": "wedata-ch",
   "license": "Apache-2.0",
   "engines": {
