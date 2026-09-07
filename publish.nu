@@ -18,6 +18,7 @@
 
 const CARGO_FILE = "Cargo.toml"
 const VSCODE_PKG = "editors/vscode/package.json"
+const VSCODE_LOCK = "editors/vscode/package-lock.json"
 const RSTUDIO_DESC = "editors/rstudio/DESCRIPTION"
 const GH_REPO = "we-data-ch/typr"
 const DOCKER_REPO = "fabricehategekimana/typr"
@@ -50,6 +51,14 @@ def sync-editors [v: string] {
   if ($VSCODE_PKG | path exists) {
     sed -i $"0,/^  \"version\":/ s/^  \"version\": \".*\",/  \"version\": \"($v)\",/" $VSCODE_PKG
     print $"  ($VSCODE_PKG) → ($v)"
+  }
+  # Le lock porte la version en double (racine + packages.""), toutes deux dans
+  # les douze premières lignes ; sans ça il dérive et le .vsix publié annonce
+  # une version différente de celle du manifeste.
+  if ($VSCODE_LOCK | path exists) {
+    sed -i $"1,12 s/^  \"version\": \".*\",/  \"version\": \"($v)\",/" $VSCODE_LOCK
+    sed -i $"1,12 s/^      \"version\": \".*\",/      \"version\": \"($v)\",/" $VSCODE_LOCK
+    print $"  ($VSCODE_LOCK) → ($v)"
   }
   if ($RSTUDIO_DESC | path exists) {
     sed -i $"s/^Version: .*/Version: ($v)/" $RSTUDIO_DESC

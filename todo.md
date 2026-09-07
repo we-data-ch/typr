@@ -1,6 +1,6 @@
 # À faire — canaux éditeur
 
-État au 2026-09-06, après la release v0.5.9.
+État au 2026-09-07, après la release v0.5.9.
 
 Six canaux sur huit servent la version courante. Les deux qui restent concernent
 tous les deux l'extension d'éditeur, et se traitent séparément parce qu'ils
@@ -11,15 +11,20 @@ passent par deux registres distincts qui ne se parlent pas.
 | VS Code Marketplace | **0.1.8** | VS Code |
 | Open VSX | **rien** | Positron, VSCodium, Cursor, Gitpod, Theia |
 
-Tant que ces deux points ne sont pas faits, le job `VS Code Marketplace` de la
-release se termine en `success` avec un avertissement : il empaquette bien le
-`.vsix` et l'attache à la release, mais ne publie nulle part. C'est une
-dégradation volontaire — un canal d'éditeur ne doit pas faire échouer la
-publication du compilateur — mais elle est silencieuse, d'où ce fichier.
+Le travail de dépôt est fait : le job `vscode` de `release.yml` publie désormais
+sur les deux registres, et la licence de l'extension est alignée. **Ne restent
+que les actions manuelles ci-dessous** — obtenir deux jetons et poser deux
+secrets ; elles passent par un navigateur et un compte, rien d'automatisable ici.
+
+Tant qu'elles ne sont pas faites, le job se termine en `success` avec un
+avertissement par canal : il empaquette bien le `.vsix` et l'attache à la
+release, mais ne publie nulle part. C'est une dégradation volontaire — un canal
+d'éditeur ne doit pas faire échouer la publication du compilateur — mais elle est
+silencieuse, d'où ce fichier.
 
 ---
 
-## 1. VS Code Marketplace — `VSCE_PAT`
+## 1. VS Code Marketplace — `VSCE_PAT`  *(à faire)*
 
 L'extension est publiée sous l'éditeur `wedata-ch` (voir `publisher` dans
 `editors/vscode/package.json`). Le jeton doit appartenir à un compte qui a des
@@ -75,7 +80,7 @@ https://marketplace.visualstudio.com/items?itemName=wedata-ch.typr-language
 
 ---
 
-## 2. Open VSX — `OVSX_PAT` + job de publication
+## 2. Open VSX — `OVSX_PAT` + namespace  *(job fait, jeton à faire)*
 
 Open VSX est un registre indépendant, géré par la fondation Eclipse. Positron,
 VSCodium et Cursor y cherchent leurs extensions et **n'ont pas accès au
@@ -113,37 +118,21 @@ publish` échoue sur un namespace inconnu.
 gh secret set OVSX_PAT --repo we-data-ch/typr
 ```
 
-### Ajouter le job
+### Le job — **fait**
 
-Contrairement au Marketplace, ce canal n'existe pas encore dans
-`.github/workflows/release.yml` — il faut l'écrire. Le plus simple est de
-l'ajouter au job `vscode` existant, qui empaquette déjà le `.vsix` : deux étapes
-de plus, sur le même modèle de dégradation que `VSCE_PAT`.
+Le job `vscode` de `.github/workflows/release.yml` porte maintenant les deux
+canaux : `OVSX_PAT` est déclaré dans son `env` (au niveau du **job**, un `env` de
+step n'étant pas visible depuis le `if` de ce même step), et deux étapes
+`Publish to Open VSX` / avertissement suivent le même modèle de dégradation que
+le Marketplace.
 
-```yaml
-    env:
-      VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      OVSX_PAT: ${{ secrets.OVSX_PAT }}   # ← ajouter ici
+Elles republient le `.vsix` **déjà empaqueté** plutôt que d'en produire un
+second : les deux registres servent ainsi un artefact bit pour bit identique à
+celui attaché à la release.
 
-      # ... après « Publish to the Marketplace » :
-
-      - name: Publish to Open VSX
-        if: env.OVSX_PAT != ''
-        run: npx ovsx publish typr-${{ needs.verify.outputs.version }}.vsix -p "$OVSX_PAT"
-
-      - name: OVSX_PAT absent — publication ignorée
-        if: env.OVSX_PAT == ''
-        run: |
-          echo "::warning title=Open VSX non mis a jour::OVSX_PAT absent ; Positron et VSCodium ne verront pas cette version."
-```
-
-Le `env` doit rester au niveau du **job** : un `env` de step n'est pas visible
-depuis le `if` de ce même step. C'est la raison de la structure actuelle, à ne
-pas « simplifier ».
-
-Réutiliser le `.vsix` déjà produit plutôt que d'en empaqueter un second garantit
-que les deux registres servent un artefact **bit pour bit identique** à celui
-attaché à la release.
+`ovsx` est épinglé dans les `devDependencies` de l'extension, comme `@vscode/vsce`,
+pour que `npm ci` en installe une version connue au lieu d'en tirer une au hasard
+au moment de la release.
 
 ### Vérifier
 
@@ -153,28 +142,19 @@ https://open-vsx.org/extension/wedata-ch/typr-language
 
 ---
 
-## Point annexe repéré au passage — licences incohérentes
+## Point annexe repéré au passage — licences  *(fait)*
 
-Deux choses à trancher avant la première publication Open VSX, qui affiche la
-licence sur la page de l'extension.
+Le manifeste ne déclarait pas de licence, et `editors/vscode/LICENSE` portait un
+texte **MIT** là où le workspace Rust, le `LICENSE` racine et le README disent
+`Apache-2.0`. Open VSX affiche la licence sur la page de l'extension et archive
+celle déclarée à chaque version : l'écart se corrige mal après coup.
 
-1. **Le manifeste ne déclare pas de licence.** `editors/vscode/package.json` n'a
-   pas de champ `license`, alors qu'un fichier `LICENSE` est présent à côté.
-   Open VSX affiche « unlicensed » dans ce cas, ce qui décourage l'installation.
+Tout est aligné sur **Apache-2.0** : `editors/vscode/LICENSE` reprend le texte du
+dépôt et le manifeste déclare `"license": "Apache-2.0"`.
 
-2. **Les deux licences ne concordent pas.** Le workspace Rust déclare
-   `license = "Apache-2.0"` dans `Cargo.toml`, tandis que
-   `editors/vscode/LICENSE` porte un texte **MIT** (« Copyright (c) 2024 typR »).
-   L'extension et le compilateur qu'elle pilote sont donc sous deux licences
-   différentes, sans que rien ne l'explique.
+## Point annexe repéré au passage — `package-lock.json` désynchronisé  *(fait)*
 
-Ce n'est pas bloquant, mais c'est le genre d'écart qui se remarque une fois
-publié et se corrige mal après coup — les deux registres archivent la licence
-déclarée à chaque version. Décider laquelle fait foi, aligner le fichier et le
-champ, puis ajouter au manifeste :
-
-```json
-"license": "Apache-2.0",
-```
-
-— ou `"MIT"`, selon la décision.
+Le lock de l'extension annonçait encore `vscode_extension` en `1.0.0` : `nu
+publish.nu sync` mettait à jour `package.json` mais pas le lock, qui dérivait à
+chaque version. `sync-editors` propage désormais la version aux deux, et le lock
+a été régénéré.

@@ -321,7 +321,7 @@ jobs:
   # 6. Extension VS Code → Marketplace
   # ---------------------------------------------------------------------------
   vscode:
-    name: VS Code Marketplace
+    name: VS Code extension (Marketplace + Open VSX)
     needs: verify
     runs-on: ubuntu-latest
     defaults:
@@ -331,6 +331,7 @@ jobs:
     # dans son `if` : un `env` de step n'est pas visible depuis son propre `if`.
     env:
       VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -361,6 +362,18 @@ jobs:
         if: env.VSCE_PAT == ''
         run: |
           echo "::warning title=Marketplace non mise a jour::VSCE_PAT absent ; le .vsix est attache a la release mais n'a pas ete publie."
+
+      # Open VSX est un registre distinct (fondation Eclipse) : Positron,
+      # VSCodium et Cursor n'ont pas acces au Marketplace. On republie le .vsix
+      # deja empaquete, donc bit pour bit identique a celui de la release.
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: npx ovsx publish typr-${{ needs.verify.outputs.version }}.vsix -p "$OVSX_PAT"
+
+      - name: OVSX_PAT absent — publication ignoree
+        if: env.OVSX_PAT == ''
+        run: |
+          echo "::warning title=Open VSX non mis a jour::OVSX_PAT absent ; Positron et VSCodium ne verront pas cette version."
 
   # ---------------------------------------------------------------------------
   # 7. Runner RStudio — le tarball est assemblé ici avec les binaires frais.

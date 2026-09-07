@@ -4,6 +4,7 @@
   "description": "Language support for typR - A typed version of R with TypeScript-like typing and Rust-like syntax",
   "version": "0.5.9",
   "publisher": "wedata-ch",
+  "license": "Apache-2.0",
   "engines": {
     "vscode": "^1.109.0"
   },
@@ -253,6 +254,7 @@
     "@types/vscode": "^1.109.0",
     "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.27.3",
+    "ovsx": "^1.1.1",
     "typescript": "^5.9.3",
     "vscode-languageclient": "^9.0.1"
   }
