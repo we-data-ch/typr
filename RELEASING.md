@@ -15,33 +15,71 @@ et le même contrôle tourne sur chaque PR (job `coherence` de `ci.yml`).
 
 ## Procédure
 
-`main` est protégée : on n'y commite pas directement. La montée de version se
-prépare sur `develop`, arrive sur `main` par une pull request, et seul le tag
-est poussé ensuite.
+```bash
+git switch develop
+nu publish.nu ship patch      # ou minor / major
+```
+
+C'est tout. `ship` enchaîne la montée de version, la pull request, l'attente de
+la CI, la fusion, le tag et la resynchronisation de `develop`.
+
+Il s'interrompt **une seule fois**, quand les checks sont verts et juste avant
+de fusionner :
+
+```
+Prêt à fusionner la PR #22 et à poser v0.5.10.
+Le tag déclenche la publication sur crates.io, où un numéro ne peut plus être repris.
+Continuer ? [o/N]
+```
+
+C'est le dernier moment réversible. Répondre autre chose que `o` laisse la PR
+ouverte et n'a rien publié ; `nu publish.nu ship --resume` reprend plus tard.
+
+Même chose si la CI échoue : rien n'est fusionné ni tagué, la PR reste ouverte,
+on corrige sur `develop` et on relance avec `--resume`.
+
+Ajouter `--yes` supprime la confirmation, pour un usage non interactif. À éviter
+autrement : c'est la seule barrière avant l'irréversible.
+
+### Ce que ship fait, dans l'ordre
+
+1. vérifie que `gh` est authentifié, qu'on est sur `develop`, que l'arbre est
+   propre et que `develop` est à jour ;
+2. fusionne `main` dans `develop` — sans ça la PR embarquerait une régression ;
+3. `bump`, qui propage la version à l'extension VS Code et au runner RStudio ;
+4. `cargo check --workspace`, qui met `Cargo.lock` à jour. **En cas d'échec la
+   version est restaurée** : un numéro qui ne compile pas ne reste pas dans
+   l'arbre de travail ;
+5. commit, push, ouverture de la PR ;
+6. attente des checks obligatoires ;
+7. *confirmation* ;
+8. fusion, puis `release` — qui refait ses quatre gardes, volontairement en
+   double : c'est la dernière barrière ;
+9. `develop` remis au niveau de `main`.
+
+### À la main
+
+L'enchaînement reste décomposable, ce qui est utile pour reprendre une release
+partiellement passée :
 
 ```bash
-# 1. Préparer la version sur develop
 git switch develop && git pull
-nu publish.nu bump patch      # ou minor / major — synchronise les éditeurs
-cargo check --workspace       # met Cargo.lock à jour
-git commit -am "release v$(nu publish.nu version | head -1)"
-git push origin develop
-
-# 2. La faire passer sur main (la CI doit être verte, un relecteur doit approuver)
+nu publish.nu bump patch
+cargo check --workspace
+git commit -am "release v0.5.10" && git push origin develop
 gh pr create --base main --head develop --fill
 gh pr merge --merge --delete-branch=false
 
-# 3. Taguer depuis main
 git switch main && git pull
-nu publish.nu release --dry-run   # branche, propreté, écart avec origin/main, tag
-nu publish.nu release             # pousse le tag seul → la CI prend le relais
+nu publish.nu release --dry-run
+nu publish.nu release
 
-# 4. Remettre develop au niveau de main
 git switch develop && git merge main && git push origin develop
 ```
 
-`release` ne pousse **que le tag**. S'il détecte que `main` locale diverge de
-`origin/main`, il s'arrête : le contenu doit d'abord être passé par l'étape 2.
+`release` ne pousse **que le tag** : `main` est protégée, son contenu n'y arrive
+que par pull request. S'il détecte que `main` locale diverge de `origin/main`,
+il s'arrête plutôt que de taguer dans le vide.
 
 Un numéro de version déjà publié ne se réutilise pas. `release` refuse un tag
 existant en local comme sur le distant, et `cargo publish` refuserait de toute
@@ -68,8 +106,27 @@ tag vX.Y.Z
 ```
 
 Les branches sont indépendantes : si le Marketplace échoue, les binaires et
-crates.io sont quand même publiés. Relancer une branche seule se fait via
-`workflow_dispatch` en fournissant le tag, sans re-taguer.
+crates.io sont quand même publiés.
+
+### Rejouer une branche qui a échoué
+
+```bash
+gh workflow run release.yml -f tag=v0.5.9
+```
+
+Le workflow accepte un tag en entrée, ce qui évite d'avoir à re-taguer.
+
+**Avec une limite qu'il faut connaître : il recharge le dépôt *au tag*.** Un
+correctif poussé après coup n'est donc pas pris en compte — le rejeu recompile
+exactement le même arbre.
+
+Le rejeu sert aux échecs d'**environnement** : jeton expiré, registre
+indisponible, réseau. Pour un échec de **code**, il faut un tag neuf, donc une
+nouvelle version.
+
+C'est ce qui s'est produit à la v0.5.8 : le job Docker échouait sur le
+`Dockerfile` lui-même, et il a fallu sortir une v0.5.9 pour livrer le correctif.
+Rejouer la v0.5.8 aurait rebuté sur le même fichier.
 
 ## L'ordre de crates.io n'est pas négociable
 
