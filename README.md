@@ -5,6 +5,13 @@
 **A typed superset of R** — static type checking, modules, sum types and
 interfaces, compiled to idiomatic, readable R.
 
+[![Downloads](https://img.shields.io/crates/d/typr)](https://crates.io/crates/typr)
+[![Latest release](https://img.shields.io/github/v/release/we-data-ch/typr)](https://github.com/we-data-ch/typr/releases/latest)
+[![CI](https://github.com/we-data-ch/typr/actions/workflows/ci.yml/badge.svg)](https://github.com/we-data-ch/typr/actions)
+[![Docker Pulls](https://img.shields.io/docker/pulls/fabricehategekimana/typr)](https://hub.docker.com/r/fabricehategekimana/typr)
+[![Open VSX](https://img.shields.io/open-vsx/v/wedata-ch.typr-language)](https://open-vsx.org/extension/wedata-ch/typr-language)
+[![License](https://img.shields.io/github/license/we-data-ch/typr)](LICENSE)
+
 [Documentation](https://we-data-ch.github.io/typr.github.io/) ·
 [Playground](https://we-data-ch.github.io/typr-playground.github.io/) ·
 [Blog](https://we-data-ch.github.io/typr.github.io/blog)
