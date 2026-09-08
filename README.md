@@ -1,6 +1,8 @@
 <div align="center">
 
-# <img src="src/typr_carre.png" alt="TypR logo" width="48" align="center"> TypR
+<img src="src/typr_carre.png" alt="TypR logo" width="96">
+
+# TypR
 
 **A typed superset of R** — static type checking, modules, sum types and
 interfaces, compiled to idiomatic, readable R.
