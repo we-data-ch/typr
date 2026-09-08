@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="src/typr_carre.png" alt="TypR logo" width="96">
+<img src="src/typr_carre.png" alt="TypR logo" width="150">
 
 # TypR
 
