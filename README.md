@@ -1,6 +1,6 @@
 <div align="center">
 
-# TypR
+# <img src="src/typr_carre.png" alt="TypR logo" width="48" align="center"> TypR
 
 **A typed superset of R** — static type checking, modules, sum types and
 interfaces, compiled to idiomatic, readable R.
@@ -44,7 +44,7 @@ normalize <- function(x, na.rm = FALSE) {
 </td>
 <td>
 
-```typr
+```r
 let normalize <- fn(x: [num], na.rm: bool = false): [num] {
     if (na.rm) { x <- x[!is.na(x)] };
     (x - mean(x)) / sd(x)
