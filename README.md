@@ -20,25 +20,40 @@ interfaces, compiled to idiomatic, readable R.
 
 ---
 
-TypR is not a new runtime. It is a static verification and desugaring layer that
-compiles entirely to conventional R before execution — every generated `R/*.R`
-file stays readable and runs on a stock R installation. It targets the step
-beyond exploratory scripting: package production, maintenance, and code that has
-to survive in production.
+**Just add types.** TypR is a typed superset of R that compiles to
+readable, stock R. No runtime, no new dependencies — just static
+verification that catches wrong argument types, undocumented returns,
+and silent coercions **before your code ever runs.**
+
+<table>
+<tr>
+<td><strong>R today</strong></td>
+<td><strong>TypR</strong></td>
+</tr>
+<tr>
+<td>
+
+```r
+normalize <- function(x, na.rm = FALSE) {
+  stopifnot(is.numeric(x), length(x) > 0)
+  if (na.rm) x <- x[!is.na(x)]
+  (x - mean(x)) / sd(x)
+}
+```
+
+</td>
+<td>
 
 ```typr
-type Shape <- .Circle(num) | .Square(num);
-
-let area <- fn(s: Shape): num {
-    match s {
-        .Circle(r) => 3.14159 * r * r,
-        .Square(side) => side * side,
-    }
+let normalize <- fn(x: [num], na.rm: bool = false): [num] {
+    if (na.rm) { x <- x[!is.na(x)] };
+    (x - mean(x)) / sd(x)
 };
-
-# UFCS, pipes and plain calls are all equivalent
-(3.0) |> .Circle() |> area() |> print();
 ```
+
+</td>
+</tr>
+</table>
 
 ## Install
 
