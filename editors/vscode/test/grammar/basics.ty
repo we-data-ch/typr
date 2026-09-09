@@ -1,0 +1,70 @@
+let x: int <- 5;
+let y: num <- 3.14;
+let name: char <- "hello \"world\"";
+let ok: bool <- true;
+let n: char <- 'c';
+let raw: char <- `weird name`;
+
+fn add(a: int, b: int) -> int {
+    return a + b;
+}
+
+type Shape = .Circle(num) | .Square(num);
+interface Drawable { draw: (Self) -> char; }
+record Point { x: num, y: num }
+opaque typeconstructor Wrapper<T> { value: T }
+
+recursive fn fact(n: int) -> int {
+    if (n <= 1) { return 1; } else { return n * fact(n - 1); }
+}
+
+module M { @export let z: int <- 1; }
+@pub fn helper() -> int { return 0; }
+extern (x: num) -> num r#"function(x) x * 2"#
+
+let v: Vec<int> <- c(1, 2, 3);
+let s: seq <- seq(1, 10);
+let d: df <- df[1,];
+let generic: T <- x;
+let sig: #N <- 5;
+let lbl: $L <- "a";
+
+let p <- x |> add;
+let cmp <- a == b and c != d;
+let bnd <- a <- 5;
+let arrow: (int) -> int <- \(x) x + 1;
+
+R { print("hi") }
+JS { console.log("hi") }
+Test { check(x) }
+
+x::y;
+a$b;
+z.field;
+foo(1, 2);
+bar: int;
+
+match x { .Circle(r) -> r, .Square(s) -> s }
+for i in xs { next; }
+while true { break; }
+loop { break; }
+
+# a plain comment
+#N is a sigil not a comment
+
+data.frame(x)
+c(1, 2, 3)
+library(foo)
+Class(x)
+
+let custom <- a %+% b;
+let spread <- [..source, 1, 2];
+let vari <- [...rest];
+let m <- a % b;
+let vb <- @{ x + 1 }@;
+let esc <- 'it\'s';
+let neg <- !ok;
+let both <- a && b || c;
+
+as!
+5 as int

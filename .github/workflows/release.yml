@@ -418,6 +418,97 @@ jobs:
           files: typr.runner_*.tar.gz
 
   # ---------------------------------------------------------------------------
+  # 7b. Plugin Vim / Neovim — pas de store central, donc tarball joint à la
+  #     release. La distribution standard (plugin managers git) reste la
+  #     source principale ; l'archive sert à l'installation native.
+  # ---------------------------------------------------------------------------
+  vim:
+    name: Vim / Neovim plugin tarball
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+
+      - name: Create the plugin archive
+        run: tar -czf typr-vim-${{ needs.verify.outputs.version }}.tar.gz -C editors/vim .
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.verify.outputs.tag }}
+          files: typr-vim-${{ needs.verify.outputs.version }}.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # 7c. Grammaire → playground + documentation
+  #
+  #     `editors/vscode/syntaxes/typr.tmLanguage.json` est généré depuis le
+  #     manifeste (`typr syntax --write`) et vérifié par `cargo test`
+  #     (crates/typr-cli/tests/generated_grammars.rs). Les deux sites le lisent
+  #     avec Shiki ; ils en gardent donc une copie, qui doit venir d'ici et
+  #     jamais d'une retranscription à la main — c'est exactement comme ça que
+  #     les six définitions de la syntaxe avaient divergé.
+  # ---------------------------------------------------------------------------
+  grammar:
+    name: Grammar → playground + docs
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      PLAYGROUND_DEPLOY_TOKEN: ${{ secrets.PLAYGROUND_DEPLOY_TOKEN }}
+      DOCS_DEPLOY_TOKEN: ${{ secrets.DOCS_DEPLOY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+
+      - name: Push the generated grammar to both sites
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          push_grammar() {
+            local repo="$1" token="$2" dir="$3"
+            if [ -z "$token" ]; then
+              echo "::warning title=Grammaire non poussée::jeton absent pour $repo ; sa copie de typr.tmLanguage.json reste sur la version précédente."
+              return 0
+            fi
+
+            git clone --depth 1 "https://x-access-token:$token@github.com/we-data-ch/$repo.git" "$dir"
+            mkdir -p "$dir/syntaxes"
+            cp editors/vscode/syntaxes/typr.tmLanguage.json "$dir/syntaxes/typr.tmLanguage.json"
+
+            cd "$dir"
+            git add syntaxes/typr.tmLanguage.json
+            if git diff --staged --quiet; then
+              echo "$repo : grammaire déjà à jour."
+              cd ..
+              return 0
+            fi
+            git commit -m "Update TypR grammar to $VERSION"
+
+            # Même précaution que pour le WASM : ces dépôts ont leurs propres
+            # contributeurs, on rebase plutôt que d'écraser leur travail.
+            for attempt in 1 2 3; do
+              if git push origin main; then
+                echo "$repo : grammaire $VERSION poussée (tentative $attempt)."
+                cd ..
+                return 0
+              fi
+              echo "push refusé — rebase sur origin/main et nouvelle tentative"
+              git fetch origin main
+              git rebase origin/main
+            done
+            echo "::error::impossible de pousser la grammaire vers $repo après 3 tentatives"
+            return 1
+          }
+
+          push_grammar typr-playground.github.io "$PLAYGROUND_DEPLOY_TOKEN" playground
+          push_grammar typr.github.io "$DOCS_DEPLOY_TOKEN" docs
+
+  # ---------------------------------------------------------------------------
   # 8. Documentation — reconstruite pour refléter la nouvelle version
   # ---------------------------------------------------------------------------
   docs:

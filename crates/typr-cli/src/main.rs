@@ -17,6 +17,7 @@ mod r_name_lint;
 mod rd_renderer;
 mod repl;
 mod standard_library;
+mod syntax;
 mod vignette_renderer;
 
 fn main() {

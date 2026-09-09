@@ -66,6 +66,7 @@ let normalize <- fn(x: [num], na.rm: bool = false): [num] {
 | Docker | `docker run --rm -it fabricehategekimana/typr:latest` |
 | RStudio / Positron | `typr.runner_*.tar.gz` from the [latest release](https://github.com/we-data-ch/typr/releases/latest) |
 | VS Code / Positron | search **TypR** in the Marketplace |
+| Vim / Neovim | `typr-vim-*.tar.gz` from the [latest release](https://github.com/we-data-ch/typr/releases/latest), or a plugin manager — see [editors/vim](editors/vim) |
 
 All channels are published from the same tag and carry the same version number.
 See [RELEASING.md](RELEASING.md).
@@ -93,6 +94,7 @@ crates/typr-lsp      language server
 crates/typr-wasm     WASM build powering the playground
 editors/vscode       VS Code / Positron extension
 editors/rstudio      RStudio addins (typr.runner)
+editors/vim          Vim / Neovim plugin
 docker/              container image
 cases/               reproducible bug catalog (`typr case`)
 ```

@@ -1,0 +1,17 @@
+# Pins the bug that started the syntax-manifest project: an editor grammar
+# copy-pasted from Rust's, coloring keywords TypR has never had while the
+# real keywords it does have (opaque, module, record, interface, ...) went
+# uncolored. None of the words below should carry any special scope — they
+# must fall through to plain identifiers (lowercase) or PascalCase aliases
+# (uppercase), exactly like any other undeclared name.
+impl trait struct enum where mut pub continue Option Result List Matrix Some None Ok Err
+
+# Same for operators: none of these compounds exist in the tokenizer, so
+# each must resolve to its real, shorter components instead of being colored
+# as one (invented) operator.
+a |>> b
+a $$ b
+a @@ b
+a ++ b
+a -- b
+a ** b

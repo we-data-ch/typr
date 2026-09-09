@@ -132,6 +132,32 @@ enum Commands {
     },
     Repl,
     Lsp,
+    /// Print the syntax manifest — the single source of truth for TypR's
+    /// lexemes — or render an editor grammar from it.
+    ///
+    /// The grammars under `editors/` are generated, never hand-edited: keeping
+    /// six hand-written copies in sync is what let `impl`/`trait`/`struct` (Rust
+    /// keywords TypR has never had) get colored while `opaque`, `module`,
+    /// `record` and the kind sigils got nothing.
+    Syntax {
+        /// Print the manifest as JSON. This is the default with no `--target`.
+        #[arg(long)]
+        json: bool,
+        /// Render a grammar instead: `tmlanguage` (VSCode/Positron/Shiki/Monaco)
+        /// or `vim` (Vim/Neovim).
+        #[arg(long, value_name = "TARGET")]
+        target: Option<String>,
+        /// Write the rendered output here instead of stdout.
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+        /// Regenerate every grammar in place, at its canonical path under `editors/`.
+        #[arg(long)]
+        write: bool,
+        /// CI gate: exit 1 when a generated grammar on disk differs from what
+        /// the manifest produces (hand-edited, or stale after a parser change).
+        #[arg(long)]
+        check: bool,
+    },
     /// Generate a Semantic Package Graph (spg.json) from the current project.
     Spg {
         /// Output path (default: spg.json).
@@ -246,7 +272,13 @@ fn skips_r_deps_check(command: &Option<Commands>) -> bool {
         // `cache` maintains typr's own R-name table; `refresh` needs Rscript
         // and says so itself when it is missing, but none of these need the
         // package set (devtools/roxygen2) `warn_if_missing` checks for.
-        Some(Commands::Init) | Some(Commands::Lsp) | Some(Commands::Std) | Some(Commands::Cache { .. })
+        // `syntax` renders grammars out of typr's own manifest — it never
+        // touches a project, let alone R.
+        Some(Commands::Init)
+            | Some(Commands::Lsp)
+            | Some(Commands::Std)
+            | Some(Commands::Cache { .. })
+            | Some(Commands::Syntax { .. })
     )
 }
 
@@ -350,12 +382,38 @@ pub fn start() {
             rt.block_on(typr_lsp::run_lsp());
         }
         Some(Commands::Repl) => repl::start(),
+        Some(Commands::Syntax {
+            json,
+            target,
+            output,
+            write,
+            check,
+        }) => run_syntax_command(json, target, output, write, check),
         Some(Commands::Spg { output }) => generate_spg(output),
         _ => {
             println!("Please specify a subcommand or file to execute");
             std::process::exit(1);
         }
     }
+}
+
+/// `typr syntax [--json] [--target tmlanguage] [--write|--check]`
+fn run_syntax_command(json: bool, target: Option<String>, output: Option<PathBuf>, write: bool, check: bool) {
+    use crate::syntax::Target;
+
+    if json && target.is_some() {
+        eprintln!("error: `--json` prints the manifest; drop it to render a `--target` grammar.");
+        std::process::exit(1);
+    }
+    let target = match target.as_deref().map(Target::parse) {
+        Some(Ok(t)) => Some(t),
+        Some(Err(msg)) => {
+            eprintln!("error: {msg}");
+            std::process::exit(1);
+        }
+        None => None,
+    };
+    crate::syntax::run(target, output, write, check);
 }
 
 /// `typr cache <clear|refresh|show>` — maintenance for the R-name cache.

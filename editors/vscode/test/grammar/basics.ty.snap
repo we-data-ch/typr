@@ -1,0 +1,791 @@
+>let x: int <- 5;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^ source.typr variable.parameter.typr
+#     ^ source.typr punctuation.separator.typr
+#      ^ source.typr
+#       ^^^ source.typr support.type.primitive.typr
+#          ^ source.typr
+#           ^^ source.typr keyword.operator.assignment.typr
+#             ^ source.typr
+#              ^ source.typr constant.numeric.integer.typr
+#               ^ source.typr punctuation.terminator.typr
+>let y: num <- 3.14;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^ source.typr variable.parameter.typr
+#     ^ source.typr punctuation.separator.typr
+#      ^ source.typr
+#       ^^^ source.typr support.type.primitive.typr
+#          ^ source.typr
+#           ^^ source.typr keyword.operator.assignment.typr
+#             ^ source.typr
+#              ^^^^ source.typr constant.numeric.float.typr
+#                  ^ source.typr punctuation.terminator.typr
+>let name: char <- "hello \"world\"";
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^^ source.typr variable.parameter.typr
+#        ^ source.typr punctuation.separator.typr
+#         ^ source.typr
+#          ^^^^ source.typr support.type.primitive.typr
+#              ^ source.typr
+#               ^^ source.typr keyword.operator.assignment.typr
+#                 ^ source.typr
+#                  ^ source.typr string.quoted.double.typr
+#                   ^^^^^^ source.typr string.quoted.double.typr
+#                         ^^ source.typr string.quoted.double.typr constant.character.escape.typr
+#                           ^^^^^ source.typr string.quoted.double.typr
+#                                ^^ source.typr string.quoted.double.typr constant.character.escape.typr
+#                                  ^ source.typr string.quoted.double.typr
+#                                   ^ source.typr punctuation.terminator.typr
+>let ok: bool <- true;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^ source.typr variable.parameter.typr
+#      ^ source.typr punctuation.separator.typr
+#       ^ source.typr
+#        ^^^^ source.typr support.type.primitive.typr
+#            ^ source.typr
+#             ^^ source.typr keyword.operator.assignment.typr
+#               ^ source.typr
+#                ^^^^ source.typr constant.language.typr
+#                    ^ source.typr punctuation.terminator.typr
+>let n: char <- 'c';
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^ source.typr variable.parameter.typr
+#     ^ source.typr punctuation.separator.typr
+#      ^ source.typr
+#       ^^^^ source.typr support.type.primitive.typr
+#           ^ source.typr
+#            ^^ source.typr keyword.operator.assignment.typr
+#              ^ source.typr
+#               ^ source.typr string.quoted.single.typr
+#                ^ source.typr string.quoted.single.typr
+#                 ^ source.typr string.quoted.single.typr
+#                  ^ source.typr punctuation.terminator.typr
+>let raw: char <- `weird name`;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^ source.typr variable.parameter.typr
+#       ^ source.typr punctuation.separator.typr
+#        ^ source.typr
+#         ^^^^ source.typr support.type.primitive.typr
+#             ^ source.typr
+#              ^^ source.typr keyword.operator.assignment.typr
+#                ^ source.typr
+#                 ^ source.typr string.quoted.other.backtick.typr
+#                  ^^^^^^^^^^ source.typr string.quoted.other.backtick.typr
+#                            ^ source.typr string.quoted.other.backtick.typr
+#                             ^ source.typr punctuation.terminator.typr
+>
+>fn add(a: int, b: int) -> int {
+#^^ source.typr keyword.declaration.typr
+#  ^ source.typr
+#   ^^^ source.typr entity.name.function.typr
+#      ^ source.typr punctuation.section.brackets.typr
+#       ^ source.typr variable.parameter.typr
+#        ^ source.typr punctuation.separator.typr
+#         ^ source.typr
+#          ^^^ source.typr support.type.primitive.typr
+#             ^ source.typr punctuation.separator.typr
+#              ^ source.typr
+#               ^ source.typr variable.parameter.typr
+#                ^ source.typr punctuation.separator.typr
+#                 ^ source.typr
+#                  ^^^ source.typr support.type.primitive.typr
+#                     ^ source.typr punctuation.section.brackets.typr
+#                      ^ source.typr
+#                       ^^ source.typr keyword.operator.arrow.typr
+#                         ^ source.typr
+#                          ^^^ source.typr support.type.primitive.typr
+#                             ^ source.typr
+#                              ^ source.typr punctuation.section.brackets.typr
+>    return a + b;
+#^^^^ source.typr
+#    ^^^^^^ source.typr keyword.control.typr
+#          ^ source.typr
+#           ^ source.typr variable.other.typr
+#            ^ source.typr
+#             ^ source.typr keyword.operator.arithmetic.typr
+#              ^ source.typr
+#               ^ source.typr variable.other.typr
+#                ^ source.typr punctuation.terminator.typr
+>}
+#^ source.typr punctuation.section.brackets.typr
+>
+>type Shape = .Circle(num) | .Square(num);
+#^^^^ source.typr keyword.declaration.typr
+#    ^ source.typr
+#     ^^^^^ source.typr entity.name.type.typr
+#          ^ source.typr
+#           ^ source.typr keyword.operator.assignment.typr
+#            ^ source.typr
+#             ^^^^^^^ source.typr entity.name.type.variant.typr
+#                    ^ source.typr punctuation.section.brackets.typr
+#                     ^^^ source.typr support.type.primitive.typr
+#                        ^ source.typr punctuation.section.brackets.typr
+#                         ^ source.typr
+#                          ^ source.typr keyword.operator.type-union.typr
+#                           ^ source.typr
+#                            ^^^^^^^ source.typr entity.name.type.variant.typr
+#                                   ^ source.typr punctuation.section.brackets.typr
+#                                    ^^^ source.typr support.type.primitive.typr
+#                                       ^ source.typr punctuation.section.brackets.typr
+#                                        ^ source.typr punctuation.terminator.typr
+>interface Drawable { draw: (Self) -> char; }
+#^^^^^^^^^ source.typr keyword.declaration.typr
+#         ^ source.typr
+#          ^^^^^^^^ source.typr entity.name.type.typr
+#                  ^ source.typr
+#                   ^ source.typr punctuation.section.brackets.typr
+#                    ^ source.typr
+#                     ^^^^ source.typr variable.parameter.typr
+#                         ^ source.typr punctuation.separator.typr
+#                          ^ source.typr
+#                           ^ source.typr punctuation.section.brackets.typr
+#                            ^^^^ source.typr support.type.primitive.typr
+#                                ^ source.typr punctuation.section.brackets.typr
+#                                 ^ source.typr
+#                                  ^^ source.typr keyword.operator.arrow.typr
+#                                    ^ source.typr
+#                                     ^^^^ source.typr support.type.primitive.typr
+#                                         ^ source.typr punctuation.terminator.typr
+#                                          ^ source.typr
+#                                           ^ source.typr punctuation.section.brackets.typr
+>record Point { x: num, y: num }
+#^^^^^^ source.typr keyword.declaration.typr
+#      ^ source.typr
+#       ^^^^^ source.typr entity.name.type.typr
+#            ^ source.typr
+#             ^ source.typr punctuation.section.brackets.typr
+#              ^ source.typr
+#               ^ source.typr variable.parameter.typr
+#                ^ source.typr punctuation.separator.typr
+#                 ^ source.typr
+#                  ^^^ source.typr support.type.primitive.typr
+#                     ^ source.typr punctuation.separator.typr
+#                      ^ source.typr
+#                       ^ source.typr variable.parameter.typr
+#                        ^ source.typr punctuation.separator.typr
+#                         ^ source.typr
+#                          ^^^ source.typr support.type.primitive.typr
+#                             ^ source.typr
+#                              ^ source.typr punctuation.section.brackets.typr
+>opaque typeconstructor Wrapper<T> { value: T }
+#^^^^^^ source.typr keyword.declaration.typr
+#      ^ source.typr
+#       ^^^^^^^^^^^^^^^ source.typr keyword.declaration.typr
+#                      ^ source.typr
+#                       ^^^^^^^ source.typr entity.name.type.typr
+#                              ^ source.typr keyword.operator.comparison.typr
+#                               ^ source.typr entity.name.type.parameter.typr
+#                                ^ source.typr keyword.operator.comparison.typr
+#                                 ^ source.typr
+#                                  ^ source.typr punctuation.section.brackets.typr
+#                                   ^ source.typr
+#                                    ^^^^^ source.typr variable.parameter.typr
+#                                         ^ source.typr punctuation.separator.typr
+#                                          ^ source.typr
+#                                           ^ source.typr entity.name.type.parameter.typr
+#                                            ^ source.typr
+#                                             ^ source.typr punctuation.section.brackets.typr
+>
+>recursive fn fact(n: int) -> int {
+#^^^^^^^^^ source.typr keyword.declaration.typr
+#         ^ source.typr
+#          ^^ source.typr keyword.declaration.typr
+#            ^ source.typr
+#             ^^^^ source.typr entity.name.function.typr
+#                 ^ source.typr punctuation.section.brackets.typr
+#                  ^ source.typr variable.parameter.typr
+#                   ^ source.typr punctuation.separator.typr
+#                    ^ source.typr
+#                     ^^^ source.typr support.type.primitive.typr
+#                        ^ source.typr punctuation.section.brackets.typr
+#                         ^ source.typr
+#                          ^^ source.typr keyword.operator.arrow.typr
+#                            ^ source.typr
+#                             ^^^ source.typr support.type.primitive.typr
+#                                ^ source.typr
+#                                 ^ source.typr punctuation.section.brackets.typr
+>    if (n <= 1) { return 1; } else { return n * fact(n - 1); }
+#^^^^ source.typr
+#    ^^ source.typr keyword.control.typr
+#      ^ source.typr
+#       ^ source.typr punctuation.section.brackets.typr
+#        ^ source.typr variable.other.typr
+#         ^ source.typr
+#          ^^ source.typr keyword.operator.comparison.typr
+#            ^ source.typr
+#             ^ source.typr constant.numeric.integer.typr
+#              ^ source.typr punctuation.section.brackets.typr
+#               ^ source.typr
+#                ^ source.typr punctuation.section.brackets.typr
+#                 ^ source.typr
+#                  ^^^^^^ source.typr keyword.control.typr
+#                        ^ source.typr
+#                         ^ source.typr constant.numeric.integer.typr
+#                          ^ source.typr punctuation.terminator.typr
+#                           ^ source.typr
+#                            ^ source.typr punctuation.section.brackets.typr
+#                             ^ source.typr
+#                              ^^^^ source.typr keyword.control.typr
+#                                  ^ source.typr
+#                                   ^ source.typr punctuation.section.brackets.typr
+#                                    ^ source.typr
+#                                     ^^^^^^ source.typr keyword.control.typr
+#                                           ^ source.typr
+#                                            ^ source.typr variable.other.typr
+#                                             ^ source.typr
+#                                              ^ source.typr keyword.operator.arithmetic.typr
+#                                               ^ source.typr
+#                                                ^^^^ source.typr entity.name.function.typr
+#                                                    ^ source.typr punctuation.section.brackets.typr
+#                                                     ^ source.typr variable.other.typr
+#                                                      ^ source.typr
+#                                                       ^ source.typr keyword.operator.arithmetic.typr
+#                                                        ^ source.typr
+#                                                         ^ source.typr constant.numeric.integer.typr
+#                                                          ^ source.typr punctuation.section.brackets.typr
+#                                                           ^ source.typr punctuation.terminator.typr
+#                                                            ^ source.typr
+#                                                             ^ source.typr punctuation.section.brackets.typr
+>}
+#^ source.typr punctuation.section.brackets.typr
+>
+>module M { @export let z: int <- 1; }
+#^^^^^^ source.typr keyword.declaration.typr
+#      ^ source.typr
+#       ^ source.typr entity.name.type.parameter.typr
+#        ^ source.typr
+#         ^ source.typr punctuation.section.brackets.typr
+#          ^ source.typr
+#           ^^^^^^^ source.typr storage.modifier.annotation.typr
+#                  ^ source.typr
+#                   ^^^ source.typr keyword.declaration.typr
+#                      ^ source.typr
+#                       ^ source.typr variable.parameter.typr
+#                        ^ source.typr punctuation.separator.typr
+#                         ^ source.typr
+#                          ^^^ source.typr support.type.primitive.typr
+#                             ^ source.typr
+#                              ^^ source.typr keyword.operator.assignment.typr
+#                                ^ source.typr
+#                                 ^ source.typr constant.numeric.integer.typr
+#                                  ^ source.typr punctuation.terminator.typr
+#                                   ^ source.typr
+#                                    ^ source.typr punctuation.section.brackets.typr
+>@pub fn helper() -> int { return 0; }
+#^^^^ source.typr storage.modifier.annotation.typr
+#    ^ source.typr
+#     ^^ source.typr keyword.declaration.typr
+#       ^ source.typr
+#        ^^^^^^ source.typr entity.name.function.typr
+#              ^ source.typr punctuation.section.brackets.typr
+#               ^ source.typr punctuation.section.brackets.typr
+#                ^ source.typr
+#                 ^^ source.typr keyword.operator.arrow.typr
+#                   ^ source.typr
+#                    ^^^ source.typr support.type.primitive.typr
+#                       ^ source.typr
+#                        ^ source.typr punctuation.section.brackets.typr
+#                         ^ source.typr
+#                          ^^^^^^ source.typr keyword.control.typr
+#                                ^ source.typr
+#                                 ^ source.typr constant.numeric.integer.typr
+#                                  ^ source.typr punctuation.terminator.typr
+#                                   ^ source.typr
+#                                    ^ source.typr punctuation.section.brackets.typr
+>extern (x: num) -> num r#"function(x) x * 2"#
+#^^^^^^ source.typr keyword.declaration.typr
+#      ^ source.typr
+#       ^ source.typr punctuation.section.brackets.typr
+#        ^ source.typr variable.parameter.typr
+#         ^ source.typr punctuation.separator.typr
+#          ^ source.typr
+#           ^^^ source.typr support.type.primitive.typr
+#              ^ source.typr punctuation.section.brackets.typr
+#               ^ source.typr
+#                ^^ source.typr keyword.operator.arrow.typr
+#                  ^ source.typr
+#                   ^^^ source.typr support.type.primitive.typr
+#                      ^ source.typr
+#                       ^^^ source.typr string.quoted.other.raw.typr
+#                          ^^^^^^^^^^^^^^^^^ source.typr string.quoted.other.raw.typr
+#                                           ^^ source.typr string.quoted.other.raw.typr
+>
+>let v: Vec<int> <- c(1, 2, 3);
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^ source.typr variable.parameter.typr
+#     ^ source.typr punctuation.separator.typr
+#      ^ source.typr
+#       ^^^ source.typr support.type.builtin.typr
+#          ^ source.typr keyword.operator.comparison.typr
+#           ^^^ source.typr support.type.primitive.typr
+#              ^ source.typr keyword.operator.comparison.typr
+#               ^ source.typr
+#                ^^ source.typr keyword.operator.assignment.typr
+#                  ^ source.typr
+#                   ^ source.typr support.function.builtin.typr
+#                    ^ source.typr punctuation.section.brackets.typr
+#                     ^ source.typr constant.numeric.integer.typr
+#                      ^ source.typr punctuation.separator.typr
+#                       ^ source.typr
+#                        ^ source.typr constant.numeric.integer.typr
+#                         ^ source.typr punctuation.separator.typr
+#                          ^ source.typr
+#                           ^ source.typr constant.numeric.integer.typr
+#                            ^ source.typr punctuation.section.brackets.typr
+#                             ^ source.typr punctuation.terminator.typr
+>let s: seq <- seq(1, 10);
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^ source.typr variable.parameter.typr
+#     ^ source.typr punctuation.separator.typr
+#      ^ source.typr
+#       ^^^ source.typr variable.other.typr
+#          ^ source.typr
+#           ^^ source.typr keyword.operator.assignment.typr
+#             ^ source.typr
+#              ^^^ source.typr support.function.builtin.typr
+#                 ^ source.typr punctuation.section.brackets.typr
+#                  ^ source.typr constant.numeric.integer.typr
+#                   ^ source.typr punctuation.separator.typr
+#                    ^ source.typr
+#                     ^^ source.typr constant.numeric.integer.typr
+#                       ^ source.typr punctuation.section.brackets.typr
+#                        ^ source.typr punctuation.terminator.typr
+>let d: df <- df[1,];
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^ source.typr variable.parameter.typr
+#     ^ source.typr punctuation.separator.typr
+#      ^ source.typr
+#       ^^ source.typr variable.other.typr
+#         ^ source.typr
+#          ^^ source.typr keyword.operator.assignment.typr
+#            ^ source.typr
+#             ^^ source.typr support.type.builtin.typr
+#               ^ source.typr punctuation.section.brackets.typr
+#                ^ source.typr constant.numeric.integer.typr
+#                 ^ source.typr punctuation.separator.typr
+#                  ^ source.typr punctuation.section.brackets.typr
+#                   ^ source.typr punctuation.terminator.typr
+>let generic: T <- x;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^^^^^ source.typr variable.parameter.typr
+#           ^ source.typr punctuation.separator.typr
+#            ^ source.typr
+#             ^ source.typr entity.name.type.parameter.typr
+#              ^ source.typr
+#               ^^ source.typr keyword.operator.assignment.typr
+#                 ^ source.typr
+#                  ^ source.typr variable.other.typr
+#                   ^ source.typr punctuation.terminator.typr
+>let sig: #N <- 5;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^ source.typr variable.parameter.typr
+#       ^ source.typr punctuation.separator.typr
+#        ^ source.typr
+#         ^^ source.typr entity.name.type.parameter.typr
+#           ^ source.typr
+#            ^^ source.typr keyword.operator.assignment.typr
+#              ^ source.typr
+#               ^ source.typr constant.numeric.integer.typr
+#                ^ source.typr punctuation.terminator.typr
+>let lbl: $L <- "a";
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^ source.typr variable.parameter.typr
+#       ^ source.typr punctuation.separator.typr
+#        ^ source.typr
+#         ^^ source.typr entity.name.type.parameter.typr
+#           ^ source.typr
+#            ^^ source.typr keyword.operator.assignment.typr
+#              ^ source.typr
+#               ^ source.typr string.quoted.double.typr
+#                ^ source.typr string.quoted.double.typr
+#                 ^ source.typr string.quoted.double.typr
+#                  ^ source.typr punctuation.terminator.typr
+>
+>let p <- x |> add;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^ source.typr variable.other.typr
+#     ^ source.typr
+#      ^^ source.typr keyword.operator.assignment.typr
+#        ^ source.typr
+#         ^ source.typr variable.other.typr
+#          ^ source.typr
+#           ^^ source.typr keyword.operator.pipe.typr
+#             ^ source.typr
+#              ^^^ source.typr variable.other.typr
+#                 ^ source.typr punctuation.terminator.typr
+>let cmp <- a == b and c != d;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^ source.typr variable.other.typr
+#       ^ source.typr
+#        ^^ source.typr keyword.operator.assignment.typr
+#          ^ source.typr
+#           ^ source.typr variable.other.typr
+#            ^ source.typr
+#             ^^ source.typr keyword.operator.comparison.typr
+#               ^ source.typr
+#                ^ source.typr variable.other.typr
+#                 ^ source.typr
+#                  ^^^ source.typr keyword.operator.word.typr
+#                     ^ source.typr
+#                      ^ source.typr variable.other.typr
+#                       ^ source.typr
+#                        ^^ source.typr keyword.operator.comparison.typr
+#                          ^ source.typr
+#                           ^ source.typr variable.other.typr
+#                            ^ source.typr punctuation.terminator.typr
+>let bnd <- a <- 5;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^ source.typr variable.other.typr
+#       ^ source.typr
+#        ^^ source.typr keyword.operator.assignment.typr
+#          ^ source.typr
+#           ^ source.typr variable.other.typr
+#            ^ source.typr
+#             ^^ source.typr keyword.operator.assignment.typr
+#               ^ source.typr
+#                ^ source.typr constant.numeric.integer.typr
+#                 ^ source.typr punctuation.terminator.typr
+>let arrow: (int) -> int <- \(x) x + 1;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^^^ source.typr variable.parameter.typr
+#         ^ source.typr punctuation.separator.typr
+#          ^ source.typr
+#           ^ source.typr punctuation.section.brackets.typr
+#            ^^^ source.typr support.type.primitive.typr
+#               ^ source.typr punctuation.section.brackets.typr
+#                ^ source.typr
+#                 ^^ source.typr keyword.operator.arrow.typr
+#                   ^ source.typr
+#                    ^^^ source.typr support.type.primitive.typr
+#                       ^ source.typr
+#                        ^^ source.typr keyword.operator.assignment.typr
+#                          ^ source.typr
+#                           ^ source.typr keyword.operator.lambda.typr
+#                            ^ source.typr punctuation.section.brackets.typr
+#                             ^ source.typr variable.other.typr
+#                              ^ source.typr punctuation.section.brackets.typr
+#                               ^ source.typr
+#                                ^ source.typr variable.other.typr
+#                                 ^ source.typr
+#                                  ^ source.typr keyword.operator.arithmetic.typr
+#                                   ^ source.typr
+#                                    ^ source.typr constant.numeric.integer.typr
+#                                     ^ source.typr punctuation.terminator.typr
+>
+>R { print("hi") }
+#^ source.typr keyword.other.block.typr
+# ^ source.typr
+#  ^ source.typr punctuation.section.brackets.typr
+#   ^ source.typr
+#    ^^^^^ source.typr entity.name.function.typr
+#         ^ source.typr punctuation.section.brackets.typr
+#          ^ source.typr string.quoted.double.typr
+#           ^^ source.typr string.quoted.double.typr
+#             ^ source.typr string.quoted.double.typr
+#              ^ source.typr punctuation.section.brackets.typr
+#               ^ source.typr
+#                ^ source.typr punctuation.section.brackets.typr
+>JS { console.log("hi") }
+#^^ source.typr keyword.other.block.typr
+#  ^ source.typr
+#   ^ source.typr punctuation.section.brackets.typr
+#    ^ source.typr
+#     ^^^^^^^ source.typr variable.other.typr
+#            ^ source.typr keyword.operator.access.typr
+#             ^^^ source.typr entity.name.function.typr
+#                ^ source.typr punctuation.section.brackets.typr
+#                 ^ source.typr string.quoted.double.typr
+#                  ^^ source.typr string.quoted.double.typr
+#                    ^ source.typr string.quoted.double.typr
+#                     ^ source.typr punctuation.section.brackets.typr
+#                      ^ source.typr
+#                       ^ source.typr punctuation.section.brackets.typr
+>Test { check(x) }
+#^^^^ source.typr keyword.other.block.typr
+#    ^ source.typr
+#     ^ source.typr punctuation.section.brackets.typr
+#      ^ source.typr
+#       ^^^^^ source.typr entity.name.function.typr
+#            ^ source.typr punctuation.section.brackets.typr
+#             ^ source.typr variable.other.typr
+#              ^ source.typr punctuation.section.brackets.typr
+#               ^ source.typr
+#                ^ source.typr punctuation.section.brackets.typr
+>
+>x::y;
+#^ source.typr variable.other.typr
+# ^^ source.typr keyword.operator.access.typr
+#   ^ source.typr variable.other.typr
+#    ^ source.typr punctuation.terminator.typr
+>a$b;
+#^ source.typr variable.other.typr
+# ^ source.typr keyword.operator.access.typr
+#  ^ source.typr variable.other.typr
+#   ^ source.typr punctuation.terminator.typr
+>z.field;
+#^ source.typr variable.other.typr
+# ^ source.typr keyword.operator.access.typr
+#  ^^^^^ source.typr variable.other.typr
+#       ^ source.typr punctuation.terminator.typr
+>foo(1, 2);
+#^^^ source.typr entity.name.function.typr
+#   ^ source.typr punctuation.section.brackets.typr
+#    ^ source.typr constant.numeric.integer.typr
+#     ^ source.typr punctuation.separator.typr
+#      ^ source.typr
+#       ^ source.typr constant.numeric.integer.typr
+#        ^ source.typr punctuation.section.brackets.typr
+#         ^ source.typr punctuation.terminator.typr
+>bar: int;
+#^^^ source.typr variable.parameter.typr
+#   ^ source.typr punctuation.separator.typr
+#    ^ source.typr
+#     ^^^ source.typr support.type.primitive.typr
+#        ^ source.typr punctuation.terminator.typr
+>
+>match x { .Circle(r) -> r, .Square(s) -> s }
+#^^^^^ source.typr keyword.control.typr
+#     ^ source.typr
+#      ^ source.typr variable.other.typr
+#       ^ source.typr
+#        ^ source.typr punctuation.section.brackets.typr
+#         ^ source.typr
+#          ^^^^^^^ source.typr entity.name.type.variant.typr
+#                 ^ source.typr punctuation.section.brackets.typr
+#                  ^ source.typr variable.other.typr
+#                   ^ source.typr punctuation.section.brackets.typr
+#                    ^ source.typr
+#                     ^^ source.typr keyword.operator.arrow.typr
+#                       ^ source.typr
+#                        ^ source.typr variable.other.typr
+#                         ^ source.typr punctuation.separator.typr
+#                          ^ source.typr
+#                           ^^^^^^^ source.typr entity.name.type.variant.typr
+#                                  ^ source.typr punctuation.section.brackets.typr
+#                                   ^ source.typr variable.other.typr
+#                                    ^ source.typr punctuation.section.brackets.typr
+#                                     ^ source.typr
+#                                      ^^ source.typr keyword.operator.arrow.typr
+#                                        ^ source.typr
+#                                         ^ source.typr variable.other.typr
+#                                          ^ source.typr
+#                                           ^ source.typr punctuation.section.brackets.typr
+>for i in xs { next; }
+#^^^ source.typr keyword.control.typr
+#   ^ source.typr
+#    ^ source.typr variable.other.typr
+#     ^ source.typr
+#      ^^ source.typr keyword.operator.word.typr
+#        ^ source.typr
+#         ^^ source.typr variable.other.typr
+#           ^ source.typr
+#            ^ source.typr punctuation.section.brackets.typr
+#             ^ source.typr
+#              ^^^^ source.typr keyword.control.typr
+#                  ^ source.typr punctuation.terminator.typr
+#                   ^ source.typr
+#                    ^ source.typr punctuation.section.brackets.typr
+>while true { break; }
+#^^^^^ source.typr keyword.control.typr
+#     ^ source.typr
+#      ^^^^ source.typr constant.language.typr
+#          ^ source.typr
+#           ^ source.typr punctuation.section.brackets.typr
+#            ^ source.typr
+#             ^^^^^ source.typr keyword.control.typr
+#                  ^ source.typr punctuation.terminator.typr
+#                   ^ source.typr
+#                    ^ source.typr punctuation.section.brackets.typr
+>loop { break; }
+#^^^^ source.typr keyword.control.typr
+#    ^ source.typr
+#     ^ source.typr punctuation.section.brackets.typr
+#      ^ source.typr
+#       ^^^^^ source.typr keyword.control.typr
+#            ^ source.typr punctuation.terminator.typr
+#             ^ source.typr
+#              ^ source.typr punctuation.section.brackets.typr
+>
+># a plain comment
+#^^^^^^^^^^^^^^^^^ source.typr comment.line.number-sign.typr
+>#N is a sigil not a comment
+#^^ source.typr entity.name.type.parameter.typr
+#  ^ source.typr
+#   ^^ source.typr variable.other.typr
+#     ^ source.typr
+#      ^ source.typr variable.other.typr
+#       ^ source.typr
+#        ^^^^^ source.typr variable.other.typr
+#             ^ source.typr
+#              ^^^ source.typr variable.other.typr
+#                 ^ source.typr
+#                  ^ source.typr variable.other.typr
+#                   ^ source.typr
+#                    ^^^^^^^ source.typr variable.other.typr
+>
+>data.frame(x)
+#^^^^^^^^^^ source.typr support.type.builtin.typr
+#          ^ source.typr punctuation.section.brackets.typr
+#           ^ source.typr variable.other.typr
+#            ^ source.typr punctuation.section.brackets.typr
+>c(1, 2, 3)
+#^ source.typr support.function.builtin.typr
+# ^ source.typr punctuation.section.brackets.typr
+#  ^ source.typr constant.numeric.integer.typr
+#   ^ source.typr punctuation.separator.typr
+#    ^ source.typr
+#     ^ source.typr constant.numeric.integer.typr
+#      ^ source.typr punctuation.separator.typr
+#       ^ source.typr
+#        ^ source.typr constant.numeric.integer.typr
+#         ^ source.typr punctuation.section.brackets.typr
+>library(foo)
+#^^^^^^^ source.typr support.function.builtin.typr
+#       ^ source.typr punctuation.section.brackets.typr
+#        ^^^ source.typr variable.other.typr
+#           ^ source.typr punctuation.section.brackets.typr
+>Class(x)
+#^^^^^ source.typr support.function.builtin.typr
+#     ^ source.typr punctuation.section.brackets.typr
+#      ^ source.typr variable.other.typr
+#       ^ source.typr punctuation.section.brackets.typr
+>
+>let custom <- a %+% b;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^^^^ source.typr variable.other.typr
+#          ^ source.typr
+#           ^^ source.typr keyword.operator.assignment.typr
+#             ^ source.typr
+#              ^ source.typr variable.other.typr
+#               ^ source.typr
+#                ^^^ source.typr keyword.operator.custom.typr
+#                   ^ source.typr
+#                    ^ source.typr variable.other.typr
+#                     ^ source.typr punctuation.terminator.typr
+>let spread <- [..source, 1, 2];
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^^^^ source.typr variable.other.typr
+#          ^ source.typr
+#           ^^ source.typr keyword.operator.assignment.typr
+#             ^ source.typr
+#              ^ source.typr punctuation.section.brackets.typr
+#               ^^ source.typr keyword.operator.spread.typr
+#                 ^^^^^^ source.typr variable.other.typr
+#                       ^ source.typr punctuation.separator.typr
+#                        ^ source.typr
+#                         ^ source.typr constant.numeric.integer.typr
+#                          ^ source.typr punctuation.separator.typr
+#                           ^ source.typr
+#                            ^ source.typr constant.numeric.integer.typr
+#                             ^ source.typr punctuation.section.brackets.typr
+#                              ^ source.typr punctuation.terminator.typr
+>let vari <- [...rest];
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^^ source.typr variable.other.typr
+#        ^ source.typr
+#         ^^ source.typr keyword.operator.assignment.typr
+#           ^ source.typr
+#            ^ source.typr punctuation.section.brackets.typr
+#             ^^^ source.typr keyword.operator.spread.typr
+#                ^^^^ source.typr variable.other.typr
+#                    ^ source.typr punctuation.section.brackets.typr
+#                     ^ source.typr punctuation.terminator.typr
+>let m <- a % b;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^ source.typr variable.other.typr
+#     ^ source.typr
+#      ^^ source.typr keyword.operator.assignment.typr
+#        ^ source.typr
+#         ^ source.typr variable.other.typr
+#          ^ source.typr
+#           ^ source.typr keyword.operator.arithmetic.typr
+#            ^ source.typr
+#             ^ source.typr variable.other.typr
+#              ^ source.typr punctuation.terminator.typr
+>let vb <- @{ x + 1 }@;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^ source.typr variable.other.typr
+#      ^ source.typr
+#       ^^ source.typr keyword.operator.assignment.typr
+#         ^ source.typr
+#          ^^ source.typr keyword.operator.vectorial.typr
+#            ^ source.typr
+#             ^ source.typr variable.other.typr
+#              ^ source.typr
+#               ^ source.typr keyword.operator.arithmetic.typr
+#                ^ source.typr
+#                 ^ source.typr constant.numeric.integer.typr
+#                  ^ source.typr
+#                   ^^ source.typr keyword.operator.vectorial.typr
+#                     ^ source.typr punctuation.terminator.typr
+>let esc <- 'it\'s';
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^ source.typr variable.other.typr
+#       ^ source.typr
+#        ^^ source.typr keyword.operator.assignment.typr
+#          ^ source.typr
+#           ^ source.typr string.quoted.single.typr
+#            ^^ source.typr string.quoted.single.typr
+#              ^^ source.typr string.quoted.single.typr constant.character.escape.typr
+#                ^ source.typr string.quoted.single.typr
+#                 ^ source.typr string.quoted.single.typr
+#                  ^ source.typr punctuation.terminator.typr
+>let neg <- !ok;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^ source.typr variable.other.typr
+#       ^ source.typr
+#        ^^ source.typr keyword.operator.assignment.typr
+#          ^ source.typr
+#           ^ source.typr keyword.operator.logical.typr
+#            ^^ source.typr variable.other.typr
+#              ^ source.typr punctuation.terminator.typr
+>let both <- a && b || c;
+#^^^ source.typr keyword.declaration.typr
+#   ^ source.typr
+#    ^^^^ source.typr variable.other.typr
+#        ^ source.typr
+#         ^^ source.typr keyword.operator.assignment.typr
+#           ^ source.typr
+#            ^ source.typr variable.other.typr
+#             ^ source.typr
+#              ^^ source.typr keyword.operator.logical.typr
+#                ^ source.typr
+#                 ^ source.typr variable.other.typr
+#                  ^ source.typr
+#                   ^^ source.typr keyword.operator.logical.typr
+#                     ^ source.typr
+#                      ^ source.typr variable.other.typr
+#                       ^ source.typr punctuation.terminator.typr
+>
+>as!
+#^^^ source.typr keyword.operator.cast.typr
+>5 as int
+#^ source.typr constant.numeric.integer.typr
+# ^ source.typr
+#  ^^ source.typr keyword.operator.cast.typr
+#    ^ source.typr
+#     ^^^ source.typr support.type.primitive.typr
+>
