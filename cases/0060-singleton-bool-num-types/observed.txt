@@ -1,0 +1,12 @@
+# Claimed in comp_correction.md (section A, 2026-09-09 audit of the
+# `noplayground` doc blocks against 0.5.10) -- NOT reproduced when tested
+# against current source (0.5.10, develop @ 90f6e30). Kept here verbatim as
+# the reported symptom, for reference:
+
+Type error: type true doesn't match type bool
+Type error: type 3.14 doesn't match type num
+
+# Actual output on this repro (current source):
+#
+#   Type checking... done
+#   File verification "main.ty" successful!

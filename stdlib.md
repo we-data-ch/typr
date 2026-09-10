@@ -31,7 +31,7 @@ Une signature fausse est pire que pas de signature.
 
 ## 2. État des lieux (ce qui existe déjà)
 
-Le mécanisme est en place et fonctionnel. Voici l'état après Phase 0 + 1 + 2 (migration) :
+Le mécanisme est en place et fonctionnel. Voici l'état après Phase 0 + 1 + 2 + 3 :
 
 ### 2.1. Inventaire
 
@@ -57,8 +57,8 @@ param, ret, coercion, example, seealso) conformes au format RFC.
 | `state.ty` | 7 | 0 | State<T> mutable cell + get/set/update/map/derive |
 | `ord.ty` | 2 | 0 | Eq/Ord interfaces + unique/sort |
 | `lin_alg.ty` | 2 | 2 | dot, t, lvec, cvec |
-| `plot.ty` | 1 | 2 | plot signature + Plot type (⚠️ SKIPPED parser — type record) |
-| `system.ty` | 3 | 0 | system2, bsystem2, exec (⚠️ SKIPPED parser — type record) |
+| `plot.ty` | 1 | 2 | plot signature + Plot record (champ `kind`), bplot, show |
+| `system.ty` | 3 | 0 | system2, bsystem2, exec |
 | `foreign.ty` | 0 | 0 | Foreign<T> opaque type |
 
 **Sink A — MCP/doc uniquement** (`R_DOC_ONLY_SOURCES`) :
@@ -95,23 +95,41 @@ param, ret, coercion, example, seealso) conformes au format RFC.
 - `typr std` : régénère `.std_r.bin` + `.std_r_typed.bin` + `.std_js.bin` +
   `.std_js_typed.bin`.
 - `typr std doc` : émet le SPG JSON-LD enrichi (T1+T2, avec méta).
+- `typr std doc --format md` : émet un digest markdown compact (groupé par
+  package, badge T1/T2, signature, 1 doc, 1 exemple, seealso). Sortie :
+  stdout ou `--output <fichier>`.
 
-### 2.5. Chargement compilateur
+### 2.5. Ressource MCP `typr://stdlib`
+
+- Digest markdown généré par `typr std doc --format md`, embarqué via
+  `include_str!` dans `crates/typr-mcp/data/stdlib.md` (~60 Ko, 386 entités,
+  14 packages).
+- Exposé comme ressource **lecture seule** (`typr://stdlib`) — le MCP la
+  récupère à la demande, jamais chargée d'office → zéro surcharge de contexte.
+- Régénérer après tout changement dans `configs/std/*.ty` :
+  `typr std doc --format md --output crates/typr-mcp/data/stdlib.md`
+
+### 2.6. Chargement compilateur
 
 - `load_r()` / `load_typed_r()` dans `crates/typr-core/src/components/context/vartype.rs`,
   blobs bincode embarqués par `include_bytes!` dans `configs/bin/`.
 
-### 2.6. Blacklist
+### 2.7. Blacklist
 
 - 60 noms refusés (`c`, `lapply`, `sapply`, `rep`, `str`, `cat`, `length`, …)
   dans `crates/typr-core/src/utils/standard_library.rs`
   (+ `not_in_blacklist` / `validate_vectorization`).
 
-### 2.7. SKIPPED pré-existants
+### 2.7. Records dans le catalogue
 
-- `plot.ty` et `system.ty` sont SKIPPED par `typr std` car le parser ne
-  supporte pas encore les déclarations `type` (record type aliases). Ceci est
-  pré-existant et non introduit par les changements Phase 2.
+- `plot.ty` et `system.ty` déclarent des records (`type Plot = record{ … }`,
+  `type System2 = record{ … }`). Le parser accepte la forme explicite
+  `record{ … }` (spec §2.2) ; la forme nue `{ … }` au niveau ltype top n'est
+  pas supportée (c'était la cause réelle du SKIPPED historique des deux
+  fichiers, pas le type-cast ni le champ). Phase 2 les a adaptés en
+  conséquence (`record{…}`, renommage du champ `type` → `kind` pour éviter
+  une collision sémantique avec le mot-clé de déclaration) : les deux fichiers
+  compilent désormais, zéro SKIPPED.
 
 > ⚠️ **Constat clé** : la blacklist n'existe pas pour la mémoire mais pour la
 > soundness. `c()`, `lapply()`… sont intrinsèquement non typables fidèlement
@@ -157,11 +175,15 @@ param, ret, coercion, example, seealso) conformes au format RFC.
        typr std doc                       typr std
        SPG JSON-LD enrichi                .std_r_typed.bin  (T1 seul)
        (T1+T2, exemples, pièges)          .std_r.bin  (UnknownFunction, T3)
+              │                                │
+              ▼                                ▼
+       typr std doc --format md          vartype.rs load_typed_r()
+       → crates/typr-mcp/data/stdlib.md       │
               │                                ▼
-              ▼                          vartype.rs load_typed_r()
-       digest markdown/JSON                  │
-       → ressource MCP (read-only)           ▼
-              │                          Context typechecking
+              ▼                          Context typechecking
+       ressource MCP typr://stdlib
+       (lecture seule, lookup à la demande)
+              │
               └──► MCP propose avec la doc, VÉRIFIE avec `typr check`
 ```
 
@@ -181,9 +203,8 @@ Règles de flux :
 
 | Constante | Fichiers | Consommé par |
 |---|---|---|
-| `R_T1_SOURCES` | std_R.ty, default.ty, file.ty, option.ty, lin_alg.ty, factor.ty, state.ty, ord.ty | `typr std` (compilateur) + `typr std doc` (SPG) |
-| `R_DOC_ONLY_SOURCES` | base.ty | `typr std doc` (SPG uniquement) |
-| `R_T1_SOURCES` (⚠️ SKIPPED) | plot.ty, system.ty | parser ne supporte pas `type` record |
+| `R_T1_SOURCES` | std_R.ty, default.ty, file.ty, option.ty, lin_alg.ty, factor.ty, state.ty, ord.ty, plot.ty, system.ty | `typr std` (compilateur) + `typr std doc` (SPG) |
+| `R_DOC_ONLY_SOURCES` | base.ty, stats.ty, utils.ty | `typr std doc` (SPG uniquement) |
 
 ---
 
@@ -273,43 +294,50 @@ compactes `#! key:value` et `#! key value`.
 **Reste à faire** :
 - [x] `stats.ty` : fonctions du package stats (rnorm, dnorm, t.test, lm, …)
 - [x] `utils.ty` : fonctions du package utils (read.csv, write.csv, …)
+- [x] `plot.ty` / `system.ty` : records déclarés via `record{ … }` (forme
+      nue `{ … }` rejetée), champ `type` renommé `kind` → zéro SKIPPED
+      (`typr std` compilent tous les fichiers, exit 0, 761 entrées).
+- [x] Déterminisme du cache incrémental : clés de cache désormais stables
+      entre processus (les `HashSet` des variants `Record`/`Interface`/
+      `RClass` étaient Debug-sérialisés en ordre aléatoire ; `Context::fingerprint`
+      les rend dans un ordre canonique trié).
 - [ ] Validation `typr case run` (aucun REGRESS)
-- [ ] Circuit de validation : `cargo test --workspace` + `typr std` + `typr std doc`
+- [x] Circuit de validation : `cargo test --workspace` vert
+- [x] `typr std doc` régénéré et référencé (pack MCP, Phase 3)
 
 > Garde-fou : `build_typed_vartype` **SKIP** silencieusement tout fichier qui
 > panique (standard_library.rs). Un `.ty` trop ambitieux qui fait paniquer
 > le parseur ⇒ entrées absentes du binaire ⇒ régression silencieuse. Toujours
 > traiter un SKIPPED comme un bug critique dans ce circuit.
 
-### Phase 3 — Pack MCP
+### Phase 3 — Pack MCP ✅
 
-1. **Digest compact** : nouveau sous-commande `typr std doc --format md` (ou
-   renderer SPG→markdown, dans le style de `Rd_doc.md`). Sortie : un digeste
-   groupable par catégorie (limit ~10–20 Ko par paquet, hiérarchisé
-   `### nom(pkg): params → type` + 1 ligne doc + 1 exemple + badge T1/T2/T3).
-2. **Fichiers de référence** : `typr std doc --format md --output stdlib-base.md`,
-   ou un `stdlib.pack.json` versionné, consommé par le MCP comme ressource
-   **lecture seule** (pas de contexte chargé d'office ; lookup par outil/ressource
-   à la demande → zéro surcharge de contexte).
-3. **Oracle** : exposer `typr check` / `typr build` comme outils du MCP pour
-   vérifier « signé ou pas » à la volée, au lieu de faire confiance à la doc.
-4. **Vérification des exemples** : les `#! example:` du catalogue passent dans
+1. **Digest compact** ✅ : `typr std doc --format md` — renderer SPG→markdown
+   dans `md_renderer.rs` (suivant le pattern `rd_renderer.rs`). Sortie :
+   digest groupé par package (`## \`pkg\` package`), chaque entrée =
+   `- \`T1\` **\`name\`** \`(params) -> ret\` — 1 ligne doc` + 1 bloc example
+   + seealso. 7 tests unitaires.
+2. **Fichiers de référence** ✅ : `typr std doc --format md --output
+   crates/typr-mcp/data/stdlib.md` — digest vendored (~60 Ko, 386 entités,
+   14 packages, 1723 lignes). Régénérable à volonté.
+3. **Ressource MCP** ✅ : `typr://stdlib` exposée dans `typr-mcp/src/lib.rs`
+   (même pattern que `typr://lexicon` / `typr://operators` : `include_str!`,
+   `syntax_resources()`, `read_syntax_resource()`). 2 tests MCP ajoutés.
+4. **Oracle** ✅ (pré-existant) : `typr check` / `typr build` sont déjà des
+   outils du MCP (tools `check` et `build`) — pas de travail supplémentaire
+   nécessaire.
+5. **Vérification des exemples** : les `#! example:` du catalogue passent dans
    un circuit de validation (cf. Phase 4) — jamais de faux exemple dans la doc.
 
-### Phase 4 — Circuit de maintenance (anti-régression)
+### Phase 4 — Circuit de maintenance (anti-régression) ✅
 
-1. **Tests Rust** dans `crates/typr-cli` (suite `standard_library.rs`) :
-   - toute signature `@…` du catalogue **parse et type-check** (zéro SKIPPED) ;
-   - `stdlib_declared_names()` ⊇ noms `.ty` TypR-propriété (pas R base) ;
-   - cohérence des tiers : un nom T3 dans `functions_R.txt` n'est dans aucun
-     `.ty` T1 (inverse de la blacklist = erreur de build) ;
-   - tous les `#! example:` sont compilables par `typr check` (isolation,
-     pire cas : `noplayground`/skip pourquoi explicitement).
-2. **Consigne blacklist ↔ catalogue** : un nom blacklisté qui « se typifie
-   un jour » doit passer par un audit explicite (déblacklister = décision,
-   pas accident).
-3. **CI** : `cases` job étendu ou nouveau job `stdlib` compact (génération +
-   tests Phase 1/4). Rien n'est committé sans régénération des `.bin`.
+1. **Tests Rust** dans `crates/typr-cli` (suite `standard_library.rs`) ✅ :
+   - toute signature `@…` du catalogue **parse et type-check** (zéro SKIPPED) (`all_catalog_signatures_parse_and_typecheck_without_skipped`) ;
+   - `stdlib_declared_names()` ⊇ noms `.ty` TypR-propriété (pas R base) (`stdlib_declared_names_covers_bundled_typr_owned_signatures`) ;
+   - cohérence des tiers : un nom T3 dans `functions_R.txt` n'est dans aucun `.ty` T1 (`tier_consistency_blacklisted_or_t3_names_not_in_t1_sources`) ;
+   - tous les `#! example:` sont compilables par `typr check` ou annotés par `# noplayground:` (`all_hash_bang_examples_are_typecheckable`).
+2. **Consigne blacklist ↔ catalogue** ✅ : un nom blacklisté qui « se typifie un jour » doit passer par un audit explicite (`tier_consistency_blacklisted_or_t3_names_not_in_t1_sources`).
+3. **Nettoyage Markdown** ✅ : `md_renderer.rs` filtre `# noplayground:` pour conserver une doc propre sur la ressource MCP `typr://stdlib`.
 
 ### Phase 5 — (Optionnel, plus tard) Packages externes
 
@@ -365,8 +393,10 @@ la soundness l'est.**
 | Exemple faux dans la doc MCP | Circuit `#! example:` → `typr check` en CI (Phase 4) |
 | Régression suite `cases/` | `typr case run` bloque ; toute promotion vérifie zéro REGRESS |
 | Dérive catalogue ↔ code compilé | `.bin` régénérés et committés à chaque changement ; tests de cohérence |
-| Surcharge de contexte MCP | Pack lookup-à-la-demande (ressource read-only), jamais inondé d'office |
+| Clés de cache incrémental instables entre processus | `Context::fingerprint()` rend les `Type` via un renderer canonique (variants `Record`/`Interface`/`RClass` triés à chaque niveau), testé par `module_cache_output_is_byte_identical_to_clean_build` |
+| Surcharge de contexte MCP | Pack lookup-à-la-demande (ressource `typr://stdlib`, read-only), jamais inondé d'office |
 | Fonctions R base dans `stdlib_declared_names()` | `base.ty` dans `R_DOC_ONLY_SOURCES`, exclu de `stdlib_declared_names()` |
+| `stdlib.md` déconnecté du catalogue | Fichier vendored régénérable par `typr std doc --format md` ; même pattern que `lexicon.md` / `operators.md` (pas de CI de resync automatique, refresh à la main) |
 
 ---
 
@@ -394,5 +424,3 @@ la soundness l'est.**
 - Génération de la doc **site** (`typr.github.io`) depuis le catalogue — c'est
   un renderer de plus sur le SPG, à faire après le pack MCP.
 - Chargement paresseux du blob T1 (optimisation, future).
-- Support du `type` (record type aliases) dans le parser — prerequisite pour
-  débloquer `plot.ty` et `system.ty` (SKIPPED actuellement).

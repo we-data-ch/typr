@@ -12,7 +12,7 @@
 
 @system2: (command: char, args: [#N, char], stdout: char, stderr: char, stdin: char) -> char;
 
-type System2 = { command: char, args: [#N, char], stdout: char, stderr: char, stdin: char};
+type System2 = record{ command: char, args: [#N, char], stdout: char, stderr: char, stdin: char};
 
 #! pkg: base
 #! tier: T2

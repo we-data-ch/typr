@@ -2191,7 +2191,7 @@ mod tests {
         let last_type = fp.get_last_type();
         assert_eq!(
             last_type,
-            builder::integer_type_default(),
+            builder::integer_type(3),
             "Expected int, got: {:?}",
             last_type
         );
@@ -2205,7 +2205,7 @@ mod tests {
             .run()
             .push("extract(42)")
             .parse_type_next();
-        assert_eq!(res.get_last_type(), builder::integer_type_default());
+        assert_eq!(res.get_last_type(), builder::integer_type(42));
     }
 
     /// Test that Option<T> return type is properly inferred.
@@ -2220,7 +2220,7 @@ mod tests {
             .parse_type_next();
         assert_eq!(
             fp.get_last_type(),
-            builder::integer_type_default(),
+            builder::integer_type(3),
             "Expected int, got: {:?}",
             fp.get_last_type()
         );
@@ -2236,7 +2236,7 @@ mod tests {
             .parse_type_next();
         assert_eq!(
             fp.get_last_type(),
-            builder::integer_type_default(),
+            builder::integer_type(3),
             "Expected int, got: {:?}",
             fp.get_last_type()
         );
@@ -2279,7 +2279,7 @@ mod tests {
             .parse_type_next();
         assert_eq!(
             fp.get_last_type(),
-            builder::integer_type_default(),
+            builder::integer_type(3),
             "Expected int (concrete return type), got: {:?}",
             fp.get_last_type()
         );
@@ -2299,7 +2299,7 @@ mod tests {
             .parse_type_next();
         assert_eq!(
             fp.get_last_type(),
-            builder::integer_type_default(),
+            builder::integer_type(3),
             "Expected int, got: {:?}",
             fp.get_last_type()
         );

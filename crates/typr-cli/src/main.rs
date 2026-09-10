@@ -8,6 +8,7 @@ mod cli;
 mod engine;
 mod fuzz;
 mod io;
+mod md_renderer;
 mod metaprogramming;
 mod progress;
 mod project;

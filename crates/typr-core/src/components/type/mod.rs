@@ -136,7 +136,7 @@ pub enum Type {
 
 /// Structural fallback for interface-method-set comparison: for every
 /// required method in `required`, is there a same-named method in `have`
-/// whose function type is equal *after reducing both sides*? Plain `==`/
+/// whose function type is compatible *after reducing both sides*? Plain `==`/
 /// `is_superset` on the raw `HashSet<ArgumentType>` can spuriously fail when
 /// the two signatures were reduced at different points with different
 /// recursion depth — e.g. a function exported across a module boundary
@@ -147,6 +147,15 @@ pub enum Type {
 /// a bare `Record` where the other still has the originating `Alias`.
 /// Reducing both sides here, uniformly, at comparison time removes that
 /// asymmetry regardless of how each side got to this point.
+///
+/// Signature compatibility itself is delegated to
+/// `interface_satisfaction::signatures_compatible` (contravariant params,
+/// covariant return, via `is_subtype`) rather than plain `==`: a candidate
+/// declared for a base type (`@view: (int) -> char;`) must still satisfy a
+/// `Self`-typed requirement resolved against a literal-typed concrete
+/// argument (`Self` bound to `3`, a subtype of `int`) — exact equality would
+/// reject that even though the candidate accepts every value the caller
+/// could pass.
 fn interface_methods_satisfy(
     have: &HashSet<ArgumentType>,
     required: &HashSet<ArgumentType>,
@@ -155,7 +164,11 @@ fn interface_methods_satisfy(
     required.iter().all(|req| {
         have.iter().any(|candidate| {
             candidate.get_argument_str() == req.get_argument_str()
-                && reduce_type(context, &candidate.get_type()) == reduce_type(context, &req.get_type())
+                && crate::processes::type_checking::interface_satisfaction::signatures_compatible(
+                    context,
+                    &reduce_type(context, &req.get_type()),
+                    &reduce_type(context, &candidate.get_type()),
+                )
         })
     })
 }
@@ -273,7 +286,7 @@ impl TypeSystem for Type {
             // is a subtype of its base (`bool`, `num`) and of itself only.
             (Type::Boolean(t1, _), Type::Boolean(t2, _)) => t1.is_subtype(t2),
             (Type::Number(t1, _), Type::Number(t2, _)) => t1.is_subtype(t2),
-            (Type::Integer(_, _), Type::Integer(_, _)) => true,
+            (Type::Integer(t1, _), Type::Integer(t2, _)) => t1.is_subtype(t2),
             (Type::Tuple(types1, _), Type::Tuple(types2, _)) => types1
                 .iter()
                 .zip(types2.iter())
@@ -1179,7 +1192,7 @@ impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Type::Number(n1, _), Type::Number(n2, _)) => n1 == n2,
-            (Type::Integer(_, _), Type::Integer(_, _)) => true,
+            (Type::Integer(i1, _), Type::Integer(i2, _)) => i1 == i2,
             (Type::Boolean(b1, _), Type::Boolean(b2, _)) => b1 == b2,
             (Type::Char(t1, _), Type::Char(t2, _)) => t1 == t2,
             (Type::Function(b1, c1, _), Type::Function(b2, c2, _)) => b1 == b2 && c1 == c2,

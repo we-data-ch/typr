@@ -253,6 +253,10 @@ enum StdCommands {
     Doc {
         #[arg(long, short, value_name = "FILE")]
         output: Option<PathBuf>,
+        /// Output format: `json` (default SPG graph) or `md` (compact
+        /// markdown digest for MCP consumption, grouped by package).
+        #[arg(long, default_value = "json")]
+        format: String,
     },
 }
 
@@ -362,7 +366,7 @@ pub fn start() {
         Some(Commands::Cran) => cran(),
         Some(Commands::Std { std_command }) => match std_command {
             None => standard_library(),
-            Some(StdCommands::Doc { output }) => standard_library_doc(output),
+            Some(StdCommands::Doc { output, format }) => standard_library_doc(output, &format),
         },
         Some(Commands::Clean) => clean(),
         Some(Commands::Cache { cache_command }) => run_cache_command(cache_command),

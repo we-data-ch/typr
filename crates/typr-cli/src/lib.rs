@@ -45,6 +45,7 @@ pub mod cli;
 pub mod engine;
 pub mod fuzz;
 pub mod io;
+pub mod md_renderer;
 pub mod metaprogramming;
 pub mod progress;
 pub mod project;

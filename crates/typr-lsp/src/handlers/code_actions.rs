@@ -588,7 +588,8 @@ mod code_action_tests {
     }
 
     /// An un-annotated `let` overlapping the requested range gets a quick fix
-    /// that inserts `: int` right after the variable name.
+    /// that inserts `: 5` (the inferred singleton type) right after the
+    /// variable name.
     #[test]
     fn type_annotation_quick_fix_inserts_inferred_type() {
         let content = "let x <- 5;\nlet y <- x;\n";
@@ -596,7 +597,7 @@ mod code_action_tests {
         let fix = type_annotation_action(&analysis, content, full_range(content))
             .expect("expected a quick fix for the un-annotated `x`");
         assert_eq!(fix.edits.len(), 1);
-        assert_eq!(fix.edits[0].new_text, ": int");
+        assert_eq!(fix.edits[0].new_text, ": 5");
     }
 
     /// A `let` that already has an annotation must not produce a quick fix.

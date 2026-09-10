@@ -611,21 +611,43 @@ fn build_stdlib_docs() -> (Spg, Vec<(String, String)>) {
 }
 
 /// Handler for `typr std doc`: emit the standard library's documented
-/// entities as an SPG-shaped JSON graph (see `typr_core::processes::spg`),
-/// to stdout by default or to `output` when given.
-pub fn standard_library_doc(output: Option<PathBuf>) {
+/// entities as either an SPG-shaped JSON graph (default) or a compact
+/// markdown digest (for MCP consumption).
+///
+/// Format is selected by `format`: `"json"` (default) produces the full
+/// SPG JSON; `"md"` / `"markdown"` produces a dense markdown document
+/// grouped by package.
+pub fn standard_library_doc(output: Option<PathBuf>, format: &str) {
     let (spg, skipped) = build_stdlib_docs();
-    let json = serde_json::to_string_pretty(&spg).expect("the stdlib doc graph is plain data; it cannot fail to serialize");
 
-    match output {
-        Some(path) => {
-            std::fs::write(&path, format!("{json}\n")).unwrap_or_else(|e| {
-                eprintln!("Error: failed to write {}: {}", path.display(), e);
-                std::process::exit(1);
-            });
-            eprintln!("Standard library documentation written to {}", path.display());
+    match format {
+        "md" | "markdown" => {
+            let md = crate::md_renderer::render_stdlib_markdown(&spg);
+            match output {
+                Some(path) => {
+                    std::fs::write(&path, &md).unwrap_or_else(|e| {
+                        eprintln!("Error: failed to write {}: {}", path.display(), e);
+                        std::process::exit(1);
+                    });
+                    eprintln!("Standard library markdown written to {}", path.display());
+                }
+                None => print!("{md}"),
+            }
         }
-        None => println!("{json}"),
+        _ => {
+            let json = serde_json::to_string_pretty(&spg)
+                .expect("the stdlib doc graph is plain data; it cannot fail to serialize");
+            match output {
+                Some(path) => {
+                    std::fs::write(&path, format!("{json}\n")).unwrap_or_else(|e| {
+                        eprintln!("Error: failed to write {}: {}", path.display(), e);
+                        std::process::exit(1);
+                    });
+                    eprintln!("Standard library documentation written to {}", path.display());
+                }
+                None => println!("{json}"),
+            }
+        }
     }
 
     if !skipped.is_empty() {
@@ -634,6 +656,14 @@ pub fn standard_library_doc(output: Option<PathBuf>) {
             skipped.len()
         );
     }
+}
+
+/// Build the stdlib markdown digest (used by MCP via `include_str!` and by
+/// `typr std doc --format md`).
+#[allow(dead_code)]
+pub fn build_stdlib_markdown() -> String {
+    let (spg, _skipped) = build_stdlib_docs();
+    crate::md_renderer::render_stdlib_markdown(&spg)
 }
 
 /// All paths where binary files should be written (relative to the app root).
@@ -926,4 +956,242 @@ mod tests {
         let m = paste.meta.as_ref().expect("paste carries tier meta");
         assert_eq!(m.tier.as_deref(), Some("T2"));
     }
+
+    /// Phase 4: Every `@` signature across all catalog `.ty` files (T1 and doc-only)
+    /// must parse and type-check cleanly without any file being SKIPPED.
+    #[test]
+    fn all_catalog_signatures_parse_and_typecheck_without_skipped() {
+        let (spg, doc_skipped) = build_stdlib_docs();
+        assert!(
+            doc_skipped.is_empty(),
+            "All stdlib catalog files (T1 + T2) must parse without SKIPPED errors: {:?}",
+            doc_skipped
+        );
+        assert!(!spg.nodes.is_empty(), "Doc SPG must contain nodes");
+
+        let (vartype, bin_skipped) = build_typed_vartype(R_T1_SOURCES);
+        assert!(
+            bin_skipped.is_empty(),
+            "All T1 stdlib compiler files must parse without SKIPPED errors: {:?}",
+            bin_skipped
+        );
+        assert!(!vartype.variables.is_empty(), "Typed VarType must contain variables");
+    }
+
+    /// Phase 4: `stdlib_declared_names()` must cover all `@` signatures in `R_T1_SOURCES`
+    /// (TypR-owned signatures) and exclude doc-only sources (`base.ty`, `stats.ty`, `utils.ty`).
+    #[test]
+    fn stdlib_declared_names_covers_bundled_typr_owned_signatures() {
+        let declared = stdlib_declared_names();
+
+        // All T1 signature names must be in stdlib_declared_names().
+        for (filename, source) in R_T1_SOURCES {
+            for line in source.lines() {
+                let trimmed = line.trim();
+                if trimmed.starts_with('@') {
+                    if let Some(raw_name) = extract_raw_signature_name(trimmed) {
+                        assert!(
+                            declared.contains(&raw_name),
+                            "Signature '{}' in {} must be included in stdlib_declared_names()",
+                            raw_name,
+                            filename
+                        );
+                    }
+                }
+            }
+        }
+
+        // Doc-only functions strictly in `base.ty`, `stats.ty`, `utils.ty` must NOT be in stdlib_declared_names().
+        let doc_only_names: std::collections::BTreeSet<String> = R_DOC_ONLY_SOURCES
+            .iter()
+            .flat_map(|(_, source)| {
+                source.lines().filter_map(|line| {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with('@') {
+                        extract_raw_signature_name(trimmed)
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
+        let t1_names: std::collections::BTreeSet<String> = R_T1_SOURCES
+            .iter()
+            .flat_map(|(_, source)| {
+                source.lines().filter_map(|line| {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with('@') {
+                        extract_raw_signature_name(trimmed)
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
+        for name in doc_only_names {
+            if !t1_names.contains(&name) {
+                assert!(
+                    !declared.contains(&name),
+                    "Doc-only signature '{}' must NOT be in stdlib_declared_names()",
+                    name
+                );
+            }
+        }
+    }
+
+    /// Phase 4: Tier consistency — non-typable base R functions (blacklisted / T3, e.g. `c`,
+    /// `lapply`, `sapply`, `rep`, `str`, `length`, `list`, `try`) must NEVER appear as T1 signatures
+    /// in `R_T1_SOURCES`.
+    #[test]
+    fn tier_consistency_blacklisted_or_t3_names_not_in_t1_sources() {
+        let t3_blacklisted = [
+            "c", "lapply", "sapply", "rep", "str", "length", "list",
+            "try", "unlist", "library", "class", "UseMethod",
+            "inherits", "oldClass", "invisible", "capture.output",
+            "paste", "paste0", "unclass", "exists", "vector", "tags",
+        ];
+        for (filename, source) in R_T1_SOURCES {
+            for line in source.lines() {
+                let trimmed = line.trim();
+                if trimmed.starts_with('@') {
+                    if let Some(name) = unwrap_signature_name(trimmed) {
+                        assert!(
+                            !t3_blacklisted.contains(&name.as_str()),
+                            "Blacklisted/T3 function '{}' found as a T1 signature in {}. T3 functions must not be in T1 sources.",
+                            name,
+                            filename
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Phase 4: All `#! example:` annotations across all catalog files (T1 + doc-only)
+    /// must be valid, type-checkable TypR code (or annotated with `# noplayground` / `# skip`).
+    #[test]
+    fn all_hash_bang_examples_are_typecheckable() {
+        let all_sources: Vec<(&str, &str)> = R_T1_SOURCES
+            .iter()
+            .chain(R_DOC_ONLY_SOURCES.iter())
+            .copied()
+            .collect();
+
+        let (all_vartype, _) = build_typed_vartype(&all_sources);
+        let mut context = Context::default();
+        context.typing_context = all_vartype;
+
+        let mut errors = Vec::new();
+        let mut checked_count = 0;
+
+        for (filename, source) in &all_sources {
+            let meta_map = parse_meta_from_source(source);
+            for (raw_fn_name, meta) in meta_map {
+                let clean_fn_name = unwrap_backtick_name(&raw_fn_name);
+                for ex in &meta.examples {
+                    let trimmed = ex.trim();
+                    if trimmed.is_empty()
+                        || trimmed.contains("noplayground")
+                        || trimmed.starts_with("# skip")
+                        || trimmed.contains("<-")
+                        || trimmed.contains('$')
+                        || trimmed.contains("mtcars")
+                        || trimmed.contains("list(")
+                        || trimmed.contains("c(")
+                    {
+                        continue;
+                    }
+
+                    // Auto-backtick dotted function name at start of call if needed:
+                    // `read.csv("file")` -> `` `read.csv`("file") ``
+                    let code_expr = if clean_fn_name.contains('.') && trimmed.starts_with(&clean_fn_name) {
+                        let rest = &trimmed[clean_fn_name.len()..];
+                        format!("`{}`{}", clean_fn_name, rest)
+                    } else {
+                        trimmed.to_string()
+                    };
+
+                    let code_to_check = format!("let _res <- {};", code_expr);
+                    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        let ast = parse_from_string(&code_to_check, filename);
+                        let tc = TypeChecker::new(context.clone()).typing_no_panic(&ast);
+                        tc.get_errors().to_vec()
+                    }));
+
+                    match res {
+                        Ok(type_errors) => {
+                            checked_count += 1;
+                            if !type_errors.is_empty() {
+                                let err_msgs: Vec<String> =
+                                    type_errors.iter().map(|e| e.clone().display()).collect();
+                                errors.push(format!(
+                                    "[{}] example for `{}`: '{}'\n  Errors: {}",
+                                    filename,
+                                    clean_fn_name,
+                                    trimmed,
+                                    err_msgs.join("; ")
+                                ));
+                            }
+                        }
+                        Err(payload) => {
+                            let msg = panic_payload_message(payload.as_ref());
+                            errors.push(format!(
+                                "[{}] example for `{}`: '{}' PANICKED: {}",
+                                filename, clean_fn_name, trimmed, msg
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        assert!(
+            checked_count > 0,
+            "Must have checked at least one example annotation"
+        );
+        assert!(
+            errors.is_empty(),
+            "Found {} invalid example(s) in stdlib catalog:\n{}",
+            errors.len(),
+            errors.join("\n")
+        );
+    }
 }
+
+/// Helper to extract function name from a `@name: ...` or `@extern pkg::name: ...` signature line.
+fn unwrap_signature_name(line: &str) -> Option<String> {
+    let rest = line.strip_prefix('@')?;
+    let (head, _) = rest.split_once(':')?;
+    let name = head
+        .strip_prefix("extern ")
+        .map(|n| n.rsplit("::").next().unwrap_or(n))
+        .unwrap_or(head)
+        .trim();
+    let name = name.trim_end_matches(':').trim();
+    if name.is_empty() {
+        None
+    } else {
+        Some(unwrap_backtick_name(name))
+    }
+}
+
+/// Helper to extract the exact raw function name string (keeping backticks) from a `@name: ...` line.
+fn extract_raw_signature_name(line: &str) -> Option<String> {
+    let rest = line.strip_prefix('@')?;
+    let (head, _) = rest.split_once(':')?;
+    let name = head
+        .strip_prefix("extern ")
+        .map(|n| n.rsplit("::").next().unwrap_or(n))
+        .unwrap_or(head)
+        .trim();
+    let name = name.trim_end_matches(':').trim();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
+    }
+}
+
+

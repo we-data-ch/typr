@@ -18,13 +18,12 @@
 # PLOT FUNCTION ----------
 @plot: (a: [#N, num], b: [#N, num], c: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool) -> .None;
 
-type Plot = { x: [#N, num], y: [#N, num], type: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool};
+        type Plot = record{ x: [#N, num], y: [#N, num], kind: char, xlim: [2, num], ylim: [2, num], log: char, main: char, sub: char, xlab: char, ylab: char, ann: bool, axes: bool};
 
 #! pkg: graphics
 #! tier: T1
 #! ret: default Plot record with sensible defaults
-let bplot: (): Plot;
-	:{ x: [0.5], y: [0.5], type: "p", xlim: [0.0, 5.0], ylim: [0.0, 5.0], log: "", main: "", sub: "", xlab: "", ylab: "", ann: true, axes: true}
+let bplot: Plot <- :{ x: [0.5], y: [0.5], kind: "p", xlim: [0.0, 5.0], ylim: [0.0, 5.0], log: "", main: "", sub: "", xlab: "", ylab: "", ann: true, axes: true};
 };
 
 #! pkg: graphics
@@ -33,6 +32,6 @@ let bplot: (): Plot;
 #! ret: NULL (invisibly) — renders the plot
 #! note: side-effectful; calls plot() with record fields
 let show <- fn(p: Plot): .None;
-	plot(p.x, p.y, p.type, p.xlim, p.ylim, p.log, p.main, p.sub, p.xlab, p.ylab, p.ann, p.axes)
+	plot(p.x, p.y, p.kind, p.xlim, p.ylim, p.log, p.main, p.sub, p.xlab, p.ylab, p.ann, p.axes)
 };
 #---------------------

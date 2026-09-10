@@ -190,3 +190,15 @@
 #! coercion: numeric -> logical (0 = FALSE, non-zero = TRUE)
 #! example: from_bool(1)   # -> TRUE
 @from_bool: (Any) -> bool;
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: sum over all elements
+#! example: sum(c(1, 2, 3))   # -> 6
+@sum: ([#N, T]) -> T;
+#! pkg: base
+#! tier: T1
+#! param x: value to display
+#! ret: prints to the console, returns nothing
+#! example: print(sum(c(1, 2, 3)))
+@print: (Any) -> Empty;

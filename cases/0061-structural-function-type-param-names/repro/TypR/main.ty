@@ -1,0 +1,17 @@
+#@case structural-function-type-param-names: function-type comparison must
+# ignore parameter names. comp_correction.md (§B, 2026-09-09 audit) claimed
+# `(int) -> int` desugars to `fn(a: int) -> int` and that annotating a
+# `fn(z: int): int { z }` against it was rejected because the parameter name
+# didn't match the desugared default. Re-tested against current source: does
+# not reproduce -- `is_subtype_raw`'s Function arm already compares arity,
+# parameter types and return type only. Kept as a regression net, including
+# the doc's own `make_adder`/`add5` closure example.
+let f: (int) -> int <- fn(z: int): int { z };
+print(f(3));
+
+let make_adder <- fn(n: int): (int) -> int {
+    fn(x: int): int { x + n }
+};
+
+let add5 <- make_adder(5);
+print(add5(3));

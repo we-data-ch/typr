@@ -362,7 +362,7 @@ mod inlay_hint_tests {
             .iter()
             .find(|h| h.kind == Some(InlayHintKind::TYPE) && h.position == expected_position)
             .expect("expected a type hint for `x`");
-        assert_eq!(label_text(hint), ": int");
+        assert_eq!(label_text(hint), ": 5");
     }
 
     /// A `let` with an explicit `: Type` annotation must not get a

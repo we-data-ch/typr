@@ -1,0 +1,11 @@
+[[rule]]
+file = "@run"
+must_contain = "successful"
+
+[[rule]]
+file = "@run"
+must_not_contain = "doesn't match type"
+
+[[rule]]
+file = "@run"
+must_not_contain = "Type errors found"

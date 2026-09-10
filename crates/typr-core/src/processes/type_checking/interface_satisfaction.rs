@@ -106,7 +106,7 @@ pub fn check_interface_satisfaction(
 /// parameter — the candidate is allowed to accept a broader type) and the
 /// return type is covariant (the candidate's return must be a subtype of the
 /// required return type).
-fn signatures_compatible(context: &Context, required: &Type, found: &Type) -> bool {
+pub(crate) fn signatures_compatible(context: &Context, required: &Type, found: &Type) -> bool {
     match (required, found) {
         (Type::Function(req_args, req_ret, _), Type::Function(found_args, found_ret, _)) => {
             req_args.len() == found_args.len()

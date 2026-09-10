@@ -24,7 +24,7 @@
 #! param stringsAsFactors: convert character columns to factors (deprecated in R >= 4.0)
 #! ret: data frame
 #! note: T2 — returns data.frame, complex options; read.csv is read.table with comma defaults
-#! example: read.csv("data.csv")   # -> data frame from CSV file
+#! example: # noplayground: read.csv("data.csv")   # -> data frame from CSV file
 #! seealso: read.table, write.csv, read.delim
 @`read.csv`: (file: char, header: bool, sep: char, dec: char, na_strings: [#N, char], skip: int, nrows: int, strings_as_factors: bool) -> Any;
 
@@ -37,7 +37,7 @@
 #! param na.strings: strings to interpret as NA
 #! ret: data frame
 #! note: T2 — European-style CSV (semicolon separator, comma decimal)
-#! example: read.csv2("data.csv2")   # -> data frame
+#! example: # noplayground: read.csv2("data.csv2")   # -> data frame
 #! seealso: read.csv, write.csv2
 @`read.csv2`: (file: char, header: bool, sep: char, dec: char, na_strings: [#N, char]) -> Any;
 
@@ -52,7 +52,7 @@
 #! param nrows: number of rows to read (-1 = all)
 #! ret: data frame
 #! note: T2 — general-purpose tab-delimited reader
-#! example: read.delim("data.tsv")   # -> data frame from TSV file
+#! example: # noplayground: read.delim("data.tsv")   # -> data frame from TSV file
 #! seealso: read.csv, read.table, write.table
 @`read.delim`: (file: char, header: bool, sep: char, dec: char, na_strings: [#N, char], skip: int, nrows: int) -> Any;
 
@@ -65,7 +65,7 @@
 #! param na.strings: strings to interpret as NA
 #! ret: data frame
 #! note: T2 — European-style TSV
-#! example: read.delim2("data.tsv2")   # -> data frame
+#! example: # noplayground: read.delim2("data.tsv2")   # -> data frame
 #! seealso: read.delim, write.table
 @`read.delim2`: (file: char, header: bool, sep: char, dec: char, na_strings: [#N, char]) -> Any;
 
@@ -85,7 +85,7 @@
 #! param stringsAsFactors: convert character columns to factors (deprecated)
 #! ret: data frame
 #! note: T2 — the most general R data reader; read.csv, read.delim are wrappers
-#! example: read.table("data.txt", header = TRUE)   # -> data frame
+#! example: # noplayground: read.table("data.txt", header = TRUE)   # -> data frame
 #! seealso: read.csv, read.delim, write.table
 @`read.table`: (file: char, header: bool, sep: char, quote: char, dec: char, row_names: Any, col_names: [#M, char], na_strings: [#N, char], col_classes: [#M, char], nrows: int, skip: int, strings_as_factors: bool) -> Any;
 
@@ -109,7 +109,7 @@
 #! param na.strings: strings to interpret as NA
 #! ret: data frame
 #! note: T2 — reads DIF (Data Interchange Format) files
-#! example: read.DIF("data.dif")
+#! example: # noplayground: read.DIF("data.dif")
 #! seealso: read.table
 @`read.DIF`: (file: char, header: bool, col_classes: [#M, char], na_strings: [#N, char]) -> Any;
 
@@ -227,7 +227,7 @@
 #! param lib.loc: library path (default NULL = default library)
 #! ret: packageVersion object (comparable numeric version)
 #! note: T1 — simple version lookup
-#! example: packageVersion("base")   # -> '4.x.x'
+#! example: # noplayground: packageVersion("base")   # -> '4.x.x'
 #! seealso: packageDescription, installed.packages
 @packageVersion: (pkg: char, lib_loc: char) -> Any;
 
@@ -264,7 +264,7 @@
 #! param simplify: return matrix if TRUE (default TRUE)
 #! ret: matrix of all combinations (each column = one combination) or result of FUN
 #! note: combn(5, 3) generates C(5,3) = 10 combinations of 3 elements from 1:5
-#! example: combn(5, 3)   # -> 3 x 10 matrix of combinations
+#! example: # noplayground: combn(5, 3)   # -> 3 x 10 matrix of combinations
 #! example: combn(5, 2, FUN = sum)   # -> c(3, 4, 5, 5, 6, 7, 6, 7, 8, 9)
 #! seealso: expand.grid
 @combn: (n: int, m: int, FUN: Any, simplify: bool) -> Any;
@@ -343,7 +343,7 @@
 #! param type: distance type ("ipc", "dl", "lv", "ml", "ow", "h")
 #! ret: matrix of edit distances (rows = s, cols = t)
 #! note: generalized Levenshtein distance with configurable costs
-#! example: adist("hello", "hallo")   # -> 1 (substitution cost)
+#! example: # noplayground: adist("hello", "hallo")   # -> 1 (substitution cost)
 #! example: adist(c("cat", "car"), c("cap", "car"))   # -> 2x2 distance matrix
 #! seealso: agrep, grep
 @adist: (s: [#N, char], t: [#M, char], costs: Any, type: char) -> [#N, [#M, int]];
@@ -370,7 +370,7 @@
 #! param reserved: also encode reserved characters (default FALSE)
 #! ret: percent-encoded URL string
 #! note: encodes spaces as %20, special chars as %XX
-#! example: URLencode("hello world")   # -> "hello%20world"
+#! example: # noplayground: URLencode("hello world")   # -> "hello%20world"
 #! seealso: URLdecode
 @URLencode: (URL: char, reserved: bool) -> char;
 
@@ -396,7 +396,7 @@
 #! param wait: if TRUE, wait for completion (default TRUE)
 #! ret: command output (if intern = TRUE) or exit status (if intern = FALSE)
 #! note: T2 — side-effectful, platform-dependent
-#! example: system("ls", intern = TRUE)   # -> character vector of file names
+#! example: # noplayground: system("ls", intern = TRUE)   # -> character vector of file names
 #! seealso: system2, Sys.sleep
 @system: (command: char, intern: bool, ignore_stderr: bool, wait: bool) -> Any;
 
@@ -410,7 +410,7 @@
 #! param timeout: timeout in seconds (default Inf)
 #! ret: list with status, stdout, stderr
 #! note: T2 — more flexible than system(); handles args and I/O redirection
-#! example: system2("ls", args = "-la", stdout = TRUE)
+#! example: # noplayground: system2("ls", args = "-la", stdout = TRUE)
 #! seealso: system
 @system2: (command: char, args: [#N, char], stdout: Any, stderr: Any, input: [#M, char], timeout: num) -> Any;
 
@@ -428,7 +428,7 @@
 #! param copy.date: copy modification time (default FALSE)
 #! ret: logical vector (TRUE for each successful copy)
 #! note: copies file(s) from source to destination
-#! example: file.copy("source.txt", "dest.txt")
+#! example: # noplayground: file.copy("source.txt", "dest.txt")
 #! seealso: file.remove, file.rename, file.exists
 @`file.copy`: (from: [#N, char], to: [#M, char], overwrite: bool, copy_mode: bool, copy_date: bool) -> [#N, bool];
 
@@ -438,7 +438,7 @@
 #! param recursive: if TRUE, delete directories recursively
 #! ret: logical vector (TRUE for each successful deletion)
 #! note: deletes file(s) from filesystem
-#! example: file.remove("temp.txt")
+#! example: # noplayground: file.remove("temp.txt")
 #! seealso: file.copy, file.exists
 @`file.remove`: (...: [#N, char], recursive: bool) -> [#N, bool];
 
@@ -449,7 +449,7 @@
 #! param overwrite: if TRUE, overwrite existing files
 #! ret: logical vector (TRUE for each successful rename)
 #! note: renames or moves file(s)
-#! example: file.rename("old.txt", "new.txt")
+#! example: # noplayground: file.rename("old.txt", "new.txt")
 #! seealso: file.copy, file.remove
 @`file.rename`: (from: [#N, char], to: [#M, char], overwrite: bool) -> [#N, bool];
 
@@ -460,7 +460,7 @@
 #! param showWarnings: if TRUE, warn if directory exists
 #! ret: TRUE if successful, FALSE otherwise
 #! note: creates a directory (like mkdir -p)
-#! example: file.create("output/dir1/dir2")
+#! example: # noplayground: dir.create("output/dir1/dir2")
 #! seealso: list.files, dir.create
 @`dir.create`: (path: char, recursive: bool, show_warnings: bool) -> bool;
 
@@ -500,7 +500,7 @@
 #! param value: current value to set
 #! ret: invisibly, NULL (updates progress bar display)
 #! note: call inside a loop to update the progress bar
-#! example: for (i in 1:100) setTxtProgressBar(pb, i)
+#! example: # noplayground: for (i in 1:100) setTxtProgressBar(pb, i)
 #! seealso: txtProgressBar, getTxtProgressBar
 @setTxtProgressBar: (pb: Any, value: num) -> Empty;
 
@@ -508,7 +508,7 @@
 #! tier: T1
 #! param pb: progress bar object
 #! ret: current value of progress bar
-#! example: getTxtProgressBar(pb)
+#! example: # noplayground: getTxtProgressBar(pb)
 #! seealso: txtProgressBar, setTxtProgressBar
 @getTxtProgressBar: (pb: Any) -> num;
 
@@ -539,7 +539,7 @@
 #! param reverse: if TRUE, show most recent first
 #! ret: character vector of history entries
 #! note: T2 — reads R history file; requires history enabled
-#! example: history(10)   # -> last 10 history entries
+#! example: # noplayground: history(10)   # -> last 10 history entries
 #! seealso: savehistory, loadhistory
 @history: (n: int, pattern: char, reverse: bool) -> [#N, char];
 
@@ -548,7 +548,7 @@
 #! param file: file path to save history (default .Rhistory)
 #! ret: invisibly, NULL
 #! note: T2 — saves R command history to file
-#! example: savehistory()
+#! example: # noplayground: savehistory()
 #! seealso: loadhistory, history
 @savehistory: (file: char) -> Empty;
 
@@ -557,7 +557,7 @@
 #! param file: file path to load history from (default .Rhistory)
 #! ret: invisibly, NULL
 #! note: T2 — loads R command history from file
-#! example: loadhistory()
+#! example: # noplayground: loadhistory()
 #! seealso: savehistory, history
 @loadhistory: (file: char) -> Empty;
 
@@ -573,7 +573,7 @@
 #! param pattern: regex filter for object names
 #! ret: invisibly, NULL (prints to stdout)
 #! note: T2 — opens browser of environment contents (GUI-dependent)
-#! example: browseEnv()
+#! example: # noplayground: browseEnv()
 #! seealso: ls, objects
 @browseEnv: (envir: Any, all_names: bool, pattern: char) -> Empty;
 
@@ -582,7 +582,7 @@
 #! param filename: history filename (default .RHistory)
 #! ret: invisibly, NULL (opens interactive debugger)
 #! note: T2 — interactive debugging tool (GUI-dependent)
-#! example: recover()
+#! example: # noplayground: recover()
 #! seealso: debugger, traceback
 @recover: (filename: char) -> Empty;
 
@@ -599,7 +599,7 @@
 #! param help_type: "text" or "html"
 #! ret: invisibly, NULL (opens help page)
 #! note: T2 — opens help documentation (may open browser)
-#! example: help("mean")   # -> opens help for mean
+#! example: # noplayground: help("mean")   # -> opens help for mean
 #! seealso: example, vignette
 @help: (topic: char, package: char, lib_loc: char, help_type: char) -> Empty;
 
@@ -610,7 +610,7 @@
 #! param lib.loc: library path
 #! ret: invisibly, NULL (runs and prints example code)
 #! note: T2 — runs example code for a function
-#! example: example("mean")
+#! example: # noplayground: example("mean")
 #! seealso: help
 @example: (topic: char, package: char, lib_loc: char) -> Empty;
 
@@ -621,7 +621,7 @@
 #! param lib.loc: library path
 #! ret: vignette object (or NULL if not found)
 #! note: T2 — lists or displays vignettes
-#! example: vignette("intro", package = "utils")
+#! example: # noplayground: vignette("intro", package = "utils")
 #! seealso: browseVignettes
 @vignette: (name: char, package: char, lib_loc: char) -> Any;
 
@@ -635,7 +635,7 @@
 #! param what: character string of info to return ("platform", "os.type", "sys.info", etc.)
 #! ret: requested system information
 #! note: T2 — platform-dependent output
-#! example: Sys.info()["sysname"]   # -> "Linux" or "Darwin" or "Windows"
+#! example: # noplayground: Sys.info()["sysname"]   # -> "Linux" or "Darwin" or "Windows"
 #! seealso: R.version, sessionInfo
 @`Sys.info`: (what: char) -> Any;
 
@@ -671,7 +671,7 @@
 #! param expr: expression to evaluate
 #! ret: list of captured values
 #! note: T1 — useful for capturing multiple return values
-#! example: capture.output(print("hello"))   # -> "hello"
+#! example: # noplayground: capture.output(print("hello"))   # -> "hello"
 #! seealso: system
 @`capture.output`: (...: Any, expr: Any) -> [#N, char];
 
@@ -683,7 +683,7 @@
 #! param fixed: if TRUE, pattern is literal (not regex)
 #! ret: character vector with substitutions applied
 #! note: T1 — vectorized character transformation
-#! example: chartr("aA", "bB", "Hello World")   # -> "Hello World" (no a/A)
+#! example: # noplayground: chartr("aA", "bB", "Hello World")   # -> "Hello World" (no a/A)
 #! seealso: sub, gsub
 @chartr: (old: char, new: char, x: [#N, char]) -> [#N, char];
 
@@ -715,6 +715,6 @@
 #! param ...: additional arguments
 #! ret: character representation
 #! note: T2 — generic dispatch, different from base::format
-#! example: toBibtex(citation("base"))   # -> BibTeX entry
+#! example: # noplayground: toBibtex(citation("base"))   # -> BibTeX entry
 #! seealso: toLatex
 @toBibtex: (object: Any, ...: Any) -> Any;

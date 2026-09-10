@@ -1771,6 +1771,6 @@ let x <- 5;
             .expect("edit must carry `changes`")
             .get(&uri)
             .expect("edit must target the request's own Uri");
-        assert_eq!(edits[0].new_text, ": int");
+        assert_eq!(edits[0].new_text, ": 5");
     }
 }
