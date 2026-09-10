@@ -1,0 +1,19 @@
+#! pkg: base
+#! tier: T1
+#! format: TypR stdlib catalog (RFC-STDLIB-0001, Phase 0 skeleton)
+#
+# Convention des métadonnées (#!) — un bloc par entrée :
+#   #! pkg: base          — package R d'origine
+#   #! tier: T1           — T1 = haute confiance (compilateur), T2 = doc MCP, T3 = non typable
+#   #! param x: desc      — description du paramètre (pour MCP/doc)
+#   #! ret: desc          — description de la valeur de retour
+#   #! coercion: desc     — notes de coercion R (ex: logical -> num)
+#   #! example: code      — exemple valide pour typr check
+#   #! seealso: f1, f2    — fonctions apparentées
+#
+# Phase 0 : squelette vide avec conventions. Les signatures T1 seront
+# ajoutées en Phase 2 après classification (tools/classify_tiers.R) et
+# revue humaine.
+#
+# Les signatures @ sont compilées par build_typed_vartype → .std_r_typed.bin.
+# Seules les entrées T1 doivent apparaître ici. Les T2/T3 vont dans le SPG doc.

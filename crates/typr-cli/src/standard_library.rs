@@ -10,8 +10,10 @@ use typr_core::components::error_message::help_message::ErrorMsg;
 use typr_core::components::error_message::syntax_error::SyntaxError;
 use typr_core::components::error_message::type_error::TypeError;
 use typr_core::components::language::var::Var;
+use typr_core::components::language::Lang;
 use typr_core::components::r#type::Type;
 use typr_core::processes::parsing::parse_from_string;
+use typr_core::processes::spg::{build_spg_from_items, Spg};
 use typr_core::processes::type_checking::type_checker::TypeChecker;
 use typr_core::utils::builder;
 
@@ -418,6 +420,90 @@ fn build_typed_vartype(ty_sources: &[(&str, &str)]) -> (VarType, Vec<(String, St
     std::panic::set_hook(previous_hook);
 
     (context.get_vartype(), skipped)
+}
+
+/// Build a documentation graph over the R standard library's `.ty` sources.
+///
+/// Same parse/type-check loop as `build_typed_vartype`, but keeps the typed
+/// `Lang` items (`TypeChecker::get_code()`) instead of collapsing straight to
+/// a `VarType` — those items are what `typr_core::processes::spg` needs to
+/// produce doc/param/return info per entity. A file that panics is skipped
+/// the same way, with its entities silently absent from the result.
+fn build_stdlib_docs() -> (Spg, Vec<(String, String)>) {
+    let ty_sources: Vec<(&str, &str)> = vec![
+        ("std_R.ty", STD_R_TY),
+        ("default.ty", DEFAULT_TY),
+        ("file.ty", FILE_TY),
+        ("option.ty", OPTION_TY),
+        ("plot.ty", PLOT_TY),
+        ("lin_alg.ty", LIN_ALG_TY),
+        ("system.ty", SYSTEM_TY),
+        ("factor.ty", FACTOR_TY),
+        ("state.ty", STATE_TY),
+        ("foreign.ty", FOREIGN_TY),
+        ("ord.ty", ORD_TY),
+    ];
+
+    let mut context = Context::empty();
+    let mut items: Vec<Lang> = Vec::new();
+    let mut skipped: Vec<(String, String)> = Vec::new();
+
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+
+    for (filename, source) in &ty_sources {
+        let processed = preprocess_ty_source(source);
+        let ctx_before = context.clone();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let ast = parse_from_string(&processed, filename);
+            TypeChecker::new(ctx_before).typing_no_panic(&ast)
+        }));
+        match result {
+            Ok(type_checker) => {
+                items.extend(type_checker.get_code().iter().cloned());
+                context = type_checker.get_context();
+            }
+            Err(payload) => {
+                let message = panic_payload_message(payload.as_ref());
+                eprintln!(
+                    "{RED}{BOLD}  SKIPPED{RESET}{RED} {} — not supported by the parser/type-checker, its entities are MISSING from stdlib docs:{RESET}\n{RED}    {}{RESET}",
+                    filename, message
+                );
+                skipped.push((filename.to_string(), message));
+            }
+        }
+    }
+
+    std::panic::set_hook(previous_hook);
+
+    let spg = build_spg_from_items(&items, "typr-std-r", env!("CARGO_PKG_VERSION"));
+    (spg, skipped)
+}
+
+/// Handler for `typr std doc`: emit the standard library's documented
+/// entities as an SPG-shaped JSON graph (see `typr_core::processes::spg`),
+/// to stdout by default or to `output` when given.
+pub fn standard_library_doc(output: Option<PathBuf>) {
+    let (spg, skipped) = build_stdlib_docs();
+    let json = serde_json::to_string_pretty(&spg).expect("the stdlib doc graph is plain data; it cannot fail to serialize");
+
+    match output {
+        Some(path) => {
+            std::fs::write(&path, format!("{json}\n")).unwrap_or_else(|e| {
+                eprintln!("Error: failed to write {}: {}", path.display(), e);
+                std::process::exit(1);
+            });
+            eprintln!("Standard library documentation written to {}", path.display());
+        }
+        None => println!("{json}"),
+    }
+
+    if !skipped.is_empty() {
+        eprintln!(
+            "\n{RED}{BOLD}{} stdlib file(s) were skipped — see the SKIPPED messages above.{RESET}",
+            skipped.len()
+        );
+    }
 }
 
 /// All paths where binary files should be written (relative to the app root).

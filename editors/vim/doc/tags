@@ -1,0 +1,11 @@
+g:typr_path	typr.txt	/*g:typr_path*
+typr-commands	typr.txt	/*typr-commands*
+typr-contents	typr.txt	/*typr-contents*
+typr-install	typr.txt	/*typr-install*
+typr-intro	typr.txt	/*typr-intro*
+typr-license	typr.txt	/*typr-license*
+typr-lsp	typr.txt	/*typr-lsp*
+typr-lsp-neovim	typr.txt	/*typr-lsp-neovim*
+typr-lsp-vim	typr.txt	/*typr-lsp-vim*
+typr-requirements	typr.txt	/*typr-requirements*
+typr.txt	typr.txt	/*typr.txt*

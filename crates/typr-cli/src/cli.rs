@@ -15,7 +15,7 @@ use crate::project::{
     pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep, run_project, test, use_package, DebugOptions,
 };
 use crate::repl;
-use crate::standard_library::standard_library;
+use crate::standard_library::{standard_library, standard_library_doc};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -121,7 +121,13 @@ enum Commands {
     },
     Load,
     Cran,
-    Std,
+    /// Regenerate the standard library's .bin files from configs/std/*.ty
+    /// (default, no subcommand); `typr std doc` instead emits its documented
+    /// entities as an SPG-shaped JSON graph.
+    Std {
+        #[command(subcommand)]
+        std_command: Option<StdCommands>,
+    },
     Clean,
     /// Inspect or invalidate the R-name cache (.typr_cache/r_names.json), the
     /// table of which R functions are S3/S4-generic that `typr build` uses to
@@ -132,6 +138,9 @@ enum Commands {
     },
     Repl,
     Lsp,
+    /// Start an MCP server over stdio, exposing the type checker to AI agents
+    /// (a `check` tool for now — see crates/typr-mcp).
+    Mcp,
     /// Generate a Semantic Package Graph (spg.json) from the current project.
     Spg {
         /// Output path (default: spg.json).
@@ -236,17 +245,32 @@ enum PkgCommands {
     Uninstall,
 }
 
+#[derive(Subcommand, Debug)]
+enum StdCommands {
+    /// Emit the standard library's documented entities as an SPG-shaped
+    /// JSON graph (same `Spg`/`Node`/`Edge` shape as `typr spg`), to stdout
+    /// by default.
+    Doc {
+        #[arg(long, short, value_name = "FILE")]
+        output: Option<PathBuf>,
+    },
+}
+
 /// Commands that must not run the R dependency check: `init` does its own
-/// (and is the fix being advertised), `lsp` speaks a protocol over stdio and
-/// is driven by an editor rather than a human, and `std` only touches TypR's
-/// own `.bin` files — no R involved.
+/// (and is the fix being advertised), `lsp` and `mcp` speak a protocol over
+/// stdio and are driven by an editor/agent rather than a human, and `std`
+/// only touches TypR's own `.bin` files — no R involved.
 fn skips_r_deps_check(command: &Option<Commands>) -> bool {
     matches!(
         command,
         // `cache` maintains typr's own R-name table; `refresh` needs Rscript
         // and says so itself when it is missing, but none of these need the
         // package set (devtools/roxygen2) `warn_if_missing` checks for.
-        Some(Commands::Init) | Some(Commands::Lsp) | Some(Commands::Std) | Some(Commands::Cache { .. })
+        Some(Commands::Init)
+            | Some(Commands::Lsp)
+            | Some(Commands::Mcp)
+            | Some(Commands::Std { .. })
+            | Some(Commands::Cache { .. })
     )
 }
 
@@ -336,7 +360,10 @@ pub fn start() {
         Some(Commands::Use { package_name }) => use_package(&package_name),
         Some(Commands::Load) => load(),
         Some(Commands::Cran) => cran(),
-        Some(Commands::Std) => standard_library(),
+        Some(Commands::Std { std_command }) => match std_command {
+            None => standard_library(),
+            Some(StdCommands::Doc { output }) => standard_library_doc(output),
+        },
         Some(Commands::Clean) => clean(),
         Some(Commands::Cache { cache_command }) => run_cache_command(cache_command),
         Some(Commands::Lsp) => {
@@ -348,6 +375,18 @@ pub fn start() {
                 .build()
                 .unwrap();
             rt.block_on(typr_lsp::run_lsp());
+        }
+        Some(Commands::Mcp) => {
+            // Same large-stack rationale as `Lsp`: type checking recurses.
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .thread_stack_size(8 * 1024 * 1024)
+                .enable_all()
+                .build()
+                .unwrap();
+            if let Err(e) = rt.block_on(typr_mcp::run_stdio()) {
+                eprintln!("error: MCP server failed: {e}");
+                std::process::exit(1);
+            }
         }
         Some(Commands::Repl) => repl::start(),
         Some(Commands::Spg { output }) => generate_spg(output),

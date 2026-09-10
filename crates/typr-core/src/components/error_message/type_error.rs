@@ -204,6 +204,57 @@ impl TypeError {
         }
     }
 
+    /// Stable identifier for this error variant, independent of its message text.
+    /// Assigned once in declaration order (T001..) — never renumber an existing
+    /// code when adding/removing/reordering variants, only append the next free one.
+    pub fn code(&self) -> &'static str {
+        match self {
+            TypeError::Let(..) => "T001",
+            TypeError::Param(..) => "T002",
+            TypeError::UndefinedFunction(..) => "T003",
+            TypeError::UndefinedVariable(..) => "T004",
+            TypeError::UnmatchingReturnType(..) => "T005",
+            TypeError::ImmutableVariable(..) => "T006",
+            TypeError::PrivateVariable(..) => "T007",
+            TypeError::GenericPatternMatch(..) => "T008",
+            TypeError::FieldNotFound(..) => "T009",
+            TypeError::WrongExpression(..) => "T010",
+            TypeError::WrongIndexing(..) => "T011",
+            TypeError::AliasNotFound(..) => "T012",
+            TypeError::AliasNotImported(..) => "T013",
+            TypeError::VariableNotImported(..) => "T014",
+            TypeError::FunctionNotFound(..) => "T015",
+            TypeError::AliasMissingGenerics(..) => "T016",
+            TypeError::InterfaceReturnOnly(..) => "T017",
+            TypeError::UnknownTypeConstructor(..) => "T018",
+            TypeError::DuplicateField(..) => "T019",
+            TypeError::MissingField(..) => "T020",
+            TypeError::SpreadTypeMismatch(..) => "T021",
+            TypeError::InvalidTypeOperatorDomain(..) => "T022",
+            TypeError::EmbedNonRecord(..) => "T023",
+            TypeError::EmbedCollision(..) => "T024",
+            TypeError::EmbedConflict(..) => "T025",
+            TypeError::KindMismatch(..) => "T026",
+            TypeError::SelfOutsideContext(..) => "T027",
+            TypeError::NonTrailingDefaultParam(..) => "T028",
+            TypeError::PrivateImport(..) => "T029",
+            TypeError::CircularModuleDependency { .. } => "T030",
+            TypeError::InterfaceNotSatisfied(..) => "T031",
+            TypeError::IncompatibleInterfaceMethod(..) => "T032",
+            TypeError::NonExhaustiveMatch(..) => "T033",
+            TypeError::PatternTypeMismatch(..) => "T034",
+            TypeError::UnsupportedPattern(..) => "T035",
+            TypeError::AliasArityMismatch(..) => "T036",
+            TypeError::LoopControlOutsideLoop(..) => "T037",
+            TypeError::DataFrameColumnNotVector(..) => "T038",
+            TypeError::DataFrameColumnLengthMismatch(..) => "T039",
+            TypeError::TagFieldConstructorNotSupported(..) => "T040",
+            TypeError::UnknownUnionVariant(..) => "T041",
+            TypeError::NoMatchingSignature(..) => "T042",
+            TypeError::NoDispatchImplementation(..) => "T043",
+        }
+    }
+
     /// Get a simple error message without file access (for LSP use).
     pub fn simple_message(&self) -> String {
         match self {
@@ -1033,5 +1084,80 @@ impl ErrorMsg for TypeError {
             }
         };
         msg.map_or_else(|e| format!("{:?}", e), |_| String::new())
+    }
+}
+
+#[cfg(test)]
+mod code_tests {
+    use std::collections::HashSet;
+
+    /// Slices out the body of `fn <fn_name>` by brace-counting from the first `{`.
+    fn extract_fn_body<'a>(src: &'a str, fn_name: &str) -> &'a str {
+        let needle = format!("fn {fn_name}(");
+        let start = src.find(&needle).unwrap_or_else(|| panic!("fn {fn_name} not found"));
+        let rest = &src[start..];
+        let brace_start = rest.find('{').unwrap();
+        let mut depth = 0i32;
+        for (i, c) in rest[brace_start..].char_indices() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return &rest[brace_start..brace_start + i + 1];
+                    }
+                }
+                _ => {}
+            }
+        }
+        panic!("unbalanced braces in fn {fn_name}");
+    }
+
+    /// Extracts every quoted string literal shaped like a stable error code
+    /// (one uppercase letter + 3 digits, e.g. `T012`).
+    fn extract_codes(src: &str) -> Vec<String> {
+        let mut codes = Vec::new();
+        let mut in_string = false;
+        let mut current = String::new();
+        for c in src.chars() {
+            if c == '"' {
+                if in_string {
+                    if current.len() == 4
+                        && current.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                        && current[1..].chars().all(|d| d.is_ascii_digit())
+                    {
+                        codes.push(current.clone());
+                    }
+                    current.clear();
+                } else {
+                    current.clear();
+                }
+                in_string = !in_string;
+            } else if in_string {
+                current.push(c);
+            }
+        }
+        codes
+    }
+
+    #[test]
+    fn type_error_codes_are_unique_and_cover_every_variant() {
+        let src = include_str!("type_error.rs");
+        let body = extract_fn_body(src, "code");
+        let arm_count = body.matches("=>").count();
+        let codes = extract_codes(body);
+
+        assert_eq!(
+            codes.len(),
+            arm_count,
+            "every match arm in TypeError::code() must return a literal `T0xx` code"
+        );
+
+        let unique: HashSet<&String> = codes.iter().collect();
+        assert_eq!(codes.len(), unique.len(), "duplicate TypeError codes found: {:?}", codes);
+
+        for code in &codes {
+            assert!(code.starts_with('T'), "TypeError code must start with 'T': {code}");
+        }
     }
 }

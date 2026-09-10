@@ -149,6 +149,55 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
             }
         }
 
+        // An extern declaration (`@name: (T) -> U;`), as used throughout the
+        // standard library's .ty sources. Always publicly visible — that's
+        // the entire point of declaring one.
+        Lang::Signature {
+            identifier,
+            target_type,
+            help_data,
+            ..
+        } => {
+            let name = identifier.name.clone();
+            if name.is_empty() {
+                return;
+            }
+            match target_type {
+                Type::Function(params, ret, _) => {
+                    let id = Node::make_id(&NodeKind::Function, module_path, &name);
+                    spg.add_node(Node {
+                        id,
+                        kind: NodeKind::Function,
+                        name,
+                        module_path: module_path.to_vec(),
+                        visibility: Visibility::Public,
+                        doc: doc_map.get(&help_data.get_offset()).cloned(),
+                        source: source_from_help(help_data),
+                        payload: NodePayload::Function {
+                            params: params.iter().map(|p| (safe_arg_name(p), p.get_type().to_string())).collect(),
+                            returns: ret.to_string(),
+                        },
+                    });
+                }
+                Type::Empty(_) => {}
+                other => {
+                    let id = Node::make_id(&NodeKind::Variable, module_path, &name);
+                    spg.add_node(Node {
+                        id,
+                        kind: NodeKind::Variable,
+                        name,
+                        module_path: module_path.to_vec(),
+                        visibility: Visibility::Public,
+                        doc: doc_map.get(&help_data.get_offset()).cloned(),
+                        source: source_from_help(help_data),
+                        payload: NodePayload::Variable {
+                            type_str: other.to_string(),
+                        },
+                    });
+                }
+            }
+        }
+
         Lang::Alias {
             identifier,
             target_type,

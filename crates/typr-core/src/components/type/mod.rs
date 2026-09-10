@@ -160,6 +160,16 @@ fn interface_methods_satisfy(
     })
 }
 
+/// Field-wise record subtyping: every field required by `r2` must exist in
+/// `r1` (matched by name) with a subtype. Extra fields in `r1` are allowed —
+/// that's the width part `is_superset` already covered.
+fn record_fields_subtype(r1: &HashSet<ArgumentType>, r2: &HashSet<ArgumentType>, context: &Context) -> bool {
+    r2.iter().all(|f2| {
+        r1.iter()
+            .any(|f1| f1.get_argument() == f2.get_argument() && f1.get_type().is_subtype_raw(&f2.get_type(), context))
+    })
+}
+
 impl TypeSystem for Type {
     fn pretty(&self) -> String {
         format(self)
@@ -198,29 +208,18 @@ impl TypeSystem for Type {
             (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => {
                 n1.is_subtype_raw(n2, context) && t1.is_subtype_raw(t2, context)
             }
+            // A function type is structural: only the arity, the parameter
+            // *types* and the return type carry meaning. Parameter names are a
+            // writing convenience — `(int) -> int` desugars to `fn(a: int) ->
+            // int`, and requiring the implementation to reuse that generated
+            // `a` would reject `fn(z: int): int { z }` for no reason.
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
-                let args1_types: Vec<(String, Type)> = args1
-                    .iter()
-                    .map(|arg| (arg.get_argument_str(), arg.get_type()))
-                    .collect();
-                let args2_types: Vec<(String, Type)> = args2
-                    .iter()
-                    .map(|arg| (arg.get_argument_str(), arg.get_type()))
-                    .collect();
-                if args1_types.len() != args2_types.len() {
-                    false
-                } else {
-                    let ret1 = (**ret_typ1).clone();
-                    let ret2 = (**ret_typ2).clone();
-                    let mut all_match = true;
-                    for (p1, p2) in args1_types.iter().zip(args2_types.iter()) {
-                        if !(p1.1.strict_subtype(&p2.1) && p1.0 == p2.0) {
-                            all_match = false;
-                            break;
-                        }
-                    }
-                    all_match && ret1.strict_subtype(&ret2)
-                }
+                args1.len() == args2.len()
+                    && args1
+                        .iter()
+                        .zip(args2.iter())
+                        .all(|(p1, p2)| p1.get_type().strict_subtype(&p2.get_type()))
+                    && ret_typ1.strict_subtype(ret_typ2)
             }
             (_, Type::UnknownFunction(_)) => true,
             (Type::Interface(args1, _), Type::Interface(args2, _)) => {
@@ -232,8 +231,14 @@ impl TypeSystem for Type {
                 }
                 _ => todo!(),
             },
-            // Record subtyping
-            (Type::Record(r1, _), Type::Record(r2, _)) => r1 == r2 || r1.is_superset(r2),
+            // Record subtyping: width (`r1` may carry extra fields) *and* depth
+            // (each shared field's type need only be a subtype). `is_superset`
+            // alone compares fields by equality, which makes a literal-typed
+            // field unusable against its base annotation — `:{ f0 = "a" }` has
+            // type `list{f0: "a"}` and could never satisfy `list{f0: char}`.
+            (Type::Record(r1, _), Type::Record(r2, _)) => {
+                r1 == r2 || r1.is_superset(r2) || record_fields_subtype(r1, r2, context)
+            }
             (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
                 (name1 == name2) && body1.is_subtype_raw(body2, context)
             }
@@ -252,10 +257,22 @@ impl TypeSystem for Type {
             (Type::Operator(TypeOperator::Union, _t1, _t2, _), Type::Operator(TypeOperator::Union, _tp1, _tp2, _)) => {
                 true
             } //TODO: Fix this
+            // A union is a subtype of `T` when *every* member is. Without this
+            // rule an `if`/`else` over literal-typed branches — which unions
+            // their types — could never satisfy the base annotation:
+            // `let x: num <- if (c) { 1.0 } else { 2.0 };` builds `1 | 2`, and
+            // `let x: char <- if (c) { "a" } else { "b" }` builds `"a" | "b"`.
+            (Type::Operator(TypeOperator::Union, t1, t2, _), typ) => {
+                t1.is_subtype_raw(typ, context) && t2.is_subtype_raw(typ, context)
+            }
             (typ, Type::Operator(TypeOperator::Union, t1, t2, _)) => {
                 typ.is_subtype_raw(t1, context) || typ.is_subtype_raw(t2, context)
             }
             (Type::Char(t1, _), Type::Char(t2, _)) => t1.is_subtype(t2),
+            // Same literal-type rule as `Char`: a singleton (`true`, `3.14`)
+            // is a subtype of its base (`bool`, `num`) and of itself only.
+            (Type::Boolean(t1, _), Type::Boolean(t2, _)) => t1.is_subtype(t2),
+            (Type::Number(t1, _), Type::Number(t2, _)) => t1.is_subtype(t2),
             (Type::Integer(_, _), Type::Integer(_, _)) => true,
             (Type::Tuple(types1, _), Type::Tuple(types2, _)) => types1
                 .iter()
@@ -677,7 +694,14 @@ impl Type {
     }
 
     pub fn is_boolean(&self) -> bool {
-        matches!(self, Type::Boolean(_, _))
+        match self {
+            Type::Boolean(_, _) => true,
+            // Branches of an `if` are unioned, and boolean branches now carry
+            // their literal type: `if (c) { true } else { false }` is
+            // `true | false`, which is still a perfectly good condition.
+            Type::Operator(TypeOperator::Union, t1, t2, _) => t1.is_boolean() && t2.is_boolean(),
+            _ => false,
+        }
     }
 
     pub fn dependent_type(&self, dep_typ: &Type) -> bool {
@@ -772,11 +796,13 @@ impl Type {
         }
     }
 
-    // for removing litteral data for Integer and Char
+    // for removing litteral data for Integer, Char, Number and Boolean
     pub fn generalize(self) -> Type {
         match self {
             Type::Integer(Tint::Val(_), h) => Type::Integer(Tint::Unknown, h),
             Type::Char(Tchar::Val(_), h) => Type::Char(Tchar::Unknown, h),
+            Type::Number(Tnum::Val(_), h) => Type::Number(Tnum::Unknown, h),
+            Type::Boolean(Tbool::Val(_), h) => Type::Boolean(Tbool::Unknown, h),
             t => t,
         }
     }
@@ -955,6 +981,18 @@ impl Type {
             (typ1, typ2) if typ1 == typ2 => true,
             // Generic subtyping
             (_, Type::Generic(_, _)) => true,
+            // Nested function types (a callback parameter, a function-returning
+            // return type like `(int) -> ((int) -> int)`) are compared the same
+            // structural way as the top-level arm of `is_subtype_raw`: `==`
+            // would bring parameter names back into the comparison.
+            (Type::Function(args1, ret1, _), Type::Function(args2, ret2, _)) => {
+                args1.len() == args2.len()
+                    && args1
+                        .iter()
+                        .zip(args2.iter())
+                        .all(|(p1, p2)| p1.get_type().strict_subtype(&p2.get_type()))
+                    && ret1.strict_subtype(ret2)
+            }
             _ => false,
         }
     }

@@ -40,6 +40,7 @@ toml.workspace = true
 clap.workspace = true
 tokio.workspace = true
 typr-lsp.workspace = true
+typr-mcp.workspace = true
 rustyline.workspace = true
 syntect.workspace = true
 bincode.workspace = true
