@@ -3,6 +3,7 @@
 //! Generates the binary standard library files (.bin) used by the compiler,
 //! and prints the content of the standard library.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use typr_core::components::context::vartype::VarType;
 use typr_core::components::context::Context;
@@ -13,6 +14,7 @@ use typr_core::components::language::var::Var;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::Type;
 use typr_core::processes::parsing::parse_from_string;
+use typr_core::processes::spg::stdlib_meta::{parse_meta_from_source, FunctionMeta};
 use typr_core::processes::spg::{build_spg_from_items, Spg};
 use typr_core::processes::type_checking::type_checker::TypeChecker;
 use typr_core::utils::builder;
@@ -258,6 +260,7 @@ fn strip_params_at_depth(chars: &mut std::iter::Peekable<std::str::Chars>, resul
 
 // Embedded source files for R
 const FUNCTIONS_R: &str = include_str!("../configs/src/functions_R.txt");
+const BASE_TY: &str = include_str!("../configs/std/base.ty");
 const STD_R_TY: &str = include_str!("../configs/std/std_R.ty");
 const DEFAULT_TY: &str = include_str!("../configs/std/default.ty");
 const FILE_TY: &str = include_str!("../configs/std/file.ty");
@@ -274,6 +277,32 @@ const FOREIGN_TY: &str = include_str!("../configs/std/foreign.ty");
 const FUNCTIONS_JS: &str = include_str!("../configs/src/functions_JS.txt");
 const STD_JS_TY: &str = include_str!("../configs/std/std_JS.ty");
 
+/// T1 R `.ty` sources: high-confidence signatures that go BOTH into the
+/// compiler `<.std_r_typed.bin>` and the doc SPG (RFC-STDLIB-0001 §4,
+/// Sink B). Order matters — later files may reference types from earlier ones.
+const R_T1_SOURCES: &[(&str, &str)] = &[
+    ("std_R.ty", STD_R_TY),
+    ("default.ty", DEFAULT_TY),
+    ("file.ty", FILE_TY),
+    ("option.ty", OPTION_TY),
+    ("plot.ty", PLOT_TY),
+    ("lin_alg.ty", LIN_ALG_TY),
+    ("system.ty", SYSTEM_TY),
+    ("factor.ty", FACTOR_TY),
+    ("state.ty", STATE_TY),
+    ("foreign.ty", FOREIGN_TY),
+    ("ord.ty", ORD_TY),
+];
+
+/// Doc-only R `.ty` sources (tier T2/mixed): consumed by `typr std doc`
+/// (Sink A / MCP) but NEVER part of `.std_r_typed.bin` — the compiler sees
+/// T2 entries as `UnknownFunction`, keeping zero memory cost.
+///
+/// `base.ty` is currently a Phase-0 skeleton (convention doc, no `@`
+/// signatures yet); in Phase 2 it gains its real T1/T2 entries and the
+/// T1 subset moves into `R_T1_SOURCES`.
+const R_DOC_ONLY_SOURCES: &[(&str, &str)] = &[("base.ty", BASE_TY)];
+
 /// Every name TypR's own bundled standard library declares (`@name: T;` in
 /// `configs/std/*.ty`), R and JS alike.
 ///
@@ -287,8 +316,8 @@ const STD_JS_TY: &str = include_str!("../configs/std/std_JS.ty");
 /// signature added to a `.ty` file is covered without touching this list.
 pub fn stdlib_declared_names() -> std::collections::BTreeSet<String> {
     [
-        STD_R_TY, DEFAULT_TY, FILE_TY, OPTION_TY, PLOT_TY, LIN_ALG_TY, SYSTEM_TY, FACTOR_TY, STATE_TY, ORD_TY,
-        FOREIGN_TY, STD_JS_TY,
+        BASE_TY, STD_R_TY, DEFAULT_TY, FILE_TY, OPTION_TY, PLOT_TY, LIN_ALG_TY, SYSTEM_TY, FACTOR_TY, STATE_TY,
+        ORD_TY, FOREIGN_TY, STD_JS_TY,
     ]
     .iter()
     .flat_map(|source| source.lines())
@@ -422,36 +451,32 @@ fn build_typed_vartype(ty_sources: &[(&str, &str)]) -> (VarType, Vec<(String, St
     (context.get_vartype(), skipped)
 }
 
-/// Build a documentation graph over the R standard library's `.ty` sources.
+/// Build a documentation graph over a set of `.ty` sources.
 ///
-/// Same parse/type-check loop as `build_typed_vartype`, but keeps the typed
-/// `Lang` items (`TypeChecker::get_code()`) instead of collapsing straight to
-/// a `VarType` — those items are what `typr_core::processes::spg` needs to
-/// produce doc/param/return info per entity. A file that panics is skipped
-/// the same way, with its entities silently absent from the result.
-fn build_stdlib_docs() -> (Spg, Vec<(String, String)>) {
-    let ty_sources: Vec<(&str, &str)> = vec![
-        ("std_R.ty", STD_R_TY),
-        ("default.ty", DEFAULT_TY),
-        ("file.ty", FILE_TY),
-        ("option.ty", OPTION_TY),
-        ("plot.ty", PLOT_TY),
-        ("lin_alg.ty", LIN_ALG_TY),
-        ("system.ty", SYSTEM_TY),
-        ("factor.ty", FACTOR_TY),
-        ("state.ty", STATE_TY),
-        ("foreign.ty", FOREIGN_TY),
-        ("ord.ty", ORD_TY),
-    ];
-
+/// Shared by `build_stdlib_docs` (production) and the tests, so the
+/// T1-in-compiler / T2-doc-only split can be exercised with arbitrary input.
+fn build_doc_spg_from_sources(
+    ty_sources: &[(&str, &str)],
+    package: &str,
+) -> (Spg, Vec<(String, String)>) {
     let mut context = Context::empty();
     let mut items: Vec<Lang> = Vec::new();
     let mut skipped: Vec<(String, String)> = Vec::new();
 
+    // Parse #! metadata from ALL sources (even those that might fail
+    // type-checking — the metadata is authoring intent, not typed code).
+    let mut all_meta: HashMap<String, FunctionMeta> = HashMap::new();
+    for (_filename, source) in ty_sources {
+        let meta = parse_meta_from_source(source);
+        for (name, func_meta) in meta {
+            all_meta.entry(name).or_insert(func_meta);
+        }
+    }
+
     let previous_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
 
-    for (filename, source) in &ty_sources {
+    for (filename, source) in ty_sources {
         let processed = preprocess_ty_source(source);
         let ctx_before = context.clone();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -476,8 +501,37 @@ fn build_stdlib_docs() -> (Spg, Vec<(String, String)>) {
 
     std::panic::set_hook(previous_hook);
 
-    let spg = build_spg_from_items(&items, "typr-std-r", env!("CARGO_PKG_VERSION"));
+    let meta_map = if all_meta.is_empty() {
+        None
+    } else {
+        Some(all_meta)
+    };
+    let spg = build_spg_from_items(&items, package, env!("CARGO_PKG_VERSION"), meta_map.as_ref());
     (spg, skipped)
+}
+
+/// Build a documentation graph over the R standard library's `.ty` sources.
+///
+/// Same parse/type-check loop as `build_typed_vartype`, but keeps the typed
+/// `Lang` items (`TypeChecker::get_code()`) instead of collapsing straight to
+/// a `VarType` — those items are what `typr_core::processes::spg` needs to
+/// produce doc/param/return info per entity. A file that panics is skipped
+/// the same way, with its entities silently absent from the result.
+///
+/// Also parses `#!` metadata annotations from each `.ty` source and attaches
+/// them to function nodes in the SPG (tier, param docs, examples, etc.).
+///
+/// Processes BOTH the T1 sources (which also feed the compiler binary) and
+/// the doc-only T2 sources (`R_DOC_ONLY_SOURCES`) — the doc SPG is the only
+/// sink that ever sees T2 (RFC-STDLIB-0001 §4, Sink A).
+fn build_stdlib_docs() -> (Spg, Vec<(String, String)>) {
+    let ty_sources: Vec<(&str, &str)> = R_T1_SOURCES
+        .iter()
+        .chain(R_DOC_ONLY_SOURCES.iter())
+        .copied()
+        .collect();
+
+    build_doc_spg_from_sources(&ty_sources, "typr-std-r")
 }
 
 /// Handler for `typr std doc`: emit the standard library's documented
@@ -545,20 +599,10 @@ pub fn standard_library() {
     let std_r = build_function_list_vartype(FUNCTIONS_R);
     save_to_all(&std_r, ".std_r.bin", &dirs);
 
-    // 2. .std_r_typed.bin: typed signatures from .ty files
-    let r_ty_sources: Vec<(&str, &str)> = vec![
-        ("std_R.ty", STD_R_TY),
-        ("default.ty", DEFAULT_TY),
-        ("file.ty", FILE_TY),
-        ("option.ty", OPTION_TY),
-        ("plot.ty", PLOT_TY),
-        ("lin_alg.ty", LIN_ALG_TY),
-        ("system.ty", SYSTEM_TY),
-        ("factor.ty", FACTOR_TY),
-        ("state.ty", STATE_TY),
-        ("foreign.ty", FOREIGN_TY),
-        ("ord.ty", ORD_TY),
-    ];
+    // 2. .std_r_typed.bin: typed T1 signatures from .ty files.
+    //    Doc-only (T2) sources must NOT appear here — only T1 ever reaches
+    //    the compiler (RFC-STDLIB-0001 §4, Sink B).
+    let r_ty_sources: Vec<(&str, &str)> = R_T1_SOURCES.to_vec();
     let (std_r_typed, mut skipped) = build_typed_vartype(&r_ty_sources);
     save_to_all(&std_r_typed, ".std_r_typed.bin", &dirs);
 
@@ -633,5 +677,177 @@ mod tests {
         let (_vartype, skipped) = build_typed_vartype(&sources);
 
         assert!(skipped.is_empty());
+    }
+
+    /// Phase 1: build_stdlib_docs parses #! annotations from .ty files and
+    /// attaches them as `meta` on function nodes in the SPG.
+    #[test]
+    fn stdlib_docs_attaches_meta_from_hash_bang_annotations() {
+        let ty_with_meta = "\
+#! pkg: base
+#! tier: T1
+#! param x: values to sum
+#! ret: sum of x
+#! example: sum(c(1,2,3))
+#! seealso: prod, mean
+@sum: (vec[N, num]) -> num;";
+
+        let ty_no_meta = "@abs: (num) -> num;";
+
+        let sources = [
+            ("with_meta.ty", ty_with_meta),
+            ("no_meta.ty", ty_no_meta),
+        ];
+
+        // Parse metadata from both sources.
+        let mut all_meta: HashMap<String, FunctionMeta> = HashMap::new();
+        for (_name, src) in &sources {
+            for (fn_name, meta) in parse_meta_from_source(src) {
+                all_meta.entry(fn_name).or_insert(meta);
+            }
+        }
+
+        // Verify metadata was parsed for 'sum' but not 'abs'.
+        assert!(all_meta.contains_key("sum"));
+        assert!(!all_meta.contains_key("abs"));
+
+        let sum_meta = all_meta.get("sum").unwrap();
+        assert_eq!(sum_meta.tier.as_deref(), Some("T1"));
+        assert_eq!(sum_meta.pkg.as_deref(), Some("base"));
+        assert_eq!(sum_meta.param_docs.len(), 1);
+        assert_eq!(sum_meta.param_docs[0].0, "x");
+        assert_eq!(sum_meta.examples.len(), 1);
+        assert_eq!(sum_meta.seealso, vec!["prod", "mean"]);
+    }
+
+    /// Phase 1: build_typed_vartype is unaffected by #! annotations —
+    /// it still produces a valid VarType with no regressions.
+    #[test]
+    fn typed_vartype_unaffected_by_meta_annotations() {
+        let src = "\
+#! pkg: base
+#! tier: T1
+@sum: (num) -> num;";
+
+        let sources = [("test_meta.ty", src)];
+        let (vartype, skipped) = build_typed_vartype(&sources);
+
+        assert!(skipped.is_empty());
+        assert!(!vartype.variables.is_empty());
+    }
+
+    /// Phase 1 — full pipeline: parse + type-check a .ty source with #!
+    /// annotations, build the SPG, and verify the metadata lands on the
+    /// `function:sum` node while a function without annotations stays clean
+    /// (`meta: None`). This is the acceptance test for the enriched-SPG
+    /// deliverable: `typr std doc` emits T1+T2 functions with structured meta.
+    #[test]
+    fn spg_nodes_carry_stdlib_meta_end_to_end() {
+        let src = "\
+#! pkg: base
+#! tier: T1
+#! param x: values to sum
+#! ret: sum of x
+#! example: sum(c(1,2,3))
+#! seealso: prod, mean
+@sum: (num) -> num;
+@abs: (num) -> num;";
+
+        let processed = preprocess_ty_source(src);
+        let ast = parse_from_string(&processed, "e2e.ty");
+        let type_checker = TypeChecker::new(Context::empty()).typing_no_panic(&ast);
+        let items: Vec<Lang> = type_checker.get_code().iter().cloned().collect();
+
+        let meta = parse_meta_from_source(src);
+        let spg = build_spg_from_items(
+            &items,
+            "typr-std-test",
+            env!("CARGO_PKG_VERSION"),
+            Some(&meta),
+        );
+
+        let mut sum_node = None;
+        let mut abs_node = None;
+        for node in &spg.nodes {
+            match node.name.as_str() {
+                "sum" => sum_node = Some(node),
+                "abs" => abs_node = Some(node),
+                _ => {}
+            }
+        }
+
+        // `sum` has #! annotations -> meta attached.
+        let sum = sum_node.expect("function:sum node missing from SPG");
+        let m = sum.meta.as_ref().expect("sum should carry stdlib meta");
+        assert_eq!(m.tier.as_deref(), Some("T1"));
+        assert_eq!(m.pkg.as_deref(), Some("base"));
+        assert_eq!(m.param_docs.len(), 1);
+        assert_eq!(m.param_docs[0].0, "x");
+        assert_eq!(m.examples, vec!["sum(c(1,2,3))"]);
+        assert_eq!(m.seealso, vec!["prod", "mean"]);
+
+        // `abs` has no annotations -> no meta (backward-compatible node shape).
+        let abs = abs_node.expect("function:abs node missing from SPG");
+        assert!(abs.meta.is_none());
+    }
+
+    /// Phase 1: the #! parser handles edge cases gracefully.
+    #[test]
+    fn meta_parser_handles_multiple_param_docs() {
+        let src = "\
+#! param x: first param
+#! param y: second param
+#! param z: third param
+@f3: (num, num, num) -> num;";
+
+        let map = parse_meta_from_source(src);
+        let meta = map.get("f3").unwrap();
+        assert_eq!(meta.param_docs.len(), 3);
+        assert_eq!(meta.param_docs[0].0, "x");
+        assert_eq!(meta.param_docs[1].0, "y");
+        assert_eq!(meta.param_docs[2].0, "z");
+    }
+
+    /// Phase 1 §4/Sink B acceptance: a doc-only (T2) source contributes its
+    /// function to the doc SPG but NEVER to the typed compiler vartype.
+    /// `typr std doc` shows it, `typr std` keeps `.std_r_typed.bin` clean.
+    #[test]
+    fn doc_only_sources_are_in_spg_but_not_in_typed_bin() {
+        let t1_source = "@sqrt: (num) -> num;";
+        let t2_source = "\
+#! tier: T2
+#! note: doc-only entry — not typed in the compiler
+@paste: (char, char) -> chr;";
+
+        // Compiler sink: only the T1 source feeds .std_r_typed.bin.
+        let (vartype, skipped) = build_typed_vartype(&[("t1.ty", t1_source)]);
+        assert!(skipped.is_empty());
+        let names: Vec<String> = vartype
+            .variables
+            .iter()
+            .map(|(v, _)| v.get_name())
+            .collect();
+        assert!(names.contains(&"sqrt".to_string()), "T1 function must reach the compiler");
+        assert!(
+            !names.contains(&"paste".to_string()),
+            "T2 function must NOT reach the compiler binary"
+        );
+
+        // Doc sink: both T1 and T2 sources feed the SPG.
+        let (spg, doc_skipped) =
+            build_doc_spg_from_sources(&[("t1.ty", t1_source), ("t2.ty", t2_source)], "typr-std-test");
+        assert!(doc_skipped.is_empty());
+        let node_names: Vec<&str> = spg.nodes.iter().map(|n| n.name.as_str()).collect();
+        assert!(node_names.contains(&"sqrt"), "T1 function must appear in the doc SPG");
+        assert!(node_names.contains(&"paste"), "T2 function must appear in the doc SPG");
+
+        // …and the T2 node carries its meta.
+        let paste = spg
+            .nodes
+            .iter()
+            .find(|n| n.name == "paste")
+            .expect("paste node in SPG");
+        let m = paste.meta.as_ref().expect("paste carries tier meta");
+        assert_eq!(m.tier.as_deref(), Some("T2"));
     }
 }

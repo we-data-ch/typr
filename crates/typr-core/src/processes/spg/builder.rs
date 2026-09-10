@@ -4,6 +4,7 @@ use super::doc_attach::build_doc_map;
 use super::doc_attach::build_doc_map_from_slice;
 use super::edges::infer_edges;
 use super::model::{Edge, EdgeKind, Node, NodeKind, NodePayload, SourceLoc, Spg, Visibility};
+use super::stdlib_meta::FunctionMeta;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
@@ -23,11 +24,30 @@ pub fn build_spg(ast: &Lang, package: &str, version: &str) -> Spg {
 
 /// Build an SPG from a flat slice of already-typed `Lang` items (e.g. from
 /// `TypeChecker::get_code()`) without needing a wrapping `Lang::Lines`.
-pub fn build_spg_from_items(items: &[Lang], package: &str, version: &str) -> Spg {
+///
+/// When `meta_map` is provided, function nodes whose name matches a key in
+/// the map get their `meta` field populated with the structured stdlib
+/// metadata (tier, param docs, examples, etc.).
+pub fn build_spg_from_items(
+    items: &[Lang],
+    package: &str,
+    version: &str,
+    meta_map: Option<&HashMap<String, FunctionMeta>>,
+) -> Spg {
     let mut spg = Spg::new(package, version);
     let doc_map = build_doc_map_from_slice(items);
     for item in items {
         collect_nodes(item, &mut spg, &[], &doc_map);
+    }
+    // Attach stdlib metadata to function nodes by name.
+    if let Some(map) = meta_map {
+        for node in &mut spg.nodes {
+            if matches!(node.kind, NodeKind::Function) && node.meta.is_none() {
+                if let Some(meta) = map.get(&node.name) {
+                    node.meta = Some(meta.clone().into_stdlib_meta());
+                }
+            }
+        }
     }
     infer_edges(&mut spg);
     spg

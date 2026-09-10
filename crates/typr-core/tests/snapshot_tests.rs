@@ -410,7 +410,7 @@ mod spg {
             .push("@pub let distance <- fn(p: Point): num { 0.0 };")
             .parse_type_next();
         let items: Vec<_> = fp.get_new_code().iter().cloned().collect();
-        let spg = build_spg_from_items(&items, "mypkg", "0.1.0");
+        let spg = build_spg_from_items(&items, "mypkg", "0.1.0", None);
         let json = serde_json::to_string_pretty(&spg).unwrap();
         insta::assert_snapshot!(json);
     }
@@ -421,7 +421,7 @@ mod spg {
             .push("type Color <- .Red | .Green | .Blue;")
             .parse_type_next();
         let items: Vec<_> = fp.get_new_code().iter().cloned().collect();
-        let spg = build_spg_from_items(&items, "mypkg", "0.1.0");
+        let spg = build_spg_from_items(&items, "mypkg", "0.1.0", None);
         let json = serde_json::to_string_pretty(&spg).unwrap();
         insta::assert_snapshot!(json);
     }
@@ -437,7 +437,7 @@ mod spg {
             .push("@export let unannotated <- 42;")
             .parse_type_next();
         let items: Vec<_> = fp.get_new_code().iter().cloned().collect();
-        let spg = build_spg_from_items(&items, "mypkg", "0.1.0");
+        let spg = build_spg_from_items(&items, "mypkg", "0.1.0", None);
         let json = serde_json::to_string_pretty(&spg).unwrap();
         insta::assert_snapshot!(json);
     }
