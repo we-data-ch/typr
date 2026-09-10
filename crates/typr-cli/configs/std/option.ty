@@ -1,9 +1,20 @@
+#! pkg: base
+#! tier: T2
+#! param msg: error message
+#! ret: never returns (stops execution)
+#! note: throws an R error condition
+#! example: stop("something went wrong")
 # ERROR HANDLING ----------
 @stop: (msg: char) -> Empty;
 
 # OPTION TYPE -------------
 type Option<T> = .Some(T) | .None;
 
+#! pkg: base
+#! tier: T1
+#! param value: Option to unwrap
+#! ret: inner value if Some, stops with error if None
+#! note: panics on None — use unwrap_or for safe default
 let unwrap <- fn(value: Option<T>): T {
 	match value {
 		.Some(v)	=> v,
@@ -11,6 +22,11 @@ let unwrap <- fn(value: Option<T>): T {
 	}
 };
 
+#! pkg: base
+#! tier: T1
+#! param value: Option to unwrap
+#! param msg: error message if None
+#! ret: inner value if Some, stops with msg if None
 let expect <- fn(value: Option<T>, msg: char): T {
 	match value {
 		.Some(v)	=> v,
@@ -19,6 +35,12 @@ let expect <- fn(value: Option<T>, msg: char): T {
 };
 
 
+#! pkg: base
+#! tier: T1
+#! param value: Option to unwrap
+#! param alternative: default value if None
+#! ret: inner value if Some, alternative if None
+#! example: unwrap_or(None, 0)   # -> 0
 let unwrap_or <- fn(value: Option<T>, alternative: T): T {
 	match value {
 		.Some(v) => v,
@@ -26,6 +48,10 @@ let unwrap_or <- fn(value: Option<T>, alternative: T): T {
 	}
 };
 
+#! pkg: base
+#! tier: T1
+#! param value: Option to check
+#! ret: TRUE if Some
 let is_some <- fn(value: Option<T>): bool {
 	match value {
 		.Some(v) => true,
@@ -33,6 +59,10 @@ let is_some <- fn(value: Option<T>): bool {
 	}
 };
 
+#! pkg: base
+#! tier: T1
+#! param value: Option to check
+#! ret: TRUE if None
 let is_none <- fn(value: Option<T>): bool {
 	match value {
 		.Some(v) => false,
@@ -40,6 +70,17 @@ let is_none <- fn(value: Option<T>): bool {
 	}
 };
 
-# NULL ↔ Option<T> bridge for @extern interop
+#! pkg: base
+#! tier: T1
+#! param a: R value (NULL or non-NULL)
+#! ret: Option wrapping the value
+#! coercion: NULL -> .None, non-NULL -> .Some(value)
+#! note: bridge for @extern interop with nullable R APIs
 @from_nullable: (Any) -> Option<Any>;
+#! pkg: base
+#! tier: T1
+#! param a: Option value
+#! ret: R value (NULL for .None, inner for .Some)
+#! coercion: .None -> NULL, .Some(v) -> v
+#! note: bridge for @extern interop with nullable R APIs
 @to_nullable: (Option<T>) -> Any;

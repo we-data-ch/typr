@@ -1,19 +1,1231 @@
 #! pkg: base
 #! tier: T1
-#! format: TypR stdlib catalog (RFC-STDLIB-0001, Phase 0 skeleton)
+#! format: TypR stdlib catalog — R base package functions
 #
-# Convention des métadonnées (#!) — un bloc par entrée :
-#   #! pkg: base          — package R d'origine
-#   #! tier: T1           — T1 = haute confiance (compilateur), T2 = doc MCP, T3 = non typable
-#   #! param x: desc      — description du paramètre (pour MCP/doc)
-#   #! ret: desc          — description de la valeur de retour
-#   #! coercion: desc     — notes de coercion R (ex: logical -> num)
-#   #! example: code      — exemple valide pour typr check
-#   #! seealso: f1, f2    — fonctions apparentées
+# Catalogue des fonctions R base typées pour TypR.
+# Chaque entrée a un bloc #! (pkg, tier, param, ret, coercion, example, seealso)
+# suivi de la signature @name: (T) -> U;.
 #
-# Phase 0 : squelette vide avec conventions. Les signatures T1 seront
-# ajoutées en Phase 2 après classification (tools/classify_tiers.R) et
-# revue humaine.
-#
-# Les signatures @ sont compilées par build_typed_vartype → .std_r_typed.bin.
-# Seules les entrées T1 doivent apparaître ici. Les T2/T3 vont dans le SPG doc.
+# Tiers :
+#   T1 = haute confiance, embarqué dans .std_r_typed.bin
+#   T2 = doc MCP seulement (signatures souples, coercion, ...)
+#   T3 = non typable (UnknownFunction) — blacklist
+
+# ============================================================
+# MATH — Pure functions, no coercion surprises
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: absolute value
+#! coercion: integer -> integer, numeric -> numeric
+#! example: abs(-5)   # -> 5
+#! example: abs(-3.14)   # -> 3.14
+#! seealso: sign
+@abs: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: non-negative numeric value
+#! ret: square root
+#! example: sqrt(9)   # -> 3
+#! example: sqrt(2)   # -> 1.4142...
+#! seealso: ^, exp
+@sqrt: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: positive numeric value
+#! param base: logarithm base (default 2.71828... for natural log)
+#! ret: logarithm of x
+#! note: log(x) is natural log, log(x, 10) is base-10, log(x, 2) is base-2
+#! example: log(100)   # -> 4.6051...
+#! example: log(8, 2)   # -> 3
+#! seealso: log2, log10, log1p, exp
+@log: (x: num, base: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: positive numeric value
+#! ret: base-2 logarithm
+#! example: log2(8)   # -> 3
+#! seealso: log, log10
+@log2: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: positive numeric value
+#! ret: base-10 logarithm
+#! example: log10(100)   # -> 2
+#! seealso: log, log2
+@log10: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: e^x
+#! example: exp(0)   # -> 1
+#! example: exp(1)   # -> 2.7182...
+#! seealso: log
+@exp: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: e^x - 1
+#! note: more accurate than exp(x) - 1 for small x
+#! example: expm1(1e-10)   # -> 1e-10 (approximately)
+#! seealso: exp, log1p
+@expm1: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value > -1
+#! ret: log(1 + x)
+#! note: more accurate than log(1 + x) for small x
+#! example: log1p(1e-10)   # -> 1e-10 (approximately)
+#! seealso: log, expm1
+@log1p: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: ceiling (round up to nearest integer)
+#! coercion: num -> int (rounded up)
+#! example: ceiling(2.3)   # -> 3
+#! example: ceiling(-2.3)   # -> -2
+#! seealso: floor, round, trunc
+@ceiling: (x: num) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: floor (round down to nearest integer)
+#! coercion: num -> int (rounded down)
+#! example: floor(2.7)   # -> 2
+#! example: floor(-2.7)   # -> -3
+#! seealso: ceiling, round, trunc
+@floor: (x: num) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! param digits: number of decimal places (default 0)
+#! ret: rounded value
+#! note: rounds to nearest even on ties (IEEE 754)
+#! example: round(2.5)   # -> 2 (banker's rounding)
+#! example: round(3.5)   # -> 4
+#! example: round(2.345, 2)   # -> 2.35
+#! seealso: ceiling, floor, trunc, signif
+@round: (x: num, digits: int) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: truncated toward zero (integer part)
+#! coercion: num -> int
+#! example: trunc(2.7)   # -> 2
+#! example: trunc(-2.7)   # -> -2
+#! seealso: ceiling, floor, round
+@trunc: (x: num) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: sign of x (-1, 0, or 1)
+#! example: sign(-5)   # -> -1
+#! example: sign(0)   # -> 0
+#! example: sign(3)   # -> 1
+#! seealso: abs
+@sign: (x: num) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! param digits: number of significant digits
+#! ret: value rounded to significant digits
+#! example: signif(12345, 3)   # -> 12300
+#! seealso: round
+@signif: (x: num, digits: int) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value (radians)
+#! ret: cosine
+#! example: cos(0)   # -> 1
+#! seealso: sin, tan, acos
+@cos: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value (radians)
+#! ret: sine
+#! example: sin(0)   # -> 0
+#! seealso: cos, tan, asin
+@sin: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value (radians)
+#! ret: tangent
+#! example: tan(0)   # -> 0
+#! seealso: cos, sin, atan
+@tan: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value in [-1, 1]
+#! ret: arc cosine (radians)
+#! example: acos(1)   # -> 0
+#! seealso: asin, atan, cos
+@acos: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value in [-1, 1]
+#! ret: arc sine (radians)
+#! example: asin(0)   # -> 0
+#! seealso: acos, atan, sin
+@asin: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: arc tangent (radians)
+#! example: atan(0)   # -> 0
+#! seealso: acos, asin, tan
+@atan: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: hyperbolic cosine
+#! example: cosh(0)   # -> 1
+#! seealso: sinh, tanh, cos
+@cosh: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: hyperbolic sine
+#! example: sinh(0)   # -> 0
+#! seealso: cosh, tanh, sin
+@sinh: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: hyperbolic tangent
+#! example: tanh(0)   # -> 0
+#! seealso: cosh, sinh, tan
+@tanh: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: hyperbolic arc cosine
+#! example: acosh(1)   # -> 0
+#! seealso: asinh, atanh, cosh
+@acosh: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: hyperbolic arc sine
+#! example: asinh(0)   # -> 0
+#! seealso: acosh, atanh, sinh
+@asinh: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: hyperbolic arc tangent
+#! example: atanh(0)   # -> 0
+#! seealso: acosh, asinh, tanh
+@atanh: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value (degrees)
+#! ret: cosine of angle in degrees
+#! note: cospi(x) = cos(pi * x), more accurate for half-integers
+#! example: cospi(0)   # -> 1
+#! example: cospi(0.5)   # -> 0
+#! seealso: cos, sinpi, tanpi
+@cospi: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value (degrees)
+#! ret: sine of angle in degrees
+#! note: sinpi(x) = sin(pi * x)
+#! example: sinpi(0)   # -> 0
+#! example: sinpi(0.5)   # -> 1
+#! seealso: sin, cospi, tanpi
+@sinpi: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value (degrees)
+#! ret: tangent of angle in degrees
+#! note: tanpi(x) = tan(pi * x)
+#! example: tanpi(0)   # -> 0
+#! seealso: tan, cospi, sinpi
+@tanpi: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: digamma function (derivative of log(gamma(x)))
+#! example: digamma(1)   # -> -0.5772... (Euler-Mascheroni constant, negated)
+#! seealso: trigamma, lgamma, gamma
+@digamma: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: trigamma function (second derivative of log(gamma(x)))
+#! example: trigamma(1)   # -> 1.6449... (pi^2 / 6)
+#! seealso: digamma, lgamma
+@trigamma: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! param deriv: derivative order (default 0)
+#! ret: psigamma function (polygamma)
+#! note: deriv=0 is digamma, deriv=1 is trigamma
+#! seealso: digamma, trigamma
+@psigamma: (x: num, deriv: int) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: positive numeric value
+#! ret: log of absolute value of gamma function
+#! example: lgamma(1)   # -> 0 (log(|Gamma(1)|) = log(1) = 0)
+#! seealso: gamma, digamma
+@lgamma: (x: num) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: gamma function value
+#! note: Gamma(n) = (n-1)! for positive integers
+#! example: gamma(5)   # -> 24 (4!)
+#! example: gamma(1)   # -> 1
+#! seealso: lgamma, digamma
+@gamma: (x: num) -> num;
+
+# ============================================================
+# CUMULATIVE — Vector in, vector out
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: cumulative sum
+#! example: cumsum(c(1, 2, 3))   # -> c(1, 3, 6)
+#! seealso: sum, cumprod
+@cumsum: (x: [#N, num]) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: cumulative product
+#! example: cumprod(c(1, 2, 3))   # -> c(1, 2, 6)
+#! seealso: prod, cumsum
+@cumprod: (x: [#N, num]) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: cumulative maximum
+#! example: cummax(c(3, 1, 4, 1, 5))   # -> c(3, 3, 4, 4, 5)
+#! seealso: max, cummin
+@cummax: (x: [#N, num]) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: cumulative minimum
+#! example: cummin(c(3, 1, 4, 1, 5))   # -> c(3, 1, 1, 1, 1)
+#! seealso: min, cummax
+@cummin: (x: [#N, num]) -> [#N, num];
+
+# ============================================================
+# STATISTICS — Aggregation functions
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: arithmetic mean
+#! note: NA handling in R depends on na.rm; TypR assumes no NA
+#! example: mean(c(1, 2, 3, 4))   # -> 2.5
+#! seealso: median, var, sd
+@mean: (x: [#N, num]) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! param na.rm: remove NA before computing (default FALSE)
+#! ret: sample variance (n-1 denominator)
+#! note: variance of single element returns NA in R
+#! example: var(c(1, 2, 3, 4, 5))   # -> 2.5
+#! seealso: sd, mean
+@var: (x: [#N, num], na.rm: bool) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: sample standard deviation (n-1 denominator)
+#! note: sd(x) = sqrt(var(x))
+#! example: sd(c(1, 2, 3, 4, 5))   # -> 1.5811...
+#! seealso: var, mean
+@sd: (x: [#N, num]) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: median value
+#! note: for even-length vectors, returns average of two middle values
+#! example: median(c(1, 2, 3, 4))   # -> 2.5
+#! example: median(c(1, 2, 3))   # -> 2
+#! seealso: mean, quantile
+@median: (x: [#N, num]) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: sum of all elements
+#! note: NA handling in R depends on na.rm; TypR assumes no NA
+#! example: sum(c(1, 2, 3))   # -> 6
+#! seealso: prod, cumsum
+@sum: (x: [#N, num]) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: product of all elements
+#! example: prod(c(2, 3, 4))   # -> 24
+#! seealso: sum, cumprod
+@prod: (x: [#N, num]) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: c(min, max) — range of values
+#! example: range(c(3, 1, 4, 1, 5))   # -> c(1, 5)
+#! seealso: min, max
+@range: (x: [#N, num]) -> [2, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: minimum value
+#! example: min(c(3, 1, 4, 1, 5))   # -> 1
+#! seealso: max, range
+@min: (x: [#N, num]) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: maximum value
+#! example: max(c(3, 1, 4, 1, 5))   # -> 5
+#! seealso: min, range
+@max: (x: [#N, num]) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! param ...: additional vectors
+#! ret: parallel minimum (element-wise)
+#! note: pmin(x, y) returns element-wise minimum of x and y
+#! example: pmin(c(1, 5, 3), c(4, 2, 6))   # -> c(1, 2, 3)
+#! seealso: pmax, min
+@pmin: (x: [#N, num], y: [#N, num]) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! param ...: additional vectors
+#! ret: parallel maximum (element-wise)
+#! note: pmax(x, y) returns element-wise maximum of x and y
+#! example: pmax(c(1, 5, 3), c(4, 2, 6))   # -> c(4, 5, 6)
+#! seealso: pmin, max
+@pmax: (x: [#N, num], y: [#N, num]) -> [#N, num];
+
+# ============================================================
+# SET OPERATIONS — On atomic vectors
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: first vector
+#! param y: second vector
+#! ret: elements in both x and y (sorted, unique)
+#! note: intersection of two sets
+#! example: intersect(c(1,2,3), c(2,3,4))   # -> c(2,3)
+#! seealso: union, setdiff
+@intersect: (x: [#N, T], y: [#M, T]) -> [#N, T];
+
+#! pkg: base
+#! tier: T1
+#! param x: first vector
+#! param y: second vector
+#! ret: elements in x or y (sorted, unique)
+#! note: union of two sets
+#! example: union(c(1,2,3), c(2,3,4))   # -> c(1,2,3,4)
+#! seealso: intersect, setdiff
+@union: (x: [#N, T], y: [#M, T]) -> [#N, T];
+
+#! pkg: base
+#! tier: T1
+#! param x: first vector
+#! param y: second vector
+#! ret: elements in x but not in y
+#! note: set difference
+#! example: setdiff(c(1,2,3), c(2,3,4))   # -> c(1)
+#! seealso: intersect, union
+@setdiff: (x: [#N, T], y: [#M, T]) -> [#N, T];
+
+#! pkg: base
+#! tier: T1
+#! param x: first vector
+#! param y: second vector
+#! ret: TRUE if x and y contain the same elements (ignoring order)
+#! example: setequal(c(1,2,3), c(3,2,1))   # -> TRUE
+#! seealso: identical, intersect
+@setequal: (x: [#N, T], y: [#M, T]) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param a: element to search for
+#! param x: vector to search in
+#! ret: TRUE if a is in x
+#! note: set membership test
+#! example: is.element(2, c(1,2,3))   # -> TRUE
+#! seealso: intersect, match
+@`is.element`: (a: T, x: [#N, T]) -> bool;
+
+# ============================================================
+# TYPE CHECKING — is.* functions
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is numeric (integer or double)
+#! example: is.numeric(42)   # -> TRUE
+#! example: is.numeric("hello")   # -> FALSE
+#! seealso: is.integer, is.character
+@`is.numeric`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is integer
+#! example: is.integer(42L)   # -> TRUE
+#! example: is.integer(42)   # -> FALSE
+#! seealso: is.numeric
+@`is.integer`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is character
+#! example: is.character("hello")   # -> TRUE
+#! example: is.character(42)   # -> FALSE
+#! seealso: is.numeric
+@`is.character`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is logical
+#! example: is.logical(TRUE)   # -> TRUE
+#! example: is.logical(1)   # -> FALSE
+#! seealso: is.numeric
+@`is.logical`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is a factor
+#! example: is.factor(factor("a"))   # -> TRUE
+#! seealso: is.character
+@`is.factor`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is NULL
+#! example: is.null(NULL)   # -> TRUE
+#! example: is.null(42)   # -> FALSE
+@`is.null`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is NA
+#! note: NA is distinct from NULL and NaN
+#! example: is.na(NA)   # -> TRUE
+#! example: is.na(NaN)   # -> TRUE (NaN is also NA)
+#! example: is.na(NULL)   # -> logical(0) (empty)
+@`is.na`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is NaN (Not a Number)
+#! note: NaN is a special floating-point value; NaN is also NA
+#! example: is.nan(NaN)   # -> TRUE
+#! example: is.nan(NA)   # -> FALSE
+@`is.nan`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: TRUE if x is finite (not Inf, -Inf, or NaN)
+#! example: is.finite(42)   # -> TRUE
+#! example: is.finite(Inf)   # -> FALSE
+#! seealso: is.infinite
+@`is.finite`: (x: num) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: TRUE if x is Inf or -Inf
+#! example: is.infinite(Inf)   # -> TRUE
+#! example: is.infinite(42)   # -> FALSE
+#! seealso: is.finite
+@`is.infinite`: (x: num) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is complex
+#! example: is.complex(1+2i)   # -> TRUE
+#! seealso: is.numeric
+@`is.complex`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is raw (bytes)
+#! example: is.raw(charToRaw("a"))   # -> TRUE
+#! seealso: is.character
+@`is.raw`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is a function
+#! example: is.function(mean)   # -> TRUE
+#! example: is.function(42)   # -> FALSE
+@`is.function`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is a primitive function
+#! example: is.primitive(`+`)   # -> TRUE
+#! example: is.primitive(function(){})   # -> FALSE
+#! seealso: is.function
+@`is.primitive`: (x: Any) -> bool;
+
+# ============================================================
+# TYPE COERCION — as.* functions
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: numeric (double) representation
+#! coercion: integer/logical -> numeric
+#! example: as.numeric(TRUE)   # -> 1.0
+#! example: as.numeric(42L)   # -> 42.0
+#! seealso: as.integer, as.character
+@`as.numeric`: (x: Any) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: integer representation
+#! coercion: numeric -> integer (truncation), logical -> integer
+#! example: as.integer(3.7)   # -> 3L
+#! example: as.integer(TRUE)   # -> 1L
+#! seealso: as.numeric
+@`as.integer`: (x: Any) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: character representation
+#! coercion: any atomic type -> character
+#! example: as.character(42)   # -> "42"
+#! example: as.character(TRUE)   # -> "TRUE"
+#! seealso: as.numeric, as.integer
+@`as.character`: (x: Any) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: logical representation
+#! coercion: numeric -> logical (0 = FALSE, non-zero = TRUE)
+#! example: as.logical(0)   # -> FALSE
+#! example: as.logical(1)   # -> TRUE
+#! example: as.logical("TRUE")   # -> TRUE
+#! seealso: as.numeric
+@`as.logical`: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: complex representation
+#! coercion: numeric -> complex (imaginary part = 0)
+#! example: as.complex(42)   # -> 42+0i
+#! seealso: as.numeric
+@`as.complex`: (x: Any) -> complex;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: raw (byte) representation
+#! coercion: integer -> raw (mod 256)
+#! example: as.raw(65L)   # -> charToRaw("A")
+#! seealso: as.integer
+@`as.raw`: (x: Any) -> raw;
+
+# ============================================================
+# STRING / CHARACTER OPERATIONS
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: character string
+#! ret: number of characters
+#! example: nchar("hello")   # -> 5
+#! example: nchar("")   # -> 0
+#! seealso: nzchar
+@nchar: (x: char) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: character string
+#! ret: TRUE if x has more than 0 characters
+#! example: nzchar("hello")   # -> TRUE
+#! example: nzchar("")   # -> FALSE
+#! seealso: nchar
+@nzchar: (x: char) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: character string
+#! param start: start position (1-based, inclusive)
+#! param stop: stop position (1-based, inclusive)
+#! ret: substring from start to stop
+#! note: negative start counts from end
+#! example: substr("hello world", 1, 5)   # -> "hello"
+#! seealso: substring
+@substr: (x: char, start: int, stop: int) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: character vector
+#! param start: start position(s)
+#! param stop: stop position(s)
+#! ret: substring(s)
+#! note: vectorized version of substr
+#! example: substring("hello world", 1, 5)   # -> "hello"
+#! seealso: substr
+@substring: (x: char, first: int, last: int) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: character string
+#! ret: lowercased string
+#! example: tolower("Hello World")   # -> "hello world"
+#! seealso: toupper, casefold
+@tolower: (x: char) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: character string
+#! ret: uppercased string
+#! example: toupper("hello world")   # -> "HELLO WORLD"
+#! seealso: tolower, casefold
+@toupper: (x: char) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: character string
+#! param upper: TRUE for upper, FALSE for lower
+#! ret: case-folded string
+#! note: locale-independent case conversion
+#! example: casefold("Hello", upper = TRUE)   # -> "HELLO"
+#! seealso: tolower, toupper
+@casefold: (x: char, upper: bool) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: character string or vector
+#! param pattern: character to match
+#! param replacement: replacement string
+#! param fixed: TRUE for literal match (not regex)
+#! ret: string with matches replaced
+#! note: vectorized — pattern and replacement can be vectors
+#! example: chartr("a", "A", "hello abc")   # -> "hello Abc"
+#! seealso: sub, gsub
+@chartr: (old: char, new: char, x: char) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param fmt: format string (sprintf-style)
+#! param ...: values to format
+#! ret: formatted character string
+#! note: follows C sprintf conventions (%d, %f, %s, etc.)
+#! example: sprintf("Hello %s, you are %d", "world", 42)   # -> "Hello world, you are 42"
+#! seealso: format, formatC
+@sprintf: (fmt: char, ...: Any) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to format
+#! param ...: formatting options
+#! ret: formatted character string
+#! note: general-purpose formatting (number of digits, width, etc.)
+#! example: format(3.14159, digits = 3)   # -> "3.14"
+#! seealso: sprintf, formatC
+@format: (x: Any, ...: Any) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! param width: minimum field width
+#! param digits: number of decimal places
+#! param format: format type ("f", "e", "g", etc.)
+#! ret: formatted character string
+#! note: C-style formatting with width and precision control
+#! example: formatC(3.14, width = 6, digits = 2, format = "f")   # -> "  3.14"
+#! seealso: sprintf, format
+@formatC: (x: Any, width: int, digits: int, format: char) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param pattern: regex pattern to match
+#! param x: character string to search
+#! ret: TRUE if pattern found anywhere in x
+#! note: returns logical (TRUE/FALSE)
+#! example: grepl("\\d+", "abc123")   # -> TRUE
+#! example: grepl("\\d+", "abc")   # -> FALSE
+#! seealso: grep, sub, gsub
+@grepl: (pattern: char, x: char) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param pattern: regex pattern to match
+#! param x: character vector to search
+#! ret: indices of elements matching pattern
+#! note: returns integer indices, not logical
+#! example: grep("\\d+", c("abc", "123", "def"))   # -> c(1, 3) (1-indexed)
+#! seealso: grepl, regexpr
+@grep: (pattern: char, x: [#N, char]) -> [#M, int];
+
+#! pkg: base
+#! tier: T1
+#! param pattern: regex pattern
+#! param x: character string
+#! ret: starting position(s) of match, or -1 if no match
+#! note: returns match metadata (start, length)
+#! example: regexpr("\\d+", "abc123def")   # -> 4 (position of first digit)
+#! seealso: gregexpr, regmatches, grepl
+@regexpr: (pattern: char, x: char) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param pattern: regex pattern
+#! param x: character string
+#! ret: list of all match positions
+#! note: gregexpr returns all non-overlapping matches
+#! example: gregexpr("\\d+", "a1b22c333")   # -> list of match positions
+#! seealso: regexpr, regmatches, grepl
+@gregexpr: (pattern: char, x: char) -> [#N, int];
+
+#! pkg: base
+#! tier: T1
+#! param x: character string
+#! param pattern: regex pattern
+#! param value: TRUE to return matches, FALSE to return logical
+#! ret: extracted substrings or logical match vector
+#! note: extracts text matching regex groups
+#! example: regmatches("abc123def", "\\d+")   # -> "123"
+#! seealso: regexpr, gregexpr, grepl
+@regmatches: (x: char, m: int) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: character string
+#! param pattern: regex pattern to match
+#! param replacement: replacement string
+#! ret: string with first match replaced
+#! note: only replaces the first occurrence
+#! example: sub("world", "R", "hello world")   # -> "hello R"
+#! example: sub("(\\d+)", "[\\1]", "abc123")   # -> "abc[123]"
+#! seealso: gsub, grepl
+@sub: (pattern: char, replacement: char, x: char) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: character string
+#! param pattern: regex pattern to match
+#! param replacement: replacement string
+#! ret: string with ALL matches replaced
+#! note: replaces every occurrence
+#! example: gsub("o", "0", "foo bar")   # -> "f00 bar"
+#! example: gsub("\\s+", " ", "hello   world")   # -> "hello world"
+#! seealso: sub, grepl
+@gsub: (pattern: char, replacement: char, x: char) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: character string to split
+#! param split: delimiter (fixed or regex)
+#! ret: character vector of parts
+#! example: strsplit("a,b,c", ",")   # -> c("a", "b", "c")
+#! example: strsplit("hello world", " ")   # -> c("hello", "world")
+#! seealso: paste, paste0
+@strsplit: (x: char, split: char) -> [#N, char];
+
+# ============================================================
+# SEQUENCE GENERATION
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param length: desired output length
+#! ret: integer sequence 1, 2, ..., length
+#! note: faster than seq_len(length.out = length) for simple cases
+#! example: seq_len(5)   # -> c(1, 2, 3, 4, 5)
+#! seealso: seq, seq_along
+@seq_len: (length: int) -> [#N, int];
+
+#! pkg: base
+#! tier: T1
+#! param x: input vector
+#! ret: integer sequence 1, 2, ..., length(x)
+#! note: same as seq_len(length(x))
+#! example: seq_along(c(10, 20, 30))   # -> c(1, 2, 3)
+#! seealso: seq, seq_len
+@seq_along: (x: [#N, T]) -> [#N, int];
+
+#! pkg: base
+#! tier: T1
+#! param x: vector to repeat
+#! param times: number of times to repeat each element
+#! ret: repeated vector
+#! note: replicates each element 'times' times (not the whole vector)
+#! example: rep_len(c(1, 2), 3)   # -> c(1, 2, 1, 2, 1, 2)
+#! seealso: rep
+@rep_len: (x: [#N, T], length: int) -> [#M, T];
+
+#! pkg: base
+#! tier: T1
+#! param x: vector to repeat
+#! param times: number of repetitions
+#! ret: vector with each element repeated
+#! note: rep.int(x, times) repeats each element 'times' times
+#! example: rep.int(c(1, 2), 3)   # -> c(1, 1, 1, 2, 2, 2)
+#! seealso: rep_len
+@`rep.int`: (x: [#N, T], times: int) -> [#M, T];
+
+# ============================================================
+# MATRIX OPERATIONS
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: first matrix or vector
+#! param y: second matrix or vector
+#! ret: cross-product (t(x) %*% y)
+#! note: for vectors, returns inner product; for matrices, t(x) %*% y
+#! example: crossprod(c(1,2), c(3,4))   # -> 11 (1*3 + 2*4)
+#! seealso: tcrossprod, outer, %*%
+@crossprod: (x: [#M, T], y: [#N, T]) -> [#M, #N];
+
+#! pkg: base
+#! tier: T1
+#! param x: first matrix or vector
+#! param y: second matrix or vector
+#! ret: cross-product (x %*% t(y))
+#! note: for vectors, x %*% t(y); for matrices, x %*% t(y)
+#! example: tcrossprod(c(1,2), c(3,4))   # -> matrix [[3,4],[6,8]]
+#! seealso: crossprod, outer
+@tcrossprod: (x: [#M, T], y: [#N, T]) -> [#M, #N];
+
+#! pkg: base
+#! tier: T1
+#! param x: first vector
+#! param y: second vector
+#! ret: outer product matrix
+#! note: x[i] * y[j] for all i, j
+#! example: outer(c(1,2), c(3,4))   # -> matrix [[3,4],[6,8]]
+#! seealso: crossprod, tcrossprod
+@outer: (x: [#M, T], y: [#N, T]) -> [#M, [#N, T]];
+
+#! pkg: base
+#! tier: T1
+#! param x: first vector
+#! param y: second vector
+#! ret: inner product (dot product)
+#! note: same as crossprod for vectors
+#! example: inner(c(1,2), c(3,4))   # -> 11
+#! seealso: crossprod
+@inner: (x: [#N, T], y: [#N, T]) -> T;
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: column sums
+#! example: colSums(matrix(1:6, 2, 3))   # -> c(3, 7, 11)
+#! seealso: rowSums, colMeans
+@colSums: (x: [#M, [#N, num]]) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: row sums
+#! example: rowSums(matrix(1:6, 2, 3))   # -> c(6, 15)
+#! seealso: colSums, rowMeans
+@rowSums: (x: [#M, [#N, num]]) -> [#M, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: column means
+#! example: colMeans(matrix(1:6, 2, 3))   # -> c(1.5, 3.5, 5.5)
+#! seealso: rowMeans, colSums
+@colMeans: (x: [#M, [#N, num]]) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: row means
+#! example: rowMeans(matrix(1:6, 2, 3))   # -> c(2, 5)
+#! seealso: colMeans, rowSums
+@rowMeans: (x: [#M, [#N, num]]) -> [#M, num];
+
+# ============================================================
+# COMPARISON UTILITIES
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: first object
+#! param y: second object
+#! param num.eq: whether numeric comparison uses == (default TRUE)
+#! param.tolerance: tolerance for numeric comparison (default .Machine$double.eps^0.5)
+#! ret: TRUE if x and y are exactly equal (or nearly equal with tolerance)
+#! note: TRUE for identical objects; all.equal returns character diff if not equal
+#! example: identical(1, 1)   # -> TRUE
+#! example: identical(1, 1.0)   # -> FALSE (different types)
+#! seealso: all.equal, is.element
+@identical: (x: Any, y: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: index of minimum value (first occurrence)
+#! example: which.min(c(3, 1, 4, 1, 5))   # -> 2 (1-indexed)
+#! seealso: which.max, min
+@`which.min`: (x: [#N, num]) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: index of maximum value (first occurrence)
+#! example: which.max(c(3, 1, 4, 1, 5))   # -> 5 (1-indexed)
+#! seealso: which.min, max
+@`which.max`: (x: [#N, num]) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: index of minimum value
+#! note: same as which.min, included for completeness
+#! example: which.is.min(c(3, 1, 4, 1, 5))   # -> 2
+#! seealso: which.min
+@`which.is.min`: (x: [#N, num]) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: index of maximum value
+#! note: same as which.max, included for completeness
+#! example: which.is.max(c(3, 1, 4, 1, 5))   # -> 5
+#! seealso: which.max
+@`which.is.max`: (x: [#N, num]) -> int;
+
+# ============================================================
+# VECTOR UTILITIES
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: input vector
+#! param n: number of elements to return
+#! ret: first n elements
+#! example: head(1:10, 3)   # -> c(1, 2, 3)
+#! seealso: tail
+@head: (x: [#N, T], n: int) -> [#M, T];
+
+#! pkg: base
+#! tier: T1
+#! param x: input vector
+#! param n: number of elements to return
+#! ret: last n elements
+#! example: tail(1:10, 3)   # -> c(8, 9, 10)
+#! seealso: head
+@tail: (x: [#N, T], n: int) -> [#M, T];
+
+#! pkg: base
+#! tier: T1
+#! param x: vector to append to
+#! param values: values to append
+#! param after: position after which to insert (default = length(x))
+#! ret: new vector with values inserted
+#! example: append(1:5, 99, after = 2)   # -> c(1, 2, 99, 3, 4, 5)
+#! seealso: c
+@append: (x: [#N, T], values: [#M, T], after: int) -> [#N, T];
+
+#! pkg: base
+#! tier: T1
+#! param x: input vector
+#! ret: reversed vector
+#! example: rev(c(1, 2, 3))   # -> c(3, 2, 1)
+#! seealso: sort
+@rev: (x: [#N, T]) -> [#N, T];
+
+#! pkg: base
+#! tier: T1
+#! param x: input vector
+#! ret: TRUE for first occurrence of each unique value
+#! note: useful for subsetting to unique values
+#! example: duplicated(c(1, 2, 1, 3))   # -> c(FALSE, FALSE, TRUE, FALSE)
+#! seealso: unique, anyDuplicated
+@duplicated: (x: [#N, T]) -> [#N, bool];
+
+#! pkg: base
+#! tier: T1
+#! param x: input vector
+#! ret: index of first duplicate, or 0 if none
+#! example: anyDuplicated(c(1, 2, 1, 3))   # -> 3 (position of first dup)
+#! seealso: duplicated, unique
+@anyDuplicated: (x: [#N, T]) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: input vector
+#! ret: frequency table (counts of each unique value)
+#! note: returns named integer vector
+#! example: table(c("a","b","a","c","b","a"))   # -> a:3, b:2, c:1
+#! seealso: tabulate
+@table: (x: [#N, T]) -> [#M, int];
+
+#! pkg: base
+#! tier: T1
+#! param x: integer vector of bin values
+#! param nbins: number of bins (optional)
+#! ret: frequency count for each bin
+#! note: tabulate(x) counts occurrences of each integer 1, 2, ..., max(x)
+#! example: tabulate(c(1, 2, 2, 3, 3, 3))   # -> c(1, 2, 3)
+#! seealso: table
+@tabulate: (x: [#N, int], nbins: int) -> [#M, int];
+
+#! pkg: base
+#! tier: T1
+#! param table: named vector to look up in
+#! param nomatch: value to return for no match (default NA_integer_)
+#! ret: values corresponding to names
+#! note: named vector as lookup table
+#! example: lookup(c(a=1, b=2), c("a","c"))   # -> c(1, NA)
+#! seealso: match, which
+@match: (x: [#N, T], table: [#M, T], nomatch: int) -> [#N, int];
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: ranks of elements (1-based, average for ties)
+#! example: rank(c(3, 1, 4, 1, 5))   # -> c(3, 1.5, 4, 1.5, 5)
+#! seealso: sort, order
+@rank: (x: [#N, num]) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: vector
+#! ret: indices that would sort x
+#! note: x[order(x)] == sort(x)
+#! example: order(c(3, 1, 4, 1, 5))   # -> c(2, 4, 1, 3, 5)
+#! seealso: sort, rank
+@order: (x: [#N, T]) -> [#N, int];
+
+#! pkg: base
+#! tier: T1
+#! param x: vector with names
+#! param value: value to search for
+#! ret: name(s) matching value
+#! note: inverse of names(x)
+#! example: names(c(a=1, b=2, c=3))[2]   # -> "b"
+#! seealso: match, which
+@names: (x: [#N, T]) -> [#N, char];
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix or data.frame
+#! ret: number of rows
+#! example: nrow(matrix(1:6, 2, 3))   # -> 2
+#! seealso: ncol, dim
+@nrow: (x: Any) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix or data.frame
+#! ret: number of columns
+#! example: ncol(matrix(1:6, 2, 3))   # -> 3
+#! seealso: nrow, dim
+@ncol: (x: Any) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix or array
+#! ret: dimension vector (rows, cols, ...)
+#! example: dim(matrix(1:6, 2, 3))   # -> c(2, 3)
+#! seealso: nrow, ncol
+@dim: (x: Any) -> [#N, int];
+
+#! pkg: base
+#! tier: T1
+#! param x: input vector
+#! ret: TRUE if x has no NA values
+#! example: anyNA(c(1, 2, 3))   # -> FALSE
+#! example: anyNA(c(1, NA, 3))   # -> TRUE
+#! seealso: is.na
+@anyNA: (x: [#N, T]) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: input vector
+#! ret: positions of TRUE values
+#! note: which(x) returns 1-based indices where x is TRUE
+#! example: which(c(FALSE, TRUE, FALSE, TRUE))   # -> c(2, 4)
+#! seealso: which.min, which.max
+@which: (x: [#N, bool]) -> [#M, int];
+
+#! pkg: base
+#! tier: T2
+#! param a: value to print
+#! ret: invisibly returns a
+#! note: side-effectful (prints to stdout)
+#! example: print("hello")
+@print: (a: char) -> Empty;

@@ -14,6 +14,7 @@ use typr_core::components::language::var::Var;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::Type;
 use typr_core::processes::parsing::parse_from_string;
+use typr_core::processes::spg::model::NodeKind;
 use typr_core::processes::spg::stdlib_meta::{parse_meta_from_source, FunctionMeta};
 use typr_core::processes::spg::{build_spg_from_items, Spg};
 use typr_core::processes::type_checking::type_checker::TypeChecker;
@@ -167,20 +168,24 @@ fn strip_params_at_depth(chars: &mut std::iter::Peekable<std::str::Chars>, resul
         }
 
         // Try to read a potential parameter name followed by ':'
-        // Collect chars that could be a parameter name (alphanumeric + _)
+        // Collect chars that could be a parameter name (alphanumeric + _ + .)
+        // Dots matter: R parameters are genuinely dotted (`na.rm`, `row.names`)
+        // and the variadic `...` is dot-only; leaving their `name:` prefix in
+        // place would produce an unparseable signature line.
         let mut potential_name = String::new();
         let mut saved_whitespace = String::new();
-        let mut found_name = false;
 
         // Read potential param name
         while let Some(&ch) = chars.peek() {
-            if ch.is_alphanumeric() || ch == '_' {
+            if ch.is_alphanumeric() || ch == '_' || ch == '.' {
                 potential_name.push(ch);
                 chars.next();
             } else {
                 break;
             }
         }
+
+        let is_variadic = potential_name.starts_with("...");
 
         // Skip whitespace between name and colon
         while let Some(&ch) = chars.peek() {
@@ -192,8 +197,40 @@ fn strip_params_at_depth(chars: &mut std::iter::Peekable<std::str::Chars>, resul
             }
         }
 
-        // Check if followed by ':'
-        if let Some(&':') = chars.peek() {
+        if is_variadic {
+            // The R variadic marker. Two shapes exist in the catalogs:
+            // - `...name: Type` (`@cat: (...values: Any)`) is the parser's
+            //   variadic form — keep the whole `...name:` token verbatim.
+            // - bare `...`/`...: Type` (`@sprintf: (fmt: char, ...: Any)`,
+            //   `@\`file.remove\`: (...: [#N, char], recursive: bool)`) has
+            //   no name the parser can tie the dots to — drop the dots and
+            //   re-emit the type as an unnamed positional parameter via the
+            //   shared type-copy loop below.
+            if potential_name.len() > 3 {
+                // `...name:` — emit the name only; the ':' and type are
+                // copied verbatim by the shared type loop below.
+                result.push_str(&potential_name);
+            }
+            if let Some(&':') = chars.peek() {
+                if potential_name.len() > 3 {
+                    // Named variadic: leave ':' in place for the type copy.
+                } else {
+                    // Bare `...:` — consume the dots and colon so the loop
+                    // below copies the bare type as an unnamed parameter.
+                    chars.next(); // ':'
+                    while let Some(&ch) = chars.peek() {
+                        if ch.is_whitespace() {
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+            // Named variadic falls through to the shared type-copy loop
+            // below, which copies `: Type` verbatim. Bare `...` (no colon)
+            // also falls through: the loop then sees ',' or ')' and emits it.
+        } else if let Some(&':') = chars.peek() {
             chars.next(); // consume ':'
                           // Skip whitespace after ':'
             while let Some(&ch) = chars.peek() {
@@ -203,10 +240,7 @@ fn strip_params_at_depth(chars: &mut std::iter::Peekable<std::str::Chars>, resul
                     break;
                 }
             }
-            found_name = true;
-        }
-
-        if !found_name {
+        } else {
             // Not a named param - put back what we collected
             result.push_str(&potential_name);
             result.push_str(&saved_whitespace);
@@ -272,6 +306,8 @@ const FACTOR_TY: &str = include_str!("../configs/std/factor.ty");
 const STATE_TY: &str = include_str!("../configs/std/state.ty");
 const ORD_TY: &str = include_str!("../configs/std/ord.ty");
 const FOREIGN_TY: &str = include_str!("../configs/std/foreign.ty");
+const STATS_TY: &str = include_str!("../configs/std/stats.ty");
+const UTILS_TY: &str = include_str!("../configs/std/utils.ty");
 
 // Embedded source files for JS
 const FUNCTIONS_JS: &str = include_str!("../configs/src/functions_JS.txt");
@@ -298,10 +334,14 @@ const R_T1_SOURCES: &[(&str, &str)] = &[
 /// (Sink A / MCP) but NEVER part of `.std_r_typed.bin` — the compiler sees
 /// T2 entries as `UnknownFunction`, keeping zero memory cost.
 ///
-/// `base.ty` is currently a Phase-0 skeleton (convention doc, no `@`
-/// signatures yet); in Phase 2 it gains its real T1/T2 entries and the
-/// T1 subset moves into `R_T1_SOURCES`.
-const R_DOC_ONLY_SOURCES: &[(&str, &str)] = &[("base.ty", BASE_TY)];
+/// `base.ty` contains R base function type annotations for the doc SPG —
+/// these are NOT TypR-owned functions (TypR doesn't provide implementations).
+/// They serve as reference documentation for the MCP, not compiler entries.
+const R_DOC_ONLY_SOURCES: &[(&str, &str)] = &[
+    ("base.ty", BASE_TY),
+    ("stats.ty", STATS_TY),
+    ("utils.ty", UTILS_TY),
+];
 
 /// Every name TypR's own bundled standard library declares (`@name: T;` in
 /// `configs/std/*.ty`), R and JS alike.
@@ -316,7 +356,9 @@ const R_DOC_ONLY_SOURCES: &[(&str, &str)] = &[("base.ty", BASE_TY)];
 /// signature added to a `.ty` file is covered without touching this list.
 pub fn stdlib_declared_names() -> std::collections::BTreeSet<String> {
     [
-        BASE_TY, STD_R_TY, DEFAULT_TY, FILE_TY, OPTION_TY, PLOT_TY, LIN_ALG_TY, SYSTEM_TY, FACTOR_TY, STATE_TY,
+        // Note: BASE_TY is excluded — it contains R base function type
+        // annotations for the doc SPG only, not TypR-owned functions.
+        STD_R_TY, DEFAULT_TY, FILE_TY, OPTION_TY, PLOT_TY, LIN_ALG_TY, SYSTEM_TY, FACTOR_TY, STATE_TY,
         ORD_TY, FOREIGN_TY, STD_JS_TY,
     ]
     .iter()
@@ -504,10 +546,44 @@ fn build_doc_spg_from_sources(
     let meta_map = if all_meta.is_empty() {
         None
     } else {
-        Some(all_meta)
+        // `extract_signature_name` keeps the backticks of backtick-quoted
+        // signatures (``@`read.csv`: …``); re-key by the clean name so it
+        // matches the post-unwrap node names below.
+        Some(
+            all_meta
+                .into_iter()
+                .map(|(k, v)| (unwrap_backtick_name(&k), v))
+                .collect::<HashMap<String, FunctionMeta>>(),
+        )
     };
-    let spg = build_spg_from_items(&items, package, env!("CARGO_PKG_VERSION"), meta_map.as_ref());
+    let mut spg = build_spg_from_items(&items, package, env!("CARGO_PKG_VERSION"), None);
+    // Backtick-quoted signature names (`@`read.csv`: …`, or ``@`+`: …`` in the
+    // T1 operator sources) keep their source quoting in `Identifier.name`.
+    // Unwrap it here so the doc SPG exposes real R names (`read.csv`, `+`),
+    // then attach stdlib metadata keyed by the clean name.
+    if let Some(map) = meta_map {
+        for node in &mut spg.nodes {
+            node.name = unwrap_backtick_name(&node.name);
+        }
+        for node in &mut spg.nodes {
+            if matches!(node.kind, NodeKind::Function) && node.meta.is_none() {
+                if let Some(meta) = map.get(&node.name) {
+                    node.meta = Some(meta.clone().into_stdlib_meta());
+                }
+            }
+        }
+    }
     (spg, skipped)
+}
+
+/// Strip the surrounding backticks from a backtick-quoted name (`\`name\``).
+fn unwrap_backtick_name(name: &str) -> String {
+    let bytes = name.as_bytes();
+    if name.len() >= 2 && bytes[0] == b'`' && bytes[name.len() - 1] == b'`' {
+        name[1..name.len() - 1].to_string()
+    } else {
+        name.to_string()
+    }
 }
 
 /// Build a documentation graph over the R standard library's `.ty` sources.

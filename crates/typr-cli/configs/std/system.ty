@@ -1,10 +1,30 @@
+#! pkg: base
+#! tier: T2
+#! param command: shell command to execute
+#! param args: command arguments
+#! param stdout: stdout capture mode
+#! param stderr: stderr capture mode
+#! param stdin: stdin input
+#! ret: command output as character
+#! note: side-effectful; executes external process
+#! example: system2("echo", c("hello"))
 # System execution ----------
 
 @system2: (command: char, args: [#N, char], stdout: char, stderr: char, stdin: char) -> char;
 
 type System2 = { command: char, args: [#N, char], stdout: char, stderr: char, stdin: char};
 
+#! pkg: base
+#! tier: T2
+#! param a: shell command string
+#! ret: System2 struct for execution
+#! note: builds a System2 from a single command string
 @bsystem2: (char) -> System2;
 
+#! pkg: base
+#! tier: T2
+#! param s: System2 struct to execute
+#! ret: command output
+#! note: side-effectful; runs the external process
 @exec: (System2) -> char;
 # --------------------------------

@@ -20,6 +20,12 @@
 //! `npm run syntax:reference` over there — there is no CI check tying the
 //! two repos together yet.
 //!
+//! A third tool, `explain`, takes a diagnostic `code` (`T0xx`/`S0xx`, as
+//! returned by `check`/`build`) and returns a longer explanation plus a
+//! minimal before/after example, for every code in [`explain::ENTRIES`] —
+//! see that module's docs for the handful of declared-but-dead codes it
+//! doesn't (and can't) cover.
+//!
 //! Type checking is recursive, so a long-lived server must drive it from a
 //! large-stack thread — see [`run_stdio`].
 //!
@@ -54,7 +60,11 @@ use rmcp::{ServerHandler, ServiceExt, tool, tool_handler, tool_router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+mod explain;
+
 use typr_core::components::context::config::{Config, Environment};
+use typr_core::components::error_message::syntax_error::SyntaxError;
+use typr_core::components::error_message::type_error::TypeError;
 use typr_core::components::error_message::typr_error::TypRError;
 use typr_core::parsing::parse_from_string_with_errors;
 use typr_core::processes::type_checking::type_checker::TypeChecker;
@@ -131,7 +141,51 @@ pub struct CheckResult {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+/// Turn a `catch_unwind` payload into a `Diagnostic`.
+///
+/// The parser raises a handful of syntax errors via `std::panic::panic_any`
+/// instead of the recoverable `push_parse_error` path (`FunctionWithoutType`,
+/// `FunctionWithoutReturnType` in `parsing/elements.rs`; a `TypeError::WrongExpression`
+/// in `parsing/operation_priority.rs`) — same two call sites `typr-cli`'s
+/// `standard_library.rs` already has to work around. `check`/`build` must
+/// never let one of these escape as an unhandled panic: unlike the CLI's
+/// batch tooling, this runs in a long-lived server process where a crash
+/// takes down every in-flight request, not just the offending one.
+fn panic_payload_diagnostic(payload: Box<dyn std::any::Any + Send>) -> Diagnostic {
+    if let Some(e) = payload.downcast_ref::<SyntaxError>() {
+        return Diagnostic {
+            code: e.code().to_string(),
+            message: e.simple_message(),
+        };
+    }
+    if let Some(e) = payload.downcast_ref::<TypeError>() {
+        return Diagnostic {
+            code: e.code().to_string(),
+            message: e.simple_message(),
+        };
+    }
+    let message = payload
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "internal parser error".to_string());
+    Diagnostic {
+        code: "S000".to_string(),
+        message,
+    }
+}
+
 fn check_source(source: &str) -> CheckResult {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| check_source_inner(source))) {
+        Ok(result) => result,
+        Err(payload) => CheckResult {
+            ok: false,
+            diagnostics: vec![panic_payload_diagnostic(payload)],
+        },
+    }
+}
+
+fn check_source_inner(source: &str) -> CheckResult {
     let parsed = parse_from_string_with_errors(source, "main.ty");
     if parsed.has_errors() {
         let diagnostics = parsed
@@ -180,6 +234,17 @@ pub struct BuildResult {
 }
 
 fn build_source(source: &str) -> BuildResult {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| build_source_inner(source))) {
+        Ok(result) => result,
+        Err(payload) => BuildResult {
+            ok: false,
+            r_code: String::new(),
+            diagnostics: vec![panic_payload_diagnostic(payload)],
+        },
+    }
+}
+
+fn build_source_inner(source: &str) -> BuildResult {
     let parsed = parse_from_string_with_errors(source, "main.ty");
     if parsed.has_errors() {
         let diagnostics = parsed
@@ -250,6 +315,51 @@ fn build_source(source: &str) -> BuildResult {
     BuildResult { ok, r_code, diagnostics }
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ExplainParams {
+    /// Diagnostic code to explain, e.g. "T001" or "S003" — the `code` field
+    /// of a `check`/`build` diagnostic.
+    pub code: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ExplainResult {
+    pub code: String,
+    /// False if `code` isn't covered — practically only the handful of
+    /// declared-but-dead codes `check`/`build` can never actually produce
+    /// (see `explain::ENTRIES`'s module docs). The other fields are then
+    /// absent; fall back to the diagnostic's own `message` from
+    /// `check`/`build` in that case.
+    pub found: bool,
+    pub title: Option<String>,
+    pub explanation: Option<String>,
+    /// Minimal TypR source that reproduces this diagnostic.
+    pub bad_example: Option<String>,
+    /// The same source, fixed — type-checks cleanly.
+    pub good_example: Option<String>,
+}
+
+fn explain_code(code: &str) -> ExplainResult {
+    match explain::find(code) {
+        Some(e) => ExplainResult {
+            code: e.code.to_string(),
+            found: true,
+            title: Some(e.title.to_string()),
+            explanation: Some(e.explanation.to_string()),
+            bad_example: Some(e.bad.to_string()),
+            good_example: Some(e.good.to_string()),
+        },
+        None => ExplainResult {
+            code: code.to_string(),
+            found: false,
+            title: None,
+            explanation: None,
+            bad_example: None,
+            good_example: None,
+        },
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct TyprMcpServer;
 
@@ -279,6 +389,17 @@ impl TyprMcpServer {
     async fn build(&self, Parameters(CheckParams { source }): Parameters<CheckParams>) -> Json<BuildResult> {
         Json(build_source(&source))
     }
+
+    #[tool(
+        description = "Explain a TypR diagnostic code (T0xx/S0xx, from a `check`/`build` \
+        diagnostic's `code` field) with a longer description of why the compiler rejects it \
+        plus a minimal before/after TypR example. Covers every code the compiler can actually \
+        produce — `found: false` means this code is declared but dead (unreachable in the \
+        current compiler), so fall back to the short `message` `check`/`build` already returned."
+    )]
+    async fn explain(&self, Parameters(ExplainParams { code }): Parameters<ExplainParams>) -> Json<ExplainResult> {
+        Json(explain_code(&code))
+    }
 }
 
 #[tool_handler]
@@ -293,7 +414,11 @@ impl ServerHandler for TyprMcpServer {
         .with_instructions(
             "TypR compiler tools. `check` type-checks TypR source and returns diagnostics \
              tagged with stable error codes. `build` does the same but also returns the \
-             transpiled R code. Two resources, `typr://lexicon` and `typr://operators`, hold \
+             transpiled R code. `explain` takes one of those codes and returns a longer \
+             explanation plus a before/after example, for essentially every code the compiler \
+             can produce — worth a try after any `check`/`build` diagnostic before guessing at \
+             a fix from the short message alone. Two resources, `typr://lexicon` and \
+             `typr://operators`, hold \
              the reference tables for TypR's keywords, sigils and operators — read one when a \
              diagnostic mentions a token whose meaning is unclear.",
         )
@@ -319,8 +444,8 @@ impl ServerHandler for TyprMcpServer {
 #[cfg(test)]
 mod tests {
     use super::{
-        LEXICON_URI, OPERATORS_URI, build_source, check_source, read_syntax_resource,
-        syntax_resources,
+        LEXICON_URI, OPERATORS_URI, build_source, check_source, explain, explain_code,
+        read_syntax_resource, syntax_resources,
     };
     use rmcp::model::ResourceContents;
 
@@ -400,6 +525,76 @@ mod tests {
     #[test]
     fn read_syntax_resource_rejects_unknown_uri() {
         assert!(read_syntax_resource("typr://nope").is_err());
+    }
+
+    /// Every curated `explain` entry's `bad` example must reproduce exactly
+    /// the code it's filed under, and `good` must type-check cleanly — an
+    /// entry that drifts from the real compiler is worse than no entry.
+    #[test]
+    fn explain_entries_are_verified_against_the_compiler() {
+        for entry in explain::ENTRIES {
+            let bad = check_source(entry.bad);
+            assert!(!bad.ok, "{}: `bad` example unexpectedly type-checks:\n{}", entry.code, entry.bad);
+            assert!(
+                bad.diagnostics.iter().any(|d| d.code == entry.code),
+                "{}: `bad` example produced {:?}, expected a {} diagnostic:\n{}",
+                entry.code,
+                bad.diagnostics,
+                entry.code,
+                entry.bad
+            );
+
+            let good = check_source(entry.good);
+            assert!(
+                good.ok,
+                "{}: `good` example doesn't type-check: {:?}\n{}",
+                entry.code, good.diagnostics, entry.good
+            );
+        }
+    }
+
+    #[test]
+    fn explain_known_code_returns_the_curated_entry() {
+        let result = explain_code("T001");
+        assert!(result.found);
+        assert_eq!(result.code, "T001");
+        assert!(result.bad_example.is_some());
+        assert!(result.good_example.is_some());
+    }
+
+    #[test]
+    fn explain_is_case_insensitive() {
+        assert!(explain_code("t001").found);
+    }
+
+    #[test]
+    fn explain_unknown_code_reports_not_found() {
+        let result = explain_code("T999");
+        assert!(!result.found);
+        assert!(result.explanation.is_none());
+    }
+
+    #[test]
+    fn malformed_function_signature_is_reported_not_panicked() {
+        let result = check_source("let f <- fn(a): int { a };");
+        assert!(!result.ok);
+        assert!(!result.diagnostics.is_empty());
+    }
+
+    /// `fn(...)` with neither `:` nor `->` before the body panics deep in the
+    /// parser (`elements.rs`) with a raw string, not a `SyntaxError` — the
+    /// S000 fallback in `panic_payload_diagnostic` is what stands between
+    /// that and a crashed MCP server.
+    #[test]
+    fn panicking_parse_path_is_caught_not_propagated() {
+        let previous_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let result = check_source("let f <- fn(a: int) { a };");
+        std::panic::set_hook(previous_hook);
+
+        assert!(!result.ok);
+        assert_eq!(result.diagnostics.len(), 1);
+        assert_eq!(result.diagnostics[0].code, "S000");
     }
 }
 

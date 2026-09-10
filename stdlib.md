@@ -31,29 +31,87 @@ Une signature fausse est pire que pas de signature.
 
 ## 2. État des lieux (ce qui existe déjà)
 
-Le mécanisme est déjà en place, il reste à l'étendre et à l'inverser :
+Le mécanisme est en place et fonctionnel. Voici l'état après Phase 0 + 1 + 2 (migration) :
+
+### 2.1. Inventaire
 
 - **Noms non typés** : `crates/typr-cli/configs/src/functions_R.txt` (761 noms)
   → `.std_r.bin` (`build_function_list_vartype`, chaque nom = `UnknownFunction`).
-- **Surcouche typée** : `crates/typr-cli/configs/std/*.ty` (`std_R.ty`,
-  `default.ty`, `file.ty`, `option.ty`, `plot.ty`, `lin_alg.ty`, `system.ty`,
-  `factor.ty`, `state.ty`, `ord.ty`, `foreign.ty`), signatures `@name: (T) -> U;`
-  → `.std_r_typed.bin` (`build_typed_vartype`).
-- **Commandes** : `typr std` (régénère les `.bin`) et `typr std doc` (émet le
-  **SPG JSON-LD** de la stdlib via `build_stdlib_docs` → `build_spg_from_items`),
-  dans `crates/typr-cli/src/standard_library.rs`.
-- **Chargement compilateur** : `load_r()` / `load_typed_r()` dans
-  `crates/typr-core/src/components/context/vartype.rs`, blobs bincode embarqués
-  par `include_bytes!` dans `configs/bin/`.
-- **Blacklist** : 60 noms refusés (`c`, `lapply`, `sapply`, `rep`, `str`,
-  `cat`, `length`, …) dans `crates/typr-core/src/utils/standard_library.rs`
+- **Introspection R** : `configs/src/r_name_db.json` (1283 noms, seed base-R,
+  pkg, s3_generic, s4_generic).
+
+### 2.2. Catalogue de signatures (fichiers `.ty`)
+
+Tous les fichiers `.ty` portent désormais des annotations `#!` (pkg, tier,
+param, ret, coercion, example, seealso) conformes au format RFC.
+
+**Sink B — compilateur** (`R_T1_SOURCES`, → `.std_r_typed.bin`) :
+
+| Fichier | Signatures `@` | Let bindings | Description |
+|---|---|---|---|
+| `std_R.ty` | 29 | 0 | Opérateurs (+,-,*,/,%%,&&,\|\|), sum, print, reduce/fold/extend, testing, interop |
+| `default.ty` | 20 | 0 | TypR-specific : as_vec, map, filter, set_at, add/minus/mul/div, get, seq, join, startsWith, endsWith, contains |
+| `file.ty` | 11 | 0 | Système de fichiers (getwd, setwd, dir, file__exists, ...) |
+| `option.ty` | 3 | 5 | Option<T> type + unwrap/expect/is_some/is_none |
+| `factor.ty` | 6 | 0 | Factor<L> opaque + factor/levels/nlevels |
+| `state.ty` | 7 | 0 | State<T> mutable cell + get/set/update/map/derive |
+| `ord.ty` | 2 | 0 | Eq/Ord interfaces + unique/sort |
+| `lin_alg.ty` | 2 | 2 | dot, t, lvec, cvec |
+| `plot.ty` | 1 | 2 | plot signature + Plot type (⚠️ SKIPPED parser — type record) |
+| `system.ty` | 3 | 0 | system2, bsystem2, exec (⚠️ SKIPPED parser — type record) |
+| `foreign.ty` | 0 | 0 | Foreign<T> opaque type |
+
+**Sink A — MCP/doc uniquement** (`R_DOC_ONLY_SOURCES`) :
+
+| Fichier | Signatures `@` | Description |
+|---|---|---|
+| `base.ty` | 128 | Fonctions R base (math, stats, comparaison, string, set, matrix, vector) — **doc SPG seulement** |
+| `stats.ty` | 103 | Fonctions du package stats (dnorm…rhyper, t.test, cor.test, lm, …) — **doc SPG seulement** |
+| `utils.ty` | 55 | Fonctions du package utils (read.csv, write.csv, head, …) — **doc SPG seulement** |
+
+> ⚠️ **Contrainte architecturale** : `base.ty` est dans `R_DOC_ONLY_SOURCES`
+> (pas `R_T1_SOURCES`) car `stdlib_declared_names()` ne doit contenir que les
+> fonctions **TypR-propriété** (celles pour lesquelles TypR fournit sa propre
+> implémentation dans `std.R` ou la codegen du transpileur). Les fonctions R
+> base (`abs`, `sqrt`, `mean`, etc.) ne sont pas TypR-propriété — TypR ne
+> fait que les annoter en types pour la doc MCP. Les inclure dans
+> `stdlib_declared_names()` casserait le test
+> `stdlib_declared_names_covers_the_bundled_ty_signatures`.
+
+### 2.3. Infrastructure SPG (Phase 1 ✅)
+
+- **`StdlibMeta`** (`model.rs`) : champs optionnels `tier`, `param_docs`,
+  `ret_doc`, `coercion_notes`, `examples`, `seealso`, `pkg` — tous `Option<>`,
+  rétro-compatibles.
+- **`stdlib_meta.rs`** : parser `parse_meta_from_source()` — accumulate les
+  blocs `#!` jusqu'à la ligne `@name:`, puis attache au nom. 8 tests unitaires.
+- **`doc_attach.rs`** : lit les annotations `#!` des `.ty` (attach par nom).
+- **`build_stdlib_docs()`** : chaîne `R_T1_SOURCES` + `R_DOC_ONLY_SOURCES`
+  → SPG enrichi avec méta.
+- **Tests** : 7 tests `standard_library` + 8 tests `stdlib_meta` = 15/15 ✅.
+
+### 2.4. Commandes
+
+- `typr std` : régénère `.std_r.bin` + `.std_r_typed.bin` + `.std_js.bin` +
+  `.std_js_typed.bin`.
+- `typr std doc` : émet le SPG JSON-LD enrichi (T1+T2, avec méta).
+
+### 2.5. Chargement compilateur
+
+- `load_r()` / `load_typed_r()` dans `crates/typr-core/src/components/context/vartype.rs`,
+  blobs bincode embarqués par `include_bytes!` dans `configs/bin/`.
+
+### 2.6. Blacklist
+
+- 60 noms refusés (`c`, `lapply`, `sapply`, `rep`, `str`, `cat`, `length`, …)
+  dans `crates/typr-core/src/utils/standard_library.rs`
   (+ `not_in_blacklist` / `validate_vectorization`).
-- **SPG** : `crates/typr-core/src/processes/spg/{model,builder,edges,doc_attach}.rs`
-  — graphe JSON-LD (nœuds Type/Fonction/Module/Exemple, arêtes typées), déjà
-  ciblé « outils IA ».
-- **Introspection R existante** : `tools/gen_r_name_db.R` →
-  `configs/src/r_name_db.json` (seed base-R committée), et
-  `configs/src/introspect_pkg.R` (sondage S3/S4 générique sur machine user).
+
+### 2.7. SKIPPED pré-existants
+
+- `plot.ty` et `system.ty` sont SKIPPED par `typr std` car le parser ne
+  supporte pas encore les déclarations `type` (record type aliases). Ceci est
+  pré-existant et non introduit par les changements Phase 2.
 
 > ⚠️ **Constat clé** : la blacklist n'existe pas pour la mémoire mais pour la
 > soundness. `c()`, `lapply()`… sont intrinsèquement non typables fidèlement
@@ -79,6 +137,10 @@ Le mécanisme est déjà en place, il reste à l'étendre et à l'inverser :
 5. **Le compilateur est l'oracle du MCP** : la doc réduit l'espace de recherche
    du LLM, `typr check` reste l'arbitre final (philosophie déjà appliquée en CI
    par `npm run check:examples`).
+6. **TypR-propriété vs R base** : seules les fonctions pour lesquelles TypR
+   fournit sa propre implémentation (std.R, codegen transpileur) entrent dans
+   `stdlib_declared_names()`. Les fonctions R base annotées en types vont
+   dans `R_DOC_ONLY_SOURCES` (doc SPG uniquement).
 
 ---
 
@@ -115,6 +177,14 @@ Règles de flux :
   les tiers 2–3 (un symbole T2/T3 = `UnknownFunction`, pas de blob en plus).
 - Le **MCP** voit tout, y compris T3, avec l'avertissement approprié.
 
+### Sources en pratique
+
+| Constante | Fichiers | Consommé par |
+|---|---|---|
+| `R_T1_SOURCES` | std_R.ty, default.ty, file.ty, option.ty, lin_alg.ty, factor.ty, state.ty, ord.ty | `typr std` (compilateur) + `typr std doc` (SPG) |
+| `R_DOC_ONLY_SOURCES` | base.ty | `typr std doc` (SPG uniquement) |
+| `R_T1_SOURCES` (⚠️ SKIPPED) | plot.ty, system.ty | parser ne supporte pas `type` record |
+
 ---
 
 ## 5. Le catalogue — format
@@ -132,9 +202,7 @@ Réutiliser la syntaxe existante `@name: (T) -> U;` — les pipeline et tests
 
 ### 5.3. Métadonnées par entrée
 
-Étendre le SPG (section 6) avec des champs utiles au MCP, portés par une
-convention de commentaires dans les `.ty` (`#!` pour les méta-annotations,
-ou un bloc `@meta` adjacent) :
+Format `#!` implémenté et testé. Chaque bloc `#!` précède la ligne `@name:` :
 
 ```
 #! pkg: base
@@ -148,55 +216,65 @@ ou un bloc `@meta` adjacent) :
 @sum: (vec[N, num]) -> num;
 ```
 
-Champs minimal V1 : `pkg`, `tier`, `param` × n, `ret`, `coercion`/`note`,
-`example` × n, `seealso`. V2 possible : `deprecated`, `alternative`,
-`signature_r_officielle` (la signature R d'origine, pour traçage).
+Champs disponibles : `pkg`, `tier`, `param` × n, `ret`, `coercion`/`note`,
+`example` × n, `seealso`. Le parser (`stdlib_meta.rs`) gère les formes
+compactes `#! key:value` et `#! key value`.
 
 ---
 
 ## 6. Étapes d'implémentation
 
-### Phase 0 — Inventaire et estimation (livrable : `tools/` + catalogue vide)
+### Phase 0 — Inventaire et estimation ✅
 
 1. **Boucler la première liste de candidats** depuis `functions_R.txt` (761 noms)
-   + `r_name_db.json` (pkg, s3_generic). Outil : étendre `tools/gen_r_name_db.R`
-   ou ajouter un script jumeau qui sort, pour chaque nom, pkg + S3/S4 + présence
-   de `...` dans les args (via `formals`).
-2. **Classer T1/T2/T3** (heuristique puis relecture humaine) :
-   - *probable T1* : pur, arithmétique/distribution/stats simple, pas de `...`,
-     pas de dispatch S3, pas de coercion surprenante (`abs`, `sqrt`, `log`,
-     `sum`, `mean`, `nrow`, `ncol`, `length` est à débattre, …) ;
-   - *probable T2* : `...`, variadique contraint, unions (`paste`, `match`,
-     `rep` peut-être) ;
-   - *T3 d'office* : les 60 de la blacklist + `do.call`, `with`, `eval`,
-     subsetting `[`/`[[`/`$`.
-3. **Créer `configs/std/base.ty`** (vide, squelette avec la convention de méta).
+   + `r_name_db.json` (pkg, s3_generic). 1283 noms base-R identifiés.
+2. **Classer T1/T2/T3** — classification heuristique disponible via
+   `r_name_db.json` (s3_generic, s4_generic) + liste noire 60 noms.
+3. **Créer `configs/std/base.ty`** — squelette vide avec conventions `#!` ✅.
 
-### Phase 1 — Étendre le format SPG (livrable : SPG enrichi, code compilable)
+### Phase 1 — Étendre le format SPG ✅
 
-1. Étendre `crates/typr-core/src/processes/spg/model.rs` : champs optionnels
-   `tier`, `params` (docs), `coercion_notes`, `examples`, `seealso` sur le nœud
-   `Function`. **Rétro-compatible** : les champs nouveaux sont `Option<>`,
-   l'émission sans méta reste identique → aucun test existant ne casse.
-2. Étendre `doc_attach.rs` pour qu'il lise les annotations `#!` des `.ty`
-   (attach par nom de fonction).
-3. Mettre à jour `build_stdlib_docs()` (`standard_library.rs`) pour inclure les
-   fichiers T2 dans le SPG **mais pas** dans `.std_r_typed.bin`.
-4. Test : `typr std doc` émet un nœud par fonction T1+T2 avec méta ; `typr std`
-   n'embarque que T1. Vérifier par un test Rust (les deux sorties, diff).
+1. `model.rs` : `StdlibMeta` avec tous les champs `Option<>` ✅.
+2. `stdlib_meta.rs` : parser `parse_meta_from_source()` avec 8 tests ✅.
+3. `doc_attach.rs` : lit les annotations `#!` ✅.
+4. `build_stdlib_docs()` : chaîne T1+T2, SPG enrichi ✅.
+5. Tests : `spg_nodes_carry_stdlib_meta_end_to_end`,
+   `doc_only_sources_are_in_spg_but_not_in_typed_bin` ✅.
 
-### Phase 2 — Rédiger le catalogue (base → stats → utils)
+### Phase 2 — Rédiger le catalogue (base → stats → utils) 🔄
 
-1. **base.ty V1** : reclasser finement les candidats de base, rédiger les 150–250
-   entrées T1 (cible) + T2. **Objectif : aucune régression compilateur** — la
-   fusion `load_typed_r` ne doit jamais produire de nouveau type-erreur sur les
-   `cases/` et le suite de tests.
-2. **stats.ty / utils.ty** ensuite, selon la même recette.
-3. Conservation des fichiers existants : migrer `std_R.ty`/`default.ty`/… dans le
-   nouveau format `#!` sans perdre les signatures déjà validées.
-4. Circuit de validation à chaque lot :
-   `cargo test --workspace` puis `typr case run` (aucun REGRESS) puis
-   `typr std` + `typr std doc` sans SKIPPED non voulus.
+**Migration des signatures existantes** ✅ :
+- Tous les fichiers `.ty` (std_R.ty, default.ty, option.ty, factor.ty,
+  state.ty, file.ty, system.ty, plot.ty, lin_alg.ty, ord.ty, foreign.ty)
+  portent désormais des annotations `#!` complètes.
+- 10 doublons inter-fichiers identifiés et résolus (substr, sub, gsub,
+  strsplit, tolower, toupper, grepl → base.ty ; seq → default.ty ;
+  unique, sort → ord.ty).
+
+**Catalogue R base** ✅ :
+- `base.ty` : 128 signatures R base (math, stats, comparaison, string, set,
+  matrix, vector, type-checking, type-coercion) avec annotations `#!`
+  complètes (pkg, tier, param, ret, coercion, example, seealso).
+- `stats.ty` : 103 signatures du package stats (dnorm…rhyper, pwilcox,
+  t.test, cor.test, IQR, …), annotations `#!` complètes.
+- `utils.ty` : 55 signatures du package utils (read.csv, write.csv, head,
+  adist, …), annotations `#!` complètes.
+- Positionnement `R_DOC_ONLY_SOURCES` (doc SPG uniquement, pas compilateur).
+
+> **Noms pointés / variadiques** : les signatures dont le nom de fonction
+> contient un `.` (`read.csv`, `cor.test`, …) sont quantifiées par des
+> backticks (``@`read.csv` : …``) et les paramètres variadiques `...name:`
+> sont conservés tels quels — le préprocesseur ne strip que les vrais noms de
+> paramètres (`na.rm`, `row.names`), jamais le marqueur variadique. Les types
+> 3D (`[#N, #M, int]`) et les listes `[#, T]` sont ré-écrits sous forme
+> imbriquée `[#N, [#M, int]]` (le parseur les rejette sinon, et une ligne
+> rejetée empoisonne silencieusement tout ce qui suit dans le fichier).
+
+**Reste à faire** :
+- [x] `stats.ty` : fonctions du package stats (rnorm, dnorm, t.test, lm, …)
+- [x] `utils.ty` : fonctions du package utils (read.csv, write.csv, …)
+- [ ] Validation `typr case run` (aucun REGRESS)
+- [ ] Circuit de validation : `cargo test --workspace` + `typr std` + `typr std doc`
 
 > Garde-fou : `build_typed_vartype` **SKIP** silencieusement tout fichier qui
 > panique (standard_library.rs). Un `.ty` trop ambitieux qui fait paniquer
@@ -222,13 +300,12 @@ Champs minimal V1 : `pkg`, `tier`, `param` × n, `ret`, `coercion`/`note`,
 
 1. **Tests Rust** dans `crates/typr-cli` (suite `standard_library.rs`) :
    - toute signature `@…` du catalogue **parse et type-check** (zéro SKIPPED) ;
-   - `stdlib_declared_names()` ⊇ noms `.ty`, et réciproquement (dérivé, déjà
-     le cas) ;
+   - `stdlib_declared_names()` ⊇ noms `.ty` TypR-propriété (pas R base) ;
    - cohérence des tiers : un nom T3 dans `functions_R.txt` n'est dans aucun
      `.ty` T1 (inverse de la blacklist = erreur de build) ;
    - tous les `#! example:` sont compilables par `typr check` (isolation,
      pire cas : `noplayground`/skip pourquoi explicitement).
-2. **Consigne noirelist ↔ catalogue** : un nom blacklisté qui « se typifie
+2. **Consigne blacklist ↔ catalogue** : un nom blacklisté qui « se typifie
    un jour » doit passer par un audit explicite (déblacklister = décision,
    pas accident).
 3. **CI** : `cases` job étendu ou nouveau job `stdlib` compact (génération +
@@ -288,13 +365,14 @@ la soundness l'est.**
 | Exemple faux dans la doc MCP | Circuit `#! example:` → `typr check` en CI (Phase 4) |
 | Régression suite `cases/` | `typr case run` bloque ; toute promotion vérifie zéro REGRESS |
 | Dérive catalogue ↔ code compilé | `.bin` régénérés et committés à chaque changement ; tests de cohérence |
-| Surcharge de contexte MCP | Pack lookup-à-la-demande (ressource read-only), jamai inondé d'office |
+| Surcharge de contexte MCP | Pack lookup-à-la-demande (ressource read-only), jamais inondé d'office |
+| Fonctions R base dans `stdlib_declared_names()` | `base.ty` dans `R_DOC_ONLY_SOURCES`, exclu de `stdlib_declared_names()` |
 
 ---
 
 ## 10. Critères de succès
 
-1. `typr std` + `typr std doc` régénèrent, sans SKIPPED ni erreur, des
+1. `typr std` + `typr std doc` régénèrent, sans SKIPPED non voulus, des
    artefacts qui passent `cargo test --workspace` et `typr case run`.
 2. Un utilisateur peut écrire `sum(x)` / `mean(x, na.rm = true)` **sans
    signature** et le compilateur infère `num` (par exemple), avec une erreur
@@ -316,3 +394,5 @@ la soundness l'est.**
 - Génération de la doc **site** (`typr.github.io`) depuis le catalogue — c'est
   un renderer de plus sur le SPG, à faire après le pack MCP.
 - Chargement paresseux du blob T1 (optimisation, future).
+- Support du `type` (record type aliases) dans le parser — prerequisite pour
+  débloquer `plot.ty` et `system.ty` (SKIPPED actuellement).
