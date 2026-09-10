@@ -93,6 +93,55 @@ pub enum NodePayload {
     None,
 }
 
+/// Structured stdlib metadata extracted from `#!` annotations in `.ty` files.
+///
+/// Carried on `Node::meta` when the node originates from the stdlib catalogue.
+/// All fields are optional — partial metadata is valid (e.g. a function with
+/// only `tier` and `param` descriptions but no examples).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StdlibMeta {
+    /// Confidence tier: `T1` (compiler, high confidence), `T2` (MCP/doc,
+    /// medium confidence), `T3` (doc only, not type-safe for compiler).
+    pub tier: Option<String>,
+    /// Per-parameter descriptions: `(param_name, description)`.
+    pub param_docs: Vec<(String, String)>,
+    /// Return-value description.
+    pub ret_doc: Option<String>,
+    /// Coercion / silent-cast notes (e.g. "logical -> num par R").
+    pub coercion_notes: Option<String>,
+    /// Example code blocks (each a valid `typr check` candidate).
+    pub examples: Vec<String>,
+    /// Related function names (comma-separated in source, split into Vec).
+    pub seealso: Vec<String>,
+    /// The R package of origin (e.g. "base", "stats").
+    pub pkg: Option<String>,
+}
+
+impl StdlibMeta {
+    pub fn empty() -> Self {
+        StdlibMeta {
+            tier: None,
+            param_docs: Vec::new(),
+            ret_doc: None,
+            coercion_notes: None,
+            examples: Vec::new(),
+            seealso: Vec::new(),
+            pkg: None,
+        }
+    }
+
+    /// Returns true if this metadata carries any non-empty field.
+    pub fn is_non_empty(&self) -> bool {
+        self.tier.is_some()
+            || !self.param_docs.is_empty()
+            || self.ret_doc.is_some()
+            || self.coercion_notes.is_some()
+            || !self.examples.is_empty()
+            || !self.seealso.is_empty()
+            || self.pkg.is_some()
+    }
+}
+
 /// A node in the Semantic Package Graph.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Node {
@@ -107,6 +156,10 @@ pub struct Node {
     pub doc: Option<String>,
     pub source: Option<SourceLoc>,
     pub payload: NodePayload,
+    /// Structured stdlib metadata from `#!` annotations. `None` for
+    /// non-stdlib nodes or when no annotations were present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<StdlibMeta>,
 }
 
 impl Node {

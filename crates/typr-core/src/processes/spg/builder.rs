@@ -55,6 +55,7 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                 doc: doc_map.get(&help_data.get_offset()).cloned(),
                 source: source_from_help(help_data),
                 payload: NodePayload::Module { exports },
+                meta: None,
             });
             let mut child_path = module_path.to_vec();
             child_path.push(name.clone());
@@ -124,6 +125,7 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                         params: param_list,
                         returns,
                     },
+                    meta: None,
                 });
             } else if !matches!(r#type, Type::Empty(_)) {
                 // A plain `let name: T <- expr;` binding. Only the explicitly
@@ -145,6 +147,7 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                     payload: NodePayload::Variable {
                         type_str: r#type.to_string(),
                     },
+                    meta: None,
                 });
             }
         }
@@ -177,6 +180,7 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                             params: params.iter().map(|p| (safe_arg_name(p), p.get_type().to_string())).collect(),
                             returns: ret.to_string(),
                         },
+                        meta: None,
                     });
                 }
                 Type::Empty(_) => {}
@@ -193,6 +197,7 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                         payload: NodePayload::Variable {
                             type_str: other.to_string(),
                         },
+                        meta: None,
                     });
                 }
             }
@@ -221,6 +226,7 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                 doc: doc_map.get(&help_data.get_offset()).cloned(),
                 source: source_from_help(help_data),
                 payload,
+                meta: None,
             });
         }
 

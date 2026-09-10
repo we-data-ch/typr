@@ -138,8 +138,8 @@ enum Commands {
     },
     Repl,
     Lsp,
-    /// Start an MCP server over stdio, exposing the type checker to AI agents
-    /// (a `check` tool for now — see crates/typr-mcp).
+    /// Start an MCP server over stdio, exposing the compiler to AI agents
+    /// (`check` and `build` tools — see crates/typr-mcp).
     Mcp,
     /// Generate a Semantic Package Graph (spg.json) from the current project.
     Spg {
