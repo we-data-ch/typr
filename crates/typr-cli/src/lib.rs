@@ -55,6 +55,7 @@ pub mod r_name_lint;
 pub mod rd_renderer;
 pub mod repl;
 pub mod standard_library;
+pub mod syntax;
 pub mod vignette_renderer;
 
 // Re-export commonly used items

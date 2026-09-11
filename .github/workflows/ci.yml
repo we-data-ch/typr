@@ -104,10 +104,78 @@ jobs:
           npm ci
           npm run compile
 
+      - name: Grammaire TextMate — snapshot contre le corpus .ty
+        working-directory: editors/vscode
+        run: npm run test:grammar
+
       - name: Runner RStudio — analyse syntaxique
         run: |
           sudo apt-get update && sudo apt-get install -y r-base-core
           Rscript -e 'invisible(lapply(list.files("editors/rstudio/R", full.names=TRUE), parse)); cat("parse OK\n")'
+
+      - name: Plugin Vim — le runtime se charge sans erreur
+        run: |
+          sudo apt-get update && sudo apt-get install -y vim neovim
+          printf 'type Option<T> = .Some(T) | .None;\nlet x: Option<int> <- .Some(42);\n' > /tmp/typr_sample.ty
+          set +e
+          OUT=$(vim -Nu NONE -n -es \
+            --cmd 'set rtp+=editors/vim' \
+            --cmd 'let $PATH = "/usr/bin"' \
+            -c 'filetype detect' \
+            -c 'syntax on' \
+            -c 'runtime plugin/typr.vim' \
+            -c 'if &filetype != "typr" | call writefile(["BAD FT: " . &filetype], "/tmp/typr_ft_err") | endif' \
+            -c 'if !exists(":TyprCheck") || !exists(":TyprBuild") || !exists(":TyprRun") || !exists(":TyprTest") || !exists(":TyprRepl") || !exists(":TyprCheckFile") || !exists(":TyprBuildFile") || !exists(":TyprRunFile") | call writefile(["MISSING :Typr cmd"], "/tmp/typr_cmd_err") | endif' \
+            -c 'call typr#run("check", "", "", 0)' \
+            -c 'quitall' \
+            /tmp/typr_sample.ty 2>&1)
+          RC=$?
+          set -e
+          rm -f /tmp/typr_sample.ty
+          if [ "$RC" != "0" ]; then
+            echo "::error file=editors/vim::le plugin Vim a échoué (rc=$RC)"
+            echo "$OUT"
+            exit 1
+          fi
+          if [ -f /tmp/typr_ft_err ]; then
+            echo "::error file=editors/vim::la détection de fichiertype a échoué"
+            cat /tmp/typr_ft_err
+            exit 1
+          fi
+          if [ -f /tmp/typr_cmd_err ]; then
+            echo "::error file=editors/vim::les commandes :Typr* sont manquantes"
+            cat /tmp/typr_cmd_err
+            exit 1
+          fi
+          echo "plugin Vim OK"
+
+      - name: Plugin Neovim — le module Lua et le setup se chargent
+        run: |
+          printf 'let x: int <- 5;\n' > /tmp/typr_sample2.ty
+          set +e
+          NOUT=$(nvim --headless -u NONE \
+            --cmd 'set rtp+=editors/vim' \
+            -c 'filetype detect' \
+            -c 'runtime plugin/typr.vim' \
+            -c 'lua local ok = pcall(require, "typr"); if not ok then error("require typr failed") end; require("typr").setup()' \
+            -c 'if &filetype != "typr" | call writefile(["BAD FT"], "/tmp/typr_nft_err") | endif' \
+            -c 'if !exists(":TyprCheck") || !exists(":TyprRunFile") || !exists(":TyprTest") | call writefile(["MISSING nvim cmd"], "/tmp/typr_ncmd_err") | endif' \
+            -c 'quitall' \
+            /tmp/typr_sample2.ty 2>&1)
+          NRC=$?
+          set -e
+          rm -f /tmp/typr_sample2.ty
+          if [ "$NRC" != "0" ]; then
+            echo "::error file=editors/vim/lua::le module Lua a échoué (rc=$NRC)"
+            echo "$NOUT"
+            exit 1
+          fi
+          if [ -f /tmp/typr_ncmd_err ]; then
+            echo "::error file=editors/vim::les commandes :Typr* sont manquantes côté Neovim"
+            cat /tmp/typr_ncmd_err
+            exit 1
+          fi
+          echo "plugin Neovim OK"
 
   cases:
     name: Regression catalog

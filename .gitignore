@@ -99,6 +99,7 @@ editors/vscode/out/
 editors/vscode/*.vsix
 editors/rstudio/inst/bin/
 editors/rstudio/*.tar.gz
+editors/vim/doc/tags
 
 # Binaire injecté dans le contexte de build Docker
 docker/bin/

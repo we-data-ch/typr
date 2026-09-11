@@ -247,7 +247,9 @@
     "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --minify",
     "watch": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --watch",
     "package": "vsce package",
-    "publish": "vsce publish"
+    "publish": "vsce publish",
+    "test:grammar": "vscode-tmgrammar-snap -g syntaxes/typr.tmLanguage.json -s source.typr \"test/grammar/*.ty\"",
+    "test:grammar:update": "vscode-tmgrammar-snap -u -g syntaxes/typr.tmLanguage.json -s source.typr \"test/grammar/*.ty\""
   },
   "devDependencies": {
     "@types/node": "^25.2.3",
@@ -256,6 +258,7 @@
     "esbuild": "^0.27.3",
     "ovsx": "^1.1.1",
     "typescript": "^5.9.3",
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^9.0.1",
+    "vscode-tmgrammar-test": "^0.1.3"
   }
 }

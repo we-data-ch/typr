@@ -24,6 +24,26 @@ Sans ça, la garde de `publish.nu` ne protège que celui qui l'utilise.
 la pile par défaut de 2 Mo sur au moins un test. La CI le définit ; en local,
 exporte-le si `cargo test` s'interrompt sur un `stack overflow`.
 
+## Proposer un changement de langage (RFC)
+
+Une correction de bug se discute dans une issue. Un **changement de langage** —
+une syntaxe nouvelle, une règle de typage, une autre forme de R engendré — passe
+d'abord par une RFC : une proposition écrite, relue en PR, fusionnée dans
+`rfcs/` si elle est acceptée. Le but n'est pas la cérémonie, c'est que le
+*raisonnement* survive : six mois plus tard, « pourquoi TypR fait comme ça ? » a
+une réponse écrite.
+
+La frontière : **si la réponse à « que fait TypR ici ? » change, c'est une
+RFC ; si le compilateur ne fait que rattraper une réponse déjà donnée, c'est une
+issue.** Une idée encore floue va dans la catégorie
+[Ideas](https://github.com/we-data-ch/typr/discussions/categories/ideas) des
+Discussions — c'est souvent là qu'elle se règle, et sinon elle en sort meilleure.
+
+Le processus complet, les étiquettes (`rfc-draft` / `rfc-accepted` /
+`rfc-rejected`) et le gabarit sont dans [rfcs/README.md](rfcs/README.md). Les
+notes de conception du workspace (`spécifications/`, `ai_context/*.md`) en sont
+la matière première : une RFC, c'est leur face publique.
+
 ## Travailler sur le parseur ou le typage
 
 Le catalogue `cases/` est un ensemble de reproductions curées, chacune avec sa
@@ -39,6 +59,38 @@ typr case freeze <nnnn>     # fige la sortie actuelle comme golden
 
 Une correction de bug sans cas associé n'a rien qui l'empêche de revenir.
 
+## Travailler sur la coloration syntaxique
+
+Les grammaires d'éditeur sont **générées**. La source de vérité unique est le
+manifeste de syntaxe, `crates/typr-core/src/components/syntax/mod.rs` : une
+liste ordonnée de règles, une entrée par lexème que le parseur reconnaît
+réellement.
+
+```bash
+typr syntax --json          # le manifeste
+typr syntax --target tmlanguage
+typr syntax --write         # régénère les grammaires sous editors/
+typr syntax --check         # échoue si une grammaire commitée a dérivé
+```
+
+N'édite jamais `editors/vscode/syntaxes/typr.tmLanguage.json` à la main : le
+fichier porte un en-tête qui le dit, et `cargo test -p typr-cli` le compare à
+ce que le manifeste produit.
+
+Deux tests gardent l'invariant dans les deux sens
+(`components::syntax::tests`) :
+
+- ajouter un `tag("…")` au parseur sans l'ajouter au manifeste fait échouer
+  `every_parser_tag_is_in_the_manifest` ;
+- mettre dans le manifeste un mot que le parseur ne connaît pas fait échouer
+  `manifest_claims_no_word_the_parser_does_not_know`.
+
+C'est le second qui manquait : les grammaires écrites à la main coloraient
+`impl`, `trait`, `struct`, `enum`, `where`, `mut`, `Option`, `Result` —
+copiés d'une grammaire Rust, inexistants en TypR — pendant que `opaque`,
+`module`, `record`, `object`, `interface`, `typeconstructor`, `recursive`,
+`embed`, `@export` et les sigils de kind n'étaient colorés nulle part.
+
 ## Travailler sur la documentation
 
 La documentation vit dans un dépôt séparé : `we-data-ch/typr.github.io`.
@@ -46,9 +98,13 @@ Chaque PR y déclenche une construction complète du site — `onBrokenLinks` es
 réglé sur `throw`, donc un lien mort fait échouer la CI avant la fusion, pas
 après.
 
-Les blocs de code TypR ne sont pas encore vérifiés contre le compilateur : un
-exemple peut devenir faux sans que rien ne le signale. C'est le prochain
-chantier documentation.
+Chaque bloc ` ```typr ` du site est passé au vrai compilateur en CI
+(`npm run check:examples`) : un exemple qui cesse de compiler bloque la
+construction. L'oracle est la **dernière release** — la version que le lecteur a
+réellement installée — et un second workflow rejoue la même chose chaque nuit
+contre `develop`, en avertissement seulement. C'est le préavis « la prochaine
+release va casser tel exemple » : quand il se déclenche, la PR du compilateur et
+celle de la doc doivent partir ensemble.
 
 ## Versions
 

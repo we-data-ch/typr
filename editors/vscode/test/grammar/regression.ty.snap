@@ -1,0 +1,91 @@
+># Pins the bug that started the syntax-manifest project: an editor grammar
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.typr comment.line.number-sign.typr
+># copy-pasted from Rust's, coloring keywords TypR has never had while the
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.typr comment.line.number-sign.typr
+># real keywords it does have (opaque, module, record, interface, ...) went
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.typr comment.line.number-sign.typr
+># uncolored. None of the words below should carry any special scope — they
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.typr comment.line.number-sign.typr
+># must fall through to plain identifiers (lowercase) or PascalCase aliases
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.typr comment.line.number-sign.typr
+># (uppercase), exactly like any other undeclared name.
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.typr comment.line.number-sign.typr
+>impl trait struct enum where mut pub continue Option Result List Matrix Some None Ok Err
+#^^^^ source.typr variable.other.typr
+#    ^ source.typr
+#     ^^^^^ source.typr variable.other.typr
+#          ^ source.typr
+#           ^^^^^^ source.typr variable.other.typr
+#                 ^ source.typr
+#                  ^^^^ source.typr variable.other.typr
+#                      ^ source.typr
+#                       ^^^^^ source.typr variable.other.typr
+#                            ^ source.typr
+#                             ^^^ source.typr variable.other.typr
+#                                ^ source.typr
+#                                 ^^^ source.typr variable.other.typr
+#                                    ^ source.typr
+#                                     ^^^^^^^^ source.typr variable.other.typr
+#                                             ^ source.typr
+#                                              ^^^^^^ source.typr entity.name.type.typr
+#                                                    ^ source.typr
+#                                                     ^^^^^^ source.typr entity.name.type.typr
+#                                                           ^ source.typr
+#                                                            ^^^^ source.typr entity.name.type.typr
+#                                                                ^ source.typr
+#                                                                 ^^^^^^ source.typr entity.name.type.typr
+#                                                                       ^ source.typr
+#                                                                        ^^^^ source.typr entity.name.type.typr
+#                                                                            ^ source.typr
+#                                                                             ^^^^ source.typr entity.name.type.typr
+#                                                                                 ^ source.typr
+#                                                                                  ^^ source.typr entity.name.type.typr
+#                                                                                    ^ source.typr
+#                                                                                     ^^^ source.typr entity.name.type.typr
+>
+># Same for operators: none of these compounds exist in the tokenizer, so
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.typr comment.line.number-sign.typr
+># each must resolve to its real, shorter components instead of being colored
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.typr comment.line.number-sign.typr
+># as one (invented) operator.
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ source.typr comment.line.number-sign.typr
+>a |>> b
+#^ source.typr variable.other.typr
+# ^ source.typr
+#  ^^ source.typr keyword.operator.pipe.typr
+#    ^ source.typr keyword.operator.comparison.typr
+#     ^ source.typr
+#      ^ source.typr variable.other.typr
+>a $$ b
+#^ source.typr variable.other.typr
+# ^ source.typr
+#  ^ source.typr keyword.operator.access.typr
+#   ^ source.typr keyword.operator.access.typr
+#    ^ source.typr
+#     ^ source.typr variable.other.typr
+>a @@ b
+#^ source.typr variable.other.typr
+# ^^^^ source.typr
+#     ^ source.typr variable.other.typr
+>a ++ b
+#^ source.typr variable.other.typr
+# ^ source.typr
+#  ^ source.typr keyword.operator.arithmetic.typr
+#   ^ source.typr keyword.operator.arithmetic.typr
+#    ^ source.typr
+#     ^ source.typr variable.other.typr
+>a -- b
+#^ source.typr variable.other.typr
+# ^ source.typr
+#  ^ source.typr keyword.operator.arithmetic.typr
+#   ^ source.typr keyword.operator.arithmetic.typr
+#    ^ source.typr
+#     ^ source.typr variable.other.typr
+>a ** b
+#^ source.typr variable.other.typr
+# ^ source.typr
+#  ^ source.typr keyword.operator.arithmetic.typr
+#   ^ source.typr keyword.operator.arithmetic.typr
+#    ^ source.typr
+#     ^ source.typr variable.other.typr
+>

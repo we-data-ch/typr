@@ -1,0 +1,187 @@
+*typr.txt*  Language support for TypR (Typed R with Rust-inspired syntax)
+
+==============================================================================
+CONTENTS                                          *typr-contents*
+
+  1. Introduction        |typr-intro|
+  2. Requirements        |typr-requirements|
+  3. Installation        |typr-install|
+  4. Language server     |typr-lsp|
+  5. Commands            |typr-commands|
+  6. License             |typr-license|
+
+==============================================================================
+1. Introduction                                        *typr-intro*
+
+This plugin provides editor support for TypR (.ty files):
+
+  - Syntax highlighting (syntax/typr.vim)
+  - Filetype detection (ftdetect/typr.vim)
+  - Indentation (indent/typr.vim)
+  - Buffer-local options: commentstring, folding markers
+    (ftplugin/typr.vim)
+
+The same plugin works in both Vim and Neovim. The language server is a
+separate binary shared with every other editor.
+
+==============================================================================
+2. Requirements                                      *typr-requirements*
+
+To use the language server you need the `typr` binary installed and
+available on your PATH, exposing the `lsp` subcommand:
+>
+    typr lsp
+<
+Install it from any channel, e.g.:
+>
+    cargo install typr
+<
+See the TypR README for binaries, Docker and package channels.
+
+If the binary is not on your PATH, point the plugin at it (works for both
+Vim and Neovim):                                        *g:typr_path*
+>
+    let g:typr_path = "/path/to/typr"
+<
+
+==============================================================================
+3. Installation                                      *typr-install*
+
+The plugin follows the standard Vim plugin layout, so it works with every
+plugin manager as well as native packages.
+
+For Neovim, plus (lazy.nvim): >
+    {
+      "we-data-ch/typr",
+      dir = "editors/vim",
+      ft = "typr",
+      config = function()
+        require("typr").setup()
+      end,
+    }
+<
+Plus (vim-plug): >
+    Plug 'we-data-ch/typr', { 'rtp': 'editors/vim', 'for': 'typr' }
+    " then :PlugInstall
+<
+Plus (packer.nvim): >
+    use { "we-data-ch/typr", rtp = "editors/vim", ft = "typr" }
+<
+Native packages (works for both Vim and Neovim): >
+    git clone https://github.com/we-data-ch/typr ~/.local/share/nvim/site/pack/typr/start/typr
+    cd ~/.local/share/nvim/site/pack/typr/start/typr
+    ln -s editors/vim ./package  " optional pointer for clarity, see note below
+<
+NOTE: When installing from the monorepo with native packages, symlink the
+plugin root to editors/vim so Vim's runtime files resolve correctly:
+>
+    ln -s "$(pwd)/editors/vim" ~/.vim/pack/typr/start/typr
+    # or, for Neovim:
+    ln -s "$(pwd)/editors/vim" ~/.local/share/nvim/site/pack/typr/start/typr
+<
+
+==============================================================================
+4. Language server                                     *typr-lsp*
+
+The server is a single binary (`typr lsp`) shared across editors. Only the
+client wiring differs between Vim and Neovim.
+
+Neovim (automatic)                                 *typr-lsp-neovim*
+
+On Neovim the plugin starts the language server automatically for .ty files
+when `typr` is available, using the built-in LSP client. No configuration is
+required:
+>
+    :TyprLspStatus
+<
+To control it explicitly:
+>
+    vim.g.typr_path = "/path/to/typr"       " optional, overrides PATH
+    require("typr").setup()
+<
+To disable the language server entirely and keep only syntax/indent support,
+set the opt-out before the plugin loads (e.g. in lazy.nvim's `init`): >
+    vim.g.typr_lsp_enabled = false
+<
+Configuring the built-in client: >
+    require("typr.lsp").attach({
+      capabilities = vim.lsp.protocol.make_client_capabilities(), -- extend as needed
+      settings = { typr = { trace = "off" } },
+    })
+<
+If you use a wrapper such as nvim-lspconfig, you can register a custom
+client instead and disable the plugin's auto-attach with the opt-out above
+under your own autocmd.
+Vim (one line)                                     *typr-lsp-vim*
+
+Vim has no built-in LSP client. Use either coc.nvim or vim-lsp and point it
+at `typr lsp`.
+
+With coc.nvim, add to CocConfig (json): >
+    {
+      "languageserver": {
+        "typr": {
+          "command": "typr",
+          "args": ["lsp"],
+          "filetypes": ["typr"]
+        }
+      }
+    }
+<
+With vim-lsp, add to your vimrc: >
+    au User lsp_setup call lsp#register_server({
+          \ 'name': 'typr',
+          \ 'cmd': {server_info->['typr', 'lsp']},
+          \ 'whitelist': ['typr'],
+          \ })
+    autocmd FileType typr setlocal omnifunc=lsp#complete
+<
+
+==============================================================================
+5. Commands                                            *typr-commands*
+
+The `:Typr*` commands run the `typr` CLI tooling from inside the editor.
+Output is written to a terminal window (kept open so you can read typr's
+diagnostics) and works identically in Vim and Neovim.
+
+Projects-level commands>
+
+    :TyprCheck [args]     Run `typr check` on the project.
+    :TyprBuild [args]     Run `typr build` (transpile to R).
+    :TyprRun [args]       Run `typr run` (transpile and execute the R output).
+    :TyprTest [args]      Run `typr test` (project test suite).
+    :TyprRepl [args]      Start the interactive Read-Eval-Print Loop.
+
+File-level commands operate on the current buffer (.ty file) instead of the
+whole project>
+
+    :TyprCheckFile [args]     `typr check` on the current file.
+    :TyprBuildFile [args]     `typr build` on the current file.
+    :TyprRunFile [args]       `typr run` on the current file.
+
+With the bang the command runs synchronously inline instead of in a terminal
+window:>
+
+    :TyprCheck!  " blocking, output echoed in the message area
+
+[args] is passed verbatim to typr, e.g. `:TyprBuildFile --strict`. Useful
+flags (tab-completed for each command):
+
+    build: --test --no-incremental --checked --strict
+    run:   --profile --checked --strict
+    test:  --profile
+
+Note: `typr test` does not take a file, so there is no :TyprTestFile.
+
+If the `typr` binary cannot be found these commands abort with a warning.
+Set |g:typr_path| to use a specific binary instead of searching PATH.
+
+:TyprLspStatus  Report whether the typr binary and its `lsp` subcommand are
+                available, and advise on client setup.
+
+==============================================================================
+6. License                                              *typr-license*
+
+Licensed under the Apache-2.0 license, matching the TypR project.
+
+vim:tw=78:ts=8:noet:ft=help:norl:

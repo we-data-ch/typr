@@ -102,7 +102,8 @@ tag vX.Y.Z
    │
    ├─ crates-io ...... typr-core → typr-lsp → typr-cli → typr
    ├─ wasm ........... WASM + version.json → dépôt du playground
-   └─ vscode ......... .vsix → Marketplace + attaché à la release
+   ├─ vscode ......... .vsix → Marketplace + Open VSX + attaché à la release
+   └─ vim ............ tarball du plugin, attaché à la release
 ```
 
 Les branches sont indépendantes : si le Marketplace échoue, les binaires et

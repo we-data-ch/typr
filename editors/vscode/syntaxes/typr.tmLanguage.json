@@ -1,217 +1,514 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "information_for_contributors": [
+    "GENERATED FILE — do not edit.",
+    "Produced by `typr syntax --target tmlanguage` from the syntax manifest in",
+    "crates/typr-core/src/components/syntax/mod.rs, the single source of truth for",
+    "TypR's lexemes. Edit the manifest and re-run `typr syntax --write`; CI runs",
+    "`typr syntax --check` and fails on a hand-edited grammar."
+  ],
   "name": "typR",
-  "scopeName": "source.typr",
   "patterns": [
-    { "include": "#comments" },
-    { "include": "#strings" },
-    { "include": "#numbers" },
-    { "include": "#keywords" },
-    { "include": "#types" },
-    { "include": "#operators" },
-    { "include": "#functions" },
-    { "include": "#variables" },
-    { "include": "#punctuation" }
+    {
+      "include": "#strings.raw-r"
+    },
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings.double"
+    },
+    {
+      "include": "#strings.single"
+    },
+    {
+      "include": "#strings.backtick"
+    },
+    {
+      "include": "#numbers.float"
+    },
+    {
+      "include": "#numbers.integer"
+    },
+    {
+      "include": "#annotations"
+    },
+    {
+      "include": "#keywords.control"
+    },
+    {
+      "include": "#keywords.declaration"
+    },
+    {
+      "include": "#keywords.cast"
+    },
+    {
+      "include": "#keywords.operator-word"
+    },
+    {
+      "include": "#constants"
+    },
+    {
+      "include": "#types.primitive"
+    },
+    {
+      "include": "#types.builtin"
+    },
+    {
+      "include": "#types.builtin-indexed"
+    },
+    {
+      "include": "#types.constructor"
+    },
+    {
+      "include": "#keywords.block"
+    },
+    {
+      "include": "#types.variant"
+    },
+    {
+      "include": "#types.sigil-generic"
+    },
+    {
+      "include": "#types.generic"
+    },
+    {
+      "include": "#types.alias"
+    },
+    {
+      "include": "#operators.arrow"
+    },
+    {
+      "include": "#operators.bind"
+    },
+    {
+      "include": "#operators.comparison"
+    },
+    {
+      "include": "#operators.logical"
+    },
+    {
+      "include": "#operators.pipe"
+    },
+    {
+      "include": "#operators.type-union"
+    },
+    {
+      "include": "#operators.custom"
+    },
+    {
+      "include": "#operators.arithmetic"
+    },
+    {
+      "include": "#operators.vectorial-block"
+    },
+    {
+      "include": "#operators.spread"
+    },
+    {
+      "include": "#operators.access"
+    },
+    {
+      "include": "#operators.assign"
+    },
+    {
+      "include": "#operators.lambda"
+    },
+    {
+      "include": "#functions.call"
+    },
+    {
+      "include": "#variables.parameter"
+    },
+    {
+      "include": "#variables.other"
+    },
+    {
+      "include": "#punctuation.terminator"
+    },
+    {
+      "include": "#punctuation.separator"
+    },
+    {
+      "include": "#punctuation.brackets"
+    }
   ],
   "repository": {
-    "comments": {
+    "annotations": {
+      "comment": "Visibility/interop annotations (RFC-TR-032). Ahead of the `@T` interface sigil and of any bare-`@` rule, both of which would eat their `@`.",
       "patterns": [
         {
-          "name": "comment.line.number-sign.typr",
-          "match": "#.*$"
+          "match": "(@importFrom|@testable|@export|@extern|@pub)(?![A-Za-z0-9_])",
+          "name": "storage.modifier.annotation.typr"
         }
       ]
     },
-    "strings": {
+    "comments": {
+      "comment": "TypR comments are `#` only — never `//`, which the parser rejects outright (`wrong_comment` in parsing/mod.rs). The lookahead is the one place a regex grammar has to guess where the parser uses context: `#N` and `#Self` are the Number kind sigil, so they are left to `types.sigil-generic`; anything else after `#` opens a comment.",
       "patterns": [
         {
-          "name": "string.quoted.double.typr",
+          "match": "#(?!(?:Self|[A-Z])(?![A-Za-z0-9_])).*$",
+          "name": "comment.line.number-sign.typr"
+        }
+      ]
+    },
+    "constants": {
+      "comment": "Both spellings are real: `parsing/elements.rs` accepts the R form and the lowercase TypR form. No `NaN`/`Inf` — the parser has a tag for neither.",
+      "patterns": [
+        {
+          "match": "(?<![A-Za-z0-9_])(FALSE|false|NULL|TRUE|null|true|NA|na)(?![A-Za-z0-9_])",
+          "name": "constant.language.typr"
+        }
+      ]
+    },
+    "functions.call": {
+      "comment": "After every keyword rule, so `if (`/`while (` stay keywords.",
+      "patterns": [
+        {
+          "match": "\\b([a-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "name": "entity.name.function.typr"
+        }
+      ]
+    },
+    "keywords.block": {
+      "comment": "Escape-hatch and test block heads: `R { ... }`, `JS { ... }`, `Test { ... }`, `Test[...]`. Delimiter-guarded for the same reason as `types.constructor` — and `R` in particular is a single uppercase letter, i.e. also a valid generic name, so an unguarded rule would fight `types.generic`.",
+      "patterns": [
+        {
+          "match": "(?<![A-Za-z0-9_])(Test|JS|R)(?=\\s*[\\[{])",
+          "name": "keyword.other.block.typr"
+        }
+      ]
+    },
+    "keywords.cast": {
+      "comment": "`as!` first, or the `as` alternative eats its prefix.",
+      "patterns": [
+        {
+          "match": "(?<![A-Za-z0-9_])(as!|as)(?![A-Za-z0-9_])",
+          "name": "keyword.operator.cast.typr"
+        }
+      ]
+    },
+    "keywords.control": {
+      "comment": "No `continue`: the loop-skip keyword is `next;` (R spelling), `parsing/elements.rs::next_exp`.",
+      "patterns": [
+        {
+          "match": "(?<![A-Za-z0-9_])(return|break|match|while|else|loop|next|for|if)(?![A-Za-z0-9_])",
+          "name": "keyword.control.typr"
+        }
+      ]
+    },
+    "keywords.declaration": {
+      "comment": "No `impl`/`trait`/`struct`/`enum`/`where`/`mut`/`pub`: none has ever existed in TypR — they were Rust leftovers in the hand-written grammars. Visibility is spelled with the `@pub`/`@export` annotations.",
+      "patterns": [
+        {
+          "match": "(?<![A-Za-z0-9_])(typeconstructor|interface|recursive|function|extern|import|module|object|opaque|record|embed|type|let|mod|use|fn)(?![A-Za-z0-9_])",
+          "name": "keyword.declaration.typr"
+        }
+      ]
+    },
+    "keywords.operator-word": {
+      "comment": "Word-spelled operators (`components/language/operators.rs::bool_op`/`op`).",
+      "patterns": [
+        {
+          "match": "(?<![A-Za-z0-9_])(and|in|or)(?![A-Za-z0-9_])",
+          "name": "keyword.operator.word.typr"
+        }
+      ]
+    },
+    "numbers.float": {
+      "comment": "`parsing/elements.rs::number` — digits, a dot, digits. No exponent form exists.",
+      "patterns": [
+        {
+          "match": "\\b[0-9]+\\.[0-9]+\\b",
+          "name": "constant.numeric.float.typr"
+        }
+      ]
+    },
+    "numbers.integer": {
+      "patterns": [
+        {
+          "match": "\\b[0-9]+\\b",
+          "name": "constant.numeric.integer.typr"
+        }
+      ]
+    },
+    "operators.access": {
+      "patterns": [
+        {
+          "match": "::|\\$|\\.",
+          "name": "keyword.operator.access.typr"
+        }
+      ]
+    },
+    "operators.arithmetic": {
+      "comment": "No `^`/`++`/`--`/`**`/`//`: `op()` recognizes none of them. `^` is the String kind sigil and nothing else — the hand-written grammars listed it as exponentiation, which TypR does not have.",
+      "patterns": [
+        {
+          "match": "%|\\*|\\+|\\-|\\/",
+          "name": "keyword.operator.arithmetic.typr"
+        }
+      ]
+    },
+    "operators.arrow": {
+      "comment": "Ahead of comparison and arithmetic, which own `-`, `=` and `>`.",
+      "patterns": [
+        {
+          "match": "\\->|=>",
+          "name": "keyword.operator.arrow.typr"
+        }
+      ]
+    },
+    "operators.assign": {
+      "comment": "Bare `=` is never an infix operator in TypR — only a binder, a named-field separator and a default-value separator. Last of the `=`-shaped rules so `==`, `=>` and `!=` are already claimed.",
+      "patterns": [
+        {
+          "match": "=",
+          "name": "keyword.operator.assignment.typr"
+        }
+      ]
+    },
+    "operators.bind": {
+      "comment": "Ahead of comparison, whose `<` would otherwise split `<-`.",
+      "patterns": [
+        {
+          "match": "<\\-",
+          "name": "keyword.operator.assignment.typr"
+        }
+      ]
+    },
+    "operators.comparison": {
+      "patterns": [
+        {
+          "match": "!=|<=|==|>=|<|>",
+          "name": "keyword.operator.comparison.typr"
+        }
+      ]
+    },
+    "operators.custom": {
+      "comment": "R-style custom infix (`operators.rs::custom_op`). Ahead of the bare `%` modulo.",
+      "patterns": [
+        {
+          "match": "%[^%\\s]*%",
+          "name": "keyword.operator.custom.typr"
+        }
+      ]
+    },
+    "operators.lambda": {
+      "comment": "`\\(x) ...` lambda shorthand (`parsing/elements.rs::lambda`).",
+      "patterns": [
+        {
+          "match": "\\\\(?=[({:])",
+          "name": "keyword.operator.lambda.typr"
+        }
+      ]
+    },
+    "operators.logical": {
+      "comment": "After comparison, so `!=` is not read as `!` then `=`. `|` belongs to `operators.type-union`, which it doubles as.",
+      "patterns": [
+        {
+          "match": "&&|\\|\\||!|&",
+          "name": "keyword.operator.logical.typr"
+        }
+      ]
+    },
+    "operators.pipe": {
+      "comment": "No `|>>`: it has no type-checking or transpiling arm and no stdlib signature — see the tokenizer purge note on `operators.rs::op`.",
+      "patterns": [
+        {
+          "match": "\\|>",
+          "name": "keyword.operator.pipe.typr"
+        }
+      ]
+    },
+    "operators.spread": {
+      "comment": "`...` runtime spread / variadic, `..` nominal spread (`Point:{ ..source }`). Longest-first inside the rule, and ahead of `operators.access`'s `.`.",
+      "patterns": [
+        {
+          "match": "\\.\\.\\.|\\.\\.",
+          "name": "keyword.operator.spread.typr"
+        }
+      ]
+    },
+    "operators.type-union": {
+      "patterns": [
+        {
+          "match": "\\|(?!>)",
+          "name": "keyword.operator.type-union.typr"
+        }
+      ]
+    },
+    "operators.vectorial-block": {
+      "comment": "`@{ ... }@` vectorized block (`parsing/elements.rs::vectorial_bloc`).",
+      "patterns": [
+        {
+          "match": "@\\{|\\}@",
+          "name": "keyword.operator.vectorial.typr"
+        }
+      ]
+    },
+    "punctuation.brackets": {
+      "patterns": [
+        {
+          "match": "[\\[\\](){}]",
+          "name": "punctuation.section.brackets.typr"
+        }
+      ]
+    },
+    "punctuation.separator": {
+      "patterns": [
+        {
+          "match": ",|:",
+          "name": "punctuation.separator.typr"
+        }
+      ]
+    },
+    "punctuation.terminator": {
+      "patterns": [
+        {
+          "match": ";",
+          "name": "punctuation.terminator.typr"
+        }
+      ]
+    },
+    "strings.backtick": {
+      "comment": "R-style non-syntactic name (`parsing/elements.rs::quoted_variable`).",
+      "patterns": [
+        {
+          "begin": "`",
+          "end": "`",
+          "name": "string.quoted.other.backtick.typr"
+        }
+      ]
+    },
+    "strings.double": {
+      "patterns": [
+        {
           "begin": "\"",
           "end": "\"",
+          "name": "string.quoted.double.typr",
           "patterns": [
             {
-              "name": "constant.character.escape.typr",
-              "match": "\\\\."
+              "match": "\\\\.",
+              "name": "constant.character.escape.typr"
             }
           ]
-        },
+        }
+      ]
+    },
+    "strings.raw-r": {
+      "comment": "`extern (...) -> T r#\"...\"#` raw R body — verbatim, no escape processing. Ahead of `comments` so its inner `#` never opens one.",
+      "patterns": [
         {
-          "name": "string.quoted.single.typr",
+          "begin": "r#\"",
+          "end": "\"#",
+          "name": "string.quoted.other.raw.typr"
+        }
+      ]
+    },
+    "strings.single": {
+      "patterns": [
+        {
           "begin": "'",
           "end": "'",
+          "name": "string.quoted.single.typr",
           "patterns": [
             {
-              "name": "constant.character.escape.typr",
-              "match": "\\\\."
+              "match": "\\\\.",
+              "name": "constant.character.escape.typr"
             }
           ]
-        },
-        {
-          "name": "string.quoted.backtick.typr",
-          "begin": "`",
-          "end": "`"
         }
       ]
     },
-    "numbers": {
+    "types.alias": {
+      "comment": "PascalCase alias / type-constructor name (`parsing/types.rs::pascal_case_no_space`).",
       "patterns": [
         {
-          "name": "constant.numeric.float.typr",
-          "match": "\\b[0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?\\b"
-        },
-        {
-          "name": "constant.numeric.integer.typr",
-          "match": "\\b[0-9]+\\b"
+          "match": "\\b[A-Z][A-Za-z0-9_]+\\b",
+          "name": "entity.name.type.typr"
         }
       ]
     },
-    "keywords": {
+    "types.builtin": {
+      "comment": "No `Option`/`Result`/`List`/`Matrix`: TypR has none of them. These are the names usable bare in a type position; the ones that only exist in front of a delimiter are in `types.constructor` and `keywords.block`.",
       "patterns": [
         {
-          "name": "keyword.control.typr",
-          "match": "\\b(if|else|match|for|while|loop|break|continue|return)\\b"
-        },
-        {
-          "name": "keyword.other.typr",
-          "match": "\\b(let|fn|type|pub|use|mod|impl|trait|struct|enum|where|as|in|mut)\\b"
-        },
-        {
-          "name": "constant.language.boolean.typr",
-          "match": "\\b(true|false)\\b"
-        },
-        {
-          "name": "constant.language.null.typr",
-          "match": "\\b(NULL|NA|NaN|Inf)\\b"
+          "match": "(?<![A-Za-z0-9_])(UnknownFunction|data__frame|data\\.frame|dataframe|Record|Array|Tuple|tuple|list|Vec)(?![A-Za-z0-9_])",
+          "name": "support.type.builtin.typr"
         }
       ]
     },
-    "types": {
+    "types.builtin-indexed": {
+      "comment": "`df` is a type name the parser accepts bare too (`parsing/types.rs::dataframe_type`), but `df` is also the single most common data-frame *variable* name in R. Coloring it only in `df[...]` under-colors a bare `x: df` annotation; the alternative over-colors every `df` in every program, which is worse. `dataframe`, the unambiguous spelling, stays in `types.builtin`.",
       "patterns": [
         {
-          "name": "storage.type.primitive.typr",
-          "match": "\\b(int|num|char|bool|Empty|Any)\\b"
-        },
-        {
-          "name": "storage.type.generic.typr",
-          "match": "\\b(Option|Vec|Result|List|Matrix)\\b"
-        },
-        {
-          "name": "entity.name.type.variant.typr",
-          "match": "\\.(Some|None|Ok|Err|[A-Z][a-zA-Z0-9_]*)\\b"
-        },
-        {
-          "name": "variable.other.generic.typr",
-          "match": "#[A-Z][a-zA-Z0-9_]*\\b"
-        },
-        {
-          "name": "entity.name.type.parameter.typr",
-          "match": "\\b[A-Z]\\b(?![a-z])"
+          "match": "(?<![A-Za-z0-9_])(df)(?=\\s*\\[)",
+          "name": "support.type.builtin.typr"
         }
       ]
     },
-    "operators": {
+    "types.constructor": {
+      "comment": "The parser only ever matches these glued to their opening delimiter (`c(`, `seq[`, `Class(`, `library(`), so the delimiter is part of the rule. Without it, every variable named `c` would be colored as a builtin.",
       "patterns": [
         {
-          "name": "keyword.operator.arrow.typr",
-          "match": "->|=>"
-        },
-        {
-          "name": "keyword.operator.assignment.typr",
-          "match": "<-|="
-        },
-        {
-          "name": "keyword.operator.logical.typr",
-          "match": "&&|\\|\\||!"
-        },
-        {
-          "name": "keyword.operator.comparison.typr",
-          "match": "==|!=|<=|>=|<|>"
-        },
-        {
-          "name": "keyword.operator.arithmetic.typr",
-          "match": "\\+|-|\\*|/|%|\\^"
-        },
-        {
-          "name": "keyword.operator.pipe.typr",
-          "match": "\\|>"
-        },
-        {
-          "name": "keyword.operator.type-union.typr",
-          "match": "\\|(?!>)"
-        },
-        {
-          "name": "keyword.operator.external.typr",
-          "match": "@"
-        },
-        {
-          "name": "keyword.operator.accessor.typr",
-          "match": "\\."
-        },
-        {
-          "name": "keyword.operator.namespace.typr",
-          "match": "::"
+          "match": "(?<![A-Za-z0-9_])(library|Class|seq|c)(?=\\s*[\\[(])",
+          "name": "support.function.builtin.typr"
         }
       ]
     },
-    "functions": {
+    "types.generic": {
       "patterns": [
         {
-          "name": "entity.name.function.typr",
-          "match": "\\b([a-z_][a-zA-Z0-9_]*)\\s*(?=\\()"
-        },
-        {
-          "name": "entity.name.function.external.typr",
-          "match": "@([a-z_][a-zA-Z0-9_]*)\\b"
-        },
-        {
-          "name": "entity.name.function.definition.typr",
-          "match": "(?<=fn\\s+)([a-z_][a-zA-Z0-9_]*)\\b"
-        },
-        {
-          "name": "entity.name.function.definition.typr",
-          "match": "(?<=let\\s+)([a-z_][a-zA-Z0-9_]*)(?=\\s*<-\\s*fn)"
+          "match": "\\b[A-Z](?![A-Za-z0-9_])",
+          "name": "entity.name.type.parameter.typr"
         }
       ]
     },
-    "variables": {
+    "types.primitive": {
+      "comment": "`logic` is the accepted alias of `bool` (`parsing/types.rs::boolean_type`).",
       "patterns": [
         {
-          "name": "variable.parameter.typr",
-          "match": "\\b([a-z_][a-zA-Z0-9_]*)\\s*:"
-        },
-        {
-          "name": "variable.other.typr",
-          "match": "\\b[a-z_][a-zA-Z0-9_]*\\b"
+          "match": "(?<![A-Za-z0-9_])(Empty|logic|Self|bool|char|Any|int|num)(?![A-Za-z0-9_])",
+          "name": "support.type.primitive.typr"
         }
       ]
     },
-    "punctuation": {
+    "types.sigil-generic": {
+      "comment": "Sigil + generic. A generic name is a *single* uppercase letter or `Self` (`parsing/types.rs::upper_case_generic`), so the rule stops there instead of running on into a PascalCase alias.",
       "patterns": [
         {
-          "name": "punctuation.separator.statement.typr",
-          "match": ";"
-        },
+          "match": "[#%@\\^\\?\\$](?:Self|[A-Z])(?![A-Za-z0-9_])",
+          "name": "entity.name.type.parameter.typr"
+        }
+      ]
+    },
+    "types.variant": {
+      "comment": "Union-variant tag, `.Variant` (`parsing/elements.rs::tag_exp`).",
+      "patterns": [
         {
-          "name": "punctuation.separator.comma.typr",
-          "match": ","
-        },
+          "match": "\\.[A-Z][A-Za-z0-9_]*\\b",
+          "name": "entity.name.type.variant.typr"
+        }
+      ]
+    },
+    "variables.other": {
+      "comment": "An identifier starts lowercase-or-underscore and continues in `[A-Za-z0-9_]` — no dots, unlike R (`parsing/elements.rs::starting_char`/`body_char`). `data.frame` is a single dedicated tag, not an identifier.",
+      "patterns": [
         {
-          "name": "punctuation.bracket.round.typr",
-          "match": "[()]"
-        },
+          "match": "\\b[a-z_][A-Za-z0-9_]*\\b",
+          "name": "variable.other.typr"
+        }
+      ]
+    },
+    "variables.parameter": {
+      "comment": "`(?!:)` keeps the `x` of `x::y` out — that is namespace access, not an annotation.",
+      "patterns": [
         {
-          "name": "punctuation.bracket.square.typr",
-          "match": "[\\[\\]]"
-        },
-        {
-          "name": "punctuation.bracket.curly.typr",
-          "match": "[{}]"
-        },
-        {
-          "name": "punctuation.bracket.angle.typr",
-          "match": "[<>]"
+          "match": "\\b([a-z_][A-Za-z0-9_]*)\\s*(?=:(?!:))",
+          "name": "variable.parameter.typr"
         }
       ]
     }
-  }
+  },
+  "scopeName": "source.typr"
 }
