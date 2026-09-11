@@ -79,27 +79,20 @@ fn render_node_entry(out: &mut String, node: &Node) {
 
     // One-line description (ret_doc or coercion_notes)
     let desc = meta
-        .and_then(|m| {
-            m.ret_doc
-                .as_ref()
-                .map(|d| d.as_str())
-                .or(m.coercion_notes.as_deref())
-        })
+        .and_then(|m| m.ret_doc.as_ref().map(|d| d.as_str()).or(m.coercion_notes.as_deref()))
         .unwrap_or("");
 
     // First example (truncated to one line, stripping # noplayground prefix)
-    let example = meta
-        .and_then(|m| m.examples.first())
-        .map(|e| {
-            let clean = e.strip_prefix("# noplayground:").unwrap_or(e).trim();
-            let clean = clean.strip_prefix("# noplayground").unwrap_or(clean).trim();
-            let one_line = clean.lines().next().unwrap_or(clean);
-            if one_line.len() > 80 {
-                format!("{}...", &one_line[..77])
-            } else {
-                one_line.to_string()
-            }
-        });
+    let example = meta.and_then(|m| m.examples.first()).map(|e| {
+        let clean = e.strip_prefix("# noplayground:").unwrap_or(e).trim();
+        let clean = clean.strip_prefix("# noplayground").unwrap_or(clean).trim();
+        let one_line = clean.lines().next().unwrap_or(clean);
+        if one_line.len() > 80 {
+            format!("{}...", &one_line[..77])
+        } else {
+            one_line.to_string()
+        }
+    });
 
     out.push_str(&format!("- {}**`{}`** `{}`", tier_badge, name, sig));
     if !desc.is_empty() {
@@ -143,10 +136,7 @@ fn render_signature(node: &Node) -> String {
             format!("({}) -> {}", params_str.join(", "), returns)
         }
         NodePayload::Record { fields } => {
-            let fields_str: Vec<String> = fields
-                .iter()
-                .map(|(name, ty)| format!("{}: {}", name, ty))
-                .collect();
+            let fields_str: Vec<String> = fields.iter().map(|(name, ty)| format!("{}: {}", name, ty)).collect();
             format!("{{ {} }}", fields_str.join(", "))
         }
         NodePayload::Alias { underlying, opaque } => {
@@ -177,9 +167,7 @@ fn render_signature(node: &Node) -> String {
 /// Truncate a description to the first sentence, max `max_len` chars.
 fn truncate_sentence(desc: &str, max_len: usize) -> String {
     // Find the first sentence-ending punctuation or newline.
-    let end = desc
-        .find(|c: char| c == '.' || c == '\n')
-        .unwrap_or(desc.len());
+    let end = desc.find(|c: char| c == '.' || c == '\n').unwrap_or(desc.len());
     let sentence = &desc[..end];
     if sentence.len() > max_len {
         // Use ASCII "..." to keep byte-length predictable.

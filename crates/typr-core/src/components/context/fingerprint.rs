@@ -29,7 +29,10 @@ fn canonical_arg_debug(arg: &ArgumentType) -> String {
     let embedded = arg.2;
     let variadic = arg.3;
     let default = format!("{:?}", arg.4);
-    format!("ArgumentType({}, {}, {}, {}, {})", label, typ, embedded, variadic, default)
+    format!(
+        "ArgumentType({}, {}, {}, {}, {})",
+        label, typ, embedded, variadic, default
+    )
 }
 
 /// Deterministic, order-stable rendering of a `Type`. The derived `Debug`

@@ -197,7 +197,10 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                         doc: doc_map.get(&help_data.get_offset()).cloned(),
                         source: source_from_help(help_data),
                         payload: NodePayload::Function {
-                            params: params.iter().map(|p| (safe_arg_name(p), p.get_type().to_string())).collect(),
+                            params: params
+                                .iter()
+                                .map(|p| (safe_arg_name(p), p.get_type().to_string()))
+                                .collect(),
                             returns: ret.to_string(),
                         },
                         meta: None,

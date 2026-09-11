@@ -1154,7 +1154,12 @@ mod code_tests {
         );
 
         let unique: HashSet<&String> = codes.iter().collect();
-        assert_eq!(codes.len(), unique.len(), "duplicate TypeError codes found: {:?}", codes);
+        assert_eq!(
+            codes.len(),
+            unique.len(),
+            "duplicate TypeError codes found: {:?}",
+            codes
+        );
 
         for code in &codes {
             assert!(code.starts_with('T'), "TypeError code must start with 'T': {code}");

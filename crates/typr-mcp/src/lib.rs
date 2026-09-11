@@ -48,15 +48,15 @@
 //! Building from a local checkout instead? Point `command` at
 //! `target/debug/typr` (or `target/release/typr`).
 
-use rmcp::ErrorData as McpError;
 use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::model::{
-    ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse,
-    ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+    ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult,
+    Resource, ResourceContents, ServerCapabilities, ServerInfo,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::stdio;
-use rmcp::{ServerHandler, ServiceExt, tool, tool_handler, tool_router};
+use rmcp::ErrorData as McpError;
+use rmcp::{tool, tool_handler, tool_router, ServerHandler, ServiceExt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -125,14 +125,11 @@ fn read_syntax_resource(uri: &str) -> Result<ReadResourceResult, McpError> {
         OPERATORS_URI => OPERATORS_MD,
         STDLIB_URI => STDLIB_MD,
         _ => {
-            return Err(McpError::invalid_params(
-                format!("unknown resource uri: {uri}"),
-                None,
-            ));
+            return Err(McpError::invalid_params(format!("unknown resource uri: {uri}"), None));
         }
     };
     Ok(ReadResourceResult::new(vec![
-        ResourceContents::text(text, uri).with_mime_type("text/markdown"),
+        ResourceContents::text(text, uri).with_mime_type("text/markdown")
     ]))
 }
 
@@ -273,7 +270,11 @@ fn build_source_inner(source: &str) -> BuildResult {
                 }
             })
             .collect();
-        return BuildResult { ok: false, r_code: String::new(), diagnostics };
+        return BuildResult {
+            ok: false,
+            r_code: String::new(),
+            diagnostics,
+        };
     }
 
     // Same Environment::Wasm context check_source() builds.
@@ -327,7 +328,11 @@ fn build_source_inner(source: &str) -> BuildResult {
     r_code.push_str("# === Main Code ===\n");
     r_code.push_str(&main_code);
 
-    BuildResult { ok, r_code, diagnostics }
+    BuildResult {
+        ok,
+        r_code,
+        diagnostics,
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -384,11 +389,9 @@ impl TyprMcpServer {
         Self
     }
 
-    #[tool(
-        description = "Type-check TypR source code in-process (no filesystem, no project \
+    #[tool(description = "Type-check TypR source code in-process (no filesystem, no project \
         directory) and report diagnostics with stable error codes (T0xx for type errors, \
-        S0xx for syntax errors)."
-    )]
+        S0xx for syntax errors).")]
     async fn check(&self, Parameters(CheckParams { source }): Parameters<CheckParams>) -> Json<CheckResult> {
         Json(check_source(&source))
     }
@@ -405,13 +408,11 @@ impl TyprMcpServer {
         Json(build_source(&source))
     }
 
-    #[tool(
-        description = "Explain a TypR diagnostic code (T0xx/S0xx, from a `check`/`build` \
+    #[tool(description = "Explain a TypR diagnostic code (T0xx/S0xx, from a `check`/`build` \
         diagnostic's `code` field) with a longer description of why the compiler rejects it \
         plus a minimal before/after TypR example. Covers every code the compiler can actually \
         produce — `found: false` means this code is declared but dead (unreachable in the \
-        current compiler), so fall back to the short `message` `check`/`build` already returned."
-    )]
+        current compiler), so fall back to the short `message` `check`/`build` already returned.")]
     async fn explain(&self, Parameters(ExplainParams { code }): Parameters<ExplainParams>) -> Json<ExplainResult> {
         Json(explain_code(&code))
     }
@@ -420,13 +421,7 @@ impl TyprMcpServer {
 #[tool_handler]
 impl ServerHandler for TyprMcpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(
-            ServerCapabilities::builder()
-                .enable_tools()
-                .enable_resources()
-                .build(),
-        )
-        .with_instructions(
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().enable_resources().build()).with_instructions(
             "TypR compiler tools. `check` type-checks TypR source and returns diagnostics \
              tagged with stable error codes. `build` does the same but also returns the \
              transpiled R code. `explain` takes one of those codes and returns a longer \
@@ -460,8 +455,8 @@ impl ServerHandler for TyprMcpServer {
 #[cfg(test)]
 mod tests {
     use super::{
-        LEXICON_URI, OPERATORS_URI, STDLIB_URI, build_source, check_source, explain, explain_code,
-        read_syntax_resource, syntax_resources,
+        build_source, check_source, explain, explain_code, read_syntax_resource, syntax_resources, LEXICON_URI,
+        OPERATORS_URI, STDLIB_URI,
     };
     use rmcp::model::ResourceContents;
 
@@ -477,7 +472,11 @@ mod tests {
         let result = check_source("let x: int <- \"oops\";");
         assert!(!result.ok);
         assert_eq!(result.diagnostics.len(), 1);
-        assert!(result.diagnostics[0].code.starts_with('T'), "{:?}", result.diagnostics[0]);
+        assert!(
+            result.diagnostics[0].code.starts_with('T'),
+            "{:?}",
+            result.diagnostics[0]
+        );
     }
 
     #[test]
@@ -485,7 +484,11 @@ mod tests {
         let result = check_source("let a <- 5");
         assert!(!result.ok);
         assert_eq!(result.diagnostics.len(), 1);
-        assert!(result.diagnostics[0].code.starts_with('S'), "{:?}", result.diagnostics[0]);
+        assert!(
+            result.diagnostics[0].code.starts_with('S'),
+            "{:?}",
+            result.diagnostics[0]
+        );
     }
 
     #[test]
@@ -559,7 +562,11 @@ mod tests {
     fn explain_entries_are_verified_against_the_compiler() {
         for entry in explain::ENTRIES {
             let bad = check_source(entry.bad);
-            assert!(!bad.ok, "{}: `bad` example unexpectedly type-checks:\n{}", entry.code, entry.bad);
+            assert!(
+                !bad.ok,
+                "{}: `bad` example unexpectedly type-checks:\n{}",
+                entry.code, entry.bad
+            );
             assert!(
                 bad.diagnostics.iter().any(|d| d.code == entry.code),
                 "{}: `bad` example produced {:?}, expected a {} diagnostic:\n{}",

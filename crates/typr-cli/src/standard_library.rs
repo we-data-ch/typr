@@ -337,11 +337,7 @@ const R_T1_SOURCES: &[(&str, &str)] = &[
 /// `base.ty` contains R base function type annotations for the doc SPG —
 /// these are NOT TypR-owned functions (TypR doesn't provide implementations).
 /// They serve as reference documentation for the MCP, not compiler entries.
-const R_DOC_ONLY_SOURCES: &[(&str, &str)] = &[
-    ("base.ty", BASE_TY),
-    ("stats.ty", STATS_TY),
-    ("utils.ty", UTILS_TY),
-];
+const R_DOC_ONLY_SOURCES: &[(&str, &str)] = &[("base.ty", BASE_TY), ("stats.ty", STATS_TY), ("utils.ty", UTILS_TY)];
 
 /// Every name TypR's own bundled standard library declares (`@name: T;` in
 /// `configs/std/*.ty`), R and JS alike.
@@ -358,8 +354,8 @@ pub fn stdlib_declared_names() -> std::collections::BTreeSet<String> {
     [
         // Note: BASE_TY is excluded — it contains R base function type
         // annotations for the doc SPG only, not TypR-owned functions.
-        STD_R_TY, DEFAULT_TY, FILE_TY, OPTION_TY, PLOT_TY, LIN_ALG_TY, SYSTEM_TY, FACTOR_TY, STATE_TY,
-        ORD_TY, FOREIGN_TY, STD_JS_TY,
+        STD_R_TY, DEFAULT_TY, FILE_TY, OPTION_TY, PLOT_TY, LIN_ALG_TY, SYSTEM_TY, FACTOR_TY, STATE_TY, ORD_TY,
+        FOREIGN_TY, STD_JS_TY,
     ]
     .iter()
     .flat_map(|source| source.lines())
@@ -497,10 +493,7 @@ fn build_typed_vartype(ty_sources: &[(&str, &str)]) -> (VarType, Vec<(String, St
 ///
 /// Shared by `build_stdlib_docs` (production) and the tests, so the
 /// T1-in-compiler / T2-doc-only split can be exercised with arbitrary input.
-fn build_doc_spg_from_sources(
-    ty_sources: &[(&str, &str)],
-    package: &str,
-) -> (Spg, Vec<(String, String)>) {
+fn build_doc_spg_from_sources(ty_sources: &[(&str, &str)], package: &str) -> (Spg, Vec<(String, String)>) {
     let mut context = Context::empty();
     let mut items: Vec<Lang> = Vec::new();
     let mut skipped: Vec<(String, String)> = Vec::new();
@@ -601,11 +594,7 @@ fn unwrap_backtick_name(name: &str) -> String {
 /// the doc-only T2 sources (`R_DOC_ONLY_SOURCES`) — the doc SPG is the only
 /// sink that ever sees T2 (RFC-STDLIB-0001 §4, Sink A).
 fn build_stdlib_docs() -> (Spg, Vec<(String, String)>) {
-    let ty_sources: Vec<(&str, &str)> = R_T1_SOURCES
-        .iter()
-        .chain(R_DOC_ONLY_SOURCES.iter())
-        .copied()
-        .collect();
+    let ty_sources: Vec<(&str, &str)> = R_T1_SOURCES.iter().chain(R_DOC_ONLY_SOURCES.iter()).copied().collect();
 
     build_doc_spg_from_sources(&ty_sources, "typr-std-r")
 }
@@ -800,10 +789,7 @@ mod tests {
 
         let ty_no_meta = "@abs: (num) -> num;";
 
-        let sources = [
-            ("with_meta.ty", ty_with_meta),
-            ("no_meta.ty", ty_no_meta),
-        ];
+        let sources = [("with_meta.ty", ty_with_meta), ("no_meta.ty", ty_no_meta)];
 
         // Parse metadata from both sources.
         let mut all_meta: HashMap<String, FunctionMeta> = HashMap::new();
@@ -865,12 +851,7 @@ mod tests {
         let items: Vec<Lang> = type_checker.get_code().iter().cloned().collect();
 
         let meta = parse_meta_from_source(src);
-        let spg = build_spg_from_items(
-            &items,
-            "typr-std-test",
-            env!("CARGO_PKG_VERSION"),
-            Some(&meta),
-        );
+        let spg = build_spg_from_items(&items, "typr-std-test", env!("CARGO_PKG_VERSION"), Some(&meta));
 
         let mut sum_node = None;
         let mut abs_node = None;
@@ -928,12 +909,11 @@ mod tests {
         // Compiler sink: only the T1 source feeds .std_r_typed.bin.
         let (vartype, skipped) = build_typed_vartype(&[("t1.ty", t1_source)]);
         assert!(skipped.is_empty());
-        let names: Vec<String> = vartype
-            .variables
-            .iter()
-            .map(|(v, _)| v.get_name())
-            .collect();
-        assert!(names.contains(&"sqrt".to_string()), "T1 function must reach the compiler");
+        let names: Vec<String> = vartype.variables.iter().map(|(v, _)| v.get_name()).collect();
+        assert!(
+            names.contains(&"sqrt".to_string()),
+            "T1 function must reach the compiler"
+        );
         assert!(
             !names.contains(&"paste".to_string()),
             "T2 function must NOT reach the compiler binary"
@@ -948,11 +928,7 @@ mod tests {
         assert!(node_names.contains(&"paste"), "T2 function must appear in the doc SPG");
 
         // …and the T2 node carries its meta.
-        let paste = spg
-            .nodes
-            .iter()
-            .find(|n| n.name == "paste")
-            .expect("paste node in SPG");
+        let paste = spg.nodes.iter().find(|n| n.name == "paste").expect("paste node in SPG");
         let m = paste.meta.as_ref().expect("paste carries tier meta");
         assert_eq!(m.tier.as_deref(), Some("T2"));
     }
@@ -1047,10 +1023,28 @@ mod tests {
     #[test]
     fn tier_consistency_blacklisted_or_t3_names_not_in_t1_sources() {
         let t3_blacklisted = [
-            "c", "lapply", "sapply", "rep", "str", "length", "list",
-            "try", "unlist", "library", "class", "UseMethod",
-            "inherits", "oldClass", "invisible", "capture.output",
-            "paste", "paste0", "unclass", "exists", "vector", "tags",
+            "c",
+            "lapply",
+            "sapply",
+            "rep",
+            "str",
+            "length",
+            "list",
+            "try",
+            "unlist",
+            "library",
+            "class",
+            "UseMethod",
+            "inherits",
+            "oldClass",
+            "invisible",
+            "capture.output",
+            "paste",
+            "paste0",
+            "unclass",
+            "exists",
+            "vector",
+            "tags",
         ];
         for (filename, source) in R_T1_SOURCES {
             for line in source.lines() {
@@ -1073,11 +1067,7 @@ mod tests {
     /// must be valid, type-checkable TypR code (or annotated with `# noplayground` / `# skip`).
     #[test]
     fn all_hash_bang_examples_are_typecheckable() {
-        let all_sources: Vec<(&str, &str)> = R_T1_SOURCES
-            .iter()
-            .chain(R_DOC_ONLY_SOURCES.iter())
-            .copied()
-            .collect();
+        let all_sources: Vec<(&str, &str)> = R_T1_SOURCES.iter().chain(R_DOC_ONLY_SOURCES.iter()).copied().collect();
 
         let (all_vartype, _) = build_typed_vartype(&all_sources);
         let mut context = Context::default();
@@ -1124,8 +1114,7 @@ mod tests {
                         Ok(type_errors) => {
                             checked_count += 1;
                             if !type_errors.is_empty() {
-                                let err_msgs: Vec<String> =
-                                    type_errors.iter().map(|e| e.clone().display()).collect();
+                                let err_msgs: Vec<String> = type_errors.iter().map(|e| e.clone().display()).collect();
                                 errors.push(format!(
                                     "[{}] example for `{}`: '{}'\n  Errors: {}",
                                     filename,
@@ -1147,10 +1136,7 @@ mod tests {
             }
         }
 
-        assert!(
-            checked_count > 0,
-            "Must have checked at least one example annotation"
-        );
+        assert!(checked_count > 0, "Must have checked at least one example annotation");
         assert!(
             errors.is_empty(),
             "Found {} invalid example(s) in stdlib catalog:\n{}",
@@ -1193,5 +1179,3 @@ fn extract_raw_signature_name(line: &str) -> Option<String> {
         Some(name.to_string())
     }
 }
-
-

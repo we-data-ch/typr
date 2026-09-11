@@ -89,10 +89,9 @@ pub fn parse_meta_from_source(source: &str) -> HashMap<String, FunctionMeta> {
                         if !value.is_empty() {
                             if let Some((pname, desc)) = value.split_once(char::is_whitespace) {
                                 let target = pending_meta.get_or_insert_with(FunctionMeta::default);
-                                target.param_docs.push((
-                                    pname.trim_end_matches(':').trim().to_string(),
-                                    desc.trim().to_string(),
-                                ));
+                                target
+                                    .param_docs
+                                    .push((pname.trim_end_matches(':').trim().to_string(), desc.trim().to_string()));
                             }
                         }
                     }
@@ -257,14 +256,8 @@ let x: int <- 5;";
 
         let map = parse_meta_from_source(src);
         assert_eq!(map.len(), 2);
-        assert_eq!(
-            map.get("f1").unwrap().coercion_notes.as_deref(),
-            Some("logical -> num")
-        );
-        assert_eq!(
-            map.get("f2").unwrap().coercion_notes.as_deref(),
-            Some("same thing")
-        );
+        assert_eq!(map.get("f1").unwrap().coercion_notes.as_deref(), Some("logical -> num"));
+        assert_eq!(map.get("f2").unwrap().coercion_notes.as_deref(), Some("same thing"));
     }
 
     #[test]

@@ -444,7 +444,12 @@ mod code_tests {
         );
 
         let unique: HashSet<&String> = codes.iter().collect();
-        assert_eq!(codes.len(), unique.len(), "duplicate SyntaxError codes found: {:?}", codes);
+        assert_eq!(
+            codes.len(),
+            unique.len(),
+            "duplicate SyntaxError codes found: {:?}",
+            codes
+        );
 
         for code in &codes {
             assert!(code.starts_with('S'), "SyntaxError code must start with 'S': {code}");
