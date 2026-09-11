@@ -151,8 +151,9 @@ fn syntax_resources() -> Vec<Resource> {
             .with_description(
                 "Common parser pitfalls and ambiguities (semicolon swallowing, '//' not being \
                  a comment, single '=' never being a comparison, record vs tuple shape rules, \
-                 minimum type-alias name length). Worth a read before writing TypR, not just \
-                 after a diagnostic.",
+                 minimum type-alias name length) plus a style rule: alias a structural type as \
+                 soon as it appears in a function's first parameter. Worth a read before \
+                 writing TypR, not just after a diagnostic.",
             )
             .with_mime_type("text/markdown"),
         Resource::new(ESCAPE_HATCHES_URI, "escape-hatches")
