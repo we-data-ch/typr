@@ -300,7 +300,7 @@ fn skips_r_deps_check(command: &Option<Commands>) -> bool {
         // touches a project, let alone R.
         Some(Commands::Init)
             | Some(Commands::Lsp)
-            | Some(Commands::Std)
+            | Some(Commands::Mcp)
             | Some(Commands::Std { .. })
             | Some(Commands::Cache { .. })
             | Some(Commands::Syntax { .. })
