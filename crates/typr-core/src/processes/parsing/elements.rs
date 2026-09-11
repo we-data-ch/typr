@@ -66,7 +66,7 @@ fn number_helper(s: Span) -> IResult<Span, Lang> {
     match res {
         Ok((s, (sign, d1, _dot, d2))) => {
             let sign2 = sign.unwrap_or(LocatedSpan::new_extra("", d1.clone().extra));
-            let n = format!("{}{}.{}", sign2, d1, d2).parse::<f32>().unwrap();
+            let n = format!("{}{}.{}", sign2, d1, d2).parse::<f64>().unwrap();
             Ok((
                 s,
                 Lang::Number {

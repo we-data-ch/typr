@@ -40,7 +40,7 @@ pub enum ModulePosition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Lang {
     Number {
-        value: f32,
+        value: f64,
         help_data: HelpData,
     },
     Integer {

@@ -1,0 +1,204 @@
+#! pkg: base
+#! tier: T1
+#! param a: left operand
+#! param b: right operand
+#! ret: integer sum
+#! example: 1L + 2L   # -> 3L
+@`+`: (int, int) -> int;
+#! pkg: base
+#! tier: T1
+#! param a: left operand
+#! param b: right operand
+#! ret: numeric sum
+#! example: 1.5 + 2.5   # -> 4
+@`+`: (num, num) -> num;
+#! pkg: base
+#! tier: T1
+#! param a: left operand
+#! param b: right operand
+#! ret: integer difference
+#! example: 5L - 3L   # -> 2L
+@`-`: (int, int) -> int;
+#! pkg: base
+#! tier: T1
+#! param a: left operand
+#! param b: right operand
+#! ret: numeric difference
+#! example: 5.0 - 3.0   # -> 2
+@`-`: (num, num) -> num;
+#! pkg: base
+#! tier: T1
+#! param a: dividend
+#! param b: divisor
+#! ret: integer quotient
+#! example: 10L / 3L   # -> 3L
+@`/`: (int, int) -> int;
+#! pkg: base
+#! tier: T1
+#! param a: dividend
+#! param b: divisor
+#! ret: numeric quotient
+#! example: 10.0 / 3.0   # -> 3.333...
+@`/`: (num, num) -> num;
+#! pkg: base
+#! tier: T1
+#! param a: left operand
+#! param b: right operand
+#! ret: integer product
+#! example: 3L * 4L   # -> 12L
+@`*`: (int, int) -> int;
+#! pkg: base
+#! tier: T1
+#! param a: left operand
+#! param b: right operand
+#! ret: numeric product
+#! example: 3.0 * 4.0   # -> 12
+@`*`: (num, num) -> num;
+#! pkg: base
+#! tier: T1
+#! param a: dividend
+#! param b: divisor
+#! ret: integer modulo
+#! note: %% is the modulo operator (not remainder)
+#! example: 7L %% 3L   # -> 1L
+@`%%`: (int, int) -> int;
+#! pkg: base
+#! tier: T1
+#! param a: dividend
+#! param b: divisor
+#! ret: numeric modulo
+#! example: 7.0 %% 3.0   # -> 1
+@`%%`: (num, num) -> num;
+#! pkg: base
+#! tier: T1
+#! param a: left operand
+#! param b: right operand
+#! ret: logical AND
+#! example: TRUE && FALSE   # -> FALSE
+@`&&`: (bool, bool) -> bool;
+#! pkg: base
+#! tier: T1
+#! param a: left operand
+#! param b: right operand
+#! ret: logical OR
+#! example: TRUE || FALSE   # -> TRUE
+@`||`: (bool, bool) -> bool;
+#! pkg: base
+#! tier: T1
+#! param a: left vector
+#! param b: right vector
+#! ret: element-wise sum of two vectors
+#! coercion: vectors must be same length (recycling applies in R)
+#! example: c(1,2) + c(3,4)   # -> c(4,6)
+@`+`: (Vec[#M, T], Vec[#M, T]) -> Vec[#M, T];
+#! pkg: base
+#! tier: T1
+#! param a: vector to reduce
+#! param f: binary combining function
+#! ret: single value after left-fold
+#! note: equivalent to base R Reduce()
+#! example: reduce(c(1,2,3,4), add)   # -> 10
+@reduce: ([#N, T], (T, T) -> T) -> T;
+#! pkg: base
+#! tier: T1
+#! param a: vector to fold
+#! param init: initial accumulator value
+#! param f: combining function (accumulator, element) -> accumulator
+#! ret: final accumulator
+#! note: equivalent to base R Reduce() with init
+#! example: fold(c(1,2,3), 0, add)   # -> 6
+@fold: ([#N, T], U, (U, T) -> U) -> U;
+#! pkg: base
+#! tier: T1
+#! param a: vector to extend
+#! param b: element to append
+#! ret: new vector with b appended
+#! example: extend(c(1,2), 3)   # -> c(1,2,3)
+@extend: ([#N, T], T) -> [#N, T];
+#! pkg: base
+#! tier: T3
+#! param desc: test description
+#! param expr: test expression
+#! ret: invisibly NULL
+#! note: testing utility — not for production code
+@test_that: (char, Any) -> Empty;
+#! pkg: base
+#! tier: T3
+#! param condition: expected condition
+#! ret: invisibly NULL
+#! note: testing utility
+@expect_true: (bool) -> Empty;
+#! pkg: base
+#! tier: T3
+#! param actual: actual value
+#! param expected: expected value
+#! ret: invisibly NULL
+#! note: testing utility
+@expect_false: (T, T) -> Empty;
+#! pkg: base
+#! tier: T3
+#! param actual: actual value
+#! param expected: expected value
+#! ret: invisibly NULL
+#! note: testing utility
+@expect_equal: (T, T) -> Empty;
+#! pkg: base
+#! tier: T2
+#! param values: values to concatenate and print
+#! ret: invisibly NULL
+#! note: variadic, side-effectful; R's paste(..., sep="") + cat()
+#! example: cat("hello", "world")
+@cat: (...values: Any) -> Empty;
+#! pkg: base
+#! tier: T1
+#! param a: TypR value
+#! ret: same value as native R
+#! note: pass-through for interop boundaries
+@to_native: (T) -> T;
+#! pkg: base
+#! tier: T2
+#! param a: native R value
+#! param type: target TypR type name
+#! ret: coerced value
+#! note: runtime cast — type must match or error
+@from_native: (Any, char) -> Any;
+#! pkg: base
+#! tier: T1
+#! param a: value to convert
+#! ret: integer representation
+#! coercion: numeric/logical -> integer
+#! example: from_int(3.7)   # -> 3L
+@from_int: (Any) -> int;
+#! pkg: base
+#! tier: T1
+#! param a: value to convert
+#! ret: numeric representation
+#! coercion: integer/logical -> numeric
+#! example: from_num(3L)   # -> 3.0
+@from_num: (Any) -> num;
+#! pkg: base
+#! tier: T1
+#! param a: value to convert
+#! ret: character representation
+#! coercion: any atomic -> character
+#! example: from_char(42)   # -> "42"
+@from_char: (Any) -> char;
+#! pkg: base
+#! tier: T1
+#! param a: value to convert
+#! ret: logical representation
+#! coercion: numeric -> logical (0 = FALSE, non-zero = TRUE)
+#! example: from_bool(1)   # -> TRUE
+@from_bool: (Any) -> bool;
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: sum over all elements
+#! example: sum(c(1, 2, 3))   # -> 6
+@sum: ([#N, T]) -> T;
+#! pkg: base
+#! tier: T1
+#! param x: value to display
+#! ret: prints to the console, returns nothing
+#! example: print(sum(c(1, 2, 3)))
+@print: (Any) -> Empty;

@@ -1,11 +1,31 @@
+#! pkg: base
+#! tier: T1
+#! param m: left matrix [#M x #P]
+#! param n: right matrix [#P x #N]
+#! ret: matrix product [#M x #N]
+#! note: matrix multiplication (not element-wise)
+#! example: dot([[1,2],[3,4]], [[5,6],[7,8]])   # -> [[19,22],[43,50]]
 @dot: (m: [#M, [#P, int]], n: [#P, [#N, int]]): [#M, [#N, int]];
 
+#! pkg: base
+#! tier: T1
+#! param m: input matrix [#M x #N]
+#! ret: transposed matrix [#N x #M]
+#! example: t([[1,2],[3,4]])   # -> [[1,3],[2,4]]
 @t: (m: [#M, [#N, T]]): [#N, [#M, T]];
 
+#! pkg: base
+#! tier: T1
+#! param a: vector to wrap as row
+#! ret: 1-row matrix [1 x #M]
 let lvec <- fn(a: [#M, T]): [1, [#M, T]] {
 	[a]
 };
 
+#! pkg: base
+#! tier: T1
+#! param a: vector to wrap as column
+#! ret: column matrix [#M x 1]
 let cvec <- fn(a: [#M, T]): [#M, [1, T]] {
 	a.lvec().t()
 };

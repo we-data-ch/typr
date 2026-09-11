@@ -1,0 +1,6 @@
+title = "function-type comparison ignores parameter names (`(int) -> int` vs `fn(z: int): int`)"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-09-10"
+origin = "perso"

@@ -73,7 +73,10 @@ pub fn format(ty: &Type) -> String {
             format!("list{{{}}}", formatted_fields.join(", "))
         }
         Type::Generic(name, _) => name.to_uppercase(),
-        Type::Integer(_, _) => "int".to_string(),
+        Type::Integer(tint, _) => match tint {
+            Tint::Val(i) => format!("{}", i),
+            _ => "int".to_string(),
+        },
         Type::Number(tnum, _) => match tnum {
             crate::components::r#type::tnumber::Tnum::Val(v) => format!("{}", v),
             _ => "num".to_string(),

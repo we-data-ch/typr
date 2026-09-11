@@ -19,6 +19,14 @@ impl Tint {
         }
     }
 
+    pub fn is_subtype(&self, other: &Self) -> bool {
+        match (self, other) {
+            (_, Tint::Unknown) => true,
+            (Tint::Val(v1), Tint::Val(v2)) => v1 == v2,
+            _ => false,
+        }
+    }
+
     pub fn gen_of(&self, other: &Tint) -> bool {
         matches!((self, other), (Tint::Unknown, _))
     }

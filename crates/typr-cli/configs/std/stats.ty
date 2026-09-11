@@ -1,0 +1,1183 @@
+#! pkg: stats
+#! tier: T1
+#! format: TypR stdlib catalog — R stats package functions
+#
+# Catalogue des fonctions R stats typées pour TypR.
+# Chaque entrée a un bloc #! (pkg, tier, param, ret, coercion, example, seealso)
+# suivi de la signature @name: (T) -> U;.
+#
+# Ces fonctions sont en doc SPG uniquement (R_DOC_ONLY_SOURCES),
+# pas embarquées dans le compilateur (.std_r_typed.bin).
+
+# ============================================================
+# DISTRIBUTIONS — Density, CDF, quantile, random
+# Chaque distribution a 4 variantes : d, p, q, r
+# ============================================================
+
+# --- Normal ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: quantile value
+#! param mean: distribution mean (default 0)
+#! param sd: distribution standard deviation (default 1)
+#! ret: normal density at x
+#! example: # noplayground: dnorm(0)   # -> 0.3989...
+#! example: # noplayground: dnorm(2, mean = 0, sd = 1)   # -> 0.0540...
+#! seealso: pnorm, qnorm, rnorm
+@dnorm: (x: num, mean: num, sd: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: quantile value
+#! param mean: distribution mean (default 0)
+#! param sd: distribution standard deviation (default 1)
+#! param lower_tail: if TRUE (default), probability is P(X <= q)
+#! ret: cumulative probability P(X <= q)
+#! example: # noplayground: pnorm(0)   # -> 0.5
+#! example: # noplayground: pnorm(1.96, mean = 0, sd = 1)   # -> 0.975
+#! seealso: dnorm, qnorm, rnorm
+@pnorm: (q: num, mean: num, sd: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability value in [0, 1]
+#! param mean: distribution mean (default 0)
+#! param sd: distribution standard deviation (default 1)
+#! param lower_tail: if TRUE (default), P(X <= q) = p
+#! ret: quantile value q such that P(X <= q) = p
+#! example: # noplayground: qnorm(0.975)   # -> 1.9599...
+#! seealso: dnorm, pnorm, rnorm
+@qnorm: (p: num, mean: num, sd: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations to generate
+#! param mean: distribution mean (default 0)
+#! param sd: distribution standard deviation (default 1)
+#! ret: vector of n random normal values
+#! example: # noplayground: rnorm(1, mean = 0, sd = 1)   # -> numeric(1) [random]
+#! seealso: dnorm, pnorm, qnorm
+@rnorm: (n: int, mean: num, sd: num) -> [#N, num];
+
+# --- Uniform ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: quantile value
+#! param min: lower bound (default 0)
+#! param max: upper bound (default 1)
+#! ret: uniform density at x
+#! example: # noplayground: dunif(0.5)   # -> 1
+#! seealso: punif, qunif, runif
+@dunif: (x: num, min: num, max: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: quantile value
+#! param min: lower bound (default 0)
+#! param max: upper bound (default 1)
+#! param lower_tail: if TRUE (default), P(X <= q)
+#! ret: cumulative probability
+#! example: # noplayground: punif(0.5)   # -> 0.5
+#! seealso: dunif, qunif, runif
+@punif: (q: num, min: num, max: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability value in [0, 1]
+#! param min: lower bound (default 0)
+#! param max: upper bound (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: quantile value
+#! example: # noplayground: qunif(0.5)   # -> 0.5
+#! seealso: dunif, punif, runif
+@qunif: (p: num, min: num, max: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param min: lower bound (default 0)
+#! param max: upper bound (default 1)
+#! ret: vector of n random uniform values in [min, max]
+#! example: # noplayground: runif(1)   # -> numeric(1) [random in [0,1]]
+#! seealso: dunif, punif, qunif
+@runif: (n: int, min: num, max: num) -> [#N, num];
+
+# --- Binomial ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: number of successes (integer)
+#! param size: number of trials
+#! param prob: probability of success on each trial
+#! ret: binomial density
+#! example: # noplayground: dbinom(3, size = 10, prob = 0.5)   # -> 0.1172...
+#! seealso: pbinom, qbinom, rbinom
+@dbinom: (x: int, size: int, prob: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: number of successes
+#! param size: number of trials
+#! param prob: probability of success
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability P(X <= q)
+#! example: # noplayground: pbinom(3, size = 10, prob = 0.5)   # -> 0.1719...
+#! seealso: dbinom, qbinom, rbinom
+@pbinom: (q: int, size: int, prob: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param size: number of trials
+#! param prob: probability of success
+#! param lower_tail: if TRUE (default)
+#! ret: quantile (number of successes)
+#! example: # noplayground: qbinom(0.5, size = 10, prob = 0.5)   # -> 5
+#! seealso: dbinom, pbinom, rbinom
+@qbinom: (p: num, size: int, prob: num, lower_tail: bool) -> int;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param size: number of trials
+#! param prob: probability of success
+#! ret: vector of n random binomial counts
+#! example: # noplayground: rbinom(1, size = 10, prob = 0.5)   # -> integer(1) [random]
+#! seealso: dbinom, pbinom, qbinom
+@rbinom: (n: int, size: int, prob: num) -> [#N, int];
+
+# --- Poisson ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: count (non-negative integer)
+#! param lambda: rate parameter (default 1)
+#! ret: Poisson density
+#! example: # noplayground: dpois(3, lambda = 2)   # -> 0.1804...
+#! seealso: ppois, qpois, rpois
+@dpois: (x: int, lambda: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: count
+#! param lambda: rate parameter (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability P(X <= q)
+#! example: # noplayground: ppois(3, lambda = 2)   # -> 0.8571...
+#! seealso: dpois, qpois, rpois
+@ppois: (q: int, lambda: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param lambda: rate parameter (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: quantile (count)
+#! example: # noplayground: qpois(0.5, lambda = 2)   # -> 2
+#! seealso: dpois, ppois, rpois
+@qpois: (p: num, lambda: num, lower_tail: bool) -> int;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param lambda: rate parameter (default 1)
+#! ret: vector of n random Poisson counts
+#! example: # noplayground: rpois(1, lambda = 2)   # -> integer(1) [random]
+#! seealso: dpois, ppois, qpois
+@rpois: (n: int, lambda: num) -> [#N, int];
+
+# --- Exponential ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: quantile value (non-negative)
+#! param rate: rate parameter (default 1)
+#! ret: exponential density
+#! example: # noplayground: dexp(1, rate = 1)   # -> 0.3679...
+#! seealso: pexp, qexp, rexp
+@dexp: (x: num, rate: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: quantile value
+#! param rate: rate parameter (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: pexp(1, rate = 1)   # -> 0.6321...
+#! seealso: dexp, qexp, rexp
+@pexp: (q: num, rate: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param rate: rate parameter (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: quantile value
+#! example: # noplayground: qexp(0.5, rate = 1)   # -> 0.6931...
+#! seealso: dexp, pexp, rexp
+@qexp: (p: num, rate: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param rate: rate parameter (default 1)
+#! ret: vector of n random exponential values
+#! example: # noplayground: rexp(1)   # -> numeric(1) [random]
+#! seealso: dexp, pexp, qexp
+@rexp: (n: int, rate: num) -> [#N, num];
+
+# --- Gamma ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: quantile value (positive)
+#! param shape: shape parameter
+#! param rate: rate parameter (default 1)
+#! ret: gamma density
+#! example: # noplayground: dgamma(1, shape = 2, rate = 1)   # -> 0.3679...
+#! seealso: pgamma, qgamma, rgamma
+@dgamma: (x: num, shape: num, rate: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: quantile value
+#! param shape: shape parameter
+#! param rate: rate parameter (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: pgamma(1, shape = 2, rate = 1)   # -> 0.2642...
+#! seealso: dgamma, qgamma, rgamma
+@pgamma: (q: num, shape: num, rate: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param shape: shape parameter
+#! param rate: rate parameter (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: quantile value
+#! example: # noplayground: qgamma(0.5, shape = 2, rate = 1)   # -> 1.6783...
+#! seealso: dgamma, pgamma, rgamma
+@qgamma: (p: num, shape: num, rate: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param shape: shape parameter
+#! param rate: rate parameter (default 1)
+#! ret: vector of n random gamma values
+#! example: # noplayground: rgamma(1, shape = 2, rate = 1)   # -> numeric(1) [random]
+#! seealso: dgamma, pgamma, qgamma
+@rgamma: (n: int, shape: num, rate: num) -> [#N, num];
+
+# --- Beta ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: quantile value in [0, 1]
+#! param shape1: first shape parameter
+#! param shape2: second shape parameter
+#! ret: beta density
+#! example: # noplayground: dbeta(0.5, shape1 = 2, shape2 = 2)   # -> 1.5
+#! seealso: pbeta, qbeta, rbeta
+@dbeta: (x: num, shape1: num, shape2: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: quantile value in [0, 1]
+#! param shape1: first shape parameter
+#! param shape2: second shape parameter
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: pbeta(0.5, shape1 = 2, shape2 = 2)   # -> 0.5
+#! seealso: dbeta, qbeta, rbeta
+@pbeta: (q: num, shape1: num, shape2: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param shape1: first shape parameter
+#! param shape2: second shape parameter
+#! param lower_tail: if TRUE (default)
+#! ret: quantile value in [0, 1]
+#! example: # noplayground: qbeta(0.5, shape1 = 2, shape2 = 2)   # -> 0.5
+#! seealso: dbeta, pbeta, rbeta
+@qbeta: (p: num, shape1: num, shape2: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param shape1: first shape parameter
+#! param shape2: second shape parameter
+#! ret: vector of n random beta values in [0, 1]
+#! example: # noplayground: rbeta(1, shape1 = 2, shape2 = 2)   # -> numeric(1) [random]
+#! seealso: dbeta, pbeta, qbeta
+@rbeta: (n: int, shape1: num, shape2: num) -> [#N, num];
+
+# --- Chi-squared ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: quantile value (non-negative)
+#! param df: degrees of freedom
+#! ret: chi-squared density
+#! example: # noplayground: dchisq(2, df = 2)   # -> 0.2431...
+#! seealso: pchisq, qchisq, rchisq
+@dchisq: (x: num, df: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: quantile value
+#! param df: degrees of freedom
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: pchisq(2, df = 2)   # -> 0.3935...
+#! seealso: dchisq, qchisq, rchisq
+@pchisq: (q: num, df: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param df: degrees of freedom
+#! param lower_tail: if TRUE (default)
+#! ret: quantile value
+#! example: # noplayground: qchisq(0.95, df = 1)   # -> 3.8415...
+#! seealso: dchisq, pchisq, rchisq
+@qchisq: (p: num, df: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param df: degrees of freedom
+#! ret: vector of n random chi-squared values
+#! example: # noplayground: rchisq(1, df = 2)   # -> numeric(1) [random]
+#! seealso: dchisq, pchisq, qchisq
+@rchisq: (n: int, df: num) -> [#N, num];
+
+# --- Student's t ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: quantile value
+#! param df: degrees of freedom
+#! ret: Student's t density
+#! example: # noplayground: dt(0, df = 10)   # -> 0.3867...
+#! seealso: pt, qt, rt
+@dt: (x: num, df: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: quantile value
+#! param df: degrees of freedom
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: pt(2, df = 10)   # -> 0.9633...
+#! seealso: dt, qt, rt
+@pt: (q: num, df: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param df: degrees of freedom
+#! param lower_tail: if TRUE (default)
+#! ret: quantile value
+#! example: # noplayground: qt(0.975, df = 10)   # -> 2.2281...
+#! seealso: dt, pt, rt
+@qt: (p: num, df: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param df: degrees of freedom
+#! ret: vector of n random t values
+#! example: # noplayground: rt(1, df = 10)   # -> numeric(1) [random]
+#! seealso: dt, pt, qt
+@rt: (n: int, df: num) -> [#N, num];
+
+# --- F-distribution ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: quantile value (non-negative)
+#! param df1: numerator degrees of freedom
+#! param df2: denominator degrees of freedom
+#! ret: F density
+#! example: # noplayground: df(1, df1 = 5, df2 = 10)   # -> 0.3451...
+#! seealso: pf, qf, rf
+@df: (x: num, df1: num, df2: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: quantile value
+#! param df1: numerator degrees of freedom
+#! param df2: denominator degrees of freedom
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: pf(2, df1 = 5, df2 = 10)   # -> 0.8533...
+#! seealso: df, qf, rf
+@pf: (q: num, df1: num, df2: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param df1: numerator degrees of freedom
+#! param df2: denominator degrees of freedom
+#! param lower_tail: if TRUE (default)
+#! ret: quantile value
+#! example: # noplayground: qf(0.95, df1 = 5, df2 = 10)   # -> 3.3258...
+#! seealso: df, pf, rf
+@qf: (p: num, df1: num, df2: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param df1: numerator degrees of freedom
+#! param df2: denominator degrees of freedom
+#! ret: vector of n random F values
+#! example: # noplayground: rf(1, df1 = 5, df2 = 10)   # -> numeric(1) [random]
+#! seealso: df, pf, qf
+@rf: (n: int, df1: num, df2: num) -> [#N, num];
+
+# --- Log-normal ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: quantile value (positive)
+#! param meanlog: mean of log(x) (default 0)
+#! param sdlog: standard deviation of log(x) (default 1)
+#! ret: log-normal density
+#! example: # noplayground: dlnorm(1, meanlog = 0, sdlog = 1)   # -> 0.3989...
+#! seealso: plnorm, qlnorm, rlnorm
+@dlnorm: (x: num, meanlog: num, sdlog: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: quantile value
+#! param meanlog: mean of log(x) (default 0)
+#! param sdlog: standard deviation of log(x) (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: plnorm(1)   # -> 0.5
+#! seealso: dlnorm, qlnorm, rlnorm
+@plnorm: (q: num, meanlog: num, sdlog: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param meanlog: mean of log(x) (default 0)
+#! param sdlog: standard deviation of log(x) (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: quantile value
+#! example: # noplayground: qlnorm(0.5)   # -> 1
+#! seealso: dlnorm, plnorm, rlnorm
+@qlnorm: (p: num, meanlog: num, sdlog: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param meanlog: mean of log(x) (default 0)
+#! param sdlog: standard deviation of log(x) (default 1)
+#! ret: vector of n random log-normal values
+#! example: # noplayground: rlnorm(1)   # -> numeric(1) [random]
+#! seealso: dlnorm, plnorm, qlnorm
+@rlnorm: (n: int, meanlog: num, sdlog: num) -> [#N, num];
+
+# --- Logistic ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: quantile value
+#! param location: location parameter (default 0)
+#! param scale: scale parameter (default 1)
+#! ret: logistic density
+#! example: # noplayground: dlogis(0)   # -> 0.25
+#! seealso: plogis, qlogis, rlogis
+@dlogis: (x: num, location: num, scale: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: quantile value
+#! param location: location parameter (default 0)
+#! param scale: scale parameter (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: plogis(0)   # -> 0.5
+#! seealso: dlogis, qlogis, rlogis
+@plogis: (q: num, location: num, scale: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param location: location parameter (default 0)
+#! param scale: scale parameter (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: quantile value
+#! example: # noplayground: qlogis(0.5)   # -> 0
+#! seealso: dlogis, plogis, rlogis
+@qlogis: (p: num, location: num, scale: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param location: location parameter (default 0)
+#! param scale: scale parameter (default 1)
+#! ret: vector of n random logistic values
+#! example: # noplayground: rlogis(1)   # -> numeric(1) [random]
+#! seealso: dlogis, plogis, qlogis
+@rlogis: (n: int, location: num, scale: num) -> [#N, num];
+
+# --- Weibull ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: quantile value (positive)
+#! param shape: shape parameter
+#! param scale: scale parameter (default 1)
+#! ret: Weibull density
+#! example: # noplayground: dweibull(1, shape = 2)   # -> 0.7358...
+#! seealso: pweibull, qweibull, rweibull
+@dweibull: (x: num, shape: num, scale: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: quantile value
+#! param shape: shape parameter
+#! param scale: scale parameter (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: pweibull(1, shape = 2)   # -> 0.6321...
+#! seealso: dweibull, qweibull, rweibull
+@pweibull: (q: num, shape: num, scale: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param shape: shape parameter
+#! param scale: scale parameter (default 1)
+#! param lower_tail: if TRUE (default)
+#! ret: quantile value
+#! example: # noplayground: qweibull(0.5, shape = 2)   # -> 0.8326...
+#! seealso: dweibull, pweibull, rweibull
+@qweibull: (p: num, shape: num, scale: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param shape: shape parameter
+#! param scale: scale parameter (default 1)
+#! ret: vector of n random Weibull values
+#! example: # noplayground: rweibull(1, shape = 2)   # -> numeric(1) [random]
+#! seealso: dweibull, pweibull, qweibull
+@rweibull: (n: int, shape: num, scale: num) -> [#N, num];
+
+# --- Geometric ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: number of failures before first success (non-negative integer)
+#! param prob: probability of success
+#! ret: geometric density
+#! example: # noplayground: dgeom(2, prob = 0.5)   # -> 0.125
+#! seealso: pgeom, qgeom, rgeom
+@dgeom: (x: int, prob: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: number of failures
+#! param prob: probability of success
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: pgeom(2, prob = 0.5)   # -> 0.875
+#! seealso: dgeom, qgeom, rgeom
+@pgeom: (q: int, prob: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param prob: probability of success
+#! param lower_tail: if TRUE (default)
+#! ret: quantile (number of failures)
+#! example: # noplayground: qgeom(0.5, prob = 0.5)   # -> 1
+#! seealso: dgeom, pgeom, rgeom
+@qgeom: (p: num, prob: num, lower_tail: bool) -> int;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param prob: probability of success
+#! ret: vector of n random geometric counts
+#! example: # noplayground: rgeom(1, prob = 0.5)   # -> integer(1) [random]
+#! seealso: dgeom, pgeom, qgeom
+@rgeom: (n: int, prob: num) -> [#N, int];
+
+# --- Negative Binomial ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: number of failures (non-negative integer)
+#! param size: number of successful trials
+#! param prob: probability of success
+#! ret: negative binomial density
+#! example: # noplayground: dnbinom(2, size = 5, prob = 0.5)   # -> 0.1562...
+#! seealso: pnbinom, qnbinom, rnbinom
+@dnbinom: (x: int, size: num, prob: num) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: number of failures
+#! param size: number of successful trials
+#! param prob: probability of success
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: pnbinom(2, size = 5, prob = 0.5)   # -> 0.1719...
+#! seealso: dnbinom, qnbinom, rnbinom
+@pnbinom: (q: int, size: num, prob: num, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param size: number of successful trials
+#! param prob: probability of success
+#! param lower_tail: if TRUE (default)
+#! ret: quantile (number of failures)
+#! example: # noplayground: qnbinom(0.5, size = 5, prob = 0.5)   # -> 4
+#! seealso: dnbinom, pnbinom, rnbinom
+@qnbinom: (p: num, size: num, prob: num, lower_tail: bool) -> int;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param size: number of successful trials
+#! param prob: probability of success
+#! ret: vector of n random negative binomial counts
+#! example: # noplayground: rnbinom(1, size = 5, prob = 0.5)   # -> integer(1) [random]
+#! seealso: dnbinom, pnbinom, qnbinom
+@rnbinom: (n: int, size: num, prob: num) -> [#N, int];
+
+# --- Hypergeometric ---
+
+#! pkg: stats
+#! tier: T1
+#! param x: number of white balls drawn (integer)
+#! param m: number of white balls in urn
+#! param n: number of black balls in urn
+#! param k: number of balls drawn
+#! ret: hypergeometric density
+#! example: # noplayground: dhyper(2, m = 5, n = 5, k = 4)   # -> 0.4762...
+#! seealso: phyper, qhyper, rhyper
+@dhyper: (x: int, m: int, n: int, k: int) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param q: number of white balls drawn
+#! param m: number of white balls in urn
+#! param n: number of black balls in urn
+#! param k: number of balls drawn
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! example: # noplayground: phyper(2, m = 5, n = 5, k = 4)   # -> 0.7619...
+#! seealso: dhyper, qhyper, rhyper
+@phyper: (q: int, m: int, n: int, k: int, lower_tail: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param p: probability
+#! param m: number of white balls in urn
+#! param n: number of black balls in urn
+#! param k: number of balls drawn
+#! param lower_tail: if TRUE (default)
+#! ret: quantile (number of white balls)
+#! example: # noplayground: qhyper(0.5, m = 5, n = 5, k = 4)   # -> 2
+#! seealso: dhyper, phyper, rhyper
+@qhyper: (p: num, m: int, n: int, k: int, lower_tail: bool) -> int;
+
+#! pkg: stats
+#! tier: T1
+#! param n: number of observations
+#! param m: number of white balls in urn
+#! param n: number of black balls in urn
+#! param k: number of balls drawn
+#! ret: vector of n random hypergeometric counts
+#! example: # noplayground: rhyper(1, m = 5, n = 5, k = 4)   # -> integer(1) [random]
+#! seealso: dhyper, phyper, qhyper
+@rhyper: (nn: int, m: int, n: int, k: int) -> [#N, int];
+
+# --- Wilcoxon rank-sum ---
+
+#! pkg: stats
+#! tier: T2
+#! param q: quantile value
+#! param m: size of first group
+#! param n: size of second group
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! note: T2 — uses enumeration for small m, n
+#! example: # noplayground: pwilcox(2, m = 3, n = 4)   # -> 0.7143...
+#! seealso: dwilcox, qwilcox, rwilcox
+@pwilcox: (q: num, m: int, n: int, lower_tail: bool) -> num;
+
+# --- Wilcoxon signed-rank ---
+
+#! pkg: stats
+#! tier: T2
+#! param q: quantile value
+#! param n: sample size
+#! param lower_tail: if TRUE (default)
+#! ret: cumulative probability
+#! note: T2 — uses enumeration for small n
+#! example: # noplayground: psignrank(2, n = 5)   # -> 0.6875
+#! seealso: dsignrank, qsignrank, rsignrank
+@psignrank: (q: num, n: int, lower_tail: bool) -> num;
+
+
+# ============================================================
+# SUMMARY STATISTICS — Functions not in base.ty
+# ============================================================
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector
+#! param na.rm: if TRUE, remove NA before computing (default FALSE)
+#! ret: interquartile range (75th percentile - 25th percentile)
+#! note: IQR(x) = quantile(x, 0.75) - quantile(x, 0.25)
+#! example: # noplayground: IQR(1:10)   # -> 5
+#! seealso: quantile, mad
+@IQR: (x: [#N, num], na.rm: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector
+#! param na.rm: if TRUE, remove NA before computing (default FALSE)
+#! ret: median absolute deviation: median(|x - median(x)|) * 1.4826
+#! note: robust measure of dispersion, consistent with sd for normal data
+#! example: # noplayground: mad(c(1, 1, 2, 2, 4, 6, 9))   # -> 2.9652...
+#! seealso: IQR, sd, var
+@mad: (x: [#N, num], na.rm: bool) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector
+#! param na.rm: if TRUE, remove NA (default FALSE)
+#! ret: five-number summary: c(min, Q1, median, Q3, max)
+#! note: Tukey's five-number summary (using hinges, not exact quantiles)
+#! example: # noplayground: fivenum(c(1, 2, 3, 4, 5))   # -> c(1, 1.5, 3, 4.5, 5)
+#! seealso: summary, quantile, range
+@fivenum: (x: [#N, num], na.rm: bool) -> [5, num];
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector
+#! param w: optional weight vector (default: equal weights)
+#! param na.rm: if TRUE, remove NA (default FALSE)
+#! ret: weighted arithmetic mean
+#! note: weighted.mean(x, w) = sum(w * x) / sum(w)
+#! example: # noplayground: weighted.mean(c(1, 2, 3), c(3, 2, 1))   # -> 1.6666...
+#! seealso: mean, sum
+@`weighted.mean`: (x: [#N, num], w: [#N, num], na.rm: bool) -> num;
+
+
+# ============================================================
+# CORRELATION AND COVARIANCE
+# ============================================================
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector or matrix
+#! param y: optional second numeric vector
+#! param use: how to handle missing values ("everything", "pairwise.complete.obs")
+#! param method: correlation method ("pearson", "kendall", "spearman")
+#! ret: correlation coefficient or matrix
+#! note: cor(x) returns correlation matrix; cor(x, y) returns single value
+#! example: # noplayground: cor(c(1, 2, 3), c(2, 4, 6))   # -> 1
+#! example: # noplayground: cor(c(1, 2, 3), c(3, 2, 1))   # -> -1
+#! seealso: cor.test, cov, cov2cor
+@cor: (x: [#N, num], y: [#N, num], method: char) -> num;
+
+#! pkg: stats
+#! tier: T2
+#! param x: numeric vector
+#! param y: numeric vector
+#! param alternative: "two.sided", "less", or "greater"
+#! param method: "pearson", "kendall", or "spearman"
+#! param conf_level: confidence level (default 0.95)
+#! ret: list with estimate, p.value, conf.int, method
+#! note: T2 — returns complex list structure
+#! example: # noplayground: cor.test(1:10, c(2,4,6,8,10,12,14,16,18,20))   # -> r=1, p<2.2e-16
+#! seealso: cor, cov
+@`cor.test`: (x: [#N, num], y: [#N, num], alternative: char, method: char, conf_level: num) -> Any;
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector or matrix
+#! param y: optional second numeric vector
+#! param use: how to handle missing values
+#! param method: "biased" or "unbiased" (for sample covariance)
+#! ret: covariance or covariance matrix
+#! example: # noplayground: cov(c(1, 2, 3), c(2, 4, 6))   # -> 2
+#! seealso: cor, cor.test
+@cov: (x: [#N, num], y: [#N, num], method: char) -> num;
+
+
+# ============================================================
+# TESTS STATISTIQUES — T2 (complex return types)
+# ============================================================
+
+#! pkg: stats
+#! tier: T2
+#! param x: numeric vector
+#! param y: optional second numeric vector
+#! param alternative: "two.sided", "less", or "greater"
+#! param mu: null hypothesis mean (default 0)
+#! param var.equal: assume equal variances (default FALSE)
+#! param conf_level: confidence level (default 0.95)
+#! ret: list with statistic, df, p.value, conf.int, estimate
+#! note: T2 — complex list structure; Welch's t-test by default
+#! example: # noplayground: t.test(1:10, rnorm(10))   # -> t-test result
+#! seealso: var.test, wilcox.test
+@`t.test`: (x: [#N, num], y: [#N, num], alternative: char, mu: num, var_equal: bool, conf_level: num) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param x: numeric vector (observed counts)
+#! param y: optional second vector (expected counts or contingency table)
+#! param alternative: "two.sided", "less", or "greater"
+#! param correct: continuity correction for 2x2 tables (default TRUE)
+#! ret: list with statistic, df, p.value, method
+#! note: T2 — complex return structure
+#! example: # noplayground: chisq.test(c(10, 10, 10))   # -> Chi-squared test
+#! seealso: fisher.test, prop.test
+@`chisq.test`: (x: [#N, num], y: [#N, num], alternative: char, correct: bool) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param x: 2x2 contingency table
+#! param alternative: "two.sided", "less", or "greater"
+#! param conf_level: confidence level (default 0.95)
+#! ret: list with estimate, p.value, conf.int, method
+#! note: T2 — exact test for 2x2 tables, recommended when n < 20
+#! example: # noplayground: fisher.test(matrix(c(1, 9, 11, 2), 2, 2))   # -> Fisher's exact test
+#! seealso: chisq.test
+@`fisher.test`: (x: [#M, [#N, num]], alternative: char, conf_level: num) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param x: numeric vector
+#! param y: optional second numeric vector
+#! param alternative: "two.sided", "less", or "greater"
+#! param correct: continuity correction (default TRUE)
+#! param conf_level: confidence level (default 0.95)
+#! ret: list with statistic, p.value, estimate, conf.int
+#! note: T2 — non-parametric test
+#! example: # noplayground: wilcox.test(1:10, 2:11)   # -> Wilcoxon rank-sum test
+#! seealso: t.test, ks.test
+@`wilcox.test`: (x: [#N, num], y: [#N, num], alternative: char, correct: bool, conf_level: num) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param x: numeric vector
+#! param y: optional second numeric vector
+#! param alternative: "two.sided", "less", or "greater"
+#! param conf_level: confidence level (default 0.95)
+#! ret: list with statistic, p.value, estimate, conf.int
+#! note: T2 — binomial test for proportion
+#! example: # noplayground: binom.test(6, 10)   # -> exact binomial test
+#! seealso: prop.test, chisq.test
+@`binom.test`: (x: int, n: int, p: num, alternative: char, conf_level: num) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param x: numeric vector (optionally with NA)
+#! param alternative: "greater", "less", or "two.sided"
+#! ret: list with statistic, p.value
+#! note: T2 — tests for normality, requires n >= 3
+#! example: # noplayground: shapiro.test(rnorm(100))   # -> W ≈ 1, p ≈ 1
+#! seealso: ks.test
+@`shapiro.test`: (x: [#N, num]) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param x: numeric vector
+#! param y: optional second numeric vector
+#! param alternative: "two.sided", "less", or "greater"
+#! ret: list with statistic, p.value
+#! note: T2 — Kolmogorov-Smirnov test for distribution comparison
+#! example: # noplayground: ks.test(rnorm(100), "pnorm")   # -> KS test against normal
+#! seealso: shapiro.test, wilcox.test
+@`ks.test`: (x: [#N, num], y: [#N, num], alternative: char) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param x: numeric vector
+#! param y: second numeric vector
+#! param alternative: "two.sided", "less", or "greater"
+#! ret: list with statistic, df, p.value
+#! note: T2 — F-test for equality of two variances
+#! example: # noplayground: var.test(rnorm(100), rnorm(100, sd = 2))   # -> F-test
+#! seealso: t.test
+@`var.test`: (x: [#N, num], y: [#N, num], alternative: char) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param x: numeric vector
+#! param groups: factor or grouping vector
+#! ret: list with statistic, p.value
+#! note: T2 — non-parametric one-way test (Kruskal-Wallis)
+#! example: # noplayground: kruskal.test(list(c(1,2,3), c(4,5,6), c(7,8,9)))   # -> H-test
+#! seealso: wilcox.test, oneway.test
+@`kruskal.test`: (x: [#N, num], groups: Any) -> Any;
+
+
+# ============================================================
+# APPROXIMATION AND INTERPOLATION
+# ============================================================
+
+#! pkg: stats
+#! tier: T1
+#! param x: x-coordinates of data
+#! param y: y-coordinates of data
+#! param xout: x-coordinates at which to interpolate
+#! param method: "linear" (default), "constant"
+#! param rule: extrapolation rule (1 = NA outside, 2 = edge values)
+#! ret: interpolated y-values
+#! example: # noplayground: approx(c(1, 2, 3), c(10, 20, 30), xout = 1.5)   # -> 15
+#! seealso: spline, approx
+@approx: (x: [#N, num], y: [#N, num], xout: [#M, num], method: char, rule: int) -> [#M, num];
+
+#! pkg: stats
+#! tier: T1
+#! param x: x-coordinates of data
+#! param y: y-coordinates of data
+#! param n: number of interpolation points (default 3*length(x))
+#! param method: "natural" (default) or "periodic"
+#! ret: list with x and y of interpolated spline
+#! note: natural cubic spline interpolation
+#! example: # noplayground: spline(1:4, c(0,1,0,1), n = 10)$y   # -> 10 interpolated values
+#! seealso: splinefun, approx
+@spline: (x: [#N, num], y: [#N, num], n: int, method: char) -> Any;
+
+#! pkg: stats
+#! tier: T1
+#! param x: x-coordinates
+#! param y: y-coordinates
+#! param method: "fmm" (default), "periodic", "natural", "monoH.FC"
+#! ret: list with coefficients (for predict)
+#! note: returns a function-like object for evaluation at new points
+#! example: # noplayground: sp <- splinefun(1:4, c(1, 4, 9, 16)); sp(2.5)   # -> interpolated value
+#! seealso: spline, approx
+@splinefun: (x: [#N, num], y: [#N, num], method: char) -> Any;
+
+
+# ============================================================
+# OPTIMIZATION
+# ============================================================
+
+#! pkg: stats
+#! tier: T2
+#! param fn: objective function to minimize
+#! param par: initial parameter values
+#! param method: optimization method ("Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN")
+#! param lower: lower bounds (for L-BFGS-B)
+#! param upper: upper bounds (for L-BFGS-B)
+#! ret: list with par (minimum parameters), value (minimum value), convergence
+#! note: T2 — complex return, method-dependent bounds
+#! example: # noplayground: optim(c(0,0), function(x) x[1]^2 + x[2]^2)   # -> par = c(0,0), value = 0
+#! seealso: nlminb, optimize
+@optim: (par: [#N, num], fn: Any, method: char, lower: [#N, num], upper: [#N, num]) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param objective: function to minimize
+#! param lower: lower bounds
+#! param upper: upper bounds
+#! param start: starting values
+#! ret: list with par, objective, convergence
+#! note: T2 — bounded optimization using PORT routines
+#! example: # noplayground: nlminb(c(0,0), function(x) x[1]^2 + x[2]^2, lower = -10, upper = 10)
+#! seealso: optim
+@nlminb: (start: [#N, num], objective: Any, lower: [#N, num], upper: [#N, num]) -> Any;
+
+#! pkg: stats
+#! tier: T1
+#! param f: function of one variable to minimize
+#! param lower: lower bound of interval
+#! param upper: upper bound of interval
+#! ret: list with minimum (x) and objective value (objective)
+#! note: one-dimensional optimization on a bounded interval
+#! example: # noplayground: optimize(function(x) (x-3)^2, lower = 0, upper = 10)   # -> minimum = 3
+#! seealso: optim, nlminb
+@optimize: (f: Any, lower: num, upper: num) -> Any;
+
+
+# ============================================================
+# INTEGRATION
+# ============================================================
+
+#! pkg: stats
+#! tier: T1
+#! param f: function to integrate (must accept numeric vector)
+#! param lower: lower limit of integration
+#! param upper: upper limit of integration
+#! param subdivisions: max number of subintervals (default 100)
+#! ret: list with value (integral estimate) and abs.error
+#! example: # noplayground: integrate(function(x) x^2, 0, 1)   # -> value = 0.3333...
+#! seealso: optim, nlminb
+@integrate: (f: Any, lower: num, upper: num, subdivisions: int) -> Any;
+
+
+# ============================================================
+# DISTANCE AND CLUSTERING
+# ============================================================
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector, matrix, or data frame
+#! param method: distance method ("euclidean" default, "maximum", "manhattan", "canberra", "binary", "minkowski")
+#! ret: distance matrix (dist object)
+#! note: returns a lower-triangle distance matrix
+#! example: # noplayground: dist(matrix(1:6, 2, 3))   # -> pairwise distances
+#! seealso: hclust, cmdscale
+@dist: (x: [#N, T], method: char) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param d: distance matrix (dist object)
+#! param method: clustering method ("complete" default, "single", "average", "ward.D2", "centroid")
+#! param members: optional weight vector
+#! ret: hclust object (list with merge, height, order, labels, method, dist.method)
+#! note: T2 — returns complex hierarchical clustering object
+#! example: # noplayground: hclust(dist(c(1, 2, 3, 10, 11, 12)))   # -> hierarchical cluster tree
+#! seealso: dist, cutree, rect.hclust
+@hclust: (d: Any, method: char, members: [#N, num]) -> Any;
+
+#! pkg: stats
+#! tier: T1
+#! param tree: hclust object
+#! param k: number of clusters
+#! param h: height threshold for cutting tree
+#! ret: integer vector of cluster assignments
+#! example: # noplayground: hc <- hclust(dist(c(1,2,3,10,11,12))); cutree(hc, k = 2)   # -> c(1,1,1,2,2,2)
+#! seealso: hclust, dist
+@cutree: (tree: Any, k: int, h: num) -> [#N, int];
+
+#! pkg: stats
+#! tier: T2
+#! param x: numeric matrix (data)
+#! param centers: number of clusters or initial centroids
+#! param nstart: number of random starts (default 1)
+#! param iter.max: maximum iterations per start (default 10)
+#! ret: list with cluster (assignments), centers, size, withinss, totss
+#! note: T2 — returns complex clustering result
+#! example: # noplayground: kmeans(matrix(rnorm(100), 50, 2), centers = 2)   # -> k-means clustering
+#! seealso: hclust, dist
+@kmeans: (x: [#N, [#M, num]], centers: int, nstart: int, iter_max: int) -> Any;
+
+
+# ============================================================
+# SORTING AND ORDERING (rank-based, complement to base.ty)
+# ============================================================
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector
+#! param probs: quantile probabilities (default c(0, 0.25, 0.5, 0.75, 1))
+#! param na.rm: if TRUE, remove NA (default FALSE)
+#! ret: quantile values at requested probabilities
+#! example: # noplayground: quantile(1:100)   # -> c(1, 25.75, 50.5, 75.25, 100)
+#! seealso: median, IQR, fivenum
+@quantile: (x: [#N, num], probs: [#M, num], na.rm: bool) -> [#M, num];
+
+
+# ============================================================
+# FORMULA AND MODEL (T2 — complex objects)
+# ============================================================
+
+#! pkg: stats
+#! tier: T2
+#! param object: model object (lm, glm, etc.)
+#! param newdata: optional new data for predictions
+#! param type: prediction type ("response", "link", "terms")
+#! ret: predicted values
+#! note: T2 — generic dispatch, complex return
+#! example: # noplayground: m <- lm(mpg ~ wt, data = mtcars); predict(m, newdata = data.frame(wt = 3))
+#! seealso: fitted, residuals
+@predict: (object: Any, newdata: Any, type: char) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param object: model object (lm, glm, etc.)
+#! ret: fitted (predicted) values
+#! note: T2 — generic dispatch
+#! example: # noplayground: m <- lm(mpg ~ wt, data = mtcars); fitted(m)   # -> fitted values
+#! seealso: predict, residuals
+@fitted: (object: Any) -> Any;
+
+#! pkg: stats
+#! tier: T2
+#! param object: model object (lm, glm, etc.)
+#! param type: residual type ("response", "pearson", "deviance")
+#! ret: residuals
+#! note: T2 — generic dispatch
+#! example: # noplayground: m <- lm(mpg ~ wt, data = mtcars); residuals(m)   # -> residuals
+#! seealso: fitted, predict
+@residuals: (object: Any, type: char) -> Any;
+
+
+# ============================================================
+# MISC UTILITIES
+# ============================================================
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector
+#! ret: TRUE if x has a time series attribute (tsp)
+#! example: # noplayground: is.ts(1:10)   # -> FALSE
+#! seealso: ts, as.ts
+@`is.ts`: (x: Any) -> bool;
+
+#! pkg: stats
+#! tier: T1
+#! param x: object to test
+#! ret: TRUE if x is a step function
+#! example: # noplayground: is.stepfun(stepfun(1:5, 1:5))   # -> TRUE
+#! seealso: stepfun
+@`is.stepfun`: (x: Any) -> bool;
+
+#! pkg: stats
+#! tier: T1
+#! param x: object to test
+#! ret: TRUE if x has TSP (time series) attributes
+#! example: # noplayground: hasTsp(ts(1:10))   # -> TRUE
+#! seealso: tsp, ts
+@hasTsp: (x: Any) -> bool;
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector
+#! param na.rm: if TRUE, remove NA (default FALSE)
+#! ret: complete cases indicator (logical vector)
+#! note: returns TRUE for rows with no NA values
+#! example: complete.cases(c(1, NA, 3))   # -> c(TRUE, FALSE, TRUE)
+#! seealso: na.omit, is.na
+@`complete.cases`: (x: [#N, T]) -> [#N, bool];
+
+#! pkg: stats
+#! tier: T1
+#! param ...: names and values to assign
+#! ret: named list
+#! note: utility for creating named lists
+#! example: setNames(1:3, c("a", "b", "c"))   # -> c(a=1, b=2, c=3)
+#! seealso: names
+@setNames: (object: [#N, T], nm: [#N, char]) -> [#N, T];
+
+#! pkg: stats
+#! tier: T2
+#! param formula: a formula object (e.g., y ~ x)
+#! param scope: scope for step function
+#! param direction: "both", "backward", or "forward"
+#! ret: updated model object
+#! note: T2 — stepwise model selection
+#! example: m <- lm(mpg ~ wt + cyl, data = mtcars); step(m)
+#! seealso: lm, glm, update
+@step: (object: Any, scope: Any, direction: char) -> Any;

@@ -83,7 +83,40 @@ typr document           # generate .Rd documentation
 typr pkgdown            # build a documentation website
 typr repl               # interactive session
 typr lsp                # language server (used by the editor extensions)
+typr mcp                # MCP server (exposes the compiler to AI agents)
 ```
+
+## MCP server
+
+`typr mcp` runs an [MCP](https://modelcontextprotocol.io) server over stdio, giving AI
+agents (Claude Code, Claude Desktop, etc.) direct access to the compiler — no shelling out
+to `typr check`/`typr build` and parsing text output. Everything runs in-process: no
+filesystem, no project directory, no `.typr_cache`.
+
+Tools exposed today (see `crates/typr-mcp`):
+
+| Tool | What it does |
+|---|---|
+| `check` | Type-checks TypR source, returns `{ok, diagnostics[{code, message}]}` with stable `T0xx`/`S0xx` codes |
+| `build` | Same as `check`, plus the transpiled R code (`r_code`) — produced even when there are type errors |
+
+Point a client at the `typr` binary with the `mcp` argument. After `cargo install typr`,
+`typr` is on `PATH`, so a client config (e.g. Claude Desktop's/Claude Code's `mcpServers`
+block) just needs:
+
+```json
+{
+  "mcpServers": {
+    "typr": {
+      "command": "typr",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Building from a local checkout instead of installing? Point `command` at
+`target/debug/typr` (or `target/release/typr`) directly.
 
 ## Repository layout
 
@@ -91,6 +124,7 @@ typr lsp                # language server (used by the editor extensions)
 crates/typr-core     type checking and transpilation
 crates/typr-cli      command-line interface
 crates/typr-lsp      language server
+crates/typr-mcp      MCP server exposing the compiler to AI agents
 crates/typr-wasm     WASM build powering the playground
 editors/vscode       VS Code / Positron extension
 editors/rstudio      RStudio addins (typr.runner)

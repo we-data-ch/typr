@@ -1,0 +1,6 @@
+title = "bool/num literals as singleton types (`let flag: true = true;`, `let x: 3.14 = 3.14;`)"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-09-10"
+origin = "perso"

@@ -1026,7 +1026,7 @@ fn build_project_impl(
     let package = get_package_name().unwrap_or_else(|_| "unknown".to_string());
     let version = get_package_version().unwrap_or_else(|_| "0.0.0".to_string());
     let items: Vec<Lang> = type_checker.get_code().iter().cloned().collect();
-    let spg = build_spg_from_items(&items, &package, &version);
+    let spg = build_spg_from_items(&items, &package, &version, None);
     let roxygen_entries = build_roxygen_entries(&spg);
 
     let step = Step::new("Transpiling");
@@ -1481,7 +1481,7 @@ pub fn generate_spg(output: Option<PathBuf>) {
 
     let step = Step::new("Building semantic graph");
     let typed_items: Vec<Lang> = type_checker.get_code().iter().cloned().collect();
-    let spg = build_spg_from_items(&typed_items, &package, &version);
+    let spg = build_spg_from_items(&typed_items, &package, &version, None);
     step.done();
 
     let out_path = output.unwrap_or_else(|| PathBuf::from("spg.json"));
@@ -1757,7 +1757,7 @@ fn document_impl(quiet: bool) {
     let items: Vec<Lang> = type_checker.get_code().iter().cloned().collect();
 
     let step = Step::new("Building semantic graph");
-    let spg = build_spg_from_items(&items, &package, &version);
+    let spg = build_spg_from_items(&items, &package, &version, None);
     step.done();
 
     // No manifest: an explicit `typr document` always runs devtools.
@@ -2023,6 +2023,7 @@ mod roxygen_injection_tests {
             payload: NodePayload::Variable {
                 type_str: type_str.to_string(),
             },
+            meta: None,
         }
     }
 

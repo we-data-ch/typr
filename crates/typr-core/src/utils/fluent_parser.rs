@@ -347,7 +347,7 @@ mod tests {
             .push("9")
             .parse_type_next()
             .get_last_type();
-        assert_eq!(typ, builder::integer_type(8))
+        assert_eq!(typ, builder::integer_type(9))
     }
 
     #[test]

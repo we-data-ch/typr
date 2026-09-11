@@ -1211,12 +1211,21 @@ impl Context {
         // reduces away from its alias for homogeneity checking — see
         // `[Object]`/`[Circle]` array-covariance).
         let reduced_typ = reduce_type(self, typ);
+        // `.generalize()` (drops a literal's exact value, e.g. `Boolean(Val(true))`
+        // → `Boolean(Unknown)`) lets a literal-typed argument (`true`, `3`) find a
+        // function declared against the base type (`@view: (bool) -> char;`, first
+        // param `Boolean(Unknown)`): the literal is a subtype of its base, but
+        // never equal to it once `Type`'s `PartialEq` compares the literal value.
+        let generalized_typ = reduced_typ.clone().generalize();
         self.variables()
             .filter(|&(var, typ2)| {
                 if !typ2.is_function() {
                     return false;
                 }
-                if var.get_type() == *typ || reduce_type(self, &var.get_type()) == reduced_typ {
+                if var.get_type() == *typ
+                    || reduce_type(self, &var.get_type()) == reduced_typ
+                    || reduce_type(self, &var.get_type()).generalize() == generalized_typ
+                {
                     return true;
                 }
                 // Fallback: `var.get_type()` comes back `Empty` for a function
@@ -1229,8 +1238,11 @@ impl Context {
                 // interface satisfaction in TypR is meant to be purely
                 // structural, not keyed on a bookkeeping field surviving a
                 // module re-export.
-                typ2.get_first_parameter()
-                    .is_some_and(|p| p == *typ || reduce_type(self, &p) == reduced_typ)
+                typ2.get_first_parameter().is_some_and(|p| {
+                    p == *typ
+                        || reduce_type(self, &p) == reduced_typ
+                        || reduce_type(self, &p).generalize() == generalized_typ
+                })
             })
             .cloned()
             .collect()

@@ -11,13 +11,18 @@ type Eq <- interface { eq: (Self, Self) -> bool };
 # `a < b`, zero when equal, positive when `a > b`.
 type Ord <- interface { compare: (Self, Self) -> int };
 
-# Distinct-values filter. Atomic element arrays (int/num/char/bool) dispatch
-# straight to base R's own `unique()` (already a real S3 generic); composite
-# arrays (records, unions) dispatch to `unique.typed_vec`, which calls the
-# element type's own `eq` at runtime — see std.R.
+#! pkg: base
+#! tier: T1
+#! param a: vector with distinct elements
+#! ret: vector with duplicates removed
+#! note: atomic arrays dispatch to R's unique(); composites use element eq
+#! example: unique(c(1,2,2,3,3,3))   # -> c(1,2,3)
 @unique: (a: [#N, Eq]) -> [#N, Eq];
 
-# Stable sort. Same dual dispatch as `unique`: atomic arrays go through base
-# R's `sort()`; composite arrays use `sort.typed_vec`, an insertion sort
-# calling the element type's own `compare` at runtime — see std.R.
+#! pkg: base
+#! tier: T1
+#! param a: vector to sort
+#! ret: sorted vector
+#! note: atomic arrays dispatch to R's sort(); composites use element compare
+#! example: sort(c(3,1,4,1,5))   # -> c(1,1,3,4,5)
 @sort: (a: [#N, Ord]) -> [#N, Ord];

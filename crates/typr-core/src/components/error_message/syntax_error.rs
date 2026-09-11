@@ -73,6 +73,34 @@ impl SyntaxError {
         }
     }
 
+    /// Stable identifier for this error variant, independent of its message text.
+    /// Assigned once in declaration order (S001..) — never renumber an existing
+    /// code when adding/removing/reordering variants, only append the next free one.
+    /// `WithNode` is a wrapper for attaching AST context, not a distinct error kind,
+    /// so it delegates to the wrapped error's code (mirrors `get_help_data`/`simple_message`).
+    pub fn code(&self) -> &'static str {
+        match self {
+            SyntaxError::FunctionWithoutType(..) => "S001",
+            SyntaxError::FunctionWithoutReturnType(..) => "S002",
+            SyntaxError::ForgottenSemicolon(..) => "S003",
+            SyntaxError::MissingListPrefix(..) => "S004",
+            SyntaxError::EmptyFunctionBody(..) => "S005",
+            SyntaxError::FunctionTypeSyntax(..) => "S006",
+            SyntaxError::RecordConstructorIndex(..) => "S007",
+            SyntaxError::RecordInRecursiveParams(..) => "S008",
+            SyntaxError::UnknownElement { .. } => "S009",
+            SyntaxError::LetInsteadOfType { .. } => "S010",
+            SyntaxError::TypeInsteadOfLet { .. } => "S011",
+            SyntaxError::SingleLetterTypeName { .. } => "S012",
+            SyntaxError::KeywordRecordPositionalElements { .. } => "S013",
+            SyntaxError::MutationTargetNotAssignable(..) => "S014",
+            SyntaxError::WrongCommentSyntax(..) => "S015",
+            SyntaxError::SingleEqualsComparison(..) => "S016",
+            SyntaxError::TupleDestructureArityMismatch { .. } => "S017",
+            SyntaxError::WithNode(_, inner) => inner.code(),
+        }
+    }
+
     /// Get a simple error message without file access (for LSP use).
     pub fn simple_message(&self) -> String {
         match self {
@@ -344,5 +372,87 @@ impl ErrorMsg for SyntaxError {
             SyntaxError::WithNode(_, inner) => return inner.display(),
         };
         msg.map_or_else(|e| format!("{:?}", e), |_| String::new())
+    }
+}
+
+#[cfg(test)]
+mod code_tests {
+    use std::collections::HashSet;
+
+    /// Slices out the body of `fn <fn_name>` by brace-counting from the first `{`.
+    fn extract_fn_body<'a>(src: &'a str, fn_name: &str) -> &'a str {
+        let needle = format!("fn {fn_name}(");
+        let start = src.find(&needle).unwrap_or_else(|| panic!("fn {fn_name} not found"));
+        let rest = &src[start..];
+        let brace_start = rest.find('{').unwrap();
+        let mut depth = 0i32;
+        for (i, c) in rest[brace_start..].char_indices() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return &rest[brace_start..brace_start + i + 1];
+                    }
+                }
+                _ => {}
+            }
+        }
+        panic!("unbalanced braces in fn {fn_name}");
+    }
+
+    /// Extracts every quoted string literal shaped like a stable error code
+    /// (one uppercase letter + 3 digits, e.g. `S012`).
+    fn extract_codes(src: &str) -> Vec<String> {
+        let mut codes = Vec::new();
+        let mut in_string = false;
+        let mut current = String::new();
+        for c in src.chars() {
+            if c == '"' {
+                if in_string {
+                    if current.len() == 4
+                        && current.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                        && current[1..].chars().all(|d| d.is_ascii_digit())
+                    {
+                        codes.push(current.clone());
+                    }
+                    current.clear();
+                } else {
+                    current.clear();
+                }
+                in_string = !in_string;
+            } else if in_string {
+                current.push(c);
+            }
+        }
+        codes
+    }
+
+    #[test]
+    fn syntax_error_codes_are_unique_and_cover_every_variant() {
+        let src = include_str!("syntax_error.rs");
+        let body = extract_fn_body(src, "code");
+        let arm_count = body.matches("=>").count();
+        let codes = extract_codes(body);
+
+        // `WithNode` delegates to the wrapped error's code instead of returning
+        // a literal, so it contributes one arm but no code of its own.
+        assert_eq!(
+            codes.len() + 1,
+            arm_count,
+            "every match arm in SyntaxError::code() but WithNode must return a literal `S0xx` code"
+        );
+
+        let unique: HashSet<&String> = codes.iter().collect();
+        assert_eq!(
+            codes.len(),
+            unique.len(),
+            "duplicate SyntaxError codes found: {:?}",
+            codes
+        );
+
+        for code in &codes {
+            assert!(code.starts_with('S'), "SyntaxError code must start with 'S': {code}");
+        }
     }
 }

@@ -1,18 +1,45 @@
-# State<T> — shared mutable cell.
-# Backed at runtime by an R environment (reference type), so aliasing
-# (`let b <- a;`) gives true shared-mutation semantics with zero transpiler
-# changes. T is a phantom type parameter (erased at the R level, like
-# Factor<L>); runtime validation uses a captured class() fingerprint
-# instead of monomorphization.
+#! pkg: base
+#! tier: T1
+#! param value: initial value
+#! ret: new mutable State cell
+#! note: backed by R environment (reference semantics)
 opaque State<T> <- Any;
 
 @state: (value: T) -> State<T>;
+#! pkg: base
+#! tier: T1
+#! param s: state cell to read
+#! ret: current value
 @get: (s: State<T>) -> T;
+#! pkg: base
+#! tier: T1
+#! param s: state cell to update
+#! param value: new value
+#! ret: NULL (invisibly)
 @set: (s: State<T>, value: T) -> Empty;
+#! pkg: base
+#! tier: T1
+#! param s: state cell to update
+#! param f: transformation function
+#! ret: NULL (invisibly)
+#! note: applies f to current value and stores result
 @update: (s: State<T>, f: (T) -> T) -> Empty;
+#! pkg: base
+#! tier: T1
+#! param s: state cell
+#! ret: version counter (incremented on each mutation)
 @version: (s: State<T>) -> int;
 
-# Pure snapshot transform: reads the current value, applies f, and wraps
-# the result in a brand-new, independent State (no aliasing with s).
+#! pkg: base
+#! tier: T1
+#! param s: state cell to snapshot
+#! param f: transformation function
+#! ret: new independent State with transformed value
+#! note: pure snapshot — no aliasing with original
 @map: (s: State<T>, f: (T) -> U) -> State<U>;
+#! pkg: base
+#! tier: T1
+#! param s: state cell to derive from
+#! param f: transformation function
+#! ret: new State with f applied to current value
 @derive: (s: State<T>, f: (T) -> T) -> State<T>;

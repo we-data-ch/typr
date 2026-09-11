@@ -44,6 +44,15 @@ impl TypRError {
             TypRError::Syntax(se) => se.simple_message(),
         }
     }
+
+    /// Stable identifier for this error's variant (`T0xx` for type errors,
+    /// `S0xx` for syntax errors) — see `TypeError::code`/`SyntaxError::code`.
+    pub fn code(&self) -> &'static str {
+        match self {
+            TypRError::Type(te) => te.code(),
+            TypRError::Syntax(se) => se.code(),
+        }
+    }
 }
 
 impl ErrorMsg for TypRError {

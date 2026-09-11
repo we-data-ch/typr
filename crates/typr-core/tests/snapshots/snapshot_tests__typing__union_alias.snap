@@ -5,7 +5,9 @@ expression: ty
 Tag(
     "Circle",
     Number(
-        Unknown,
+        Val(
+            3.14,
+        ),
         HelpData {
             offset: 0,
             file_name: "",

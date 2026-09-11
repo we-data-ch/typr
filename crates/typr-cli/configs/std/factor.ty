@@ -1,21 +1,52 @@
+#! pkg: base
+#! tier: T1
+#! param x: character label
+#! param levels: vector of valid levels
+#! ret: Factor with given levels
+#! note: checks x is in levels, wraps as 1-based integer index
+#! coercion: character -> Factor (validated against levels)
+#! example: factor("low", c("low", "medium", "high"))
 # Factor type — RFC-TR-014
 # Parametric type for R categorical data.
 # L is the type of the levels vector ([#N, char]).
 # Opaque: prevents implicit int <-> Factor conversions.
 opaque Factor<L> <- int;
 
-# Standard constructor: checks x ∈ levels and returns 1-based index.
 @factor: (x: char, levels: [#N, char]) -> Factor<[#N, char]>;
 
-# Annotator: wraps an already-valid integer index as a Factor.
+#! pkg: base
+#! tier: T1
+#! param x: integer index (must be valid for levels)
+#! param levels: vector of valid levels
+#! ret: Factor wrapping the integer index
+#! note: no validation — caller must ensure x is a valid index
 @annotate_factor: (x: int, levels: [#N, char]) -> Factor<[#N, char]>;
 
-# Coerce any value to a Factor using existing R levels.
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! param levels: existing levels to use
+#! ret: Factor from any value
+#! coercion: any -> Factor (validated against provided levels)
 @as__factor: (x: Any, levels: [#N, char]) -> Factor<[#N, char]>;
 
-# Level accessors.
+#! pkg: base
+#! tier: T1
+#! param f: Factor value
+#! ret: levels vector
+#! example: levels(factor("low", c("low","high")))   # -> c("low","high")
 @levels: (f: Factor<L>) -> L;
+
+#! pkg: base
+#! tier: T1
+#! param f: Factor value
+#! ret: number of levels
+#! example: nlevels(factor("a", c("a","b","c")))   # -> 3
 @nlevels: (f: Factor<L>) -> int;
 
-# Convert back to character label.
+#! pkg: base
+#! tier: T1
+#! param f: Factor value
+#! ret: character label of the current level
+#! example: as__character(factor("low", c("low","high")))   # -> "low"
 @as__character: (f: Factor<L>) -> char;

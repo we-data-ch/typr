@@ -1121,8 +1121,8 @@ pub fn validate_forced_dispatch(context: &Context, var: &Var) -> Option<TypRErro
 //main
 pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
     match expr {
-        Lang::Number { help_data: h, .. } => (
-            Type::Number(crate::components::r#type::tnumber::Tnum::Unknown, h.clone()),
+        Lang::Number { value: n, help_data: h } => (
+            Type::Number(crate::components::r#type::tnumber::Tnum::Val(*n), h.clone()),
             expr.clone(),
             context.clone(),
         )
@@ -1133,8 +1133,8 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
             context.clone(),
         )
             .into(),
-        Lang::Bool { help_data: h, .. } => (
-            Type::Boolean(crate::components::r#type::tbool::Tbool::Unknown, h.clone()),
+        Lang::Bool { value: b, help_data: h } => (
+            Type::Boolean(crate::components::r#type::tbool::Tbool::Val(*b), h.clone()),
             expr.clone(),
             context.clone(),
         )

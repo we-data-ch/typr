@@ -1,0 +1,11 @@
+#@case singleton-bool-num-types: bool/num literals used as singleton types
+# (`let flag: true = true;`, `let x: 3.14 = 3.14;`) claimed broken in
+# comp_correction.md (§A, 2026-09-09 audit of noplayground doc blocks against
+# 0.5.10) -- re-typed to the generic `bool`/`num` base and rejected with a
+# type error. Re-tested against current source: does not reproduce, int/char
+# singletons already worked and bool/num are handled symmetrically. Kept as a
+# regression net for the four literal kinds together.
+let flag: true = true;
+let x: 3.14 = 3.14;
+print(flag);
+print(x);

@@ -1,0 +1,720 @@
+#! pkg: utils
+#! tier: T2
+#! format: TypR stdlib catalog — R utils package functions
+#
+# Catalogue des fonctions R utils typées pour TypR.
+# Ces fonctions sont en doc SPG uniquement (R_DOC_ONLY_SOURCES),
+# pas embarquées dans le compilateur (.std_r_typed.bin).
+#
+# T2 = doc MCP seulement (signatures souples, coercion, retour complexe)
+
+# ============================================================
+# DATA I/O — Reading and writing data
+# ============================================================
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path or URL
+#! param header: TRUE if first row is column names (default TRUE)
+#! param sep: field separator (default "," for read.csv)
+#! param dec: decimal separator (default ".")
+#! param na.strings: strings to interpret as NA (default c("NA",""))
+#! param skip: number of lines to skip at start of file
+#! param nrows: number of rows to read (-1 = all)
+#! param stringsAsFactors: convert character columns to factors (deprecated in R >= 4.0)
+#! ret: data frame
+#! note: T2 — returns data.frame, complex options; read.csv is read.table with comma defaults
+#! example: # noplayground: read.csv("data.csv")   # -> data frame from CSV file
+#! seealso: read.table, write.csv, read.delim
+@`read.csv`: (file: char, header: bool, sep: char, dec: char, na_strings: [#N, char], skip: int, nrows: int, strings_as_factors: bool) -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path or URL
+#! param header: TRUE if first row is column names
+#! param sep: field separator (default ";" for csv2)
+#! param dec: decimal separator (default "," for csv2)
+#! param na.strings: strings to interpret as NA
+#! ret: data frame
+#! note: T2 — European-style CSV (semicolon separator, comma decimal)
+#! example: # noplayground: read.csv2("data.csv2")   # -> data frame
+#! seealso: read.csv, write.csv2
+@`read.csv2`: (file: char, header: bool, sep: char, dec: char, na_strings: [#N, char]) -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path or URL
+#! param header: TRUE if first row is column names
+#! param sep: field separator (default "\t")
+#! param dec: decimal separator (default ".")
+#! param na.strings: strings to interpret as NA
+#! param skip: number of lines to skip
+#! param nrows: number of rows to read (-1 = all)
+#! ret: data frame
+#! note: T2 — general-purpose tab-delimited reader
+#! example: # noplayground: read.delim("data.tsv")   # -> data frame from TSV file
+#! seealso: read.csv, read.table, write.table
+@`read.delim`: (file: char, header: bool, sep: char, dec: char, na_strings: [#N, char], skip: int, nrows: int) -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path or URL
+#! param header: TRUE if first row is column names
+#! param sep: field separator (default ";")
+#! param dec: decimal separator (default ",")
+#! param na.strings: strings to interpret as NA
+#! ret: data frame
+#! note: T2 — European-style TSV
+#! example: # noplayground: read.delim2("data.tsv2")   # -> data frame
+#! seealso: read.delim, write.table
+@`read.delim2`: (file: char, header: bool, sep: char, dec: char, na_strings: [#N, char]) -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path or URL
+#! param header: TRUE if first row is column names (default TRUE)
+#! param sep: field separator (default "")
+#! param quote: quote characters (default '"')
+#! param dec: decimal separator (default ".")
+#! param row.names: column(s) to use as row names
+#! param col.names: column names (if header = FALSE)
+#! param na.strings: strings to interpret as NA
+#! param colClasses: character classes for columns
+#! param nrows: number of rows to read (-1 = all)
+#! param skip: number of lines to skip
+#! param stringsAsFactors: convert character columns to factors (deprecated)
+#! ret: data frame
+#! note: T2 — the most general R data reader; read.csv, read.delim are wrappers
+#! example: # noplayground: read.table("data.txt", header = TRUE)   # -> data frame
+#! seealso: read.csv, read.delim, write.table
+@`read.table`: (file: char, header: bool, sep: char, quote: char, dec: char, row_names: Any, col_names: [#M, char], na_strings: [#N, char], col_classes: [#M, char], nrows: int, skip: int, strings_as_factors: bool) -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path
+#! param header: TRUE if first row is column names
+#! param colClasses: column types
+#! param nrows: number of rows
+#! ret: data frame with fixed-width fields
+#! note: T2 — reads fixed-width format files
+#! example: read.fwf("data.fwf", widths = c(5, 10, 3))
+#! seealso: read.table, read.fortran
+@`read.fwf`: (file: char, widths: [#N, int], header: bool, col_classes: [#M, char], n_rows: int) -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path
+#! param header: TRUE if first row is column names
+#! param colClasses: column types
+#! param na.strings: strings to interpret as NA
+#! ret: data frame
+#! note: T2 — reads DIF (Data Interchange Format) files
+#! example: # noplayground: read.DIF("data.dif")
+#! seealso: read.table
+@`read.DIF`: (file: char, header: bool, col_classes: [#M, char], na_strings: [#N, char]) -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path or connection
+#! param x: data frame or matrix to write
+#! param row.names: whether to write row names (default TRUE)
+#! param col.names: whether to write column names (default TRUE)
+#! param sep: field separator (default ",")
+#! param quote: whether to quote character values (default TRUE)
+#! param dec: decimal separator (default ".")
+#! param na: string to use for NA values (default "NA")
+#! param qmethod: quoting method ("double" or "escape")
+#! ret: invisibly, NULL
+#! note: T2 — writes data frame to CSV with comma defaults
+#! example: write.csv(mtcars, "output.csv")
+#! seealso: write.table, write.csv2, read.csv
+@`write.csv`: (x: Any, file: char, row_names: bool, col_names: bool, sep: char, quote: bool, dec: char, na: char, qmethod: char) -> Empty;
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path
+#! param x: data frame
+#! ret: invisibly, NULL
+#! note: T2 — European-style CSV (semicolon separator, comma decimal)
+#! example: write.csv2(mtcars, "output.csv2")
+#! seealso: write.csv, write.table
+@`write.csv2`: (x: Any, file: char) -> Empty;
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path or connection
+#! param x: data frame or matrix
+#! param row.names: whether to write row names
+#! param col.names: whether to write column names
+#! param sep: field separator (default " ")
+#! param quote: whether to quote character values
+#! param dec: decimal separator
+#! param na: string for NA values
+#! ret: invisibly, NULL
+#! note: T2 — general-purpose data writer
+#! example: write.table(mtcars, "output.txt", sep = "\t")
+#! seealso: write.csv, read.table
+@`write.table`: (x: Any, file: char, row_names: bool, col_names: bool, sep: char, quote: bool, dec: char, na: char) -> Empty;
+
+
+# ============================================================
+# OBJECT INSPECTION
+# ============================================================
+
+#! pkg: utils
+#! tier: T2
+#! param object: any R object
+#! param max.level: maximum nesting level (default NA = all)
+#! comp.str: character width for display (default getOption("str"))
+#! give.headings: show list element names (default TRUE)
+#! vec.len: vector length to display (default 4)
+#! indent.str: initial indent string
+#! ret: invisibly, NULL (prints to stdout)
+#! note: T2 — side-effectful; prints compact structure to stdout
+#! example: str(mtcars)   # -> prints column types and first values
+#! seealso: summary, head
+@str: (object: Any, max_level: int) -> Empty;
+
+#! pkg: utils
+#! tier: T2
+#! param x: data frame
+#! param n: number of rows to show (default 6)
+#! ret: first n rows as data frame
+#! note: T2 — generic dispatch; head.data.frame is the most common method
+#! example: head(mtcars, 3)   # -> first 3 rows of mtcars
+#! seealso: tail, str
+@`head.matrix`: (x: [#N, [#M, T]], n: int) -> [#K, [#M, T]];
+
+#! pkg: utils
+#! tier: T2
+#! param x: data frame
+#! param n: number of rows to show (default 6)
+#! ret: last n rows as data frame
+#! note: T2 — generic dispatch
+#! example: tail(mtcars, 3)   # -> last 3 rows of mtcars
+#! seealso: head, str
+@`tail.matrix`: (x: [#N, [#M, T]], n: int) -> [#K, [#M, T]];
+
+#! pkg: utils
+#! tier: T1
+#! param x: value to convert
+#! param classes: target class(es) (default c("logical", "integer", "double", "complex", "character"))
+#! param numerals: how to handle numerals ("allow.loss", "warn.loss", "no.loss")
+#! ret: converted value
+#! note: T1 — auto-converts character to appropriate atomic type
+#! example: type.convert(c("1", "2.5", "TRUE"))   # -> c(1L, 2.5, TRUE)
+#! seealso: as.numeric, as.integer, as.logical
+@`type.convert`: (x: Any, classes: [#N, char], numerals: char) -> Any;
+
+
+# ============================================================
+# PACKAGE AND SESSION INFO
+# ============================================================
+
+#! pkg: utils
+#! tier: T2
+#! param fields: character vector of fields to return (default NULL = all)
+#! param lib.loc: library path to search (default .libPaths())
+#! ret: character matrix with columns Package, LibPath, Version, ...
+#! note: T2 — returns large matrix; may be slow on first call
+#! example: ip <- installed.packages(); head(ip[, "Package"])   # -> first 6 package names
+#! seealso: packageVersion, packageDescription, sessionInfo
+@`installed.packages`: (fields: [#N, char], lib_loc: [#M, char]) -> Any;
+
+#! pkg: utils
+#! tier: T1
+#! param pkg: package name (character string)
+#! param lib.loc: library path (default NULL = default library)
+#! ret: packageVersion object (comparable numeric version)
+#! note: T1 — simple version lookup
+#! example: # noplayground: packageVersion("base")   # -> '4.x.x'
+#! seealso: packageDescription, installed.packages
+@packageVersion: (pkg: char, lib_loc: char) -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! param pkg: package name
+#! param lib.loc: library path (default NULL)
+#! param fields: specific fields to return (default NULL = all)
+#! param verbose: print package info? (default FALSE)
+#! ret: named list of package metadata (Title, Description, Author, etc.)
+#! note: T2 — returns complex list structure
+#! example: pd <- packageDescription("base"); pd$Title   # -> "The R Base Package"
+#! seealso: packageVersion, installed.packages
+@packageDescription: (pkg: char, lib_loc: char, fields: [#N, char], verbose: bool) -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! ret: list with R.version, platform, running, running_under, release, user, login, host, effective_host, namespaces, loadedOnly, attached, search, libPaths, repos, loadedNamespaces, defaultPackages
+#! note: T2 — complex session info object
+#! example: si <- sessionInfo(); si$R.version$version.string
+#! seealso: installed.packages, packageVersion
+@sessionInfo: () -> Any;
+
+
+# ============================================================
+# COMBINATORICS
+# ============================================================
+
+#! pkg: utils
+#! tier: T1
+#! param n: size of source set
+#! param m: number of elements to choose (optional, default = n)
+#! param FUN: function to apply to each combination (optional)
+#! param simplify: return matrix if TRUE (default TRUE)
+#! ret: matrix of all combinations (each column = one combination) or result of FUN
+#! note: combn(5, 3) generates C(5,3) = 10 combinations of 3 elements from 1:5
+#! example: # noplayground: combn(5, 3)   # -> 3 x 10 matrix of combinations
+#! example: combn(5, 2, FUN = sum)   # -> c(3, 4, 5, 5, 6, 7, 6, 7, 8, 9)
+#! seealso: expand.grid
+@combn: (n: int, m: int, FUN: Any, simplify: bool) -> Any;
+
+
+# ============================================================
+# DATA MANIPULATION
+# ============================================================
+
+#! pkg: utils
+#! tier: T2
+#! param ...: named vectors, factors, or a list of these
+#! ret: data frame with all combinations (full factorial design)
+#! note: T2 — creates expanding grid of all input combinations
+#! example: expand.grid(height = c(60, 80), weight = c(100, 150, 200))
+#!          # -> 2x3 = 6 row data frame
+#! seealso: combn
+@`expand.grid`: (...: Any) -> Any;
+
+#! pkg: utils
+#! tier: T1
+#! param x: list with elements to stack
+#! param id.var: variable(s) identifying rows
+#! param variable.name: name for variable column (default "ind")
+#! param value.name: name for value column (default "values")
+#! ret: data frame in long format
+#! note: inverse of unstack; stacks multiple columns into key-value pairs
+#! example: stack(list(a = 1:3, b = 4:6))   # -> data frame with values and ind
+#! seealso: unstack
+@stack: (x: [#N, T], id_var: [#M, char], variable_name: char, value_name: char) -> Any;
+
+#! pkg: utils
+#! tier: T1
+#! param x: data frame in long format (from stack)
+#! param formula: formula defining columns (e.g., values ~ ind)
+#! param sep: separator for new column names
+#! ret: data frame in wide format
+#! note: inverse of stack; splits long format back to wide
+#! example: unstack(stack(list(a = 1:3, b = 4:6)))
+#! seealso: stack
+@unstack: (x: Any, formula: Any, sep: char) -> Any;
+
+#! pkg: utils
+#! tier: T1
+#! param x: list or data frame
+#! param value: name to check for existence
+#! param exact: if TRUE (default), match exactly
+#! ret: TRUE if x[[value]] exists and is not NULL
+#! note: safer alternative to x[[value]] != NULL
+#! example: hasName(list(a = 1, b = 2), "a")   # -> TRUE
+#! example: hasName(list(a = 1, b = 2), "c")   # -> FALSE
+#! seealso: names
+@hasName: (x: Any, name: char) -> bool;
+
+#! pkg: utils
+#! tier: T1
+#! param x: list or data frame to modify
+#! param val: named list of elements to add/replace
+#! ret: modified list
+#! note: adds or replaces elements in x by name; non-destructive
+#! example: modifyList(list(a = 1, b = 2), list(b = 99, c = 3))
+#!          # -> list(a = 1, b = 99, c = 3)
+#! seealso: c, list
+@modifyList: (x: Any, val: Any) -> Any;
+
+
+# ============================================================
+# STRING DISTANCE
+# ============================================================
+
+#! pkg: utils
+#! tier: T1
+#! param s: character vector (target strings)
+#! param t: character vector (reference strings)
+#! param costs: named vector of substitution/insertion/deletion costs
+#! param type: distance type ("ipc", "dl", "lv", "ml", "ow", "h")
+#! ret: matrix of edit distances (rows = s, cols = t)
+#! note: generalized Levenshtein distance with configurable costs
+#! example: # noplayground: adist("hello", "hallo")   # -> 1 (substitution cost)
+#! example: adist(c("cat", "car"), c("cap", "car"))   # -> 2x2 distance matrix
+#! seealso: agrep, grep
+@adist: (s: [#N, char], t: [#M, char], costs: Any, type: char) -> [#N, [#M, int]];
+
+#! pkg: utils
+#! tier: T1
+#! param pattern: regex or fixed pattern
+#! param x: character vector
+#! param value: if TRUE, return matches; if FALSE, return logical
+#! ret: matching strings or logical vector
+#! note: aregexec returns match positions for approximate regex
+#! example: aregexec("temperature", "tempurature", max.distance = 2)
+#! seealso: agrep, grep
+@aregexec: (pattern: char, x: [#N, char], max_distance: num, value: bool) -> Any;
+
+
+# ============================================================
+# URL ENCODING
+# ============================================================
+
+#! pkg: utils
+#! tier: T1
+#! param URL: character string to encode
+#! param reserved: also encode reserved characters (default FALSE)
+#! ret: percent-encoded URL string
+#! note: encodes spaces as %20, special chars as %XX
+#! example: # noplayground: URLencode("hello world")   # -> "hello%20world"
+#! seealso: URLdecode
+@URLencode: (URL: char, reserved: bool) -> char;
+
+#! pkg: utils
+#! tier: T1
+#! param URL: percent-encoded string to decode
+#! ret: decoded URL string
+#! note: decodes %XX sequences back to original characters
+#! example: URLdecode("hello%20world")   # -> "hello world"
+#! seealso: URLencode
+@URLdecode: (URL: char) -> char;
+
+
+# ============================================================
+# SYSTEM COMMANDS
+# ============================================================
+
+#! pkg: utils
+#! tier: T2
+#! param command: system command to execute
+#! param intern: if TRUE, capture output as character vector
+#! param ignore.stderr: if TRUE, suppress stderr
+#! param wait: if TRUE, wait for completion (default TRUE)
+#! ret: command output (if intern = TRUE) or exit status (if intern = FALSE)
+#! note: T2 — side-effectful, platform-dependent
+#! example: # noplayground: system("ls", intern = TRUE)   # -> character vector of file names
+#! seealso: system2, Sys.sleep
+@system: (command: char, intern: bool, ignore_stderr: bool, wait: bool) -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! param command: system command
+#! param args: arguments to command
+#! param stdout: connection for stdout (default "" = capture)
+#! param stderr: connection for stderr (default "" = capture)
+#! param input: character vector to pass as stdin
+#! param timeout: timeout in seconds (default Inf)
+#! ret: list with status, stdout, stderr
+#! note: T2 — more flexible than system(); handles args and I/O redirection
+#! example: # noplayground: system2("ls", args = "-la", stdout = TRUE)
+#! seealso: system
+@system2: (command: char, args: [#N, char], stdout: Any, stderr: Any, input: [#M, char], timeout: num) -> Any;
+
+
+# ============================================================
+# FILE OPERATIONS
+# ============================================================
+
+#! pkg: utils
+#! tier: T1
+#! param from: source file path(s)
+#! param to: destination file path(s)
+#! param overwrite: if TRUE, overwrite existing files
+#! param copy.mode: copy file permissions (default TRUE)
+#! param copy.date: copy modification time (default FALSE)
+#! ret: logical vector (TRUE for each successful copy)
+#! note: copies file(s) from source to destination
+#! example: # noplayground: file.copy("source.txt", "dest.txt")
+#! seealso: file.remove, file.rename, file.exists
+@`file.copy`: (from: [#N, char], to: [#M, char], overwrite: bool, copy_mode: bool, copy_date: bool) -> [#N, bool];
+
+#! pkg: utils
+#! tier: T1
+#! param ...: character strings giving file paths
+#! param recursive: if TRUE, delete directories recursively
+#! ret: logical vector (TRUE for each successful deletion)
+#! note: deletes file(s) from filesystem
+#! example: # noplayground: file.remove("temp.txt")
+#! seealso: file.copy, file.exists
+@`file.remove`: (...: [#N, char], recursive: bool) -> [#N, bool];
+
+#! pkg: utils
+#! tier: T1
+#! param from: current file path(s)
+#! param to: new file path(s)
+#! param overwrite: if TRUE, overwrite existing files
+#! ret: logical vector (TRUE for each successful rename)
+#! note: renames or moves file(s)
+#! example: # noplayground: file.rename("old.txt", "new.txt")
+#! seealso: file.copy, file.remove
+@`file.rename`: (from: [#N, char], to: [#M, char], overwrite: bool) -> [#N, bool];
+
+#! pkg: utils
+#! tier: T1
+#! param path: directory path to create
+#! param recursive: if TRUE, create intermediate directories
+#! param showWarnings: if TRUE, warn if directory exists
+#! ret: TRUE if successful, FALSE otherwise
+#! note: creates a directory (like mkdir -p)
+#! example: # noplayground: dir.create("output/dir1/dir2")
+#! seealso: list.files, dir.create
+@`dir.create`: (path: char, recursive: bool, show_warnings: bool) -> bool;
+
+#! pkg: utils
+#! tier: T1
+#! param path: directory path to list (default ".")
+#! param pattern: regex pattern to filter file names (default NULL = all)
+#! param full.names: if TRUE, return full paths; if FALSE, just file names
+#! param recursive: if TRUE, list subdirectories recursively
+#! param all.files: if TRUE, include hidden files (default FALSE)
+#! ret: character vector of file/directory names
+#! note: equivalent to ls on filesystem
+#! example: list.files(path = ".", pattern = "\\.R$")
+#! seealso: dir.create, file.exists, list.dirs
+@`list.files`: (path: char, pattern: char, full_names: bool, recursive: bool, all_files: bool) -> [#N, char];
+
+
+# ============================================================
+# PROGRESS BARS
+# ============================================================
+
+#! pkg: utils
+#! tier: T1
+#! param style: progress bar style ("txt", "win", "tk", "none")
+#! param min: minimum value (default 0)
+#! param max: maximum value (default 1)
+#! param initial: initial value (default min)
+#! param char: character to use for progress (default "=")
+#! ret: txtProgressBar object (use setTxtProgressBar to update)
+#! example: pb <- txtProgressBar(min = 0, max = 100, style = "txt")
+#! seealso: setTxtProgressBar, getTxtProgressBar
+@txtProgressBar: (min: num, max: num, initial: num, char: char, style: char) -> Any;
+
+#! pkg: utils
+#! tier: T1
+#! param pb: progress bar object
+#! param value: current value to set
+#! ret: invisibly, NULL (updates progress bar display)
+#! note: call inside a loop to update the progress bar
+#! example: # noplayground: for (i in 1:100) setTxtProgressBar(pb, i)
+#! seealso: txtProgressBar, getTxtProgressBar
+@setTxtProgressBar: (pb: Any, value: num) -> Empty;
+
+#! pkg: utils
+#! tier: T1
+#! param pb: progress bar object
+#! ret: current value of progress bar
+#! example: # noplayground: getTxtProgressBar(pb)
+#! seealso: txtProgressBar, setTxtProgressBar
+@getTxtProgressBar: (pb: Any) -> num;
+
+
+# ============================================================
+# DATA ENTRY AND EDITING
+# ============================================================
+
+#! pkg: utils
+#! tier: T2
+#! param data.obj: data frame or matrix to view
+#! param title: window title (default deparse(substitute(data.obj)))
+#! ret: invisibly, the (potentially modified) data object
+#! note: T2 — opens interactive data viewer (GUI-dependent)
+#! example: View(mtcars)   # -> opens data viewer window
+#! seealso: edit, data.entry
+@View: (data.obj: Any, title: char) -> Any;
+
+
+# ============================================================
+# HISTORY AND ENVIRONMENT
+# ============================================================
+
+#! pkg: utils
+#! tier: T2
+#! param n: number of history lines to save (default 25)
+#! param pattern: regex filter for history entries
+#! param reverse: if TRUE, show most recent first
+#! ret: character vector of history entries
+#! note: T2 — reads R history file; requires history enabled
+#! example: # noplayground: history(10)   # -> last 10 history entries
+#! seealso: savehistory, loadhistory
+@history: (n: int, pattern: char, reverse: bool) -> [#N, char];
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path to save history (default .Rhistory)
+#! ret: invisibly, NULL
+#! note: T2 — saves R command history to file
+#! example: # noplayground: savehistory()
+#! seealso: loadhistory, history
+@savehistory: (file: char) -> Empty;
+
+#! pkg: utils
+#! tier: T2
+#! param file: file path to load history from (default .Rhistory)
+#! ret: invisibly, NULL
+#! note: T2 — loads R command history from file
+#! example: # noplayground: loadhistory()
+#! seealso: savehistory, history
+@loadhistory: (file: char) -> Empty;
+
+
+# ============================================================
+# ENVIRONMENT INFO
+# ============================================================
+
+#! pkg: utils
+#! tier: T2
+#! param envir: environment to browse (default globalenv())
+#! param all.names: include hidden objects (default FALSE)
+#! param pattern: regex filter for object names
+#! ret: invisibly, NULL (prints to stdout)
+#! note: T2 — opens browser of environment contents (GUI-dependent)
+#! example: # noplayground: browseEnv()
+#! seealso: ls, objects
+@browseEnv: (envir: Any, all_names: bool, pattern: char) -> Empty;
+
+#! pkg: utils
+#! tier: T2
+#! param filename: history filename (default .RHistory)
+#! ret: invisibly, NULL (opens interactive debugger)
+#! note: T2 — interactive debugging tool (GUI-dependent)
+#! example: # noplayground: recover()
+#! seealso: debugger, traceback
+@recover: (filename: char) -> Empty;
+
+
+# ============================================================
+# HELP AND DOCUMENTATION
+# ============================================================
+
+#! pkg: utils
+#! tier: T2
+#! param topic: help topic (character string)
+#! param package: package name
+#! param lib.loc: library path
+#! param help_type: "text" or "html"
+#! ret: invisibly, NULL (opens help page)
+#! note: T2 — opens help documentation (may open browser)
+#! example: # noplayground: help("mean")   # -> opens help for mean
+#! seealso: example, vignette
+@help: (topic: char, package: char, lib_loc: char, help_type: char) -> Empty;
+
+#! pkg: utils
+#! tier: T2
+#! param topic: example topic
+#! param package: package name
+#! param lib.loc: library path
+#! ret: invisibly, NULL (runs and prints example code)
+#! note: T2 — runs example code for a function
+#! example: # noplayground: example("mean")
+#! seealso: help
+@example: (topic: char, package: char, lib_loc: char) -> Empty;
+
+#! pkg: utils
+#! tier: T2
+#! param name: vignette name
+#! param package: package name
+#! param lib.loc: library path
+#! ret: vignette object (or NULL if not found)
+#! note: T2 — lists or displays vignettes
+#! example: # noplayground: vignette("intro", package = "utils")
+#! seealso: browseVignettes
+@vignette: (name: char, package: char, lib_loc: char) -> Any;
+
+
+# ============================================================
+# SYSTEM INFORMATION
+# ============================================================
+
+#! pkg: utils
+#! tier: T2
+#! param what: character string of info to return ("platform", "os.type", "sys.info", etc.)
+#! ret: requested system information
+#! note: T2 — platform-dependent output
+#! example: # noplayground: Sys.info()["sysname"]   # -> "Linux" or "Darwin" or "Windows"
+#! seealso: R.version, sessionInfo
+@`Sys.info`: (what: char) -> Any;
+
+
+# ============================================================
+# MISC UTILITIES
+# ============================================================
+
+#! pkg: utils
+#! tier: T1
+#! param object: any R object
+#! ret: approximate size in bytes (as a "number_of_bytes" object)
+#! note: T1 — simple size measurement
+#! example: object.size(mtcars)   # -> ~6-7 KB
+#! seealso: str, ls.str
+@`object.size`: (x: Any) -> Any;
+
+#! pkg: utils
+#! tier: T1
+#! param regex: regex pattern
+#! param x: character string to test
+#! param ignore.case: case-insensitive match (default FALSE)
+#! param value: if TRUE, return matches; if FALSE, return logical
+#! ret: matching strings or logical vector
+#! note: fixed=FALSE uses regex; fixed=TRUE uses literal match
+#! example: glob2rx("*.csv")   # -> "^.*\\.csv$"
+#! seealso: grep, grepl
+@glob2rx: (pattern: char, x: [#N, char], ignore_case: bool, value: bool) -> [#M, char];
+
+#! pkg: utils
+#! tier: T1
+#! param ...: values to capture
+#! param expr: expression to evaluate
+#! ret: list of captured values
+#! note: T1 — useful for capturing multiple return values
+#! example: # noplayground: capture.output(print("hello"))   # -> "hello"
+#! seealso: system
+@`capture.output`: (...: Any, expr: Any) -> [#N, char];
+
+#! pkg: utils
+#! tier: T1
+#! param x: character vector
+#! param pattern: regex pattern to match
+#! param replacement: replacement string
+#! param fixed: if TRUE, pattern is literal (not regex)
+#! ret: character vector with substitutions applied
+#! note: T1 — vectorized character transformation
+#! example: # noplayground: chartr("aA", "bB", "Hello World")   # -> "Hello World" (no a/A)
+#! seealso: sub, gsub
+@chartr: (old: char, new: char, x: [#N, char]) -> [#N, char];
+
+#! pkg: utils
+#! tier: T2
+#! param x: object to display
+#! param ...: additional arguments passed to format method
+#! ret: formatted object
+#! note: T2 — generic dispatch
+#! example: strOptions()   # -> default options for str()
+#! seealso: str
+@strOptions: () -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! param expr: expression to capture
+#! param classes: character classes for type conversion
+#! param backref: number of regex backreferences to use
+#! ret: list of captured values converted to appropriate types
+#! note: T2 — captures and type-converts text from regex matches
+#! example: strcapture("([0-9]+)x([0-9]+)", "1920x1080",
+#!          proto = list(x = integer(), y = integer()))
+#! seealso: regexpr, type.convert
+@strcapture: (pattern: char, x: [#N, char], proto: Any) -> Any;
+
+#! pkg: utils
+#! tier: T2
+#! param object: any R object
+#! param ...: additional arguments
+#! ret: character representation
+#! note: T2 — generic dispatch, different from base::format
+#! example: # noplayground: toBibtex(citation("base"))   # -> BibTeX entry
+#! seealso: toLatex
+@toBibtex: (object: Any, ...: Any) -> Any;

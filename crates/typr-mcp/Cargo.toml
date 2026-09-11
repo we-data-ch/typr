@@ -1,0 +1,27 @@
+[package]
+name = "typr-mcp"
+description = "MCP server exposing the TypR compiler's type checker to AI agents"
+keywords = ["R", "type-checker", "mcp", "agent"]
+categories = ["development-tools"]
+readme = "../../README.md"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "typr_mcp"
+path = "src/lib.rs"
+
+[dependencies]
+# In-process type checking only (typr-wasm's compile/typeCheck is the model:
+# InMemorySourceProvider / Environment::Wasm config, no filesystem, no CWD).
+typr-core.workspace = true
+
+rmcp = { version = "3.2", default-features = false, features = ["server", "macros", "transport-io"] }
+schemars = "1"
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+anyhow.workspace = true

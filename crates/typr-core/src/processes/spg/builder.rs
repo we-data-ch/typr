@@ -4,6 +4,7 @@ use super::doc_attach::build_doc_map;
 use super::doc_attach::build_doc_map_from_slice;
 use super::edges::infer_edges;
 use super::model::{Edge, EdgeKind, Node, NodeKind, NodePayload, SourceLoc, Spg, Visibility};
+use super::stdlib_meta::FunctionMeta;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
@@ -23,11 +24,30 @@ pub fn build_spg(ast: &Lang, package: &str, version: &str) -> Spg {
 
 /// Build an SPG from a flat slice of already-typed `Lang` items (e.g. from
 /// `TypeChecker::get_code()`) without needing a wrapping `Lang::Lines`.
-pub fn build_spg_from_items(items: &[Lang], package: &str, version: &str) -> Spg {
+///
+/// When `meta_map` is provided, function nodes whose name matches a key in
+/// the map get their `meta` field populated with the structured stdlib
+/// metadata (tier, param docs, examples, etc.).
+pub fn build_spg_from_items(
+    items: &[Lang],
+    package: &str,
+    version: &str,
+    meta_map: Option<&HashMap<String, FunctionMeta>>,
+) -> Spg {
     let mut spg = Spg::new(package, version);
     let doc_map = build_doc_map_from_slice(items);
     for item in items {
         collect_nodes(item, &mut spg, &[], &doc_map);
+    }
+    // Attach stdlib metadata to function nodes by name.
+    if let Some(map) = meta_map {
+        for node in &mut spg.nodes {
+            if matches!(node.kind, NodeKind::Function) && node.meta.is_none() {
+                if let Some(meta) = map.get(&node.name) {
+                    node.meta = Some(meta.clone().into_stdlib_meta());
+                }
+            }
+        }
     }
     infer_edges(&mut spg);
     spg
@@ -55,6 +75,7 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                 doc: doc_map.get(&help_data.get_offset()).cloned(),
                 source: source_from_help(help_data),
                 payload: NodePayload::Module { exports },
+                meta: None,
             });
             let mut child_path = module_path.to_vec();
             child_path.push(name.clone());
@@ -124,6 +145,7 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                         params: param_list,
                         returns,
                     },
+                    meta: None,
                 });
             } else if !matches!(r#type, Type::Empty(_)) {
                 // A plain `let name: T <- expr;` binding. Only the explicitly
@@ -145,7 +167,62 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                     payload: NodePayload::Variable {
                         type_str: r#type.to_string(),
                     },
+                    meta: None,
                 });
+            }
+        }
+
+        // An extern declaration (`@name: (T) -> U;`), as used throughout the
+        // standard library's .ty sources. Always publicly visible — that's
+        // the entire point of declaring one.
+        Lang::Signature {
+            identifier,
+            target_type,
+            help_data,
+            ..
+        } => {
+            let name = identifier.name.clone();
+            if name.is_empty() {
+                return;
+            }
+            match target_type {
+                Type::Function(params, ret, _) => {
+                    let id = Node::make_id(&NodeKind::Function, module_path, &name);
+                    spg.add_node(Node {
+                        id,
+                        kind: NodeKind::Function,
+                        name,
+                        module_path: module_path.to_vec(),
+                        visibility: Visibility::Public,
+                        doc: doc_map.get(&help_data.get_offset()).cloned(),
+                        source: source_from_help(help_data),
+                        payload: NodePayload::Function {
+                            params: params
+                                .iter()
+                                .map(|p| (safe_arg_name(p), p.get_type().to_string()))
+                                .collect(),
+                            returns: ret.to_string(),
+                        },
+                        meta: None,
+                    });
+                }
+                Type::Empty(_) => {}
+                other => {
+                    let id = Node::make_id(&NodeKind::Variable, module_path, &name);
+                    spg.add_node(Node {
+                        id,
+                        kind: NodeKind::Variable,
+                        name,
+                        module_path: module_path.to_vec(),
+                        visibility: Visibility::Public,
+                        doc: doc_map.get(&help_data.get_offset()).cloned(),
+                        source: source_from_help(help_data),
+                        payload: NodePayload::Variable {
+                            type_str: other.to_string(),
+                        },
+                        meta: None,
+                    });
+                }
             }
         }
 
@@ -172,6 +249,7 @@ fn collect_nodes(lang: &Lang, spg: &mut Spg, module_path: &[String], doc_map: &H
                 doc: doc_map.get(&help_data.get_offset()).cloned(),
                 source: source_from_help(help_data),
                 payload,
+                meta: None,
             });
         }
 

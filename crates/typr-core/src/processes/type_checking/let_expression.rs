@@ -228,7 +228,7 @@ mod tests {
             .push("a")
             .type_next()
             .get_last_type();
-        assert_eq!(res, builder::integer_type_default());
+        assert_eq!(res, builder::integer_type(5));
     }
 
     #[test]
