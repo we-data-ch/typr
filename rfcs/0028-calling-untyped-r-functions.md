@@ -250,9 +250,11 @@ of scope here.
 
 ## Implementation checklist
 
-- [ ] `cases/` entry: untyped `function(a, b)` defined, called, and cast
-- [ ] `cases/` entry: arity error message
-- [ ] `cases/` entry: preloaded builtin called with arguments (`Position(1, 2)`)
+- [x] `cases/` entry: untyped `function(a, b)` defined, called, and cast
+      (`cases/0062-untyped-r-function-callable`)
+- [x] `cases/` entry: arity error message (`cases/0063-untyped-r-function-arity-error`)
+- [x] `cases/` entry: preloaded builtin called with arguments (`Position(1, 2)`)
+      (`cases/0064-untyped-preloaded-builtin-variadic`)
 - [ ] `syntaxe.md` §12 updated in both copies
 - [ ] `docs/philosophy/intro.md` and `docs/reference/escape-hatches.md` updated
       on `typr.github.io`; the `noplayground` marker on the philosophy block

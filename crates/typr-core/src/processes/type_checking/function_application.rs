@@ -1320,6 +1320,19 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
                 h.clone(),
             )));
         }
+        // RFC 0028: a name bound to exactly one signature shaped like an
+        // untyped R function (n `Any` params, `Any` return, non-variadic —
+        // `Lang::RFunction`'s typing rule) gets its own arity message instead
+        // of `NoMatchingSignature`, which would otherwise print the callee's
+        // own `Any` signature back at the caller as if it were informative.
+        None if all_signatures.len() == 1 && all_signatures[0].is_r_function() => {
+            errors.push(TypRError::Type(TypeError::UntypedFunctionArity(
+                var.get_name(),
+                all_signatures[0].get_param_types().len(),
+                types.len(),
+                h.clone(),
+            )));
+        }
         None if !all_signatures.is_empty() => {
             // The name IS bound to function signature(s) — the call just
             // doesn't match any of them (wrong arity or argument types).

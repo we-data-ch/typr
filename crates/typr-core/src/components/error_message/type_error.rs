@@ -152,6 +152,13 @@ pub enum TypeError {
     /// `name.Suffix`" error in the generated R —
     /// `(function_name, forced_type, available_types, position)`.
     NoDispatchImplementation(String, Type, Vec<Type>, HelpData),
+    /// A call to an untyped R function (`Lang::RFunction`, RFC 0028) supplied
+    /// the wrong number of arguments. Distinguished from `NoMatchingSignature`
+    /// because the callee has exactly one signature and no argument types to
+    /// report — only arity was ever checked, and saying so avoids exposing
+    /// the internal `UnknownFunction` placeholder to someone who wrote plain
+    /// R — `(function_name, expected_arity, got_arity, position)`.
+    UntypedFunctionArity(String, usize, usize, HelpData),
 }
 
 impl TypeError {
@@ -201,6 +208,7 @@ impl TypeError {
             TypeError::DataFrameColumnLengthMismatch(_, _, _, _, h) => Some(h.clone()),
             TypeError::NoMatchingSignature(_, _, _, h) => Some(h.clone()),
             TypeError::NoDispatchImplementation(_, _, _, h) => Some(h.clone()),
+            TypeError::UntypedFunctionArity(_, _, _, h) => Some(h.clone()),
         }
     }
 
@@ -252,6 +260,7 @@ impl TypeError {
             TypeError::UnknownUnionVariant(..) => "T041",
             TypeError::NoMatchingSignature(..) => "T042",
             TypeError::NoDispatchImplementation(..) => "T043",
+            TypeError::UntypedFunctionArity(..) => "T044",
         }
     }
 
@@ -473,6 +482,12 @@ impl TypeError {
                     name,
                     forced_type.pretty(),
                     available.iter().map(|t| t.pretty()).collect::<Vec<_>>().join(", ")
+                )
+            }
+            TypeError::UntypedFunctionArity(name, expected, got, _) => {
+                format!(
+                    "'{}' is an untyped R function taking {} argument(s), called with {}.",
+                    name, expected, got
                 )
             }
         }
@@ -1063,6 +1078,18 @@ impl ErrorMsg for TypeError {
                         name,
                         signatures.join("\n    ")
                     ))
+                    .build()
+            }
+            TypeError::UntypedFunctionArity(name, expected, got, help_data) => {
+                let (file_data, pos) = safe_file_pos(&help_data, name.len());
+                SingleBuilder::new(file_data.0, file_data.1)
+                    .pos(pos)
+                    .text(format!(
+                        "'{}' is an untyped R function taking {} argument(s), called with {}.",
+                        name, expected, got
+                    ))
+                    .pos_text(format!("Called with {} argument(s) here", got))
+                    .help("Its body is not type-checked; only the number of arguments is.")
                     .build()
             }
             TypeError::NoDispatchImplementation(name, forced_type, available, help_data) => {
