@@ -108,8 +108,10 @@ already carries `parameters`.
 1. `Lang::RFunction` with parameters `p₁…pₙ` is typed as a function
    `(Any, …, Any) -> Any` with *n* parameters, instead of the current
    `Type::UnknownFunction` with none.
-2. Applying it checks arity only. Argument types are not checked and not
-   propagated.
+2. Applying it checks arity only, as the literal count of parsed parameters
+   (`parameters.len()`) — `Lang::RFunction` carries no default values and no
+   `...` today (see "Resolved during review" below), so there is no case to
+   special-case yet. Argument types are not checked and not propagated.
 3. The result type is `Any`.
 4. Preloaded untyped builtins keep `Type::UnknownFunction`, since
    `functions_R.txt` gives no arity, but `UnknownFunction` becomes **variadic**:
@@ -161,10 +163,9 @@ you write when you want the value back inside the type system.
   no untyped call passes the type checker at all. This deliberately opens a hole
   and calls it a feature.
 - **Arity is checked, which may surprise R users.** R's own arity rules are
-  looser (partial matching, `...`, missing arguments with defaults). An R
-  function with defaults, `function(a, b = 2)`, would be called `f(1)` in R and
-  rejected here unless defaults are read from the parsed parameter list. That
-  detail must be settled before implementation — see below.
+  looser (partial matching, `...`, missing arguments with defaults). See
+  "Defaults and `...`" below for why this drawback does not currently bite: the
+  syntax that would trigger it isn't parseable yet.
 
 ## Rationale and alternatives
 
@@ -205,19 +206,41 @@ site's example checks precisely because it does not compile.
   RFC: it already gives a way to call untyped R with a *declared* signature. The
   question is whether the undeclared case deserves an answer too.
 
-## Unresolved questions
+## Resolved during review
 
-- **Defaults and `...`.** How is `function(a, b = 2)` counted, and what happens
-  to `function(...)` with R's dots? Arity checking is only worth having if it is
-  right; if reading defaults out of `Lang::RFunction` is awkward, the fallback is
-  Option 2 (variadic) for those cases specifically.
-- **Should the result be `Any` or `Foreign<Any>`?** `Foreign<T>` is the existing
-  idiom for values that came from R and need an accessor. Using it would make
-  untyped results consistent with `@extern` returns; using `Any` keeps `as!` as
-  the single exit.
-- **Does the same reasoning extend to `R { ... }` blocks?** They already produce
-  a value; if that value is `Any`, this RFC's `as!` story covers them too and
-  should say so.
+These three questions were open when this RFC was drafted. Checked against the
+compiler (0.5.12):
+
+- **Defaults and `...`.** Neither exists in `Lang::RFunction` today. Its
+  `parameters: Vec<Lang>` is built by the parser's generic `variable` combinator
+  (`processes/parsing/elements.rs`), which accepts a bare name plus an optional
+  `: Type` annotation — no `= expr` default syntax, no special-casing of `...`.
+  `function(a, b = 2)` and `function(...)` are not parseable as an `RFunction`
+  today; there is nothing for arity checking to get wrong, because the grammar
+  gives it nothing but a plain count of bare names. So point 2 of the
+  Reference-level explanation is exactly `parameters.len()`, no fallback needed.
+  Adding default-parameter or dots syntax to the escape hatch is a separate,
+  larger change (it touches the syntax manifest) and its own RFC if ever
+  proposed; this one does not depend on it.
+- **`Any`, not `Foreign<Any>`.** `Foreign<T>` is for a value TypR acknowledges
+  is opaque *and* gives an accessor story for. An untyped call's result could be
+  anything a plain R function returns — vector, list, S3 object — and forcing it
+  through `Foreign` would imply an accessor contract this RFC does not define.
+  `Any` is the honest choice, and it composes with the rest of this proposal:
+  a future package-registry design that degrades low-trust or generated
+  signatures to "callable, unchecked" (see `Type::UnknownFunction` above) needs
+  exactly this same fallback shape, so settling on `Any` here keeps that door
+  open instead of introducing a second opaque-value convention to reconcile
+  later.
+- **`R { ... }` blocks: out of scope, and for a concrete reason.** They are
+  *not* already `Any` — the type checker assigns them `Type::Empty`
+  (`processes/type_checking/mod.rs`), a distinct placeholder from
+  `Type::UnknownFunction`/`Type::Any` with its own, more permissive unification
+  rule (`Type::Empty` unifies with anything; `Type::Any` only satisfies a
+  target that is itself `Any`). Folding `R { ... }` into this RFC's `Any`/`as!`
+  story would be a behavior change to existing code, not a documentation
+  footnote, since it would make `R { ... }` results stop unifying freely with
+  concrete types. Left for a separate RFC if ever proposed.
 
 ## Future possibilities
 
