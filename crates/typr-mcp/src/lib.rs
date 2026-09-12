@@ -77,9 +77,14 @@ use typr_core::components::error_message::typr_error::TypRError;
 use typr_core::parsing::parse_from_string_with_errors;
 use typr_core::processes::type_checking::type_checker::TypeChecker;
 
-/// Standard library R code (embedded at compile time), same source `typr-wasm`
-/// inlines into its `compile()` output.
-const STD_R: &str = include_str!("../../typr-cli/configs/src/std.R");
+/// Standard library R code (embedded at compile time): a vendored copy of
+/// `typr-cli/configs/src/std.R`, same source `typr-wasm` inlines into its
+/// `compile()` output. Vendored (rather than `include_str!`'d across the
+/// crate boundary like `typr-wasm` does) because `cargo publish` packages
+/// each crate in isolation and can't reach a sibling crate's files —
+/// `tests::vendored_std_r_matches_typr_cli` catches drift between the two
+/// copies whenever `cargo test --workspace` runs in the full checkout.
+const STD_R: &str = include_str!("../data/std.R");
 
 /// Vendored snapshot of `typr.github.io/docs/reference/lexicon.md` — see the
 /// resync note in the crate-level docs above.
@@ -704,6 +709,24 @@ mod tests {
             result.diagnostics[0].code.starts_with('S'),
             "{:?}",
             result.diagnostics[0]
+        );
+    }
+
+    /// `data/std.R` is a vendored copy (see [`super::STD_R`]'s doc comment for
+    /// why it can't be `include_str!`'d straight from `typr-cli`). This only
+    /// catches drift when run from a full checkout — `cargo test --workspace`
+    /// in CI, not an isolated `cargo publish` verification build.
+    #[test]
+    fn vendored_std_r_matches_typr_cli() {
+        let canonical = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../typr-cli/configs/src/std.R"
+        );
+        let canonical = std::fs::read_to_string(canonical).expect("read typr-cli's configs/src/std.R");
+        assert_eq!(
+            super::STD_R,
+            canonical,
+            "crates/typr-mcp/data/std.R is out of sync with crates/typr-cli/configs/src/std.R — re-run `cp crates/typr-cli/configs/src/std.R crates/typr-mcp/data/std.R`"
         );
     }
 

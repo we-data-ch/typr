@@ -174,7 +174,7 @@
 #! param a: value to convert
 #! ret: numeric representation
 #! coercion: integer/logical -> numeric
-#! example: from_num(3L)   # -> 3.0
+#! example: # noplayground: from_num(3L)   # -> 3.0
 @from_num: (Any) -> num;
 #! pkg: base
 #! tier: T1
