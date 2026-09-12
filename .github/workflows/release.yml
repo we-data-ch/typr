@@ -170,8 +170,9 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # 3. crates.io — l'ordre suit le graphe de dépendances.
-  #    typr-lsp DOIT passer avant typr-cli : une dépendance `path` porteuse d'un
-  #    numéro de version exige que le crate existe déjà sur le registre.
+  #    typr-lsp et typr-mcp DOIVENT passer avant typr-cli : une dépendance
+  #    `path` porteuse d'un numéro de version exige que le crate existe déjà
+  #    sur le registre.
   # ---------------------------------------------------------------------------
   crates-io:
     name: Publish to crates.io
@@ -191,7 +192,7 @@ jobs:
           VERSION: ${{ needs.verify.outputs.version }}
         run: |
           set -euo pipefail
-          for crate in typr-core typr-lsp typr-cli typr; do
+          for crate in typr-core typr-lsp typr-mcp typr-cli typr; do
             PUBLISHED=$(curl -s -H "User-Agent: typr-release" \
               "https://crates.io/api/v1/crates/$crate/$VERSION" \
               | grep -c '"num":"'"$VERSION"'"' || true)
@@ -354,9 +355,19 @@ jobs:
 
       # Sans VSCE_PAT le .vsix reste attache a la release et reste installable
       # a la main : on n'echoue pas toute la release pour ce seul canal.
+      # Le Marketplace repond parfois par un "Request timeout: /_apis/gallery"
+      # transitoire (aucun rapport avec le .vsix) : on retente avant d'abandonner.
       - name: Publish to the Marketplace
         if: env.VSCE_PAT != ''
-        run: npx vsce publish --packagePath typr-${{ needs.verify.outputs.version }}.vsix
+        run: |
+          for attempt in 1 2 3; do
+            if npx vsce publish --packagePath typr-${{ needs.verify.outputs.version }}.vsix; then
+              exit 0
+            fi
+            echo "tentative $attempt/3 echouee, nouvel essai dans 30s"
+            sleep 30
+          done
+          exit 1
 
       - name: VSCE_PAT absent — publication ignoree
         if: env.VSCE_PAT == ''

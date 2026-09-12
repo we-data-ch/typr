@@ -342,6 +342,51 @@ fn record_field_class(typ: &Type, cont: &Context) -> Option<String> {
     }
 }
 
+/// S3 class-vector fragment (e.g. `, "B", "C"`) for the other array aliases
+/// that `typ` (an array alias's underlying `[N, T]` type) is a proper
+/// subtype of. Array subtyping (`Type::is_subtype_raw`) already accepts a
+/// concrete length or element against a more general one — `[3, int] <:
+/// [Any, int]` and `[3, int] <: [#N, int]` — so a value built through the
+/// former alias's constructor should also carry the latter alias name(s) in
+/// its class vector, mirroring the record-alias supertype injection above
+/// (`supertype_entries`) so that functions dispatching on the supertype
+/// alias also apply to the subtype's values. Aliases that are mutually
+/// subtypes (structurally identical arrays under different names) are
+/// excluded, same rationale as the record case's `other_fields != *fields`.
+/// Most-specific supertype first (`A <: B` puts `A`'s name before `B`'s),
+/// ties broken by name for determinism.
+///
+/// Unlike the record-alias interface search above, candidates are *not*
+/// filtered on `has_generic()`: an open-length array alias like `[#N, int]`
+/// has a fixed runtime class (its own alias name) even though `IndexGen`
+/// counts as a generic, and is exactly the kind of supertype this is meant
+/// to catch — `is_subtype_raw` below already rejects any candidate whose
+/// index/element doesn't actually accept `typ`'s.
+fn array_supertype_class_str(name: &str, typ: &Type, cont: &Context) -> String {
+    let mut entries: Vec<(String, Type)> = cont
+        .aliases()
+        .filter(|(var, _)| var.get_name() != name)
+        .filter(|(_, other_typ)| matches!(other_typ, Type::Vec(_, _, _, _)))
+        .filter(|(_, other_typ)| typ.is_subtype_raw(other_typ, cont) && !other_typ.is_subtype_raw(typ, cont))
+        .map(|(var, other_typ)| (var.get_name(), other_typ.clone()))
+        .collect();
+    entries.sort_by(|(name_a, a), (name_b, b)| {
+        if a.is_subtype_raw(b, cont) {
+            std::cmp::Ordering::Less
+        } else if b.is_subtype_raw(a, cont) {
+            std::cmp::Ordering::Greater
+        } else {
+            name_a.cmp(name_b)
+        }
+    });
+    let names: Vec<String> = entries.iter().map(|(n, _)| format!("\"{n}\"")).collect();
+    if names.is_empty() {
+        String::new()
+    } else {
+        format!(", {}", names.join(", "))
+    }
+}
+
 /// Find the name of a union alias that declares a tag variant called
 /// `tag_name`. Used by the `Lang::Tag` literal to enrich its runtime class
 /// with the union name (canonical representation, see
@@ -1835,8 +1880,9 @@ impl RTranslatable<(String, Context)> for Lang {
                     {
                         use crate::components::r#type::tint::Tint;
                         let constructor = format!("{name} <- function(x) {{\n  as.{name}(x)\n}}");
+                        let supertype_class_str = array_supertype_class_str(&name, typ, cont);
                         let annotator = format!(
-                            "as.{name} <- function(x) {{\n  if (!inherits(x, \"{name}\")) class(x) <- c(\"{name}\", class(x))\n  x <- validate_{name}(x)\n  x <- validate(x)\n  x\n}}"
+                            "as.{name} <- function(x) {{\n  if (!inherits(x, \"{name}\")) class(x) <- c(\"{name}\"{supertype_class_str}, class(x))\n  x <- validate_{name}(x)\n  x <- validate(x)\n  x\n}}"
                         );
                         let elem_check = match cont.atomic_array_elem(typ) {
                             Some(Type::Integer(_, _)) => format!(
@@ -1867,8 +1913,9 @@ impl RTranslatable<(String, Context)> for Lang {
                         let constructor = format!(
                             "{name} <- function(x) {{\n  if (!inherits(x, \"typed_vec\")) x <- typed_vec(x)\n  as.{name}(x)\n}}"
                         );
+                        let supertype_class_str = array_supertype_class_str(&name, typ, cont);
                         let annotator = format!(
-                            "as.{name} <- function(x) {{\n  if (!inherits(x, \"{name}\")) class(x) <- c(\"{name}\", class(x))\n  x <- validate_{name}(x)\n  x <- validate(x)\n  x\n}}"
+                            "as.{name} <- function(x) {{\n  if (!inherits(x, \"{name}\")) class(x) <- c(\"{name}\"{supertype_class_str}, class(x))\n  x <- validate_{name}(x)\n  x <- validate(x)\n  x\n}}"
                         );
                         let elem_check = record_field_class(elem_type.as_ref(), cont).map(|cls| {
                             format!(
@@ -3969,6 +4016,32 @@ mod tests {
         assert!(
             r_str.contains("class(x) <- c(\"Person\", \"Position\", \"list\")"),
             "expected Person's annotator to include Position, got: {r_str}"
+        );
+    }
+
+    #[test]
+    fn test_array_subtype_includes_supertype_in_s3_class() {
+        // Ar3 ([3, int]) is a subtype of both ArGen ([#N, int]) and ArAny
+        // ([Any, int]) (Type::is_subtype_raw: a concrete length/element is a
+        // subtype of a generic/`Any` one), so Ar3's annotator must inject
+        // both other alias names into the S3 class vector, most-specific
+        // first (Ar3 <: ArGen <: ArAny), so that S3 methods dispatching on
+        // either supertype alias apply to Ar3 values too.
+        let r_str = FluentParser::new()
+            .push("type ArAny <- [Any, int];")
+            .run()
+            .push("type ArGen <- [#N, int];")
+            .run()
+            .push("type Ar3 <- [3, int];")
+            .run()
+            .get_r_code()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            r_str.contains("class(x) <- c(\"Ar3\", \"ArGen\", \"ArAny\", class(x))"),
+            "expected Ar3's annotator to include ArGen and ArAny, got: {r_str}"
         );
     }
 
