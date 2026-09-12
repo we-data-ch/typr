@@ -718,10 +718,7 @@ mod tests {
     /// in CI, not an isolated `cargo publish` verification build.
     #[test]
     fn vendored_std_r_matches_typr_cli() {
-        let canonical = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../typr-cli/configs/src/std.R"
-        );
+        let canonical = concat!(env!("CARGO_MANIFEST_DIR"), "/../typr-cli/configs/src/std.R");
         let canonical = std::fs::read_to_string(canonical).expect("read typr-cli's configs/src/std.R");
         assert_eq!(
             super::STD_R,
