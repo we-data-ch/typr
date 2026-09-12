@@ -1,6 +1,6 @@
-- **Status:** draft
-- **RFC PR:** we-data-ch/typr#0000
-- **Tracking issue:** —
+- **Status:** accepted
+- **RFC PR:** we-data-ch/typr#28
+- **Tracking issue:** we-data-ch/typr#29
 - **Implemented in:** not yet
 - **Start date:** 2026-09-09
 
