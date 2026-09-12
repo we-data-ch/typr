@@ -115,6 +115,14 @@ pub struct StdlibMeta {
     pub seealso: Vec<String>,
     /// The R package of origin (e.g. "base", "stats").
     pub pkg: Option<String>,
+    /// Minimum R package version this entry was declared against (a floor,
+    /// never a closed range — `typR/registry.md` §7.2). External type
+    /// definitions only (rfcs/0031-external-type-definitions.md); unset for
+    /// the standard library.
+    pub since: Option<String>,
+    /// Only set when a break is *known*, never speculative. Same scope as
+    /// `since`.
+    pub until: Option<String>,
 }
 
 impl StdlibMeta {
@@ -127,6 +135,8 @@ impl StdlibMeta {
             examples: Vec::new(),
             seealso: Vec::new(),
             pkg: None,
+            since: None,
+            until: None,
         }
     }
 
@@ -139,6 +149,8 @@ impl StdlibMeta {
             || !self.examples.is_empty()
             || !self.seealso.is_empty()
             || self.pkg.is_some()
+            || self.since.is_some()
+            || self.until.is_some()
     }
 }
 

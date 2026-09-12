@@ -57,6 +57,7 @@ pub mod rd_renderer;
 pub mod repl;
 pub mod standard_library;
 pub mod syntax;
+pub mod type_definition;
 pub mod vignette_renderer;
 
 // Re-export commonly used items
