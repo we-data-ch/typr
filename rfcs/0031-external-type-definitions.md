@@ -1,4 +1,4 @@
-- **Status:** draft
+- **Status:** accepted
 - **RFC PR:** we-data-ch/typr#31
 - **Tracking issue:** —
 - **Implemented in:** not yet
