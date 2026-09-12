@@ -44,6 +44,7 @@ pub mod cases;
 pub mod cli;
 pub mod engine;
 pub mod fuzz;
+pub mod gen_types;
 pub mod io;
 pub mod md_renderer;
 pub mod metaprogramming;

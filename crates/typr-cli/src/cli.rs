@@ -173,6 +173,17 @@ enum Commands {
         #[arg(long, short, value_name = "FILE")]
         output: Option<PathBuf>,
     },
+    /// Generate a `.ty` type definition for an *installed* R package by
+    /// introspecting its exports (arity, argument names, presence of `...`),
+    /// entirely at `#! tier: T3` — see `typR/registry.md` §6. Never fails a
+    /// build: a generated definition types every parameter and return value
+    /// as `Any`.
+    GenTypes {
+        package: String,
+        /// Directory to write `<package>.generated.ty` into (default: `ty/`).
+        #[arg(long, short, value_name = "DIR")]
+        out: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -304,6 +315,7 @@ fn skips_r_deps_check(command: &Option<Commands>) -> bool {
             | Some(Commands::Std { .. })
             | Some(Commands::Cache { .. })
             | Some(Commands::Syntax { .. })
+            | Some(Commands::GenTypes { .. })
     )
 }
 
@@ -430,6 +442,7 @@ pub fn start() {
             check,
         }) => run_syntax_command(json, target, output, write, check),
         Some(Commands::Spg { output }) => generate_spg(output),
+        Some(Commands::GenTypes { package, out }) => crate::gen_types::run(&package, out),
         _ => {
             println!("Please specify a subcommand or file to execute");
             std::process::exit(1);

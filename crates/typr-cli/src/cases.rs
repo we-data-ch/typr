@@ -453,7 +453,15 @@ pub fn add(slug: &str, from: Option<String>, cmd: &str, layer: &str) {
     if !cases.exists() {
         let _ = std::fs::create_dir_all(&cases);
     }
-    let n = case_dirs().len() + 1;
+    // Next id from the highest existing numeric prefix, not the directory
+    // count: cases/ has gaps (deleted/renumbered entries), so `len() + 1`
+    // collides with an already-used id the moment count < max + 1.
+    let n = case_dirs()
+        .iter()
+        .filter_map(|p| basename(p).split('-').next().and_then(|s| s.parse::<u32>().ok()))
+        .max()
+        .unwrap_or(0)
+        + 1;
     let id = format!("{:04}", n);
     let dir = cases.join(format!("{id}-{slug}"));
     if let Err(e) = std::fs::create_dir_all(&dir) {

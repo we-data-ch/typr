@@ -7,6 +7,7 @@ mod cases;
 mod cli;
 mod engine;
 mod fuzz;
+mod gen_types;
 mod io;
 mod md_renderer;
 mod metaprogramming;

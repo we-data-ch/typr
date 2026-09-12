@@ -18,7 +18,9 @@
 # machine during a build and must not require any package to be installed.
 #
 #   V<TAB>r_version
+#   P<TAB>pkg<TAB>version                                       (package version, if determinable)
 #   N<TAB>name<TAB>pkg<TAB>s3_generic<TAB>s4_generic<TAB>has_default
+#   F<TAB>name<TAB>has_dots<TAB>param1<TAB>param2<TAB>...        (formals(), for `typr gen-types`)
 #   C<TAB>s4_class_name
 #   E<TAB>pkg<TAB>reason          (package could not be loaded)
 
@@ -60,6 +62,9 @@ for (pkg in args) {
     next
   }
 
+  ver <- tryCatch(as.character(utils::packageVersion(pkg)), error = function(e) NA_character_)
+  if (!is.na(ver) && tsv_safe(ver)) emit("P", pkg, ver)
+
   exports <- tryCatch(getNamespaceExports(ns), error = function(e) character(0))
 
   # S4 generics visible now that the namespace is loaded. `getGenerics()` is
@@ -89,6 +94,19 @@ for (pkg in args) {
       if (n %in% s4_names) "1" else "0",
       if (has_default) "1" else "0"
     )
+
+    # formals() — arity and parameter names, for `typr gen-types` (registry.md
+    # §6). Primitives report `formals()` as NULL; `args(val)` recovers theirs.
+    formals_val <- tryCatch(formals(val), error = function(e) NULL)
+    if (is.null(formals_val)) {
+      formals_val <- tryCatch(formals(args(val)), error = function(e) NULL)
+    }
+    if (!is.null(formals_val)) {
+      param_names <- names(formals_val)
+      has_dots <- "..." %in% param_names
+      params <- Filter(tsv_safe, param_names[param_names != "..."])
+      emit("F", n, if (has_dots) "1" else "0", params)
+    }
   }
 
   # NOTE: `getClasses()` reads its caller's environment when `where` is left to

@@ -255,8 +255,11 @@ of scope here.
 - [x] `cases/` entry: arity error message (`cases/0063-untyped-r-function-arity-error`)
 - [x] `cases/` entry: preloaded builtin called with arguments (`Position(1, 2)`)
       (`cases/0064-untyped-preloaded-builtin-variadic`)
-- [ ] `syntaxe.md` §12 updated in both copies
-- [ ] `docs/philosophy/intro.md` and `docs/reference/escape-hatches.md` updated
+- [x] `syntaxe.md` §12 updated (`typr.github.io/syntaxe.md`; no second copy
+      exists under `typr/` yet)
+- [x] `docs/philosophy/intro.md` and `docs/reference/escape-hatches.md` updated
       on `typr.github.io`; the `noplayground` marker on the philosophy block
-      removed (see `doc_correction.md` §C in that repository)
-- [ ] `Implemented in:` filled in above
+      removed — both blocks verified with `typr check` (0.5.12+d85f8d9) and
+      `npm run check:examples`
+- [ ] `Implemented in:` filled in above — pending a release past 0.5.12; the
+      implementing commit (`d85f8d9`) is on `develop`, not yet tagged

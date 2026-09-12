@@ -354,15 +354,29 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let reduced_left_type = reduce_type(context, &left_type);
             let reduced_right_type = reduce_type(context, &right_type);
 
-            if reduced_right_type.is_subtype(&reduced_left_type, context).0 {
-                let Some(var) = Var::from_language((**left_expr).clone()).map(|v| v.set_type(right_type.clone()))
+            // A reassignment must not pin the variable to the exact literal just
+            // assigned (`x <- 10;` after unannotated `let x <- 0;` infers `x` as
+            // the singleton `0`), and must not keep narrowing it one literal at a
+            // time on every later assignment (`x <- 10;` then `x <- x + 1;`,
+            // cases/0065-reassign-widen-literal). Widen a literal singleton to its
+            // base kind before both the compatibility check and the type stored
+            // back into context — `Type::generalize()`, the same widening
+            // cases/0017-char-if-widening uses for `if` branches — leaving
+            // non-literal types (aliases, records, functions, unions...)
+            // untouched, so occurrence narrowing onto those still works.
+            let widened_left_type = reduced_left_type.clone().generalize();
+            let widened_right_type = right_type.clone().generalize();
+
+            if reduced_right_type.is_subtype(&widened_left_type, context).0 {
+                let Some(var) =
+                    Var::from_language((**left_expr).clone()).map(|v| v.set_type(widened_right_type.clone()))
                 else {
-                    return TypeContext::new(right_type, expr.clone(), context.clone()).with_errors(errors);
+                    return TypeContext::new(widened_right_type, expr.clone(), context.clone()).with_errors(errors);
                 };
                 TypeContext::new(
-                    right_type.clone(),
+                    widened_right_type.clone(),
                     expr.clone(),
-                    context.clone().push_var_type(var, right_type, context),
+                    context.clone().push_var_type(var, widened_right_type, context),
                 )
                 .with_errors(errors)
             } else {
