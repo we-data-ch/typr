@@ -1,0 +1,13 @@
+#@case untyped-r-function-callable: RFC 0028 (0028-calling-untyped-r-functions)
+# makes an untyped R function (`function(a, b) {...}`) callable: arity is
+# checked, argument types are not, and the result is typed Any. This is the
+# exact motivating example from the RFC and from docs/philosophy/intro.md.
+let num1 <- 3;
+let num2 <- 7;
+
+let my_addition <- function(a, b) {
+	a + b
+};
+
+let total: int <- my_addition(num1, num2) as! int;
+print(total);
