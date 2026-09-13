@@ -20,6 +20,8 @@ mod rd_renderer;
 mod repl;
 mod standard_library;
 mod syntax;
+mod type_definition;
+mod type_registry;
 mod vignette_renderer;
 
 fn main() {

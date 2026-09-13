@@ -489,9 +489,14 @@ Explicitly out of scope here, deferred to `registry.md`'s later milestones:
       manifest
 - [ ] external `.ty` loading merged into `standard_library.rs`'s context build,
       keyed by resolved `typr.lock` entries
-- [ ] `trust` threshold + degrade-to-`UnknownFunction` at merge time
-- [ ] `typr types add|update|list|vendor`, `typr.lock` read/write, digest
+- [x] `trust` threshold + degrade-to-`UnknownFunction` at merge time
+      (`crates/typr-cli/src/standard_library.rs::load_external_ty_definitions`,
+      `VarType::degrade_to_any`; see `typR/registry.md` §13 J2 for detail)
+- [x] `typr types add|update|list|vendor`, `typr.lock` read/write, digest
       verification, `~/.cache/typr/types/<pkg>/<digest>/`
+      (`crates/typr-cli/src/type_registry.rs`; see `typR/registry.md` §13 J2
+      for detail — the `typr.lock` → `load_external_ty_definitions` wiring
+      itself is still open, tracked by the next unchecked item below)
 - [ ] `cases/`: missing definition, tier below `trust`, version below `since`,
       version above `until`, unreachable repository, digest mismatch — each
       asserting *no hard error*, only degradation

@@ -184,6 +184,37 @@ enum Commands {
         #[arg(long, short, value_name = "DIR")]
         out: Option<PathBuf>,
     },
+    /// Resolve, cache, and vendor external Type Definitions for R packages —
+    /// see `typR/registry.md` §7 and `rfcs/0031-external-type-definitions.md`.
+    Types {
+        #[command(subcommand)]
+        types_command: TypesCommands,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum TypesCommands {
+    /// Pin a definition for `<package>` (fetch, verify its manifest and
+    /// capabilities, cache it by content digest, and record it in
+    /// `typr.lock`).
+    Add {
+        /// The package this definition describes (e.g. `shiny`).
+        package: String,
+        /// `github:owner/repo[@rev]`.
+        repo: String,
+    },
+    /// Re-fetch and re-pin `typr.lock` for one package (or, with none given,
+    /// every resolved definition).
+    Update { package: Option<String> },
+    /// What's resolved in `typr.lock`, with tier and provenance.
+    List,
+    /// Copy every resolved definition's `.ty` files into the project tree
+    /// (default `ty/vendor/<pkg>/`), so the build stops depending on the
+    /// network or the upstream repository's continued existence.
+    Vendor {
+        #[arg(long, short, value_name = "DIR")]
+        out: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -316,6 +347,7 @@ fn skips_r_deps_check(command: &Option<Commands>) -> bool {
             | Some(Commands::Cache { .. })
             | Some(Commands::Syntax { .. })
             | Some(Commands::GenTypes { .. })
+            | Some(Commands::Types { .. })
     )
 }
 
@@ -443,6 +475,7 @@ pub fn start() {
         }) => run_syntax_command(json, target, output, write, check),
         Some(Commands::Spg { output }) => generate_spg(output),
         Some(Commands::GenTypes { package, out }) => crate::gen_types::run(&package, out),
+        Some(Commands::Types { types_command }) => run_types_command(types_command),
         _ => {
             println!("Please specify a subcommand or file to execute");
             std::process::exit(1);
@@ -551,5 +584,72 @@ fn run_cache_command(command: CacheCommands) {
                 }
             }
         }
+    }
+}
+
+/// `typr types <add|update|list|vendor>` — see `typR/registry.md` §7 and
+/// `rfcs/0031-external-type-definitions.md`.
+fn run_types_command(command: TypesCommands) {
+    use crate::type_registry;
+
+    let root = std::path::Path::new(".");
+
+    match command {
+        TypesCommands::Add { package, repo } => match type_registry::add(root, &package, &repo) {
+            Ok(locked) => println!(
+                "{} — {} {} (tier {}, rev {}) → typr.lock",
+                locked.package,
+                locked.repository,
+                locked.version,
+                locked.tier,
+                &locked.rev[..locked.rev.len().min(12)]
+            ),
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        },
+        TypesCommands::Update { package } => match type_registry::update(root, package.as_deref()) {
+            Ok(updated) if updated.is_empty() => println!("nothing to update — typr.lock is empty."),
+            Ok(updated) => {
+                for locked in updated {
+                    println!(
+                        "{} — {} {} (tier {}, rev {})",
+                        locked.package,
+                        locked.repository,
+                        locked.version,
+                        locked.tier,
+                        &locked.rev[..locked.rev.len().min(12)]
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        },
+        TypesCommands::List => {
+            let definitions = type_registry::list(root);
+            if definitions.is_empty() {
+                println!("nothing resolved — see `typr types add`.");
+            }
+            for def in definitions {
+                println!(
+                    "{:<12} {:<32} {:<10} tier {:<3} rev {}",
+                    def.package,
+                    def.repository,
+                    def.version,
+                    def.tier,
+                    &def.rev[..def.rev.len().min(12)]
+                );
+            }
+        }
+        TypesCommands::Vendor { out } => match type_registry::vendor(root, out.as_deref()) {
+            Ok(written) => println!("vendored {} file(s).", written.len()),
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        },
     }
 }
