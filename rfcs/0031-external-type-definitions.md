@@ -484,25 +484,43 @@ Explicitly out of scope here, deferred to `registry.md`'s later milestones:
 
 <!-- Filled in as the work lands, after acceptance. -->
 
-- [ ] `typr-def.toml` manifest parsing + `format_version` gate
-- [ ] `since`/`until` added to `FunctionMeta` (`stdlib_meta.rs`) and to the
+- [x] `typr-def.toml` manifest parsing + `format_version` gate
+      (`crates/typr-cli/src/type_definition.rs::parse_manifest`)
+- [x] `since`/`until` added to `FunctionMeta` (`stdlib_meta.rs`) and to the
       manifest
-- [ ] external `.ty` loading merged into `standard_library.rs`'s context build,
+- [x] external `.ty` loading merged into `standard_library.rs`'s context build,
       keyed by resolved `typr.lock` entries
+      (`crates/typr-cli/src/standard_library.rs::load_project_type_definitions`,
+      called from every `check`/`build`/`run` entry point in `project.rs`;
+      also applies the `since`/`until` version-floor degradation via
+      `degrade_if_version_out_of_range`; see `typR/registry.md` §13 J2 for
+      detail)
 - [x] `trust` threshold + degrade-to-`UnknownFunction` at merge time
       (`crates/typr-cli/src/standard_library.rs::load_external_ty_definitions`,
       `VarType::degrade_to_any`; see `typR/registry.md` §13 J2 for detail)
 - [x] `typr types add|update|list|vendor`, `typr.lock` read/write, digest
       verification, `~/.cache/typr/types/<pkg>/<digest>/`
       (`crates/typr-cli/src/type_registry.rs`; see `typR/registry.md` §13 J2
-      for detail — the `typr.lock` → `load_external_ty_definitions` wiring
-      itself is still open, tracked by the next unchecked item below)
+      for detail)
 - [ ] `cases/`: missing definition, tier below `trust`, version below `since`,
       version above `until`, unreachable repository, digest mismatch — each
-      asserting *no hard error*, only degradation
-- [ ] `[capabilities]` gate enforced at fetch time (reject undeclared R;
+      asserting *no hard error*, only degradation. Covered so far only by
+      Rust unit/integration tests
+      (`standard_library.rs::tests`, `type_registry.rs::tests`) and a manual
+      end-to-end smoke test through the real `typr` binary — not yet by a
+      `cases/NNNN-…` entry replayed through `typr case run`, since that
+      would need a portable way to pre-populate `~/.cache/typr/types/` for a
+      sandboxed `repro/` (the cache lives outside the project directory by
+      design, §7.4). See `typR/registry.md` §13 J2 for detail.
+- [x] `[capabilities]` gate enforced at fetch time (reject undeclared R;
       confirm-or-`--allow-r` for declared)
-- [ ] `syntaxe.md` — no lexeme changes expected, but confirm before merge
+      (`crates/typr-cli/src/type_registry.rs::check_capabilities`, enforced
+      inside `fetch()` before anything is admitted to the cache; the
+      `--allow-r` confirmation prompt itself is not implemented — today a
+      declared `r_shims`/`extern_raw` definition passes with a printed
+      warning, never a blocking confirmation)
+- [x] `syntaxe.md` — no lexeme changes were made throughout this RFC's
+      implementation
 - [ ] Documentation PR on `we-data-ch/typr.github.io` (a How-to page for
       consuming an external definition; a Reference page for the manifest and
       `#!` keys), landing in the same release

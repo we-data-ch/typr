@@ -4,13 +4,12 @@
 //! (`rfcs/0031-external-type-definitions.md`, "Resolution, `typr.lock`,
 //! cache, vendoring").
 //!
-//! What this module does NOT do: load a resolved definition into the
-//! type-checking context. That is `standard_library::load_external_ty_definitions`,
-//! already implemented and tested — this module is purely the plumbing that
-//! turns a `github:owner/repo[@rev]` string into `(filename, source)` pairs on
-//! disk plus a `typr.lock` entry recording exactly what was fetched. Wiring
-//! the two together (reading `typr.lock` at `check`/`build`/`run` time) is a
-//! follow-up, not part of this checklist item.
+//! `resolve_locked_definitions`, near the bottom of this file, is the
+//! "reading `typr.lock` at `check`/`build`/`run` time" wiring step: it turns
+//! a `typr.lock` entry back into `(filename, source)` `.ty` pairs from the
+//! on-disk cache, re-verifying the digest first. Loading those into the
+//! type-checking context is `standard_library::load_project_type_definitions`,
+//! which calls this function and then `load_external_ty_definitions`.
 
 use crate::type_definition::{parse_manifest, DefinitionManifest};
 use serde::{Deserialize, Serialize};
@@ -392,6 +391,22 @@ pub fn fetch(spec: &RepoSpec) -> Result<(FetchedDefinition, Vec<String>), String
     result
 }
 
+/// Best-effort: the version of `package` actually installed on this
+/// machine, via the same `Rscript`-based introspection `typr gen-types`
+/// already uses (`gen_types::introspect`, which itself parses the `P` line
+/// of `introspect_pkg.R`'s output). This is the "version réellement
+/// observée" registry.md §7.2 says `typr.lock`'s `r_version_seen` records.
+///
+/// Fail-open (`None`) when `Rscript` is not on PATH or the package is not
+/// installed locally: `typr types add`/`update` must still succeed without R
+/// present (same contract as the rest of this module's git-only fetch path)
+/// — it just leaves nothing for the version-floor check at `check`/`build`/
+/// `run` time to compare against later, per `degrade_if_version_out_of_range`'s
+/// own "no comparison is made... when `r_version_seen` is `None`" rule.
+fn observed_r_package_version(package: &str) -> Option<String> {
+    crate::gen_types::introspect(package).ok().and_then(|info| info.pkg_version)
+}
+
 /// Copy every tracked file of a fetched definition into the on-disk cache at
 /// `~/.cache/typr/types/<pkg>/<digest>/`, replacing whatever was there before
 /// (the digest already identifies the content, so an existing directory with
@@ -421,14 +436,13 @@ fn admit_to_cache(fetched: &FetchedDefinition, pkg: &str) -> Result<PathBuf, Str
 /// table (registry.md §7.1 — never a dependency list, only trust +
 /// package→definition pins).
 ///
-/// `trust` is read and kept here but not yet consumed anywhere: passing it
-/// into `standard_library::load_external_ty_definitions` at `check`/`build`/
-/// `run` time — reading `typr.lock` into the type-checking context — is the
-/// next integration step, not part of this `typr types add/update/list/
-/// vendor` checklist item (`typR/registry.md` §13 J2).
+/// `trust` feeds `standard_library::load_project_type_definitions` — the
+/// project's threshold below which an external definition's entries degrade
+/// to `Any` (registry.md §5.4). A project with no `typr.toml`, or none with
+/// a `[types] trust`, defaults to `"T2"` there — the same default the
+/// manifest example in registry.md §5.4 documents.
 #[derive(Debug, Clone, Default)]
 pub struct TypesConfig {
-    #[allow(dead_code)]
     pub trust: Option<String>,
     /// package name → explicit `github:owner/repo[@rev]` pin.
     pub pins: std::collections::BTreeMap<String, String>,
@@ -476,7 +490,7 @@ pub fn add(project_root: &Path, package: &str, spec_str: &str) -> Result<LockedD
         rev: fetched.rev.clone(),
         digest: fetched.digest.clone(),
         tier: fetched.manifest.definition.tier.clone(),
-        r_version_seen: None,
+        r_version_seen: observed_r_package_version(package),
     };
 
     let lock_path = project_root.join(LOCKFILE_NAME);
@@ -576,6 +590,104 @@ pub fn vendor(project_root: &Path, out_dir: Option<&Path>) -> Result<Vec<PathBuf
         }
     }
     Ok(written)
+}
+
+// ---------------------------------------------------------------------
+// Wiring into the type-checking context
+// ---------------------------------------------------------------------
+
+/// A locked definition's `.ty` sources plus the facts
+/// `standard_library::load_external_ty_definitions` and
+/// `standard_library::degrade_if_version_out_of_range` need — the return
+/// shape of `resolve_locked_definitions`, below.
+pub struct ResolvedDefinition {
+    pub package: String,
+    /// `(relative path, file content)` for every `.ty` file the cached
+    /// definition ships, in the sorted order `tracked_files` already
+    /// produces (deterministic — later files in the same repository can
+    /// reference types declared by earlier ones, exactly like the bundled
+    /// stdlib's own `R_T1_SOURCES`).
+    pub ty_sources: Vec<(String, String)>,
+    /// The manifest's `[definition] tier` — the tier an entry with no
+    /// `#! tier:` of its own falls back to.
+    pub default_tier: String,
+    pub since: String,
+    pub until: Option<String>,
+    /// `typr.lock`'s own `r_version_seen`, frozen at the last `typr types
+    /// add`/`update` — `None` when it was never observed (R unavailable at
+    /// resolution time).
+    pub r_version_seen: Option<String>,
+}
+
+/// Read `typr.lock` and, for every locked definition whose cached copy is
+/// present and still matches its pinned digest, collect its `.ty` sources —
+/// the "reading `typr.lock` at `check`/`build`/`run` time" step this
+/// module's doc comment names. A locked package whose cache is missing,
+/// stale, or corrupted is skipped, with a message for the caller to print as
+/// a warning, rather than failing the build: the same fail-open contract
+/// `vendor()` already applies, and D2 ("an unreliable signal only ever
+/// removes checking, it never breaks a build", registry.md §0/§5.4) taken to
+/// its logical end — a package `typr.lock` cannot currently resolve simply
+/// falls back to being untyped R, exactly as if it had never been added.
+pub fn resolve_locked_definitions(project_root: &Path) -> (Vec<ResolvedDefinition>, Vec<String>) {
+    let lockfile = Lockfile::read(&project_root.join(LOCKFILE_NAME));
+    let mut resolved = Vec::new();
+    let mut warnings = Vec::new();
+    for def in &lockfile.definitions {
+        match resolve_one_locked_definition(def) {
+            Ok(r) => resolved.push(r),
+            Err(w) => warnings.push(w),
+        }
+    }
+    (resolved, warnings)
+}
+
+fn resolve_one_locked_definition(def: &LockedDefinition) -> Result<ResolvedDefinition, String> {
+    let cache_dir = cache_dir_for(&def.package, &def.digest).ok_or_else(|| {
+        format!(
+            "`{}`: no cache directory available (no $HOME/$XDG_CACHE_HOME) — its declared types are unavailable this run, names stay untyped",
+            def.package
+        )
+    })?;
+    if !cache_dir.is_dir() {
+        return Err(format!(
+            "`{}`: not in the local cache at {} — run `typr types update {}`; its declared types are unavailable this run, names stay untyped",
+            def.package,
+            cache_dir.display(),
+            def.package
+        ));
+    }
+    let actual_digest = compute_digest(&cache_dir).map_err(|e| format!("`{}`: {e}", def.package))?;
+    if actual_digest != def.digest {
+        return Err(format!(
+            "`{}`: cached copy no longer matches typr.lock (expected {}, found {}) — run `typr types update {}`; \
+             its declared types are unavailable this run, names stay untyped",
+            def.package, def.digest, actual_digest, def.package
+        ));
+    }
+
+    let manifest_source = fs::read_to_string(cache_dir.join(MANIFEST_NAME))
+        .map_err(|e| format!("`{}`: could not read {MANIFEST_NAME} from its cache: {e}", def.package))?;
+    let manifest = parse_manifest(&manifest_source).map_err(|e| format!("`{}`: {e}", def.package))?;
+
+    let mut ty_sources = Vec::new();
+    for rel in tracked_files(&cache_dir).map_err(|e| format!("`{}`: {e}", def.package))? {
+        if rel.extension().and_then(|e| e.to_str()) != Some("ty") {
+            continue;
+        }
+        let content = fs::read_to_string(cache_dir.join(&rel))
+            .map_err(|e| format!("`{}`: could not read {}: {e}", def.package, rel.display()))?;
+        ty_sources.push((rel.to_string_lossy().replace('\\', "/"), content));
+    }
+
+    Ok(ResolvedDefinition {
+        package: def.package.clone(),
+        ty_sources,
+        default_tier: manifest.definition.tier,
+        since: manifest.package.since,
+        until: manifest.package.until,
+        r_version_seen: def.r_version_seen.clone(),
+    })
 }
 
 #[cfg(test)]
@@ -931,5 +1043,135 @@ mod tests {
         assert!(err.contains("ghost"), "unexpected error: {err}");
 
         let _ = fs::remove_dir_all(&project_dir);
+    }
+
+    // -- End-to-end: typr.lock -> real cache -> type-checking context ------
+    //
+    // These exercise `standard_library::load_project_type_definitions`, the
+    // "reading typr.lock at check/build/run time" wiring named as the last
+    // missing piece of registry.md §13 J2's `typr types add/update/list/
+    // vendor` item. They admit a definition straight into the real on-disk
+    // cache (no git fixture, unlike `add_update_list_vendor_round_trip_
+    // against_a_local_repo` above) since only the cache/lock -> context path
+    // is under test here, not fetching.
+
+    fn lock_definition_in_real_cache(
+        project_dir: &Path,
+        package: &str,
+        manifest_toml: &str,
+        ty_source: &str,
+        r_version_seen: Option<&str>,
+    ) -> LockedDefinition {
+        let src_dir = std::env::temp_dir().join(format!("typr_lock_src_{package}_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&src_dir);
+        write_file(&src_dir, MANIFEST_NAME, manifest_toml);
+        write_file(&src_dir, "ty/core.ty", ty_source);
+
+        let manifest = parse_manifest(manifest_toml).unwrap();
+        let digest = compute_digest(&src_dir).unwrap();
+        let fetched = FetchedDefinition {
+            manifest,
+            rev: "0000000000000000000000000000000000000000".to_string(),
+            digest,
+            dir: src_dir.clone(),
+        };
+        admit_to_cache(&fetched, package).unwrap();
+
+        let locked = LockedDefinition {
+            package: package.to_string(),
+            repository: format!("github:test/{package}"),
+            version: fetched.manifest.definition.version.clone(),
+            rev: fetched.rev.clone(),
+            digest: fetched.digest.clone(),
+            tier: fetched.manifest.definition.tier.clone(),
+            r_version_seen: r_version_seen.map(str::to_string),
+        };
+
+        let lock_path = project_dir.join(LOCKFILE_NAME);
+        let mut lockfile = Lockfile::read(&lock_path);
+        lockfile.upsert(locked.clone());
+        lockfile.write(&lock_path).unwrap();
+
+        let _ = fs::remove_dir_all(&src_dir);
+        locked
+    }
+
+    /// registry.md §5.4: a `T3` entry, locked and cached for real, degrades
+    /// to `Any` under the project's default `T2` trust once loaded through
+    /// the real `check`/`build`/`run` entry point
+    /// (`standard_library::load_project_type_definitions`) — not just
+    /// through the lower-level `load_external_ty_definitions` unit tests in
+    /// `standard_library.rs`.
+    #[test]
+    fn load_project_type_definitions_degrades_a_low_tier_locked_definition() {
+        let project_dir = std::env::temp_dir().join(format!("typr_wiring_tier_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&project_dir);
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let manifest_toml = "format_version = 1\n\
+             [package]\nname = \"widget\"\nsince = \"1.0.0\"\n\
+             [definition]\nversion = \"0.1.0\"\ntier = \"T3\"\n\
+             [provider]\ntype = \"community\"\nrepository = \"github:test/typr-widget\"\n\
+             [capabilities]\nr_shims = false\nextern_raw = false\n";
+        let locked =
+            lock_definition_in_real_cache(&project_dir, "widget", manifest_toml, "@do_widget_thing: (int) -> int;", None);
+
+        let context = crate::standard_library::load_project_type_definitions(
+            &project_dir,
+            typr_core::components::context::Context::default(),
+        );
+        let typ = context
+            .get_type_from_variable(&typr_core::components::language::var::Var::from_name("do_widget_thing"))
+            .expect("locked definition's entry must be loaded into the context");
+        assert!(
+            typ.is_unknown_function(),
+            "a T3 entry under the default T2 project trust must degrade to Any"
+        );
+
+        let _ = fs::remove_dir_all(&project_dir);
+        if let Some(cache_dir) = cache_dir_for("widget", &locked.digest) {
+            let _ = fs::remove_dir_all(&cache_dir);
+        }
+    }
+
+    /// registry.md §7.2: a `typr.lock` entry whose recorded `r_version_seen`
+    /// is below the manifest's `since` floor degrades to `Any` once loaded
+    /// through the real `check`/`build`/`run` entry point, even though its
+    /// own tier (`T1`) is trusted outright.
+    #[test]
+    fn load_project_type_definitions_degrades_when_locked_version_is_below_since() {
+        let project_dir = std::env::temp_dir().join(format!("typr_wiring_version_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&project_dir);
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let manifest_toml = "format_version = 1\n\
+             [package]\nname = \"widget2\"\nsince = \"2.0.0\"\n\
+             [definition]\nversion = \"0.1.0\"\ntier = \"T1\"\n\
+             [provider]\ntype = \"community\"\nrepository = \"github:test/typr-widget2\"\n\
+             [capabilities]\nr_shims = false\nextern_raw = false\n";
+        let locked = lock_definition_in_real_cache(
+            &project_dir,
+            "widget2",
+            manifest_toml,
+            "@do_widget2_thing: (int) -> int;",
+            Some("1.0.0"),
+        );
+
+        let context = crate::standard_library::load_project_type_definitions(
+            &project_dir,
+            typr_core::components::context::Context::default(),
+        );
+        let typ = context
+            .get_type_from_variable(&typr_core::components::language::var::Var::from_name("do_widget2_thing"))
+            .expect("locked definition's entry must be loaded into the context");
+        assert!(
+            typ.is_unknown_function(),
+            "a T1 entry whose observed version is below `since` must still degrade to Any (registry.md §7.2)"
+        );
+
+        let _ = fs::remove_dir_all(&project_dir);
+        if let Some(cache_dir) = cache_dir_for("widget2", &locked.digest) {
+            let _ = fs::remove_dir_all(&cache_dir);
+        }
     }
 }

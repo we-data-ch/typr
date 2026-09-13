@@ -601,11 +601,9 @@ fn names_below_trust(ty_sources: &[(&str, &str)], default_tier: &str, trust: &st
 /// `Context::empty()`, is what lets a third-party `.ty` see the bundled
 /// stdlib while it is being type-checked.
 ///
-/// Not yet called from the CLI: nothing resolves a `typr.lock` entry into
-/// `(filename, source)` pairs plus a manifest's tier/trust yet (`typr types
-/// add`/`typr.lock`, the next checklist item), so this has no caller outside
-/// its own tests until then.
-#[allow(dead_code)]
+/// Called from `load_project_type_definitions`, below, which resolves a
+/// project's `typr.lock` into exactly the `(ty_sources, default_tier,
+/// trust)` triples this function expects.
 pub fn load_external_ty_definitions(
     base_context: Context,
     ty_sources: &[(&str, &str)],
@@ -616,6 +614,165 @@ pub fn load_external_ty_definitions(
     let degraded_names = names_below_trust(ty_sources, default_tier, trust);
     context.typing_context = context.typing_context.clone().degrade_to_any(&degraded_names);
     (context, skipped)
+}
+
+/// Every function name declared across `ty_sources`, regardless of tier —
+/// what `degrade_if_version_out_of_range` widens to `Any` when the whole
+/// definition is out of its declared version range. Unlike
+/// `names_below_trust`, tier plays no role here: a version mismatch is a
+/// property of the *definition*, not of any one entry's declared
+/// trustworthiness.
+fn all_declared_names(ty_sources: &[(&str, &str)]) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for (_filename, source) in ty_sources {
+        for line in source.lines() {
+            let trimmed = line.trim();
+            if !trimmed.starts_with('@') {
+                continue;
+            }
+            if let Some(raw_name) = extract_raw_signature_name(trimmed) {
+                names.insert(unwrap_backtick_name(&raw_name));
+            }
+        }
+    }
+    names
+}
+
+/// Parse a dotted version string into numeric components, ignoring any
+/// non-digit suffix on a component (`"1.11.0-beta"` -> `[1, 11, 0]`) and
+/// treating an unparsable component as `0` — good enough for the floor/
+/// ceiling comparison below, never a reason to fail a build over a
+/// malformed version string.
+fn parse_version(v: &str) -> Vec<u64> {
+    v.split(['.', '-', '+'])
+        .map(|part| {
+            let digits: String = part.chars().take_while(|c| c.is_ascii_digit()).collect();
+            digits.parse::<u64>().unwrap_or(0)
+        })
+        .collect()
+}
+
+/// Is `a` strictly less than `b`, comparing dotted version strings
+/// component-wise (`"1.9"` < `"1.10"`, not string order)? Both are padded to
+/// the same length first so `"1.2"` and `"1.2.0"` compare equal rather than
+/// the shorter one spuriously losing.
+fn version_less_than(a: &str, b: &str) -> bool {
+    let mut pa = parse_version(a);
+    let mut pb = parse_version(b);
+    while pa.len() < pb.len() {
+        pa.push(0);
+    }
+    while pb.len() < pa.len() {
+        pb.push(0);
+    }
+    pa < pb
+}
+
+/// registry.md §7.2 "Compatibilité de versions : borne minimale, pas plage
+/// fermée": when the R package version actually observed at resolution time
+/// (`typr.lock`'s `r_version_seen`, populated by `typr types add`/`update`)
+/// falls below the definition's declared `since` floor, or above its
+/// optional `until` ceiling, every name the definition declares degrades to
+/// `Any` — same D2 degrade-never-fail contract as the trust threshold
+/// (§0/§5.4), just gated on a different signal, and applied on top of it
+/// rather than instead of it.
+///
+/// No comparison is made, and nothing degrades, when `r_version_seen` is
+/// `None`: a version that was never observed (offline resolution, or R
+/// unavailable when the definition was added/updated) is not the same as an
+/// incompatible one, and D2 forbids treating an unreadable signal as
+/// grounds for anything other than staying exactly as trusting as the tier
+/// check already decided.
+fn degrade_if_version_out_of_range(
+    context: Context,
+    ty_sources: &[(&str, &str)],
+    since: &str,
+    until: Option<&str>,
+    r_version_seen: Option<&str>,
+) -> (Context, Option<String>) {
+    let Some(observed) = r_version_seen else {
+        return (context, None);
+    };
+    let below_floor = version_less_than(observed, since);
+    let above_ceiling = until.map(|u| version_less_than(u, observed)).unwrap_or(false);
+    if !below_floor && !above_ceiling {
+        return (context, None);
+    }
+
+    let reason = if below_floor {
+        format!(
+            "observed R package version {observed} is older than this definition's declared floor (since = \"{since}\")"
+        )
+    } else {
+        format!(
+            "observed R package version {observed} is newer than this definition's declared ceiling (until = \"{}\")",
+            until.unwrap_or_default()
+        )
+    };
+
+    let names = all_declared_names(ty_sources);
+    let mut context = context;
+    context.typing_context = context.typing_context.clone().degrade_to_any(&names);
+    (context, Some(reason))
+}
+
+/// Load every package's resolved external Type Definition on top of
+/// `base_context` — the "reading `typr.lock` at `check`/`build`/`run` time"
+/// wiring that `type_registry.rs`'s module doc and `load_external_ty_definitions`
+/// name as the last missing piece of `typR/registry.md` §13 J2. Called from
+/// every `check`/`build`/`run` entry point in `project.rs`.
+///
+/// A project with no `typr.lock` is unaffected (`resolve_locked_definitions`
+/// returns nothing to load). A locked package whose cache is missing, stale,
+/// or out of its declared version range degrades or is skipped with a
+/// `warning:` line — never a hard error: this function cannot make a build
+/// that passed before fail now (D2, registry.md §0/§5.4).
+///
+/// `project_root` is the directory holding `typr.toml`/`typr.lock` — every
+/// call site in `project.rs` passes `Path::new(".")`, since CLI commands
+/// already run with the project root as the current directory (same
+/// convention as `PathBuf::from("TypR/main.ty")` elsewhere in that module).
+/// Taking it as a parameter, rather than hard-coding `"."` in here, is what
+/// lets tests point it at a temporary project without touching the process's
+/// current directory.
+pub fn load_project_type_definitions(project_root: &std::path::Path, base_context: Context) -> Context {
+    let trust = crate::type_registry::TypesConfig::read(project_root)
+        .trust
+        .unwrap_or_else(|| "T2".to_string());
+    let (resolved, warnings) = crate::type_registry::resolve_locked_definitions(project_root);
+    for w in &warnings {
+        eprintln!("warning: {w}");
+    }
+
+    let mut context = base_context;
+    for def in &resolved {
+        let sources: Vec<(&str, &str)> = def.ty_sources.iter().map(|(f, s)| (f.as_str(), s.as_str())).collect();
+
+        let (next_context, skipped) = load_external_ty_definitions(context, &sources, &def.default_tier, &trust);
+        for (filename, message) in &skipped {
+            eprintln!(
+                "warning: `{}` — {} could not be loaded ({message}); its declared names stay untyped",
+                def.package, filename
+            );
+        }
+
+        let (next_context, version_warning) = degrade_if_version_out_of_range(
+            next_context,
+            &sources,
+            &def.since,
+            def.until.as_deref(),
+            def.r_version_seen.as_deref(),
+        );
+        if let Some(reason) = version_warning {
+            eprintln!(
+                "warning: `{}` — {reason}; its declared types are degraded to Any for this run (registry.md §7.2)",
+                def.package
+            );
+        }
+
+        context = next_context;
+    }
+    context
 }
 
 /// Build a documentation graph over a set of `.ty` sources.
@@ -1035,6 +1192,103 @@ mod tests {
             typ.is_unknown_function(),
             "an entry with no #! tier must inherit the manifest's T3 default and degrade under T2 trust"
         );
+    }
+
+    // -- version_less_than / degrade_if_version_out_of_range (registry.md §7.2) --
+
+    /// The whole reason `version_less_than` exists instead of a plain string
+    /// comparison: `"1.9" < "1.10"` numerically, but `"1.10" < "1.9"`
+    /// lexicographically.
+    #[test]
+    fn version_less_than_compares_components_numerically() {
+        assert!(version_less_than("1.9", "1.10"));
+        assert!(!version_less_than("1.10", "1.9"));
+        assert!(version_less_than("1.11.0", "2.0.0"));
+        assert!(!version_less_than("2.0.0", "1.11.0"));
+    }
+
+    /// `"1.2"` and `"1.2.0"` must compare equal (neither less than the
+    /// other) rather than the shorter string spuriously losing to padding.
+    #[test]
+    fn version_less_than_treats_missing_trailing_components_as_zero() {
+        assert!(!version_less_than("1.2", "1.2.0"));
+        assert!(!version_less_than("1.2.0", "1.2"));
+    }
+
+    /// An observed version below the definition's `since` floor degrades
+    /// every declared name to `Any` and names the floor in the reason.
+    #[test]
+    fn degrade_if_version_out_of_range_degrades_below_the_since_floor() {
+        let source = "@f: (int) -> int;";
+        let (context, skipped) = extend_context_with_ty_sources(Context::default(), &[("pkg.ty", source)]);
+        assert!(skipped.is_empty());
+
+        let (context, reason) =
+            degrade_if_version_out_of_range(context, &[("pkg.ty", source)], "1.11.0", None, Some("1.9.0"));
+
+        let reason = reason.expect("an observed version below `since` must degrade");
+        assert!(reason.contains("older") && reason.contains("1.11.0"), "unexpected reason: {reason}");
+        let typ = context.get_type_from_variable(&Var::from_name("f")).unwrap();
+        assert!(typ.is_unknown_function());
+    }
+
+    /// An observed version above the definition's `until` ceiling degrades
+    /// every declared name to `Any` and names the ceiling in the reason.
+    #[test]
+    fn degrade_if_version_out_of_range_degrades_above_the_until_ceiling() {
+        let source = "@f: (int) -> int;";
+        let (context, skipped) = extend_context_with_ty_sources(Context::default(), &[("pkg.ty", source)]);
+        assert!(skipped.is_empty());
+
+        let (context, reason) = degrade_if_version_out_of_range(
+            context,
+            &[("pkg.ty", source)],
+            "1.0.0",
+            Some("1.5.0"),
+            Some("2.0.0"),
+        );
+
+        let reason = reason.expect("an observed version above `until` must degrade");
+        assert!(reason.contains("newer") && reason.contains("1.5.0"), "unexpected reason: {reason}");
+        let typ = context.get_type_from_variable(&Var::from_name("f")).unwrap();
+        assert!(typ.is_unknown_function());
+    }
+
+    /// An observed version inside `[since, until]` is a no-op: the declared
+    /// signature survives untouched.
+    #[test]
+    fn degrade_if_version_out_of_range_is_a_no_op_within_range() {
+        let source = "@f: (int) -> int;";
+        let (context, skipped) = extend_context_with_ty_sources(Context::default(), &[("pkg.ty", source)]);
+        assert!(skipped.is_empty());
+
+        let (context, reason) = degrade_if_version_out_of_range(
+            context,
+            &[("pkg.ty", source)],
+            "1.0.0",
+            Some("2.0.0"),
+            Some("1.5.0"),
+        );
+
+        assert!(reason.is_none());
+        let typ = context.get_type_from_variable(&Var::from_name("f")).unwrap();
+        assert!(!typ.is_unknown_function());
+    }
+
+    /// D2: a version that was never observed (`r_version_seen == None`) must
+    /// never be treated as out of range — only an actually-observed
+    /// incompatible version may trigger the degradation.
+    #[test]
+    fn degrade_if_version_out_of_range_is_a_no_op_when_version_was_never_observed() {
+        let source = "@f: (int) -> int;";
+        let (context, skipped) = extend_context_with_ty_sources(Context::default(), &[("pkg.ty", source)]);
+        assert!(skipped.is_empty());
+
+        let (context, reason) = degrade_if_version_out_of_range(context, &[("pkg.ty", source)], "1.11.0", None, None);
+
+        assert!(reason.is_none());
+        let typ = context.get_type_from_variable(&Var::from_name("f")).unwrap();
+        assert!(!typ.is_unknown_function());
     }
 
     /// An unrecognized tier string — on the entry or on the project's own
