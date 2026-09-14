@@ -257,6 +257,23 @@ enum TypesCommands {
         #[arg(long, short, value_name = "FILE")]
         out: Option<PathBuf>,
     },
+    /// Open a pull request against the community registry adding or updating
+    /// `packages/<package>.json` for this definition — "Add to Registry"
+    /// from the CLI, no Store account needed. Runs the same checks as
+    /// `Validate` first and refuses to submit anything that fails them.
+    /// Needs the `gh` CLI, already authenticated (`gh auth login`): the PR
+    /// is opened as you, from your own fork of the registry.
+    Submit {
+        /// The package this definition describes (e.g. `shiny`).
+        package: String,
+        /// `github:owner/repo[/subdir][@rev]`. Omit to use whatever this
+        /// project already has pinned for `package` in `typr.lock` (i.e.
+        /// after `typr types add`).
+        repo: Option<String>,
+        /// `owner/repo` of the registry to submit to.
+        #[arg(long, value_name = "OWNER/REPO", default_value = crate::registry_submit::DEFAULT_REGISTRY_REPO)]
+        registry: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -718,6 +735,23 @@ fn run_types_command(command: TypesCommands) {
             print!("{}", report.render());
             if !report.ok() {
                 std::process::exit(1);
+            }
+        }
+        TypesCommands::Submit {
+            package,
+            repo,
+            registry,
+        } => {
+            use crate::registry_submit::{self, SubmitOutcome};
+            match registry_submit::submit(root, &package, repo.as_deref(), &registry) {
+                Ok(SubmitOutcome::Opened(pr_url)) => println!("opened {pr_url}"),
+                Ok(SubmitOutcome::AlreadyUpToDate) => {
+                    println!("`{package}` is already indexed identically in {registry} — nothing to submit.")
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    std::process::exit(1);
+                }
             }
         }
         TypesCommands::Revalidate { dir, out } => {
