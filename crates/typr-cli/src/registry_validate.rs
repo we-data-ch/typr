@@ -3,16 +3,16 @@
 //! repository (registry.md §13 J4, "contrôles mécaniques de §9, dont le diff
 //! `formals()` contre le package installé").
 //!
-//! Two checks named in §9 are deliberately out of scope here and stay open in
+//! One check named in §9 is deliberately out of scope here and stays open in
 //! the J4 checklist: "schéma JSON du registre valide" is a property of
 //! `we-data-ch/registry`'s own `packages/*.json` files, not of one definition
 //! repository (it already gets a mechanical check for free every time
 //! `type_registry::lookup_in_registry_dir`/`search_in_registry_dir` parses one
 //! into `RegistryPackageFile` — a malformed file simply resolves to no
 //! candidates, per D2 — but there is no *dedicated* validator yet that flags
-//! *which* file is malformed); "revalidation périodique" (drift re-detection
-//! over time) needs a place to run centrally (cron/CI on the registry itself),
-//! which is the next J4 item, not this one.
+//! *which* file is malformed). "revalidation périodique" (drift re-detection
+//! over time) — a place to run this validator centrally, on every registry
+//! entry, on a schedule — is [`crate::registry_revalidate`], the next J4 item.
 //!
 //! Every other §9 line is a [`CheckResult`] here:
 //!
@@ -77,16 +77,32 @@ pub struct CheckResult {
 
 impl CheckResult {
     fn pass(name: &'static str, detail: impl Into<String>) -> Self {
-        CheckResult { name, status: CheckStatus::Pass, detail: detail.into() }
+        CheckResult {
+            name,
+            status: CheckStatus::Pass,
+            detail: detail.into(),
+        }
     }
     fn warn(name: &'static str, detail: impl Into<String>) -> Self {
-        CheckResult { name, status: CheckStatus::Warn, detail: detail.into() }
+        CheckResult {
+            name,
+            status: CheckStatus::Warn,
+            detail: detail.into(),
+        }
     }
     fn fail(name: &'static str, detail: impl Into<String>) -> Self {
-        CheckResult { name, status: CheckStatus::Fail, detail: detail.into() }
+        CheckResult {
+            name,
+            status: CheckStatus::Fail,
+            detail: detail.into(),
+        }
     }
     fn skipped(name: &'static str, detail: impl Into<String>) -> Self {
-        CheckResult { name, status: CheckStatus::Skipped, detail: detail.into() }
+        CheckResult {
+            name,
+            status: CheckStatus::Skipped,
+            detail: detail.into(),
+        }
     }
 }
 
@@ -109,7 +125,10 @@ impl ValidationReport {
     /// The nominative report of registry.md §9: what was verified, named,
     /// never a single green badge.
     pub fn render(&self) -> String {
-        let mut out = format!("{} — {} (definition v{})\n", self.package, self.repository, self.definition_version);
+        let mut out = format!(
+            "{} — {} (definition v{})\n",
+            self.package, self.repository, self.definition_version
+        );
         for c in &self.checks {
             let word = match c.status {
                 CheckStatus::Pass => "ok",
@@ -174,9 +193,15 @@ fn validate_fetched(
 ) -> ValidationReport {
     let mut checks = Vec::new();
 
-    checks.push(CheckResult::pass("format_version", fetched.manifest.format_version.to_string()));
+    checks.push(CheckResult::pass(
+        "format_version",
+        fetched.manifest.format_version.to_string(),
+    ));
 
-    checks.push(CheckResult::pass("repository accessible", format!("cloned @ {}", short_rev(&fetched.rev))));
+    checks.push(CheckResult::pass(
+        "repository accessible",
+        format!("cloned @ {}", short_rev(&fetched.rev)),
+    ));
     checks.push(if rev_pinned {
         CheckResult::pass("rev pinned", &fetched.rev)
     } else {
@@ -188,7 +213,10 @@ fn validate_fetched(
     checks.push(CheckResult::pass("digest", fetched.digest.clone()));
 
     if capability_warnings.is_empty() {
-        checks.push(CheckResult::pass("capabilities", "no undeclared R; r_shims/extern_raw not declared"));
+        checks.push(CheckResult::pass(
+            "capabilities",
+            "no undeclared R; r_shims/extern_raw not declared",
+        ));
     } else {
         checks.push(CheckResult::warn("capabilities", capability_warnings.join(" ")));
     }
@@ -222,18 +250,33 @@ fn validate_fetched(
     // parsed/type-checked, and `skipped` records failures from before that
     // point — this just avoids implying a trust decision that isn't ours to
     // make in a validator.
-    let (_context, skipped) =
-        standard_library::load_external_ty_definitions(Context::default(), &sources_ref, &fetched.manifest.definition.tier, "T1");
+    let (_context, skipped) = standard_library::load_external_ty_definitions(
+        Context::default(),
+        &sources_ref,
+        &fetched.manifest.definition.tier,
+        "T1",
+    );
 
     if ty_sources.is_empty() {
-        checks.push(CheckResult::warn(".ty parse/type-check", "no .ty file found in this repository"));
+        checks.push(CheckResult::warn(
+            ".ty parse/type-check",
+            "no .ty file found in this repository",
+        ));
     } else if skipped.is_empty() {
-        checks.push(CheckResult::pass(".ty parse/type-check", format!("{} file(s) OK", ty_sources.len())));
+        checks.push(CheckResult::pass(
+            ".ty parse/type-check",
+            format!("{} file(s) OK", ty_sources.len()),
+        ));
     } else {
         let names: Vec<&str> = skipped.iter().map(|(f, _)| f.as_str()).collect();
         checks.push(CheckResult::fail(
             ".ty parse/type-check",
-            format!("{}/{} file(s) failed: {}", skipped.len(), ty_sources.len(), names.join(", ")),
+            format!(
+                "{}/{} file(s) failed: {}",
+                skipped.len(),
+                ty_sources.len(),
+                names.join(", ")
+            ),
         ));
     }
 
@@ -248,8 +291,11 @@ fn validate_fetched(
 
     // Declared names/arity/tier — deliberately excludes `tests/`, which
     // exercises the API rather than declaring it (registry.md §5.1).
-    let declared_sources: Vec<(String, String)> =
-        ty_sources.iter().filter(|(f, _)| !f.starts_with("tests/")).cloned().collect();
+    let declared_sources: Vec<(String, String)> = ty_sources
+        .iter()
+        .filter(|(f, _)| !f.starts_with("tests/"))
+        .cloned()
+        .collect();
     let declared = parse_declared_entries(&declared_sources, &fetched.manifest.definition.tier);
 
     let t1_entries: Vec<&DeclaredEntry> = declared.iter().filter(|e| e.tier.as_deref() == Some("T1")).collect();
@@ -264,7 +310,10 @@ fn validate_fetched(
             format!("{} T1 entrie(s), none with an unconstrained `...`", t1_entries.len()),
         ));
     } else {
-        checks.push(CheckResult::fail("T1 promotion gate", format!("unconstrained `...` at T1: {}", t1_violations.join(", "))));
+        checks.push(CheckResult::fail(
+            "T1 promotion gate",
+            format!("unconstrained `...` at T1: {}", t1_violations.join(", ")),
+        ));
     }
 
     if !gen_types::rscript_available() {
@@ -277,17 +326,27 @@ fn validate_fetched(
                 push_formals_diff(&mut checks, &declared, &info.functions);
             }
             _ => {
-                checks.push(CheckResult::skipped("exports vs formals()", format!("`{package}` not installed locally")));
-                checks.push(CheckResult::skipped("arity vs formals()", format!("`{package}` not installed locally")));
+                checks.push(CheckResult::skipped(
+                    "exports vs formals()",
+                    format!("`{package}` not installed locally"),
+                ));
+                checks.push(CheckResult::skipped(
+                    "arity vs formals()",
+                    format!("`{package}` not installed locally"),
+                ));
             }
         }
 
         match check_cran_availability(package) {
             Some(true) => checks.push(CheckResult::pass("package on CRAN", "found on cloud.r-project.org")),
-            Some(false) => {
-                checks.push(CheckResult::warn("package on CRAN", "not found on CRAN — may be R-universe/Bioconductor/GitHub-only"))
-            }
-            None => checks.push(CheckResult::skipped("package on CRAN", "could not reach the CRAN mirror")),
+            Some(false) => checks.push(CheckResult::warn(
+                "package on CRAN",
+                "not found on CRAN — may be R-universe/Bioconductor/GitHub-only",
+            )),
+            None => checks.push(CheckResult::skipped(
+                "package on CRAN",
+                "could not reach the CRAN mirror",
+            )),
         }
     }
 
@@ -308,8 +367,13 @@ fn short_rev(rev: &str) -> &str {
 /// `formals()` contre le package installé" registry.md §13 J4 names
 /// explicitly. Pushes both the "exports vs formals()" and "arity vs
 /// formals()" checks.
-fn push_formals_diff(checks: &mut Vec<CheckResult>, declared: &[DeclaredEntry], installed_fns: &[gen_types::GeneratedFn]) {
-    let installed: HashMap<&str, &gen_types::GeneratedFn> = installed_fns.iter().map(|f| (f.name.as_str(), f)).collect();
+fn push_formals_diff(
+    checks: &mut Vec<CheckResult>,
+    declared: &[DeclaredEntry],
+    installed_fns: &[gen_types::GeneratedFn],
+) {
+    let installed: HashMap<&str, &gen_types::GeneratedFn> =
+        installed_fns.iter().map(|f| (f.name.as_str(), f)).collect();
 
     let mut missing = Vec::new();
     let mut mismatches = Vec::new();
@@ -336,12 +400,21 @@ fn push_formals_diff(checks: &mut Vec<CheckResult>, declared: &[DeclaredEntry], 
     let total = declared.len();
     let found = total - missing.len();
     if missing.is_empty() {
-        checks.push(CheckResult::pass("exports vs formals()", format!("{found}/{total} found")));
+        checks.push(CheckResult::pass(
+            "exports vs formals()",
+            format!("{found}/{total} found"),
+        ));
     } else {
-        checks.push(CheckResult::fail("exports vs formals()", format!("{found}/{total} found — missing: {}", missing.join(", "))));
+        checks.push(CheckResult::fail(
+            "exports vs formals()",
+            format!("{found}/{total} found — missing: {}", missing.join(", ")),
+        ));
     }
     if mismatches.is_empty() {
-        checks.push(CheckResult::pass("arity vs formals()", format!("{total}/{total} match")));
+        checks.push(CheckResult::pass(
+            "arity vs formals()",
+            format!("{total}/{total} match"),
+        ));
     } else {
         checks.push(CheckResult::fail(
             "arity vs formals()",
@@ -406,12 +479,18 @@ fn parse_declared_entries(ty_sources: &[(String, String)], default_tier: &str) -
             if !trimmed.starts_with('@') {
                 continue;
             }
-            let Some(sig) = parse_signature_line(trimmed) else { continue };
+            let Some(sig) = parse_signature_line(trimmed) else {
+                continue;
+            };
             let tier = meta_map
                 .get(&sig.raw_name)
                 .and_then(|m| m.tier.clone())
                 .or_else(|| Some(default_tier.to_string()));
-            out.push(DeclaredEntry { name: unwrap_backtick(&sig.raw_name), tier, params: sig.params });
+            out.push(DeclaredEntry {
+                name: unwrap_backtick(&sig.raw_name),
+                tier,
+                params: sig.params,
+            });
         }
     }
     out
@@ -451,7 +530,10 @@ fn parse_signature_line(line: &str) -> Option<ParsedSignature> {
         return None;
     }
     let params = parse_param_list(sig)?;
-    Some(ParsedSignature { raw_name: raw_name.to_string(), params })
+    Some(ParsedSignature {
+        raw_name: raw_name.to_string(),
+        params,
+    })
 }
 
 /// The first `:` in `text` that is not part of a `::` (which appears in
@@ -494,7 +576,12 @@ fn parse_param_list(sig: &str) -> Option<Vec<DeclaredParam>> {
     }
     let close_idx = close_idx?;
     let inner: String = chars[1..close_idx].iter().collect();
-    Some(split_top_level(&inner).into_iter().map(|p| parse_one_param(&p)).collect())
+    Some(
+        split_top_level(&inner)
+            .into_iter()
+            .map(|p| parse_one_param(&p))
+            .collect(),
+    )
 }
 
 fn split_top_level(inner: &str) -> Vec<String> {
@@ -534,11 +621,20 @@ fn parse_one_param(text: &str) -> DeclaredParam {
         None => (false, text.trim()),
     };
     if rest.is_empty() {
-        return DeclaredParam { is_variadic, type_text: "Any".to_string() };
+        return DeclaredParam {
+            is_variadic,
+            type_text: "Any".to_string(),
+        };
     }
     match find_unqualified_colon(rest) {
-        Some(colon_idx) => DeclaredParam { is_variadic, type_text: rest[colon_idx + 1..].trim().to_string() },
-        None => DeclaredParam { is_variadic, type_text: rest.to_string() },
+        Some(colon_idx) => DeclaredParam {
+            is_variadic,
+            type_text: rest[colon_idx + 1..].trim().to_string(),
+        },
+        None => DeclaredParam {
+            is_variadic,
+            type_text: rest.to_string(),
+        },
     }
 }
 
@@ -628,7 +724,12 @@ mod tests {
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, content).unwrap();
         }
-        FetchedDefinition { manifest: manifest("T2"), rev: "deadbeefcafef00d".to_string(), digest: "sha256:test".to_string(), dir }
+        FetchedDefinition {
+            manifest: manifest("T2"),
+            rev: "deadbeefcafef00d".to_string(),
+            digest: "sha256:test".to_string(),
+            dir,
+        }
     }
 
     fn cleanup(fetched: &FetchedDefinition) {
@@ -639,7 +740,10 @@ mod tests {
     fn clean_definition_passes_the_non_introspection_checks() {
         let fetched = write_fetched(
             "clean",
-            &[("ty/core.ty", "#! tier: T2\n@importFrom shiny fluidPage;\n@fluidPage: (Any) -> Any;\n")],
+            &[(
+                "ty/core.ty",
+                "#! tier: T2\n@importFrom shiny fluidPage;\n@fluidPage: (Any) -> Any;\n",
+            )],
         );
         let report = validate_fetched("shiny", "github:alice/typr-shiny", true, &fetched, &[]);
         cleanup(&fetched);
@@ -673,8 +777,13 @@ mod tests {
     #[test]
     fn declared_capability_warning_is_surfaced_not_failed() {
         let fetched = write_fetched("capwarn", &[("ty/core.ty", "@f: (Any) -> Any;\n")]);
-        let report =
-            validate_fetched(FAKE_PACKAGE, "github:alice/typr-shiny", true, &fetched, &["ships R shims".to_string()]);
+        let report = validate_fetched(
+            FAKE_PACKAGE,
+            "github:alice/typr-shiny",
+            true,
+            &fetched,
+            &["ships R shims".to_string()],
+        );
         cleanup(&fetched);
         let cap = report.checks.iter().find(|c| c.name == "capabilities").unwrap();
         assert_eq!(cap.status, CheckStatus::Warn);
@@ -699,7 +808,10 @@ mod tests {
         let fetched = write_fetched(
             "smoke",
             &[
-                ("ty/core.ty", "@importFrom shiny fluidPage;\n@fluidPage: (Any) -> Any;\n"),
+                (
+                    "ty/core.ty",
+                    "@importFrom shiny fluidPage;\n@fluidPage: (Any) -> Any;\n",
+                ),
                 ("tests/smoke.ty", "let x <- fluidPage(1);\n"),
             ],
         );
@@ -717,8 +829,12 @@ mod tests {
         let path: PathBuf = dir.join(rel);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, "#! tier: T1\n@risky: (...values: Any) -> Any;\n").unwrap();
-        let fetched =
-            FetchedDefinition { manifest: manifest("T2"), rev: "abc123".to_string(), digest: "sha256:test".to_string(), dir };
+        let fetched = FetchedDefinition {
+            manifest: manifest("T2"),
+            rev: "abc123".to_string(),
+            digest: "sha256:test".to_string(),
+            dir,
+        };
 
         let report = validate_fetched("shiny", "github:alice/typr-shiny", true, &fetched, &[]);
         cleanup(&fetched);
@@ -731,8 +847,10 @@ mod tests {
 
     #[test]
     fn t1_entry_with_constrained_variadic_passes_the_gate() {
-        let fetched =
-            write_fetched("t1ok", &[("ty/core.ty", "#! tier: T1\n@safe: (...values: int) -> Any;\n")]);
+        let fetched = write_fetched(
+            "t1ok",
+            &[("ty/core.ty", "#! tier: T1\n@safe: (...values: int) -> Any;\n")],
+        );
         let report = validate_fetched("shiny", "github:alice/typr-shiny", true, &fetched, &[]);
         cleanup(&fetched);
         let gate = report.checks.iter().find(|c| c.name == "T1 promotion gate").unwrap();
@@ -765,7 +883,10 @@ mod tests {
         // `toJSON` declared with one extra fixed argument beyond its real
         // `formals()` — a real, existing export with the wrong arity — plus
         // a name that plain doesn't exist in the package at all.
-        let wrong_arity_args = std::iter::repeat("Any").take(real.params.len() + 1).collect::<Vec<_>>().join(", ");
+        let wrong_arity_args = std::iter::repeat("Any")
+            .take(real.params.len() + 1)
+            .collect::<Vec<_>>()
+            .join(", ");
         let src = format!(
             "@extern jsonlite::toJSON: ({wrong_arity_args}) -> char;\n\
              @extern jsonlite::doesNotExist: (Any) -> char;\n"
@@ -776,7 +897,11 @@ mod tests {
 
         let exports = report.checks.iter().find(|c| c.name == "exports vs formals()").unwrap();
         assert_eq!(exports.status, CheckStatus::Fail);
-        assert!(exports.detail.contains("doesNotExist"), "unexpected detail: {}", exports.detail);
+        assert!(
+            exports.detail.contains("doesNotExist"),
+            "unexpected detail: {}",
+            exports.detail
+        );
 
         let arity = report.checks.iter().find(|c| c.name == "arity vs formals()").unwrap();
         assert_eq!(arity.status, CheckStatus::Fail);

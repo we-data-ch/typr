@@ -52,7 +52,9 @@ impl RepoSpec {
             .split_once('/')
             .ok_or_else(|| format!("`{spec}` is not `github:owner/repo[@rev]` — missing `owner/repo`"))?;
         if owner.is_empty() || repo.is_empty() {
-            return Err(format!("`{spec}` is not `github:owner/repo[@rev]` — empty owner or repo"));
+            return Err(format!(
+                "`{spec}` is not `github:owner/repo[@rev]` — empty owner or repo"
+            ));
         }
         Ok(RepoSpec {
             owner: owner.to_string(),
@@ -163,8 +165,14 @@ pub struct FetchedDefinition {
     pub dir: PathBuf,
 }
 
-fn git_available() -> bool {
-    Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
+/// `pub(crate)`: also used by `registry_revalidate.rs` to fail open the same
+/// way `lookup_in_registry`/`search` already do when `git` isn't on `PATH`.
+pub(crate) fn git_available() -> bool {
+    Command::new("git")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 /// Clone `url` (at `rev` when given, else the default branch's HEAD) into a
@@ -174,11 +182,7 @@ fn git_available() -> bool {
 /// `Rscript` — rather than adding a git-in-process dependency for a command
 /// that already needs network access.
 fn clone_repo(url: &str, rev: Option<&str>) -> Result<(PathBuf, String), String> {
-    let dir = std::env::temp_dir().join(format!(
-        "typr_types_fetch_{}_{}",
-        std::process::id(),
-        now_millis()
-    ));
+    let dir = std::env::temp_dir().join(format!("typr_types_fetch_{}_{}", std::process::id(), now_millis()));
     fs::create_dir_all(&dir).map_err(|e| format!("could not create temp dir: {e}"))?;
 
     let clone_status = Command::new("git")
@@ -259,7 +263,9 @@ fn collect_files(root: &Path, current: &Path, out: &mut BTreeSet<PathBuf>) -> Re
         if path.file_name().and_then(|n| n.to_str()) == Some(".git") {
             continue;
         }
-        let file_type = entry.file_type().map_err(|e| format!("could not stat {}: {e}", path.display()))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("could not stat {}: {e}", path.display()))?;
         if file_type.is_dir() {
             collect_files(root, &path, out)?;
         } else if file_type.is_file() {
@@ -365,7 +371,9 @@ fn check_capabilities(manifest: &DefinitionManifest, dir: &Path) -> Result<Vec<S
 /// cache (or discard, on any failure).
 pub fn fetch(spec: &RepoSpec) -> Result<(FetchedDefinition, Vec<String>), String> {
     if !git_available() {
-        return Err("`git` is not on PATH — `typr types add`/`update` need it to fetch a definition repository".to_string());
+        return Err(
+            "`git` is not on PATH — `typr types add`/`update` need it to fetch a definition repository".to_string(),
+        );
     }
     let (dir, rev) = clone_repo(&spec.clone_url(), spec.rev.as_deref())?;
 
@@ -406,7 +414,9 @@ pub fn fetch(spec: &RepoSpec) -> Result<(FetchedDefinition, Vec<String>), String
 /// `run` time to compare against later, per `degrade_if_version_out_of_range`'s
 /// own "no comparison is made... when `r_version_seen` is `None`" rule.
 fn observed_r_package_version(package: &str) -> Option<String> {
-    crate::gen_types::introspect(package).ok().and_then(|info| info.pkg_version)
+    crate::gen_types::introspect(package)
+        .ok()
+        .and_then(|info| info.pkg_version)
 }
 
 /// Copy every tracked file of a fetched definition into the on-disk cache at
@@ -559,7 +569,12 @@ fn registry_index_dir() -> Option<PathBuf> {
 
 /// Clone (first use) or fast-forward `git pull` (subsequent uses) the local
 /// registry mirror, returning its path.
-fn sync_registry_index() -> Result<PathBuf, String> {
+///
+/// `pub(crate)`: `registry_revalidate.rs` calls this directly when `typr
+/// types revalidate` isn't given an explicit `--dir` (e.g. a CI job that has
+/// already checked out `we-data-ch/registry` itself and wants to validate
+/// that working tree instead of a fresh mirror).
+pub(crate) fn sync_registry_index() -> Result<PathBuf, String> {
     let dir = registry_index_dir()
         .ok_or_else(|| "could not determine a cache directory (no $HOME/$XDG_CACHE_HOME)".to_string())?;
 
@@ -634,6 +649,14 @@ fn lookup_in_registry_dir(dir: &Path, package: &str) -> Option<String> {
     let source = fs::read_to_string(&path).ok()?;
     let file: RegistryPackageFile = serde_json::from_str(&source).ok()?;
     let entry = pick_best_entry(&file)?;
+    entry_spec(entry)
+}
+
+/// `entry.repository`/`entry.rev` as a `github:owner/repo[@rev]` spec string,
+/// ready for `fetch`/`RepoSpec::parse` — `None` when `repository` isn't
+/// shaped like `owner/repo`. Shared by `lookup_in_registry_dir` (the single
+/// best entry) and `list_registry_targets` (every entry).
+fn entry_spec(entry: &RegistryDefinitionEntry) -> Option<String> {
     if entry.repository.split('/').filter(|s| !s.is_empty()).count() != 2 {
         return None;
     }
@@ -641,6 +664,63 @@ fn lookup_in_registry_dir(dir: &Path, package: &str) -> Option<String> {
         Some(rev) if !rev.is_empty() => format!("github:{}@{}", entry.repository, rev),
         _ => format!("github:{}", entry.repository),
     })
+}
+
+/// One definition entry from `packages/<pkg>.json`, resolved to a spec string
+/// — `typr types revalidate`'s unit of work (registry.md §13 J4, "revalidation
+/// périodique des définitions déjà indexées"). Unlike `lookup_in_registry`
+/// (the single winner `typr types add` would pick) or `search` (every entry,
+/// but not resolved to a fetchable spec), this is *every* entry across *every*
+/// package file, each already a `github:owner/repo[@rev]` string ready to feed
+/// straight to `registry_validate::validate`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegistryTarget {
+    pub package: String,
+    pub spec: String,
+}
+
+/// Walk `dir/packages/*.json` and resolve every listed definition entry to a
+/// `RegistryTarget`. Sorted by filename then file order, so two runs over an
+/// unchanged registry produce results in the same order — `typr types
+/// revalidate` diffs successive runs, and a stable order keeps that diff
+/// about content, not happenstance directory iteration.
+///
+/// Fails open like everything else that reads registry files (D2): a missing
+/// `packages/` directory, an unreadable file, invalid JSON, or a malformed
+/// `repository` field all just drop that entry rather than aborting the walk.
+pub fn list_registry_targets(dir: &Path) -> Vec<RegistryTarget> {
+    let packages_dir = dir.join("packages");
+    let Ok(read_dir) = fs::read_dir(&packages_dir) else {
+        return Vec::new();
+    };
+    let mut files: Vec<PathBuf> = read_dir
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("json"))
+        .collect();
+    files.sort();
+
+    let mut out = Vec::new();
+    for path in files {
+        let Some(package) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let Ok(source) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(file) = serde_json::from_str::<RegistryPackageFile>(&source) else {
+            continue;
+        };
+        for entry in &file.definitions {
+            if let Some(spec) = entry_spec(entry) {
+                out.push(RegistryTarget {
+                    package: package.to_string(),
+                    spec,
+                });
+            }
+        }
+    }
+    out
 }
 
 /// One entry of `packages/<package>.json`'s `definitions` array, as `typr
@@ -1050,7 +1130,10 @@ mod tests {
 
         let config = TypesConfig::read(&dir);
         assert_eq!(config.trust.as_deref(), Some("T2"));
-        assert_eq!(config.pins.get("shiny").map(String::as_str), Some("github:alice/typr-shiny"));
+        assert_eq!(
+            config.pins.get("shiny").map(String::as_str),
+            Some("github:alice/typr-shiny")
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -1142,7 +1225,11 @@ mod tests {
     fn undeclared_extern_raw_is_rejected() {
         let dir = std::env::temp_dir().join(format!("typr_caps_extern_{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
-        write_file(&dir, "ty/core.ty", "let f <- extern: (x: int) -> int r#\"\nfunction(x) x\n\"#;");
+        write_file(
+            &dir,
+            "ty/core.ty",
+            "let f <- extern: (x: int) -> int r#\"\nfunction(x) x\n\"#;",
+        );
         let err = check_capabilities(&manifest_with(false, false), &dir).unwrap_err();
         assert!(err.contains("extern_raw"), "unexpected error: {err}");
         let _ = fs::remove_dir_all(&dir);
@@ -1265,7 +1352,12 @@ mod tests {
         // vendor()
         let written = vendor(&project_dir, None).unwrap();
         assert!(!written.is_empty());
-        let vendored_ty = project_dir.join("ty").join("vendor").join("shiny").join("ty").join("core.ty");
+        let vendored_ty = project_dir
+            .join("ty")
+            .join("vendor")
+            .join("shiny")
+            .join("ty")
+            .join("core.ty");
         assert!(vendored_ty.is_file(), "expected {}", vendored_ty.display());
         let content = fs::read_to_string(&vendored_ty).unwrap();
         assert!(content.contains("fluidPage"));
@@ -1370,8 +1462,13 @@ mod tests {
              [definition]\nversion = \"0.1.0\"\ntier = \"T3\"\n\
              [provider]\ntype = \"community\"\nrepository = \"github:test/typr-widget\"\n\
              [capabilities]\nr_shims = false\nextern_raw = false\n";
-        let locked =
-            lock_definition_in_real_cache(&project_dir, "widget", manifest_toml, "@do_widget_thing: (int) -> int;", None);
+        let locked = lock_definition_in_real_cache(
+            &project_dir,
+            "widget",
+            manifest_toml,
+            "@do_widget_thing: (int) -> int;",
+            None,
+        );
 
         let context = crate::standard_library::load_project_type_definitions(
             &project_dir,
@@ -1419,7 +1516,9 @@ mod tests {
             typr_core::components::context::Context::default(),
         );
         let typ = context
-            .get_type_from_variable(&typr_core::components::language::var::Var::from_name("do_widget2_thing"))
+            .get_type_from_variable(&typr_core::components::language::var::Var::from_name(
+                "do_widget2_thing",
+            ))
             .expect("locked definition's entry must be loaded into the context");
         assert!(
             typ.is_unknown_function(),
@@ -1647,6 +1746,78 @@ mod tests {
         write_registry_package(&dir, "sf", "this is not { json");
 
         assert!(search_in_registry_dir(&dir, "sf").is_empty());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // -- list_registry_targets (typr types revalidate, registry.md §13 J4) --
+
+    #[test]
+    fn list_registry_targets_covers_every_entry_across_every_package_file() {
+        let dir = std::env::temp_dir().join(format!("typr_list_targets_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "dplyr",
+            r#"{"name": "dplyr", "definitions": [
+                {"repository": "alice/typr-dplyr", "rev": "aaa", "source": "community", "tier": "T2"},
+                {"repository": "bob/typr-dplyr", "source": "community", "tier": "T3"}
+            ]}"#,
+        );
+        write_registry_package(
+            &dir,
+            "shiny",
+            r#"{"name": "shiny", "definitions": [
+                {"repository": "carol/typr-shiny", "rev": "ccc", "source": "official", "tier": "T1"}
+            ]}"#,
+        );
+
+        let targets = list_registry_targets(&dir);
+        let pairs: Vec<(String, String)> = targets.into_iter().map(|t| (t.package, t.spec)).collect();
+        assert_eq!(
+            pairs,
+            vec![
+                ("dplyr".to_string(), "github:alice/typr-dplyr@aaa".to_string()),
+                ("dplyr".to_string(), "github:bob/typr-dplyr".to_string()),
+                ("shiny".to_string(), "github:carol/typr-shiny@ccc".to_string()),
+            ]
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn list_registry_targets_skips_a_malformed_entry_without_dropping_the_rest() {
+        let dir = std::env::temp_dir().join(format!("typr_list_targets_bad_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "sf",
+            r#"{"name": "sf", "definitions": [
+                {"repository": "not-a-valid-repo-field", "source": "community", "tier": "T2"},
+                {"repository": "alice/typr-sf", "source": "community", "tier": "T2"}
+            ]}"#,
+        );
+
+        let targets = list_registry_targets(&dir);
+        assert_eq!(
+            targets,
+            vec![RegistryTarget {
+                package: "sf".to_string(),
+                spec: "github:alice/typr-sf".to_string()
+            }]
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn list_registry_targets_empty_when_packages_dir_is_absent() {
+        let dir = std::env::temp_dir().join(format!("typr_list_targets_empty_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        assert!(list_registry_targets(&dir).is_empty());
 
         let _ = fs::remove_dir_all(&dir);
     }

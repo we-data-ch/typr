@@ -238,6 +238,25 @@ enum TypesCommands {
         /// same way `typr types add` does.
         repo: Option<String>,
     },
+    /// Run `Validate`'s checks against *every* definition the
+    /// `we-data-ch/registry` index lists, and report drift since the last run
+    /// — registry.md §13 J4, "revalidation périodique des définitions déjà
+    /// indexées (détection de dérive)". Meant to run centrally (a scheduled
+    /// CI job in `we-data-ch/registry` itself), not per-project. Exits 1 only
+    /// when something that was fine last run just broke (`--out`'s previous
+    /// contents vs. now) — a long-standing, already-known failure doesn't
+    /// keep failing the job forever.
+    Revalidate {
+        /// A local checkout of `we-data-ch/registry` to validate as-is (e.g.
+        /// a CI job's own working tree). Omit to sync the same local mirror
+        /// `typr search`/`typr types add` already use.
+        #[arg(long, value_name = "PATH")]
+        dir: Option<PathBuf>,
+        /// Where the previous run's snapshot is read from and the new one is
+        /// written to. Defaults to `<dir>/status/validation.json`.
+        #[arg(long, short, value_name = "FILE")]
+        out: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -615,8 +634,8 @@ fn run_cache_command(command: CacheCommands) {
     }
 }
 
-/// `typr types <add|update|list|vendor>` — see `typR/registry.md` §7 and
-/// `rfcs/0031-external-type-definitions.md`.
+/// `typr types <add|update|list|vendor|validate|revalidate>` — see
+/// `typR/registry.md` §7, §9, §13 J4 and `rfcs/0031-external-type-definitions.md`.
 fn run_types_command(command: TypesCommands) {
     use crate::type_registry;
 
@@ -699,6 +718,22 @@ fn run_types_command(command: TypesCommands) {
             print!("{}", report.render());
             if !report.ok() {
                 std::process::exit(1);
+            }
+        }
+        TypesCommands::Revalidate { dir, out } => {
+            use crate::registry_revalidate;
+            match registry_revalidate::revalidate(dir.as_deref(), out.as_deref()) {
+                Ok((snapshots, drift, out_path)) => {
+                    print!("{}", registry_revalidate::render(&snapshots, &drift));
+                    println!("\nwrote {}", out_path.display());
+                    if !drift.newly_failing.is_empty() {
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    std::process::exit(1);
+                }
             }
         }
     }
