@@ -1,0 +1,9 @@
+#@case external-type-definition-old-version-degrades-to-any: registry.md §7.2 —
+# a locked external Type Definition whose observed R package version
+# (`typr.lock`'s `r_version_seen`) is below the manifest's `since` floor must
+# degrade to Any for every one of its names, even at tier `T1` (normally
+# trusted outright). `sprocket` declares `@turn_sprocket: (int) -> int;` at
+# tier `T1`, `since = "2.0.0"`, but was locked against R package `1.0.0` —
+# below the floor.
+let result <- turn_sprocket("not-an-int");
+print(result);

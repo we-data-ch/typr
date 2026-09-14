@@ -54,6 +54,7 @@ pub mod r_deps;
 pub mod r_name_cache;
 pub mod r_name_lint;
 pub mod rd_renderer;
+pub mod registry_validate;
 pub mod repl;
 pub mod standard_library;
 pub mod syntax;

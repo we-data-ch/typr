@@ -17,6 +17,7 @@ mod r_deps;
 mod r_name_cache;
 mod r_name_lint;
 mod rd_renderer;
+mod registry_validate;
 mod repl;
 mod standard_library;
 mod syntax;

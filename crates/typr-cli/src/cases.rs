@@ -210,6 +210,15 @@ pub fn unique_tmp() -> PathBuf {
 }
 
 /// Copy `repro/` into a temp sandbox and run `typr <cmd>` (this same binary) inside it.
+///
+/// If the case bundle also ships a `cache/` folder (sibling of `repro/`), it is copied into
+/// the sandbox too and exposed as `$XDG_CACHE_HOME` for the invocation — the fix for
+/// `registry.md` §13 J2's "cache portability" gap: `typr.lock` resolution reads from
+/// `~/.cache/typr/types/<pkg>/<digest>/` (`type_registry::cache_root`), which lives outside
+/// `repro/` by construction (§7.4) and so was invisible to a case's sandboxed copy. Bundling a
+/// `cache/` directory laid out exactly like `$XDG_CACHE_HOME` (i.e. `cache/typr/types/…`) lets
+/// a case exercise real `typr.lock` resolution — tier/version degradation — without touching
+/// the developer's real cache or the network. Cases with no `cache/` folder are unaffected.
 fn build_sandbox(case: &Path) -> Sandbox {
     let meta = read_meta(case);
     let repro = case.join("repro");
@@ -225,6 +234,15 @@ fn build_sandbox(case: &Path) -> Sandbox {
         .arg(&meta.cmd)
         .current_dir(&work)
         .env(crate::r_deps::SKIP_ENV_VAR, "1");
+    let bundled_cache = case.join("cache");
+    if bundled_cache.is_dir() {
+        let cache_work = tmp.join("cache");
+        if let Err(e) = copy_dir(&bundled_cache, &cache_work) {
+            eprintln!("{RED}Impossible de copier le cache de {}: {e}{RESET}", case.display());
+            std::process::exit(1);
+        }
+        command.env("XDG_CACHE_HOME", &cache_work);
+    }
     if meta.checked && (meta.cmd == "build" || meta.cmd == "run") {
         command.arg("--checked");
     }

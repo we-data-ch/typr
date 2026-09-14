@@ -190,6 +190,14 @@ enum Commands {
         #[command(subcommand)]
         types_command: TypesCommands,
     },
+    /// List every Type Definition the `we-data-ch/registry` index has for a
+    /// package, ranked exactly as `typr types add`/`typr use` would pick
+    /// among them (registry.md §8.3, §13 J3) — a survey of the alternatives,
+    /// not a selection. Never fails a build: an unreachable registry or an
+    /// unlisted package are reported, not treated as errors.
+    Search {
+        package: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -200,8 +208,10 @@ enum TypesCommands {
     Add {
         /// The package this definition describes (e.g. `shiny`).
         package: String,
-        /// `github:owner/repo[@rev]`.
-        repo: String,
+        /// `github:owner/repo[@rev]`. Omit to resolve one automatically: an
+        /// explicit `typr.toml [types]` pin first, then a lookup in the
+        /// `we-data-ch/registry` (registry.md §13 J3).
+        repo: Option<String>,
     },
     /// Re-fetch and re-pin `typr.lock` for one package (or, with none given,
     /// every resolved definition).
@@ -214,6 +224,19 @@ enum TypesCommands {
     Vendor {
         #[arg(long, short, value_name = "DIR")]
         out: Option<PathBuf>,
+    },
+    /// Run the mechanical checks of `typR/registry.md` §9 against a Type
+    /// Definition repository: manifest/capabilities, `.ty` parsing/type-
+    /// checking, `tests/smoke.ty`, exports and arity vs. `formals()` on the
+    /// locally installed package, and the T1 "no unconstrained `...`"
+    /// promotion gate. Exits 1 if any check fails (never on a `Skipped` one —
+    /// registry.md D2/D5).
+    Validate {
+        /// The package this definition describes (e.g. `shiny`).
+        package: String,
+        /// `github:owner/repo[@rev]`. Omit to resolve one automatically, the
+        /// same way `typr types add` does.
+        repo: Option<String>,
     },
 }
 
@@ -348,6 +371,7 @@ fn skips_r_deps_check(command: &Option<Commands>) -> bool {
             | Some(Commands::Syntax { .. })
             | Some(Commands::GenTypes { .. })
             | Some(Commands::Types { .. })
+            | Some(Commands::Search { .. })
     )
 }
 
@@ -434,7 +458,10 @@ pub fn start() {
         },
         Some(Commands::Document) => document(),
         Some(Commands::Pkgdown) => pkgdown(),
-        Some(Commands::Use { package_name }) => use_package(&package_name),
+        Some(Commands::Use { package_name }) => {
+            use_package(&package_name);
+            try_auto_resolve_type_definition(std::path::Path::new("."), &package_name);
+        }
         Some(Commands::Load) => load(),
         Some(Commands::Cran) => cran(),
         Some(Commands::Std { std_command }) => match std_command {
@@ -476,6 +503,7 @@ pub fn start() {
         Some(Commands::Spg { output }) => generate_spg(output),
         Some(Commands::GenTypes { package, out }) => crate::gen_types::run(&package, out),
         Some(Commands::Types { types_command }) => run_types_command(types_command),
+        Some(Commands::Search { package }) => run_search_command(&package),
         _ => {
             println!("Please specify a subcommand or file to execute");
             std::process::exit(1);
@@ -595,20 +623,22 @@ fn run_types_command(command: TypesCommands) {
     let root = std::path::Path::new(".");
 
     match command {
-        TypesCommands::Add { package, repo } => match type_registry::add(root, &package, &repo) {
-            Ok(locked) => println!(
-                "{} — {} {} (tier {}, rev {}) → typr.lock",
-                locked.package,
-                locked.repository,
-                locked.version,
-                locked.tier,
-                &locked.rev[..locked.rev.len().min(12)]
-            ),
-            Err(e) => {
-                eprintln!("error: {e}");
-                std::process::exit(1);
-            }
-        },
+        TypesCommands::Add { package, repo } => {
+            let spec = match repo {
+                Some(spec) => spec,
+                None => match type_registry::resolve_spec_for_package(root, &package) {
+                    Some(spec) => spec,
+                    None => {
+                        eprintln!(
+                            "error: no definition found for `{package}` — no `typr.toml [types]` pin \
+                             and nothing in the registry; pass an explicit `github:owner/repo[@rev]`"
+                        );
+                        std::process::exit(1);
+                    }
+                },
+            };
+            run_types_add(root, &package, &spec);
+        }
         TypesCommands::Update { package } => match type_registry::update(root, package.as_deref()) {
             Ok(updated) if updated.is_empty() => println!("nothing to update — typr.lock is empty."),
             Ok(updated) => {
@@ -651,5 +681,94 @@ fn run_types_command(command: TypesCommands) {
                 std::process::exit(1);
             }
         },
+        TypesCommands::Validate { package, repo } => {
+            let spec = match repo {
+                Some(spec) => spec,
+                None => match type_registry::resolve_spec_for_package(root, &package) {
+                    Some(spec) => spec,
+                    None => {
+                        eprintln!(
+                            "error: no definition found for `{package}` — no `typr.toml [types]` pin \
+                             and nothing in the registry; pass an explicit `github:owner/repo[@rev]`"
+                        );
+                        std::process::exit(1);
+                    }
+                },
+            };
+            let report = crate::registry_validate::validate(&package, &spec);
+            print!("{}", report.render());
+            if !report.ok() {
+                std::process::exit(1);
+            }
+        }
+    }
+}
+
+/// `typr search <pkg>` — survey what `we-data-ch/registry` has for `pkg`,
+/// ranked exactly as `typr types add`/`typr use` would pick among them
+/// (registry.md §8.3, §13 J3's `typr search` item).
+fn run_search_command(package: &str) {
+    use crate::type_registry;
+
+    match type_registry::search(package) {
+        Ok(entries) if entries.is_empty() => {
+            println!("no definitions found for `{package}` in the registry.");
+        }
+        Ok(entries) => {
+            for entry in entries {
+                let repo = match entry.rev.as_deref() {
+                    Some(rev) if !rev.is_empty() => format!("github:{}@{}", entry.repository, rev),
+                    _ => format!("github:{}", entry.repository),
+                };
+                println!("{repo:<48} tier {:<3} {}", entry.tier, entry.source);
+            }
+        }
+        Err(e) => {
+            eprintln!("error: could not reach the registry: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Shared by `run_types_command`'s `Add` arm and `try_auto_resolve_type_definition`
+/// — fetch, cache, and lock a resolved spec for `package`, printing the same
+/// confirmation line either way.
+fn run_types_add(root: &std::path::Path, package: &str, spec: &str) {
+    use crate::type_registry;
+    match type_registry::add(root, package, spec) {
+        Ok(locked) => println!(
+            "{} — {} {} (tier {}, rev {}) → typr.lock",
+            locked.package,
+            locked.repository,
+            locked.version,
+            locked.tier,
+            &locked.rev[..locked.rev.len().min(12)]
+        ),
+        Err(e) => {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// After `typr use <pkg>` adds the R dependency, best-effort resolve and pin
+/// a type definition too — the remaining steps of registry.md §7.3's flow,
+/// now that J3 gives them something to search (`we-data-ch/registry`).
+/// Unlike `run_types_add`, this never exits the process: the R dependency was
+/// just added successfully, and a definition lookup finding nothing (or
+/// failing to fetch) must not turn that into a command failure — D2 again,
+/// one level up: a missing or unusable type signal only ever leaves the
+/// package untyped, it never blocks anything else `typr use` already did.
+fn try_auto_resolve_type_definition(root: &std::path::Path, package: &str) {
+    use crate::type_registry;
+    let Some(spec) = type_registry::resolve_spec_for_package(root, package) else {
+        return;
+    };
+    match type_registry::add(root, package, &spec) {
+        Ok(locked) => println!(
+            "found a type definition for `{}`: {} {} (tier {}) → typr.lock",
+            locked.package, locked.repository, locked.version, locked.tier
+        ),
+        Err(e) => eprintln!("warning: found a type definition for `{package}` but could not resolve it ({e})"),
     }
 }

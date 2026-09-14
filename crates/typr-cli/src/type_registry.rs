@@ -242,8 +242,10 @@ fn now_millis() -> u128 {
 
 /// Every file under `dir` (relative paths, `/`-separated, sorted), skipping
 /// `.git` — the exact set of bytes the content digest and the cache/vendor
-/// copies are built from.
-fn tracked_files(dir: &Path) -> Result<Vec<PathBuf>, String> {
+/// copies are built from. `pub(crate)` so `registry_validate.rs` can walk a
+/// freshly fetched definition the same way `resolve_one_locked_definition`
+/// walks a cached one, rather than re-implementing directory traversal.
+pub(crate) fn tracked_files(dir: &Path) -> Result<Vec<PathBuf>, String> {
     let mut out = BTreeSet::new();
     collect_files(dir, dir, &mut out)?;
     Ok(out.into_iter().collect())
@@ -470,6 +472,256 @@ impl TypesConfig {
 }
 
 // ---------------------------------------------------------------------
+// Registry lookup (registry.md §13 J3 — "résolution par le registre dans
+// `typr add`, `typr types update`")
+// ---------------------------------------------------------------------
+
+/// The one community registry this build knows how to query
+/// (`we-data-ch/registry`, registry.md §8.1) — same one-host restriction as
+/// `RepoSpec` only understanding `github:`.
+const REGISTRY_REPO_URL: &str = "https://github.com/we-data-ch/registry.git";
+
+/// Deserializes one entry of a `packages/<pkg>.json` `definitions` array
+/// (registry.md §8.1). Only the fields the selection logic below needs;
+/// anything else in the file (e.g. `capabilities`) is not read here — the
+/// real capability gate is enforced later, on the fetched repository itself,
+/// by `check_capabilities`.
+#[derive(Debug, Clone, Deserialize)]
+struct RegistryDefinitionEntry {
+    /// `owner/repo`, no `github:` scheme (registry.md §8.1's example).
+    repository: String,
+    #[serde(default)]
+    rev: Option<String>,
+    /// `official` | `community` | `generated` | `local`.
+    #[serde(default)]
+    source: String,
+    /// `T1` | `T2` | `T3`.
+    #[serde(default)]
+    tier: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+struct RegistryPackageFile {
+    #[serde(default)]
+    definitions: Vec<RegistryDefinitionEntry>,
+}
+
+/// registry.md §8.3's conflict order, restricted to what a registry file can
+/// express — an explicit user pin and a locally generated definition are
+/// resolved before this is ever consulted (`resolve_spec_for_package`,
+/// below): official first, then community, then anything else. An
+/// unrecognized `source` string ranks last rather than erroring — same D2
+/// instinct as `standard_library::tier_rank` for an unreadable tier: a signal
+/// this build cannot read must never be trusted more than one it can.
+fn provider_rank(source: &str) -> u8 {
+    match source {
+        "official" => 3,
+        "community" => 2,
+        "generated" => 1,
+        _ => 0,
+    }
+}
+
+/// Same ranking as `standard_library::tier_rank`, duplicated locally rather
+/// than shared: that function ranks a *loaded* entry's trust for the
+/// degrade-to-`Any` decision, this one ranks *candidates* before anything is
+/// fetched — different callers, same T1 > T2 > T3 intuition.
+fn tier_rank_for_selection(tier: &str) -> u8 {
+    match tier {
+        "T1" => 3,
+        "T2" => 2,
+        "T3" => 1,
+        _ => 0,
+    }
+}
+
+/// Highest-ranked entry in `file.definitions`, ties broken by whichever comes
+/// first in the file (no editorial ordering beyond tier/provenance — Q3,
+/// registry.md §14, is still open). `None` when the file lists nothing.
+fn pick_best_entry(file: &RegistryPackageFile) -> Option<&RegistryDefinitionEntry> {
+    let mut best: Option<&RegistryDefinitionEntry> = None;
+    let mut best_rank = (0u8, 0u8);
+    for entry in &file.definitions {
+        let rank = (provider_rank(&entry.source), tier_rank_for_selection(&entry.tier));
+        if best.is_none() || rank > best_rank {
+            best = Some(entry);
+            best_rank = rank;
+        }
+    }
+    best
+}
+
+/// `~/.cache/typr/registry-index/` — a local mirror of `we-data-ch/registry`,
+/// refreshed in place rather than re-cloned on every lookup.
+fn registry_index_dir() -> Option<PathBuf> {
+    crate::r_deps::cache_home().map(|dir| dir.join("typr").join("registry-index"))
+}
+
+/// Clone (first use) or fast-forward `git pull` (subsequent uses) the local
+/// registry mirror, returning its path.
+fn sync_registry_index() -> Result<PathBuf, String> {
+    let dir = registry_index_dir()
+        .ok_or_else(|| "could not determine a cache directory (no $HOME/$XDG_CACHE_HOME)".to_string())?;
+
+    if dir.join(".git").is_dir() {
+        let pull = Command::new("git")
+            .arg("-C")
+            .arg(&dir)
+            .args(["pull", "--quiet", "--ff-only"])
+            .output()
+            .map_err(|e| format!("could not run `git pull`: {e}"))?;
+        if !pull.status.success() {
+            return Err(format!(
+                "`git pull` in {} failed: {}",
+                dir.display(),
+                String::from_utf8_lossy(&pull.stderr).trim()
+            ));
+        }
+        return Ok(dir);
+    }
+
+    let _ = fs::remove_dir_all(&dir);
+    if let Some(parent) = dir.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("could not create {}: {e}", parent.display()))?;
+    }
+    let clone = Command::new("git")
+        .args(["clone", "--quiet", "--depth", "1"])
+        .arg(REGISTRY_REPO_URL)
+        .arg(&dir)
+        .output()
+        .map_err(|e| format!("could not run `git clone`: {e}"))?;
+    if !clone.status.success() {
+        let _ = fs::remove_dir_all(&dir);
+        return Err(format!(
+            "`git clone {REGISTRY_REPO_URL}` failed: {}",
+            String::from_utf8_lossy(&clone.stderr).trim()
+        ));
+    }
+    Ok(dir)
+}
+
+/// Look up `packages/<package>.json` in `we-data-ch/registry` and, when it
+/// lists at least one usable entry, return a `github:owner/repo[@rev]` spec
+/// string for the best one (`pick_best_entry`) — ready to hand straight to
+/// `add`/`fetch`, exactly like a spec the user typed by hand.
+///
+/// Fails open at every step: no `git`, an unreachable registry, no entry for
+/// `package`, or an entry whose `repository` field is not `owner/repo` all
+/// resolve to `None`, never an error the caller must special-case — "the
+/// registry has nothing to say" is exactly as safe as "no definition at all"
+/// (D2, registry.md §0/§5.4: an absent or unusable signal never blocks
+/// anything, it just leaves the package untyped).
+pub fn lookup_in_registry(package: &str) -> Option<String> {
+    if !git_available() {
+        return None;
+    }
+    let dir = match sync_registry_index() {
+        Ok(dir) => dir,
+        Err(e) => {
+            eprintln!("warning: could not reach the registry ({e}) — skipping automatic type-definition lookup for `{package}`");
+            return None;
+        }
+    };
+    lookup_in_registry_dir(&dir, package)
+}
+
+/// The JSON-reading and entry-selection half of `lookup_in_registry`, kept
+/// separate from syncing the index so it can be unit-tested against a
+/// hand-written `packages/` directory instead of a real clone of
+/// `we-data-ch/registry`.
+fn lookup_in_registry_dir(dir: &Path, package: &str) -> Option<String> {
+    let path = dir.join("packages").join(format!("{package}.json"));
+    let source = fs::read_to_string(&path).ok()?;
+    let file: RegistryPackageFile = serde_json::from_str(&source).ok()?;
+    let entry = pick_best_entry(&file)?;
+    if entry.repository.split('/').filter(|s| !s.is_empty()).count() != 2 {
+        return None;
+    }
+    Some(match entry.rev.as_deref() {
+        Some(rev) if !rev.is_empty() => format!("github:{}@{}", entry.repository, rev),
+        _ => format!("github:{}", entry.repository),
+    })
+}
+
+/// One entry of `packages/<package>.json`'s `definitions` array, as `typr
+/// search` reports it — every entry, not just the winner `pick_best_entry`
+/// would choose, so the user can see what `typr types add` would pick among.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchEntry {
+    /// `owner/repo`, no `github:` scheme (matches the registry file's own field).
+    pub repository: String,
+    pub rev: Option<String>,
+    /// `official` | `community` | `generated` | `local`, or anything else the
+    /// registry file happens to contain — not validated here.
+    pub source: String,
+    /// `T1` | `T2` | `T3`, same caveat.
+    pub tier: String,
+}
+
+/// `typr search <pkg>` — list every definition the registry has for
+/// `package`, ranked best (registry.md §8.3's provider-then-tier order)
+/// first, ties broken by file order exactly like `pick_best_entry`.
+///
+/// An empty result means "the registry has nothing for this package", which
+/// is not an error (D2's instinct: an absent signal is safe, never fatal) —
+/// `Ok(vec![])` covers a missing `packages/<pkg>.json`, invalid JSON, and an
+/// empty `definitions` array alike. `Err` is reserved for why the registry
+/// itself could not be consulted at all (no `git`, clone/pull failure), so
+/// the caller can show that reason instead of silently reporting zero hits.
+pub fn search(package: &str) -> Result<Vec<SearchEntry>, String> {
+    if !git_available() {
+        return Err("`git` is not installed or not on PATH — cannot reach the registry".to_string());
+    }
+    let dir = sync_registry_index()?;
+    Ok(search_in_registry_dir(&dir, package))
+}
+
+/// The JSON-reading half of `search`, kept separate so it can be unit-tested
+/// against a hand-written `packages/` directory instead of a real clone —
+/// same split as `lookup_in_registry`/`lookup_in_registry_dir`.
+fn search_in_registry_dir(dir: &Path, package: &str) -> Vec<SearchEntry> {
+    let path = dir.join("packages").join(format!("{package}.json"));
+    let Ok(source) = fs::read_to_string(&path) else {
+        return Vec::new();
+    };
+    let Ok(file) = serde_json::from_str::<RegistryPackageFile>(&source) else {
+        return Vec::new();
+    };
+    let mut entries: Vec<SearchEntry> = file
+        .definitions
+        .iter()
+        .map(|e| SearchEntry {
+            repository: e.repository.clone(),
+            rev: e.rev.clone(),
+            source: e.source.clone(),
+            tier: e.tier.clone(),
+        })
+        .collect();
+    entries.sort_by(|a, b| {
+        let rank_a = (provider_rank(&a.source), tier_rank_for_selection(&a.tier));
+        let rank_b = (provider_rank(&b.source), tier_rank_for_selection(&b.tier));
+        rank_b.cmp(&rank_a)
+    });
+    entries
+}
+
+/// Resolve a repository spec string for `package` when the caller has none
+/// in hand yet — the two steps of registry.md §7.3's flow that precede a
+/// fetch: an explicit `typr.toml [types]` pin always wins (§8.3 priority 1);
+/// failing that, the registry (§8.3 priorities 2-3, as far as a registry
+/// entry can distinguish them). `None` means neither had anything to say —
+/// the caller decides what "nothing resolved" means for it (an error for an
+/// explicit `typr types add` with no repo, a silent no-op for `typr add`'s
+/// best-effort lookup).
+pub fn resolve_spec_for_package(project_root: &Path, package: &str) -> Option<String> {
+    let config = TypesConfig::read(project_root);
+    if let Some(pin) = config.pins.get(package) {
+        return Some(pin.clone());
+    }
+    lookup_in_registry(package)
+}
+
+// ---------------------------------------------------------------------
 // Commands: add / update / list / vendor
 // ---------------------------------------------------------------------
 
@@ -504,20 +756,25 @@ pub fn add(project_root: &Path, package: &str, spec_str: &str) -> Result<LockedD
 
 /// `typr types update [pkg]` — re-fetch and re-pin one (or, with `package ==
 /// None`, every) resolved definition. The repository spec comes from the
-/// existing `typr.lock` entry (or `typr.toml [types]`'s pin, for a package
-/// not yet locked but explicitly pinned).
+/// existing `typr.lock` entry; for a package not yet locked, it falls back to
+/// `resolve_spec_for_package` — an explicit `typr.toml [types]` pin, or (J3)
+/// the `we-data-ch/registry` — before giving up.
 pub fn update(project_root: &Path, package: Option<&str>) -> Result<Vec<LockedDefinition>, String> {
     let lock_path = project_root.join(LOCKFILE_NAME);
     let lockfile = Lockfile::read(&lock_path);
-    let config = TypesConfig::read(project_root);
 
     let targets: Vec<(String, String)> = match package {
         Some(pkg) => {
             let spec = lockfile
                 .find(pkg)
                 .map(|d| d.repository.clone())
-                .or_else(|| config.pins.get(pkg).cloned())
-                .ok_or_else(|| format!("no resolved or pinned definition for `{pkg}` — use `typr types add` first"))?;
+                .or_else(|| resolve_spec_for_package(project_root, pkg))
+                .ok_or_else(|| {
+                    format!(
+                        "no resolved, pinned, or registry-listed definition for `{pkg}` — use \
+                         `typr types add {pkg} github:owner/repo` with an explicit repository"
+                    )
+                })?;
             vec![(pkg.to_string(), spec)]
         }
         None => lockfile
@@ -1173,5 +1430,245 @@ mod tests {
         if let Some(cache_dir) = cache_dir_for("widget2", &locked.digest) {
             let _ = fs::remove_dir_all(&cache_dir);
         }
+    }
+
+    // -- Registry lookup (registry.md §13 J3) ----------------------------
+
+    fn write_registry_package(dir: &Path, package: &str, json: &str) {
+        write_file(dir, &format!("packages/{package}.json"), json);
+    }
+
+    #[test]
+    fn picks_official_over_community_regardless_of_tier() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_official_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "shiny",
+            r#"{
+                "name": "shiny",
+                "definitions": [
+                    {"repository": "alice/typr-shiny", "rev": "aaa", "source": "community", "tier": "T1"},
+                    {"repository": "rstudio/typr-shiny-official", "rev": "bbb", "source": "official", "tier": "T3"}
+                ]
+            }"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "shiny").unwrap();
+        assert_eq!(spec, "github:rstudio/typr-shiny-official@bbb");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn picks_highest_tier_among_same_provenance() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_tier_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "dplyr",
+            r#"{
+                "name": "dplyr",
+                "definitions": [
+                    {"repository": "alice/typr-dplyr", "rev": "aaa", "source": "community", "tier": "T3"},
+                    {"repository": "bob/typr-dplyr", "rev": "bbb", "source": "community", "tier": "T1"},
+                    {"repository": "carol/typr-dplyr", "rev": "ccc", "source": "community", "tier": "T2"}
+                ]
+            }"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "dplyr").unwrap();
+        assert_eq!(spec, "github:bob/typr-dplyr@bbb");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn ties_keep_the_files_own_order() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_tie_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "ggplot2",
+            r#"{
+                "name": "ggplot2",
+                "definitions": [
+                    {"repository": "first/typr-ggplot2", "rev": "aaa", "source": "community", "tier": "T2"},
+                    {"repository": "second/typr-ggplot2", "rev": "bbb", "source": "community", "tier": "T2"}
+                ]
+            }"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "ggplot2").unwrap();
+        assert_eq!(spec, "github:first/typr-ggplot2@aaa");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn no_entry_for_package_resolves_to_none() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_missing_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("packages")).unwrap();
+
+        assert!(lookup_in_registry_dir(&dir, "sf").is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn empty_definitions_array_resolves_to_none() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_empty_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(&dir, "sf", r#"{"name": "sf", "definitions": []}"#);
+
+        assert!(lookup_in_registry_dir(&dir, "sf").is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn malformed_json_resolves_to_none_rather_than_erroring() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_bad_json_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(&dir, "sf", "this is not { json");
+
+        assert!(lookup_in_registry_dir(&dir, "sf").is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn entry_without_rev_resolves_to_head() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_norev_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "httr2",
+            r#"{"name": "httr2", "definitions": [{"repository": "alice/typr-httr2", "source": "community", "tier": "T2"}]}"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "httr2").unwrap();
+        assert_eq!(spec, "github:alice/typr-httr2");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unrecognized_source_and_tier_never_outrank_a_recognized_one() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_unknown_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "jsonlite",
+            r#"{
+                "name": "jsonlite",
+                "definitions": [
+                    {"repository": "sketchy/typr-jsonlite", "rev": "zzz", "source": "totally-trustworthy", "tier": "super-good"},
+                    {"repository": "alice/typr-jsonlite", "rev": "aaa", "source": "generated", "tier": "T3"}
+                ]
+            }"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "jsonlite").unwrap();
+        assert_eq!(spec, "github:alice/typr-jsonlite@aaa");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // -- search: every entry, ranked, not just the winner -----------------
+
+    #[test]
+    fn search_lists_every_entry_ranked_best_first() {
+        let dir = std::env::temp_dir().join(format!("typr_search_ranked_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "shiny",
+            r#"{
+                "name": "shiny",
+                "definitions": [
+                    {"repository": "alice/typr-shiny", "rev": "aaa", "source": "community", "tier": "T1"},
+                    {"repository": "rstudio/typr-shiny-official", "rev": "bbb", "source": "official", "tier": "T3"},
+                    {"repository": "carol/typr-shiny", "rev": "ccc", "source": "community", "tier": "T3"}
+                ]
+            }"#,
+        );
+
+        let entries = search_in_registry_dir(&dir, "shiny");
+        let repos: Vec<&str> = entries.iter().map(|e| e.repository.as_str()).collect();
+        // official (any tier) still outranks community, matching pick_best_entry.
+        assert_eq!(
+            repos,
+            vec!["rstudio/typr-shiny-official", "alice/typr-shiny", "carol/typr-shiny"]
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn search_ties_keep_the_files_own_order() {
+        let dir = std::env::temp_dir().join(format!("typr_search_tie_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "ggplot2",
+            r#"{
+                "name": "ggplot2",
+                "definitions": [
+                    {"repository": "first/typr-ggplot2", "rev": "aaa", "source": "community", "tier": "T2"},
+                    {"repository": "second/typr-ggplot2", "rev": "bbb", "source": "community", "tier": "T2"}
+                ]
+            }"#,
+        );
+
+        let entries = search_in_registry_dir(&dir, "ggplot2");
+        let repos: Vec<&str> = entries.iter().map(|e| e.repository.as_str()).collect();
+        assert_eq!(repos, vec!["first/typr-ggplot2", "second/typr-ggplot2"]);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn search_no_entry_for_package_is_an_empty_list_not_an_error() {
+        let dir = std::env::temp_dir().join(format!("typr_search_missing_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("packages")).unwrap();
+
+        assert!(search_in_registry_dir(&dir, "sf").is_empty());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn search_malformed_json_is_an_empty_list_not_an_error() {
+        let dir = std::env::temp_dir().join(format!("typr_search_bad_json_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(&dir, "sf", "this is not { json");
+
+        assert!(search_in_registry_dir(&dir, "sf").is_empty());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // -- resolve_spec_for_package: explicit pin beats the registry --------
+
+    #[test]
+    fn resolve_spec_for_package_prefers_explicit_pin_without_touching_the_registry() {
+        let dir = std::env::temp_dir().join(format!("typr_resolve_pin_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join(PROJECT_CONFIG_NAME),
+            "[types]\nshiny = \"github:alice/typr-shiny@pinned\"\n",
+        )
+        .unwrap();
+
+        // No registry index is reachable/needed here: the pin must win before
+        // `lookup_in_registry` is ever consulted.
+        let spec = resolve_spec_for_package(&dir, "shiny");
+        assert_eq!(spec, Some("github:alice/typr-shiny@pinned".to_string()));
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }
