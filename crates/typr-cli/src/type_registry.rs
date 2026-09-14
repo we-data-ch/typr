@@ -27,13 +27,21 @@ const MANIFEST_NAME: &str = "typr-def.toml";
 // Repository spec
 // ---------------------------------------------------------------------
 
-/// `github:owner/repo[@rev]` — the only repository scheme this build
-/// understands (registry.md §6/§7: GitHub is the primary host; a monorepo
-/// long tail is J3, not this).
+/// `github:owner/repo[/subdir...][@rev]` — the only repository scheme this
+/// build understands (registry.md §6/§7: GitHub is the primary host). The
+/// optional `subdir` is what lets a `packages/<pkg>.json` entry point *into*
+/// a monorepo like `we-data-ch/registry`'s own `definitions/<pkg>/`
+/// (registry.md §8.2, `definitions/README.md`) instead of only at a
+/// repository's root — without it, two packages indexed against the same
+/// monorepo would collide on "the one `typr-def.toml` at the repo root".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepoSpec {
     pub owner: String,
     pub repo: String,
+    /// Path *within* the repository to the definition's own root (the
+    /// directory holding its `typr-def.toml`), when it isn't the repository
+    /// root itself. `/`-separated, no leading or trailing slash.
+    pub subdir: Option<String>,
     /// A pinned commit/branch/tag, when the user gave one after `@`. `None`
     /// means "resolve `HEAD`".
     pub rev: Option<String>,
@@ -42,23 +50,34 @@ pub struct RepoSpec {
 impl RepoSpec {
     pub fn parse(spec: &str) -> Result<Self, String> {
         let rest = spec.strip_prefix("github:").ok_or_else(|| {
-            format!("unsupported repository scheme in `{spec}` — only `github:owner/repo[@rev]` is understood")
+            format!("unsupported repository scheme in `{spec}` — only `github:owner/repo[/subdir][@rev]` is understood")
         })?;
         let (path, rev) = match rest.split_once('@') {
             Some((path, rev)) => (path, Some(rev.to_string())),
             None => (rest, None),
         };
-        let (owner, repo) = path
-            .split_once('/')
-            .ok_or_else(|| format!("`{spec}` is not `github:owner/repo[@rev]` — missing `owner/repo`"))?;
+        let mut segments = path.split('/');
+        let owner = segments.next().unwrap_or("");
+        let repo = segments.next().unwrap_or("");
         if owner.is_empty() || repo.is_empty() {
             return Err(format!(
-                "`{spec}` is not `github:owner/repo[@rev]` — empty owner or repo"
+                "`{spec}` is not `github:owner/repo[/subdir][@rev]` — missing `owner/repo`"
             ));
         }
+        let rest_segments: Vec<&str> = segments.collect();
+        let subdir = if rest_segments.is_empty() {
+            None
+        } else if rest_segments.iter().any(|s| s.is_empty()) {
+            return Err(format!(
+                "`{spec}` is not `github:owner/repo[/subdir][@rev]` — empty path segment in subdir"
+            ));
+        } else {
+            Some(rest_segments.join("/"))
+        };
         Ok(RepoSpec {
             owner: owner.to_string(),
             repo: repo.to_string(),
+            subdir,
             rev,
         })
     }
@@ -71,7 +90,10 @@ impl RepoSpec {
     /// always without the resolved rev, since that lives in `typr.lock`'s own
     /// `rev` field (registry.md §7.1: one source of truth per question).
     pub fn display(&self) -> String {
-        format!("github:{}/{}", self.owner, self.repo)
+        match &self.subdir {
+            Some(sub) => format!("github:{}/{}/{}", self.owner, self.repo, sub),
+            None => format!("github:{}/{}", self.owner, self.repo),
+        }
     }
 }
 
@@ -160,9 +182,16 @@ pub struct FetchedDefinition {
     pub manifest: DefinitionManifest,
     pub rev: String,
     pub digest: String,
-    /// Directory holding the fetched repository's tracked files (`.git`
-    /// excluded).
+    /// The definition's own root — where its `typr-def.toml` lives. Equal to
+    /// `root` unless `spec.subdir` was set, in which case it is `root` joined
+    /// with that subdir. This is what `tracked_files`/`compute_digest`/
+    /// `admit_to_cache` walk, so a monorepo definition's digest and cache
+    /// copy only ever cover its own files, never its siblings.
     pub dir: PathBuf,
+    /// The full clone — what must be removed to clean up the temp checkout
+    /// (`dir` alone isn't enough when it's a nested subdirectory of a
+    /// monorepo clone).
+    pub root: PathBuf,
 }
 
 /// `pub(crate)`: also used by `registry_revalidate.rs` to fail open the same
@@ -375,12 +404,18 @@ pub fn fetch(spec: &RepoSpec) -> Result<(FetchedDefinition, Vec<String>), String
             "`git` is not on PATH — `typr types add`/`update` need it to fetch a definition repository".to_string(),
         );
     }
-    let (dir, rev) = clone_repo(&spec.clone_url(), spec.rev.as_deref())?;
+    let (root, rev) = clone_repo(&spec.clone_url(), spec.rev.as_deref())?;
 
     let result = (|| {
+        let dir = match &spec.subdir {
+            Some(sub) => root.join(sub),
+            None => root.clone(),
+        };
         let manifest_path = dir.join(MANIFEST_NAME);
-        let manifest_source = fs::read_to_string(&manifest_path)
-            .map_err(|_| format!("no `{MANIFEST_NAME}` at the root of {}", spec.display()))?;
+        let manifest_source = fs::read_to_string(&manifest_path).map_err(|_| match &spec.subdir {
+            Some(sub) => format!("no `{MANIFEST_NAME}` at `{sub}` in {}", spec.display()),
+            None => format!("no `{MANIFEST_NAME}` at the root of {}", spec.display()),
+        })?;
         let manifest = parse_manifest(&manifest_source)?;
         let warnings = check_capabilities(&manifest, &dir)?;
         let digest = compute_digest(&dir)?;
@@ -389,14 +424,15 @@ pub fn fetch(spec: &RepoSpec) -> Result<(FetchedDefinition, Vec<String>), String
                 manifest,
                 rev,
                 digest,
-                dir: dir.clone(),
+                dir,
+                root: root.clone(),
             },
             warnings,
         ))
     })();
 
     if result.is_err() {
-        let _ = fs::remove_dir_all(&dir);
+        let _ = fs::remove_dir_all(&root);
     }
     result
 }
@@ -498,7 +534,9 @@ const REGISTRY_REPO_URL: &str = "https://github.com/we-data-ch/registry.git";
 /// by `check_capabilities`.
 #[derive(Debug, Clone, Deserialize)]
 struct RegistryDefinitionEntry {
-    /// `owner/repo`, no `github:` scheme (registry.md §8.1's example).
+    /// `owner/repo` or `owner/repo/subdir...`, no `github:` scheme
+    /// (registry.md §8.1's example; the optional trailing segments are the
+    /// monorepo path of §8.2, e.g. `we-data-ch/registry/definitions/dplyr`).
     repository: String,
     #[serde(default)]
     rev: Option<String>,
@@ -652,12 +690,16 @@ fn lookup_in_registry_dir(dir: &Path, package: &str) -> Option<String> {
     entry_spec(entry)
 }
 
-/// `entry.repository`/`entry.rev` as a `github:owner/repo[@rev]` spec string,
-/// ready for `fetch`/`RepoSpec::parse` — `None` when `repository` isn't
-/// shaped like `owner/repo`. Shared by `lookup_in_registry_dir` (the single
-/// best entry) and `list_registry_targets` (every entry).
+/// `entry.repository`/`entry.rev` as a `github:owner/repo[/subdir][@rev]`
+/// spec string, ready for `fetch`/`RepoSpec::parse` — `None` when
+/// `repository` isn't at least `owner/repo` (extra `/`-separated segments
+/// past the second are the monorepo subdir, registry.md §8.2 — e.g.
+/// `we-data-ch/registry/definitions/dplyr`). Shared by
+/// `lookup_in_registry_dir` (the single best entry) and
+/// `list_registry_targets` (every entry).
 fn entry_spec(entry: &RegistryDefinitionEntry) -> Option<String> {
-    if entry.repository.split('/').filter(|s| !s.is_empty()).count() != 2 {
+    let segment_count = entry.repository.split('/').filter(|s| !s.is_empty()).count();
+    if segment_count < 2 || entry.repository.contains("//") {
         return None;
     }
     Some(match entry.rev.as_deref() {
@@ -830,7 +872,7 @@ pub fn add(project_root: &Path, package: &str, spec_str: &str) -> Result<LockedD
     lockfile.upsert(locked.clone());
     lockfile.write(&lock_path)?;
 
-    let _ = fs::remove_dir_all(&fetched.dir);
+    let _ = fs::remove_dir_all(&fetched.root);
     Ok(locked)
 }
 
@@ -1065,6 +1107,36 @@ mod tests {
         assert!(RepoSpec::parse("github:alice/").is_err());
     }
 
+    #[test]
+    fn parses_a_single_segment_subdir() {
+        let spec = RepoSpec::parse("github:we-data-ch/registry/definitions/dplyr").unwrap();
+        assert_eq!(spec.owner, "we-data-ch");
+        assert_eq!(spec.repo, "registry");
+        assert_eq!(spec.subdir.as_deref(), Some("definitions/dplyr"));
+        assert_eq!(spec.rev, None);
+        assert_eq!(spec.display(), "github:we-data-ch/registry/definitions/dplyr");
+    }
+
+    #[test]
+    fn parses_a_multi_segment_subdir_with_rev() {
+        let spec = RepoSpec::parse("github:we-data-ch/registry/definitions/dplyr/ty@abc123").unwrap();
+        assert_eq!(spec.subdir.as_deref(), Some("definitions/dplyr/ty"));
+        assert_eq!(spec.rev.as_deref(), Some("abc123"));
+        // the rev never leaks into `display()`, same contract as the no-subdir case.
+        assert_eq!(spec.display(), "github:we-data-ch/registry/definitions/dplyr/ty");
+    }
+
+    #[test]
+    fn no_subdir_round_trips_to_none() {
+        let spec = RepoSpec::parse("github:alice/typr-shiny").unwrap();
+        assert_eq!(spec.subdir, None);
+    }
+
+    #[test]
+    fn rejects_empty_subdir_segment() {
+        assert!(RepoSpec::parse("github:alice/typr-shiny//").is_err());
+    }
+
     // -- Lockfile ------------------------------------------------------
 
     fn sample_locked(package: &str) -> LockedDefinition {
@@ -1293,6 +1365,114 @@ mod tests {
         format!("file://{}", dir.display())
     }
 
+    /// Build a minimal *monorepo*-style repository under `dir`, with two
+    /// package definitions nested under `definitions/<pkg>/` (registry.md
+    /// §8.2's layout), and commit it — the fixture for exercising `fetch`'s
+    /// subdir handling the same way `make_definition_repo` exercises the
+    /// plain, single-package case.
+    fn make_monorepo(dir: &Path) -> Result<(), String> {
+        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        write_file(
+            dir,
+            "definitions/dplyr/typr-def.toml",
+            "format_version = 1\n\
+             [package]\nname = \"dplyr\"\nsince = \"1.1.0\"\n\
+             [definition]\nversion = \"0.1.0\"\ntier = \"T3\"\n\
+             [provider]\ntype = \"generated\"\nrepository = \"github:we-data-ch/registry\"\n\
+             [capabilities]\nr_shims = false\nextern_raw = false\n",
+        );
+        write_file(
+            dir,
+            "definitions/dplyr/ty/core.ty",
+            "#! pkg: dplyr\n#! tier: T3\n@importFrom dplyr filter;\n@filter: (Any, Any) -> Any;\n",
+        );
+        write_file(
+            dir,
+            "definitions/ggplot2/typr-def.toml",
+            "format_version = 1\n\
+             [package]\nname = \"ggplot2\"\nsince = \"3.4.0\"\n\
+             [definition]\nversion = \"0.1.0\"\ntier = \"T3\"\n\
+             [provider]\ntype = \"generated\"\nrepository = \"github:we-data-ch/registry\"\n\
+             [capabilities]\nr_shims = false\nextern_raw = false\n",
+        );
+        write_file(
+            dir,
+            "definitions/ggplot2/ty/core.ty",
+            "#! pkg: ggplot2\n#! tier: T3\n@importFrom ggplot2 ggplot;\n@ggplot: (Any) -> Any;\n",
+        );
+
+        let run = |args: &[&str]| -> Result<(), String> {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(dir)
+                .args(args)
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !out.status.success() {
+                return Err(String::from_utf8_lossy(&out.stderr).into_owned());
+            }
+            Ok(())
+        };
+        run(&["init", "--quiet"])?;
+        run(&["config", "user.email", "test@example.com"])?;
+        run(&["config", "user.name", "test"])?;
+        run(&["add", "."])?;
+        run(&["commit", "--quiet", "-m", "initial"])?;
+        Ok(())
+    }
+
+    #[test]
+    fn fetch_resolves_a_definition_nested_in_a_monorepo_subdir() {
+        if !git_available() {
+            eprintln!("skipping: git not on PATH");
+            return;
+        }
+        let repo_dir = std::env::temp_dir().join(format!("typr_monorepo_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&repo_dir);
+        if let Err(e) = make_monorepo(&repo_dir) {
+            eprintln!("skipping: could not set up local git fixture: {e}");
+            let _ = fs::remove_dir_all(&repo_dir);
+            return;
+        }
+
+        // Same "bypass RepoSpec::parse, drive the clone directly" pattern as
+        // `add_update_list_vendor_round_trip_against_a_local_repo`: only
+        // `github:` URLs are a supported host, so a `file://` fixture is
+        // cloned directly and `fetch`'s own subdir-joining logic is exercised
+        // by hand, against the two sibling package directories the fixture
+        // ships.
+        let (root, rev) = clone_repo(&file_url(&repo_dir), None).expect("clone should succeed");
+        let base_dir = root.join("definitions").join("dplyr");
+        let manifest = parse_manifest(&fs::read_to_string(base_dir.join(MANIFEST_NAME)).unwrap()).unwrap();
+        assert_eq!(manifest.package.name, "dplyr");
+        check_capabilities(&manifest, &base_dir).unwrap();
+        let digest = compute_digest(&base_dir).unwrap();
+
+        // The digest and tracked-file set only cover `dplyr`'s own files —
+        // changing the sibling `ggplot2` definition must not move it, and no
+        // `ggplot2` path leaks into what would be admitted to the cache.
+        let files = tracked_files(&base_dir).unwrap();
+        assert!(files.iter().all(|p| !p.to_string_lossy().contains("ggplot2")));
+        write_file(&root, "definitions/ggplot2/ty/core.ty", "@ggplot: (int) -> int;\n");
+        assert_eq!(compute_digest(&base_dir).unwrap(), digest);
+
+        let fetched = FetchedDefinition {
+            manifest,
+            rev,
+            digest,
+            dir: base_dir,
+            root: root.clone(),
+        };
+        admit_to_cache(&fetched, "dplyr").unwrap();
+        let cache_dir = cache_dir_for("dplyr", &fetched.digest).unwrap();
+        assert!(cache_dir.join("ty").join("core.ty").is_file());
+        assert!(!cache_dir.join("definitions").exists());
+
+        let _ = fs::remove_dir_all(&repo_dir);
+        let _ = fs::remove_dir_all(&fetched.root);
+        let _ = fs::remove_dir_all(&cache_dir);
+    }
+
     #[test]
     fn add_update_list_vendor_round_trip_against_a_local_repo() {
         if !git_available() {
@@ -1326,7 +1506,8 @@ mod tests {
             manifest,
             rev,
             digest,
-            dir,
+            dir: dir.clone(),
+            root: dir,
         };
 
         admit_to_cache(&fetched, "shiny").unwrap();
@@ -1364,7 +1545,7 @@ mod tests {
 
         let _ = fs::remove_dir_all(&repo_dir);
         let _ = fs::remove_dir_all(&project_dir);
-        let _ = fs::remove_dir_all(&fetched.dir);
+        let _ = fs::remove_dir_all(&fetched.root);
         if let Some(cache_dir) = cache_dir_for("shiny", &fetched.digest) {
             let _ = fs::remove_dir_all(&cache_dir);
         }
@@ -1423,6 +1604,7 @@ mod tests {
             rev: "0000000000000000000000000000000000000000".to_string(),
             digest,
             dir: src_dir.clone(),
+            root: src_dir.clone(),
         };
         admit_to_cache(&fetched, package).unwrap();
 
@@ -1633,6 +1815,32 @@ mod tests {
         write_registry_package(&dir, "sf", "this is not { json");
 
         assert!(lookup_in_registry_dir(&dir, "sf").is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn monorepo_subdir_repository_resolves_with_subdir_preserved() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_subdir_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "dplyr",
+            r#"{
+                "name": "dplyr",
+                "definitions": [
+                    {"repository": "we-data-ch/registry/definitions/dplyr", "rev": "abc", "source": "generated", "tier": "T3"}
+                ]
+            }"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "dplyr").unwrap();
+        assert_eq!(spec, "github:we-data-ch/registry/definitions/dplyr@abc");
+        // and it parses back into a RepoSpec with the subdir intact.
+        let parsed = RepoSpec::parse(&spec).unwrap();
+        assert_eq!(parsed.owner, "we-data-ch");
+        assert_eq!(parsed.repo, "registry");
+        assert_eq!(parsed.subdir.as_deref(), Some("definitions/dplyr"));
 
         let _ = fs::remove_dir_all(&dir);
     }

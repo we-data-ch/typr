@@ -174,7 +174,7 @@ pub fn validate(package: &str, spec_str: &str) -> ValidationReport {
     };
 
     let report = validate_fetched(package, &spec.display(), spec.rev.is_some(), &fetched, &warnings);
-    let _ = fs::remove_dir_all(&fetched.dir);
+    let _ = fs::remove_dir_all(&fetched.root);
     report
 }
 
@@ -728,12 +728,13 @@ mod tests {
             manifest: manifest("T2"),
             rev: "deadbeefcafef00d".to_string(),
             digest: "sha256:test".to_string(),
-            dir,
+            dir: dir.clone(),
+            root: dir,
         }
     }
 
     fn cleanup(fetched: &FetchedDefinition) {
-        let _ = fs::remove_dir_all(&fetched.dir);
+        let _ = fs::remove_dir_all(&fetched.root);
     }
 
     #[test]
@@ -833,7 +834,8 @@ mod tests {
             manifest: manifest("T2"),
             rev: "abc123".to_string(),
             digest: "sha256:test".to_string(),
-            dir,
+            dir: dir.clone(),
+            root: dir,
         };
 
         let report = validate_fetched("shiny", "github:alice/typr-shiny", true, &fetched, &[]);
