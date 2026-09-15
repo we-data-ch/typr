@@ -599,6 +599,18 @@ pub fn write_to_r_lang(content: String, output_dir: &Path, file_name: &str, envi
             app.write_all(full_content.as_bytes()).unwrap();
         }
         _ => {
+            // Project builds are a repeated dev-loop command (`typr build`),
+            // so cache the styled output by content hash — most files are
+            // unchanged between builds and shouldn't pay for another
+            // `Rscript` spawn. One-off StandAlone runs skip the cache: no
+            // project root to anchor `.typr_cache/` to, and no build loop
+            // to amortize it over.
+            let full_content = if environment.is_project() {
+                let cache_dir = Path::new(cache::CACHE_DIR);
+                crate::format_r::format_r_code_cached(&full_content, cache_dir)
+            } else {
+                crate::format_r::format_r_code(&full_content)
+            };
             cache::write_if_changed(&app_path, &full_content).unwrap();
         }
     }
@@ -718,7 +730,10 @@ pub fn new(name: &str, renv: bool) {
 }
 
 pub fn check_project() {
-    let context = Context::default().set_environment(Environment::Project);
+    let context = crate::standard_library::load_project_type_definitions(
+        Path::new("."),
+        Context::default().set_environment(Environment::Project),
+    );
 
     let step = Step::new("Parsing");
     let (lang, syntax_errors) = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());
@@ -741,7 +756,10 @@ pub fn check_project() {
 }
 
 pub fn check_file(path: &PathBuf) {
-    let context = Context::default().set_environment(Environment::Project);
+    let context = crate::standard_library::load_project_type_definitions(
+        Path::new("."),
+        Context::default().set_environment(Environment::Project),
+    );
     let dir = PathBuf::from(".");
     write_std_for_type_checking(&dir);
 
@@ -975,10 +993,13 @@ fn build_project_impl(
         }
     }
 
-    let context = Context::default()
-        .set_environment(Environment::Project)
-        .set_test_mode(test_mode)
-        .set_checked_mode(checked_mode);
+    let context = crate::standard_library::load_project_type_definitions(
+        Path::new("."),
+        Context::default()
+            .set_environment(Environment::Project)
+            .set_test_mode(test_mode)
+            .set_checked_mode(checked_mode),
+    );
 
     let step = Step::new("Parsing");
     let (lang, mut expansion_info) = parse_code_with_info(&PathBuf::from("TypR/main.ty"), context.get_environment());
@@ -1085,9 +1106,10 @@ pub fn build_file(path: &Path, test_mode: bool, checked_mode: bool, strict_mode:
     }
     step.done();
 
-    let context = Context::default()
-        .set_test_mode(test_mode)
-        .set_checked_mode(checked_mode);
+    let context = crate::standard_library::load_project_type_definitions(
+        Path::new("."),
+        Context::default().set_test_mode(test_mode).set_checked_mode(checked_mode),
+    );
 
     let step = Step::new("Type checking");
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
@@ -1247,7 +1269,10 @@ fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: boo
     let work_dir = get_working_directory(keep_files);
     let guard = TempDirGuard::new(if keep_files { None } else { Some(work_dir.clone()) });
     write_std_for_type_checking(&work_dir);
-    let context = Context::default().set_checked_mode(checked_mode);
+    let context = crate::standard_library::load_project_type_definitions(
+        Path::new("."),
+        Context::default().set_checked_mode(checked_mode),
+    );
     let type_checker = TypeChecker::new(context.clone()).typing_no_panic(&lang);
     if type_checker.has_errors() {
         step.fail();

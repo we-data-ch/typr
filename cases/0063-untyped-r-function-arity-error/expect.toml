@@ -1,0 +1,15 @@
+[[rule]]
+file = "@run"
+must_contain = "Type errors found"
+
+[[rule]]
+file = "@run"
+must_contain = "is an untyped R function taking 2 argument(s)"
+
+[[rule]]
+file = "@run"
+must_contain = "only the number of arguments is"
+
+[[rule]]
+file = "@run"
+must_not_contain = "UnknownFunction"

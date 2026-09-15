@@ -6,7 +6,9 @@ mod cache;
 mod cases;
 mod cli;
 mod engine;
+mod format_r;
 mod fuzz;
+mod gen_types;
 mod io;
 mod md_renderer;
 mod metaprogramming;
@@ -16,9 +18,14 @@ mod r_deps;
 mod r_name_cache;
 mod r_name_lint;
 mod rd_renderer;
+mod registry_revalidate;
+mod registry_submit;
+mod registry_validate;
 mod repl;
 mod standard_library;
 mod syntax;
+mod type_definition;
+mod type_registry;
 mod vignette_renderer;
 
 fn main() {

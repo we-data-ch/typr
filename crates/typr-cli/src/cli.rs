@@ -173,6 +173,107 @@ enum Commands {
         #[arg(long, short, value_name = "FILE")]
         output: Option<PathBuf>,
     },
+    /// Generate a `.ty` type definition for an *installed* R package by
+    /// introspecting its exports (arity, argument names, presence of `...`),
+    /// entirely at `#! tier: T3` — see `typR/registry.md` §6. Never fails a
+    /// build: a generated definition types every parameter and return value
+    /// as `Any`.
+    GenTypes {
+        package: String,
+        /// Directory to write `<package>.generated.ty` into (default: `ty/`).
+        #[arg(long, short, value_name = "DIR")]
+        out: Option<PathBuf>,
+    },
+    /// Resolve, cache, and vendor external Type Definitions for R packages —
+    /// see `typR/registry.md` §7 and `rfcs/0031-external-type-definitions.md`.
+    Types {
+        #[command(subcommand)]
+        types_command: TypesCommands,
+    },
+    /// List every Type Definition the `we-data-ch/registry` index has for a
+    /// package, ranked exactly as `typr types add`/`typr use` would pick
+    /// among them (registry.md §8.3, §13 J3) — a survey of the alternatives,
+    /// not a selection. Never fails a build: an unreachable registry or an
+    /// unlisted package are reported, not treated as errors.
+    Search {
+        package: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum TypesCommands {
+    /// Pin a definition for `<package>` (fetch, verify its manifest and
+    /// capabilities, cache it by content digest, and record it in
+    /// `typr.lock`).
+    Add {
+        /// The package this definition describes (e.g. `shiny`).
+        package: String,
+        /// `github:owner/repo[@rev]`. Omit to resolve one automatically: an
+        /// explicit `typr.toml [types]` pin first, then a lookup in the
+        /// `we-data-ch/registry` (registry.md §13 J3).
+        repo: Option<String>,
+    },
+    /// Re-fetch and re-pin `typr.lock` for one package (or, with none given,
+    /// every resolved definition).
+    Update { package: Option<String> },
+    /// What's resolved in `typr.lock`, with tier and provenance.
+    List,
+    /// Copy every resolved definition's `.ty` files into the project tree
+    /// (default `ty/vendor/<pkg>/`), so the build stops depending on the
+    /// network or the upstream repository's continued existence.
+    Vendor {
+        #[arg(long, short, value_name = "DIR")]
+        out: Option<PathBuf>,
+    },
+    /// Run the mechanical checks of `typR/registry.md` §9 against a Type
+    /// Definition repository: manifest/capabilities, `.ty` parsing/type-
+    /// checking, `tests/smoke.ty`, exports and arity vs. `formals()` on the
+    /// locally installed package, and the T1 "no unconstrained `...`"
+    /// promotion gate. Exits 1 if any check fails (never on a `Skipped` one —
+    /// registry.md D2/D5).
+    Validate {
+        /// The package this definition describes (e.g. `shiny`).
+        package: String,
+        /// `github:owner/repo[@rev]`. Omit to resolve one automatically, the
+        /// same way `typr types add` does.
+        repo: Option<String>,
+    },
+    /// Run `Validate`'s checks against *every* definition the
+    /// `we-data-ch/registry` index lists, and report drift since the last run
+    /// — registry.md §13 J4, "revalidation périodique des définitions déjà
+    /// indexées (détection de dérive)". Meant to run centrally (a scheduled
+    /// CI job in `we-data-ch/registry` itself), not per-project. Exits 1 only
+    /// when something that was fine last run just broke (`--out`'s previous
+    /// contents vs. now) — a long-standing, already-known failure doesn't
+    /// keep failing the job forever.
+    Revalidate {
+        /// A local checkout of `we-data-ch/registry` to validate as-is (e.g.
+        /// a CI job's own working tree). Omit to sync the same local mirror
+        /// `typr search`/`typr types add` already use.
+        #[arg(long, value_name = "PATH")]
+        dir: Option<PathBuf>,
+        /// Where the previous run's snapshot is read from and the new one is
+        /// written to. Defaults to `<dir>/status/validation.json`.
+        #[arg(long, short, value_name = "FILE")]
+        out: Option<PathBuf>,
+    },
+    /// Open a pull request against the community registry adding or updating
+    /// `packages/<package>.json` for this definition — "Add to Registry"
+    /// from the CLI, no Store account needed. Runs the same checks as
+    /// `Validate` first and refuses to submit anything that fails them.
+    /// Needs the `gh` CLI, already authenticated (`gh auth login`): the PR
+    /// is opened as you, from your own fork of the registry.
+    Submit {
+        /// The package this definition describes (e.g. `shiny`).
+        package: String,
+        /// `github:owner/repo[/subdir][@rev]`. Omit to use whatever this
+        /// project already has pinned for `package` in `typr.lock` (i.e.
+        /// after `typr types add`).
+        repo: Option<String>,
+        /// `owner/repo` of the registry to submit to.
+        #[arg(long, value_name = "OWNER/REPO", default_value = crate::registry_submit::DEFAULT_REGISTRY_REPO)]
+        registry: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -304,6 +405,9 @@ fn skips_r_deps_check(command: &Option<Commands>) -> bool {
             | Some(Commands::Std { .. })
             | Some(Commands::Cache { .. })
             | Some(Commands::Syntax { .. })
+            | Some(Commands::GenTypes { .. })
+            | Some(Commands::Types { .. })
+            | Some(Commands::Search { .. })
     )
 }
 
@@ -390,7 +494,10 @@ pub fn start() {
         },
         Some(Commands::Document) => document(),
         Some(Commands::Pkgdown) => pkgdown(),
-        Some(Commands::Use { package_name }) => use_package(&package_name),
+        Some(Commands::Use { package_name }) => {
+            use_package(&package_name);
+            try_auto_resolve_type_definition(std::path::Path::new("."), &package_name);
+        }
         Some(Commands::Load) => load(),
         Some(Commands::Cran) => cran(),
         Some(Commands::Std { std_command }) => match std_command {
@@ -430,6 +537,9 @@ pub fn start() {
             check,
         }) => run_syntax_command(json, target, output, write, check),
         Some(Commands::Spg { output }) => generate_spg(output),
+        Some(Commands::GenTypes { package, out }) => crate::gen_types::run(&package, out),
+        Some(Commands::Types { types_command }) => run_types_command(types_command),
+        Some(Commands::Search { package }) => run_search_command(&package),
         _ => {
             println!("Please specify a subcommand or file to execute");
             std::process::exit(1);
@@ -538,5 +648,196 @@ fn run_cache_command(command: CacheCommands) {
                 }
             }
         }
+    }
+}
+
+/// `typr types <add|update|list|vendor|validate|revalidate>` — see
+/// `typR/registry.md` §7, §9, §13 J4 and `rfcs/0031-external-type-definitions.md`.
+fn run_types_command(command: TypesCommands) {
+    use crate::type_registry;
+
+    let root = std::path::Path::new(".");
+
+    match command {
+        TypesCommands::Add { package, repo } => {
+            let spec = match repo {
+                Some(spec) => spec,
+                None => match type_registry::resolve_spec_for_package(root, &package) {
+                    Some(spec) => spec,
+                    None => {
+                        eprintln!(
+                            "error: no definition found for `{package}` — no `typr.toml [types]` pin \
+                             and nothing in the registry; pass an explicit `github:owner/repo[@rev]`"
+                        );
+                        std::process::exit(1);
+                    }
+                },
+            };
+            run_types_add(root, &package, &spec);
+        }
+        TypesCommands::Update { package } => match type_registry::update(root, package.as_deref()) {
+            Ok(updated) if updated.is_empty() => println!("nothing to update — typr.lock is empty."),
+            Ok(updated) => {
+                for locked in updated {
+                    println!(
+                        "{} — {} {} (tier {}, rev {})",
+                        locked.package,
+                        locked.repository,
+                        locked.version,
+                        locked.tier,
+                        &locked.rev[..locked.rev.len().min(12)]
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        },
+        TypesCommands::List => {
+            let definitions = type_registry::list(root);
+            if definitions.is_empty() {
+                println!("nothing resolved — see `typr types add`.");
+            }
+            for def in definitions {
+                println!(
+                    "{:<12} {:<32} {:<10} tier {:<3} rev {}",
+                    def.package,
+                    def.repository,
+                    def.version,
+                    def.tier,
+                    &def.rev[..def.rev.len().min(12)]
+                );
+            }
+        }
+        TypesCommands::Vendor { out } => match type_registry::vendor(root, out.as_deref()) {
+            Ok(written) => println!("vendored {} file(s).", written.len()),
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        },
+        TypesCommands::Validate { package, repo } => {
+            let spec = match repo {
+                Some(spec) => spec,
+                None => match type_registry::resolve_spec_for_package(root, &package) {
+                    Some(spec) => spec,
+                    None => {
+                        eprintln!(
+                            "error: no definition found for `{package}` — no `typr.toml [types]` pin \
+                             and nothing in the registry; pass an explicit `github:owner/repo[@rev]`"
+                        );
+                        std::process::exit(1);
+                    }
+                },
+            };
+            let report = crate::registry_validate::validate(&package, &spec);
+            print!("{}", report.render());
+            if !report.ok() {
+                std::process::exit(1);
+            }
+        }
+        TypesCommands::Submit {
+            package,
+            repo,
+            registry,
+        } => {
+            use crate::registry_submit::{self, SubmitOutcome};
+            match registry_submit::submit(root, &package, repo.as_deref(), &registry) {
+                Ok(SubmitOutcome::Opened(pr_url)) => println!("opened {pr_url}"),
+                Ok(SubmitOutcome::AlreadyUpToDate) => {
+                    println!("`{package}` is already indexed identically in {registry} — nothing to submit.")
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        TypesCommands::Revalidate { dir, out } => {
+            use crate::registry_revalidate;
+            match registry_revalidate::revalidate(dir.as_deref(), out.as_deref()) {
+                Ok((snapshots, drift, out_path)) => {
+                    print!("{}", registry_revalidate::render(&snapshots, &drift));
+                    println!("\nwrote {}", out_path.display());
+                    if !drift.newly_failing.is_empty() {
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+}
+
+/// `typr search <pkg>` — survey what `we-data-ch/registry` has for `pkg`,
+/// ranked exactly as `typr types add`/`typr use` would pick among them
+/// (registry.md §8.3, §13 J3's `typr search` item).
+fn run_search_command(package: &str) {
+    use crate::type_registry;
+
+    match type_registry::search(package) {
+        Ok(entries) if entries.is_empty() => {
+            println!("no definitions found for `{package}` in the registry.");
+        }
+        Ok(entries) => {
+            for entry in entries {
+                let repo = match entry.rev.as_deref() {
+                    Some(rev) if !rev.is_empty() => format!("github:{}@{}", entry.repository, rev),
+                    _ => format!("github:{}", entry.repository),
+                };
+                println!("{repo:<48} tier {:<3} {}", entry.tier, entry.source);
+            }
+        }
+        Err(e) => {
+            eprintln!("error: could not reach the registry: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Shared by `run_types_command`'s `Add` arm and `try_auto_resolve_type_definition`
+/// — fetch, cache, and lock a resolved spec for `package`, printing the same
+/// confirmation line either way.
+fn run_types_add(root: &std::path::Path, package: &str, spec: &str) {
+    use crate::type_registry;
+    match type_registry::add(root, package, spec) {
+        Ok(locked) => println!(
+            "{} — {} {} (tier {}, rev {}) → typr.lock",
+            locked.package,
+            locked.repository,
+            locked.version,
+            locked.tier,
+            &locked.rev[..locked.rev.len().min(12)]
+        ),
+        Err(e) => {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// After `typr use <pkg>` adds the R dependency, best-effort resolve and pin
+/// a type definition too — the remaining steps of registry.md §7.3's flow,
+/// now that J3 gives them something to search (`we-data-ch/registry`).
+/// Unlike `run_types_add`, this never exits the process: the R dependency was
+/// just added successfully, and a definition lookup finding nothing (or
+/// failing to fetch) must not turn that into a command failure — D2 again,
+/// one level up: a missing or unusable type signal only ever leaves the
+/// package untyped, it never blocks anything else `typr use` already did.
+fn try_auto_resolve_type_definition(root: &std::path::Path, package: &str) {
+    use crate::type_registry;
+    let Some(spec) = type_registry::resolve_spec_for_package(root, package) else {
+        return;
+    };
+    match type_registry::add(root, package, &spec) {
+        Ok(locked) => println!(
+            "found a type definition for `{}`: {} {} (tier {}) → typr.lock",
+            locked.package, locked.repository, locked.version, locked.tier
+        ),
+        Err(e) => eprintln!("warning: found a type definition for `{package}` but could not resolve it ({e})"),
     }
 }

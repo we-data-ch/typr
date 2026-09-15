@@ -15,6 +15,7 @@ cases/0001-pub-typed-fn-in-module/
   expect.md      # ce qui DEVRAIT se passer (prose), + localisation dans le code
   observed.txt   # l'erreur / le R fautif au moment du report
   golden/        # (cas fixed) copie des R/*.R ciblés → diff de non-régression (jamais "@run")
+  cache/         # optionnel : voir "Bundler un cache" ci-dessous
 ```
 
 `case.toml` :
@@ -65,6 +66,36 @@ n'est pas sur le PATH, `typr run` échoue et toute règle `@run` échoue avec �
 particulier à gérer. `@run` n'est **jamais** diffé en golden (le texte capturé inclut les
 timings de la barre de progression CLI, qui varient à chaque run) — reste du grep pur, golden/
 continue de ne cibler que des fichiers `R/*.R` déterministes.
+
+## Bundler un cache (`cache/`)
+
+Certaines fonctionnalités lisent un cache **hors** du répertoire du projet par construction —
+par exemple `~/.cache/typr/types/<pkg>/<digest>/` pour une Type Definition externe verrouillée
+dans `typr.lock` (`typR/registry.md` §7.4). Un `repro/` copié dans un sandbox temporaire ne peut
+donc pas transporter ce cache avec lui, et le cas échouerait toujours en pratique (paquet
+"absent du cache") plutôt que d'exercer le vrai comportement.
+
+Un sous-dossier `cache/` optionnel, sibling de `repro/`, résout ça : `cases.rs::build_sandbox`
+le copie dans le sandbox et pointe `$XDG_CACHE_HOME` dessus pour la durée de l'invocation. Il
+doit donc être disposé exactement comme `$XDG_CACHE_HOME` le serait, par ex. :
+
+```
+cases/00NN-mon-cas/
+  cache/
+    typr/types/<pkg>/<digest-sans-"sha256:">/
+      typr-def.toml
+      ty/core.ty
+  repro/
+    typr.lock        # digest ci-dessus, même package
+    TypR/main.ty
+```
+
+Le digest doit correspondre exactement à ce que `typr.lock` déclare — c'est une vérification
+mécanique (`type_registry::compute_digest`, ré-exécutée à chaque `check`/`build`/`run`), pas une
+convention : un `cache/` désynchronisé du `typr.lock` du cas se traduit par un cas qui échoue
+avec « no longer matches typr.lock », pas par un chargement silencieusement raté. Voir
+`cases/0066-external-type-definition-low-tier-degrades-to-any/` pour un exemple complet. Sans
+`cache/`, le comportement de `build_sandbox` est inchangé.
 
 ## Capturer un cas depuis un projet en cours de dev (`snapshot`)
 

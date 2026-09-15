@@ -1,0 +1,6 @@
+title = "a locked external Type Definition below the project's `trust` threshold degrades to Any, never a hard error"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-09-13"
+origin = "perso"

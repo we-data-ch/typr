@@ -354,15 +354,29 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             let reduced_left_type = reduce_type(context, &left_type);
             let reduced_right_type = reduce_type(context, &right_type);
 
-            if reduced_right_type.is_subtype(&reduced_left_type, context).0 {
-                let Some(var) = Var::from_language((**left_expr).clone()).map(|v| v.set_type(right_type.clone()))
+            // A reassignment must not pin the variable to the exact literal just
+            // assigned (`x <- 10;` after unannotated `let x <- 0;` infers `x` as
+            // the singleton `0`), and must not keep narrowing it one literal at a
+            // time on every later assignment (`x <- 10;` then `x <- x + 1;`,
+            // cases/0065-reassign-widen-literal). Widen a literal singleton to its
+            // base kind before both the compatibility check and the type stored
+            // back into context — `Type::generalize()`, the same widening
+            // cases/0017-char-if-widening uses for `if` branches — leaving
+            // non-literal types (aliases, records, functions, unions...)
+            // untouched, so occurrence narrowing onto those still works.
+            let widened_left_type = reduced_left_type.clone().generalize();
+            let widened_right_type = right_type.clone().generalize();
+
+            if reduced_right_type.is_subtype(&widened_left_type, context).0 {
+                let Some(var) =
+                    Var::from_language((**left_expr).clone()).map(|v| v.set_type(widened_right_type.clone()))
                 else {
-                    return TypeContext::new(right_type, expr.clone(), context.clone()).with_errors(errors);
+                    return TypeContext::new(widened_right_type, expr.clone(), context.clone()).with_errors(errors);
                 };
                 TypeContext::new(
-                    right_type.clone(),
+                    widened_right_type.clone(),
                     expr.clone(),
-                    context.clone().push_var_type(var, right_type, context),
+                    context.clone().push_var_type(var, widened_right_type, context),
                 )
                 .with_errors(errors)
             } else {
@@ -1741,8 +1755,22 @@ pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
         }
         Lang::VecBlock { help_data: h, .. } => TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone()),
         Lang::RBlock { help_data: h, .. } => TypeContext::new(Type::Empty(h.clone()), expr.clone(), context.clone()),
-        Lang::RFunction { help_data: h, .. } => {
-            TypeContext::new(Type::UnknownFunction(h.clone()), expr.clone(), context.clone())
+        Lang::RFunction {
+            parameters,
+            help_data: h,
+            ..
+        } => {
+            // RFC 0028: an untyped R function is callable, checked on arity
+            // only. `parameters.len()` is the literal count of parsed bare
+            // names — `Lang::RFunction` has no default values and no `...`
+            // today, so there is nothing else to special-case here.
+            let params: Vec<ArgumentType> = parameters
+                .iter()
+                .enumerate()
+                .map(|(i, _)| ArgumentType::new(&format!("_{}", i), &builder::any_type()))
+                .collect();
+            let func_type = Type::Function(params, Box::new(builder::any_type()), h.clone());
+            TypeContext::new(func_type, expr.clone(), context.clone())
         }
         Lang::ExternBlock {
             parameters: params,
@@ -4742,7 +4770,15 @@ p"#;
         // paired with a pushed `TypeError` (AliasNotFound /
         // TagFieldConstructorNotSupported / UnknownUnionVariant) — never a
         // silent fallback, always an error-carrying result type.
-        const BASELINE: usize = 19;
+        //
+        // 19 -> 21 (RFC 0028): `Lang::RFunction` is now typed as a function
+        // of `n` `Any` parameters returning `Any`, instead of the old
+        // `Type::UnknownFunction` placeholder — this is the RFC's whole
+        // point (an untyped R function becomes callable, unchecked), not a
+        // silent degradation: the call site still gets a real `Type::Function`
+        // with the right arity, and the `Any` boundary is the documented,
+        // intentional cost of the escape hatch (see rfcs/0028).
+        const BASELINE: usize = 21;
         let count = production_source().matches("any_type()").count();
         assert!(
             count <= BASELINE,

@@ -698,6 +698,55 @@ impl VarType {
         vars.iter().fold(self, |acc, x| acc.remove_var(x))
     }
 
+    /// Replace every entry named in `names` with the canonical `(Any,
+    /// UnknownFunction)` pair the compiler already uses everywhere for "a
+    /// real name, callable with any arguments, but not type-checked" (see
+    /// the `(Any, UnknownFunction)` preload for untyped R/JS builtins in
+    /// `build_function_list_vartype`, and the `UseSelector::Wildcard` comment
+    /// in `type_checking/mod.rs`). Used to degrade an external type
+    /// definition's entries that fall below the project's configured trust
+    /// threshold (`typR/registry.md` §5.4/D2,
+    /// `rfcs/0031-external-type-definitions.md` "Loading external `.ty` into
+    /// the context": entry tier < project trust -> load as
+    /// `Type::UnknownFunction` instead of its declared signature).
+    ///
+    /// A name absent from `self` is a no-op — degrading only ever removes
+    /// type information that would otherwise have been added, never invents
+    /// a new name.
+    pub fn degrade_to_any(self, names: &std::collections::HashSet<String>) -> Self {
+        if names.is_empty() {
+            return self;
+        }
+        let VarType {
+            variables,
+            aliases,
+            std,
+            alias_counter,
+            ..
+        } = self;
+        let mut new_variables = Arc::unwrap_or_clone(variables);
+        let mut degraded: std::collections::HashSet<String> = std::collections::HashSet::new();
+        new_variables.retain(|(var, _)| {
+            let name = var.get_name();
+            if names.contains(&name) {
+                degraded.insert(name);
+                false
+            } else {
+                true
+            }
+        });
+        for name in degraded {
+            new_variables.insert((Var::from_name(&name).set_type(builder::any_type()), builder::unknown_function_type()));
+        }
+        Self {
+            variables: Arc::new(new_variables),
+            aliases,
+            std,
+            alias_counter,
+            name_index: Arc::new(OnceLock::new()),
+        }
+    }
+
     pub fn remove_var(self, var: &Var) -> Self {
         let VarType {
             variables,
@@ -901,6 +950,52 @@ mod tests {
 
     fn parse_type(s: &str) -> Type {
         s.parse::<Type>().unwrap()
+    }
+
+    #[test]
+    fn degrade_to_any_replaces_named_entries_with_any_unknown_function() {
+        let vt = VarType::new().push_var_type(&[
+            (Var::from_name("keep_me").set_type(builder::integer_type_default()), builder::integer_type_default()),
+            (
+                Var::from_name("degrade_me").set_type(builder::integer_type_default()),
+                builder::integer_type_default(),
+            ),
+        ]);
+
+        let mut names = std::collections::HashSet::new();
+        names.insert("degrade_me".to_string());
+        let degraded = vt.degrade_to_any(&names);
+
+        let (kept_var, kept_type) = degraded
+            .entries_named("keep_me")
+            .into_iter()
+            .next()
+            .expect("untouched entry must survive");
+        assert_eq!(kept_type, builder::integer_type_default());
+        assert_eq!(kept_var.get_type(), builder::integer_type_default());
+
+        let (degraded_var, degraded_type) = degraded
+            .entries_named("degrade_me")
+            .into_iter()
+            .next()
+            .expect("degraded entry must still be present");
+        assert!(degraded_type.is_unknown_function());
+        assert!(degraded_var.get_type().is_any());
+    }
+
+    #[test]
+    fn degrade_to_any_is_a_no_op_for_a_name_not_present() {
+        let vt = VarType::new().push_var_type(&[(
+            Var::from_name("keep_me").set_type(builder::integer_type_default()),
+            builder::integer_type_default(),
+        )]);
+
+        let mut names = std::collections::HashSet::new();
+        names.insert("never_declared".to_string());
+        let degraded = vt.degrade_to_any(&names);
+
+        assert_eq!(degraded.entries_named("keep_me").len(), 1);
+        assert!(degraded.entries_named("never_declared").is_empty());
     }
 
     #[test]
