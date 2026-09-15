@@ -4,8 +4,19 @@
 //! Formatting is best-effort: a missing `Rscript`/`styler` or a styling
 //! failure must never fail the build, so callers always get code back
 //! (formatted if possible, the original otherwise).
+//!
+//! Only content that genuinely benefits from re-indentation goes through
+//! `styler` at all: `main.R` (the transpiled user program, with real nested
+//! control flow) does, but `types.R`/`generic_functions.R` are one
+//! definition per line by construction (simple `format!` templates in
+//! `project.rs`) and never need it — callers should skip this module for
+//! those. `styler` also spawns and loads a fresh R process per call, which
+//! dominates build time on a project with several generated files; Project
+//! builds should go through [`format_r_code_cached`] so unchanged content
+//! (by hash, regardless of which file it ends up in) is never re-styled.
 
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
 
@@ -23,6 +34,29 @@ pub fn format_r_code(code: &str) -> String {
             code.to_string()
         }
     }
+}
+
+/// Same as [`format_r_code`], but content-addressed under
+/// `<cache_dir>/format/<hash>.R`: a `typr build` that regenerates the exact
+/// same source for a file (the common case — most files in a project don't
+/// change between builds) reuses the previously styled output instead of
+/// spawning another `Rscript`. Keyed on the raw pre-format content, so it's
+/// shared across files and across builds.
+pub fn format_r_code_cached(code: &str, cache_dir: &Path) -> String {
+    let entry = format_cache_entry_path(cache_dir, code);
+    if let Ok(cached) = std::fs::read_to_string(&entry) {
+        return cached;
+    }
+    let formatted = format_r_code(code);
+    if let Some(parent) = entry.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(&entry, &formatted);
+    formatted
+}
+
+fn format_cache_entry_path(cache_dir: &Path, code: &str) -> PathBuf {
+    cache_dir.join("format").join(format!("{:016x}.R", crate::cache::hash_str(code)))
 }
 
 /// `Rscript`/`styler` availability rarely changes within a single run, and
@@ -102,5 +136,25 @@ mod tests {
         let formatted = format_r_code(messy);
         assert_ne!(formatted, messy);
         assert!(formatted.contains("f <- function(x) {"));
+    }
+
+    #[test]
+    fn cached_format_reuses_disk_entry_without_reformatting() {
+        let dir = std::env::temp_dir().join(format!("typr_format_cache_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::create_dir_all(&dir);
+
+        let code = "f<-function(x){x+1}";
+        let first = format_r_code_cached(code, &dir);
+
+        // Pre-seed a distinguishable value directly at the cache entry, so a
+        // cache hit (vs. a fresh, indistinguishable-from-`first` styler run)
+        // is unambiguous.
+        let entry = format_cache_entry_path(&dir, code);
+        std::fs::write(&entry, "# from cache\n").unwrap();
+        assert_eq!(format_r_code_cached(code, &dir), "# from cache\n");
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = first; // first run succeeded without panicking, cache dir was created
     }
 }

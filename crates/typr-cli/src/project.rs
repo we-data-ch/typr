@@ -508,7 +508,6 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
             app.write_all(types_content.as_bytes()).unwrap();
         }
         _ => {
-            let types_content = crate::format_r::format_r_code(&types_content);
             let path = output_dir
                 .join(context.get_environment().to_base_path())
                 .join("types.R");
@@ -549,7 +548,6 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
             app.write_all(generic_content.as_bytes()).unwrap();
         }
         _ => {
-            let generic_content = crate::format_r::format_r_code(&generic_content);
             let path = output_dir
                 .join(context.get_environment().to_string())
                 .join("generic_functions.R");
@@ -601,7 +599,18 @@ pub fn write_to_r_lang(content: String, output_dir: &Path, file_name: &str, envi
             app.write_all(full_content.as_bytes()).unwrap();
         }
         _ => {
-            let full_content = crate::format_r::format_r_code(&full_content);
+            // Project builds are a repeated dev-loop command (`typr build`),
+            // so cache the styled output by content hash — most files are
+            // unchanged between builds and shouldn't pay for another
+            // `Rscript` spawn. One-off StandAlone runs skip the cache: no
+            // project root to anchor `.typr_cache/` to, and no build loop
+            // to amortize it over.
+            let full_content = if environment.is_project() {
+                let cache_dir = Path::new(cache::CACHE_DIR);
+                crate::format_r::format_r_code_cached(&full_content, cache_dir)
+            } else {
+                crate::format_r::format_r_code(&full_content)
+            };
             cache::write_if_changed(&app_path, &full_content).unwrap();
         }
     }
