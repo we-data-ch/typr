@@ -1070,11 +1070,20 @@ mod tests {
             extend_context_with_ty_sources(Context::empty(), &[("base.ty", "@base_fn: (int) -> int;")]);
         assert!(base_skipped.is_empty());
 
-        let (context, skipped) =
-            load_external_ty_definitions(base_context, &[("shiny.generated.ty", "@fluidPage: (Any) -> Any;")], "T2", "T2");
+        let (context, skipped) = load_external_ty_definitions(
+            base_context,
+            &[("shiny.generated.ty", "@fluidPage: (Any) -> Any;")],
+            "T2",
+            "T2",
+        );
 
         assert!(skipped.is_empty());
-        let names: Vec<String> = context.get_vartype().variables.iter().map(|(v, _)| v.get_name()).collect();
+        let names: Vec<String> = context
+            .get_vartype()
+            .variables
+            .iter()
+            .map(|(v, _)| v.get_name())
+            .collect();
         assert!(
             names.contains(&"base_fn".to_string()),
             "base context signature must survive the merge"
@@ -1093,7 +1102,8 @@ mod tests {
     /// context").
     #[test]
     fn load_external_ty_definitions_sees_types_declared_in_base_context() {
-        let (base_context, base_skipped) = extend_context_with_ty_sources(Context::empty(), &[("foreign.ty", FOREIGN_TY)]);
+        let (base_context, base_skipped) =
+            extend_context_with_ty_sources(Context::empty(), &[("foreign.ty", FOREIGN_TY)]);
         assert!(base_skipped.is_empty());
 
         let (_context, skipped) = load_external_ty_definitions(
@@ -1130,7 +1140,12 @@ mod tests {
 
         assert_eq!(skipped.len(), 1);
         assert_eq!(skipped[0].0, "broken.ty");
-        let names: Vec<String> = context.get_vartype().variables.iter().map(|(v, _)| v.get_name()).collect();
+        let names: Vec<String> = context
+            .get_vartype()
+            .variables
+            .iter()
+            .map(|(v, _)| v.get_name())
+            .collect();
         assert!(
             names.contains(&"base_fn".to_string()),
             "base context must survive a skipped external source"
@@ -1151,8 +1166,7 @@ mod tests {
 #! tier: T1
 @trusted_fn: (int) -> int;";
 
-        let (context, skipped) =
-            load_external_ty_definitions(Context::default(), &[("mixed.ty", source)], "T2", "T2");
+        let (context, skipped) = load_external_ty_definitions(Context::default(), &[("mixed.ty", source)], "T2", "T2");
         assert!(skipped.is_empty());
 
         let untrusted_type = context
@@ -1227,7 +1241,10 @@ mod tests {
             degrade_if_version_out_of_range(context, &[("pkg.ty", source)], "1.11.0", None, Some("1.9.0"));
 
         let reason = reason.expect("an observed version below `since` must degrade");
-        assert!(reason.contains("older") && reason.contains("1.11.0"), "unexpected reason: {reason}");
+        assert!(
+            reason.contains("older") && reason.contains("1.11.0"),
+            "unexpected reason: {reason}"
+        );
         let typ = context.get_type_from_variable(&Var::from_name("f")).unwrap();
         assert!(typ.is_unknown_function());
     }
@@ -1240,16 +1257,14 @@ mod tests {
         let (context, skipped) = extend_context_with_ty_sources(Context::default(), &[("pkg.ty", source)]);
         assert!(skipped.is_empty());
 
-        let (context, reason) = degrade_if_version_out_of_range(
-            context,
-            &[("pkg.ty", source)],
-            "1.0.0",
-            Some("1.5.0"),
-            Some("2.0.0"),
-        );
+        let (context, reason) =
+            degrade_if_version_out_of_range(context, &[("pkg.ty", source)], "1.0.0", Some("1.5.0"), Some("2.0.0"));
 
         let reason = reason.expect("an observed version above `until` must degrade");
-        assert!(reason.contains("newer") && reason.contains("1.5.0"), "unexpected reason: {reason}");
+        assert!(
+            reason.contains("newer") && reason.contains("1.5.0"),
+            "unexpected reason: {reason}"
+        );
         let typ = context.get_type_from_variable(&Var::from_name("f")).unwrap();
         assert!(typ.is_unknown_function());
     }
@@ -1262,13 +1277,8 @@ mod tests {
         let (context, skipped) = extend_context_with_ty_sources(Context::default(), &[("pkg.ty", source)]);
         assert!(skipped.is_empty());
 
-        let (context, reason) = degrade_if_version_out_of_range(
-            context,
-            &[("pkg.ty", source)],
-            "1.0.0",
-            Some("2.0.0"),
-            Some("1.5.0"),
-        );
+        let (context, reason) =
+            degrade_if_version_out_of_range(context, &[("pkg.ty", source)], "1.0.0", Some("2.0.0"), Some("1.5.0"));
 
         assert!(reason.is_none());
         let typ = context.get_type_from_variable(&Var::from_name("f")).unwrap();

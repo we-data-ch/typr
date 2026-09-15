@@ -736,7 +736,10 @@ impl VarType {
             }
         });
         for name in degraded {
-            new_variables.insert((Var::from_name(&name).set_type(builder::any_type()), builder::unknown_function_type()));
+            new_variables.insert((
+                Var::from_name(&name).set_type(builder::any_type()),
+                builder::unknown_function_type(),
+            ));
         }
         Self {
             variables: Arc::new(new_variables),
@@ -955,7 +958,10 @@ mod tests {
     #[test]
     fn degrade_to_any_replaces_named_entries_with_any_unknown_function() {
         let vt = VarType::new().push_var_type(&[
-            (Var::from_name("keep_me").set_type(builder::integer_type_default()), builder::integer_type_default()),
+            (
+                Var::from_name("keep_me").set_type(builder::integer_type_default()),
+                builder::integer_type_default(),
+            ),
             (
                 Var::from_name("degrade_me").set_type(builder::integer_type_default()),
                 builder::integer_type_default(),

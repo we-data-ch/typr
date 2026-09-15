@@ -56,7 +56,9 @@ pub fn format_r_code_cached(code: &str, cache_dir: &Path) -> String {
 }
 
 fn format_cache_entry_path(cache_dir: &Path, code: &str) -> PathBuf {
-    cache_dir.join("format").join(format!("{:016x}.R", crate::cache::hash_str(code)))
+    cache_dir
+        .join("format")
+        .join(format!("{:016x}.R", crate::cache::hash_str(code)))
 }
 
 /// `Rscript`/`styler` availability rarely changes within a single run, and

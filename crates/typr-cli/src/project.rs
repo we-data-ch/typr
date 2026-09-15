@@ -1108,7 +1108,9 @@ pub fn build_file(path: &Path, test_mode: bool, checked_mode: bool, strict_mode:
 
     let context = crate::standard_library::load_project_type_definitions(
         Path::new("."),
-        Context::default().set_test_mode(test_mode).set_checked_mode(checked_mode),
+        Context::default()
+            .set_test_mode(test_mode)
+            .set_checked_mode(checked_mode),
     );
 
     let step = Step::new("Type checking");

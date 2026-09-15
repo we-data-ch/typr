@@ -126,8 +126,7 @@ pub fn parse_manifest(source: &str) -> Result<DefinitionManifest, String> {
              definition's provider to publish one this build supports"
         ));
     }
-    toml::from_str(source)
-        .map_err(|e| format!("manifest does not match format_version {CURRENT_FORMAT_VERSION}: {e}"))
+    toml::from_str(source).map_err(|e| format!("manifest does not match format_version {CURRENT_FORMAT_VERSION}: {e}"))
 }
 
 #[cfg(test)]
@@ -174,11 +173,8 @@ extern_raw = false
         let manifest = parse_manifest(SHINY_MANIFEST).unwrap();
         assert!(manifest.package.until.is_none());
 
-        let with_until = SHINY_MANIFEST.replacen(
-            "since   = \"1.11.0\"",
-            "since   = \"1.11.0\"\nuntil   = \"2.0.0\"",
-            1,
-        );
+        let with_until =
+            SHINY_MANIFEST.replacen("since   = \"1.11.0\"", "since   = \"1.11.0\"\nuntil   = \"2.0.0\"", 1);
         let manifest = parse_manifest(&with_until).unwrap();
         assert_eq!(manifest.package.until.as_deref(), Some("2.0.0"));
     }
@@ -206,7 +202,10 @@ extern_raw = false
     fn unknown_format_version_is_refused_not_misparsed() {
         let source = SHINY_MANIFEST.replacen("format_version = 1", "format_version = 2", 1);
         let err = parse_manifest(&source).unwrap_err();
-        assert!(err.contains("unsupported format_version = 2"), "unexpected error: {err}");
+        assert!(
+            err.contains("unsupported format_version = 2"),
+            "unexpected error: {err}"
+        );
         assert!(err.contains("format_version = 1"), "unexpected error: {err}");
     }
 
