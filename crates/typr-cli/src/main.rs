@@ -6,6 +6,7 @@ mod cache;
 mod cases;
 mod cli;
 mod engine;
+mod format_r;
 mod fuzz;
 mod gen_types;
 mod io;

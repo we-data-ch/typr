@@ -43,6 +43,7 @@ pub mod cache;
 pub mod cases;
 pub mod cli;
 pub mod engine;
+pub mod format_r;
 pub mod fuzz;
 pub mod gen_types;
 pub mod io;
