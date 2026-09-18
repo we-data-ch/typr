@@ -600,11 +600,11 @@ pub fn write_to_r_lang(content: String, output_dir: &Path, file_name: &str, envi
         }
         _ => {
             // Project builds are a repeated dev-loop command (`typr build`),
-            // so cache the styled output by content hash — most files are
-            // unchanged between builds and shouldn't pay for another
-            // `Rscript` spawn. One-off StandAlone runs skip the cache: no
-            // project root to anchor `.typr_cache/` to, and no build loop
-            // to amortize it over.
+            // so cache the formatted output by content hash — most files are
+            // unchanged between builds and shouldn't pay for another `air`
+            // spawn. One-off StandAlone runs skip the cache: no project root
+            // to anchor `.typr_cache/` to, and no build loop to amortize it
+            // over.
             let full_content = if environment.is_project() {
                 let cache_dir = Path::new(cache::CACHE_DIR);
                 crate::format_r::format_r_code_cached(&full_content, cache_dir)
