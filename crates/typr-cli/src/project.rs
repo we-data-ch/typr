@@ -1223,10 +1223,12 @@ fn strip_shebang(content: &str) -> &str {
     }
 }
 
+// run the file normally
 pub fn run_file(path: &Path) {
     run_file_impl(path, false, false, false, false);
 }
 
+// run the file while keeping the generated files
 pub fn run_file_keep(path: &Path, profile: bool, checked_mode: bool, strict_mode: bool) {
     run_file_impl(path, true, profile, checked_mode, strict_mode);
 }

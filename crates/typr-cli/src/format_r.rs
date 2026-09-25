@@ -78,16 +78,19 @@ fn air_available() -> bool {
 }
 
 fn run_air(code: &str) -> Result<String, String> {
-    // `--stdin-file-path` doesn't need to point at a real file — it's only
-    // used to locate `air.toml`/exclude patterns. `--no-configuration` makes
-    // the result independent of any config the target R project happens to
-    // have, since generated code should format the same way regardless of
-    // where it lands.
+    // `--stdin-file-path` doesn't need to point at a real file — `air` only
+    // uses it to walk up the directory tree looking for `air.toml`/exclude
+    // patterns to apply. `air` has no `--no-configuration` flag (removed
+    // upstream — the flag existed at design time but is gone as of 0.11.0),
+    // so the only way to keep generated code formatted the same way
+    // regardless of the target R project's own `air.toml` is to point this
+    // at a path outside the project entirely: the system temp dir, whose
+    // ancestry stops well before any project root.
+    let stdin_file_path = std::env::temp_dir().join("generated.R");
     let mut child = Command::new("air")
         .arg("format")
         .arg("--stdin-file-path")
-        .arg("generated.R")
-        .arg("--no-configuration")
+        .arg(&stdin_file_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
