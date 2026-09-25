@@ -512,8 +512,52 @@ Notes d'implémentation (à connaître pour la suite) :
   synchronisation Monaco dans les deux sens, `INTEGRATION.md` mis à jour.
 
 **Étape 5 — Documentation et blocs restants**
-- ` ```typr graph ` sur typr.github.io (dépôts mis à jour ensemble).
-- `Loop` (ports d'état), `Match`, `Module` (sorties `@pub`), `RCode`.
+- ` ```typr graph ` sur typr.github.io (dépôts mis à jour ensemble). — pas commencé.
+- `Loop` (ports d'état), `Match`, `Module` (sorties `@pub`), `RCode`. — fait (2026-09-26).
+
+Notes d'implémentation (blocs restants) :
+- `Loop` (`ForLoop`/`WhileLoop`/`Loop`) : le port d'entrée d'un `ForLoop` porte le nom de sa
+  propre variable de boucle (même convention qu'un paramètre de `Function` — le port *est* la
+  liaison locale) ; `WhileLoop` a un port `cond` (même convention que `If`) ; `Loop` (boucle
+  infinie) n'a ni l'un ni l'autre. Les ports d'état (Q3) sont détectés par un balayage superficiel
+  des instructions *directement* dans le corps de la boucle à la recherche d'`Assign` dont la
+  cible est déjà liée à l'extérieur — même simplification assumée que les captures (pas de
+  traversée dans un `if` imbriqué dans la boucle, § scope.rs). Un fil `Wire` peut désormais pointer
+  vers un port de **sortie** du bloc propriétaire (`{name}_out`), ce qui n'avait pas de précédent
+  explicite avant cette étape mais est cohérent avec le renderer du playground (qui résout déjà le
+  côté WEST/EAST d'une extrémité par lookup, pas par position, cf. notes étape 4).
+- Prérequis découvert en cours de route : les ports d'état dépendaient d'un mécanisme qui
+  n'existait pas encore — un `Assign` nu (`x <- expr;`, hors boucle aussi bien que dedans) ne
+  rebindait pas `x` dans le scope du builder (`build_nested_body`/`build_top_level_item` ne
+  traitaient que `Let`). Corrigé pour les deux (spec §4.1 « Assign hors boucle », qui n'avait pas
+  d'étape propre mais dont Loop dépend directement) : un `Assign` est désormais keyé anonymement
+  (le nom est déjà pris par la déclaration d'origine) mais rebind le nom, comme un `Let`.
+- `Match` : question ouverte du §13 tranchée — un sous-bloc par bras (`BlockKind::Scope`, pas de
+  nouveau `BlockKind` dédié), dont les noms liés par le motif (mêmes formes que
+  `match_expression::build_match_branch_context` côté vérificateur de types : `Tag`, `TypePattern`,
+  `Tuple`, `List`, variable catch-all) deviennent ses propres ports d'entrée (implicites, sans fil
+  tracé depuis la cible — le motif lui-même n'est pas rendu comme bloc).
+- `Module` : `module Name { ... }` n'était même pas nommable dans le graphe avant cette étape
+  (`top_level_name` ne connaissait que `Let`/`Alias`) — corrigé. Frontière de capture comme
+  `Function`, pré-passe à deux temps comme la racine du programme (§7.1 étape 2) pour que les
+  membres se référencent mutuellement. Seuls les membres `@pub` ont un port de sortie ; tous les
+  membres (publics et privés) restent des enfants du corps — la confidentialité tient uniquement à
+  l'absence de port, jamais à l'absence du bloc.
+- `RCode` (`RBlock`/`RFunction`/`ExternBlock`) : implémentation triviale, identique à l'ancien
+  fallback `Opaque` à l'étiquette de `kind` près — aucune entrée dérivée, le texte R n'est jamais
+  reparsé (frontière opaque, cohérent avec le spec §4).
+- Bug pré-existant découvert (hors scope, non corrigé) : une fonction `let`-liée **imbriquée** dans
+  le corps d'une autre fonction (ou d'un module) perd son nom de fichier dans son `HelpData`
+  (`span.file` vide) — reproductible sans aucun rapport avec ce chantier
+  (`let outer <- fn(a: int): int { let inner <- fn(b: int): int { b + 1 }; inner(a) };`).
+- Bug pré-existant découvert (hors scope, non corrigé) : le parseur de `while (cond) { ... }` ne
+  digère pas une condition qui est elle-même un opérateur binaire nu (`while (i < n) { ... }`
+  échoue avec « Unknown element `{` », alors que `while ((i < n)) { ... }` avec une parenthèse
+  surnuméraire fonctionne) ; de même `for i in expr { ... }` sans les parenthèses autour de
+  `i in expr` échoue entièrement (la forme correcte est `for (i in expr) { ... }`, jamais
+  documentée nulle part ni testée dans `typr-core` — aucun test de parsing n'existe pour
+  `while_loop`/`for_loop`/`loop_loop`). Contourné dans les tests de `typr-graph` avec la syntaxe
+  qui fonctionne ; à signaler si quelqu'un écrit un jour un `.typr` avec ces formes naturelles.
 
 **Étape 6 — Revue**
 - `diff(G_old, G_new)` apparié par `BlockKey` : blocs ajoutés, supprimés, modifiés (type,
