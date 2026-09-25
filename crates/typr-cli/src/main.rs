@@ -9,6 +9,7 @@ mod engine;
 mod format_r;
 mod fuzz;
 mod gen_types;
+mod graph;
 mod io;
 mod md_renderer;
 mod metaprogramming;

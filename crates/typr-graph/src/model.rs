@@ -4,7 +4,7 @@
 
 use crate::key::BlockKey;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const FORMAT: &str = "typr-block-graph";
 pub const FORMAT_VERSION: u32 = 1;
@@ -211,5 +211,33 @@ impl BlockGraph {
 
     pub fn insert(&mut self, block: Block) {
         self.blocks.insert(block.key.clone(), block);
+    }
+
+    /// The one-level view centered on `focus` (spec §11's "un niveau rendu à la fois", spec §12
+    /// étape 2's DOT export): `focus` itself plus its direct children, and every relation with at
+    /// least one endpoint in that set. `None` if `focus` isn't a block of this graph.
+    pub fn one_level(&self, focus: &BlockKey) -> Option<BlockGraph> {
+        let block = self.blocks.get(focus)?;
+        let mut out = BlockGraph::new(focus.clone());
+        out.blocks.insert(focus.clone(), block.clone());
+
+        let mut scope: BTreeSet<BlockKey> = BTreeSet::new();
+        scope.insert(focus.clone());
+        if let Some(body) = &block.body {
+            for child in &body.children {
+                if let Some(child_block) = self.blocks.get(child) {
+                    out.blocks.insert(child.clone(), child_block.clone());
+                    scope.insert(child.clone());
+                }
+            }
+        }
+
+        out.relations = self
+            .relations
+            .iter()
+            .filter(|r| scope.contains(&r.from) || scope.contains(&r.to))
+            .cloned()
+            .collect();
+        Some(out)
     }
 }

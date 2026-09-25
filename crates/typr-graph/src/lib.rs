@@ -5,8 +5,10 @@
 //! contract (spec §9). Pure logic, no I/O, WASM-safe.
 
 mod build;
+pub mod export;
 pub mod key;
 pub mod model;
+pub mod project;
 
 pub use key::{BlockKey, Namespace};
 pub use model::BlockGraph;

@@ -1931,6 +1931,7 @@ dependencies = [
  "tokio",
  "toml",
  "typr-core",
+ "typr-graph",
  "typr-lsp",
  "typr-mcp",
 ]

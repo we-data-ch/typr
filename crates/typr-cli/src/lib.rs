@@ -46,6 +46,7 @@ pub mod engine;
 pub mod format_r;
 pub mod fuzz;
 pub mod gen_types;
+pub mod graph;
 pub mod io;
 pub mod md_renderer;
 pub mod metaprogramming;

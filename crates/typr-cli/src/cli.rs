@@ -45,6 +45,25 @@ enum Commands {
         #[arg(value_name = "FILE")]
         file: Option<PathBuf>,
     },
+    /// Emit the block-graph view of a file (`visualization_graph_v2.md`): the program broken
+    /// into typed blocks with their ports, wires, and cross-block `Ref`/`HasType`/`TypePosition`
+    /// relations — for code review and understanding, not for building.
+    Graph {
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+        /// `json` (the full block map, spec §9) or `dot` (one level, rendered with Graphviz).
+        #[arg(long, value_name = "FORMAT", default_value = "json")]
+        format: String,
+        /// Restrict the view to one block and its direct children (a `BlockKey` like
+        /// `val:norm2`, printed by a previous `--format json` run). Required in practice for
+        /// `--format dot` on anything but the top level; defaults to the whole program there.
+        #[arg(long, value_name = "KEY")]
+        focus: Option<String>,
+        /// `deps` (top-level blocks + flattened `Ref` edges) or `types` (`TypeDecl`/`Interface`
+        /// blocks + type relations).
+        #[arg(long, value_name = "PROJECTION")]
+        projection: Option<String>,
+    },
     Build {
         #[arg(value_name = "FILE")]
         file: Option<PathBuf>,
@@ -433,6 +452,12 @@ pub fn start() {
             Some(path) => check_file(&path),
             _ => check_project(),
         },
+        Some(Commands::Graph {
+            file,
+            format,
+            focus,
+            projection,
+        }) => crate::graph::graph_file(&file, &format, focus.as_deref(), projection.as_deref()),
         Some(Commands::Build {
             file,
             test,

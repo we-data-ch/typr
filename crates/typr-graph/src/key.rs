@@ -37,10 +37,33 @@ impl BlockKey {
         &self.0
     }
 
+    /// Reconstructs a key from its printed form (`"val:norm2/a"`) — for reading one back (CLI
+    /// `--focus`, a key round-tripped through JSON), never for synthesizing a fresh one; use the
+    /// segment-by-segment constructors below for that.
+    pub fn from_raw(raw: impl Into<String>) -> Self {
+        BlockKey(raw.into())
+    }
+
     /// A top-level declaration's own key (`val:norm2`, `type:Point`) — top-level names live
     /// directly under their namespace, not nested under the synthetic `Program` block.
     pub fn top_level(namespace: Namespace, name: &str) -> Self {
         BlockKey(format!("{namespace}:{name}"))
+    }
+
+    /// Whether this key names a top-level declaration directly (no `/` segment) — used by the
+    /// "dependencies" projection (spec §8) to pick which blocks survive flattening.
+    pub fn is_top_level(&self) -> bool {
+        !self.0.contains('/')
+    }
+
+    /// The top-level declaration a nested key lives under (`val:norm2/a` → `val:norm2`); a
+    /// top-level key is its own ancestor. Used by the "dependencies" projection to collapse a
+    /// capture chain down to an edge between two top-level blocks (spec §8).
+    pub fn top_level_ancestor(&self) -> Self {
+        match self.0.split_once('/') {
+            Some((head, _)) => BlockKey(head.to_string()),
+            None => self.clone(),
+        }
     }
 
     /// The synthetic root block representing the whole program. `@` can't start a TypR
