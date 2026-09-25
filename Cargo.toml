@@ -7,6 +7,7 @@ members = [
     "crates/typr-lsp",
     "crates/typr-wasm",
     "crates/typr-mcp",
+    "crates/typr-graph",
 ]
 
 [package]
@@ -69,6 +70,7 @@ typr-cli = { path = "crates/typr-cli", version = "0.5" }
 typr-lsp = { path = "crates/typr-lsp", version = "0.5" }
 typr-wasm = { path = "crates/typr-wasm", version = "0.5" }
 typr-mcp = { path = "crates/typr-mcp", version = "0.5" }
+typr-graph = { path = "crates/typr-graph", version = "0.5" }
 
 [profile.release]
 opt-level = 3

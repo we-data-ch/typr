@@ -442,12 +442,29 @@ Notes d'implémentation (à connaître pour la suite) :
   fail seulement en parallèle) préexistent sur `develop` — vérifié en stashant ce travail ;
   aucun lien avec ce chantier.
 
-**Étape 1 — Crate `typr-graph`, modèle et builder**
+**Étape 1 — Crate `typr-graph`, modèle et builder** — fait (2026-09-25)
 - Blocs de l'étape 1 du §4, fils locaux, captures (§3.3), `Ref` avec `confidence`, `HasType`,
   `TypePosition{0}`.
 - Totalité : tout programme qui passe `typr check` produit un graphe sans panique (test sur tous
   les `cases/` et exemples de la doc) ; variants non couverts → `Opaque`.
 - Tests par instantané sur des programmes courts, dont l'exemple fil rouge.
+
+Notes d'implémentation (à connaître pour la suite) :
+- `Lang::Operator{lhs, rhs}` a ses champs inversés par rapport à l'ordre syntaxique dans tout
+  `typr-core` (`Op::combine`, `to_module_helper`, les bras `dollar_access`/`dot_pipe_access` de
+  `processes/type_checking/mod.rs`) : `rhs` porte l'opérande *gauche*, `lhs` l'opérande *droite*.
+  `typr-graph` compense une fois, à l'unique endroit où `Lang::Operator` est déstructuré
+  (`crates/typr-graph/src/build/blocks.rs`).
+- `typing()` sur `Lines`/`Scope` ne renvoie dans `TypeContext.lang` que la dernière instruction
+  réécrite (comme la valeur d'un bloc), pas le programme entier : le builder part donc du `Lang`
+  original (`parse_from_string`), pas de `result.type_context.lang`.
+- `BlockGraph.blocks` est un `BTreeMap` (pas `HashMap`) pour un JSON déterministe d'un run à
+  l'autre — nécessaire pour que les instantanés `insta` soient reproductibles.
+- Simplifications assumées, à revoir si un cas réel l'exige : une capture ne remonte que jusqu'à
+  la frontière la *plus proche* (pas de bubbling complet à travers des fonctions imbriquées,
+  §3.3) ; les fils (`wires`) ne sont enregistrés qu'entre un bloc composé et ses enfants directs,
+  pas au travers de plusieurs niveaux ; `Access` reçoit un corps (même vide) pour rester
+  cohérent avec les autres blocs à opérandes, contrairement à la case « Intérieur : — » du §4.
 
 **Étape 2 — CLI**
 - `typr graph <fichier> [--format json|dot] [--focus <key>] [--projection deps|types]`.

@@ -1958,6 +1958,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "typr-graph"
+version = "0.5.12"
+dependencies = [
+ "insta",
+ "serde",
+ "serde_json",
+ "typr-core",
+]
+
+[[package]]
 name = "typr-lsp"
 version = "0.5.12"
 dependencies = [
