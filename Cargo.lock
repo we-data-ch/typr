@@ -2015,6 +2015,7 @@ dependencies = [
  "serde-wasm-bindgen",
  "serde_json",
  "typr-core",
+ "typr-graph",
  "wasm-bindgen",
  "web-sys",
 ]

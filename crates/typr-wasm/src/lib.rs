@@ -18,6 +18,7 @@
 
 use typr_core::processes::transpiling::clear_generated_files;
 use typr_core::processes::type_checking::type_checker::TypeChecker;
+use typr_core::processes::type_checking::type_recorder::with_recording;
 use typr_core::{Compiler, InMemorySourceProvider};
 use wasm_bindgen::prelude::*;
 
@@ -260,6 +261,60 @@ pub fn compile_multiple(files_json: &str) -> Result<CompileResult, JsValue> {
         has_errors,
         errors,
     })
+}
+
+/// Build the block-graph view of TypR source code (`visualization_graph_v2.md`)
+///
+/// The graph is only built for source that type-checks: totality of the builder (no panic) is
+/// only guaranteed for a program that passes `typr check` (spec §12 étape 1). When there are
+/// type errors, `has_errors` is set and `graph_json` is left empty, matching `typeCheck()`.
+#[wasm_bindgen(js_name = semanticGraph)]
+pub fn semantic_graph(source: &str) -> Result<GraphResult, JsValue> {
+    let mut sources = InMemorySourceProvider::new();
+    sources.add_source("main.ty", source);
+
+    let compiler = Compiler::new_wasm(sources);
+    let ast = compiler
+        .parse("main.ty")
+        .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
+
+    let (result, table) = with_recording(|| compiler.type_check(&ast));
+
+    if result.has_errors() {
+        return Ok(GraphResult {
+            graph_json: String::new(),
+            has_errors: true,
+            errors: result
+                .get_errors()
+                .iter()
+                .map(|e| e.clone().display())
+                .collect::<Vec<_>>()
+                .join("\n\n"),
+        });
+    }
+
+    let graph = typr_graph::build(&ast, &result.type_context.context, &table);
+    let graph_json =
+        typr_graph::export::json::to_string_pretty(&graph).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    Ok(GraphResult {
+        graph_json,
+        has_errors: false,
+        errors: String::new(),
+    })
+}
+
+/// Result of building the block-graph view
+#[wasm_bindgen]
+pub struct GraphResult {
+    /// Pretty-printed JSON of the `BlockGraph` (spec §9), empty when `has_errors` is set
+    #[wasm_bindgen(getter_with_clone)]
+    pub graph_json: String,
+    /// Whether type errors prevented building the graph
+    pub has_errors: bool,
+    /// Formatted type error messages (empty string if no errors)
+    #[wasm_bindgen(getter_with_clone)]
+    pub errors: String,
 }
 
 /// Result of compilation
