@@ -3,13 +3,14 @@
 //! doesn't fit the common case — falls back to a plain `Opaque` block rather than panicking,
 //! which is the étape-1 acceptance criterion (spec §12).
 
-use super::{variable_name, Builder};
+use super::{span_of, top_level_name, variable_name, Builder};
 use crate::key::{BlockKey, Namespace};
 use crate::model::*;
 use std::collections::HashSet;
 use typr_core::components::context::Context;
 use typr_core::components::language::argument_value::ArgumentValue;
 use typr_core::components::language::operators::Op;
+use typr_core::components::language::var::Var;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::argument_type::ArgumentType;
 use typr_core::components::r#type::tchar::Tchar;
@@ -153,8 +154,24 @@ impl<'a> Builder<'a> {
                 )
             }
 
-            // Everything else (Module, Loop, Match, RCode, and any construct not yet modeled) —
-            // étape 5 territory, or genuinely unhandled: falls back to a total, panic-free Opaque.
+            Lang::Module { name: module_name, body, .. } => self.build_module(module_name, body, lang, key, name),
+
+            Lang::ForLoop { identifier, expression, body, .. } => self.build_for_loop(identifier, expression, body, lang, key, name),
+            Lang::WhileLoop { condition, body, .. } => self.build_while_loop(condition, body, lang, key, name),
+            Lang::Loop { body, .. } => self.build_bare_loop(body, lang, key, name),
+
+            Lang::Match { target, branches, .. } => self.build_match(target, branches, lang, key, name),
+
+            // Raw R (spec §4: "frontière opaque vers R") — the body text is never parsed as
+            // TypR, so unlike every other block above, no inputs/wires are derived from it.
+            Lang::RBlock { .. } | Lang::RFunction { .. } | Lang::ExternBlock { .. } => {
+                let ty = self.pretty_type(lang);
+                self.finish_block(lang, key, BlockKind::RCode, name, Vec::new(), vec![Port::explicit("out", ty)], Origin::User, None)
+            }
+
+            // Everything else — genuinely unhandled, or not worth a dedicated shape (`Assign`
+            // outside a body list, raw `Tag`/`Sequence`, …): falls back to a total, panic-free
+            // Opaque.
             other => {
                 let ty = self.pretty_type(other);
                 self.finish_block(other, key, BlockKind::Opaque, name, Vec::new(), vec![Port::explicit("out", ty)], Origin::User, None)
@@ -450,8 +467,353 @@ impl<'a> Builder<'a> {
         }
         self.finish_block(lang, key, kind, name, inputs, outputs, Origin::User, Some(Body { children, wires }))
     }
+
+    /// `module Name { ... }` (spec §4, §4.1, étape 5). A capture boundary like `Function`, whose
+    /// members (`Let`/`Alias`, `@pub` or not) are pre-bound before any of them is built so they
+    /// can forward/mutually reference each other — the same two-pass shape as the program root
+    /// itself (spec §7.1 step 2). Every member is a body child (`is_public` or not — "le secret
+    /// se voit de l'intérieur"), but only `@pub` members get an output port: that's the only
+    /// place privacy is actually enforced, since a private member simply isn't reachable from
+    /// outside the module.
+    fn build_module(&mut self, _module_name: &str, members: &[Lang], lang: &Lang, key: BlockKey, name: Option<String>) -> PortRef {
+        self.scope.push_boundary(key.clone());
+
+        for item in members {
+            if let Some((_, member_name)) = top_level_name(item) {
+                self.scope.bind(&member_name, PortRef { block: key.named(&member_name), port: "out".to_string() });
+            }
+        }
+
+        let mut children = Vec::new();
+        let mut outputs = Vec::new();
+        for (index, item) in members.iter().enumerate() {
+            match top_level_name(item) {
+                Some((_, member_name)) => {
+                    let member_key = key.named(&member_name);
+                    let expr = match item {
+                        Lang::Let { expression, .. } => expression.as_ref(),
+                        _ => item,
+                    };
+                    if is_public_member(item) {
+                        outputs.push(Port::explicit(member_name.clone(), self.pretty_type(expr)));
+                    }
+                    self.build_expr(expr, member_key.clone(), Some(&member_name));
+                    children.push(member_key);
+                }
+                None => {
+                    let member_key = key.anonymous(index);
+                    self.build_expr(item, member_key.clone(), None);
+                    children.push(member_key);
+                }
+            }
+        }
+
+        self.scope.pop();
+        let (captured, refs) = self.take_captures(&key);
+        self.graph.relations.extend(refs);
+        self.finish_block(lang, key, BlockKind::Module, name, captured, outputs, Origin::User, Some(Body { children, wires: Vec::new() }))
+    }
+
+    /// `for i in xs { ... }`: the iterable feeds a port named after the loop variable itself
+    /// (mirroring a `Function` parameter — the loop variable's port *is* its binding inside the
+    /// body), plus the state-port pair of every outer variable reassigned in the loop (spec
+    /// §4.1 Q3, `build_loop_state_and_body`).
+    fn build_for_loop(&mut self, identifier: &Var, expression: &Lang, body: &Lang, lang: &Lang, key: BlockKey, name: Option<String>) -> PortRef {
+        let var_name = identifier.get_name();
+        let mut children = Vec::new();
+        let mut wires = Vec::new();
+        let mut inputs = vec![Port::explicit(&var_name, self.pretty_type(expression))];
+        self.build_operand(expression, key.role(&var_name), &key, &var_name, &mut children, &mut wires);
+
+        let outputs = self.build_loop_state_and_body(body, &key, Some((&var_name, &var_name)), &mut inputs, &mut wires, &mut children);
+        self.finish_block(lang, key, BlockKind::Loop, name, inputs, outputs, Origin::User, Some(Body { children, wires }))
+    }
+
+    /// `while (cond) { ... }`: the condition feeds a `cond` input port (same convention as
+    /// `If`), re-read every iteration — no loop-variable binding, unlike `ForLoop`.
+    fn build_while_loop(&mut self, condition: &Lang, body: &Lang, lang: &Lang, key: BlockKey, name: Option<String>) -> PortRef {
+        let mut children = Vec::new();
+        let mut wires = Vec::new();
+        let mut inputs = vec![Port::explicit("cond", self.pretty_type(condition))];
+        self.build_operand(condition, key.role("cond"), &key, "cond", &mut children, &mut wires);
+
+        let outputs = self.build_loop_state_and_body(body, &key, None, &mut inputs, &mut wires, &mut children);
+        self.finish_block(lang, key, BlockKind::Loop, name, inputs, outputs, Origin::User, Some(Body { children, wires }))
+    }
+
+    /// `loop { ... }`: no condition or iterable at all, just the state-port pairs (the loop is
+    /// only ever left via `break`, not modeled as a port here — spec §7 doesn't ask for it).
+    fn build_bare_loop(&mut self, body: &Lang, lang: &Lang, key: BlockKey, name: Option<String>) -> PortRef {
+        let mut children = Vec::new();
+        let mut wires = Vec::new();
+        let mut inputs = Vec::new();
+        let outputs = self.build_loop_state_and_body(body, &key, None, &mut inputs, &mut wires, &mut children);
+        self.finish_block(lang, key, BlockKind::Loop, name, inputs, outputs, Origin::User, Some(Body { children, wires }))
+    }
+
+    /// Shared tail of the three loop shapes (spec §4.1 Q3): every outer variable reassigned by a
+    /// bare `x <- expr;` directly among the loop's own top-level statements becomes a paired
+    /// `{name}_in`/`{name}_out` port — entering, it's what the body reads; leaving, it's
+    /// whatever the last reassignment inside the loop wrote (or unchanged, if the loop body
+    /// never ran — not distinguished here, same "no version label" stance as a plain
+    /// reassignment, spec §4.1). `lead_binding` is `ForLoop`'s extra local name (the loop
+    /// variable), bound in the same fresh frame as the state-entering ports before the body is
+    /// walked.
+    ///
+    /// Simplification, in the same spirit as the capture-boundary one (`scope.rs`): only a
+    /// direct `Assign` among the loop's immediate statements is seen, not one nested inside an
+    /// `if` inside the loop — revisit if a real case needs it.
+    fn build_loop_state_and_body(
+        &mut self,
+        body: &Lang,
+        key: &BlockKey,
+        lead_binding: Option<(&str, &str)>,
+        inputs: &mut Vec<Port>,
+        wires: &mut Vec<Wire>,
+        children: &mut Vec<BlockKey>,
+    ) -> Vec<Port> {
+        let stmts = body_statements(body);
+        let mut state_names = Vec::new();
+        for stmt in &stmts {
+            if let Lang::Assign { identifier, .. } = stmt {
+                if let Some(n) = variable_name(identifier) {
+                    if self.scope.resolve(&n).is_some() && !state_names.contains(&n) {
+                        state_names.push(n);
+                    }
+                }
+            }
+        }
+
+        for n in &state_names {
+            let in_port = format!("{n}_in");
+            let src = self.resolve_and_wire(n, None);
+            inputs.push(Port::implicit(in_port.clone(), None));
+            wires.push(Wire { from: src, to: PortRef { block: key.clone(), port: in_port } });
+        }
+
+        self.scope.push_plain();
+        if let Some((bind_name, port)) = lead_binding {
+            self.scope.bind(bind_name, PortRef { block: key.clone(), port: port.to_string() });
+        }
+        for n in &state_names {
+            self.scope.bind(n, PortRef { block: key.clone(), port: format!("{n}_in") });
+        }
+        children.extend(self.build_nested_body(&stmts, key));
+
+        let mut outputs = Vec::with_capacity(state_names.len());
+        for n in &state_names {
+            let (final_port, _) = self.scope.resolve(n).expect("a name just bound in this frame resolves in it");
+            outputs.push(Port::implicit(format!("{n}_out"), None));
+            wires.push(Wire { from: final_port, to: PortRef { block: key.clone(), port: format!("{n}_out") } });
+        }
+        self.scope.pop();
+        outputs
+    }
+
+    /// `match target { pattern => body, ... }` (spec §4, §13). Each branch is its own explorable
+    /// sub-block: whatever names its pattern binds become that sub-block's own input ports (the
+    /// open question in §13 — "un sous-bloc par bras, dont les liaisons du motif sont les
+    /// entrées" — resolved that way), with the sub-block's body wired up exactly like a
+    /// function's or scope's. The pattern itself isn't rendered as a block, only the names it
+    /// introduces.
+    fn build_match(&mut self, target: &Lang, branches: &[(Lang, Box<Lang>)], lang: &Lang, key: BlockKey, name: Option<String>) -> PortRef {
+        let mut children = Vec::new();
+        let mut wires = Vec::new();
+        self.build_operand(target, key.role("target"), &key, "target", &mut children, &mut wires);
+        let inputs = vec![Port::explicit("target", self.pretty_type(target))];
+
+        for (index, (pattern, body)) in branches.iter().enumerate() {
+            let branch_key = key.role(&format!("branch{index}"));
+            let bindings = pattern_bindings(pattern);
+
+            self.scope.push_plain();
+            let mut branch_inputs = Vec::with_capacity(bindings.len());
+            for n in &bindings {
+                self.scope.bind(n, PortRef { block: branch_key.clone(), port: n.clone() });
+                branch_inputs.push(Port::implicit(n.clone(), None));
+            }
+            let stmts = body_statements(body);
+            let branch_children = self.build_nested_body(&stmts, &branch_key);
+            self.scope.pop();
+
+            let branch_out_ty = self.pretty_type(body);
+            self.graph.insert(Block {
+                key: branch_key.clone(),
+                kind: BlockKind::Scope,
+                name: None,
+                span: Some(span_of(body)),
+                r#type: branch_out_ty.clone(),
+                inputs: branch_inputs,
+                outputs: vec![Port::explicit("out", branch_out_ty)],
+                origin: Origin::User,
+                body: Some(Body { children: branch_children, wires: Vec::new() }),
+            });
+            children.push(branch_key);
+        }
+
+        let out_ty = self.pretty_type(lang);
+        self.finish_block(lang, key, BlockKind::Match, name, inputs, vec![Port::explicit("out", out_ty)], Origin::User, Some(Body { children, wires }))
+    }
+}
+
+/// Whether a module member's own `@pub` flag is set (spec §4.1: "un module n'expose que ses
+/// membres `@pub`").
+fn is_public_member(item: &Lang) -> bool {
+    match item {
+        Lang::Let { is_public, .. } => *is_public,
+        Lang::Alias { is_public, .. } => *is_public,
+        _ => false,
+    }
+}
+
+/// The names a match-branch pattern binds, mirroring `match_expression::build_match_branch_context`
+/// (the type checker's own pattern-binding pass) but collecting names only — no types, no
+/// errors: this pass runs after type-checking already accepted the program.
+fn pattern_bindings(pattern: &Lang) -> Vec<String> {
+    match pattern {
+        Lang::Tag { value: inner, .. } => match inner.as_ref() {
+            Lang::Variable { name, .. } if name != "_" => vec![name.clone()],
+            _ => Vec::new(),
+        },
+        Lang::TypePattern { variable_name: name, .. } => vec![name.clone()],
+        Lang::Tuple { value: elements, .. } => elements
+            .iter()
+            .filter_map(|e| match e {
+                Lang::Variable { name, .. } if name != "_" => Some(name.clone()),
+                _ => None,
+            })
+            .collect(),
+        Lang::List { value: fields, .. } => fields
+            .iter()
+            .filter_map(|f| match f.get_value() {
+                Lang::Variable { name, .. } if name != "_" => Some(name),
+                _ => None,
+            })
+            .collect(),
+        Lang::Variable { name, .. } if name != "_" => vec![name.clone()],
+        _ => Vec::new(),
+    }
 }
 
 fn body_statements_from_vec(body: &[Lang]) -> Vec<&Lang> {
     body.iter().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::key::Namespace;
+    use crate::model::{BlockGraph, BlockKind};
+    use crate::BlockKey;
+    use typr_core::components::context::Context;
+    use typr_core::processes::parsing::parse_from_string;
+    use typr_core::processes::type_checking::type_recorder::with_recording;
+    use typr_core::processes::type_checking::typing_with_errors;
+
+    fn build_graph(source: &str) -> BlockGraph {
+        let lang = parse_from_string(source, "blocks_test");
+        let (result, table) = with_recording(|| typing_with_errors(&Context::default(), &lang));
+        assert!(!result.has_errors(), "{:?}", result.display_errors());
+        crate::build(&lang, &result.type_context.context, &table)
+    }
+
+    // `while`'s own condition parser (`single_element`) can't take a bare comparison — this is a
+    // pre-existing `typr-core` parser quirk, unrelated to this crate, that double parens work
+    // around; not this crate's bug to fix.
+    #[test]
+    fn while_loop_gets_state_in_out_ports_for_reassigned_outer_variables() {
+        let graph = build_graph(
+            r#"
+let total <- fn(seed: int): int {
+    let acc <- seed;
+    let i <- 0;
+    while ((i < 3)) {
+        acc <- acc + i;
+        i <- i + 1;
+    };
+    acc
+};
+"#,
+        );
+        let loop_key = BlockKey::top_level(Namespace::Val, "total").role("#2");
+        let block = graph.blocks.get(&loop_key).expect("the while loop is built as a top-level function's 3rd body statement");
+        assert_eq!(block.kind, BlockKind::Loop);
+        let input_names: Vec<_> = block.inputs.iter().map(|p| p.name.as_str()).collect();
+        assert!(input_names.contains(&"acc_in"), "{input_names:?}");
+        assert!(input_names.contains(&"i_in"), "{input_names:?}");
+        let output_names: Vec<_> = block.outputs.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(output_names, vec!["acc_out", "i_out"]);
+    }
+
+    #[test]
+    fn for_loop_binds_its_variable_to_a_port_named_after_it() {
+        let graph = build_graph(
+            r#"
+let total <- fn(seed: int): int {
+    let acc <- seed;
+    for (i in [1, 2, 3]) {
+        acc <- acc + i;
+    };
+    acc
+};
+"#,
+        );
+        let loop_key = BlockKey::top_level(Namespace::Val, "total").role("#1");
+        let block = graph.blocks.get(&loop_key).expect("the for loop is built as a top-level function's 2nd body statement");
+        assert_eq!(block.kind, BlockKind::Loop);
+        let input_names: Vec<_> = block.inputs.iter().map(|p| p.name.as_str()).collect();
+        assert!(input_names.contains(&"i"), "{input_names:?}");
+        assert!(input_names.contains(&"acc_in"), "{input_names:?}");
+        assert_eq!(block.outputs.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["acc_out"]);
+    }
+
+    #[test]
+    fn match_branch_gets_its_pattern_bindings_as_its_own_input_ports() {
+        let graph = build_graph(
+            r#"
+type Shape <- .Circle(int) | .Square(int);
+let area <- fn(s: Shape): int {
+    match s {
+        .Circle(r) => r * r,
+        .Square(side) => side * side,
+    }
+};
+"#,
+        );
+        let match_key = BlockKey::top_level(Namespace::Val, "area").role("#0");
+        let block = graph.blocks.get(&match_key).expect("the match is the function's sole body statement");
+        assert_eq!(block.kind, BlockKind::Match);
+        assert_eq!(block.inputs.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["target"]);
+
+        let branch0 = graph.blocks.get(&match_key.role("branch0")).expect("first branch sub-block");
+        assert_eq!(branch0.inputs.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["r"]);
+        let branch1 = graph.blocks.get(&match_key.role("branch1")).expect("second branch sub-block");
+        assert_eq!(branch1.inputs.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["side"]);
+    }
+
+    #[test]
+    fn module_exposes_only_pub_members_as_outputs_but_keeps_all_of_them_in_its_body() {
+        let graph = build_graph(
+            r#"
+module Reporter {
+    let helper <- fn(x: int): int { x + 1 };
+    @pub let describe <- fn(x: int): int { helper(x) };
+};
+"#,
+        );
+        let module_key = BlockKey::top_level(Namespace::Val, "Reporter");
+        let block = graph.blocks.get(&module_key).expect("the module is built at the top level, named after itself");
+        assert_eq!(block.kind, BlockKind::Module);
+        assert_eq!(block.outputs.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["describe"]);
+        assert!(block.body.as_ref().unwrap().children.contains(&module_key.named("helper")));
+        assert!(block.body.as_ref().unwrap().children.contains(&module_key.named("describe")));
+    }
+
+    #[test]
+    fn r_block_is_a_total_opaque_boundary_with_no_inputs() {
+        let graph = build_graph("let total <- R { sum(c(1, 2, 3)) };\n");
+        let block = graph.blocks.get(&BlockKey::top_level(Namespace::Val, "total")).expect("top-level R block");
+        assert_eq!(block.kind, BlockKind::RCode);
+        assert!(block.inputs.is_empty());
+        assert!(block.body.is_none());
+    }
 }

@@ -16,9 +16,7 @@ pub struct Span {
     pub end: usize,
 }
 
-/// Every block kind of the catalogue (spec §4). Variants not yet built at this step (`Loop`,
-/// `Match`, `Module`, `RCode` — étape 5) exist so the JSON contract is stable ahead of time, but
-/// no constructor emits them yet: the `Lang` shapes that would need them fall back to `Opaque`.
+/// Every block kind of the catalogue (spec §4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockKind {
     Program,

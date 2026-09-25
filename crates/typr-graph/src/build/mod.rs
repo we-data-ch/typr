@@ -73,6 +73,10 @@ fn top_level_name(item: &Lang) -> Option<(Namespace, String)> {
     match item {
         Lang::Let { variable, .. } => variable_name(variable).map(|n| (Namespace::Val, n)),
         Lang::Alias { identifier, .. } => variable_name(identifier).map(|n| (Namespace::Type, n)),
+        // `module Name { ... }` (spec §4, étape 5) parses straight to `Lang::Module`, never
+        // wrapped in a `Let` — it names itself directly, in the value namespace (it's accessed
+        // like a record, via `$`/`use`).
+        Lang::Module { name, .. } => Some((Namespace::Val, name.clone())),
         _ => None,
     }
 }
@@ -126,6 +130,19 @@ impl<'a> Builder<'a> {
     }
 
     fn build_top_level_item(&mut self, item: &Lang, index: usize, children: &mut Vec<BlockKey>) {
+        // `x <- expr;` outside a loop (spec §4.1's "Assign hors boucle"): not a fresh
+        // declaration, so it gets an anonymous positional key like any unnamed statement, but
+        // rebinds `x` going forward — later top-level reads of `x` wire from this block, not
+        // from whatever defined it before.
+        if let Lang::Assign { identifier, expression, .. } = item {
+            if let Some(reassigned) = variable_name(identifier) {
+                let key = BlockKey::top_level(Namespace::Val, &format!("#{index}"));
+                let port = self.build_expr(expression, key.clone(), Some(&reassigned));
+                self.scope.bind(&reassigned, port);
+                children.push(key);
+                return;
+            }
+        }
         match top_level_name(item) {
             Some((namespace, name)) => {
                 let key = BlockKey::top_level(namespace, &name);
@@ -166,6 +183,23 @@ impl<'a> Builder<'a> {
                         children.push(key);
                     }
                 },
+                // `x <- expr;` (spec §4.1's "Assign hors boucle", also the mechanism behind a
+                // `Loop`'s state ports, étape 5): rebinds `x` going forward, same as a `Let`,
+                // but keyed anonymously since the name is already claimed by its original
+                // declaration.
+                Lang::Assign { identifier, expression, .. } => {
+                    let key = owner.anonymous(index);
+                    match variable_name(identifier) {
+                        Some(reassigned) => {
+                            let port = self.build_expr(expression, key.clone(), Some(&reassigned));
+                            self.scope.bind(&reassigned, port);
+                        }
+                        None => {
+                            self.build_expr(expression, key.clone(), None);
+                        }
+                    }
+                    children.push(key);
+                }
                 other => {
                     let key = owner.anonymous(index);
                     self.build_expr(other, key.clone(), None);
