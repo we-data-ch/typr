@@ -577,10 +577,41 @@ Notes d'implémentation (blocs restants) :
   `while_loop`/`for_loop`/`loop_loop`). Contourné dans les tests de `typr-graph` avec la syntaxe
   qui fonctionne ; à signaler si quelqu'un écrit un jour un `.typr` avec ces formes naturelles.
 
-**Étape 6 — Revue**
+**Étape 6 — Revue** — fait (2026-09-26)
 - `diff(G_old, G_new)` apparié par `BlockKey` : blocs ajoutés, supprimés, modifiés (type,
   interface, captures) ; `typr graph diff <rev1> <rev2>` ; vue diff dans le playground (deux
   extraits de code).
+
+Notes d'implémentation :
+- `crates/typr-graph/src/diff.rs` : portée délibérément au niveau bloc, alignée sur la lettre du
+  spec (« type, interface, captures », pas « chaque relation ») — le diff des fils et des `Ref`
+  reste hors périmètre. Les captures comparées sont les ports d'entrée *implicites* seulement
+  (`Port.implicit`) ; un paramètre explicite renommé n'est pas un changement de capture. L'
+  « interface » d'un bloc, c'est ses cibles `Satisfies`/`DeclaredAs` (le contrat déclaré), pas sa
+  liste de relations complète. Un bloc dont seul le `body` change (nouvelle instruction dans un
+  `Scope`) n'est **pas** rapporté modifié à sa propre clé : ça remonte comme des blocs enfants
+  ajoutés/supprimés à la place — cohérent avec l'identité par `BlockKey` (§6), qui appairent déjà
+  ces enfants indépendamment.
+- CLI : `typr graph diff <old> <new> [--format text|json]`, sous-commande de `typr graph`
+  (`GraphCommands::Diff` dans `crates/typr-cli/src/cli.rs`) — `typr graph <file>` reste la forme
+  historique (pas de sous-commande). Chaque fichier est construit indépendamment par le même
+  pipeline que `typr graph`, sans lien de parenté git requis.
+- WASM (`crates/typr-wasm/src/lib.rs::semantic_graph_diff`, export `semanticGraphDiff`) : les
+  deux côtés sont type-checkés même si un seul échoue, pour que l'appelant voie toutes les
+  erreurs (préfixées `(old)`/`(new)`) en un coup, pas juste la première. `old_graph_json` et
+  `new_graph_json` accompagnent `diff_json` — le diff ne porte que des clés, pas les blocs
+  complets, et le playground a besoin des deux graphes : le nouveau pour le rendu (mise en page),
+  l'ancien pour afficher ce qu'était un bloc supprimé (kind/name), absent du nouveau.
+- Playground (`typr-playground.github.io`, branche `graph-fence-block`) : nouvel onglet « Diff »,
+  état local (`baseline`) délibérément **hors** du contrat d'URL partagé (`useGraphNav`) — une
+  référence est un fichier source entier, pas une clé de bloc, donc ça n'a pas sa place dans un
+  lien partageable comme `view`/`focus`. Première visite de l'onglet : le code courant devient la
+  référence (`baseline ?? code`) ; seul un clic explicite sur « Marquer le code actuel comme
+  référence » la change ensuite — rouvrir l'onglet ne déplace jamais silencieusement la
+  référence. Rendu : le diff est superposé à la mise en page du **nouveau** graphe
+  (`GraphView` reçoit `diff`, colore les nœuds ajoutés/modifiés) ; les blocs supprimés n'ont pas
+  de nœud où s'accrocher (absents du nouveau graphe) donc listés à part dans `DiffSummary`. Le
+  panneau de détails affiche type/captures/interface avant/après pour un bloc modifié sélectionné.
 
 **Étape 7 — Ensuite**
 - Navigation clavier, dépliage sur place, `TypePosition` pour les autres positions et le retour,
