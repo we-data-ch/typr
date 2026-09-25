@@ -416,11 +416,31 @@ directement dans un bloc.
 
 Chaque étape est livrable seule et a des critères d'acceptation vérifiables.
 
-**Étape 0 — Prérequis dans `typr-core`**
+**Étape 0 — Prérequis dans `typr-core`** — fait (2026-09-25)
 - `HelpData.end` rempli par le parseur. `cargo test --workspace` et `typr case run` restent verts.
 - `type_recorder` : `with_recording` renvoie une table non vide sur l'exemple fil rouge (§14) ;
   les conflits de réécriture sont journalisés et analysés.
 - Aucune régression de temps mesurable sur `typr check` quand l'enregistreur est désactivé.
+
+Notes d'implémentation (à connaître pour la suite) :
+- Chaque fonction de parsing candidate (`fn foo(s: Span) -> IResult<Span, Lang>` ou
+  `IResult<Span, Vec<Lang>>` dans `elements.rs`/`mod.rs`, ~97 sites) est scindée en `foo` (fine
+  couche : appelle `foo_impl`, met `end` via `Lang::set_help_data_end`) + `foo_impl` (corps
+  original inchangé). Un nouveau parseur suivra ce même patron.
+- `Lang::set_help_data_end` (dans `components/language/mod.rs`) fait pendant à `get_help_data` :
+  toute nouvelle variante de `Lang` doit être ajoutée aux deux matches.
+- `type_recorder.rs` traite `Type::Failed` **et** `Type::UnknownFunction` comme des
+  placeholders (ni conflit, ni écrasement d'une valeur ferme) — découvert en step 0 sur
+  l'exemple fil rouge : le corps `Lines` d'une fonction est d'abord typé `UnknownFunction`
+  pendant la résolution de sa propre signature, avant d'être retypé pour de bon.
+- Les `.bin` de la stdlib (`crates/typr-core/configs/bin/*.bin`) sont sérialisés en bincode
+  (positionnel, pas de champ nommé) : toute évolution de `HelpData`/`Type`/`Lang` exige de les
+  régénérer avec `typr std` puis un rebuild (`include_bytes!` les fige à la compilation),
+  sinon `VarType::load_r()...unwrap()` panique avec une erreur de désérialisation.
+- 4 régressions `typr case run` (`0004/0005/0006/0008-was-declared-as-a-public-function`) et un
+  test flaky (`registry_validate::tests::formals_diff_flags_a_missing_export_and_an_arity_mismatch`,
+  fail seulement en parallèle) préexistent sur `develop` — vérifié en stashant ce travail ;
+  aucun lien avec ce chantier.
 
 **Étape 1 — Crate `typr-graph`, modèle et builder**
 - Blocs de l'étape 1 du §4, fils locaux, captures (§3.3), `Ref` avec `confidence`, `HasType`,

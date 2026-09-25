@@ -153,6 +153,12 @@ fn pattern_var(s: Span) -> IResult<Span, (Vec<Lang>, Option<String>)> {
 }
 
 fn single_parse(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = single_parse_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn single_parse_impl(s: Span) -> IResult<Span, Lang> {
     let res = (parse_elements, opt(terminated(tag(";"), multispace0))).parse(s);
     match res {
         Ok((s, (exp, Some(_)))) => Ok((s, exp)),
@@ -169,6 +175,13 @@ fn equality_operator(s: Span) -> IResult<Span, Span> {
 }
 
 fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = base_let_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn base_let_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("let"), multispace0),
         pattern_var,
@@ -289,6 +302,13 @@ fn base_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = let_tuple_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn let_tuple_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("let"), multispace0),
         tuple_exp,
@@ -377,6 +397,13 @@ fn let_tuple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = let_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn let_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         opt(terminated(
             alt((tag("@export"), tag("@pub"), tag("@testable"))),
@@ -431,6 +458,13 @@ fn let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 ///   `typeconstructor Tibble[N] record;`
 ///   `typeconstructor Matrix[N, M, T] recursive;`
 fn typeconstructor_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = typeconstructor_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn typeconstructor_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("typeconstructor"), multispace0),
         pascal_case_no_space,
@@ -473,6 +507,13 @@ fn typeconstructor_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 /// lost from the AST, but flags it as a fatal `SingleLetterTypeName` error: single-letter
 /// alias names are forbidden outright (not legalized) to avoid colliding with generics.
 fn single_letter_type_name_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = single_letter_type_name_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn single_letter_type_name_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         opt(terminated(alt((tag("@export"), tag("@pub"))), multispace0)),
         terminated(alt((tag("type"), tag("opaque"))), multispace0),
@@ -514,6 +555,12 @@ fn single_letter_type_name_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn base_type_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = base_type_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn base_type_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("type"), multispace0),
         type_alias,
@@ -550,6 +597,13 @@ fn base_type_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = type_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn type_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         opt(terminated(alt((tag("@export"), tag("@pub"))), multispace0)),
         base_type_exp,
@@ -618,6 +672,13 @@ fn type_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 /// Detects `type <lowercase_var> <- <expr>` which should be `let` instead.
 /// Parses the full expression and returns a `Lang::Let` with a push_parse_error.
 fn type_instead_of_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = type_instead_of_let_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn type_instead_of_let_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         opt(terminated(tag("@pub"), multispace0)),
         terminated(tag("type"), multispace0),
@@ -656,6 +717,12 @@ fn type_instead_of_let_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = base_opaque_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn base_opaque_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("opaque"), multispace0),
         type_alias,
@@ -688,6 +755,13 @@ fn base_opaque_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = opaque_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn opaque_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         opt(terminated(alt((tag("@export"), tag("@pub"))), multispace0)),
         base_opaque_exp,
@@ -759,6 +833,13 @@ fn opaque_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = module_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn module_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("module"), multispace0),
         terminated(variable_recognizer, multispace0),
@@ -784,6 +865,13 @@ pub fn module(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn import_module(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = import_module_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn import_module_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("import"), multispace0),
         terminated(variable_recognizer, multispace0),
@@ -828,6 +916,13 @@ fn import_module(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn import_from_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = import_from_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn import_from_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("@importFrom"), multispace1),
         terminated(
@@ -855,6 +950,13 @@ fn import_from_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = assign_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn assign_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         variable,
         alt((terminated(tag("="), multispace0), terminated(tag("<-"), multispace0))),
@@ -885,6 +987,13 @@ fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn comment(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = comment_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn comment_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("#"), not_line_ending, opt(line_ending), multispace0).parse(s);
     match res {
         Ok((s, (_hashtag, txt, _, _))) => Ok((
@@ -909,6 +1018,13 @@ fn comment(s: Span) -> IResult<Span, Vec<Lang>> {
 /// from the AST instead — this dedicated parser keeps the common typo both
 /// harmless (no code loss) and visible (a located warning).
 fn wrong_comment(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = wrong_comment_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn wrong_comment_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("//"), not_line_ending, opt(line_ending), multispace0).parse(s);
     match res {
         Ok((s, (slashes, txt, _, _))) => {
@@ -926,6 +1042,13 @@ fn wrong_comment(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 pub fn simple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = simple_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn simple_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (parse_elements, opt(terminated(tag(";"), multispace0))).parse(s);
     match res {
         Ok((s, (lang, Some(_)))) => Ok((s, vec![lang])),
@@ -938,6 +1061,13 @@ pub fn simple_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn mod_imp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = mod_imp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn mod_imp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("mod"), multispace0),
         terminated(variable_exp, multispace0),
@@ -957,6 +1087,13 @@ fn mod_imp(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn import_var(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = import_var_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn import_var_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("use"), multispace0),
         variable,
@@ -976,6 +1113,13 @@ fn import_var(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn import_type(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = import_type_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn import_type_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("use"), multispace0),
         type_alias,
@@ -996,6 +1140,13 @@ fn import_type(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn tests(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = tests_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn tests_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("Test"), delimited(tag("["), base_parse, tag("]"))).parse(s);
     match res {
         Ok((s, (_t, body))) => Ok((
@@ -1010,6 +1161,13 @@ fn tests(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn library(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = library_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn library_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (tag("library("), variable_exp, tag(")"), opt(tag(";")), multispace0).parse(s);
 
     match res {
@@ -1072,6 +1230,13 @@ fn use_selector_exp(s: Span) -> IResult<Span, crate::components::language::use_l
 }
 
 fn use_module_directive(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = use_module_directive_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn use_module_directive_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     use crate::components::language::use_lang::UseSelector;
 
     // Parse: use FirstSeg :: ...
@@ -1130,6 +1295,13 @@ fn use_module_directive(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn use_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = use_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn use_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         tag("use("),
         chars,
@@ -1160,11 +1332,25 @@ fn custom_operators(s: Span) -> IResult<Span, (String, HelpData)> {
 }
 
 fn return_stmt(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = return_stmt_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn return_stmt_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let (s, e) = return_exp(s)?;
     Ok((s, vec![e]))
 }
 
 fn stmt_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = stmt_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn stmt_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (parse_elements, terminated(tag(";"), multispace0)).parse(s);
     match res {
         Ok((s, (lang, _))) => Ok((s, vec![lang])),
@@ -1185,6 +1371,13 @@ fn head_lang(lang: &Lang) -> Option<Lang> {
 }
 
 fn implicit_mutate(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = implicit_mutate_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn implicit_mutate_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (parse_elements, terminated(tag("!;"), multispace0)).parse(s);
     match res {
         Ok((s, (expr, excl))) => match head_lang(&expr) {
@@ -1206,6 +1399,13 @@ fn implicit_mutate(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = signature_variable_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn signature_variable_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         tag("@"),
         alt((variable_recognizer, custom_operators)),
@@ -1233,6 +1433,13 @@ fn signature_variable(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = signature_opaque_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn signature_opaque_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         tag("@"),
         type_alias,
@@ -1261,6 +1468,13 @@ fn signature_opaque(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn signature_extern(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = signature_extern_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn signature_extern_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         tag("@extern"),
         multispace1,
@@ -1294,10 +1508,24 @@ fn signature_extern(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 pub fn signature(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = signature_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn signature_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     alt((signature_extern, signature_opaque, signature_variable)).parse(s)
 }
 
 fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = for_loop_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn for_loop_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("for"), multispace0),
         terminated(tag("("), multispace0),
@@ -1324,6 +1552,13 @@ fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn while_loop(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = while_loop_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn while_loop_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("while"), multispace0),
         terminated(tag("("), multispace0),
@@ -1347,6 +1582,13 @@ fn while_loop(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn loop_loop(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = loop_loop_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn loop_loop_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         terminated(tag("loop"), multispace0),
         scope,
@@ -1366,6 +1608,13 @@ fn loop_loop(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = test_block_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn test_block_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (terminated(tag("Test"), multispace0), scope).parse(s);
     //parse_block).parse(s);
 
@@ -1383,6 +1632,13 @@ fn test_block(s: Span) -> IResult<Span, Vec<Lang>> {
 
 // main
 pub fn base_parse(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = base_parse_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn base_parse_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
         opt(multispace0),
         many0(alt((

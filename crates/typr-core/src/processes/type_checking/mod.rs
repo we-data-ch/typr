@@ -17,6 +17,7 @@ pub mod type_arithmetic;
 pub mod type_checker;
 pub mod type_comparison;
 pub mod type_context;
+pub mod type_recorder;
 pub mod unification;
 pub mod unification_map;
 pub mod vectorizability;
@@ -1134,6 +1135,12 @@ pub fn validate_forced_dispatch(context: &Context, var: &Var) -> Option<TypRErro
 
 //main
 pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
+    let result = typing_impl(context, expr);
+    type_recorder::record(expr, &result.value);
+    result
+}
+
+fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
     match expr {
         Lang::Number { value: n, help_data: h } => (
             Type::Number(crate::components::r#type::tnumber::Tnum::Val(*n), h.clone()),

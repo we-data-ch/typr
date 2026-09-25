@@ -1035,6 +1035,78 @@ impl Lang {
         .clone()
     }
 
+    /// Sets the end offset (§7.3 of `visualization_graph_v2.md`) of this node's `HelpData` in
+    /// place. Called by the parser's per-production wrappers (the `_impl`/public-name split in
+    /// `processes/parsing`) once a node's own production has fully consumed its input.
+    pub fn set_help_data_end(&mut self, end: usize) {
+        let h: &mut HelpData = match self {
+            Lang::Number { help_data: h, .. } => h,
+            Lang::Integer { help_data: h, .. } => h,
+            Lang::Char { help_data: h, .. } => h,
+            Lang::Bool { help_data: h, .. } => h,
+            Lang::Union(_, _, h) => h,
+            Lang::Scope { help_data: h, .. } => h,
+            Lang::Function { help_data: h, .. } => h,
+            Lang::Module { help_data: h, .. } => h,
+            Lang::Variable { help_data: h, .. } => h,
+            Lang::FunctionApp { help_data: h, .. } => h,
+            Lang::VecFunctionApp { help_data: h, .. } => h,
+            Lang::ArrayIndexing { help_data: h, .. } => h,
+            Lang::Let { help_data: h, .. } => h,
+            Lang::Array { help_data: h, .. } => h,
+            Lang::List { help_data: h, .. } => h,
+            Lang::DataFrame { help_data: h, .. } => h,
+            Lang::Alias { help_data: h, .. } => h,
+            Lang::Tag { help_data: h, .. } => h,
+            Lang::If { help_data: h, .. } => h,
+            Lang::Match { help_data: h, .. } => h,
+            Lang::Tuple { help_data: h, .. } => h,
+            Lang::Lines { help_data: h, .. } => h,
+            Lang::Assign { help_data: h, .. } => h,
+            Lang::Comment { help_data: h, .. } => h,
+            Lang::ModuleImport { help_data: h, .. } => h,
+            Lang::ImportFrom { help_data: h, .. } => h,
+            Lang::Import { help_data: h, .. } => h,
+            Lang::GenFunc { help_data: h, .. } => h,
+            Lang::Test { help_data: h, .. } => h,
+            Lang::Return { help_data: h, .. } => h,
+            Lang::VecBlock { help_data: h, .. } => h,
+            Lang::RBlock { help_data: h, .. } => h,
+            Lang::Lambda { help_data: h, .. } => h,
+            Lang::Library { help_data: h, .. } => h,
+            Lang::Exp { help_data: h, .. } => h,
+            Lang::Empty(h) => h,
+            Lang::Signature { help_data: h, .. } => h,
+            Lang::TypeConstructor { help_data: h, .. } => h,
+            Lang::ForLoop { help_data: h, .. } => h,
+            Lang::RFunction { help_data: h, .. } => h,
+            Lang::ExternBlock { help_data: h, .. } => h,
+            Lang::KeyValue { help_data: h, .. } => h,
+            Lang::Vector { help_data: h, .. } => h,
+            Lang::Not { help_data: h, .. } => h,
+            Lang::Sequence { help_data: h, .. } => h,
+            Lang::TestBlock { help_data: h, .. } => h,
+            Lang::JSBlock(_, _, h) => h,
+            Lang::Use { help_data: h, .. } => h,
+            Lang::WhileLoop { help_data: h, .. } => h,
+            Lang::Loop { help_data: h, .. } => h,
+            Lang::Break(h) => h,
+            Lang::Next(h) => h,
+            Lang::Operator { help_data: h, .. } => h,
+            Lang::TypePattern { help_data: h, .. } => h,
+            Lang::Null(h) => h,
+            Lang::NA(h) => h,
+            Lang::Dots(h) => h,
+            Lang::UseModule { help_data: h, .. } => h,
+            Lang::ConstructorCall { help_data: h, .. } => h,
+            Lang::UnionConstructor { help_data: h, .. } => h,
+            Lang::ArrayConstructorCall { help_data: h, .. } => h,
+            Lang::ValidatingCast { help_data: h, .. } => h,
+            Lang::PartialApp { help_data: h, .. } => h,
+        };
+        h.set_end(end);
+    }
+
     pub fn linearize_array(&self) -> Vec<Lang> {
         match self {
             Lang::Array { value: v, .. } => v.iter().fold(Vec::<Lang>::new(), |acc, x: &Lang| {

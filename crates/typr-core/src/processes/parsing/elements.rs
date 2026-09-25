@@ -62,6 +62,12 @@ pub fn is_pascal_case(name: &str) -> bool {
 }
 
 fn number_helper(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = number_helper_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn number_helper_impl(s: Span) -> IResult<Span, Lang> {
     let res = (opt(tag("-")), digit1, tag("."), digit1).parse(s);
     match res {
         Ok((s, (sign, d1, _dot, d2))) => {
@@ -80,10 +86,22 @@ fn number_helper(s: Span) -> IResult<Span, Lang> {
 }
 
 pub fn number(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = number_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn number_impl(s: Span) -> IResult<Span, Lang> {
     terminated(number_helper, multispace0).parse(s)
 }
 
 fn integer(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = integer_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn integer_impl(s: Span) -> IResult<Span, Lang> {
     let res = terminated((opt(tag("-")), digit1), multispace0).parse(s);
     match res {
         Ok((s, (minus, d))) => {
@@ -120,6 +138,12 @@ fn get_value(l: LocatedSpan<&str, String>) -> Lang {
 }
 
 fn null_value(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = null_value_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn null_value_impl(s: Span) -> IResult<Span, Lang> {
     let res = alt((
         terminated(terminated(tag("NULL"), not(body_char)), multispace0),
         terminated(terminated(tag("null"), not(body_char)), multispace0),
@@ -132,6 +156,12 @@ fn null_value(s: Span) -> IResult<Span, Lang> {
 }
 
 fn na_value(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = na_value_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn na_value_impl(s: Span) -> IResult<Span, Lang> {
     let res = alt((
         terminated(terminated(tag("NA"), not(body_char)), multispace0),
         terminated(terminated(tag("na"), not(body_char)), multispace0),
@@ -144,6 +174,12 @@ fn na_value(s: Span) -> IResult<Span, Lang> {
 }
 
 fn boolean(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = boolean_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn boolean_impl(s: Span) -> IResult<Span, Lang> {
     let res = alt((
         terminated(terminated(tag("true"), not(body_char)), multispace0),
         terminated(terminated(tag("TRUE"), not(body_char)), multispace0),
@@ -158,6 +194,12 @@ fn boolean(s: Span) -> IResult<Span, Lang> {
 }
 
 pub fn chars(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = chars_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn chars_impl(s: Span) -> IResult<Span, Lang> {
     terminated(alt((double_quotes, single_quotes)), multispace0).parse(s)
 }
 
@@ -191,6 +233,12 @@ pub fn decode_escapes(s: &str) -> String {
 }
 
 pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = double_quotes_impl(input)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn double_quotes_impl(input: Span) -> IResult<Span, Lang> {
     let res = delimited(char('"'), opt(escaped(is_not("\\\""), '\\', anychar)), char('"')).parse(input);
     match res {
         Ok((s, st)) => {
@@ -209,6 +257,12 @@ pub fn double_quotes(input: Span) -> IResult<Span, Lang> {
 }
 
 pub fn single_quotes(input: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = single_quotes_impl(input)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn single_quotes_impl(input: Span) -> IResult<Span, Lang> {
     let res = delimited(char('\''), opt(escaped(is_not("\\'"), '\\', anychar)), char('\'')).parse(input);
     match res {
         Ok((s, st)) => {
@@ -380,6 +434,12 @@ fn parse_nested_braces(input: Span) -> IResult<Span, Span> {
 }
 
 pub fn r_function(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = r_function_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn r_function_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(alt((tag("function"), tag("\\"))), multispace0),
         terminated(tag("("), multispace0),
@@ -418,6 +478,12 @@ pub fn r_function(s: Span) -> IResult<Span, Lang> {
 /// straight through at transpile time with no wrapper/call — see
 /// `Lang::RBlock` in `transpiling/mod.rs`.
 pub fn r_block(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = r_block_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn r_block_impl(s: Span) -> IResult<Span, Lang> {
     let res = (terminated(tag("R"), multispace0), terminated(parse_block, multispace0)).parse(s);
     match res {
         Ok((s, (kw, body))) => Ok((
@@ -446,6 +512,12 @@ fn raw_r_string(s: Span) -> IResult<Span, String> {
 // Return type must be a single type token (not a union/function type inline) —
 // use a type alias for complex return types.
 pub fn extern_block(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = extern_block_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn extern_block_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("extern"), multispace1),
         terminated(tag("("), multispace0),
@@ -471,6 +543,12 @@ pub fn extern_block(s: Span) -> IResult<Span, Lang> {
 }
 
 pub fn simple_function(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = simple_function_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn simple_function_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("fn"), multispace0),
         terminated(tag("("), multispace0),
@@ -511,10 +589,22 @@ pub fn simple_function(s: Span) -> IResult<Span, Lang> {
 }
 
 fn function(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = function_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn function_impl(s: Span) -> IResult<Span, Lang> {
     simple_function.parse(s)
 }
 
 fn key_value(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = key_value_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn key_value_impl(s: Span) -> IResult<Span, Lang> {
     let res = (recognize(variable), terminated(tag("="), multispace0), single_element).parse(s);
     match res {
         Ok((s, (v, _eq, el))) => Ok((
@@ -530,6 +620,13 @@ fn key_value(s: Span) -> IResult<Span, Lang> {
 }
 
 fn values(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = values_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn values_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     many0(terminated(
         alt((key_value, parse_elements)),
         terminated(opt(tag(",")), multispace0),
@@ -538,6 +635,12 @@ fn values(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 pub fn variable2(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = variable2_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn variable2_impl(s: Span) -> IResult<Span, Lang> {
     let res = variable.parse(s);
     match res {
         Ok((s, (lang, _))) => Ok((s, lang)),
@@ -546,6 +649,12 @@ pub fn variable2(s: Span) -> IResult<Span, Lang> {
 }
 
 fn array_indexing(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = array_indexing_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn array_indexing_impl(s: Span) -> IResult<Span, Lang> {
     let res = (alt((scope, variable2)), array).parse(s);
 
     match res {
@@ -562,6 +671,12 @@ fn array_indexing(s: Span) -> IResult<Span, Lang> {
 }
 
 fn dataframe_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = dataframe_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn dataframe_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         alt((tag("data__frame"), tag("data.frame"))),
         terminated(tag("("), multispace0),
@@ -582,6 +697,12 @@ fn dataframe_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn function_application(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = function_application_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn function_application_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         alt((scope, variable2)),
         terminated(tag("("), multispace0),
@@ -603,6 +724,12 @@ fn function_application(s: Span) -> IResult<Span, Lang> {
 }
 
 fn array(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = array_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn array_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("["), multispace0),
         values,
@@ -622,6 +749,12 @@ fn array(s: Span) -> IResult<Span, Lang> {
 }
 
 pub fn vector(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = vector_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn vector_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("c("), multispace0),
         values,
@@ -641,6 +774,12 @@ pub fn vector(s: Span) -> IResult<Span, Lang> {
 }
 
 fn sequence(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = sequence_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn sequence_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("seq["), multispace0),
         values,
@@ -728,6 +867,12 @@ fn constructor_field(s: Span) -> IResult<Span, ConstructorElement> {
 }
 
 fn constructor_call(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = constructor_call_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn constructor_call_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         many0(terminated(variable_exp, tag("$"))),
         pascal_case,
@@ -773,6 +918,12 @@ fn constructor_call(s: Span) -> IResult<Span, Lang> {
 }
 
 fn array_constructor_call(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = array_constructor_call_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn array_constructor_call_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         pascal_case,
         tag(":["),
@@ -828,6 +979,12 @@ fn record_field(s: Span) -> IResult<Span, RecordElement> {
 }
 
 pub fn record(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = record_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn record_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         opt(terminated(record_identifier, multispace0)),
         terminated(alt((tag("{"), tag("("))), multispace0),
@@ -880,6 +1037,12 @@ pub fn record(s: Span) -> IResult<Span, Lang> {
 /// heavily-used way to build positional tuples (see `tuple_exp`, which keeps handling it
 /// unchanged) and must not be affected.
 fn keyword_positional_record_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = keyword_positional_record_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn keyword_positional_record_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(alt((tag("list"), tag("record"), tag("object"))), multispace0),
         terminated(tag("{"), multispace0),
@@ -921,6 +1084,12 @@ fn pascal_case(s: Span) -> IResult<Span, (String, HelpData)> {
 }
 
 fn union_constructor(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = union_constructor_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn union_constructor_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         pascal_case,
         terminated(tag("."), multispace0),
@@ -957,6 +1126,12 @@ fn union_constructor(s: Span) -> IResult<Span, Lang> {
 }
 
 fn parenthese_value(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = parenthese_value_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn parenthese_value_impl(s: Span) -> IResult<Span, Lang> {
     delimited(
         terminated(tag("("), multispace0),
         parse_elements,
@@ -966,6 +1141,12 @@ fn parenthese_value(s: Span) -> IResult<Span, Lang> {
 }
 
 pub fn tag_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = tag_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn tag_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = terminated((tag("."), pascal_case, opt(parenthese_value)), multispace0).parse(s);
     match res {
         Ok((s, (dot, (n, _h), None))) => Ok((
@@ -989,6 +1170,12 @@ pub fn tag_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn dotdotdot(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = dotdotdot_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn dotdotdot_impl(s: Span) -> IResult<Span, Lang> {
     let res = terminated(tag("..."), multispace0).parse(s);
     match res {
         Ok((s, d)) => Ok((s, Lang::Empty(d.into()))),
@@ -997,6 +1184,12 @@ fn dotdotdot(s: Span) -> IResult<Span, Lang> {
 }
 
 fn else_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = else_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn else_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("else"), multispace0),
         terminated(tag("{"), multispace0),
@@ -1011,10 +1204,22 @@ fn else_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn else_if_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = else_if_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn else_if_exp_impl(s: Span) -> IResult<Span, Lang> {
     preceded(terminated(tag("else"), multispace1), if_exp).parse(s)
 }
 
 fn if_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = if_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn if_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("if"), multispace0),
         terminated(tag("("), multispace0),
@@ -1042,6 +1247,12 @@ fn if_exp(s: Span) -> IResult<Span, Lang> {
 
 /// Parse a tag pattern with a variable binding in parentheses: `.Some(a)`
 fn tag_pattern_with_var(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = tag_pattern_with_var_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn tag_pattern_with_var_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         tag("."),
         pascal_case,
@@ -1067,6 +1278,12 @@ fn tag_pattern_with_var(s: Span) -> IResult<Span, Lang> {
 
 /// Parse a tag pattern without binding: `.None`
 fn tag_pattern_no_var(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = tag_pattern_no_var_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn tag_pattern_no_var_impl(s: Span) -> IResult<Span, Lang> {
     let res = (tag("."), pascal_case).parse(s);
     match res {
         Ok((s, (dot, (n, _h)))) => Ok((
@@ -1083,6 +1300,12 @@ fn tag_pattern_no_var(s: Span) -> IResult<Span, Lang> {
 
 /// Parse a wildcard pattern: `_`
 fn wildcard_pattern(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = wildcard_pattern_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn wildcard_pattern_impl(s: Span) -> IResult<Span, Lang> {
     let res = terminated(tag("_"), multispace0).parse(s);
     match res {
         Ok((s, underscore)) => Ok((
@@ -1100,6 +1323,12 @@ fn wildcard_pattern(s: Span) -> IResult<Span, Lang> {
 
 /// Parse a type pattern with a variable binding: `x as int`, `y as bool`, etc.
 fn type_pattern(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = type_pattern_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn type_pattern_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(variable_exp, multispace0),
         terminated(tag("as"), multispace1),
@@ -1121,6 +1350,12 @@ fn type_pattern(s: Span) -> IResult<Span, Lang> {
 
 /// Parse a match pattern: `.Some(a)`, `.None`, `x as int`, `:{nom: n}`, `:{a, b}`, `_`, or a variable
 fn match_pattern(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = match_pattern_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn match_pattern_impl(s: Span) -> IResult<Span, Lang> {
     terminated(
         alt((
             tag_pattern_with_var,
@@ -1155,6 +1390,12 @@ fn pattern_branch(s: Span) -> IResult<Span, (Lang, Box<Lang>)> {
 /// Parse a match expression with pattern matching:
 /// `match expr { .Some(a) => a, .None => 0, _ => default }`
 fn match_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = match_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn match_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("match"), multispace1),
         terminated(alt((scope, variable2)), multispace0),
@@ -1177,6 +1418,12 @@ fn match_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 pub fn tuple_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = tuple_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn tuple_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(alt((tag("list"), tag(":"))), multispace0),
         terminated(alt((tag("{"), tag("("))), multispace0),
@@ -1197,6 +1444,12 @@ pub fn tuple_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn int_or_var(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = int_or_var_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn int_or_var_impl(s: Span) -> IResult<Span, Lang> {
     alt((integer, variable2)).parse(s)
 }
 
@@ -1224,6 +1477,12 @@ fn create_range(params: &[Lang]) -> Lang {
 }
 
 fn range(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = range_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn range_impl(s: Span) -> IResult<Span, Lang> {
     let res = (int_or_var, tag(":"), opt(terminated(int_or_var, tag(":"))), int_or_var).parse(s);
     //from_name().to_language()
     match res {
@@ -1234,6 +1493,12 @@ fn range(s: Span) -> IResult<Span, Lang> {
 }
 
 fn function_application2(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = function_application2_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn function_application2_impl(s: Span) -> IResult<Span, Lang> {
     let res = recognize(function_application).parse(s);
     match res {
         Ok((s, fun_app)) => Ok((
@@ -1248,6 +1513,12 @@ fn function_application2(s: Span) -> IResult<Span, Lang> {
 }
 
 fn dot_variable(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = dot_variable_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn dot_variable_impl(s: Span) -> IResult<Span, Lang> {
     let res = preceded(tag("."), variable2).parse(s);
     match res {
         Ok((
@@ -1295,6 +1566,12 @@ fn element_operator2(s: Span) -> IResult<Span, (Lang, Op)> {
 }
 
 fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = vectorial_bloc_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn vectorial_bloc_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(tag("@{"), multispace0),
         recognize(many1(element_operator2)),
@@ -1319,6 +1596,12 @@ fn vectorial_bloc(s: Span) -> IResult<Span, Lang> {
 /// trying this combinator first and falling back to `lambda` on failure
 /// (via the `alt()` in `single_element`) disambiguates the two unambiguously.
 fn partial_application(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = partial_application_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn partial_application_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         tag("\\"),
         variable2,
@@ -1351,6 +1634,12 @@ fn partial_application(s: Span) -> IResult<Span, Lang> {
 /// `argument_val`'s grammar (same as `constructor_call`), so `:` or `=` both
 /// work as the field separator.
 fn partial_constructor_application(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = partial_constructor_application_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn partial_constructor_application_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         tag("\\"),
         pascal_case,
@@ -1389,6 +1678,12 @@ fn partial_constructor_application(s: Span) -> IResult<Span, Lang> {
 }
 
 fn lambda(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = lambda_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn lambda_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         tag("\\"),
         terminated(tag("("), multispace0),
@@ -1411,6 +1706,12 @@ fn lambda(s: Span) -> IResult<Span, Lang> {
 }
 
 fn not_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = not_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn not_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         tag("!"),
         alt((
@@ -1451,10 +1752,22 @@ fn not_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 fn array_variant(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = array_variant_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn array_variant_impl(s: Span) -> IResult<Span, Lang> {
     alt((vector, sequence)).parse(s)
 }
 
 fn js_block(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = js_block_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn js_block_impl(s: Span) -> IResult<Span, Lang> {
     let res = (terminated(tag("JS"), multispace0), scope).parse(s);
 
     match res {
@@ -1464,10 +1777,22 @@ fn js_block(s: Span) -> IResult<Span, Lang> {
 }
 
 fn primitive(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = primitive_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn primitive_impl(s: Span) -> IResult<Span, Lang> {
     alt((null_value, na_value, boolean, number, integer, chars)).parse(s)
 }
 
 pub fn return_exp(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = return_exp_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn return_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = terminated(delimited(tag("return "), parse_elements, tag(";")), multispace0).parse(s);
     match res {
         Ok((s, el)) => Ok((
@@ -1482,6 +1807,13 @@ pub fn return_exp(s: Span) -> IResult<Span, Lang> {
 }
 
 pub fn break_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = break_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn break_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = tag("break;").parse(s);
     match res {
         Ok((s, el)) => Ok((s, vec![Lang::Break(el.into())])),
@@ -1490,6 +1822,13 @@ pub fn break_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 pub fn next_exp(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, mut v) = next_exp_impl(s)?;
+    let end = rest.location_offset();
+    v.iter_mut().for_each(|lang| lang.set_help_data_end(end));
+    Ok((rest, v))
+}
+
+fn next_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = tag("next;").parse(s);
     match res {
         Ok((s, el)) => Ok((s, vec![Lang::Next(el.into())])),
@@ -1499,6 +1838,12 @@ pub fn next_exp(s: Span) -> IResult<Span, Vec<Lang>> {
 
 // main
 pub fn single_element(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = single_element_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn single_element_impl(s: Span) -> IResult<Span, Lang> {
     alt((
         alt((
             not_exp,
@@ -1538,6 +1883,12 @@ pub fn single_element(s: Span) -> IResult<Span, Lang> {
 }
 
 pub fn scope(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = scope_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn scope_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         terminated(alt((tag("("), tag("{"))), multispace0),
         opt(base_parse),
@@ -1641,6 +1992,12 @@ fn operator_like_token(s: Span) -> IResult<Span, LangToken> {
 }
 
 pub fn elements(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = elements_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn elements_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
         single_element_token,
         many0(pair(operator_like_token, single_element_token)),
@@ -1665,6 +2022,12 @@ pub fn elements(s: Span) -> IResult<Span, Lang> {
 
 // main
 pub fn parse_elements(s: Span) -> IResult<Span, Lang> {
+    let (rest, mut lang) = parse_elements_impl(s)?;
+    lang.set_help_data_end(rest.location_offset());
+    Ok((rest, lang))
+}
+
+fn parse_elements_impl(s: Span) -> IResult<Span, Lang> {
     alt((vectorial_bloc, elements)).parse(s)
 }
 
