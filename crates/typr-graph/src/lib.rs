@@ -5,6 +5,7 @@
 //! contract (spec §9). Pure logic, no I/O, WASM-safe.
 
 mod build;
+pub mod diff;
 pub mod export;
 pub mod key;
 pub mod model;

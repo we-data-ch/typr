@@ -16,25 +16,7 @@ use typr_graph::project::{project, Projection};
 use typr_graph::{BlockGraph, BlockKey};
 
 pub fn graph_file(path: &Path, format: &str, focus: Option<&str>, projection: Option<&str>) {
-    let source = match std::fs::read_to_string(path) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Error reading file {:?}: {}", path, e);
-            std::process::exit(1);
-        }
-    };
-
-    let lang = parse_from_string(&source, &path.to_string_lossy());
-    let (result, table) = with_recording(|| typing_with_errors(&Context::default(), &lang));
-    if result.has_errors() {
-        eprintln!("Type errors found:");
-        for err in result.display_errors() {
-            eprintln!("  - {}", err);
-        }
-        std::process::exit(1);
-    }
-
-    let mut graph = typr_graph::build(&lang, &result.type_context.context, &table);
+    let mut graph = build_graph_or_exit(path);
 
     if let Some(name) = projection {
         graph = match name {
@@ -83,4 +65,50 @@ fn print_dot(graph: &BlockGraph, focus: Option<&str>) {
             std::process::exit(1);
         }
     }
+}
+
+/// `typr graph diff <old> <new>` (spec §12 étape 6): builds each file's block graph
+/// independently through the same pipeline as `graph_file`, then pairs blocks up by `BlockKey`.
+/// Unlike `typr diff`-style tools this never touches git — the two arguments are just two
+/// source files (e.g. two working-tree revisions checked out to temp paths, or simply an
+/// old/new copy of the same program), the same "two code excerpts" the spec's playground diff
+/// view compares.
+pub fn graph_diff(old_file: &Path, new_file: &Path, format: &str) {
+    let old_graph = build_graph_or_exit(old_file);
+    let new_graph = build_graph_or_exit(new_file);
+    let d = typr_graph::diff::diff(&old_graph, &new_graph);
+
+    match format {
+        "text" => print!("{}", typr_graph::diff::to_text(&d)),
+        "json" => println!(
+            "{}",
+            serde_json::to_string_pretty(&d).expect("GraphDiff always serializes")
+        ),
+        other => {
+            eprintln!("Unknown format {:?} (expected \"text\" or \"json\")", other);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn build_graph_or_exit(path: &Path) -> BlockGraph {
+    let source = match std::fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error reading file {:?}: {}", path, e);
+            std::process::exit(1);
+        }
+    };
+
+    let lang = parse_from_string(&source, &path.to_string_lossy());
+    let (result, table) = with_recording(|| typing_with_errors(&Context::default(), &lang));
+    if result.has_errors() {
+        eprintln!("Type errors found in {:?}:", path);
+        for err in result.display_errors() {
+            eprintln!("  - {}", err);
+        }
+        std::process::exit(1);
+    }
+
+    typr_graph::build(&lang, &result.type_context.context, &table)
 }

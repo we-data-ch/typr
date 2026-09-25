@@ -47,10 +47,13 @@ enum Commands {
     },
     /// Emit the block-graph view of a file (`visualization_graph_v2.md`): the program broken
     /// into typed blocks with their ports, wires, and cross-block `Ref`/`HasType`/`TypePosition`
-    /// relations — for code review and understanding, not for building.
+    /// relations — for code review and understanding, not for building. `typr graph diff` (see
+    /// `typr graph diff --help`) compares two versions of a program instead of viewing one.
     Graph {
+        #[command(subcommand)]
+        graph_command: Option<GraphCommands>,
         #[arg(value_name = "FILE")]
-        file: PathBuf,
+        file: Option<PathBuf>,
         /// `json` (the full block map, spec §9) or `dot` (one level, rendered with Graphviz).
         #[arg(long, value_name = "FORMAT", default_value = "json")]
         format: String,
@@ -296,6 +299,23 @@ enum TypesCommands {
 }
 
 #[derive(Subcommand, Debug)]
+enum GraphCommands {
+    /// Diff the block graphs of two versions of a program, paired by `BlockKey`
+    /// (`visualization_graph_v2.md` §12 étape 6): blocks added, removed, or modified
+    /// (`type`/`interface`/`captures` changed). Both files are built through the same pipeline
+    /// as `typr graph`, independently — they need not be related by git history.
+    Diff {
+        #[arg(value_name = "OLD_FILE")]
+        old_file: PathBuf,
+        #[arg(value_name = "NEW_FILE")]
+        new_file: PathBuf,
+        /// `text` (human-readable, default) or `json` (the machine contract).
+        #[arg(long, value_name = "FORMAT", default_value = "text")]
+        format: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 enum CaseCommands {
     /// List the catalog (filterable by --status).
     List {
@@ -453,11 +473,24 @@ pub fn start() {
             _ => check_project(),
         },
         Some(Commands::Graph {
-            file,
+            graph_command: Some(GraphCommands::Diff { old_file, new_file, format }),
+            ..
+        }) => crate::graph::graph_diff(&old_file, &new_file, &format),
+        Some(Commands::Graph {
+            graph_command: None,
+            file: Some(file),
             format,
             focus,
             projection,
         }) => crate::graph::graph_file(&file, &format, focus.as_deref(), projection.as_deref()),
+        Some(Commands::Graph {
+            graph_command: None,
+            file: None,
+            ..
+        }) => {
+            eprintln!("typr graph requires a FILE, or use `typr graph diff <old> <new>`");
+            std::process::exit(1);
+        }
         Some(Commands::Build {
             file,
             test,
