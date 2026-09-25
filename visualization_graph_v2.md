@@ -511,9 +511,27 @@ Notes d'implémentation (à connaître pour la suite) :
 - `typr-wasm::semantic_graph`, onglet Graph, navigation et gestes du §11, URL `view`/`focus`,
   synchronisation Monaco dans les deux sens, `INTEGRATION.md` mis à jour.
 
-**Étape 5 — Documentation et blocs restants**
-- ` ```typr graph ` sur typr.github.io (dépôts mis à jour ensemble). — pas commencé.
-- `Loop` (ports d'état), `Match`, `Module` (sorties `@pub`), `RCode`. — fait (2026-09-26).
+**Étape 5 — Documentation et blocs restants** — fait (2026-09-26)
+- ` ```typr graph ` sur typr.github.io (dépôts mis à jour ensemble). — fait.
+- `Loop` (ports d'état), `Match`, `Module` (sorties `@pub`), `RCode`. — fait.
+
+Notes d'implémentation (partie doc, branche `graph-fence-block` dans les deux dépôts, pas encore
+mergée) :
+- `typr.github.io` : `src/playground/meta.tsx` lit `graph`/`focus=<nom>` dans la metastring de la
+  fence (même mécanisme que `autorun`/`noplayground`/`compile_fail`, § déjà en place à l'étape 4) ;
+  `src/playground/url.ts` ajoute `view`/`focus` à `buildPlaygroundUrl` ; `PlaygroundButton` change
+  d'icône et d'infobulle en mode `graph` et ignore `autorun` (même traitement que pour
+  `compile_fail`). `focus=<nom>` sans `:` est sous-entendu `val:<nom>` — évite d'épeler le
+  namespace dans le cas courant, `focus=type:Point` reste possible pour un type. Exemple réel
+  ajouté dans `docs/reference/modules.md` (juste après le passage qui explique `@pub`, l'endroit
+  où la frontière module se voit le mieux visuellement).
+- `typr-playground.github.io` : aucun changement de code — `view=graph`/`focus=` existaient déjà
+  depuis l'étape 4, seul `INTEGRATION.md` documente qu'ils sont maintenant aussi produits par un
+  mot-clé de fence, pas seulement par la navigation interne du playground.
+- Vérifié : `tsc` (typecheck), `docusaurus build` complet, `check-typr-blocks.mjs` (le nouveau bloc
+  passe `typr check` comme les autres), et le DOM réellement rendu de la page modules (Chrome
+  headless, pas seulement le build) pour confirmer que les deux boutons (normal et graph) portent
+  le bon `href`/`title`.
 
 Notes d'implémentation (blocs restants) :
 - `Loop` (`ForLoop`/`WhileLoop`/`Loop`) : le port d'entrée d'un `ForLoop` porte le nom de sa
