@@ -304,6 +304,103 @@ pub fn semantic_graph(source: &str) -> Result<GraphResult, JsValue> {
     })
 }
 
+/// Build the block-graph views of two versions of TypR source and diff them
+/// (`visualization_graph_v2.md` §12 étape 6), for the playground's diff view.
+///
+/// Each side is built independently through the same pipeline as `semanticGraph`: if either
+/// side has type errors, the graph on that side is not built and the diff is not computed
+/// (`has_errors`/`errors` describe whichever side(s) failed — both sides are still type-checked
+/// so a caller sees every error, not just the first). Both `old_graph_json` and `new_graph_json`
+/// are included alongside `diff_json` because the diff itself only carries keys, not full block
+/// data — the playground renders the diff overlaid on the *new* graph's layout (matching `typr
+/// graph diff`'s framing of "how did the new version change relative to the old one"), but still
+/// needs the *old* graph to show what a removed block actually was (kind, name) since a removed
+/// key has no entry in the new graph to look it up in.
+#[wasm_bindgen(js_name = semanticGraphDiff)]
+pub fn semantic_graph_diff(old_source: &str, new_source: &str) -> Result<GraphDiffResult, JsValue> {
+    let build_one = |source: &str| -> Result<Result<typr_graph::BlockGraph, String>, JsValue> {
+        let mut sources = InMemorySourceProvider::new();
+        sources.add_source("main.ty", source);
+        let compiler = Compiler::new_wasm(sources);
+        let ast = compiler
+            .parse("main.ty")
+            .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
+
+        let (result, table) = with_recording(|| compiler.type_check(&ast));
+        if result.has_errors() {
+            let errors = result
+                .get_errors()
+                .iter()
+                .map(|e| e.clone().display())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            return Ok(Err(errors));
+        }
+
+        Ok(Ok(typr_graph::build(&ast, &result.type_context.context, &table)))
+    };
+
+    let old_result = build_one(old_source)?;
+    let new_result = build_one(new_source)?;
+
+    let mut errors = Vec::new();
+    if let Err(e) = &old_result {
+        errors.push(format!("(old) {}", e));
+    }
+    if let Err(e) = &new_result {
+        errors.push(format!("(new) {}", e));
+    }
+    if !errors.is_empty() {
+        return Ok(GraphDiffResult {
+            diff_json: String::new(),
+            old_graph_json: String::new(),
+            new_graph_json: String::new(),
+            has_errors: true,
+            errors: errors.join("\n\n"),
+        });
+    }
+
+    let old_graph = old_result.expect("checked Ok above");
+    let new_graph = new_result.expect("checked Ok above");
+    let diff = typr_graph::diff::diff(&old_graph, &new_graph);
+
+    let diff_json = serde_json::to_string_pretty(&diff).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let old_graph_json =
+        typr_graph::export::json::to_string_pretty(&old_graph).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let new_graph_json =
+        typr_graph::export::json::to_string_pretty(&new_graph).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    Ok(GraphDiffResult {
+        diff_json,
+        old_graph_json,
+        new_graph_json,
+        has_errors: false,
+        errors: String::new(),
+    })
+}
+
+/// Result of building and diffing the block-graph views of two source versions
+#[wasm_bindgen]
+pub struct GraphDiffResult {
+    /// Pretty-printed JSON of the `GraphDiff` (added/removed/modified block keys), empty when
+    /// `has_errors` is set
+    #[wasm_bindgen(getter_with_clone)]
+    pub diff_json: String,
+    /// Pretty-printed JSON of the *old* version's `BlockGraph` — only its `blocks` map is
+    /// actually needed (to look up a removed key's kind/name), not its layout
+    #[wasm_bindgen(getter_with_clone)]
+    pub old_graph_json: String,
+    /// Pretty-printed JSON of the *new* version's `BlockGraph`, so the playground can render the
+    /// diff overlaid on a real layout without a second round-trip
+    #[wasm_bindgen(getter_with_clone)]
+    pub new_graph_json: String,
+    /// Whether type errors on either side prevented building the diff
+    pub has_errors: bool,
+    /// Formatted type error messages, prefixed with `(old)`/`(new)` per side (empty if none)
+    #[wasm_bindgen(getter_with_clone)]
+    pub errors: String,
+}
+
 /// Result of building the block-graph view
 #[wasm_bindgen]
 pub struct GraphResult {
