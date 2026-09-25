@@ -7,6 +7,7 @@ use super::{variable_name, Builder};
 use crate::key::{BlockKey, Namespace};
 use crate::model::*;
 use std::collections::HashSet;
+use typr_core::components::context::Context;
 use typr_core::components::language::argument_value::ArgumentValue;
 use typr_core::components::language::operators::Op;
 use typr_core::components::language::Lang;
@@ -18,7 +19,7 @@ use typr_core::components::r#type::Type;
 /// A parameter/field/method name, read the same way `ArgumentType::get_argument_str` does but
 /// without its `panic!` on an unexpected shape (a generic or embedded parameter, say) — falls
 /// back to `"_"` instead, since totality here matters more than a perfect label.
-fn safe_argument_name(arg: &ArgumentType) -> String {
+pub(super) fn safe_argument_name(arg: &ArgumentType) -> String {
     match arg.get_argument() {
         Type::Char(Tchar::Val(s), _) => s.to_string(),
         Type::LabelGen(s, _) => s.to_uppercase(),
@@ -26,11 +27,33 @@ fn safe_argument_name(arg: &ArgumentType) -> String {
     }
 }
 
-fn alias_name(ty: &Type) -> Option<String> {
+pub(super) fn alias_name(ty: &Type) -> Option<String> {
     match ty {
         Type::Alias(name, ..) => Some(name.clone()),
         _ => None,
     }
+}
+
+/// A type's interface per Q4 ("l'interface d'un type = ses méthodes"): every top-level function
+/// whose first parameter is `type_name`, discovered via `TypePosition{index: 0}` rather than a
+/// declared `impl`. Shared between `build_type_decl` (its `TypeDecl` outputs) and the type
+/// relations pass (étape 3's `Satisfies` evidence).
+pub(super) fn discover_methods(context: &Context, type_name: &str) -> Vec<(String, String, BlockKey)> {
+    context
+        .variables()
+        .filter_map(|(var, ty)| match ty {
+            Type::Function(params, _, _) => {
+                let p0 = params.first()?;
+                if alias_name(&p0.get_type()).as_deref() == Some(type_name) {
+                    let method_name = var.get_name();
+                    Some((method_name.clone(), ty.pretty(), BlockKey::top_level(Namespace::Val, &method_name)))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 fn body_statements(body: &Lang) -> Vec<&Lang> {
@@ -358,22 +381,7 @@ impl<'a> Builder<'a> {
         if let Some(type_name) = &name {
             // Q4: a TypeDecl's interface is its methods — functions taking it as their 1st
             // parameter, discovered via `TypePosition{index: 0}` rather than a declared `impl`.
-            let methods: Vec<(String, String, BlockKey)> = self
-                .context
-                .variables()
-                .filter_map(|(var, ty)| match ty {
-                    Type::Function(params, _, _) => {
-                        let p0 = params.first()?;
-                        if alias_name(&p0.get_type()).as_deref() == Some(type_name.as_str()) {
-                            let method_name = var.get_name();
-                            Some((method_name.clone(), ty.pretty(), BlockKey::top_level(Namespace::Val, &method_name)))
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None,
-                })
-                .collect();
+            let methods = discover_methods(self.context, type_name);
             for (method_name, pretty, method_key) in methods {
                 outputs.push(Port::explicit(method_name, Some(pretty)));
                 self.graph.relations.push(Relation::type_position(method_key, key.clone(), 0));

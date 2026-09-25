@@ -56,6 +56,7 @@ fn dependencies(graph: &BlockGraph) -> BlockGraph {
             port: None,
             index: None,
             confidence: rel.confidence.clone(),
+            evidence: None,
         });
     }
     out

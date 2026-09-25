@@ -141,6 +141,17 @@ pub enum RelationKind {
     Instantiates,
 }
 
+/// Why a `Satisfies`/`DeclaredAs` relation holds (spec §5.2) — the pedagogical payload: not just
+/// *that* a type satisfies an interface, but *through which method*. `provided_by` is the block
+/// supplying the required method: a free function's block when one was found by name, or the
+/// `TypeDecl` itself when the requirement is met structurally (e.g. a record field read as a
+/// trivial getter) rather than through a discovered function block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Evidence {
+    pub requires: String,
+    pub provided_by: BlockKey,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Relation {
     pub kind: RelationKind,
@@ -152,6 +163,8 @@ pub struct Relation {
     pub index: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub confidence: Option<Confidence>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evidence: Option<Vec<Evidence>>,
 }
 
 impl Relation {
@@ -163,6 +176,7 @@ impl Relation {
             port: Some(port.to_string()),
             index: None,
             confidence: Some(confidence),
+            evidence: None,
         }
     }
 
@@ -174,6 +188,7 @@ impl Relation {
             port: None,
             index: None,
             confidence: None,
+            evidence: None,
         }
     }
 
@@ -185,6 +200,48 @@ impl Relation {
             port: None,
             index: Some(index),
             confidence: None,
+            evidence: None,
+        }
+    }
+
+    /// `TypeDecl` → `Interface`, structurally computed (spec §5.1), with the evidence backing it.
+    pub fn satisfies(from: BlockKey, to: BlockKey, evidence: Vec<Evidence>) -> Self {
+        Relation {
+            kind: RelationKind::Satisfies,
+            from,
+            to,
+            port: None,
+            index: None,
+            confidence: None,
+            evidence: Some(evidence),
+        }
+    }
+
+    /// `TypeDecl` → `Interface`, for a `Record & Interface` intersection alias: the interface
+    /// member named directly in the declaration, checked at declaration time (spec §5.1).
+    pub fn declared_as(from: BlockKey, to: BlockKey) -> Self {
+        Relation {
+            kind: RelationKind::DeclaredAs,
+            from,
+            to,
+            port: None,
+            index: None,
+            confidence: None,
+            evidence: None,
+        }
+    }
+
+    /// type → supertype (spec §5.1), from the structural subtyping relation between two declared
+    /// type aliases.
+    pub fn subtype(from: BlockKey, to: BlockKey) -> Self {
+        Relation {
+            kind: RelationKind::Subtype,
+            from,
+            to,
+            port: None,
+            index: None,
+            confidence: None,
+            evidence: None,
         }
     }
 }

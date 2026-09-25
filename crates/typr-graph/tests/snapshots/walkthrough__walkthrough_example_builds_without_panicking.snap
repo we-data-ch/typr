@@ -1005,6 +1005,17 @@ expression: json
       "confidence": {
         "confidence": "exact"
       }
+    },
+    {
+      "kind": "Satisfies",
+      "from": "type:Point",
+      "to": "type:Printable",
+      "evidence": [
+        {
+          "requires": "show: fn(a: SELF) -> char",
+          "provided_by": "val:show"
+        }
+      ]
     }
   ]
 }

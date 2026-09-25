@@ -470,8 +470,42 @@ Notes d'implémentation (à connaître pour la suite) :
 - `typr graph <fichier> [--format json|dot] [--focus <key>] [--projection deps|types]`.
 - DOT : un niveau (le bloc `--focus`) avec ses ports.
 
-**Étape 3 — Relations de types**
+**Étape 3 — Relations de types** — fait (2026-09-25)
 - `Satisfies` avec `evidence`, `DeclaredAs`, `Subtype` depuis `Context.subtypes`.
+- Nouveau module `crates/typr-graph/src/build/type_relations.rs`, appelé en post-passe (après le
+  parcours principal, avant `b.scope.pop()`) sur les `Lang::Alias` de haut niveau uniquement —
+  ces relations comparent des déclarations entre elles, pas un nœud et ses enfants, donc ça ne
+  rentre pas dans la récursion par nœud de `build_expr`.
+- `Satisfies` : calculée avec le même primitif que le vérificateur de types
+  (`interface_satisfaction::check_interface_satisfaction`, déjà `pub` dans `typr-core`), pas
+  réimplémentée. L'`evidence` associe chaque méthode requise à son bloc fournisseur — trouvé via
+  `discover_methods` (nouvel helper `pub(super)`, extrait de `build_type_decl` pour être partagé),
+  ou, si la méthode est satisfaite structurellement (ex. un champ de record lu comme accesseur
+  trivial) sans fonction libre correspondante, l'`evidence` pointe vers le `TypeDecl` lui-même.
+- `DeclaredAs` : détectée directement sur le `target_type` **tel qu'écrit** (pas réduit) d'un
+  alias — si c'est un `Type::Operator(Intersection, a, b)` dont un membre est une référence
+  nommée (`Type::Alias`) qui réduit vers `Type::Interface`, ça donne `DeclaredAs` vers cette
+  interface. Ne se déclenche que pour une interface *nommée* (`Point & Printable`), pas pour un
+  `interface { ... }` écrit en ligne dans l'intersection (rare, non couvert).
+- `Subtype` : **simplification volontaire par rapport à la lettre du spec**. Le spec dit
+  « depuis `Context.subtypes` », mais `Context.subtypes` (`components/context/graph.rs`) est un
+  arbre construit par petits bouts à chaque `push_var_type`/`push_types`/`hoist_aliases` sur des
+  types **réduits et anonymes** (des `Type::Record`, pas des `Type::Alias` nommés) — remonter
+  jusqu'à un nom d'alias depuis là demanderait une correspondance inverse peu fiable, et les
+  associations `union member → alias` passent en réalité par un mécanisme séparé
+  (`subtype_cache`/`cache_subtype`, jamais vu par `get_supertypes`/`get_ordered_supertypes`) donc
+  un vrai parcours de l'arbre les aurait de toute façon manquées. À la place : pour chaque paire
+  de types déclarés dans le fichier (hors interfaces, déjà couvertes par `Satisfies`),
+  `target_type.is_subtype(&other.target_type, context)` — la même primitive publique
+  (`TypeSystem::is_subtype`) que le vérificateur de types utilise partout ailleurs, appliquée
+  directement aux types tels qu'écrits. Toujours « depuis » la même machinerie de sous-typage,
+  mais en interrogeant des paires de blocs réels du graphe plutôt qu'en essayant de parcourir
+  l'arbre interne et de faire correspondre le résultat après coup. Vérifié sur un cas structurel
+  simple (`list { name: char }` / `list { name: char, age: int }` → sous-typage par largeur).
+- Tests unitaires dans `type_relations.rs` (un par relation) + le fil rouge (`walkthrough.rs`,
+  instantané mis à jour) exerce `Satisfies` de bout en bout, CLI comprise
+  (`typr graph --projection types`). `cargo test --workspace` et `typr case run` toujours verts
+  (mêmes régressions préexistantes).
 
 **Étape 4 — Playground**
 - `typr-wasm::semantic_graph`, onglet Graph, navigation et gestes du §11, URL `view`/`focus`,

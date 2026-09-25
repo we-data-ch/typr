@@ -3,6 +3,7 @@
 mod blocks;
 mod refs;
 mod scope;
+mod type_relations;
 
 use crate::key::{BlockKey, Namespace};
 use crate::model::*;
@@ -41,6 +42,8 @@ pub fn build(lang: &Lang, context: &Context, types: &TypeTable) -> BlockGraph {
     for (index, item) in items.iter().enumerate() {
         b.build_top_level_item(item, index, &mut children);
     }
+
+    type_relations::build(&mut b.graph, b.context, &items);
 
     b.scope.pop();
     let (inputs, refs) = b.take_captures(&root_key);
