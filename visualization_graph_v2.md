@@ -391,6 +391,33 @@ ELK.js pour la mise en page (`elk.portConstraints`), un niveau rendu à la fois.
 | Précédent/Suivant | historique du navigateur |
 | clic dans Monaco | synchronisation inverse : le graphe se place sur le bloc le plus interne qui contient le curseur |
 
+**Relations comme arêtes** : par défaut, seuls les **fils** (flux de données à l'intérieur d'un
+niveau) sont dessinés — c'est le rendu déjà décrit ci-dessus. Trois catégories de **relations**
+(§5) peuvent en plus être affichées comme arêtes colorées et dirigées, chacune activable
+indépendamment (légende à cases à cocher sur le canevas) :
+
+| Catégorie | Relation | Sens de la flèche |
+|---|---|---|
+| Capture implicite | `Ref` dont le port d'origine est **implicite** (`Port.implicit`, §3.3) | du bloc qui capture vers la définition capturée |
+| 1ᵉʳ paramètre lié à un type | `TypePosition { index: 0 }` | de la fonction vers le `TypeDecl` |
+| Expression liée à un type | `HasType` | de l'expression vers son `TypeDecl`/`TypeExpr` |
+
+Un `Ref` explicite (`callee` d'un `Apply`, renommage `let x <- y`, …) n'est **pas** une capture et
+n'entre dans aucune de ces trois catégories : la distinction se lit sur le port d'origine, pas sur
+le seul `kind` de la relation. Convention de sens et de couleur reprises telles quelles (§5.1) ;
+seul l'affichage est nouveau, aucun champ n'est ajouté au format JSON (§9).
+
+Contraintes :
+- une relation n'est dessinée que si **ses deux extrémités sont des blocs visibles au niveau
+  courant** de la vue « un niveau à la fois » — même règle que pour les fils qui sortent de la vue
+  (étape 2/4) ; une relation dont l'autre bout est ailleurs (ex. `HasType` vers un type déclaré au
+  niveau `Program` alors qu'on est descendu dans un `Function`) n'a nulle part où s'accrocher à ce
+  niveau et reste seulement listée dans le panneau de détails ;
+- activer/désactiver une catégorie **réinjecte le filtre dans la mise en page ELK** (pas un simple
+  masquage CSS), pour que les nœuds se réarrangent en fonction des relations rendues visibles —
+  c'est le but recherché (« arranger le graphe en fonction de ces relations ») ;
+- toutes désactivées par défaut : le comportement par défaut du canevas ne change pas.
+
 **État dans l'URL** : `?view=graph&focus=<BlockKey>` (encodé). Chaque vue a son lien profond
 partageable ; Précédent et Suivant marchent sans code supplémentaire. Ce paramètre s'ajoute au
 contrat `INTEGRATION.md` (à mettre à jour **dans les deux dépôts à la fois**).
@@ -510,6 +537,63 @@ Notes d'implémentation (à connaître pour la suite) :
 **Étape 4 — Playground**
 - `typr-wasm::semantic_graph`, onglet Graph, navigation et gestes du §11, URL `view`/`focus`,
   synchronisation Monaco dans les deux sens, `INTEGRATION.md` mis à jour.
+
+Notes d'implémentation (complément « Relations comme arêtes » du §11, `typr-playground.github.io`
+uniquement, 2026-09-26) :
+- Aucun changement de format JSON (§9) ni de `typr-graph` : tout ce qu'il faut pour distinguer les
+  trois catégories est déjà dans le graphe exporté. La règle « capture ⇔ port implicite » a été
+  vérifiée directement dans le builder (`crates/typr-graph/src/build/mod.rs::take_captures` ajoute
+  toujours `Port::implicit(name, ty)` **et** `Relation::r#ref(boundary, &name, target, …)` avec le
+  même nom de port) ; à l'inverse, un `Ref` sur `callee` (`build_apply`/`build_ufcs_apply`) ou sur
+  `value` (renommage `let x <- y`, `build_expr`) vient toujours d'un port explicite ou d'aucun port
+  du tout — jamais implicite. D'où `relationCategory` (`src/lib/graph.ts`) : `HasType` → catégorie
+  directe ; `TypePosition{index:0}` → catégorie directe (`index != 0` exclu, réservé à l'étape 7) ;
+  `Ref` → capture seulement si `blocks[from].inputs` contient `port` avec `implicit: true`.
+- `relationEdgesInView` (`src/lib/graph.ts`) ne garde que les relations dont **les deux extrémités**
+  sont des clés de `view.blocks` — une `oneLevel()` peut contenir une relation dont un seul bout est
+  dans le focus courant (c'est déjà le cas aujourd'hui pour le panneau de détails, qui lit le graphe
+  complet), mais dessiner une arête exige un nœud aux deux bouts.
+- `useElkLayout` (`src/components/graph/useElkLayout.ts`) prend un `activeCategories: Set<...>` en
+  plus de la vue, et ajoute les relations actives à la liste d'`edges` envoyée à ELK, à côté des
+  fils — en référençant directement l'id du **bloc** (`sources: ['val:norm2']`), pas un id de port,
+  puisque la cible d'une `HasType`/`TypePosition` (souvent un `TypeDecl` sans port d'entrée du tout,
+  §4) n'a pas de port à viser. Vérifié à la main avec `elkjs` (`elk.portConstraints: FIXED_POS`
+  coexiste sans erreur avec une arête nœud-à-nœud, et la déplace bien dans la mise en page — c'est
+  ce qui permet à l'activation d'une catégorie de réarranger le graphe, pas seulement de colorer une
+  ligne fixe). La clé de mémoïsation de l'effet (`viewKey`) inclut désormais les catégories actives,
+  triées, pour redéclencher la mise en page à chaque bascule.
+- `BlockNode` (`src/components/graph/BlockNode.tsx`) gagne une paire de handles génériques
+  `__rel-in`/`__rel-out` (`Position.Top`, invisibles par défaut comme `.handle-shadow`) : les
+  relations n'étant pas des ports du modèle (§3.2), elles ne peuvent pas s'accrocher à un handle de
+  port existant, qui peut d'ailleurs ne pas exister côté cible. React Flow dessine toujours la ligne
+  lui-même à partir de ces handles (comme pour les fils) ; seules les positions des nœuds viennent
+  d'ELK, jamais le tracé de l'arête (déjà vrai avant ce complément).
+- Couleur portée par `style.stroke` (variable CSS themée clair/dark, `--edge-capture`/
+  `--edge-type-position`/`--edge-has-type` dans `theme.css`) ; pointe de flèche (`markerEnd`,
+  `MarkerType.ArrowClosed`) en teinte fixe par catégorie plutôt que themée — un `fill` de marqueur
+  React Flow est posé en attribut SVG direct, pas via `style`, et une teinte moyenne (violet/bleu
+  ciel/magenta) reste lisible sur fond clair et sombre sans en dépendre. Capture en trait pointillé
+  (`strokeDasharray`) en plus de sa couleur, pour rester repérable même en daltonisme.
+- Légende à cases à cocher : nouveau composant `RelationLegend.tsx`, état local dans `GraphView`
+  (`activeRelationKinds`, toutes désactivées par défaut) — délibérément **hors** de l'état d'URL
+  partagé (`view`/`focus`), même choix que la référence du Diff (étape 6) : c'est une préférence
+  d'affichage de session, pas une coordonnée du graphe qu'un lien partagé doit reproduire.
+- Vérifié : `tsc -b`, `npm run lint`, et un script Node ad hoc (esbuild bundle de `src/lib/graph.ts`,
+  sans mock) rejouant `relationCategory`/`relationEdgesInView` sur le vrai JSON produit par
+  `typr graph --format json` pour l'exemple fil rouge (§14). Au niveau `Program` : `capture` ne
+  retient que `norm2 → sq` (le `Ref` sur le port implicite `sq`), pas les deux `Ref` sur `callee`
+  ni celui de `val:d → type:Printable` (port explicite, validateur à la compilation) — la
+  distinction capture/référence explicite fonctionne. `typePosition0` retient `show → Point`
+  **et** `norm2 → Point` (son propre premier paramètre est aussi de type `Point`, indépendamment
+  de savoir si `norm2` sert de méthode — cohérent avec la définition structurelle du §5.1, pas une
+  liste des seules méthodes découvertes). `hasType` retient `p → Point` et `d → Point` — ce dernier
+  diverge du texte du §14 (qui attendait `d → Printable`) : la sortie réelle du compilateur pour
+  ce `HasType` a changé depuis la rédaction du §14 et le paragraphe n'a pas suivi ; à corriger
+  séparément, hors périmètre de ce complément (le rendu n'est pas en cause, il reflète fidèlement
+  la relation telle qu'exportée). Redescendre dans `norm2` (vue à un niveau qui ne contient plus
+  `type:Point`) fait disparaître les trois catégories, conformément à la contrainte du §11.
+  `npm run dev` + un rendu manuel dans Chrome a confirmé la partie purement visuelle (couleurs,
+  flèche, bascule de la légende, réarrangement ELK à l'activation).
 
 **Étape 5 — Documentation et blocs restants** — fait (2026-09-26)
 - ` ```typr graph ` sur typr.github.io (dépôts mis à jour ensemble). — fait.
