@@ -1,4 +1,5 @@
 use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::intersection_type::IntersectionType;
 use crate::components::r#type::pretty;
 use crate::components::r#type::tchar::Tchar;
@@ -8,6 +9,19 @@ use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
+use std::collections::HashSet;
+
+/// A record's fields in a deterministic order for printing. `Type::Record` stores its fields in
+/// a `HashSet`, whose iteration order is randomized per-process (std's default `RandomState`) —
+/// printing them as found makes every `list{...}` string (and anything built from it: error
+/// messages, `typr graph`'s recorded block types) flip field order from run to run even when the
+/// type itself never changed. Sorting by field name here only changes what gets printed, not the
+/// set itself or any equality/subtyping decision.
+fn sorted_fields(fields: &HashSet<ArgumentType>) -> Vec<&ArgumentType> {
+    let mut v: Vec<&ArgumentType> = fields.iter().collect();
+    v.sort_by(|a, b| a.get_argument_str().cmp(&b.get_argument_str()));
+    v
+}
 
 fn simplify_for_dataframe(ty: &Type) -> String {
     let fmt = |t: &Type| format(t);
@@ -17,8 +31,8 @@ fn simplify_for_dataframe(ty: &Type) -> String {
         Type::Vec(VecType::Array, _, inner, _) => simplify_for_dataframe(inner),
         Type::Vec(VecType::S3, _, inner, _) => simplify_for_dataframe(inner),
         Type::Record(fields, _) => {
-            let formatted_fields = fields
-                .iter()
+            let formatted_fields = sorted_fields(fields)
+                .into_iter()
                 .map(|arg_typ| {
                     format!(
                         "{}: {}",
@@ -66,8 +80,8 @@ pub fn format(ty: &Type) -> String {
             }
         }
         Type::Record(fields, _) => {
-            let formatted_fields = fields
-                .iter()
+            let formatted_fields = sorted_fields(fields)
+                .into_iter()
                 .map(|arg_typ| format!("{}: {}", arg_typ.get_argument_str(), format(&arg_typ.get_type())))
                 .collect::<Vec<_>>();
             format!("list{{{}}}", formatted_fields.join(", "))
@@ -160,8 +174,8 @@ pub fn verbose(t: &Type) -> String {
         Type::Null(_) => "null".to_string(),
         Type::Char(_tchar, _) => "char".to_string(),
         Type::Record(fields, _) => {
-            let formatted_fields = fields
-                .iter()
+            let formatted_fields = sorted_fields(fields)
+                .into_iter()
                 .map(|arg_typ| format!("{}: {}", format(&arg_typ.get_argument()), format(&arg_typ.get_type())))
                 .collect::<Vec<_>>();
             format!("list{{{}}}", formatted_fields.join(", "))

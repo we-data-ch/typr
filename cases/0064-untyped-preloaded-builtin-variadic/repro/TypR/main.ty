@@ -1,0 +1,6 @@
+#@case untyped-preloaded-builtin-variadic: RFC 0028 - preloaded untyped
+# base-R builtins (functions_R.txt: Position, t, Reduce, ...) are preloaded
+# as `(Any, UnknownFunction)`; `UnknownFunction` must be variadic so calling
+# them with arguments type-checks, not just referencing the bare name.
+let x: int <- Position(1, 2) as! int;
+print(x);

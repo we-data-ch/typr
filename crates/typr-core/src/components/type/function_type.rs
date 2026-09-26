@@ -246,8 +246,15 @@ impl FunctionType {
         self.help_data.clone()
     }
 
+    /// RFC 0028: an untyped R function's signature is exactly n `Any`
+    /// parameters (n possibly 0), non-variadic, returning `Any` — the shape
+    /// `Lang::RFunction`'s typing rule now produces. Used to pick the
+    /// arity-specific error message over the generic no-matching-signature
+    /// one when a call's argument count doesn't match.
     pub fn is_r_function(&self) -> bool {
-        (self.arguments == vec![]) && (self.return_type == builder::unknown_function_type())
+        !self.is_variadic
+            && self.return_type == builder::any_type()
+            && self.arguments.iter().all(|t| *t == builder::any_type())
     }
 
     pub fn get_first_param(&self) -> Option<Type> {
@@ -284,7 +291,13 @@ impl TryFrom<Type> for FunctionType {
     fn try_from(value: Type) -> Result<Self, Self::Error> {
         match value {
             Type::Function(args, ret, h) => Ok(FunctionType::new(VecType::Empty, args, *ret, h)),
-            Type::UnknownFunction(h) => Ok(FunctionType::default().set_help_data(h.clone())),
+            // RFC 0028: same variadic-Any shape as `Type::to_function_type()`.
+            Type::UnknownFunction(h) => Ok(FunctionType::new(
+                VecType::Empty,
+                vec![ArgumentType::new("...", &builder::any_type()).set_variadic(true)],
+                builder::any_type(),
+                h.clone(),
+            )),
             _ => Err(format!("{} is a type not convertible to FunctionType", value)),
         }
     }

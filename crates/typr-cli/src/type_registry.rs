@@ -1,0 +1,2053 @@
+//! Resolution, `typr.lock`, on-disk cache, and vendoring for external Type
+//! Definitions — the `typr types add|update|list|vendor` item of
+//! `typR/registry.md` §13 J2
+//! (`rfcs/0031-external-type-definitions.md`, "Resolution, `typr.lock`,
+//! cache, vendoring").
+//!
+//! `resolve_locked_definitions`, near the bottom of this file, is the
+//! "reading `typr.lock` at `check`/`build`/`run` time" wiring step: it turns
+//! a `typr.lock` entry back into `(filename, source)` `.ty` pairs from the
+//! on-disk cache, re-verifying the digest first. Loading those into the
+//! type-checking context is `standard_library::load_project_type_definitions`,
+//! which calls this function and then `load_external_ty_definitions`.
+
+use crate::type_definition::{parse_manifest, DefinitionManifest};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+pub const LOCKFILE_NAME: &str = "typr.lock";
+pub const PROJECT_CONFIG_NAME: &str = "typr.toml";
+const MANIFEST_NAME: &str = "typr-def.toml";
+
+// ---------------------------------------------------------------------
+// Repository spec
+// ---------------------------------------------------------------------
+
+/// `github:owner/repo[/subdir...][@rev]` — the only repository scheme this
+/// build understands (registry.md §6/§7: GitHub is the primary host). The
+/// optional `subdir` is what lets a `packages/<pkg>.json` entry point *into*
+/// a monorepo like `we-data-ch/registry`'s own `definitions/<pkg>/`
+/// (registry.md §8.2, `definitions/README.md`) instead of only at a
+/// repository's root — without it, two packages indexed against the same
+/// monorepo would collide on "the one `typr-def.toml` at the repo root".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepoSpec {
+    pub owner: String,
+    pub repo: String,
+    /// Path *within* the repository to the definition's own root (the
+    /// directory holding its `typr-def.toml`), when it isn't the repository
+    /// root itself. `/`-separated, no leading or trailing slash.
+    pub subdir: Option<String>,
+    /// A pinned commit/branch/tag, when the user gave one after `@`. `None`
+    /// means "resolve `HEAD`".
+    pub rev: Option<String>,
+}
+
+impl RepoSpec {
+    pub fn parse(spec: &str) -> Result<Self, String> {
+        let rest = spec.strip_prefix("github:").ok_or_else(|| {
+            format!("unsupported repository scheme in `{spec}` — only `github:owner/repo[/subdir][@rev]` is understood")
+        })?;
+        let (path, rev) = match rest.split_once('@') {
+            Some((path, rev)) => (path, Some(rev.to_string())),
+            None => (rest, None),
+        };
+        let mut segments = path.split('/');
+        let owner = segments.next().unwrap_or("");
+        let repo = segments.next().unwrap_or("");
+        if owner.is_empty() || repo.is_empty() {
+            return Err(format!(
+                "`{spec}` is not `github:owner/repo[/subdir][@rev]` — missing `owner/repo`"
+            ));
+        }
+        let rest_segments: Vec<&str> = segments.collect();
+        let subdir = if rest_segments.is_empty() {
+            None
+        } else if rest_segments.iter().any(|s| s.is_empty()) {
+            return Err(format!(
+                "`{spec}` is not `github:owner/repo[/subdir][@rev]` — empty path segment in subdir"
+            ));
+        } else {
+            Some(rest_segments.join("/"))
+        };
+        Ok(RepoSpec {
+            owner: owner.to_string(),
+            repo: repo.to_string(),
+            subdir,
+            rev,
+        })
+    }
+
+    pub fn clone_url(&self) -> String {
+        format!("https://github.com/{}/{}.git", self.owner, self.repo)
+    }
+
+    /// The `repository` field as it is written into `typr.toml`/`typr.lock` —
+    /// always without the resolved rev, since that lives in `typr.lock`'s own
+    /// `rev` field (registry.md §7.1: one source of truth per question).
+    pub fn display(&self) -> String {
+        match &self.subdir {
+            Some(sub) => format!("github:{}/{}/{}", self.owner, self.repo, sub),
+            None => format!("github:{}/{}", self.owner, self.repo),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// typr.lock
+// ---------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LockedDefinition {
+    pub package: String,
+    pub repository: String,
+    pub version: String,
+    pub rev: String,
+    pub digest: String,
+    pub tier: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub r_version_seen: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Lockfile {
+    #[serde(default, rename = "definition")]
+    pub definitions: Vec<LockedDefinition>,
+}
+
+impl Lockfile {
+    /// A missing or unparsable lockfile is simply "nothing resolved yet" —
+    /// never a hard error, matching the fail-open convention the rest of the
+    /// CLI's caches use (`r_name_cache`, `cache::BuildManifest`).
+    pub fn read(path: &Path) -> Self {
+        fs::read_to_string(path)
+            .ok()
+            .and_then(|s| toml::from_str(&s).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn write(&self, path: &Path) -> Result<(), String> {
+        let rendered =
+            toml::to_string_pretty(self).map_err(|e| format!("could not serialize {}: {e}", path.display()))?;
+        let header = "# typr.lock — generated by `typr types`, commit this file.\n\
+                       # See typR/registry.md §7.1 and rfcs/0031-external-type-definitions.md.\n\n";
+        fs::write(path, format!("{header}{rendered}")).map_err(|e| format!("could not write {}: {e}", path.display()))
+    }
+
+    pub fn find(&self, package: &str) -> Option<&LockedDefinition> {
+        self.definitions.iter().find(|d| d.package == package)
+    }
+
+    /// Replace any existing entry for the same package (a package resolves to
+    /// exactly one definition, registry.md §8.3) and insert the new one.
+    pub fn upsert(&mut self, def: LockedDefinition) {
+        self.definitions.retain(|d| d.package != def.package);
+        self.definitions.push(def);
+    }
+}
+
+// ---------------------------------------------------------------------
+// Cache
+// ---------------------------------------------------------------------
+
+/// `~/.cache/typr/types/` (or `$XDG_CACHE_HOME`/`$LOCALAPPDATA`), mirroring
+/// `r_deps::cache_path`'s resolution rules.
+pub fn cache_root() -> Option<PathBuf> {
+    crate::r_deps::cache_home().map(|dir| dir.join("typr").join("types"))
+}
+
+/// `~/.cache/typr/types/<pkg>/<digest-without-"sha256:">/` — the RFC's
+/// `~/.cache/typr/types/<pkg>/<digest>/` (registry.md §7.4).
+pub fn cache_dir_for(pkg: &str, digest: &str) -> Option<PathBuf> {
+    cache_root().map(|root| root.join(pkg).join(digest_dirname(digest)))
+}
+
+fn digest_dirname(digest: &str) -> &str {
+    digest.strip_prefix("sha256:").unwrap_or(digest)
+}
+
+// ---------------------------------------------------------------------
+// Fetch
+// ---------------------------------------------------------------------
+
+/// A definition repository fetched to a local directory, before it is
+/// admitted into the cache. Kept separate from `LockedDefinition` because
+/// capability-gating (below) happens on these raw files, before anything is
+/// written to `typr.lock`.
+pub struct FetchedDefinition {
+    pub manifest: DefinitionManifest,
+    pub rev: String,
+    pub digest: String,
+    /// The definition's own root — where its `typr-def.toml` lives. Equal to
+    /// `root` unless `spec.subdir` was set, in which case it is `root` joined
+    /// with that subdir. This is what `tracked_files`/`compute_digest`/
+    /// `admit_to_cache` walk, so a monorepo definition's digest and cache
+    /// copy only ever cover its own files, never its siblings.
+    pub dir: PathBuf,
+    /// The full clone — what must be removed to clean up the temp checkout
+    /// (`dir` alone isn't enough when it's a nested subdirectory of a
+    /// monorepo clone).
+    pub root: PathBuf,
+}
+
+/// `pub(crate)`: also used by `registry_revalidate.rs` to fail open the same
+/// way `lookup_in_registry`/`search` already do when `git` isn't on `PATH`.
+pub(crate) fn git_available() -> bool {
+    Command::new("git")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Clone `url` (at `rev` when given, else the default branch's HEAD) into a
+/// fresh temp directory and return it plus the resolved commit hash.
+///
+/// Shells out to the `git` binary — the same pattern `gen_types.rs` uses for
+/// `Rscript` — rather than adding a git-in-process dependency for a command
+/// that already needs network access.
+fn clone_repo(url: &str, rev: Option<&str>) -> Result<(PathBuf, String), String> {
+    let dir = std::env::temp_dir().join(format!("typr_types_fetch_{}_{}", std::process::id(), now_millis()));
+    fs::create_dir_all(&dir).map_err(|e| format!("could not create temp dir: {e}"))?;
+
+    let clone_status = Command::new("git")
+        .args(["clone", "--quiet"])
+        .args(if rev.is_none() { vec!["--depth", "1"] } else { vec![] })
+        .arg(url)
+        .arg(&dir)
+        .output()
+        .map_err(|e| format!("could not run `git clone`: {e}"))?;
+    if !clone_status.status.success() {
+        let _ = fs::remove_dir_all(&dir);
+        return Err(format!(
+            "`git clone {url}` failed: {}",
+            String::from_utf8_lossy(&clone_status.stderr).trim()
+        ));
+    }
+
+    if let Some(rev) = rev {
+        let checkout = Command::new("git")
+            .args(["-C"])
+            .arg(&dir)
+            .args(["checkout", "--quiet", rev])
+            .output()
+            .map_err(|e| format!("could not run `git checkout`: {e}"))?;
+        if !checkout.status.success() {
+            let _ = fs::remove_dir_all(&dir);
+            return Err(format!(
+                "`git checkout {rev}` failed: {}",
+                String::from_utf8_lossy(&checkout.stderr).trim()
+            ));
+        }
+    }
+
+    let head = Command::new("git")
+        .args(["-C"])
+        .arg(&dir)
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .map_err(|e| format!("could not run `git rev-parse HEAD`: {e}"))?;
+    if !head.status.success() {
+        let _ = fs::remove_dir_all(&dir);
+        return Err(format!(
+            "`git rev-parse HEAD` failed: {}",
+            String::from_utf8_lossy(&head.stderr).trim()
+        ));
+    }
+    let rev = String::from_utf8_lossy(&head.stdout).trim().to_string();
+
+    let git_dir = dir.join(".git");
+    let _ = fs::remove_dir_all(&git_dir);
+
+    Ok((dir, rev))
+}
+
+fn now_millis() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
+}
+
+/// Every file under `dir` (relative paths, `/`-separated, sorted), skipping
+/// `.git` — the exact set of bytes the content digest and the cache/vendor
+/// copies are built from. `pub(crate)` so `registry_validate.rs` can walk a
+/// freshly fetched definition the same way `resolve_one_locked_definition`
+/// walks a cached one, rather than re-implementing directory traversal.
+pub(crate) fn tracked_files(dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut out = BTreeSet::new();
+    collect_files(dir, dir, &mut out)?;
+    Ok(out.into_iter().collect())
+}
+
+fn collect_files(root: &Path, current: &Path, out: &mut BTreeSet<PathBuf>) -> Result<(), String> {
+    let entries = fs::read_dir(current).map_err(|e| format!("could not read {}: {e}", current.display()))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("could not read entry in {}: {e}", current.display()))?;
+        let path = entry.path();
+        if path.file_name().and_then(|n| n.to_str()) == Some(".git") {
+            continue;
+        }
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("could not stat {}: {e}", path.display()))?;
+        if file_type.is_dir() {
+            collect_files(root, &path, out)?;
+        } else if file_type.is_file() {
+            let rel = path
+                .strip_prefix(root)
+                .map_err(|e| format!("could not relativize {}: {e}", path.display()))?;
+            out.insert(rel.to_path_buf());
+        }
+    }
+    Ok(())
+}
+
+/// A deterministic content digest over every tracked file's path and bytes —
+/// what `typr.lock`'s `digest` field pins, and what `typr check`/`build`/`run`
+/// will re-verify a cached copy against before trusting it (registry.md
+/// principle 5).
+fn compute_digest(dir: &Path) -> Result<String, String> {
+    let files = tracked_files(dir)?;
+    let mut hasher = Sha256::new();
+    for rel in &files {
+        let content = fs::read(dir.join(rel)).map_err(|e| format!("could not read {}: {e}", rel.display()))?;
+        hasher.update(rel.to_string_lossy().replace('\\', "/").as_bytes());
+        hasher.update([0u8]);
+        hasher.update((content.len() as u64).to_le_bytes());
+        hasher.update(&content);
+    }
+    Ok(format!("sha256:{:x}", hasher.finalize()))
+}
+
+/// Does `dir` ship an `R/` shim directory with at least one file in it?
+fn has_r_shims(dir: &Path) -> bool {
+    let r_dir = dir.join("R");
+    r_dir.is_dir()
+        && fs::read_dir(&r_dir)
+            .map(|mut entries| entries.any(|e| e.map(|e| e.path().is_file()).unwrap_or(false)))
+            .unwrap_or(false)
+}
+
+/// Does any `.ty` file under `dir` use a raw `extern: (...) -> T r#"...R..."#`
+/// verbatim block? Detected by the literal `r#"` token, the only place that
+/// sequence appears in TypR source (`typR/ai_context/tuto_external_packages.md`
+/// §"Niveau 3").
+fn has_extern_raw(dir: &Path) -> Result<bool, String> {
+    for rel in tracked_files(dir)? {
+        if rel.extension().and_then(|e| e.to_str()) != Some("ty") {
+            continue;
+        }
+        let content = fs::read_to_string(dir.join(&rel)).unwrap_or_default();
+        if content.contains("r#\"") {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Enforce the manifest's `[capabilities]` gate against what was actually
+/// fetched (rfcs/0031-external-type-definitions.md, "Capabilities and R
+/// shims"): a definition that leaves `r_shims`/`extern_raw` at their default
+/// `false` but ships either anyway is rejected outright, before a single
+/// `.ty` file is loaded anywhere. A definition that truthfully declares
+/// `true` is let through with a warning message for the caller to print.
+fn check_capabilities(manifest: &DefinitionManifest, dir: &Path) -> Result<Vec<String>, String> {
+    let mut warnings = Vec::new();
+    let ships_r_shims = has_r_shims(dir);
+    let ships_extern_raw = has_extern_raw(dir)?;
+
+    if ships_r_shims && !manifest.capabilities.r_shims {
+        return Err(
+            "rejected: this definition ships an `R/` shim directory but its manifest declares \
+             `capabilities.r_shims = false` — undeclared executable R is refused at fetch time \
+             (typR/registry.md §5.5)"
+                .to_string(),
+        );
+    }
+    if ships_extern_raw && !manifest.capabilities.extern_raw {
+        return Err(
+            "rejected: this definition uses a raw `extern: (...) -> T r#\"...R...\"#` block but its \
+             manifest declares `capabilities.extern_raw = false` — undeclared executable R is \
+             refused at fetch time (typR/registry.md §5.5)"
+                .to_string(),
+        );
+    }
+    if manifest.capabilities.r_shims {
+        warnings.push(
+            "this definition declares `capabilities.r_shims = true` — it ships executable R that \
+             will run in this project's process (typR/registry.md §5.5)."
+                .to_string(),
+        );
+    }
+    if manifest.capabilities.extern_raw {
+        warnings.push(
+            "this definition declares `capabilities.extern_raw = true` — it uses raw R blocks that \
+             will run in this project's process (typR/registry.md §5.5)."
+                .to_string(),
+        );
+    }
+    Ok(warnings)
+}
+
+/// Fetch `spec`, validate its manifest and capabilities, and compute its
+/// content digest — the shared core of `add` and `update`. Leaves the
+/// fetched files at `FetchedDefinition::dir` for the caller to admit into the
+/// cache (or discard, on any failure).
+pub fn fetch(spec: &RepoSpec) -> Result<(FetchedDefinition, Vec<String>), String> {
+    if !git_available() {
+        return Err(
+            "`git` is not on PATH — `typr types add`/`update` need it to fetch a definition repository".to_string(),
+        );
+    }
+    let (root, rev) = clone_repo(&spec.clone_url(), spec.rev.as_deref())?;
+
+    let result = (|| {
+        let dir = match &spec.subdir {
+            Some(sub) => root.join(sub),
+            None => root.clone(),
+        };
+        let manifest_path = dir.join(MANIFEST_NAME);
+        let manifest_source = fs::read_to_string(&manifest_path).map_err(|_| match &spec.subdir {
+            Some(sub) => format!("no `{MANIFEST_NAME}` at `{sub}` in {}", spec.display()),
+            None => format!("no `{MANIFEST_NAME}` at the root of {}", spec.display()),
+        })?;
+        let manifest = parse_manifest(&manifest_source)?;
+        let warnings = check_capabilities(&manifest, &dir)?;
+        let digest = compute_digest(&dir)?;
+        Ok((
+            FetchedDefinition {
+                manifest,
+                rev,
+                digest,
+                dir,
+                root: root.clone(),
+            },
+            warnings,
+        ))
+    })();
+
+    if result.is_err() {
+        let _ = fs::remove_dir_all(&root);
+    }
+    result
+}
+
+/// Best-effort: the version of `package` actually installed on this
+/// machine, via the same `Rscript`-based introspection `typr gen-types`
+/// already uses (`gen_types::introspect`, which itself parses the `P` line
+/// of `introspect_pkg.R`'s output). This is the "version réellement
+/// observée" registry.md §7.2 says `typr.lock`'s `r_version_seen` records.
+///
+/// Fail-open (`None`) when `Rscript` is not on PATH or the package is not
+/// installed locally: `typr types add`/`update` must still succeed without R
+/// present (same contract as the rest of this module's git-only fetch path)
+/// — it just leaves nothing for the version-floor check at `check`/`build`/
+/// `run` time to compare against later, per `degrade_if_version_out_of_range`'s
+/// own "no comparison is made... when `r_version_seen` is `None`" rule.
+fn observed_r_package_version(package: &str) -> Option<String> {
+    crate::gen_types::introspect(package)
+        .ok()
+        .and_then(|info| info.pkg_version)
+}
+
+/// Copy every tracked file of a fetched definition into the on-disk cache at
+/// `~/.cache/typr/types/<pkg>/<digest>/`, replacing whatever was there before
+/// (the digest already identifies the content, so an existing directory with
+/// the same digest is assumed identical — a corrupted one is exactly what
+/// re-running `typr types add`/`update` is for).
+fn admit_to_cache(fetched: &FetchedDefinition, pkg: &str) -> Result<PathBuf, String> {
+    let cache_dir = cache_dir_for(pkg, &fetched.digest)
+        .ok_or_else(|| "could not determine a cache directory (no $HOME/$XDG_CACHE_HOME)".to_string())?;
+    let _ = fs::remove_dir_all(&cache_dir);
+    fs::create_dir_all(&cache_dir).map_err(|e| format!("could not create {}: {e}", cache_dir.display()))?;
+    for rel in tracked_files(&fetched.dir)? {
+        let from = fetched.dir.join(&rel);
+        let to = cache_dir.join(&rel);
+        if let Some(parent) = to.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("could not create {}: {e}", parent.display()))?;
+        }
+        fs::copy(&from, &to).map_err(|e| format!("could not copy {} to {}: {e}", from.display(), to.display()))?;
+    }
+    Ok(cache_dir)
+}
+
+// ---------------------------------------------------------------------
+// typr.toml [types]
+// ---------------------------------------------------------------------
+
+/// The subset of a project's `typr.toml` this module reads: the `[types]`
+/// table (registry.md §7.1 — never a dependency list, only trust +
+/// package→definition pins).
+///
+/// `trust` feeds `standard_library::load_project_type_definitions` — the
+/// project's threshold below which an external definition's entries degrade
+/// to `Any` (registry.md §5.4). A project with no `typr.toml`, or none with
+/// a `[types] trust`, defaults to `"T2"` there — the same default the
+/// manifest example in registry.md §5.4 documents.
+#[derive(Debug, Clone, Default)]
+pub struct TypesConfig {
+    pub trust: Option<String>,
+    /// package name → explicit `github:owner/repo[@rev]` pin.
+    pub pins: std::collections::BTreeMap<String, String>,
+}
+
+impl TypesConfig {
+    pub fn read(project_root: &Path) -> Self {
+        let Ok(source) = fs::read_to_string(project_root.join(PROJECT_CONFIG_NAME)) else {
+            return Self::default();
+        };
+        let Ok(value) = source.parse::<toml::Value>() else {
+            return Self::default();
+        };
+        let Some(types) = value.get("types").and_then(|t| t.as_table()) else {
+            return Self::default();
+        };
+        let trust = types.get("trust").and_then(|v| v.as_str()).map(str::to_string);
+        let pins = types
+            .iter()
+            .filter(|(k, _)| k.as_str() != "trust")
+            .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+            .collect();
+        TypesConfig { trust, pins }
+    }
+}
+
+// ---------------------------------------------------------------------
+// Registry lookup (registry.md §13 J3 — "résolution par le registre dans
+// `typr add`, `typr types update`")
+// ---------------------------------------------------------------------
+
+/// The one community registry this build knows how to query
+/// (`we-data-ch/registry`, registry.md §8.1) — same one-host restriction as
+/// `RepoSpec` only understanding `github:`.
+const REGISTRY_REPO_URL: &str = "https://github.com/we-data-ch/registry.git";
+
+/// Deserializes one entry of a `packages/<pkg>.json` `definitions` array
+/// (registry.md §8.1). Only the fields the selection logic below needs;
+/// anything else in the file (e.g. `capabilities`) is not read here — the
+/// real capability gate is enforced later, on the fetched repository itself,
+/// by `check_capabilities`.
+#[derive(Debug, Clone, Deserialize)]
+struct RegistryDefinitionEntry {
+    /// `owner/repo` or `owner/repo/subdir...`, no `github:` scheme
+    /// (registry.md §8.1's example; the optional trailing segments are the
+    /// monorepo path of §8.2, e.g. `we-data-ch/registry/definitions/dplyr`).
+    repository: String,
+    #[serde(default)]
+    rev: Option<String>,
+    /// `official` | `community` | `generated` | `local`.
+    #[serde(default)]
+    source: String,
+    /// `T1` | `T2` | `T3`.
+    #[serde(default)]
+    tier: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+struct RegistryPackageFile {
+    #[serde(default)]
+    definitions: Vec<RegistryDefinitionEntry>,
+}
+
+/// registry.md §8.3's conflict order, restricted to what a registry file can
+/// express — an explicit user pin and a locally generated definition are
+/// resolved before this is ever consulted (`resolve_spec_for_package`,
+/// below): official first, then community, then anything else. An
+/// unrecognized `source` string ranks last rather than erroring — same D2
+/// instinct as `standard_library::tier_rank` for an unreadable tier: a signal
+/// this build cannot read must never be trusted more than one it can.
+fn provider_rank(source: &str) -> u8 {
+    match source {
+        "official" => 3,
+        "community" => 2,
+        "generated" => 1,
+        _ => 0,
+    }
+}
+
+/// Same ranking as `standard_library::tier_rank`, duplicated locally rather
+/// than shared: that function ranks a *loaded* entry's trust for the
+/// degrade-to-`Any` decision, this one ranks *candidates* before anything is
+/// fetched — different callers, same T1 > T2 > T3 intuition.
+fn tier_rank_for_selection(tier: &str) -> u8 {
+    match tier {
+        "T1" => 3,
+        "T2" => 2,
+        "T3" => 1,
+        _ => 0,
+    }
+}
+
+/// Highest-ranked entry in `file.definitions`, ties broken by whichever comes
+/// first in the file (no editorial ordering beyond tier/provenance — Q3,
+/// registry.md §14, is still open). `None` when the file lists nothing.
+fn pick_best_entry(file: &RegistryPackageFile) -> Option<&RegistryDefinitionEntry> {
+    let mut best: Option<&RegistryDefinitionEntry> = None;
+    let mut best_rank = (0u8, 0u8);
+    for entry in &file.definitions {
+        let rank = (provider_rank(&entry.source), tier_rank_for_selection(&entry.tier));
+        if best.is_none() || rank > best_rank {
+            best = Some(entry);
+            best_rank = rank;
+        }
+    }
+    best
+}
+
+/// `~/.cache/typr/registry-index/` — a local mirror of `we-data-ch/registry`,
+/// refreshed in place rather than re-cloned on every lookup.
+fn registry_index_dir() -> Option<PathBuf> {
+    crate::r_deps::cache_home().map(|dir| dir.join("typr").join("registry-index"))
+}
+
+/// Clone (first use) or fast-forward `git pull` (subsequent uses) the local
+/// registry mirror, returning its path.
+///
+/// `pub(crate)`: `registry_revalidate.rs` calls this directly when `typr
+/// types revalidate` isn't given an explicit `--dir` (e.g. a CI job that has
+/// already checked out `we-data-ch/registry` itself and wants to validate
+/// that working tree instead of a fresh mirror).
+pub(crate) fn sync_registry_index() -> Result<PathBuf, String> {
+    let dir = registry_index_dir()
+        .ok_or_else(|| "could not determine a cache directory (no $HOME/$XDG_CACHE_HOME)".to_string())?;
+
+    if dir.join(".git").is_dir() {
+        let pull = Command::new("git")
+            .arg("-C")
+            .arg(&dir)
+            .args(["pull", "--quiet", "--ff-only"])
+            .output()
+            .map_err(|e| format!("could not run `git pull`: {e}"))?;
+        if !pull.status.success() {
+            return Err(format!(
+                "`git pull` in {} failed: {}",
+                dir.display(),
+                String::from_utf8_lossy(&pull.stderr).trim()
+            ));
+        }
+        return Ok(dir);
+    }
+
+    let _ = fs::remove_dir_all(&dir);
+    if let Some(parent) = dir.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("could not create {}: {e}", parent.display()))?;
+    }
+    let clone = Command::new("git")
+        .args(["clone", "--quiet", "--depth", "1"])
+        .arg(REGISTRY_REPO_URL)
+        .arg(&dir)
+        .output()
+        .map_err(|e| format!("could not run `git clone`: {e}"))?;
+    if !clone.status.success() {
+        let _ = fs::remove_dir_all(&dir);
+        return Err(format!(
+            "`git clone {REGISTRY_REPO_URL}` failed: {}",
+            String::from_utf8_lossy(&clone.stderr).trim()
+        ));
+    }
+    Ok(dir)
+}
+
+/// Look up `packages/<package>.json` in `we-data-ch/registry` and, when it
+/// lists at least one usable entry, return a `github:owner/repo[@rev]` spec
+/// string for the best one (`pick_best_entry`) — ready to hand straight to
+/// `add`/`fetch`, exactly like a spec the user typed by hand.
+///
+/// Fails open at every step: no `git`, an unreachable registry, no entry for
+/// `package`, or an entry whose `repository` field is not `owner/repo` all
+/// resolve to `None`, never an error the caller must special-case — "the
+/// registry has nothing to say" is exactly as safe as "no definition at all"
+/// (D2, registry.md §0/§5.4: an absent or unusable signal never blocks
+/// anything, it just leaves the package untyped).
+pub fn lookup_in_registry(package: &str) -> Option<String> {
+    if !git_available() {
+        return None;
+    }
+    let dir = match sync_registry_index() {
+        Ok(dir) => dir,
+        Err(e) => {
+            eprintln!("warning: could not reach the registry ({e}) — skipping automatic type-definition lookup for `{package}`");
+            return None;
+        }
+    };
+    lookup_in_registry_dir(&dir, package)
+}
+
+/// The JSON-reading and entry-selection half of `lookup_in_registry`, kept
+/// separate from syncing the index so it can be unit-tested against a
+/// hand-written `packages/` directory instead of a real clone of
+/// `we-data-ch/registry`.
+fn lookup_in_registry_dir(dir: &Path, package: &str) -> Option<String> {
+    let path = dir.join("packages").join(format!("{package}.json"));
+    let source = fs::read_to_string(&path).ok()?;
+    let file: RegistryPackageFile = serde_json::from_str(&source).ok()?;
+    let entry = pick_best_entry(&file)?;
+    entry_spec(entry)
+}
+
+/// `entry.repository`/`entry.rev` as a `github:owner/repo[/subdir][@rev]`
+/// spec string, ready for `fetch`/`RepoSpec::parse` — `None` when
+/// `repository` isn't at least `owner/repo` (extra `/`-separated segments
+/// past the second are the monorepo subdir, registry.md §8.2 — e.g.
+/// `we-data-ch/registry/definitions/dplyr`). Shared by
+/// `lookup_in_registry_dir` (the single best entry) and
+/// `list_registry_targets` (every entry).
+fn entry_spec(entry: &RegistryDefinitionEntry) -> Option<String> {
+    let segment_count = entry.repository.split('/').filter(|s| !s.is_empty()).count();
+    if segment_count < 2 || entry.repository.contains("//") {
+        return None;
+    }
+    Some(match entry.rev.as_deref() {
+        Some(rev) if !rev.is_empty() => format!("github:{}@{}", entry.repository, rev),
+        _ => format!("github:{}", entry.repository),
+    })
+}
+
+/// One definition entry from `packages/<pkg>.json`, resolved to a spec string
+/// — `typr types revalidate`'s unit of work (registry.md §13 J4, "revalidation
+/// périodique des définitions déjà indexées"). Unlike `lookup_in_registry`
+/// (the single winner `typr types add` would pick) or `search` (every entry,
+/// but not resolved to a fetchable spec), this is *every* entry across *every*
+/// package file, each already a `github:owner/repo[@rev]` string ready to feed
+/// straight to `registry_validate::validate`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegistryTarget {
+    pub package: String,
+    pub spec: String,
+}
+
+/// Walk `dir/packages/*.json` and resolve every listed definition entry to a
+/// `RegistryTarget`. Sorted by filename then file order, so two runs over an
+/// unchanged registry produce results in the same order — `typr types
+/// revalidate` diffs successive runs, and a stable order keeps that diff
+/// about content, not happenstance directory iteration.
+///
+/// Fails open like everything else that reads registry files (D2): a missing
+/// `packages/` directory, an unreadable file, invalid JSON, or a malformed
+/// `repository` field all just drop that entry rather than aborting the walk.
+pub fn list_registry_targets(dir: &Path) -> Vec<RegistryTarget> {
+    let packages_dir = dir.join("packages");
+    let Ok(read_dir) = fs::read_dir(&packages_dir) else {
+        return Vec::new();
+    };
+    let mut files: Vec<PathBuf> = read_dir
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("json"))
+        .collect();
+    files.sort();
+
+    let mut out = Vec::new();
+    for path in files {
+        let Some(package) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let Ok(source) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(file) = serde_json::from_str::<RegistryPackageFile>(&source) else {
+            continue;
+        };
+        for entry in &file.definitions {
+            if let Some(spec) = entry_spec(entry) {
+                out.push(RegistryTarget {
+                    package: package.to_string(),
+                    spec,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// One entry of `packages/<package>.json`'s `definitions` array, as `typr
+/// search` reports it — every entry, not just the winner `pick_best_entry`
+/// would choose, so the user can see what `typr types add` would pick among.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchEntry {
+    /// `owner/repo`, no `github:` scheme (matches the registry file's own field).
+    pub repository: String,
+    pub rev: Option<String>,
+    /// `official` | `community` | `generated` | `local`, or anything else the
+    /// registry file happens to contain — not validated here.
+    pub source: String,
+    /// `T1` | `T2` | `T3`, same caveat.
+    pub tier: String,
+}
+
+/// `typr search <pkg>` — list every definition the registry has for
+/// `package`, ranked best (registry.md §8.3's provider-then-tier order)
+/// first, ties broken by file order exactly like `pick_best_entry`.
+///
+/// An empty result means "the registry has nothing for this package", which
+/// is not an error (D2's instinct: an absent signal is safe, never fatal) —
+/// `Ok(vec![])` covers a missing `packages/<pkg>.json`, invalid JSON, and an
+/// empty `definitions` array alike. `Err` is reserved for why the registry
+/// itself could not be consulted at all (no `git`, clone/pull failure), so
+/// the caller can show that reason instead of silently reporting zero hits.
+pub fn search(package: &str) -> Result<Vec<SearchEntry>, String> {
+    if !git_available() {
+        return Err("`git` is not installed or not on PATH — cannot reach the registry".to_string());
+    }
+    let dir = sync_registry_index()?;
+    Ok(search_in_registry_dir(&dir, package))
+}
+
+/// The JSON-reading half of `search`, kept separate so it can be unit-tested
+/// against a hand-written `packages/` directory instead of a real clone —
+/// same split as `lookup_in_registry`/`lookup_in_registry_dir`.
+fn search_in_registry_dir(dir: &Path, package: &str) -> Vec<SearchEntry> {
+    let path = dir.join("packages").join(format!("{package}.json"));
+    let Ok(source) = fs::read_to_string(&path) else {
+        return Vec::new();
+    };
+    let Ok(file) = serde_json::from_str::<RegistryPackageFile>(&source) else {
+        return Vec::new();
+    };
+    let mut entries: Vec<SearchEntry> = file
+        .definitions
+        .iter()
+        .map(|e| SearchEntry {
+            repository: e.repository.clone(),
+            rev: e.rev.clone(),
+            source: e.source.clone(),
+            tier: e.tier.clone(),
+        })
+        .collect();
+    entries.sort_by(|a, b| {
+        let rank_a = (provider_rank(&a.source), tier_rank_for_selection(&a.tier));
+        let rank_b = (provider_rank(&b.source), tier_rank_for_selection(&b.tier));
+        rank_b.cmp(&rank_a)
+    });
+    entries
+}
+
+/// Resolve a repository spec string for `package` when the caller has none
+/// in hand yet — the two steps of registry.md §7.3's flow that precede a
+/// fetch: an explicit `typr.toml [types]` pin always wins (§8.3 priority 1);
+/// failing that, the registry (§8.3 priorities 2-3, as far as a registry
+/// entry can distinguish them). `None` means neither had anything to say —
+/// the caller decides what "nothing resolved" means for it (an error for an
+/// explicit `typr types add` with no repo, a silent no-op for `typr add`'s
+/// best-effort lookup).
+pub fn resolve_spec_for_package(project_root: &Path, package: &str) -> Option<String> {
+    let config = TypesConfig::read(project_root);
+    if let Some(pin) = config.pins.get(package) {
+        return Some(pin.clone());
+    }
+    lookup_in_registry(package)
+}
+
+// ---------------------------------------------------------------------
+// Commands: add / update / list / vendor
+// ---------------------------------------------------------------------
+
+/// `typr types add <repo>` — resolve `spec` for `package`, fetch it, verify
+/// it, cache it, and record it in `typr.lock`.
+pub fn add(project_root: &Path, package: &str, spec_str: &str) -> Result<LockedDefinition, String> {
+    let spec = RepoSpec::parse(spec_str)?;
+    let (fetched, warnings) = fetch(&spec)?;
+    for w in &warnings {
+        eprintln!("warning: {w}");
+    }
+    admit_to_cache(&fetched, package)?;
+
+    let locked = LockedDefinition {
+        package: package.to_string(),
+        repository: spec.display(),
+        version: fetched.manifest.definition.version.clone(),
+        rev: fetched.rev.clone(),
+        digest: fetched.digest.clone(),
+        tier: fetched.manifest.definition.tier.clone(),
+        r_version_seen: observed_r_package_version(package),
+    };
+
+    let lock_path = project_root.join(LOCKFILE_NAME);
+    let mut lockfile = Lockfile::read(&lock_path);
+    lockfile.upsert(locked.clone());
+    lockfile.write(&lock_path)?;
+
+    let _ = fs::remove_dir_all(&fetched.root);
+    Ok(locked)
+}
+
+/// `typr types update [pkg]` — re-fetch and re-pin one (or, with `package ==
+/// None`, every) resolved definition. The repository spec comes from the
+/// existing `typr.lock` entry; for a package not yet locked, it falls back to
+/// `resolve_spec_for_package` — an explicit `typr.toml [types]` pin, or (J3)
+/// the `we-data-ch/registry` — before giving up.
+pub fn update(project_root: &Path, package: Option<&str>) -> Result<Vec<LockedDefinition>, String> {
+    let lock_path = project_root.join(LOCKFILE_NAME);
+    let lockfile = Lockfile::read(&lock_path);
+
+    let targets: Vec<(String, String)> = match package {
+        Some(pkg) => {
+            let spec = lockfile
+                .find(pkg)
+                .map(|d| d.repository.clone())
+                .or_else(|| resolve_spec_for_package(project_root, pkg))
+                .ok_or_else(|| {
+                    format!(
+                        "no resolved, pinned, or registry-listed definition for `{pkg}` — use \
+                         `typr types add {pkg} github:owner/repo` with an explicit repository"
+                    )
+                })?;
+            vec![(pkg.to_string(), spec)]
+        }
+        None => lockfile
+            .definitions
+            .iter()
+            .map(|d| (d.package.clone(), d.repository.clone()))
+            .collect(),
+    };
+
+    if targets.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut updated = Vec::new();
+    for (pkg, spec) in targets {
+        updated.push(add(project_root, &pkg, &spec)?);
+    }
+    Ok(updated)
+}
+
+/// `typr types list` — everything `typr.lock` currently resolves.
+pub fn list(project_root: &Path) -> Vec<LockedDefinition> {
+    Lockfile::read(&project_root.join(LOCKFILE_NAME)).definitions
+}
+
+/// `typr types vendor [--out DIR]` — copy every resolved definition's cached
+/// `.ty` files into the project tree (default `ty/vendor/<pkg>/`), so the
+/// build stops depending on the network or the upstream repository's
+/// continued existence (registry.md §7.4, rfcs/0031 "vendor").
+pub fn vendor(project_root: &Path, out_dir: Option<&Path>) -> Result<Vec<PathBuf>, String> {
+    let lockfile = Lockfile::read(&project_root.join(LOCKFILE_NAME));
+    if lockfile.definitions.is_empty() {
+        return Err("nothing resolved yet — `typr types add` a definition before vendoring".to_string());
+    }
+    let base = out_dir
+        .map(|p| project_root.join(p))
+        .unwrap_or_else(|| project_root.join("ty").join("vendor"));
+
+    let mut written = Vec::new();
+    for def in &lockfile.definitions {
+        let cache_dir = cache_dir_for(&def.package, &def.digest)
+            .ok_or_else(|| "could not determine a cache directory (no $HOME/$XDG_CACHE_HOME)".to_string())?;
+        if !cache_dir.is_dir() {
+            return Err(format!(
+                "`{}` is not in the local cache at {} — run `typr types update {}` first",
+                def.package,
+                cache_dir.display(),
+                def.package
+            ));
+        }
+        let actual_digest = compute_digest(&cache_dir)?;
+        if actual_digest != def.digest {
+            return Err(format!(
+                "digest mismatch for `{}`: typr.lock says {} but the cached copy hashes to {} — \
+                 the cache is corrupted; run `typr types update {}` to re-fetch",
+                def.package, def.digest, actual_digest, def.package
+            ));
+        }
+
+        let dest = base.join(&def.package);
+        let _ = fs::remove_dir_all(&dest);
+        for rel in tracked_files(&cache_dir)? {
+            let from = cache_dir.join(&rel);
+            let to = dest.join(&rel);
+            if let Some(parent) = to.parent() {
+                fs::create_dir_all(parent).map_err(|e| format!("could not create {}: {e}", parent.display()))?;
+            }
+            fs::copy(&from, &to).map_err(|e| format!("could not copy {} to {}: {e}", from.display(), to.display()))?;
+            written.push(to);
+        }
+    }
+    Ok(written)
+}
+
+// ---------------------------------------------------------------------
+// Wiring into the type-checking context
+// ---------------------------------------------------------------------
+
+/// A locked definition's `.ty` sources plus the facts
+/// `standard_library::load_external_ty_definitions` and
+/// `standard_library::degrade_if_version_out_of_range` need — the return
+/// shape of `resolve_locked_definitions`, below.
+pub struct ResolvedDefinition {
+    pub package: String,
+    /// `(relative path, file content)` for every `.ty` file the cached
+    /// definition ships, in the sorted order `tracked_files` already
+    /// produces (deterministic — later files in the same repository can
+    /// reference types declared by earlier ones, exactly like the bundled
+    /// stdlib's own `R_T1_SOURCES`).
+    pub ty_sources: Vec<(String, String)>,
+    /// The manifest's `[definition] tier` — the tier an entry with no
+    /// `#! tier:` of its own falls back to.
+    pub default_tier: String,
+    pub since: String,
+    pub until: Option<String>,
+    /// `typr.lock`'s own `r_version_seen`, frozen at the last `typr types
+    /// add`/`update` — `None` when it was never observed (R unavailable at
+    /// resolution time).
+    pub r_version_seen: Option<String>,
+}
+
+/// Read `typr.lock` and, for every locked definition whose cached copy is
+/// present and still matches its pinned digest, collect its `.ty` sources —
+/// the "reading `typr.lock` at `check`/`build`/`run` time" step this
+/// module's doc comment names. A locked package whose cache is missing,
+/// stale, or corrupted is skipped, with a message for the caller to print as
+/// a warning, rather than failing the build: the same fail-open contract
+/// `vendor()` already applies, and D2 ("an unreliable signal only ever
+/// removes checking, it never breaks a build", registry.md §0/§5.4) taken to
+/// its logical end — a package `typr.lock` cannot currently resolve simply
+/// falls back to being untyped R, exactly as if it had never been added.
+pub fn resolve_locked_definitions(project_root: &Path) -> (Vec<ResolvedDefinition>, Vec<String>) {
+    let lockfile = Lockfile::read(&project_root.join(LOCKFILE_NAME));
+    let mut resolved = Vec::new();
+    let mut warnings = Vec::new();
+    for def in &lockfile.definitions {
+        match resolve_one_locked_definition(def) {
+            Ok(r) => resolved.push(r),
+            Err(w) => warnings.push(w),
+        }
+    }
+    (resolved, warnings)
+}
+
+fn resolve_one_locked_definition(def: &LockedDefinition) -> Result<ResolvedDefinition, String> {
+    let cache_dir = cache_dir_for(&def.package, &def.digest).ok_or_else(|| {
+        format!(
+            "`{}`: no cache directory available (no $HOME/$XDG_CACHE_HOME) — its declared types are unavailable this run, names stay untyped",
+            def.package
+        )
+    })?;
+    if !cache_dir.is_dir() {
+        return Err(format!(
+            "`{}`: not in the local cache at {} — run `typr types update {}`; its declared types are unavailable this run, names stay untyped",
+            def.package,
+            cache_dir.display(),
+            def.package
+        ));
+    }
+    let actual_digest = compute_digest(&cache_dir).map_err(|e| format!("`{}`: {e}", def.package))?;
+    if actual_digest != def.digest {
+        return Err(format!(
+            "`{}`: cached copy no longer matches typr.lock (expected {}, found {}) — run `typr types update {}`; \
+             its declared types are unavailable this run, names stay untyped",
+            def.package, def.digest, actual_digest, def.package
+        ));
+    }
+
+    let manifest_source = fs::read_to_string(cache_dir.join(MANIFEST_NAME))
+        .map_err(|e| format!("`{}`: could not read {MANIFEST_NAME} from its cache: {e}", def.package))?;
+    let manifest = parse_manifest(&manifest_source).map_err(|e| format!("`{}`: {e}", def.package))?;
+
+    let mut ty_sources = Vec::new();
+    for rel in tracked_files(&cache_dir).map_err(|e| format!("`{}`: {e}", def.package))? {
+        if rel.extension().and_then(|e| e.to_str()) != Some("ty") {
+            continue;
+        }
+        let content = fs::read_to_string(cache_dir.join(&rel))
+            .map_err(|e| format!("`{}`: could not read {}: {e}", def.package, rel.display()))?;
+        ty_sources.push((rel.to_string_lossy().replace('\\', "/"), content));
+    }
+
+    Ok(ResolvedDefinition {
+        package: def.package.clone(),
+        ty_sources,
+        default_tier: manifest.definition.tier,
+        since: manifest.package.since,
+        until: manifest.package.until,
+        r_version_seen: def.r_version_seen.clone(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -- RepoSpec ----------------------------------------------------
+
+    #[test]
+    fn parses_owner_repo_without_rev() {
+        let spec = RepoSpec::parse("github:alice/typr-shiny").unwrap();
+        assert_eq!(spec.owner, "alice");
+        assert_eq!(spec.repo, "typr-shiny");
+        assert_eq!(spec.rev, None);
+        assert_eq!(spec.clone_url(), "https://github.com/alice/typr-shiny.git");
+        assert_eq!(spec.display(), "github:alice/typr-shiny");
+    }
+
+    #[test]
+    fn parses_owner_repo_with_rev() {
+        let spec = RepoSpec::parse("github:alice/typr-shiny@a1b2c3d").unwrap();
+        assert_eq!(spec.rev.as_deref(), Some("a1b2c3d"));
+        // the rev never leaks into the persisted `repository` string —
+        // typr.lock's own `rev` field is the one source of truth for it.
+        assert_eq!(spec.display(), "github:alice/typr-shiny");
+    }
+
+    #[test]
+    fn rejects_unsupported_scheme() {
+        let err = RepoSpec::parse("gitlab:alice/typr-shiny").unwrap_err();
+        assert!(err.contains("github:"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn rejects_missing_owner_or_repo() {
+        assert!(RepoSpec::parse("github:typr-shiny").is_err());
+        assert!(RepoSpec::parse("github:/typr-shiny").is_err());
+        assert!(RepoSpec::parse("github:alice/").is_err());
+    }
+
+    #[test]
+    fn parses_a_single_segment_subdir() {
+        let spec = RepoSpec::parse("github:we-data-ch/registry/definitions/dplyr").unwrap();
+        assert_eq!(spec.owner, "we-data-ch");
+        assert_eq!(spec.repo, "registry");
+        assert_eq!(spec.subdir.as_deref(), Some("definitions/dplyr"));
+        assert_eq!(spec.rev, None);
+        assert_eq!(spec.display(), "github:we-data-ch/registry/definitions/dplyr");
+    }
+
+    #[test]
+    fn parses_a_multi_segment_subdir_with_rev() {
+        let spec = RepoSpec::parse("github:we-data-ch/registry/definitions/dplyr/ty@abc123").unwrap();
+        assert_eq!(spec.subdir.as_deref(), Some("definitions/dplyr/ty"));
+        assert_eq!(spec.rev.as_deref(), Some("abc123"));
+        // the rev never leaks into `display()`, same contract as the no-subdir case.
+        assert_eq!(spec.display(), "github:we-data-ch/registry/definitions/dplyr/ty");
+    }
+
+    #[test]
+    fn no_subdir_round_trips_to_none() {
+        let spec = RepoSpec::parse("github:alice/typr-shiny").unwrap();
+        assert_eq!(spec.subdir, None);
+    }
+
+    #[test]
+    fn rejects_empty_subdir_segment() {
+        assert!(RepoSpec::parse("github:alice/typr-shiny//").is_err());
+    }
+
+    // -- Lockfile ------------------------------------------------------
+
+    fn sample_locked(package: &str) -> LockedDefinition {
+        LockedDefinition {
+            package: package.to_string(),
+            repository: "github:alice/typr-shiny".to_string(),
+            version: "0.3.0".to_string(),
+            rev: "a1b2c3d4e5f6".to_string(),
+            digest: "sha256:deadbeef".to_string(),
+            tier: "T2".to_string(),
+            r_version_seen: Some("1.11.1".to_string()),
+        }
+    }
+
+    #[test]
+    fn lockfile_round_trips_through_toml() {
+        let mut lockfile = Lockfile::default();
+        lockfile.upsert(sample_locked("shiny"));
+        lockfile.upsert(sample_locked("dplyr"));
+
+        let dir = std::env::temp_dir().join(format!("typr_lockfile_test_{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(LOCKFILE_NAME);
+        lockfile.write(&path).unwrap();
+
+        let read_back = Lockfile::read(&path);
+        assert_eq!(read_back.definitions.len(), 2);
+        assert_eq!(read_back.find("shiny"), lockfile.find("shiny"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn upsert_replaces_existing_entry_for_same_package() {
+        let mut lockfile = Lockfile::default();
+        lockfile.upsert(sample_locked("shiny"));
+        let mut updated = sample_locked("shiny");
+        updated.digest = "sha256:newdigest".to_string();
+        lockfile.upsert(updated);
+
+        assert_eq!(lockfile.definitions.len(), 1);
+        assert_eq!(lockfile.find("shiny").unwrap().digest, "sha256:newdigest");
+    }
+
+    #[test]
+    fn missing_lockfile_reads_as_empty() {
+        let path = std::env::temp_dir().join("typr_lockfile_definitely_missing.lock");
+        let _ = fs::remove_file(&path);
+        assert!(Lockfile::read(&path).definitions.is_empty());
+    }
+
+    // -- TypesConfig -----------------------------------------------------
+
+    #[test]
+    fn reads_trust_and_pins_from_typr_toml() {
+        let dir = std::env::temp_dir().join(format!("typr_types_config_test_{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join(PROJECT_CONFIG_NAME),
+            "[types]\ntrust = \"T2\"\nshiny = \"github:alice/typr-shiny\"\n",
+        )
+        .unwrap();
+
+        let config = TypesConfig::read(&dir);
+        assert_eq!(config.trust.as_deref(), Some("T2"));
+        assert_eq!(
+            config.pins.get("shiny").map(String::as_str),
+            Some("github:alice/typr-shiny")
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn missing_typr_toml_reads_as_default() {
+        let dir = std::env::temp_dir().join("typr_types_config_definitely_missing");
+        let _ = fs::remove_dir_all(&dir);
+        let config = TypesConfig::read(&dir);
+        assert!(config.trust.is_none());
+        assert!(config.pins.is_empty());
+    }
+
+    // -- digest / capability gate -----------------------------------------
+
+    fn write_file(root: &Path, rel: &str, content: &str) {
+        let path = root.join(rel);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, content).unwrap();
+    }
+
+    #[test]
+    fn digest_is_deterministic_and_order_independent() {
+        let dir_a = std::env::temp_dir().join(format!("typr_digest_a_{}", std::process::id()));
+        let dir_b = std::env::temp_dir().join(format!("typr_digest_b_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir_a);
+        let _ = fs::remove_dir_all(&dir_b);
+
+        write_file(&dir_a, "ty/core.ty", "@f: (int) -> int;");
+        write_file(&dir_a, "typr-def.toml", "format_version = 1");
+        // same content, written in the opposite order
+        write_file(&dir_b, "typr-def.toml", "format_version = 1");
+        write_file(&dir_b, "ty/core.ty", "@f: (int) -> int;");
+
+        assert_eq!(compute_digest(&dir_a).unwrap(), compute_digest(&dir_b).unwrap());
+
+        write_file(&dir_b, "ty/core.ty", "@f: (int) -> char;");
+        assert_ne!(compute_digest(&dir_a).unwrap(), compute_digest(&dir_b).unwrap());
+
+        let _ = fs::remove_dir_all(&dir_a);
+        let _ = fs::remove_dir_all(&dir_b);
+    }
+
+    #[test]
+    fn digest_ignores_git_directory() {
+        let dir = std::env::temp_dir().join(format!("typr_digest_git_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_file(&dir, "ty/core.ty", "@f: (int) -> int;");
+        let before = compute_digest(&dir).unwrap();
+        write_file(&dir, ".git/HEAD", "ref: refs/heads/main");
+        let after = compute_digest(&dir).unwrap();
+        assert_eq!(before, after);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    fn manifest_with(r_shims: bool, extern_raw: bool) -> DefinitionManifest {
+        let toml = format!(
+            "format_version = 1\n[package]\nname = \"shiny\"\nsince = \"1.11.0\"\n\
+             [definition]\nversion = \"0.1.0\"\ntier = \"T2\"\n\
+             [provider]\ntype = \"community\"\nrepository = \"github:alice/typr-shiny\"\n\
+             [capabilities]\nr_shims = {r_shims}\nextern_raw = {extern_raw}\n"
+        );
+        parse_manifest(&toml).unwrap()
+    }
+
+    #[test]
+    fn undeclared_r_shims_are_rejected() {
+        let dir = std::env::temp_dir().join(format!("typr_caps_shims_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_file(&dir, "R/shim.R", "f <- function(x) x");
+        let err = check_capabilities(&manifest_with(false, false), &dir).unwrap_err();
+        assert!(err.contains("r_shims"), "unexpected error: {err}");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn declared_r_shims_pass_with_a_warning() {
+        let dir = std::env::temp_dir().join(format!("typr_caps_shims_ok_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_file(&dir, "R/shim.R", "f <- function(x) x");
+        let warnings = check_capabilities(&manifest_with(true, false), &dir).unwrap();
+        assert!(warnings.iter().any(|w| w.contains("r_shims")));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn undeclared_extern_raw_is_rejected() {
+        let dir = std::env::temp_dir().join(format!("typr_caps_extern_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_file(
+            &dir,
+            "ty/core.ty",
+            "let f <- extern: (x: int) -> int r#\"\nfunction(x) x\n\"#;",
+        );
+        let err = check_capabilities(&manifest_with(false, false), &dir).unwrap_err();
+        assert!(err.contains("extern_raw"), "unexpected error: {err}");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn clean_definition_has_no_warnings() {
+        let dir = std::env::temp_dir().join(format!("typr_caps_clean_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_file(&dir, "ty/core.ty", "@f: (int) -> int;");
+        let warnings = check_capabilities(&manifest_with(false, false), &dir).unwrap();
+        assert!(warnings.is_empty());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // -- End-to-end add/update/list/vendor against a local `file://` repo --
+
+    /// Build a minimal, valid definition repository under `dir` and commit it
+    /// with `git`, so `fetch`/`add` can clone it over a `file://` URL with no
+    /// network access — the same offline-friendly pattern
+    /// `gen_types.rs`/`r_name_cache.rs` use for their Rscript-dependent tests
+    /// (fail open when the external tool is missing).
+    fn make_definition_repo(dir: &Path) -> Result<(), String> {
+        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        write_file(
+            dir,
+            MANIFEST_NAME,
+            "format_version = 1\n\
+             [package]\nname = \"shiny\"\nsince = \"1.11.0\"\n\
+             [definition]\nversion = \"0.3.0\"\ntier = \"T2\"\n\
+             [provider]\ntype = \"community\"\nrepository = \"github:alice/typr-shiny\"\n\
+             [capabilities]\nr_shims = false\nextern_raw = false\n",
+        );
+        write_file(
+            dir,
+            "ty/core.ty",
+            "#! pkg: shiny\n#! tier: T2\n@importFrom shiny fluidPage;\n@fluidPage: (Any) -> Any;\n",
+        );
+
+        let run = |args: &[&str]| -> Result<(), String> {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(dir)
+                .args(args)
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !out.status.success() {
+                return Err(String::from_utf8_lossy(&out.stderr).into_owned());
+            }
+            Ok(())
+        };
+        run(&["init", "--quiet"])?;
+        run(&["config", "user.email", "test@example.com"])?;
+        run(&["config", "user.name", "test"])?;
+        run(&["add", "."])?;
+        run(&["commit", "--quiet", "-m", "initial"])?;
+        Ok(())
+    }
+
+    fn file_url(dir: &Path) -> String {
+        format!("file://{}", dir.display())
+    }
+
+    /// Build a minimal *monorepo*-style repository under `dir`, with two
+    /// package definitions nested under `definitions/<pkg>/` (registry.md
+    /// §8.2's layout), and commit it — the fixture for exercising `fetch`'s
+    /// subdir handling the same way `make_definition_repo` exercises the
+    /// plain, single-package case.
+    fn make_monorepo(dir: &Path) -> Result<(), String> {
+        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        write_file(
+            dir,
+            "definitions/dplyr/typr-def.toml",
+            "format_version = 1\n\
+             [package]\nname = \"dplyr\"\nsince = \"1.1.0\"\n\
+             [definition]\nversion = \"0.1.0\"\ntier = \"T3\"\n\
+             [provider]\ntype = \"generated\"\nrepository = \"github:we-data-ch/registry\"\n\
+             [capabilities]\nr_shims = false\nextern_raw = false\n",
+        );
+        write_file(
+            dir,
+            "definitions/dplyr/ty/core.ty",
+            "#! pkg: dplyr\n#! tier: T3\n@importFrom dplyr filter;\n@filter: (Any, Any) -> Any;\n",
+        );
+        write_file(
+            dir,
+            "definitions/ggplot2/typr-def.toml",
+            "format_version = 1\n\
+             [package]\nname = \"ggplot2\"\nsince = \"3.4.0\"\n\
+             [definition]\nversion = \"0.1.0\"\ntier = \"T3\"\n\
+             [provider]\ntype = \"generated\"\nrepository = \"github:we-data-ch/registry\"\n\
+             [capabilities]\nr_shims = false\nextern_raw = false\n",
+        );
+        write_file(
+            dir,
+            "definitions/ggplot2/ty/core.ty",
+            "#! pkg: ggplot2\n#! tier: T3\n@importFrom ggplot2 ggplot;\n@ggplot: (Any) -> Any;\n",
+        );
+
+        let run = |args: &[&str]| -> Result<(), String> {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(dir)
+                .args(args)
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !out.status.success() {
+                return Err(String::from_utf8_lossy(&out.stderr).into_owned());
+            }
+            Ok(())
+        };
+        run(&["init", "--quiet"])?;
+        run(&["config", "user.email", "test@example.com"])?;
+        run(&["config", "user.name", "test"])?;
+        run(&["add", "."])?;
+        run(&["commit", "--quiet", "-m", "initial"])?;
+        Ok(())
+    }
+
+    #[test]
+    fn fetch_resolves_a_definition_nested_in_a_monorepo_subdir() {
+        if !git_available() {
+            eprintln!("skipping: git not on PATH");
+            return;
+        }
+        let repo_dir = std::env::temp_dir().join(format!("typr_monorepo_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&repo_dir);
+        if let Err(e) = make_monorepo(&repo_dir) {
+            eprintln!("skipping: could not set up local git fixture: {e}");
+            let _ = fs::remove_dir_all(&repo_dir);
+            return;
+        }
+
+        // Same "bypass RepoSpec::parse, drive the clone directly" pattern as
+        // `add_update_list_vendor_round_trip_against_a_local_repo`: only
+        // `github:` URLs are a supported host, so a `file://` fixture is
+        // cloned directly and `fetch`'s own subdir-joining logic is exercised
+        // by hand, against the two sibling package directories the fixture
+        // ships.
+        let (root, rev) = clone_repo(&file_url(&repo_dir), None).expect("clone should succeed");
+        let base_dir = root.join("definitions").join("dplyr");
+        let manifest = parse_manifest(&fs::read_to_string(base_dir.join(MANIFEST_NAME)).unwrap()).unwrap();
+        assert_eq!(manifest.package.name, "dplyr");
+        check_capabilities(&manifest, &base_dir).unwrap();
+        let digest = compute_digest(&base_dir).unwrap();
+
+        // The digest and tracked-file set only cover `dplyr`'s own files —
+        // changing the sibling `ggplot2` definition must not move it, and no
+        // `ggplot2` path leaks into what would be admitted to the cache.
+        let files = tracked_files(&base_dir).unwrap();
+        assert!(files.iter().all(|p| !p.to_string_lossy().contains("ggplot2")));
+        write_file(&root, "definitions/ggplot2/ty/core.ty", "@ggplot: (int) -> int;\n");
+        assert_eq!(compute_digest(&base_dir).unwrap(), digest);
+
+        let fetched = FetchedDefinition {
+            manifest,
+            rev,
+            digest,
+            dir: base_dir,
+            root: root.clone(),
+        };
+        admit_to_cache(&fetched, "dplyr").unwrap();
+        let cache_dir = cache_dir_for("dplyr", &fetched.digest).unwrap();
+        assert!(cache_dir.join("ty").join("core.ty").is_file());
+        assert!(!cache_dir.join("definitions").exists());
+
+        let _ = fs::remove_dir_all(&repo_dir);
+        let _ = fs::remove_dir_all(&fetched.root);
+        let _ = fs::remove_dir_all(&cache_dir);
+    }
+
+    #[test]
+    fn add_update_list_vendor_round_trip_against_a_local_repo() {
+        if !git_available() {
+            eprintln!("skipping: git not on PATH");
+            return;
+        }
+        let repo_dir = std::env::temp_dir().join(format!("typr_types_repo_{}", std::process::id()));
+        let project_dir = std::env::temp_dir().join(format!("typr_types_project_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&repo_dir);
+        let _ = fs::remove_dir_all(&project_dir);
+        fs::create_dir_all(&project_dir).unwrap();
+
+        if let Err(e) = make_definition_repo(&repo_dir) {
+            eprintln!("skipping: could not set up local git fixture: {e}");
+            let _ = fs::remove_dir_all(&repo_dir);
+            let _ = fs::remove_dir_all(&project_dir);
+            return;
+        }
+
+        // `fetch`/`add` only understand `github:owner/repo` — reach the local
+        // fixture through the real clone path by cloning the `file://` URL
+        // directly and driving the cache/lock plumbing at that level, since
+        // `RepoSpec` cannot express a local path (by design: only GitHub is a
+        // supported host today).
+        let (dir, rev) = clone_repo(&file_url(&repo_dir), None).expect("clone should succeed");
+        let manifest = parse_manifest(&fs::read_to_string(dir.join(MANIFEST_NAME)).unwrap()).unwrap();
+        let warnings = check_capabilities(&manifest, &dir).unwrap();
+        assert!(warnings.is_empty());
+        let digest = compute_digest(&dir).unwrap();
+        let fetched = FetchedDefinition {
+            manifest,
+            rev,
+            digest,
+            dir: dir.clone(),
+            root: dir,
+        };
+
+        admit_to_cache(&fetched, "shiny").unwrap();
+        let locked = LockedDefinition {
+            package: "shiny".to_string(),
+            repository: "github:alice/typr-shiny".to_string(),
+            version: fetched.manifest.definition.version.clone(),
+            rev: fetched.rev.clone(),
+            digest: fetched.digest.clone(),
+            tier: fetched.manifest.definition.tier.clone(),
+            r_version_seen: None,
+        };
+        let mut lockfile = Lockfile::default();
+        lockfile.upsert(locked);
+        lockfile.write(&project_dir.join(LOCKFILE_NAME)).unwrap();
+
+        // list()
+        let listed = list(&project_dir);
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].package, "shiny");
+        assert_eq!(listed[0].tier, "T2");
+
+        // vendor()
+        let written = vendor(&project_dir, None).unwrap();
+        assert!(!written.is_empty());
+        let vendored_ty = project_dir
+            .join("ty")
+            .join("vendor")
+            .join("shiny")
+            .join("ty")
+            .join("core.ty");
+        assert!(vendored_ty.is_file(), "expected {}", vendored_ty.display());
+        let content = fs::read_to_string(&vendored_ty).unwrap();
+        assert!(content.contains("fluidPage"));
+
+        let _ = fs::remove_dir_all(&repo_dir);
+        let _ = fs::remove_dir_all(&project_dir);
+        let _ = fs::remove_dir_all(&fetched.root);
+        if let Some(cache_dir) = cache_dir_for("shiny", &fetched.digest) {
+            let _ = fs::remove_dir_all(&cache_dir);
+        }
+    }
+
+    #[test]
+    fn vendor_detects_cache_digest_mismatch() {
+        let project_dir = std::env::temp_dir().join(format!("typr_vendor_mismatch_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&project_dir);
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let mut lockfile = Lockfile::default();
+        lockfile.upsert(LockedDefinition {
+            package: "ghost".to_string(),
+            repository: "github:alice/typr-ghost".to_string(),
+            version: "0.1.0".to_string(),
+            rev: "deadbeef".to_string(),
+            digest: "sha256:doesnotexistanywhereincache".to_string(),
+            tier: "T3".to_string(),
+            r_version_seen: None,
+        });
+        lockfile.write(&project_dir.join(LOCKFILE_NAME)).unwrap();
+
+        let err = vendor(&project_dir, None).unwrap_err();
+        assert!(err.contains("ghost"), "unexpected error: {err}");
+
+        let _ = fs::remove_dir_all(&project_dir);
+    }
+
+    // -- End-to-end: typr.lock -> real cache -> type-checking context ------
+    //
+    // These exercise `standard_library::load_project_type_definitions`, the
+    // "reading typr.lock at check/build/run time" wiring named as the last
+    // missing piece of registry.md §13 J2's `typr types add/update/list/
+    // vendor` item. They admit a definition straight into the real on-disk
+    // cache (no git fixture, unlike `add_update_list_vendor_round_trip_
+    // against_a_local_repo` above) since only the cache/lock -> context path
+    // is under test here, not fetching.
+
+    fn lock_definition_in_real_cache(
+        project_dir: &Path,
+        package: &str,
+        manifest_toml: &str,
+        ty_source: &str,
+        r_version_seen: Option<&str>,
+    ) -> LockedDefinition {
+        let src_dir = std::env::temp_dir().join(format!("typr_lock_src_{package}_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&src_dir);
+        write_file(&src_dir, MANIFEST_NAME, manifest_toml);
+        write_file(&src_dir, "ty/core.ty", ty_source);
+
+        let manifest = parse_manifest(manifest_toml).unwrap();
+        let digest = compute_digest(&src_dir).unwrap();
+        let fetched = FetchedDefinition {
+            manifest,
+            rev: "0000000000000000000000000000000000000000".to_string(),
+            digest,
+            dir: src_dir.clone(),
+            root: src_dir.clone(),
+        };
+        admit_to_cache(&fetched, package).unwrap();
+
+        let locked = LockedDefinition {
+            package: package.to_string(),
+            repository: format!("github:test/{package}"),
+            version: fetched.manifest.definition.version.clone(),
+            rev: fetched.rev.clone(),
+            digest: fetched.digest.clone(),
+            tier: fetched.manifest.definition.tier.clone(),
+            r_version_seen: r_version_seen.map(str::to_string),
+        };
+
+        let lock_path = project_dir.join(LOCKFILE_NAME);
+        let mut lockfile = Lockfile::read(&lock_path);
+        lockfile.upsert(locked.clone());
+        lockfile.write(&lock_path).unwrap();
+
+        let _ = fs::remove_dir_all(&src_dir);
+        locked
+    }
+
+    /// registry.md §5.4: a `T3` entry, locked and cached for real, degrades
+    /// to `Any` under the project's default `T2` trust once loaded through
+    /// the real `check`/`build`/`run` entry point
+    /// (`standard_library::load_project_type_definitions`) — not just
+    /// through the lower-level `load_external_ty_definitions` unit tests in
+    /// `standard_library.rs`.
+    #[test]
+    fn load_project_type_definitions_degrades_a_low_tier_locked_definition() {
+        let project_dir = std::env::temp_dir().join(format!("typr_wiring_tier_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&project_dir);
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let manifest_toml = "format_version = 1\n\
+             [package]\nname = \"widget\"\nsince = \"1.0.0\"\n\
+             [definition]\nversion = \"0.1.0\"\ntier = \"T3\"\n\
+             [provider]\ntype = \"community\"\nrepository = \"github:test/typr-widget\"\n\
+             [capabilities]\nr_shims = false\nextern_raw = false\n";
+        let locked = lock_definition_in_real_cache(
+            &project_dir,
+            "widget",
+            manifest_toml,
+            "@do_widget_thing: (int) -> int;",
+            None,
+        );
+
+        let context = crate::standard_library::load_project_type_definitions(
+            &project_dir,
+            typr_core::components::context::Context::default(),
+        );
+        let typ = context
+            .get_type_from_variable(&typr_core::components::language::var::Var::from_name("do_widget_thing"))
+            .expect("locked definition's entry must be loaded into the context");
+        assert!(
+            typ.is_unknown_function(),
+            "a T3 entry under the default T2 project trust must degrade to Any"
+        );
+
+        let _ = fs::remove_dir_all(&project_dir);
+        if let Some(cache_dir) = cache_dir_for("widget", &locked.digest) {
+            let _ = fs::remove_dir_all(&cache_dir);
+        }
+    }
+
+    /// registry.md §7.2: a `typr.lock` entry whose recorded `r_version_seen`
+    /// is below the manifest's `since` floor degrades to `Any` once loaded
+    /// through the real `check`/`build`/`run` entry point, even though its
+    /// own tier (`T1`) is trusted outright.
+    #[test]
+    fn load_project_type_definitions_degrades_when_locked_version_is_below_since() {
+        let project_dir = std::env::temp_dir().join(format!("typr_wiring_version_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&project_dir);
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let manifest_toml = "format_version = 1\n\
+             [package]\nname = \"widget2\"\nsince = \"2.0.0\"\n\
+             [definition]\nversion = \"0.1.0\"\ntier = \"T1\"\n\
+             [provider]\ntype = \"community\"\nrepository = \"github:test/typr-widget2\"\n\
+             [capabilities]\nr_shims = false\nextern_raw = false\n";
+        let locked = lock_definition_in_real_cache(
+            &project_dir,
+            "widget2",
+            manifest_toml,
+            "@do_widget2_thing: (int) -> int;",
+            Some("1.0.0"),
+        );
+
+        let context = crate::standard_library::load_project_type_definitions(
+            &project_dir,
+            typr_core::components::context::Context::default(),
+        );
+        let typ = context
+            .get_type_from_variable(&typr_core::components::language::var::Var::from_name(
+                "do_widget2_thing",
+            ))
+            .expect("locked definition's entry must be loaded into the context");
+        assert!(
+            typ.is_unknown_function(),
+            "a T1 entry whose observed version is below `since` must still degrade to Any (registry.md §7.2)"
+        );
+
+        let _ = fs::remove_dir_all(&project_dir);
+        if let Some(cache_dir) = cache_dir_for("widget2", &locked.digest) {
+            let _ = fs::remove_dir_all(&cache_dir);
+        }
+    }
+
+    // -- Registry lookup (registry.md §13 J3) ----------------------------
+
+    fn write_registry_package(dir: &Path, package: &str, json: &str) {
+        write_file(dir, &format!("packages/{package}.json"), json);
+    }
+
+    #[test]
+    fn picks_official_over_community_regardless_of_tier() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_official_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "shiny",
+            r#"{
+                "name": "shiny",
+                "definitions": [
+                    {"repository": "alice/typr-shiny", "rev": "aaa", "source": "community", "tier": "T1"},
+                    {"repository": "rstudio/typr-shiny-official", "rev": "bbb", "source": "official", "tier": "T3"}
+                ]
+            }"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "shiny").unwrap();
+        assert_eq!(spec, "github:rstudio/typr-shiny-official@bbb");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn picks_highest_tier_among_same_provenance() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_tier_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "dplyr",
+            r#"{
+                "name": "dplyr",
+                "definitions": [
+                    {"repository": "alice/typr-dplyr", "rev": "aaa", "source": "community", "tier": "T3"},
+                    {"repository": "bob/typr-dplyr", "rev": "bbb", "source": "community", "tier": "T1"},
+                    {"repository": "carol/typr-dplyr", "rev": "ccc", "source": "community", "tier": "T2"}
+                ]
+            }"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "dplyr").unwrap();
+        assert_eq!(spec, "github:bob/typr-dplyr@bbb");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn ties_keep_the_files_own_order() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_tie_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "ggplot2",
+            r#"{
+                "name": "ggplot2",
+                "definitions": [
+                    {"repository": "first/typr-ggplot2", "rev": "aaa", "source": "community", "tier": "T2"},
+                    {"repository": "second/typr-ggplot2", "rev": "bbb", "source": "community", "tier": "T2"}
+                ]
+            }"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "ggplot2").unwrap();
+        assert_eq!(spec, "github:first/typr-ggplot2@aaa");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn no_entry_for_package_resolves_to_none() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_missing_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("packages")).unwrap();
+
+        assert!(lookup_in_registry_dir(&dir, "sf").is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn empty_definitions_array_resolves_to_none() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_empty_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(&dir, "sf", r#"{"name": "sf", "definitions": []}"#);
+
+        assert!(lookup_in_registry_dir(&dir, "sf").is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn malformed_json_resolves_to_none_rather_than_erroring() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_bad_json_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(&dir, "sf", "this is not { json");
+
+        assert!(lookup_in_registry_dir(&dir, "sf").is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn monorepo_subdir_repository_resolves_with_subdir_preserved() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_subdir_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "dplyr",
+            r#"{
+                "name": "dplyr",
+                "definitions": [
+                    {"repository": "we-data-ch/registry/definitions/dplyr", "rev": "abc", "source": "generated", "tier": "T3"}
+                ]
+            }"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "dplyr").unwrap();
+        assert_eq!(spec, "github:we-data-ch/registry/definitions/dplyr@abc");
+        // and it parses back into a RepoSpec with the subdir intact.
+        let parsed = RepoSpec::parse(&spec).unwrap();
+        assert_eq!(parsed.owner, "we-data-ch");
+        assert_eq!(parsed.repo, "registry");
+        assert_eq!(parsed.subdir.as_deref(), Some("definitions/dplyr"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn entry_without_rev_resolves_to_head() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_norev_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "httr2",
+            r#"{"name": "httr2", "definitions": [{"repository": "alice/typr-httr2", "source": "community", "tier": "T2"}]}"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "httr2").unwrap();
+        assert_eq!(spec, "github:alice/typr-httr2");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unrecognized_source_and_tier_never_outrank_a_recognized_one() {
+        let dir = std::env::temp_dir().join(format!("typr_registry_unknown_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "jsonlite",
+            r#"{
+                "name": "jsonlite",
+                "definitions": [
+                    {"repository": "sketchy/typr-jsonlite", "rev": "zzz", "source": "totally-trustworthy", "tier": "super-good"},
+                    {"repository": "alice/typr-jsonlite", "rev": "aaa", "source": "generated", "tier": "T3"}
+                ]
+            }"#,
+        );
+
+        let spec = lookup_in_registry_dir(&dir, "jsonlite").unwrap();
+        assert_eq!(spec, "github:alice/typr-jsonlite@aaa");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // -- search: every entry, ranked, not just the winner -----------------
+
+    #[test]
+    fn search_lists_every_entry_ranked_best_first() {
+        let dir = std::env::temp_dir().join(format!("typr_search_ranked_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "shiny",
+            r#"{
+                "name": "shiny",
+                "definitions": [
+                    {"repository": "alice/typr-shiny", "rev": "aaa", "source": "community", "tier": "T1"},
+                    {"repository": "rstudio/typr-shiny-official", "rev": "bbb", "source": "official", "tier": "T3"},
+                    {"repository": "carol/typr-shiny", "rev": "ccc", "source": "community", "tier": "T3"}
+                ]
+            }"#,
+        );
+
+        let entries = search_in_registry_dir(&dir, "shiny");
+        let repos: Vec<&str> = entries.iter().map(|e| e.repository.as_str()).collect();
+        // official (any tier) still outranks community, matching pick_best_entry.
+        assert_eq!(
+            repos,
+            vec!["rstudio/typr-shiny-official", "alice/typr-shiny", "carol/typr-shiny"]
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn search_ties_keep_the_files_own_order() {
+        let dir = std::env::temp_dir().join(format!("typr_search_tie_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "ggplot2",
+            r#"{
+                "name": "ggplot2",
+                "definitions": [
+                    {"repository": "first/typr-ggplot2", "rev": "aaa", "source": "community", "tier": "T2"},
+                    {"repository": "second/typr-ggplot2", "rev": "bbb", "source": "community", "tier": "T2"}
+                ]
+            }"#,
+        );
+
+        let entries = search_in_registry_dir(&dir, "ggplot2");
+        let repos: Vec<&str> = entries.iter().map(|e| e.repository.as_str()).collect();
+        assert_eq!(repos, vec!["first/typr-ggplot2", "second/typr-ggplot2"]);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn search_no_entry_for_package_is_an_empty_list_not_an_error() {
+        let dir = std::env::temp_dir().join(format!("typr_search_missing_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("packages")).unwrap();
+
+        assert!(search_in_registry_dir(&dir, "sf").is_empty());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn search_malformed_json_is_an_empty_list_not_an_error() {
+        let dir = std::env::temp_dir().join(format!("typr_search_bad_json_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(&dir, "sf", "this is not { json");
+
+        assert!(search_in_registry_dir(&dir, "sf").is_empty());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // -- list_registry_targets (typr types revalidate, registry.md §13 J4) --
+
+    #[test]
+    fn list_registry_targets_covers_every_entry_across_every_package_file() {
+        let dir = std::env::temp_dir().join(format!("typr_list_targets_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "dplyr",
+            r#"{"name": "dplyr", "definitions": [
+                {"repository": "alice/typr-dplyr", "rev": "aaa", "source": "community", "tier": "T2"},
+                {"repository": "bob/typr-dplyr", "source": "community", "tier": "T3"}
+            ]}"#,
+        );
+        write_registry_package(
+            &dir,
+            "shiny",
+            r#"{"name": "shiny", "definitions": [
+                {"repository": "carol/typr-shiny", "rev": "ccc", "source": "official", "tier": "T1"}
+            ]}"#,
+        );
+
+        let targets = list_registry_targets(&dir);
+        let pairs: Vec<(String, String)> = targets.into_iter().map(|t| (t.package, t.spec)).collect();
+        assert_eq!(
+            pairs,
+            vec![
+                ("dplyr".to_string(), "github:alice/typr-dplyr@aaa".to_string()),
+                ("dplyr".to_string(), "github:bob/typr-dplyr".to_string()),
+                ("shiny".to_string(), "github:carol/typr-shiny@ccc".to_string()),
+            ]
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn list_registry_targets_skips_a_malformed_entry_without_dropping_the_rest() {
+        let dir = std::env::temp_dir().join(format!("typr_list_targets_bad_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        write_registry_package(
+            &dir,
+            "sf",
+            r#"{"name": "sf", "definitions": [
+                {"repository": "not-a-valid-repo-field", "source": "community", "tier": "T2"},
+                {"repository": "alice/typr-sf", "source": "community", "tier": "T2"}
+            ]}"#,
+        );
+
+        let targets = list_registry_targets(&dir);
+        assert_eq!(
+            targets,
+            vec![RegistryTarget {
+                package: "sf".to_string(),
+                spec: "github:alice/typr-sf".to_string()
+            }]
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn list_registry_targets_empty_when_packages_dir_is_absent() {
+        let dir = std::env::temp_dir().join(format!("typr_list_targets_empty_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        assert!(list_registry_targets(&dir).is_empty());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // -- resolve_spec_for_package: explicit pin beats the registry --------
+
+    #[test]
+    fn resolve_spec_for_package_prefers_explicit_pin_without_touching_the_registry() {
+        let dir = std::env::temp_dir().join(format!("typr_resolve_pin_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join(PROJECT_CONFIG_NAME),
+            "[types]\nshiny = \"github:alice/typr-shiny@pinned\"\n",
+        )
+        .unwrap();
+
+        // No registry index is reachable/needed here: the pin must win before
+        // `lookup_in_registry` is ever consulted.
+        let spec = resolve_spec_for_package(&dir, "shiny");
+        assert_eq!(spec, Some("github:alice/typr-shiny@pinned".to_string()));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+}

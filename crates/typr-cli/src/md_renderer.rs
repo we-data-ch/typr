@@ -216,6 +216,8 @@ mod tests {
             examples: vec!["abs(-5)   # -> 5".to_string()],
             seealso: vec!["sign".to_string()],
             pkg: Some(pkg.to_string()),
+            since: None,
+            until: None,
         });
         node
     }

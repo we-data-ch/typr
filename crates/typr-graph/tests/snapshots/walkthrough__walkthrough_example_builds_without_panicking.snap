@@ -1,0 +1,1021 @@
+---
+source: crates/typr-graph/tests/walkthrough.rs
+assertion_line: 45
+expression: json
+---
+{
+  "format": "typr-block-graph",
+  "version": 1,
+  "root": "val:@program",
+  "blocks": {
+    "type:Point": {
+      "key": "type:Point",
+      "kind": "TypeDecl",
+      "name": "Point",
+      "span": {
+        "file": "fil_rouge",
+        "start": 61,
+        "end": 341
+      },
+      "type": "UnknownFunction",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "UnknownFunction",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "show",
+          "type": "fn(p: Point) -> char",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "norm2",
+          "type": "fn(p: Point) -> int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [
+          "type:Point/x",
+          "type:Point/y"
+        ],
+        "wires": []
+      }
+    },
+    "type:Point/x": {
+      "key": "type:Point/x",
+      "kind": "TypeExpr",
+      "name": "x",
+      "type": "int",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User"
+    },
+    "type:Point/y": {
+      "key": "type:Point/y",
+      "kind": "TypeExpr",
+      "name": "y",
+      "type": "int",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User"
+    },
+    "type:Printable": {
+      "key": "type:Printable",
+      "kind": "Interface",
+      "name": "Printable",
+      "span": {
+        "file": "fil_rouge",
+        "start": 7,
+        "end": 341
+      },
+      "type": "int",
+      "inputs": [],
+      "outputs": [],
+      "origin": "User",
+      "body": {
+        "children": [
+          "type:Printable/show"
+        ],
+        "wires": []
+      }
+    },
+    "type:Printable/show": {
+      "key": "type:Printable/show",
+      "kind": "TypeExpr",
+      "name": "show",
+      "type": "fn(a: SELF) -> char",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "fn(a: SELF) -> char",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User"
+    },
+    "val:@program": {
+      "key": "val:@program",
+      "kind": "Program",
+      "inputs": [],
+      "outputs": [],
+      "origin": "User",
+      "body": {
+        "children": [
+          "type:Printable",
+          "type:Point",
+          "val:sq",
+          "val:norm2",
+          "val:show",
+          "val:p",
+          "val:d",
+          "val:total"
+        ],
+        "wires": []
+      }
+    },
+    "val:d": {
+      "key": "val:d",
+      "kind": "Apply",
+      "name": "d",
+      "span": {
+        "file": "fil_rouge",
+        "start": 304,
+        "end": 309
+      },
+      "type": "Point",
+      "inputs": [
+        {
+          "name": "callee",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "arg0",
+          "type": "Point",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "Point",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [],
+        "wires": [
+          {
+            "from": {
+              "block": "val:p",
+              "port": "out"
+            },
+            "to": {
+              "block": "val:d",
+              "port": "arg0"
+            }
+          }
+        ]
+      }
+    },
+    "val:norm2": {
+      "key": "val:norm2",
+      "kind": "Function",
+      "name": "norm2",
+      "span": {
+        "file": "",
+        "start": 0,
+        "end": 208
+      },
+      "type": "fn(p: Point) -> int",
+      "inputs": [
+        {
+          "name": "p",
+          "type": "Point",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "sq",
+          "implicit": true,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [
+          "val:norm2/a",
+          "val:norm2/#1"
+        ],
+        "wires": []
+      }
+    },
+    "val:norm2/#1": {
+      "key": "val:norm2/#1",
+      "kind": "Operator",
+      "span": {
+        "file": "fil_rouge",
+        "start": 193,
+        "end": 204
+      },
+      "type": "int",
+      "inputs": [
+        {
+          "name": "lhs",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "rhs",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [
+          "val:norm2/#1/rhs"
+        ],
+        "wires": [
+          {
+            "from": {
+              "block": "val:norm2/a",
+              "port": "out"
+            },
+            "to": {
+              "block": "val:norm2/#1",
+              "port": "lhs"
+            }
+          },
+          {
+            "from": {
+              "block": "val:norm2/#1/rhs",
+              "port": "out"
+            },
+            "to": {
+              "block": "val:norm2/#1",
+              "port": "rhs"
+            }
+          }
+        ]
+      }
+    },
+    "val:norm2/#1/rhs": {
+      "key": "val:norm2/#1/rhs",
+      "kind": "Apply",
+      "span": {
+        "file": "fil_rouge",
+        "start": 197,
+        "end": 204
+      },
+      "type": "int",
+      "inputs": [
+        {
+          "name": "callee",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "arg0",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [
+          "val:norm2/#1/rhs/arg0"
+        ],
+        "wires": [
+          {
+            "from": {
+              "block": "val:norm2/#1/rhs/arg0",
+              "port": "y"
+            },
+            "to": {
+              "block": "val:norm2/#1/rhs",
+              "port": "arg0"
+            }
+          }
+        ]
+      }
+    },
+    "val:norm2/#1/rhs/arg0": {
+      "key": "val:norm2/#1/rhs/arg0",
+      "kind": "Access",
+      "span": {
+        "file": "fil_rouge",
+        "start": 200,
+        "end": 202
+      },
+      "type": "int",
+      "inputs": [
+        {
+          "name": "value",
+          "type": "Point",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [],
+        "wires": [
+          {
+            "from": {
+              "block": "val:norm2",
+              "port": "p"
+            },
+            "to": {
+              "block": "val:norm2/#1/rhs/arg0",
+              "port": "value"
+            }
+          }
+        ]
+      }
+    },
+    "val:norm2/a": {
+      "key": "val:norm2/a",
+      "kind": "Apply",
+      "name": "a",
+      "span": {
+        "file": "fil_rouge",
+        "start": 180,
+        "end": 192
+      },
+      "type": "int",
+      "inputs": [
+        {
+          "name": "callee",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "arg0",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [
+          "val:norm2/a/arg0"
+        ],
+        "wires": [
+          {
+            "from": {
+              "block": "val:norm2/a/arg0",
+              "port": "x"
+            },
+            "to": {
+              "block": "val:norm2/a",
+              "port": "arg0"
+            }
+          }
+        ]
+      }
+    },
+    "val:norm2/a/arg0": {
+      "key": "val:norm2/a/arg0",
+      "kind": "Access",
+      "span": {
+        "file": "fil_rouge",
+        "start": 183,
+        "end": 185
+      },
+      "type": "int",
+      "inputs": [
+        {
+          "name": "value",
+          "type": "Point",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "x",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [],
+        "wires": [
+          {
+            "from": {
+              "block": "val:norm2",
+              "port": "p"
+            },
+            "to": {
+              "block": "val:norm2/a/arg0",
+              "port": "value"
+            }
+          }
+        ]
+      }
+    },
+    "val:p": {
+      "key": "val:p",
+      "kind": "Record",
+      "name": "p",
+      "span": {
+        "file": "fil_rouge",
+        "start": 267,
+        "end": 286
+      },
+      "type": "Point",
+      "inputs": [
+        {
+          "name": "x",
+          "type": "3",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "y",
+          "type": "4",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "Point",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "x",
+          "type": "3",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "y",
+          "type": "4",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [
+          "val:p/x",
+          "val:p/y"
+        ],
+        "wires": [
+          {
+            "from": {
+              "block": "val:p/x",
+              "port": "out"
+            },
+            "to": {
+              "block": "val:p",
+              "port": "x"
+            }
+          },
+          {
+            "from": {
+              "block": "val:p/y",
+              "port": "out"
+            },
+            "to": {
+              "block": "val:p",
+              "port": "y"
+            }
+          }
+        ]
+      }
+    },
+    "val:p/x": {
+      "key": "val:p/x",
+      "kind": "Literal",
+      "span": {
+        "file": "fil_rouge",
+        "start": 274,
+        "end": 275
+      },
+      "type": "3",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "3",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User"
+    },
+    "val:p/y": {
+      "key": "val:p/y",
+      "kind": "Literal",
+      "span": {
+        "file": "fil_rouge",
+        "start": 281,
+        "end": 283
+      },
+      "type": "4",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "4",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User"
+    },
+    "val:show": {
+      "key": "val:show",
+      "kind": "Function",
+      "name": "show",
+      "span": {
+        "file": "",
+        "start": 0,
+        "end": 253
+      },
+      "type": "fn(p: Point) -> char",
+      "inputs": [
+        {
+          "name": "p",
+          "type": "Point",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "char",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [
+          "val:show/#0"
+        ],
+        "wires": []
+      }
+    },
+    "val:show/#0": {
+      "key": "val:show/#0",
+      "kind": "Literal",
+      "span": {
+        "file": "fil_rouge",
+        "start": 242,
+        "end": 249
+      },
+      "type": "\"Point\"",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "\"Point\"",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User"
+    },
+    "val:sq": {
+      "key": "val:sq",
+      "kind": "Function",
+      "name": "sq",
+      "span": {
+        "file": "",
+        "start": 0,
+        "end": 133
+      },
+      "type": "fn(n: int) -> int",
+      "inputs": [
+        {
+          "name": "n",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [
+          "val:sq/#0"
+        ],
+        "wires": []
+      }
+    },
+    "val:sq/#0": {
+      "key": "val:sq/#0",
+      "kind": "Operator",
+      "span": {
+        "file": "fil_rouge",
+        "start": 124,
+        "end": 129
+      },
+      "type": "int",
+      "inputs": [
+        {
+          "name": "lhs",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "rhs",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [],
+        "wires": [
+          {
+            "from": {
+              "block": "val:sq",
+              "port": "n"
+            },
+            "to": {
+              "block": "val:sq/#0",
+              "port": "lhs"
+            }
+          },
+          {
+            "from": {
+              "block": "val:sq",
+              "port": "n"
+            },
+            "to": {
+              "block": "val:sq/#0",
+              "port": "rhs"
+            }
+          }
+        ]
+      }
+    },
+    "val:total": {
+      "key": "val:total",
+      "kind": "Operator",
+      "name": "total",
+      "span": {
+        "file": "fil_rouge",
+        "start": 323,
+        "end": 341
+      },
+      "type": "int",
+      "inputs": [
+        {
+          "name": "lhs",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "rhs",
+          "type": "3",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [
+          "val:total/lhs",
+          "val:total/rhs"
+        ],
+        "wires": [
+          {
+            "from": {
+              "block": "val:total/lhs",
+              "port": "out"
+            },
+            "to": {
+              "block": "val:total",
+              "port": "lhs"
+            }
+          },
+          {
+            "from": {
+              "block": "val:total/rhs",
+              "port": "out"
+            },
+            "to": {
+              "block": "val:total",
+              "port": "rhs"
+            }
+          }
+        ]
+      }
+    },
+    "val:total/lhs": {
+      "key": "val:total/lhs",
+      "kind": "Operator",
+      "span": {
+        "file": "fil_rouge",
+        "start": 323,
+        "end": 331
+      },
+      "type": "int",
+      "inputs": [
+        {
+          "name": "lhs",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "rhs",
+          "type": "12",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [
+          "val:total/lhs/lhs",
+          "val:total/lhs/rhs"
+        ],
+        "wires": [
+          {
+            "from": {
+              "block": "val:total/lhs/lhs",
+              "port": "out"
+            },
+            "to": {
+              "block": "val:total/lhs",
+              "port": "lhs"
+            }
+          },
+          {
+            "from": {
+              "block": "val:total/lhs/rhs",
+              "port": "out"
+            },
+            "to": {
+              "block": "val:total/lhs",
+              "port": "rhs"
+            }
+          }
+        ]
+      }
+    },
+    "val:total/lhs/lhs": {
+      "key": "val:total/lhs/lhs",
+      "kind": "Apply",
+      "span": {
+        "file": "fil_rouge",
+        "start": 323,
+        "end": 331
+      },
+      "type": "int",
+      "inputs": [
+        {
+          "name": "callee",
+          "implicit": false,
+          "visibility": "Public"
+        },
+        {
+          "name": "arg0",
+          "type": "Point",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "int",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User",
+      "body": {
+        "children": [],
+        "wires": [
+          {
+            "from": {
+              "block": "val:p",
+              "port": "out"
+            },
+            "to": {
+              "block": "val:total/lhs/lhs",
+              "port": "arg0"
+            }
+          }
+        ]
+      }
+    },
+    "val:total/lhs/rhs": {
+      "key": "val:total/lhs/rhs",
+      "kind": "Literal",
+      "span": {
+        "file": "fil_rouge",
+        "start": 333,
+        "end": 336
+      },
+      "type": "12",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "12",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User"
+    },
+    "val:total/rhs": {
+      "key": "val:total/rhs",
+      "kind": "Literal",
+      "span": {
+        "file": "fil_rouge",
+        "start": 338,
+        "end": 339
+      },
+      "type": "3",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "3",
+          "implicit": false,
+          "visibility": "Public"
+        }
+      ],
+      "origin": "User"
+    }
+  },
+  "relations": [
+    {
+      "kind": "TypePosition",
+      "from": "val:show",
+      "to": "type:Point",
+      "index": 0
+    },
+    {
+      "kind": "TypePosition",
+      "from": "val:norm2",
+      "to": "type:Point",
+      "index": 0
+    },
+    {
+      "kind": "Ref",
+      "from": "val:norm2/a",
+      "to": "val:sq",
+      "port": "callee",
+      "confidence": {
+        "confidence": "exact"
+      }
+    },
+    {
+      "kind": "Ref",
+      "from": "val:norm2/#1/rhs",
+      "to": "val:sq",
+      "port": "callee",
+      "confidence": {
+        "confidence": "exact"
+      }
+    },
+    {
+      "kind": "Ref",
+      "from": "val:norm2",
+      "to": "val:sq",
+      "port": "sq",
+      "confidence": {
+        "confidence": "exact"
+      }
+    },
+    {
+      "kind": "HasType",
+      "from": "val:p",
+      "to": "type:Point"
+    },
+    {
+      "kind": "Ref",
+      "from": "val:d",
+      "to": "type:Printable",
+      "port": "callee",
+      "confidence": {
+        "confidence": "exact"
+      }
+    },
+    {
+      "kind": "HasType",
+      "from": "val:d",
+      "to": "type:Point"
+    },
+    {
+      "kind": "Ref",
+      "from": "val:total/lhs/lhs",
+      "to": "val:norm2",
+      "port": "callee",
+      "confidence": {
+        "confidence": "exact"
+      }
+    },
+    {
+      "kind": "Satisfies",
+      "from": "type:Point",
+      "to": "type:Printable",
+      "evidence": [
+        {
+          "requires": "show: fn(a: SELF) -> char",
+          "provided_by": "val:show"
+        }
+      ]
+    }
+  ]
+}

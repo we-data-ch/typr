@@ -1,0 +1,6 @@
+title = "preloaded untyped base-R builtins (`Position`, `t`, `Reduce`, …) become variadic (RFC 0028)"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-09-12"
+origin = "perso"

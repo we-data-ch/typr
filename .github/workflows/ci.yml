@@ -192,6 +192,11 @@ jobs:
           sudo apt-get install -y r-base-core
           sudo Rscript -e "install.packages(c('R6','S7','Matrix'), repos='https://cloud.r-project.org')"
 
+      - name: Install air (formats the generated R code)
+        run: |
+          curl -LsSf https://github.com/posit-dev/air/releases/latest/download/air-installer.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Build typr
         run: cargo build --release
 

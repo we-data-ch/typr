@@ -1,0 +1,7 @@
+title = "reassignment narrows a mutable variable to the RHS literal's singleton type"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-09-12"
+origin = "perso"
+checked = false

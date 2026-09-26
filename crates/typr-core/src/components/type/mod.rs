@@ -688,10 +688,13 @@ impl Type {
                 (**ret_ty).clone(),
                 h.clone(),
             )),
+            // RFC 0028: preloaded untyped builtins (`Position`, `t`, `Reduce`,
+            // …) carry no declared arity, so they accept any number of
+            // arguments — a single variadic `Any` parameter, returning `Any`.
             Type::UnknownFunction(h) => Some(FunctionType::new(
                 VecType::Empty,
-                vec![],
-                builder::unknown_function_type(),
+                vec![ArgumentType::new("...", &builder::any_type()).set_variadic(true)],
+                builder::any_type(),
                 h.clone(),
             )),
             _ => None,

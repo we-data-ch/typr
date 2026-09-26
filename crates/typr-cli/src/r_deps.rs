@@ -88,7 +88,7 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-fn cache_home() -> Option<PathBuf> {
+pub(crate) fn cache_home() -> Option<PathBuf> {
     for var in ["XDG_CACHE_HOME", "LOCALAPPDATA"] {
         if let Ok(dir) = std::env::var(var) {
             if !dir.is_empty() {

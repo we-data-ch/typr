@@ -21,6 +21,7 @@ path = "src/lib.rs"
 # Use typr-core for core logic. `fuzz-gen` exposes utils::program_gen (Phase B
 # Stage 2's `typr fuzz`, soundness_transpilation.md) — see typr-core/Cargo.toml.
 typr-core = { workspace = true, features = ["fuzz-gen"] }
+typr-graph.workspace = true
 
 # Pure dependencies (needed for parsing/type manipulation)
 nom.workspace = true
@@ -44,3 +45,4 @@ typr-mcp.workspace = true
 rustyline.workspace = true
 syntect.workspace = true
 bincode.workspace = true
+sha2.workspace = true
