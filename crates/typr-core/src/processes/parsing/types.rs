@@ -156,7 +156,11 @@ fn generic(s: Span) -> IResult<Span, Type> {
 fn simple_index(s: Span) -> IResult<Span, Type> {
     let res = terminated(digit1, multispace0).parse(s);
     match res {
-        Ok((s, fl)) => Ok((s, Type::Integer(fl.parse::<i32>().unwrap().into(), fl.into()))),
+        Ok((s, fl)) => match fl.parse::<i32>() {
+            Ok(value) => Ok((s, Type::Integer(value.into(), fl.into()))),
+            // A dimension beyond i32 is a syntax error, not a panic.
+            Err(_) => Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Digit))),
+        },
         Err(r) => Err(r),
     }
 }
@@ -551,8 +555,12 @@ fn integer_literal(s: Span) -> IResult<Span, Type> {
     let res = terminated(digit1, multispace0).parse(s);
     match res {
         Ok((s, span)) => {
-            let val: i32 = (*span).parse().unwrap_or(0);
-            Ok((s, Type::Integer(Tint::Val(val), span.into())))
+            // Out of range is a parse failure: `unwrap_or(0)` used to turn
+            // `type Big <- 99999999999` into the singleton type `0`.
+            match (*span).parse::<i32>() {
+                Ok(val) => Ok((s, Type::Integer(Tint::Val(val), span.into()))),
+                Err(_) => Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Digit))),
+            }
         }
         Err(r) => Err(r),
     }

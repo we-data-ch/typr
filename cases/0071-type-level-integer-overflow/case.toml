@@ -1,0 +1,7 @@
+title = "a type-level integer outside the i32 range panics (or silently becomes 0)"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-09-29"
+origin = "perso"
+checked = false

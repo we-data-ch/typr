@@ -111,13 +111,28 @@ fn integer_impl(s: Span) -> IResult<Span, Lang> {
             }
             .to_string()
                 + d.as_ref();
-            Ok((
-                s,
-                Lang::Integer {
-                    value: symbol.parse::<i32>().unwrap(),
-                    help_data: d.into(),
-                },
-            ))
+            match symbol.parse::<i32>() {
+                Ok(value) => Ok((
+                    s,
+                    Lang::Integer {
+                        value,
+                        help_data: d.into(),
+                    },
+                )),
+                // Outside the 32-bit range. `99999999999.5` must be left to
+                // `number`; a bare `99999999999` is a double in R, so it types
+                // as `num` rather than aborting the compiler.
+                Err(_) if s.starts_with('.') && s.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) => {
+                    Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Digit)))
+                }
+                Err(_) => Ok((
+                    s,
+                    Lang::Number {
+                        value: symbol.parse::<f64>().unwrap_or(f64::INFINITY),
+                        help_data: d.into(),
+                    },
+                )),
+            }
         }
         Err(r) => Err(r),
     }

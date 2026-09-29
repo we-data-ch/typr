@@ -746,17 +746,29 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
             }
         }
         (Type::Record(v1, _), Type::Record(v2, _)) => {
-            let res = v1
-                .iter()
-                .zip(v2.iter())
-                .flat_map(|(argt1, argt2)| {
-                    let gen1 = get_gen_type(&argt1.get_argument(), &argt2.get_argument()).unwrap_or(vec![]);
-                    let gen2 = get_gen_type(&argt1.get_type(), &argt2.get_type()).unwrap_or(vec![]);
-                    gen1.iter().chain(gen2.iter()).cloned().collect::<Vec<_>>()
-                })
-                .collect::<HashSet<_>>()
-                .into_iter()
-                .collect::<Vec<_>>();
+            // Fields live in a `HashSet`: pair them by name, never by
+            // iteration order (a positional `zip` bound `T` to a random
+            // field's type, so the same program type-checked or not
+            // depending on the hasher's seed).
+            let mut res: HashSet<(Type, Type)> = HashSet::new();
+            for argt2 in v2.iter() {
+                match v1.iter().find(|argt1| argt1.get_argument_str() == argt2.get_argument_str()) {
+                    Some(argt1) => {
+                        let gen1 = get_gen_type(&argt1.get_argument(), &argt2.get_argument()).unwrap_or(vec![]);
+                        // A shared field whose types cannot be matched makes
+                        // the whole record a mismatch — it used to be
+                        // silently ignored, so any record was accepted for
+                        // any other record parameter.
+                        let gen2 = get_gen_type(&argt1.get_type(), &argt2.get_type())?;
+                        res.extend(gen1);
+                        res.extend(gen2);
+                    }
+                    // The parameter requires a field the argument lacks.
+                    None if matches!(argt2.get_argument(), Type::Char(_, _)) => return None,
+                    None => {}
+                }
+            }
+            let res = res.into_iter().collect::<Vec<_>>();
             Some(res)
         }
         (Type::Tag(name1, inner1, _), Type::Tag(name2, inner2, _)) if name1 == name2 => {
@@ -792,6 +804,11 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
                 _ => None,
             }
         }
+        // A transparent alias can't be judged without its definition: against
+        // an empty context it reduces to `Any`, which every type is a subtype
+        // of, so any argument would match any alias parameter. Let the caller
+        // retry on the reduced types (`match_types_to_generic`).
+        (_, Type::Alias(_, _, false, _)) => None,
         (t1, t2) if t1.is_subtype(t2, &Context::empty()).0 => Some(vec![]),
         _ => None,
     }

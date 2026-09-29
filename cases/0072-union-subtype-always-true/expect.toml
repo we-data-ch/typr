@@ -1,0 +1,20 @@
+[[rule]]
+file = "@run"
+must_contain = "Expected: Unrelated"
+
+[[rule]]
+file = "@run"
+must_contain = "Expected: WrongPayload"
+
+[[rule]]
+file = "@run"
+must_contain = "Expected: Partial"
+
+# Valid conversions must keep passing.
+[[rule]]
+file = "@run"
+must_not_contain = "Expected: Wider"
+
+[[rule]]
+file = "@run"
+must_not_contain = "Expected: Shape"

@@ -267,9 +267,6 @@ impl TypeSystem for Type {
                 p1.len() == p2.len() && p1.iter().zip(p2.iter()).all(|(t1, t2)| t1.is_subtype_raw(t2, context))
             }
             (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(set2),
-            (Type::Operator(TypeOperator::Union, _t1, _t2, _), Type::Operator(TypeOperator::Union, _tp1, _tp2, _)) => {
-                true
-            } //TODO: Fix this
             // A union is a subtype of `T` when *every* member is. Without this
             // rule an `if`/`else` over literal-typed branches — which unions
             // their types — could never satisfy the base annotation:

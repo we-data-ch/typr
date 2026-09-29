@@ -38,6 +38,8 @@ pub enum BlockKind {
     Match,
     Module,
     RCode,
+    /// A `# …` line kept as its own node; the node's `name` is the comment text.
+    Comment,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -239,6 +241,21 @@ impl Relation {
             port: None,
             index: None,
             confidence: None,
+            evidence: None,
+        }
+    }
+
+    /// `Apply` → generic `Function` (spec §5.1): the call site instantiates the generic
+    /// definition it resolves to. Complements the `Ref` on the `callee` port, which says *what*
+    /// is called; this says the call binds the callee's type parameters.
+    pub fn instantiates(from: BlockKey, to: BlockKey, confidence: Confidence) -> Self {
+        Relation {
+            kind: RelationKind::Instantiates,
+            from,
+            to,
+            port: Some("callee".to_string()),
+            index: None,
+            confidence: Some(confidence),
             evidence: None,
         }
     }

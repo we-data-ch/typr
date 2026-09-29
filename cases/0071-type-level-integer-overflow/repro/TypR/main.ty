@@ -1,0 +1,3 @@
+# A type-level integer (array dimension, singleton type) outside the 32-bit
+# range must be reported, never abort the compiler nor silently become 0.
+let big_dim: [99999999999, int] <- [1];

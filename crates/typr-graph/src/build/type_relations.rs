@@ -8,8 +8,8 @@
 use super::blocks::{alias_name, discover_methods, safe_argument_name};
 use super::variable_name;
 use crate::key::{BlockKey, Namespace};
-use crate::model::{BlockGraph, Evidence, Relation};
-use std::collections::HashSet;
+use crate::model::{Block, BlockGraph, BlockKind, Evidence, Origin, Port, Relation, RelationKind};
+use std::collections::{BTreeSet, HashSet};
 use typr_core::components::context::Context;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::argument_type::ArgumentType;
@@ -44,6 +44,123 @@ pub(super) fn build(graph: &mut BlockGraph, context: &Context, items: &[&Lang]) 
             }
         }
     }
+}
+
+/// The primitive types, which have no `TypeDecl` but are types all the same: a block typed `char`
+/// gets a synthesized `type:char` block to point at.
+const PRIMITIVES: [&str; 4] = ["int", "num", "char", "bool"];
+
+/// `HasType` for every block, whether its type was written or inferred, and however deep the
+/// named type sits. `finish_block` only links a block whose recorded type *is* an alias
+/// (`p: Point`), which misses an inferred `fn(v: Point) -> Point`, `[Point]`, `Option<Point>`, and
+/// every primitive (`char` has no declaration to point at). Runs after every `TypeDecl`/`Interface`
+/// block exists and scans each block's printed type — plus `notes`, the type texts the printed type
+/// doesn't carry (a `let`'s annotation, the primitive behind a literal) — for type names.
+/// Printed rather than walked: `Type::pretty` already renders every variant, so this stays correct
+/// as variants are added.
+///
+/// Returns the keys of the primitive blocks it synthesized (only the ones used), for the caller to
+/// list among the program's children so they appear in the top-level view.
+pub(super) fn has_type_links(graph: &mut BlockGraph, notes: &[(BlockKey, String)]) -> Vec<BlockKey> {
+    let mut type_keys: Vec<(String, BlockKey)> = graph
+        .blocks
+        .values()
+        .filter(|b| matches!(b.kind, BlockKind::TypeDecl | BlockKind::Interface) && b.key.is_top_level())
+        .filter_map(|b| Some((b.key.as_str().strip_prefix("type:")?.to_string(), b.key.clone())))
+        .collect();
+    // A user `type int <- …` would shadow the primitive; the declared block wins.
+    for p in PRIMITIVES {
+        if !type_keys.iter().any(|(n, _)| n == p) {
+            type_keys.push((p.to_string(), BlockKey::top_level(Namespace::Type, p)));
+        }
+    }
+
+    let mut known: HashSet<(BlockKey, BlockKey)> = graph
+        .relations
+        .iter()
+        .filter(|r| r.kind == RelationKind::HasType)
+        .map(|r| (r.from.clone(), r.to.clone()))
+        .collect();
+
+    let mut texts: Vec<(BlockKey, String)> = Vec::new();
+    for block in graph.blocks.values() {
+        // A declaration's own type is its definition, not something it "has".
+        if matches!(block.kind, BlockKind::TypeDecl | BlockKind::Interface) {
+            continue;
+        }
+        if let Some(ty) = &block.r#type {
+            texts.push((block.key.clone(), ty.clone()));
+        }
+    }
+    texts.extend(notes.iter().cloned());
+
+    let mut added = Vec::new();
+    let mut used_primitives = BTreeSet::new();
+    for (from, text) in &texts {
+        let words = type_identifiers(text);
+        for (name, key) in &type_keys {
+            if !words.contains(name.as_str()) || !known.insert((from.clone(), key.clone())) {
+                continue;
+            }
+            if !graph.blocks.contains_key(key) {
+                used_primitives.insert(name.clone());
+            }
+            added.push(Relation::has_type(from.clone(), key.clone()));
+        }
+    }
+    graph.relations.extend(added);
+
+    used_primitives
+        .into_iter()
+        .map(|name| {
+            let key = BlockKey::top_level(Namespace::Type, &name);
+            graph.insert(Block {
+                key: key.clone(),
+                kind: BlockKind::TypeExpr,
+                name: Some(name.clone()),
+                span: None,
+                r#type: None,
+                inputs: Vec::new(),
+                outputs: vec![Port::explicit("out", Some(name))],
+                origin: Origin::Std,
+                body: None,
+            });
+            key
+        })
+        .collect()
+}
+
+/// Identifiers in a printed type that name a type: outside string literals, and not a field or
+/// parameter name (`x` in `list{x: int}`, `v` in `fn(v: Point)`) — those are followed by `:`.
+fn type_identifiers(ty: &str) -> BTreeSet<&str> {
+    let mut words = BTreeSet::new();
+    let bytes = ty.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b'"' {
+            i += 1;
+            while i < bytes.len() && bytes[i] != b'"' {
+                i += 1;
+            }
+            i += 1;
+        } else if c.is_ascii_alphabetic() || c == b'_' {
+            let start = i;
+            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' || bytes[i] == b'.') {
+                i += 1;
+            }
+            let mut j = i;
+            while j < bytes.len() && bytes[j] == b' ' {
+                j += 1;
+            }
+            if bytes.get(j) != Some(&b':') {
+                words.insert(&ty[start..i]);
+            }
+        } else {
+            i += 1;
+        }
+    }
+    words
 }
 
 fn collect_type_aliases(context: &Context, items: &[&Lang]) -> Vec<TypeAlias> {
@@ -132,6 +249,40 @@ mod tests {
         let (result, table) = with_recording(|| typing_with_errors(&Context::default(), &lang));
         assert!(!result.has_errors(), "{:?}", result.display_errors());
         crate::build(&lang, &result.type_context.context, &table)
+    }
+
+    #[test]
+    fn has_type_reaches_a_named_type_nested_in_an_inferred_function_type() {
+        let graph = build_graph(
+            r#"
+type Point <- list { x: int, y: int };
+let m <- fn(v: Point): Point { v };
+let n <- list(name = "Point");
+"#,
+        );
+        let point = BlockKey::top_level(Namespace::Type, "Point");
+        let has_type = |from: &str| {
+            graph.relations.iter().any(|r| {
+                r.kind == RelationKind::HasType && r.from == BlockKey::top_level(Namespace::Val, from) && r.to == point
+            })
+        };
+        assert!(has_type("m"), "{:#?}", graph.relations);
+        assert!(!has_type("n"), "a string literal isn't a type reference");
+    }
+
+    #[test]
+    fn a_primitive_type_gets_a_block_and_a_let_annotation_is_linked() {
+        let graph = build_graph("let message: char <- \"Hello, TypR!\";\n\nmessage\n");
+        let char_key = BlockKey::top_level(Namespace::Type, "char");
+        assert!(graph.blocks.contains_key(&char_key), "{:#?}", graph.blocks.keys());
+        assert!(graph.blocks[&graph.root].body.as_ref().unwrap().children.contains(&char_key));
+        let linked = |from: &str| {
+            graph.relations.iter().any(|r| {
+                r.kind == RelationKind::HasType && r.from == BlockKey::from_raw(from) && r.to == char_key
+            })
+        };
+        assert!(linked("val:message"), "{:#?}", graph.relations);
+        assert!(linked("val:#1"));
     }
 
     #[test]

@@ -105,6 +105,7 @@ impl<'a> Builder<'a> {
                 self.build_operand(value, key.role("value"), &key, "value", &mut children, &mut wires);
                 let inputs = vec![Port::explicit("value", self.pretty_type(value))];
                 let out_ty = self.pretty_type(lang);
+                let name = name.or_else(|| Some("!".to_string()));
                 self.finish_block(
                     lang,
                     key,
@@ -169,6 +170,13 @@ impl<'a> Builder<'a> {
                 self.finish_block(lang, key, BlockKind::RCode, name, Vec::new(), vec![Port::explicit("out", ty)], Origin::User, None)
             }
 
+            // A `# …` line: its own kind, and the node's name is the comment text. No value, so
+            // no ports.
+            Lang::Comment { value, .. } => {
+                let text = value.trim().to_string();
+                self.finish_block(lang, key, BlockKind::Comment, Some(text), Vec::new(), Vec::new(), Origin::User, None)
+            }
+
             // Everything else — genuinely unhandled, or not worth a dedicated shape (`Assign`
             // outside a body list, raw `Tag`/`Sequence`, …): falls back to a total, panic-free
             // Opaque.
@@ -187,7 +195,7 @@ impl<'a> Builder<'a> {
                     self.build_ufcs_apply(lhs, identifier, arguments, lang, key, name)
                 }
                 Lang::Variable { .. } => self.build_access(lhs, rhs, lang, key, name),
-                _ => self.build_binary_operator(lhs, rhs, lang, key, name),
+                _ => self.build_binary_operator(op, lhs, rhs, lang, key, name),
             },
             Op::Pipe(_) => match rhs {
                 Lang::FunctionApp { identifier, arguments, .. } | Lang::VecFunctionApp { identifier, arguments, .. } => {
@@ -195,17 +203,19 @@ impl<'a> Builder<'a> {
                 }
                 other => self.build_ufcs_apply(lhs, other, &[], lang, key, name),
             },
-            _ => self.build_binary_operator(lhs, rhs, lang, key, name),
+            _ => self.build_binary_operator(op, lhs, rhs, lang, key, name),
         }
     }
 
-    fn build_binary_operator(&mut self, lhs: &Lang, rhs: &Lang, lang: &Lang, key: BlockKey, name: Option<String>) -> PortRef {
+    fn build_binary_operator(&mut self, op: &Op, lhs: &Lang, rhs: &Lang, lang: &Lang, key: BlockKey, name: Option<String>) -> PortRef {
         let mut children = Vec::new();
         let mut wires = Vec::new();
         self.build_operand(lhs, key.role("lhs"), &key, "lhs", &mut children, &mut wires);
         self.build_operand(rhs, key.role("rhs"), &key, "rhs", &mut children, &mut wires);
         let inputs = vec![Port::explicit("lhs", self.pretty_type(lhs)), Port::explicit("rhs", self.pretty_type(rhs))];
         let out_ty = self.pretty_type(lang);
+        // An anonymous operator is titled by its symbol (`+`, `&&`…) rather than by its key.
+        let name = name.or_else(|| Some(op.to_string()));
         self.finish_block(
             lang,
             key,
@@ -248,6 +258,9 @@ impl<'a> Builder<'a> {
             Lang::Variable { name: callee_name, .. } => {
                 let arg0_ty = self.recorded_type(receiver);
                 if let Some((target, confidence)) = self.resolve_definition(callee_name, arg0_ty.as_ref()) {
+                    if self.callee_is_generic(callee_name, arg0_ty.as_ref()) && !target.as_str().starts_with("std:") {
+                        self.graph.relations.push(Relation::instantiates(key.clone(), target.clone(), confidence.clone()));
+                    }
                     self.graph.relations.push(Relation::r#ref(key.clone(), "callee", target, confidence));
                 }
             }
@@ -280,6 +293,9 @@ impl<'a> Builder<'a> {
             Lang::Variable { name: callee_name, .. } => {
                 let arg0_ty = arguments.first().and_then(|a| self.recorded_type(a));
                 if let Some((target, confidence)) = self.resolve_definition(callee_name, arg0_ty.as_ref()) {
+                    if self.callee_is_generic(callee_name, arg0_ty.as_ref()) && !target.as_str().starts_with("std:") {
+                        self.graph.relations.push(Relation::instantiates(key.clone(), target.clone(), confidence.clone()));
+                    }
                     self.graph.relations.push(Relation::r#ref(key.clone(), "callee", target, confidence));
                 }
             }
@@ -301,6 +317,13 @@ impl<'a> Builder<'a> {
             Origin::User,
             Some(Body { children, wires }),
         )
+    }
+
+    /// Whether `name` resolves (top-level bindings only — a local function isn't in the
+    /// `Context`) to a function type with type parameters.
+    fn callee_is_generic(&self, name: &str, arg0: Option<&Type>) -> bool {
+        matches!(super::refs::resolve_by_name(self.context, name, arg0),
+            Some((ty @ Type::Function(..), _)) if ty.has_generic())
     }
 
     fn build_function(&mut self, parameters: &[ArgumentType], return_type: &Type, body: &Lang, lang: &Lang, key: BlockKey, name: Option<String>) -> PortRef {
@@ -498,6 +521,7 @@ impl<'a> Builder<'a> {
                         outputs.push(Port::explicit(member_name.clone(), self.pretty_type(expr)));
                     }
                     self.build_expr(expr, member_key.clone(), Some(&member_name));
+                    self.note_declared_type(&member_key, item);
                     children.push(member_key);
                 }
                 None => {
@@ -702,7 +726,7 @@ fn body_statements_from_vec(body: &[Lang]) -> Vec<&Lang> {
 #[cfg(test)]
 mod tests {
     use crate::key::Namespace;
-    use crate::model::{BlockGraph, BlockKind};
+    use crate::model::{BlockGraph, BlockKind, RelationKind};
     use crate::BlockKey;
     use typr_core::components::context::Context;
     use typr_core::processes::parsing::parse_from_string;
@@ -714,6 +738,25 @@ mod tests {
         let (result, table) = with_recording(|| typing_with_errors(&Context::default(), &lang));
         assert!(!result.has_errors(), "{:?}", result.display_errors());
         crate::build(&lang, &result.type_context.context, &table)
+    }
+
+    #[test]
+    fn calling_a_generic_function_emits_instantiates_but_a_concrete_one_does_not() {
+        let graph = build_graph(
+            r#"
+let id <- fn(x: T): T { x };
+let inc <- fn(x: int): int { x + 1 };
+let a <- id(1);
+let b <- inc(1);
+"#,
+        );
+        let id = BlockKey::top_level(Namespace::Val, "id");
+        let inc = BlockKey::top_level(Namespace::Val, "inc");
+        let inst = |to: &BlockKey| {
+            graph.relations.iter().any(|r| r.kind == RelationKind::Instantiates && r.to == *to)
+        };
+        assert!(inst(&id), "{:#?}", graph.relations);
+        assert!(!inst(&inc));
     }
 
     // `while`'s own condition parser (`single_element`) can't take a bare comparison — this is a
@@ -815,5 +858,21 @@ module Reporter {
         assert_eq!(block.kind, BlockKind::RCode);
         assert!(block.inputs.is_empty());
         assert!(block.body.is_none());
+    }
+
+    #[test]
+    fn comment_is_its_own_block_named_after_its_text() {
+        let graph = build_graph("# hello world\nlet a <- 1;\n# second\nlet b <- a;\n");
+        let comments: Vec<_> = graph.blocks.values().filter(|b| b.kind == BlockKind::Comment).collect();
+        let names: Vec<_> = comments.iter().filter_map(|b| b.name.as_deref()).collect();
+        assert!(names.contains(&"hello world"), "{names:?}");
+        assert!(names.contains(&"second"), "{names:?}");
+        assert!(comments.iter().all(|b| b.outputs.is_empty() && b.inputs.is_empty()));
+        assert!(comments.iter().all(|b| b.r#type.is_none()), "a comment has no type");
+        assert!(
+            !graph.relations.iter().any(|r| r.kind == RelationKind::HasType && comments.iter().any(|b| b.key == r.from)),
+            "a comment must not be linked to `char`"
+        );
+        assert!(!graph.blocks.values().any(|b| b.kind == BlockKind::Opaque && b.name.as_deref() == Some("hello world")));
     }
 }

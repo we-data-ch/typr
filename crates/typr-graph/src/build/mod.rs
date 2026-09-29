@@ -24,6 +24,7 @@ pub fn build(lang: &Lang, context: &Context, types: &TypeTable) -> BlockGraph {
         scope: ScopeStack::new(),
         pending_captures: HashMap::new(),
         reference_blocks: HashMap::new(),
+        type_notes: Vec::new(),
     };
     b.scope.push_boundary(root_key.clone());
 
@@ -44,6 +45,8 @@ pub fn build(lang: &Lang, context: &Context, types: &TypeTable) -> BlockGraph {
     }
 
     type_relations::build(&mut b.graph, b.context, &items);
+    let primitives = type_relations::has_type_links(&mut b.graph, &b.type_notes);
+    children.extend(primitives);
 
     b.scope.pop();
     let (inputs, refs) = b.take_captures(&root_key);
@@ -118,11 +121,24 @@ struct Builder<'a> {
     /// Memoizes synthesized leaf blocks for names resolved outside the program (stdlib, R
     /// packages) so the same name doesn't get a fresh block every time it's referenced.
     reference_blocks: HashMap<String, BlockKey>,
+    /// Type texts a block is tied to that its own `type` field doesn't show: the annotation of a
+    /// `let` (the recorded type is the value's, e.g. the literal `"hi"`, not the declared `char`)
+    /// and the primitive behind a literal. Scanned by `type_relations::has_type_links`.
+    type_notes: Vec<(BlockKey, String)>,
 }
 
 impl<'a> Builder<'a> {
     fn recorded_type(&self, lang: &Lang) -> Option<Type> {
         self.types.get(&SpanKey::from(&lang.get_help_data())).cloned()
+    }
+
+    /// Remembers a `let`'s written annotation (`let m: char <- …`) so the block is tied to it.
+    fn note_declared_type(&mut self, key: &BlockKey, item: &Lang) {
+        if let Lang::Let { r#type, .. } = item {
+            if !matches!(r#type, Type::Empty(_)) {
+                self.type_notes.push((key.clone(), r#type.pretty()));
+            }
+        }
     }
 
     fn pretty_type(&self, lang: &Lang) -> Option<String> {
@@ -151,6 +167,7 @@ impl<'a> Builder<'a> {
                     _ => item,
                 };
                 self.build_expr(expr, key.clone(), Some(&name));
+                self.note_declared_type(&key, item);
                 children.push(key);
             }
             None => {
@@ -172,6 +189,7 @@ impl<'a> Builder<'a> {
                     Some(name) => {
                         let key = owner.named(&name);
                         let port = self.build_expr(expression, key.clone(), Some(&name));
+                        self.note_declared_type(&key, stmt);
                         self.scope.bind(&name, port);
                         children.push(key);
                     }
@@ -367,7 +385,20 @@ impl<'a> Builder<'a> {
         origin: Origin,
         body: Option<Body>,
     ) -> PortRef {
-        let ty = self.recorded_type(lang);
+        // A comment has no type: the parser models it as a `char` value, which must neither be
+        // printed on the block nor linked (`HasType`) to the `char` primitive.
+        let ty = if kind == BlockKind::Comment { None } else { self.recorded_type(lang) };
+        // A literal's recorded type is the value (`"hi"`, `3`), which names no type block.
+        let primitive = match &ty {
+            Some(Type::Char(..)) => Some("char"),
+            Some(Type::Integer(..)) => Some("int"),
+            Some(Type::Number(..)) => Some("num"),
+            Some(Type::Boolean(..)) => Some("bool"),
+            _ => None,
+        };
+        if let Some(p) = primitive {
+            self.type_notes.push((key.clone(), p.to_string()));
+        }
         if let Some(Type::Alias(alias_name, _, _, _)) = &ty {
             self.graph
                 .relations
