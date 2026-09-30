@@ -1,0 +1,21 @@
+{
+    "$schema": "https://raw.githubusercontent.com/ScoopInstaller/Scoop/master/schema.json",
+    "_comment": "GENERATED FILE — do not edit by hand. Template: packaging/scoop/typr.json.in in we-data-ch/typr. Rendered by packaging/render.sh --tag vX.Y.Z. Note: the Scoop schema allows only _comment among underscore-prefixed keys, and rejects every unknown key outright.",
+    "version": "@@VERSION@@",
+    "description": "A typed superset of R — transpiler and type checker",
+    "homepage": "https://we-data-ch.github.io/typr.github.io/",
+    "license": "Apache-2.0",
+    "url": [
+        "@@URL_X86_64_WINDOWS@@",
+        "@@URL_AARCH64_WINDOWS@@"
+    ],
+    "hash": [
+        "@@SHA256_X86_64_WINDOWS@@",
+        "@@SHA256_AARCH64_WINDOWS@@"
+    ],
+    "bin": "typr.exe",
+    "notes": [
+        "TypR is pre-1.0: 0.x releases can change the CLI surface.",
+        "Installed by Scoop under %USERPROFILE%\\scoop\\apps\\typr — not under %LOCALAPPDATA%\\Programs\\typr as irm | iex does. Both put `typr` on the PATH for the current user, without administrator rights."
+    ]
+}

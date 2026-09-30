@@ -1,0 +1,46 @@
+# TypR — bucket Scoop
+
+@@DESC@@
+
+## Installation
+
+```powershell
+scoop bucket add typr https://github.com/we-data-ch/scoop-bucket
+scoop install typr
+```
+
+`bucket add` n'est nécessaire qu'une fois. Scoop installe sans droits
+administrateur et met `typr` sur le PATH.
+
+## Utilisation
+
+```powershell
+typr check fichier.ty
+typr build fichier.ty
+typr --version
+```
+
+Mise à jour :
+
+```powershell
+scoop update typr
+```
+
+Désinstallation :
+
+```powershell
+scoop uninstall typr
+```
+
+## Versions
+
+Ce dépôt ne publie aucun binaire. Le manifeste ne contient que l'URL de la
+release et le SHA-256 des deux archives Windows, lus dans le `checksums.txt` de
+cette release. Un tag `vX.Y.Z` de [we-data-ch/typr](https://github.com/we-data-ch/typr)
+produit le commit suivant ici — voir `packaging/README.md` dans le dépôt source.
+
+TypR @@VERSION@@ est la version publiée dans ce bucket.
+
+Documentation : @@HOMEPAGE@@
+
+Licence : Apache-2.0 — voir `LICENSE`.

@@ -20,7 +20,8 @@ par-dessus, pas de refaire ce qui marche.
 | 1 — scripts d'installation + hébergement + CI | **fait** (voir ci-dessous) |
 | 2 — tests CI sur ces scripts | **couvert par le lot 1** — les jobs `install`, `install-windows` et `install-hosting` sont ceux-là |
 | 3 — Homebrew | **fait** (voir ci-dessous) |
-| 4 → 7 | à faire |
+| 4 — WinGet et Scoop | **fait** (voir ci-dessous) |
+| 5 → 7 | à faire |
 
 ### Ce que le lot 0 a changé
 
@@ -200,6 +201,76 @@ amorcé avec la formule v0.5.12 rendue depuis le `checksums.txt` de cette releas
 — `brew install we-data-ch/typr/typr` fonctionne donc dès aujourd'hui sur macOS,
 et la prochaine release remplacera ce fichier par le sien, ce qui exercera le
 chemin complet `release.yml` → tap.
+
+### Ce que le lot 4 a livré
+
+Les deux canaux sont rendus par **un seul script**, `packaging/render.sh`, au
+niveau `packaging/` — et non deux sous `packaging/winget/` et `packaging/scoop/`
+comme le plan les posait. La raison est celle qui vaut partout ailleurs dans ce
+dépôt : les deux canaux lisent le **même** `checksums.txt` et doivent donc
+pouvoir être cassés ensemble. Un générateur par canal laisserait passer le jour
+où l'un des deux est régénéré et pas l'autre — et les deux canaux
+désinstalleront la même version, avec des empreintes différentes.
+
+```sh
+packaging/render.sh --tag v0.5.12 --out /tmp/manifests   # 6 fichiers
+```
+
+| Fichier | Contenu |
+|---|---|
+| `packaging/winget/*.yaml.in` | version + installateurs (`x64`, `arm64`) + locale `en-US` |
+| `packaging/scoop/typr.json.in` | manifeste Scoop |
+| `packaging/scoop/README.md.in` | README du bucket, relu dans le manifeste |
+| `packaging/tests/run-tests.sh` | 122 assertions, dont la validation par les schémas officiels |
+| `packaging/tests/validate-schemas.py` | schémas WinGet et Scoop, en cache, `--offline` disponible |
+
+Le job `packaging-win` de `ci.yml` rend depuis une fixture et fait valider par les
+schémas officiels. Les jobs `winget` et `scoop` de `release.yml` rendent depuis le
+`checksums.txt` de la release, **vérifient les deux archives téléchargées**, puis
+publient : PR `winget-pkgs` via `wingetcreate submit` d'un côté, commit dans le
+bucket de l'autre. Le job `scoop` va plus loin et **installe** : `scoop install`
+sur le manifeste local, puis `typr --version` doit annoncer la version de la
+release.
+
+Trois défauts ont été trouvés en faisant, que rien ne montrait à la relecture.
+Les trois sont couverts par la suite, et détaillés dans `packaging/README.md` :
+
+- **`ReleaseDate` sans guillemets** — lu par un analyseur YAML 1.1, `2026-01-02`
+  est une *date* ; le schéma WinGet exige une *chaîne*. 23 tests cassent si le
+  guillemet disparaît.
+- **Une clé `_comment_urls` dans le manifeste Scoop** — le schéma de Scoop refuse
+  toute clé inconnue et n'accorde que `_comment` ; le bucket n'aurait pas
+  installé.
+- **`url` et `hash` réordonnés** — les deux tableaux sont alignés par index chez
+  Scoop ; c'est un défaut qui ne se voit qu'à l'installation, sur une
+  architecture ou pas l'autre.
+
+**Deux affirmations de ce plan étaient fausses.** Elles sont corrigées en §6 :
+
+- `InstallLocation` n'est pas un dossier de destination, c'est un *argument*
+  passé à l'installeur — et un zip n'a pas d'installeur. WinGet installe sous
+  `%LOCALAPPDATA%\Microsoft\WinGet\Packages\…`. La case « même dossier que
+  `install.ps1` » de la vérification est donc **abandonnée**, pas ratée :
+  `irm | iex` reste le canal qui promet `%LOCALAPPDATA%`.
+- « `.installer.yaml` **si signature** » : ce fichier est obligatoire, signé ou
+  non — c'est lui qui décrit les installateurs. `SignatureSha256` n'a pas sa
+  place ici : les archives ne sont pas signées, et WinGet n'en exige pas pour
+  publier.
+
+Sur ARM64, WinGet associe `arm64` au binaire natif. Scoop, lui, cherche la
+chaîne littérale `arm64` dans le manifeste et ne trouve pas `aarch64` : le
+binaire x86_64 y tourne par émulation, ce que Windows 11 sait faire. Le plan
+annonçait une sélection native par architecture ; le bucket fournit **les deux**
+URL et laisse Scoop choisir son miroir, ce qui est déjà le natif quand il le prend.
+Ajouter un bloc `architecture.arm64` décoratif aurait coûté une illusion — et un
+risque de régression sur les vraies installations ARM64, ce qui vaut mieux éviter.
+
+Reste à faire, et ce n'est pas dans ce dépôt : créer
+[`we-data-ch/scoop-bucket`](https://github.com/we-data-ch/scoop-bucket) (le job
+échoue bruyamment s'il n'existe pas) et définir les secrets
+`WINGET_CREATE_GITHUB_TOKEN` (scope `public_repo`) et `SCOOP_BUCKET_TOKEN`. Tant
+qu'ils manquent, les deux jobs rendent, valident, téléchargent et vérifient les
+archives, puis sautent la publication avec un avertissement.
 
 ---
 
@@ -618,27 +689,45 @@ formule, pas l'installation.
 
 ## 6. Phase 3 — WinGet et Scoop
 
-Deux manifests JSON, aucun code. Ils puisent dans les `.zip` déjà publiés.
+Deux manifests, aucun binaire. Ils puisent dans les `.zip` déjà publiés.
+
+> **Ce qui suit a été corrigé après implémentation.** Les deux affirmations
+> fausses du plan initial sont signalées en place ; voir « Ce que le lot 4 a
+> livré » pour le reste.
 
 ### Livrables
 
 ```
-packaging/winget/we-data-ch.TypR.yaml         (+ .installer.yaml si signature)
-packaging/scoop/typr.json
+packaging/render.sh                              le générateur des deux canaux
+packaging/winget/we-data-ch.TypR.yaml.in         version
+packaging/winget/we-data-ch.TypR.installer.yaml.in  installateurs x64 + arm64
+packaging/winget/we-data-ch.TypR.locale.en-US.yaml.in  locale
+packaging/scoop/typr.json.in                     manifeste Scoop
+packaging/scoop/README.md.in                     README du bucket
+packaging/tests/                                 suite + validation des schémas
 ```
+
+Le `.installer.yaml` n'est pas conditionné à une signature : WinGet l'exige pour
+décrire les installateurs, signés ou non.
 
 ### WinGet
 
 - `PackageIdentifier: we-data-ch.TypR`
 - `PackageVersion` sans le `v` initial — WinGet l'exige.
 - `InstallerType: zip`, `InstallerSwitches: Silent` et `SilentWithProgress` avec
-  `/S` pour `7z`… **à ne pas inventer** : le type `zip` d'WinGest ekstré sans
+  `/S` pour `7z`… **à ne pas inventer** : le type `zip` de WinGet extrait sans
   copie dans un dossier.
-- Le chemin `InstallLocation` doit être `%LOCALAPPDATA%\Programs\typr`, pour
-  coïncider avec ce que fait `install.ps1`.
-- Le fichier doit être publié dans `microsoft/winget-pkgs` par une pull request
-  ouverte automatiquement depuis la CI (action
-  `microsoft/winget-create` ou un script équivalent).
+- ~~Le chemin `InstallLocation` doit être `%LOCALAPPDATA%\Programs\typr`, pour
+  coïncider avec ce que fait `install.ps1`.~~ **Faux.** `InstallLocation` est un
+  *argument passé à l'installeur*, pas un dossier de destination ; un zip n'a pas
+  d'installeur, et le champ n'aurait rien fait. WinGet extrait sous
+  `%LOCALAPPDATA%\Microsoft\WinGet\Packages\…` et y met l'alias `typr` sur le
+  PATH — ce qui garde l'installation sans droits administrateur, le seul point
+  qui comptait dans cette case.
+- Le fichier est publié dans `microsoft/winget-pkgs` par une pull request
+  ouverte automatiquement depuis la CI. `wingetcreate` n'a pas de commande
+  `validate` autonome : c'est `wingetcreate submit` qui valide avec l'outil
+  officiel, puis calcule lui-même le chemin de destination et ouvre la PR.
 
 ### Scoop
 
@@ -646,16 +735,36 @@ Le manifest est plus court que celui de WinGet et ne demande pas de PR
 maintenue manuellement. `scoop install typr` après
 `scoop bucket add typr https://github.com/we-data-ch/scoop-bucket`.
 
+`url` et `hash` sont des **tableaux alignés par index** : les deux URL sont
+fournies, Scoop les propose en miroirs et vérifie l'empreinte du fichier
+réellement téléchargé. Voir la note ARM64 dans « Ce que le lot 4 a livré ».
+
 Dans les deux cas, la version publiée doit venir de la même source que le reste —
-`needs.verify.outputs.version` — et non d'un fichier écrit à la main.
+`needs.verify.outputs.version` — et non d'un fichier écrit à la main. C'est
+fait, et par construction : `render.sh` refuse de produire quoi que ce soit
+depuis un `checksums.txt` qui ne contiendrait pas les deux empreintes Windows.
 
 ### Vérification
 
-- [ ] `winget install we-data-ch.TypR` sur Windows 10 et 11
-- [ ] `scoop install typr` puis `scoop update typr`
-- [ ] Les deux installers aboutissent au même dossier et au même binaire que
-      `install.ps1`
-- [ ] Une machine sans rights administrateur réussit l'installation
+- [x] Les manifestes rendus passent les **schémas officiels** WinGet et Scoop —
+      122 assertions, dont six mutations vérifiées détectées à la main.
+- [ ] `winget install we-data-ch.TypR` sur Windows 10 et 11 — **impossible en
+      local** : c'est fait par le job `winget` sur `windows-latest`, avec
+      `wingetcreate submit`.
+- [x] L'installation **sans droits administrateur** est acquise : WinGet comme
+      Scoop écrivent dans le profil utilisateur. C'est vérifié par construction
+      (aucun `InstallerSwitches`, aucun `RequireExplicitUpgrade`, aucun
+      installeur MSI), pas par une exécution.
+- [ ] `scoop install typr` puis `scoop update typr` — **impossible en local** :
+      c'est fait par le job `scoop`, qui installe le manifeste rendu avant de
+      commiter.
+- [x] Les deux canaux installent **le même binaire** : la même archive
+      `typr-vX.Y.Z-x86_64-pc-windows-msvc.zip`, lue dans le même
+      `checksums.txt`, et le même `typr.exe` à sa racine. La suite le vérifie.
+- ~~Les deux installers aboutissent au même dossier et au même binaire que
+  `install.ps1`~~ **Abandonnée**, voir §6 WinGet : le dossier ne peut pas être
+  choisi pour un zip portable. Ce qui est vérifié, c'est le binaire — pas le
+  chemin.
 
 ---
 

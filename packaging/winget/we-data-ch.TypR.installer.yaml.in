@@ -1,0 +1,53 @@
+# TypR — manifeste d'installation WinGet.
+#
+# FICHIER GÉNÉRÉ — ne pas l'éditer à la main.
+#
+#   Gabarit  : packaging/winget/we-data-ch.TypR.installer.yaml.in (dépôt we-data-ch/typr)
+#   Généré par: packaging/render.sh --tag vX.Y.Z
+#
+# `zip` + `NestedInstallerType: portable` : l'archive publiée contient
+# `typr.exe` à sa racine (release.yml, `Compress-Archive -Path typr.exe`), et
+# WinGet en fait un shim `typr` sur le PATH. C'est la forme employée par les
+# applications portables distribuées en zip dans winget-pkgs.
+#
+# Deux points où le plan de distribution se trompaient, et où il est utile que la
+# réponse reste lisible ici :
+#
+#   * `InstallerSwitches.InstallLocation` est un *argument d'installeur*, pas un
+#     dossier de destination. Un zip n'a pas d'installeur : il n'y a donc aucun
+#     moyen de demander à WinGet d'écrire dans
+#     `%LOCALAPPDATA%\Programs\typr`, comme le fait install.ps1. WinGet extrait
+#     dans son propre dossier de paquet et y met `typr` sur le PATH — sans
+#     droits administrateur, ce qui est le point qui compte.
+#   * `InstallerSwitches.Silent` n'a pas lieu d'être ici non plus : il n'y a pas
+#     d'interface à piloter.
+#
+# Chaque entrée porte son URL et son empreinte côte à côte : c'est la seule
+# façon que l'une ne puisse pas désigner l'archive de l'autre.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+
+PackageIdentifier: we-data-ch.TypR
+PackageVersion: @@VERSION@@
+InstallerType: zip
+NestedInstallerType: portable
+# `ReleaseDate` est écrit entre guillemets à dessein : lu par un analyseur YAML
+# 1.1 — PyYAML, et tout ce qui l'imite — `2026-01-02` est une date, pas une
+# chaîne, et le schéma de winget-pkgs exige une chaîne. Guillemeté, le même
+# fichier est un `string` partout, sans dépendre de la version de la norme que
+# l'outil de validation applique.
+ReleaseDate: "@@RELEASE_DATE@@"
+Installers:
+- Architecture: x64
+  NestedInstallerFiles:
+  - RelativeFilePath: typr.exe
+    PortableCommandAlias: typr
+  InstallerUrl: @@URL_X86_64_WINDOWS@@
+  InstallerSha256: @@SHA256_X86_64_WINDOWS@@
+- Architecture: arm64
+  NestedInstallerFiles:
+  - RelativeFilePath: typr.exe
+    PortableCommandAlias: typr
+  InstallerUrl: @@URL_AARCH64_WINDOWS@@
+  InstallerSha256: @@SHA256_AARCH64_WINDOWS@@
+ManifestType: installer
+ManifestVersion: 1.12.0

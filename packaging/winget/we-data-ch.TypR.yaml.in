@@ -1,0 +1,18 @@
+# TypR — manifeste de version WinGet.
+#
+# FICHIER GÉNÉRÉ — ne pas l'éditer à la main.
+#
+#   Gabarit  : packaging/winget/we-data-ch.TypR.yaml.in (dépôt we-data-ch/typr)
+#   Généré par: packaging/render.sh --tag vX.Y.Z
+#
+# Il ne contient que ce que WinGet sait de la version : ni URL, ni empreinte.
+# La version est sans le « v » initial, que WinGet refuse, et vient du tag — le
+# même que lit le job `verify` de release.yml, donc le même que tous les autres
+# canaux.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.12.0.schema.json
+
+PackageIdentifier: we-data-ch.TypR
+PackageVersion: @@VERSION@@
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.12.0
