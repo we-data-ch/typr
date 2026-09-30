@@ -1647,6 +1647,10 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             // constrains the value, it does not change its shape.
             let typ1 = match reduce_type(context, &tc.value) {
                 refined @ Type::Refined(..) => refined.unrefined().clone(),
+                // Same for a folded `length(> 0)`: a property, not a shape.
+                ranged @ Type::Vec(_, _, _, _) if matches!(&ranged, Type::Vec(_, l, _, _) if l.as_proper_range().is_some()) => {
+                    ranged.without_length_range()
+                }
                 _ => tc.value,
             };
 

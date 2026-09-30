@@ -80,32 +80,117 @@ par défaut ci-dessous.
 
 ## 3. Points de vigilance avant de commencer
 
-### 3.1 Le glibc des binaires Linux peut être trop récent
+### 3.1 Le glibc des binaires Linux — défaut confirmé, à corriger avant tout
 
-C'est le risque principal, et il est invisible jusqu'au premier utilisateur.
+Le diagnostic a été exécuté sur le binaire **publié** en `v0.5.12`. Le défaut
+est réel, et il bloque l'installation sur une large part des machines.
 
-Les binaires GNU sont compilés sur `ubuntu-latest` (actuellement Ubuntu 24.04,
-glibc 2.39). Un binaire Rust y lié exigera une glibc **aussi récente** chez
-l'utilisateur. Sur une Ubuntu 22.04 (glibc 2.35) ou une Debian 12 (glibc 2.36),
-le démarrage échoue sur `GLIBC_2.38 not found` — ce qui donne exactement
-l'impression d'un binaire cassé.
+`objdump -T` sur `typr-v0.5.12-x86_64-unknown-linux-gnu` :
 
-Vérification à faire immédiatement sur une release existante :
-
-```bash
-objdump -T target/release/typr | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -3
+```
+GLIBC_2.39  pidfd_spawnp     (faible)
+GLIBC_2.39  pidfd_getpid     (faible)
 ```
 
-Si le maximum dépasse glibc 2.35, deux options :
+Exécution réelle dans des conteneurs qui n'ont rien de TypR :
 
-- **recommandée** — compiler `x86_64-unknown-linux-gnu` sur `ubuntu-22.04` dans
-  la matrice de `release.yml:77`. Ça abaisse le plancher sans changer
-  grand-chose, au prix d'un toolchain plus vieux.
-- **alternative** — ajouter des cibles `*-unknown-linux-musl`, statiquement
-  liées, qui fonctionnent partout y compris sur Alpine. Résout le problème de
-  glibc **et** le cas Alpine, pour deux cibles de plus dans la matrice.
+| Système | glibc / libc | Résultat |
+|---|---|---|
+| Ubuntu 24.04 (le runner) | 2.39 | fonctionne |
+| Debian 13 (trixie) | 2.41 | fonctionne — `typr-cli 0.5.12` |
+| Ubuntu 22.04 | 2.35 | **`GLIBC_2.39 not found`** |
+| Debian 12 (bookworm) | 2.36 | **`GLIBC_2.39 not found`** |
+| Rocky Linux 9 | 2.34 | **`GLIBC_2.39 not found`** |
+| Alpine 3.20 | musl | non exécutable — aucun build musl |
 
-### 3.2 Résoudre « latest » sans dépendance
+Deux enseignements.
+
+**Les symboles faibles ne sauvent rien.** `pidfd_spawnp` et `pidfd_getpid`
+(venus de `std::process::Command`) sont marqués faibles : on pourrait croire que
+le chargeur les résoudra à `NULL` et que le repli prendra le relais. Testé : le
+chargeur refuse quand même, parce que c'est la **référence versionnée** qui est
+absente, pas seulement le symbole. Il n'y a donc aucun contournement à tenter —
+seule une chaîne de compilation avec un plancher plus bas règle le problème.
+
+**Rocky 9 échoue.** C'est le point le plus douloureux : RHEL / Rocky / AlmaLinux
+9 est une base très répandue chez les utilisateurs R professionnels, en
+particulier en entreprise. Debian 12 et Ubuntu 22.04 ne sont pas rares non plus.
+
+**Et le plancher va monter tout seul.** `ubuntu-latest` passe à **Ubuntu 26.04
+en novembre 2026** (annonce de `actions/runner-images#14748`). Sans action, la
+glibc requise passera de 2.39 à ~2.42 et le terrain cassera davantage, à chaque
+release, sans qu'une ligne de code soit modifiée. C'est un défaut qui s'aggrave
+silencieusement — la raison de plus pour traiter le fond, pas seulement le
+symptôme.
+
+**Décision recommandée : ajouter les deux cibles musl.** Elles sont liées
+stiquement, donc sans contrainte de glibc du tout — elles fonctionnent sur
+Rocky 9, Debian 12, Ubuntu 22.04 **et** Alpine. Cela règle le problème de glibc
+et le cas Alpine d'un seul geste, pour deux cibles de plus dans la matrice.
+
+`cross` est déjà utilisé par la matrice pour `aarch64-unknown-linux-gnu`
+(`release.yml:110`), et son image musl est disponible : rien de nouveau à
+installer, seulement deux entrées à ajouter.
+
+| Cible | Rôle | Priorité |
+|---|---|---|
+| `x86_64-unknown-linux-musl` | remplaçante de la version GNU sur x86_64 | 1 |
+| `aarch64-unknown-linux-musl` | remplaçante sur ARM | 1 |
+
+Deux вариpless possibles si l'on veut rester sur des binaires glibc dynamiques,
+par ordre de préférence :
+
+- `cargo-zigbuild` en visant `glibc = "2.28"` — plancher très bas, couvre
+  RHEL 8. Mais ne couvre pas Alpine, et ajoute une dépendance d'outillage.
+- compiler la cible GNU sur `ubuntu-22.04` au lieu de `ubuntu-latest` — plancher
+  2.35, couvre Debian 12 et Ubuntu 22.04 mais **pas** Rocky 9 (2.34). Un
+  correctif partiel.
+
+Dans tous les cas, sortir la cible GNU de `latest` une fois musl disponible :
+le script doit viser musl par défaut et ne retomber sur GNU que si l'utilisateur
+le demande explicitement.
+
+### 3.2 macOS — aucun problème
+
+`LC_VERSION_MIN_MACOSX` du binaire `v0.5.12-x86_64-apple-darwin` annonce un
+minimum de **10.12.0** (Sierra), compilé avec un SDK 26.5. Toutes les versions
+de macOS réellement en usage sont couvertes. Rien à faire.
+
+### 3.3 Windows — le runtime MSVC manque sur les machines minimalistes
+
+Les DLL importées par `typr.exe` :
+
+```
+kernel32.dll, USER32.dll, advapi32.dll, ntdll.dll, bcryptprimitives.dll
+VCRUNTIME140.dll
+api-ms-win-crt-runtime / -string / -math / -stdio / -locale / -heap
+```
+
+`VCRUNTIME140.dll` et les `api-ms-win-crt-*` proviennent du **VC++ Redistributable
+de Microsoft**. Ils sont présents sur un poste de développement ou une machine
+qui a déjà installé beaucoup de choses, mais **absents d'un Windows 10/11
+frais**. Le scénario est exactement celui qu'on veut éviter : l'utilisateur copie
+la commande, l'installation se termine sans erreur, puis `typr --version` échoue
+avec une `DLL introuvable` — une faute d'orthographe dans un message de
+chargeur.
+
+**Correction : `-C target-feature=+crt-static`** sur les cibles `*-msvc`, ce qui
+lie statiquement le runtime C et supprime la dépendance. rustc accepte le flag
+pour `x86_64-pc-windows-msvc` ; **la liaison n'a pas pu être vérifiée localement**
+(pas de linker MSVC dans cet environnement). À valider en CI en comparant la
+liste des DLL importées du binaire produit.
+
+Ce correctif est peu coûteux et supprime une classe entière de tickets, donc il
+fait partie du lot 0.
+
+### 3.4 `aarch64-pc-windows-msvc` — à réévaluer
+
+Cette cible ne fonctionne que sur Windows sur ARM (Snapdragon X). Elle occupe un
+créneau de la matrice pour une audience quasi inexistante. Ce n'est pas un
+problème de fonctionnement, seulement de temps de CI. À garder pour la
+complétude, à retirer si la matrice devient coûteuse.
+
+### 3.5 Résoudre « latest » sans dépendance
 
 Les scripts ne doivent pas supposer `jq` ni `python` sur la machine.
 
@@ -125,22 +210,45 @@ Deux conséquences utiles :
   beta devra, lui, lister `/releases` et filtrer.
 - Aucune dépendance à un outil de parsing.
 
-### 3.3 Vérifier le SHA-256
+### 3.6 Vérifier le SHA-256 — ne pas utiliser `sha256sum -c` tel quel
 
-`checksums.txt` est déjà au format attendu par `sha256sum -c`. Attention : il
-contient des noms de fichiers nus, donc la commande doit tourner **depuis le
-répertoire** contenant le fichier téléchargé.
+Testé sur `v0.5.12` : `checksums.txt` contient bien les 6 lignes attendues, au
+format `sha256sum`. Mais `sha256sum -c checksums.txt` **échoue**, parce qu'il
+tente de vérifier les 5 archives qui n'ont pas été téléchargées :
+
+```
+typr-v0.5.12-x86_64-unknown-linux-gnu.tar.gz: OK
+typr-v0.5.12-aarch64-apple-darwin.tar.gz: FAILED open or read
+… (4 autres)
+```
+
+Le code de sortie est non nul même quand le fichier nous intéresse est valide.
+Le script doit donc **extraire la seule ligne qui correspond**, puis la
+vérifier :
+
+```bash
+grep "  $ARTIFACT\$" checksums.txt | sha256sum -c -
+```
+
+Testé : cette variante sort `OK` avec un code de retour nul. Elle reste le seul
+endroit où une erreur de formatage passerait inaperçue, donc à couvrir par un
+test qui fournit volontairement un SHA falsifié.
+
+`checksums.txt` ne contient que les 6 archives de binaires — ni le `.vsix`, ni
+le tarball RStudio, ni le plugin Vim, ni le WASM, qui sont joints plus tard par
+d'autres jobs. C'est cohérent avec l'usage du script d'installation, et le plan
+n'a pas à en tenir compte autrement.
 
 L'option `TYPR_INSTALL_VERIFY=0` permet de sauter la vérification pour un
 dépannage réseau, sans jamais être le mode par défaut.
 
-### 3.4 Récupérer le binaire après un échec
+### 3.7 Récupérer le binaire après un échec
 
 `install.sh` télécharge dans un fichier temporaire, vérifie le SHA, puis déplace.
 En cas d'échec le fichier temporaire est nettoyé : on n'installe jamais un binaire
 partiellement téléchargé.
 
-### 3.5 Le job `coherence` interdit les binaires commités
+### 3.8 Le job `coherence` interdit les binaires commités
 
 Le job de CI échoue si un binaire réapparaît dans l'index (`RELEASING.md:157`).
 Les scripts ne doivent installer que dans `$HOME`, jamais dans le dépôt, et le
@@ -202,11 +310,25 @@ TYPR_INSTALL_DIR=$(mktemp -d) ./install/install.sh
 $TYPR_INSTALL_DIR/typr --version
 ```
 
-- [ ] Linux x86_64, Linux aarch64
-- [ ] macOS x86_64, macOS aarch64
-- [ ] Windows x86_64 via `irm | iex`
+Le `typr --version` de la dernière ligne est le test qui compte : c'est
+précisément l'étape qui échoue aujourd'hui sur d'anciennes distributions.
+Ajouter un contrôle explicite dans la CI, sur des images Docker sans rien
+d'autre :
+
+```bash
+# ce test a échoué sur les 3 premières distributions en septembre 2026
+docker run --rm -v "$BIN:/w/typr" rockylinux:9  sh -c '/w/typr --version'
+docker run --rm -v "$BIN:/w/typr" debian:12   sh -c '/w/typr --version'
+docker run --rm -v "$BIN:/w/typr" ubuntu:22.04 sh -c '/w/typr --version'
+docker run --rm -v "$BIN:/w/typr" alpine:3.20 sh -c '/w/typr --version'
+```
+
+- [ ] Les 4 conteneurs ci-dessus répondent une version
+- [ ] Linux x86_64 et aarch64, macOS x86_64 et aarch64
+- [ ] Windows x86_64 via `irm | iex`, sur une image sans VC++ Redistributable
 - [ ] `--version <tag-ancienne>` installe bien l'ancienne version
-- [ ] SHA volontairement corrompu → le script refuse d'installer et le dit
+- [ ] SHA volontairement falsifié → le script refuse d'installer et le dit
+- [ ] `checksums.txt` absent ou malformé → erreur explicite, pas un `FAILED open or read`
 - [ ] `PATH` non modifiable → message clair, pas d'erreur opaque
 - [ ] Idempotence : deux exécutions successives ne cassent rien
 
@@ -353,7 +475,7 @@ Préciser explicitement que l'installation **n'exige pas `sudo`** et
 
 - [ ] Les commandes du README sont copiées et exécutées telles quelles
 - [ ] `RELEASING.md` mentionne les nouveaux canaux dans le diagramme
-- [ ] `publish.nu check`compare bien les quatre canaux (voir ci-dessous)
+- [ ] `publish.nu check` compare bien les quatre canaux (voir ci-dessous)
 
 ---
 
@@ -413,7 +535,9 @@ silence.
 
 | # | Lot | Dépend de | Effort |
 |---|---|---|---|
-| 0 | Diagnostic glibc + décision cible musl | — | 1 h |
+| 0a | **Cibles musl** dans la matrice de `release.yml` | — | 2 h |
+| 0b | **`+crt-static`** sur les cibles `*-msvc` | — | 30 min |
+| 0c | Vérifier que le binaire musl démarre dans Rocky 9, Debian 12, Alpine | 0a | 1 h |
 | 1 | `install.sh` + `install.ps1` + hébergement | 0 | 1 j |
 | 2 | Tests CI sur les scripts | 1 | 3 h |
 | 3 | Homebrew tap + job CI | 1 | 1 j |
@@ -422,9 +546,11 @@ silence.
 | 6 | `publish.nu check` étendu | 1-4 | 2 h |
 | 7 | `typr upgrade` (optionnel) | — | plus tard |
 
-Le lot 0 conditionne le lot 1 : publier un script d'installation qui installe un
-binaire ne démarre pas sur Ubuntu 22.04 transformerait le canal principal en
-source de tickets. C'est un diagnostic d'une heure qui évite ce risque.
+Le lot 0 est **précisément-identified et non négociable** : le diagnostic a
+montré que le binaire actuel ne démarre ni sur Rocky 9, ni sur Debian 12, ni sur
+Ubuntu 22.04. Publier un script d'installation qui lance `typr --version` et
+échoue dessus convertirait le canal principal en source de tickets — c'est-à-dire
+exactement l'expérience que ce plan cherche à supprimer.
 
 Les lots 3 et 4 sont indépendants de 2 et parallélisables.
 
@@ -434,9 +560,11 @@ Les lots 3 et 4 sont indépendants de 2 et parallélisables.
 
 | Risque | Impact | Réponse |
 |---|---|---|
-| glibc des binaires Linux trop récent | Installation qui échoue sur les distributions anciennes | Lot 0, puis rebuild sur `ubuntu-22.04` ou cibles musl |
-| SmartScreen bloque `typr.exe` | Avertissement à l'insertion, pas un blocage | Signatures `install.ps1` volontairement absentes : PowerShellSmartScreen marque le fichier téléchargé, un fichier posé par script ne l'est pas |
-| Gatekeeper sur macOS | Rare pour un binaire installé par script | Documenter `xattr -d com.apple.quarantine` pour ceux qui téléchargent d'abord par navigateur |
+| glibc des binaires Linux trop récent | **Confirmé** — l'installation échoue sur Rocky 9, Debian 12, Ubuntu 22.04, Alpine | Lot 0a : cibles musl, liées statiquement |
+| Le plancher glibc remontera seul en novembre 2026 | Nouvelle rupture, sans changement de code | Lot 0a : musl supprime la dépendance à la glibc du runner |
+| `VCRUNTIME140.dll` absent sur Windows minimal | Installation réussie puis `typr --version` échoue | Lot 0b : `+crt-static` |
+| SmartScreen bloque `typr.exe` | Avertissement, pas un blocage | Un binaire posé par `install.ps1` ne porte pas de MOTW |
+| Gatekeeper sur macOS | Rare — plancher à macOS 10.12, et `curl \| sh` ne pose pas la quarantaine | Documenter `xattr -d com.apple.quarantine` pour qui télécharge d'abord par navigateur |
 | Un canal dérive en silence | Le README promet une version absente d'un canal | `publish.nu check` étendu (lot 6) |
 | Le script d'installation casse les gens | Mauvaise expérience sur le canal principal | `--dry-run`, `--version` épinglé, idempotence, tests sur 6 cibles en CI |
 
@@ -445,10 +573,10 @@ Les lots 3 et 4 sont indépendants de 2 et parallélisables.
 ## 12. hors périmètre
 
 - Signature et notarification (coût, hors budget d'un projet open source).
-- Canal de type `winget` : trop tôt, la distribution de Linux est trop
-  fragmentée pour que le gain justifie l'effort.
+- Canal `apt` / `dnf` : la distribution Linux est trop fragmentée pour que le
+  gain justifie l'effort. Le script Unix — et musl — couvrent ces systèmes sans
+  coût supplémentaire.
 - Mise à jour automatique silencieuse, qui crée plus de problèmes qu'elle n'en
   résout (mise à jour pendant une session LSP en cours, binaire remplacé sous
   les pieds du processus). `typr upgrade` explicite suffit.
-- Paquet `apt` / `dnf` : le script Unix couvre ces distributions sans
-  fragmentation supplémentaire.
+- Paquet `apt` / `dnf` : sans objet, la ligne ci-dessus couvre le sujet.

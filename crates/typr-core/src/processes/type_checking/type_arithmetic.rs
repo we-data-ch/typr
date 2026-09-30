@@ -246,33 +246,28 @@ pub(crate) fn apply_refinements(base: Type, set: RefinementSet, h: HelpData) -> 
     let full = Interval::full();
     match &base {
         Type::Empty(_) => base,
-        Type::Vec(_, _, _, vh) => {
-            let index = base.vec_length().unwrap_or_else(|| Type::Any(vh.clone()));
+        Type::Vec(kind, length, elem, vh) => {
             if set.get(Measure::Value).is_some() {
                 return invalid(Measure::Value);
             }
             if set.is_empty(true) {
                 return unsatisfiable("has no value");
             }
-            let len = set.get(Measure::Length).and_then(|iv| iv.as_point());
-            match (len, &index) {
-                (Some(n), Type::Any(_)) => base.with_vec_length(Type::Integer(Tint::Val(n as i32), vh.clone())),
-                (Some(n), Type::Integer(Tint::Val(m), _)) if n as i32 == *m => base.clone(),
-                (Some(n), Type::Integer(Tint::Val(m), _)) => {
-                    unsatisfiable(&format!("contradicts its length {} (asked for {})", m, n))
-                }
-                // A range (`length(> 0)`) against a known length: the literal
-                // either satisfies it (the range adds nothing) or contradicts it.
-                (None, Type::Integer(Tint::Val(m), _)) => {
-                    let range = set.get(Measure::Length).unwrap_or(&full);
-                    if Interval::point(*m as f64).implies(range) {
-                        base.clone()
-                    } else {
-                        unsatisfiable(&format!("contradicts its length {}", m))
+            let wanted = set.get(Measure::Length).copied().unwrap_or(full);
+            match length.meet_interval(&wanted) {
+                // The length folds the range in (D4): `[T] & length(5)` is
+                // `[5, T]`, `[T] & length(> 0)` is a ranged length.
+                Some(Ok(l)) => Type::Vec(kind.clone(), l, elem.clone(), vh.clone()),
+                Some(Err(())) => match (length.as_known(), wanted.as_point()) {
+                    (Some(m), Some(n)) => {
+                        unsatisfiable(&format!("contradicts its length {} (asked for {})", m, n))
                     }
-                }
-                // Symbolic length (`#N`) or unknown length with a range: keep the property.
-                _ => Type::Refined(Box::new(base.clone()), set, h),
+                    (Some(m), None) => unsatisfiable(&format!("contradicts its length {}", m)),
+                    _ => unsatisfiable("contradicts its length"),
+                },
+                // Symbolic length (`#N`) narrowed by a range it does not
+                // already satisfy: keep the property.
+                None => Type::Refined(Box::new(base.clone()), set, h),
             }
         }
         Type::Integer(tint, _) => {
@@ -760,8 +755,10 @@ mod tests {
             builder::integer_type_default(),
             HelpData::default(),
         );
-        // unknown length: the range is kept as a property
-        assert!(matches!(inter(unknown.clone(), range()), Type::Refined(..)));
+        // unknown length: the range folds into the length itself
+        let folded = inter(unknown.clone(), range());
+        assert!(matches!(&folded, Type::Vec(_, l, _, _) if l.as_proper_range().is_some()), "{:?}", folded);
+        assert_eq!(folded.refinements_of().get(Measure::Length), Some(&Interval::greater_than(0.0)));
         // known length: satisfied range is redundant, violated one is a contradiction
         let sized = |n| Type::vec(
             crate::components::r#type::vector_type::VecType::S3,
@@ -772,5 +769,61 @@ mod tests {
         assert_eq!(inter(sized(3), range()), sized(3));
         let res = inter(sized(0), range());
         assert!(matches!(refinement_error(&res), Some(TypeError::UnsatisfiableRefinement(..))), "{:?}", res);
+    }
+
+    #[test]
+    fn folded_length_ranges_meet_and_compare_by_interval() {
+        use crate::components::context::Context;
+        use crate::components::r#type::refinement::{Interval, Measure};
+        use crate::components::r#type::vector_type::VecType;
+        let ctx = Context::default();
+        let vec_of = |len: Type| Type::vec(VecType::S3, len, builder::integer_type_default(), HelpData::default());
+        let any = || Type::Any(HelpData::default());
+        let range = |iv: Interval| prop(Refinement::Range(Measure::Length, iv));
+        let pos = inter(vec_of(any()), range(Interval::greater_than(0.0)));
+        let small = inter(pos.clone(), range(Interval::at_most(10.0)));
+        // meeting narrows the same length
+        assert!(matches!(&small, Type::Vec(..)), "{:?}", small);
+        // [1,10] <: [>0] <: [T]; the converse does not hold
+        assert!(small.is_subtype(&pos, &ctx).0);
+        assert!(pos.is_subtype(&vec_of(any()), &ctx).0);
+        assert!(!pos.is_subtype(&small, &ctx).0);
+        assert!(!vec_of(any()).is_subtype(&pos, &ctx).0);
+        // a literal length is proven against a range it satisfies, refuted otherwise
+        assert!(vec_of(builder::integer_type(3)).is_subtype(&pos, &ctx).0);
+        assert!(!vec_of(builder::integer_type(0)).is_subtype(&pos, &ctx).0);
+        // a contradiction is reported
+        let none = inter(pos.clone(), range(Interval::less_than(1.0)));
+        assert!(matches!(refinement_error(&none), Some(TypeError::UnsatisfiableRefinement(..))), "{:?}", none);
+        // printed as a refinement
+        assert_eq!(pos.pretty(), "[int] & length(> 0)");
+    }
+
+    #[test]
+    fn symbolic_length_has_provable_bounds() {
+        use crate::components::context::Context;
+        use crate::components::r#type::refinement::{Interval, Measure};
+        use crate::components::r#type::type_operator::TypeOperator;
+        use crate::components::r#type::vector_type::VecType;
+        let ctx = Context::default();
+        let n = || Type::IndexGen("N".into(), HelpData::default());
+        let plus1 = Type::Operator(
+            TypeOperator::Addition,
+            Box::new(n()),
+            Box::new(builder::integer_type(1)),
+            HelpData::default(),
+        );
+        let vec_of = |len: Type| Type::vec(VecType::S3, len, builder::integer_type_default(), HelpData::default());
+        let range = |iv: Interval| prop(Refinement::Range(Measure::Length, iv));
+        // `#N + 1` is at least 1: it proves length(> 0), `#N` alone does not
+        let pos = inter(vec_of(Type::Any(HelpData::default())), range(Interval::greater_than(0.0)));
+        assert!(vec_of(plus1.clone()).is_subtype(&pos, &ctx).0);
+        assert!(!vec_of(n()).is_subtype(&pos, &ctx).0);
+        // narrowing `#N + 1` by a satisfied range is a no-op; by an unproven one it stays a property
+        assert_eq!(inter(vec_of(plus1.clone()), range(Interval::greater_than(0.0))), vec_of(plus1));
+        assert!(matches!(inter(vec_of(n()), range(Interval::greater_than(0.0))), Type::Refined(..)));
+        // a symbolic length is never negative
+        let neg = inter(vec_of(n()), range(Interval::less_than(0.0)));
+        assert!(matches!(refinement_error(&neg), Some(TypeError::UnsatisfiableRefinement(..))), "{:?}", neg);
     }
 }

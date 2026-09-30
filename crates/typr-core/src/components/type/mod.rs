@@ -30,7 +30,7 @@ use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::intersection_type::IntersectionType;
 use crate::components::r#type::kind::Kind;
 use crate::components::r#type::module_type::ModuleType;
-use crate::components::r#type::refinement::{Interval, Measure, Refinement, RefinementSet};
+use crate::components::r#type::refinement::{Interval, Length, Measure, Refinement, RefinementSet};
 use crate::components::r#type::tbool::Tbool;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
@@ -111,7 +111,7 @@ pub enum Type {
     Generic(String, HelpData),
     IndexGen(String, HelpData),
     LabelGen(String, HelpData),
-    Vec(VecType, Box<Type>, Box<Type>, HelpData),
+    Vec(VecType, Length, Box<Type>, HelpData),
     Record(HashSet<ArgumentType>, HelpData),
     Module(Vec<ArgumentType>, Vec<String>, HelpData),
     Alias(String, Vec<Type>, bool, HelpData), //for opacity
@@ -240,8 +240,17 @@ impl TypeSystem for Type {
                 t1.is_subtype_raw(typ, context) || t2.is_subtype_raw(typ, context)
             }
             (_, Type::Any(_)) => true,
-            (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => {
-                n1.is_subtype_raw(n2, context) && t1.is_subtype_raw(t2, context)
+            (Type::Vec(_, n1, t1, h1), Type::Vec(_, n2, t2, h2)) => {
+                let length_ok = match (n1, n2) {
+                    // Numeric ranges, or a symbolic length against a range:
+                    // interval inclusion (`[#N + 1, T] <: [T] & length(> 0)`).
+                    (_, Length::Range(_)) => n1.implies(n2),
+                    // A proper range has no index form: it never meets an
+                    // index expression.
+                    (Length::Range(_), Length::Sym(_)) if n1.as_proper_range().is_some() => false,
+                    _ => n1.to_type(h1.clone()).is_subtype_raw(&n2.to_type(h2.clone()), context),
+                };
+                length_ok && t1.is_subtype_raw(t2, context)
             }
             // A function type is structural: only the arity, the parameter
             // *types* and the return type carry meaning. Parameter names are a
@@ -372,7 +381,7 @@ impl Type {
     /// the length lives (today the `Vec` index, eventually `Measure::Length`
     /// in a `Refined`) is decided in one place.
     pub fn vec(kind: VecType, length: Type, elem: Type, help: HelpData) -> Type {
-        Type::Vec(kind, Box::new(length), Box::new(elem), help)
+        Type::Vec(kind, Length::from_type(&length), Box::new(elem), help)
     }
 
     /// The length of a `Vec`, `None` for any other type. Returned by value:
@@ -380,7 +389,7 @@ impl Type {
     /// not borrowed. Cheap (an index type is a literal or a tiny tree).
     pub fn vec_length(&self) -> Option<Type> {
         match self {
-            Type::Vec(_, length, _, _) => Some((**length).clone()),
+            Type::Vec(_, length, _, help) => Some(length.to_type(help.clone())),
             _ => None,
         }
     }
@@ -402,22 +411,36 @@ impl Type {
         }
     }
 
+    /// A `Vec` whose length is a proper range (`length(> 0)`) reads as
+    /// unsized; anything else is returned unchanged. For code that reasons
+    /// on the shape of a vector, which a range does not change.
+    pub fn without_length_range(self) -> Type {
+        match &self {
+            Type::Vec(kind, l, elem, help) if l.as_proper_range().is_some() => {
+                Type::Vec(kind.clone(), Length::unknown(), elem.clone(), help.clone())
+            }
+            _ => self,
+        }
+    }
+
     /// `self` with its element type replaced when it is a `Vec`.
     pub fn with_vec_elem(&self, elem: Type) -> Type {
         match self {
-            Type::Vec(kind, length, _, help) => Type::vec(kind.clone(), (**length).clone(), elem, help.clone()),
+            Type::Vec(kind, length, _, help) => Type::Vec(kind.clone(), length.clone(), Box::new(elem), help.clone()),
             t => t.clone(),
         }
     }
 
     pub fn lift(self, max_index: &(VecType, i32)) -> Type {
         match self.clone() {
-            Type::Vec(_, i, _, _) if i.equal(max_index.1) => self,
+            Type::Vec(_, i, _, _) if i.as_known() == Some(max_index.1) => self,
             // A parameter that already fixes a length keeps it: lifting only
             // widens scalars and unsized vectors, it must not turn `[2, num]`
             // into `[3, num]` to make a `[3, num]` argument fit.
-            Type::Vec(_, i, _, _) if matches!(*i, Type::Integer(..)) => self,
-            Type::Vec(v, _, t, h) => Type::Vec(v, Box::new(builder::integer_type(max_index.1)), t.clone(), h.clone()),
+            Type::Vec(_, i, _, _) if matches!(i, Length::Range(iv) if iv.as_point().is_some()) => self,
+            // `length(> 0)` and the like constrain the length: not widened.
+            Type::Vec(_, i, _, _) if i.as_proper_range().is_some() => self,
+            Type::Vec(v, _, t, h) => Type::Vec(v, Length::known(max_index.1), t.clone(), h.clone()),
             t => Type::vec(
                 max_index.0.clone(),
                 builder::integer_type(max_index.1),
@@ -644,10 +667,10 @@ impl Type {
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect::<Vec<_>>(),
-            Type::Vec(_, ind, typ, _) => typ
+            Type::Vec(_, ind, typ, h) => typ
                 .extract_generics()
                 .iter()
-                .chain(ind.extract_generics().iter())
+                .chain(ind.to_type(h.clone()).extract_generics().iter())
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .cloned()
@@ -684,7 +707,7 @@ impl Type {
             Type::Operator(TypeOperator::Division, a, b, _) => a.index_calculation().div_index(&b.index_calculation()),
             Type::Vec(vtype, ind, typ, h) => Type::vec(
                 vtype.clone(),
-                ind.index_calculation(),
+                ind.to_type(h.clone()).index_calculation(),
                 typ.index_calculation(),
                 h.clone(),
             ),
@@ -736,8 +759,8 @@ impl Type {
     }
 
     pub fn get_shape(&self) -> Option<String> {
-        if let Type::Vec(_, i, t, _) = self {
-            match (*i.clone(), t.get_shape()) {
+        if let Type::Vec(_, i, t, h) = self {
+            match (i.to_type(h.clone()), t.get_shape()) {
                 (Type::IndexGen(_, _), _) => Some("dim(===)".to_string()),
                 (Type::Integer(j, _), Some(rest)) => Some(format!("{}, {}", j, rest)),
                 (Type::Integer(j, _), None) => Some(format!("{}", j)),
@@ -844,10 +867,20 @@ impl Type {
     /// the value of a literal, or the set of an explicit `Refined`.
     pub fn refinements_of(&self) -> RefinementSet {
         match self {
-            Type::Vec(_, index, _, _) => match &**index {
-                Type::Integer(Tint::Val(n), _) => RefinementSet::single(&Refinement::Length(*n)),
-                _ => RefinementSet::empty(),
-            },
+            Type::Vec(_, length, _, _) => {
+                let iv = length.bounds();
+                // A symbolic length only contributes what it provably has
+                // (`#N + 1` is at least 1); `>= 0` is true of every length.
+                let informative = match length {
+                    Length::Range(_) => !iv.is_full(),
+                    Length::Sym(_) => iv != Interval::at_least(0.0),
+                };
+                if informative {
+                    RefinementSet::empty().with(Measure::Length, iv)
+                } else {
+                    RefinementSet::empty()
+                }
+            }
             Type::Integer(Tint::Val(n), _) => RefinementSet::empty().with(Measure::Value, Interval::point(*n as f64)),
             Type::Number(Tnum::Val(v), _) => RefinementSet::empty().with(Measure::Value, Interval::point(*v)),
             Type::Refined(base, refs, _) => base.refinements_of().meet(refs),
@@ -1020,7 +1053,7 @@ impl Type {
     pub fn to_array(&self) -> Option<Array> {
         match self {
             Type::Vec(_, t1, t2, h) => Some(Array {
-                index: (**t1).clone(),
+                index: t1.to_type(h.clone()),
                 base_type: (**t2).clone(),
                 help_data: h.clone(),
             }),
@@ -1149,7 +1182,7 @@ impl Type {
 
     pub fn linearize(self) -> Vec<Type> {
         match self {
-            Type::Vec(_, t1, t2, _) => [*t1].iter().chain((*t2).linearize().iter()).cloned().collect(),
+            Type::Vec(_, t1, t2, h) => [t1.to_type(h)].iter().chain((*t2).linearize().iter()).cloned().collect(),
             other => vec![other],
         }
     }
@@ -1192,7 +1225,7 @@ impl Type {
     /// [3, T] -> rank: 3, vector type: Array, Type T
     pub fn get_size_type(&self) -> (i32, VecType, Type) {
         match self {
-            Type::Vec(v, i, t, _) => (i.get_index().unwrap_or(0) as i32, v.clone(), (**t).clone()),
+            Type::Vec(v, i, t, h) => (i.to_type(h.clone()).get_index().unwrap_or(0) as i32, v.clone(), (**t).clone()),
             typ => (1, VecType::Empty, typ.clone()),
         }
     }
@@ -1212,7 +1245,7 @@ impl Type {
                 if let VecType::Named(name) = vtype {
                     acc.push((name.clone(), h.clone()));
                 }
-                idx.collect_named_constructors_into(acc);
+                idx.to_type(h.clone()).collect_named_constructors_into(acc);
                 body.collect_named_constructors_into(acc);
             }
             Type::Function(args, ret, _) => {
@@ -1364,8 +1397,9 @@ impl PartialOrd for Type {
             (typ1, typ2) if typ1 == typ2 => Some(Ordering::Equal),
             // Array subtyping
             (_, Type::Any(_)) => Some(Ordering::Less),
-            (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => {
-                (n1.partial_cmp(n2).is_some() && t1.partial_cmp(t2).is_some()).then_some(Ordering::Less)
+            (Type::Vec(_, n1, t1, h1), Type::Vec(_, n2, t2, h2)) => {
+                (n1.to_type(h1.clone()).partial_cmp(&n2.to_type(h2.clone())).is_some() && t1.partial_cmp(t2).is_some())
+                    .then_some(Ordering::Less)
             }
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
                 let args1_types: Vec<Type> = args1.iter().map(|arg| arg.get_type()).collect();

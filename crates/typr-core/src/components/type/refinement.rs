@@ -12,6 +12,9 @@
 //!
 //! Nothing here knows about `Type`; see `type_arithmetic` for the wiring.
 
+use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::tint::Tint;
+use crate::components::r#type::Type;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::fmt;
@@ -312,6 +315,137 @@ impl fmt::Display for Refinement {
             Refinement::Lt(c) => write!(f, "(< {})", c),
             Refinement::Range(m, iv) => write!(f, "{}", m.display(iv)),
         }
+    }
+}
+
+/// The length of a vector, i.e. the [`Measure::Length`] value stored on
+/// `Type::Vec`. A numeric length is an [`Interval`] (`[5, T]` is `[5, 5]`,
+/// an unsized `[T]` is the full interval); a length that cannot be decided
+/// numerically (`#N`, `#N + 1`) keeps its index expression symbolic.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Length {
+    Range(Interval),
+    Sym(Box<Type>),
+}
+
+impl Length {
+    /// No known length (`[int]`).
+    pub fn unknown() -> Self {
+        Length::Range(Interval::full())
+    }
+
+    pub fn known(n: i32) -> Self {
+        Length::Range(Interval::point(n as f64))
+    }
+
+    /// Reads a length index as written in a type: an integer literal, `any`
+    /// (unsized), or an index expression kept as-is.
+    pub fn from_type(t: &Type) -> Self {
+        match t {
+            Type::Integer(Tint::Val(n), _) => Length::known(*n),
+            Type::Any(_) => Length::unknown(),
+            other => Length::Sym(Box::new(other.clone())),
+        }
+    }
+
+    /// The length as an index type. A numeric range that is neither a point
+    /// nor unbounded has no index form and reads as unsized.
+    pub fn to_type(&self, help: HelpData) -> Type {
+        match self {
+            Length::Range(iv) => match iv.as_point() {
+                Some(n) => Type::Integer(Tint::Val(n as i32), help),
+                None => Type::Any(help),
+            },
+            Length::Sym(t) => (**t).clone(),
+        }
+    }
+
+    /// The length as an interval on [`Measure::Length`]; `None` when symbolic.
+    pub fn interval(&self) -> Option<Interval> {
+        match self {
+            Length::Range(iv) => Some(*iv),
+            Length::Sym(_) => None,
+        }
+    }
+
+    /// The exact length when it is a known literal.
+    pub fn as_known(&self) -> Option<i32> {
+        match self {
+            Length::Range(iv) => iv.as_point().map(|n| n as i32),
+            Length::Sym(_) => None,
+        }
+    }
+
+    /// A numeric range that is neither a point nor unbounded (`length(> 0)`):
+    /// the only lengths with no index form, printed as a refinement.
+    pub fn as_proper_range(&self) -> Option<Interval> {
+        match self {
+            Length::Range(iv) if iv.as_point().is_none() && !iv.is_full() => Some(*iv),
+            _ => None,
+        }
+    }
+
+    /// The surface property for [`Length::as_proper_range`] (`length(> 0)`).
+    pub fn range_property(&self) -> Option<String> {
+        self.as_proper_range().map(|iv| Measure::Length.display(&iv))
+    }
+
+    /// An interval every length denoted by `self` lies in. Exact for a
+    /// range; for a symbolic length it is a sound lower bound (a length is
+    /// never negative, `#N + 2` is at least 2) with no upper bound.
+    pub fn bounds(&self) -> Interval {
+        match self {
+            Length::Range(iv) => *iv,
+            Length::Sym(t) => Interval::at_least(sym_lower_bound(t).max(0.0)),
+        }
+    }
+
+    /// `self ⊆ other`, decided on the bounds. A symbolic length only implies
+    /// another symbolic one when they are the same expression.
+    pub fn implies(&self, other: &Length) -> bool {
+        match (self, other) {
+            (Length::Sym(a), Length::Sym(b)) => a == b,
+            (_, Length::Sym(_)) => false,
+            (_, Length::Range(iv)) => self.bounds().implies(iv),
+        }
+    }
+
+    /// No length can satisfy both.
+    pub fn contradicts(&self, other: &Length) -> bool {
+        match (self, other) {
+            (Length::Sym(_), Length::Sym(_)) => false,
+            _ => self.bounds().contradicts(&other.bounds()),
+        }
+    }
+
+    /// Intersect with `iv`. `None` when the result has no representation:
+    /// a symbolic length narrowed by a range it does not already satisfy
+    /// stays a `Refined` property. `Some(Err)` is a contradiction.
+    pub fn meet_interval(&self, iv: &Interval) -> Option<Result<Length, ()>> {
+        match self {
+            Length::Range(cur) => {
+                // Kept as written (`> 0`, not `>= 1`): the bound is what the
+                // runtime check and the printer show. Emptiness is judged on
+                // integers, lengths being whole numbers.
+                let m = cur.meet(iv);
+                Some(if m.to_integral().is_empty() { Err(()) } else { Ok(Length::Range(m)) })
+            }
+            Length::Sym(_) if self.bounds().implies(iv) => Some(Ok(self.clone())),
+            Length::Sym(_) if self.bounds().contradicts(iv) => Some(Err(())),
+            Length::Sym(_) => None,
+        }
+    }
+}
+
+/// Lower bound of an index expression read as a length: literals and sums
+/// are exact, an index generic is only known to be a length (>= 0).
+fn sym_lower_bound(t: &Type) -> f64 {
+    use crate::components::r#type::type_operator::TypeOperator;
+    match t {
+        Type::Integer(Tint::Val(n), _) => *n as f64,
+        Type::Operator(TypeOperator::Addition, a, b, _) => sym_lower_bound(a).max(0.0) + sym_lower_bound(b).max(0.0),
+        Type::Operator(TypeOperator::Multiplication, a, b, _) => sym_lower_bound(a).max(0.0) * sym_lower_bound(b).max(0.0),
+        _ => 0.0,
     }
 }
 

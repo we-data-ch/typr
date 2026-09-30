@@ -3,8 +3,8 @@
 #' @include types.R
 
 # Range bounds: `length(> 0)`, `(>= 0)`. Checked where unproven, absent where proven.
-#' @method first Array0
-`first.Array0` <- (function(v) {
+#' @method first integer
+`first.integer` <- (function(v) {
   {
     v[[1L |> as.Integer()]]
   } |>

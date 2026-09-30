@@ -57,13 +57,17 @@ pub fn format(ty: &Type) -> String {
                 format!("{}<{}>", name, paras.join(", "))
             }
         }
-        Type::Vec(vtype, dim, ty, _) => {
+        Type::Vec(vtype, length, ty, h) => {
+            let dim = &length.to_type(h.clone());
             let inner = if matches!(vtype, VecType::DataFrame) {
                 simplify_for_dataframe(ty)
             } else {
                 verbose(ty)
             };
-            format!("{}[{}, {}]", vtype, short(dim), inner)
+            match length.range_property() {
+                Some(prop) => format!("{}[{}] & {}", vtype, inner, prop),
+                None => format!("{}[{}, {}]", vtype, short(dim), inner),
+            }
         }
         Type::Function(params, ret_ty, _h) => {
             let formatted_params = params
@@ -184,8 +188,11 @@ pub fn verbose(t: &Type) -> String {
         }
         Type::IndexGen(idgen, _) => format!("#{}", idgen),
         Type::KindedGen(k, name, _) => format!("{}{}", k, name),
-        Type::Vec(vtype, i, t, _) => {
-            format!("{}[{}, {}]", vtype, i.pretty(), t.pretty2())
+        Type::Vec(vtype, length, t, h) => {
+            match length.range_property() {
+                Some(prop) => format!("{}[{}] & {}", vtype, t.pretty2(), prop),
+                None => format!("{}[{}, {}]", vtype, length.to_type(h.clone()).pretty(), t.pretty2()),
+            }
         }
         val if val.to_category() == TypeCategory::Template => val.pretty(),
         val => val.pretty(), //val => panic!("{:?} doesn't have a second format", val)
