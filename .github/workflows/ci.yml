@@ -209,6 +209,69 @@ jobs:
           tail -5 case-run.log >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+  packaging:
+    name: Packaging (générateur Homebrew)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Installer shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: render.sh — shellcheck
+        run: shellcheck -s sh packaging/homebrew/render.sh
+
+      - name: render.sh — analyse syntaxique
+        run: |
+          # `dash -n` avec le dash du runner : c'est l'interpréteur le plus
+          # strict, il refuse les extensions de bash que `sh -n` tolère.
+          dash -n packaging/homebrew/render.sh
+          bash -n packaging/homebrew/render.sh
+          bash -n packaging/homebrew/tests/run-tests.sh
+
+      - name: render.sh — suite de tests
+        run: bash packaging/homebrew/tests/run-tests.sh
+
+  # La validation par Homebrew ne peut pas tourner dans le job précédent : ni
+  # `brew style` ni `brew audit` n'existent sous Linux, et les deux sont justement
+  # ce qui décide si `brew install` fonctionnera. Elle a donc lieu ici, sur un
+  # runner macOS, à chaque PR — sinon une formule que Homebrew refuse ne se
+  # verrait qu'à la release, quand le tag est déjà poussé et qu'il faut en créer
+  # un autre pour la corriger.
+  #
+  # Le rendu se fait sur la fixture, donc sans réseau et sans release : c'est le
+  # même code de substitution que la release exercera, avec des empreintes
+  # factices. La vérification des empreintes *réelles* appartient au job `brew`
+  # de release.yml, qui peut télécharger les archives publiées.
+  packaging-audit:
+    name: Packaging (audit Homebrew)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Rendre la formule depuis la fixture
+        run: |
+          set -euo pipefail
+          packaging/homebrew/render.sh \
+            --tag v9.9.9 \
+            --checksums packaging/homebrew/tests/fixtures/checksums-v9.9.9.txt \
+            --out tap
+          cat tap/Formula/typr.rb
+
+      - name: brew style et brew audit
+        run: |
+          set -euo pipefail
+          TAP_DIR="$(brew --repository)/Library/Taps/we-data-ch/homebrew-typr"
+          mkdir -p "$TAP_DIR/Formula"
+          cp tap/Formula/typr.rb "$TAP_DIR/Formula/typr.rb"
+          cp tap/README.md "$TAP_DIR/README.md"
+
+          brew readall "$TAP_DIR"
+          brew style "$TAP_DIR/Formula/typr.rb"
+          brew audit --strict --formula="$TAP_DIR/Formula/typr.rb"
+
   install:
     name: Install scripts
     runs-on: ubuntu-latest

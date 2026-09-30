@@ -1,0 +1,13 @@
+# checksums.txt factice — la même forme que celui produit par le job
+# `release` de .github/workflows/release.yml (sha256sum, huit archives),
+# pour la release de test v9.9.9. Utilisé par packaging/homebrew/tests
+# et par le job `packaging-audit` de ci.yml, qui rend la formule sans
+# toucher au réseau. Aucune de ces empreintes ne correspond à un fichier.
+8146ea8ef59c8c5570f35961c1218a7d1cffb35366fbd9de2746662bf5d4b564  typr-v9.9.9-x86_64-unknown-linux-musl.tar.gz
+58aa5132a479b35cb66b6e8e8ab9574991708c77020da12543d6d0f073984919  typr-v9.9.9-aarch64-unknown-linux-musl.tar.gz
+981bde1973356ba60175f3831aa6edeef538bcf014f4df7530f9f9851581269d  typr-v9.9.9-x86_64-unknown-linux-gnu.tar.gz
+96a6c0fa324a1009b470761cb34cf3549a160e11bab9b696aef9f6451e8d2ac5  typr-v9.9.9-aarch64-unknown-linux-gnu.tar.gz
+34f8df27e7d4fe1f1553043a1fbe305215ac44b6be57ad28e3aa43595d540f1e  typr-v9.9.9-x86_64-apple-darwin.tar.gz
+ee13ff3cf174801164d73935b91e878845bbe16f7e37030adc938ab1fe853c81  typr-v9.9.9-aarch64-apple-darwin.tar.gz
+ad27d2ab79bff970f475d29693c0da803f97f35ba86174a5a0914dcb04ac7e1d  typr-v9.9.9-x86_64-pc-windows-msvc.zip
+53f96c50c5c740366100a369a84cd1009bfd85edf402d7763f61f8240d25bbd2  typr-v9.9.9-aarch64-pc-windows-msvc.zip

@@ -18,7 +18,9 @@ par-dessus, pas de refaire ce qui marche.
 | 0b — `+crt-static` sur `*-msvc` | **fait** (liaison vérifiée en CI, pas en local) |
 | 0c — binaire musl dans Rocky 9 / Debian 12 / Alpine | **fait** |
 | 1 — scripts d'installation + hébergement + CI | **fait** (voir ci-dessous) |
-| 2 → 7 | à faire |
+| 2 — tests CI sur ces scripts | **couvert par le lot 1** — les jobs `install`, `install-windows` et `install-hosting` sont ceux-là |
+| 3 — Homebrew | **fait** (voir ci-dessous) |
+| 4 → 7 | à faire |
 
 ### Ce que le lot 0 a changé
 
@@ -120,9 +122,84 @@ Cinq défauts réels sont sortis des tests, tous invisibles à la lecture :
   était indiscernable d'un refus d'environnement (1).
 
 Deux points restent **non vérifiés localement**, et la CI les couvre sans
-prétendre le contraire : la liaison `+crt-static` (ci-dessus) et le démarrage
+pretendre le contraire : la liaison `+crt-static` (ci-dessus) et le démarrage
 d'un binaire Windows réel — le runner n'a pas de VC++ Redistributable, et la
 fixture n'est de toute façon pas un exécutable Windows.
+
+### Ce que le lot 3 a livré
+
+La formule, ses deux variantes et son générateur — sous `packaging/homebrew/`,
+toujours aucun binaire dans le dépôt.
+
+| Fichier | Contenu |
+|---|---|
+| `Formula/typr.rb.in` | `desc`, `homepage`, `license`, `livecheck`, `on_macos` |
+| `parts/on_linux.rb.in` | le bloc `on_linux` musl, inséré seulement s'il existe |
+| `parts/on_linux_absent.rb.in` | le commentaire qui le remplace sinon |
+| `README.md.in` | le README du tap ; sa description et son URL sont **relues dans la formule rendue**, pas recopiées |
+| `render.sh` | `sh` POSIX : tag + `checksums.txt` → formule + README |
+| `tests/run-tests.sh` | 81 assertions, sans réseau ni brew |
+| `README.md` | le mode d'emploi du canal |
+
+`render.sh` ne fait qu'une chose, et c'est le cœur du lot : **lire les
+empreintes dans le `checksums.txt` de la release**. La formule est donc
+impossible à publier avec une empreinte recopiée — la seule façon de l'obtenir
+est de modifier le générateur, qui est relu et testé à chaque PR.
+
+Le tag est pris avec ou sans `v` initial ; `--checksums` accepte une URL ou un
+fichier local ; **rien n'est écrit** dans `--out` si le rendu échoue en cours de
+route, pour qu'une formule tronquée ne puisse pas être commitée par erreur.
+
+Deux jobs de CI. `packaging` tourne sous Linux : shellcheck, `dash -n`,
+`bash -n`, la suite. `packaging-audit` tourne sous macOS et fait passer la
+formule rendue à `brew style` et `brew audit --strict` — sur une PR, donc, et
+non à la release. C'est le seul endroit où le DSL Homebrew de la formule peut
+être jugé, aucun runner Linux n'ayant Homebrew.
+
+Le job `brew` de `release.yml` reprend le même chemin sur le `checksums.txt`
+réellement publié, **télécharge une archive et compare son empreinte à celle
+inscrite dans la formule** avant de commiter vers `we-data-ch/homebrew-typr` —
+là où une erreur de sélection se verrait enfin. Sans `HOMEBREW_TAP_TOKEN`, la
+validation a lieu quand même et seule la publication est sautée, avec un
+avertissement ; un refus de Homebrew arrête le job.
+
+**81 assertions passent.** Cinq mutations du générateur ont été essayées pour
+vérifier que la suite a vraiment du mordant — c'est elle qui l'affirme, pas la
+relecture du gabarit :
+
+| Mutation | Détectée par |
+|---|---|
+| les deux `sha256` macOS intervertis | les deux blocs `url`+`sha256`, vérifiés côte à côte |
+| garde-fou des marqueurs `@@` supprimé | 18 assertions |
+| cible GNU choisie pour Linux | 12 assertions |
+| bloc `on_linux` désindentation | l'imbrication `on_linux` / `on_intel` |
+| garde-fou du retour à la ligne final supprimé | 2 assertions |
+
+La troisième a été trouvée en écrivant la suite : la version précédente
+vérifiait que les quatre empreintes *apparaissaient* dans le fichier, ce que
+satisfait aussi deux cibles interverties. La désindentation, elle, venait de la
+normalisation du gabarit — invisible pour tout test qui ne compte pas les
+espaces, et rattrapée par `brew style` dix minutes plus tard si l'on n'y prenait
+garde.
+
+**Ce que le lot n'a pas pu faire, et le dit.** Aucune version publiée ne contient
+de binaire musl : `v0.5.12`, la dernière, n'a que six artefacts, tous GNU ou
+Apple. Le générateur produit donc, pour elle, une formule **macOS seule**, et le
+README du tap l'annonce au lieu de promettre Linux. Aucun repli GNU n'a été
+ajouté : ce serait réintroduire, par la porte de Homebrew, le défaut
+`GLIBC_2.39 not found` que le lot 0 vient de corriger partout ailleurs. Le bloc
+`on_linux` réapparaîtra seul, à la première release qui publiera du musl.
+
+Reste une seule chose à faire, et elle n'est pas dans ce dépôt :
+`HOMEBREW_TAP_TOKEN` (PAT GitHub, scope `repo` sur `we-data-ch/homebrew-typr`)
+dans les secrets de la CI. Tant qu'il manque, le job `brew` valide la formule et
+saute la publication, avec un avertissement.
+
+Le dépôt `we-data-ch/homebrew-typr` a été créé le 30 septembre 2026, vide puis
+amorcé avec la formule v0.5.12 rendue depuis le `checksums.txt` de cette release
+— `brew install we-data-ch/typr/typr` fonctionne donc dès aujourd'hui sur macOS,
+et la prochaine release remplacera ce fichier par le sien, ce qui exercera le
+chemin complet `release.yml` → tap.
 
 ---
 
@@ -253,7 +330,7 @@ installer, seulement deux entrées à ajouter.
 | `x86_64-unknown-linux-musl` | remplaçante de la version GNU sur x86_64 | 1 |
 | `aarch64-unknown-linux-musl` | remplaçante sur ARM | 1 |
 
-Deux вариpless possibles si l'on veut rester sur des binaires glibc dynamiques,
+Deux variantes possibles si l'on veut rester sur des binaires glibc dynamiques,
 par ordre de préférence :
 
 - `cargo-zigbuild` en visant `glibc = "2.28"` — plancher très bas, couvre
@@ -456,32 +533,56 @@ Le canal le plus attendu sur macOS, et il couvre Linux au passage.
 
 ### Livrables
 
-Dépôt `we-data-ch/homebrew-typr` :
+Dépôt `we-data-ch/homebrew-typr`, créé à blanc puis tenu par la CI :
 
 ```
 README.md              # généré à partir de la formule
-Formula/typr.rb        # la seule source
+Formula/typr.rb        # généré depuis checksums.txt
+LICENSE                # copié depuis ce dépôt
 ```
 
+Le générateur et ses tests restent ici, pas dans le tap : le tap ne contient que
+ce qu'il faut pour installer, et sa seule source est `release.yml`.
+
 ### Contenu de la formule
+
+Le plan prévoyait un `url` unique plus un `if Hardware::CPU.arm?`. C'est
+insuffisant : avec Linux dans le canal, **les deux** systèmes ont deux
+architectures, et un seul `url` au niveau racine ne peut pas désigner le bon
+binaire. Le gabarit construit utilise donc les deux variantes du DSL moderne :
 
 ```ruby
 class Typr < Formula
   desc "A typed superset of R — transpiler and type checker"
   homepage "https://we-data-ch.github.io/typr.github.io/"
-  url "https://github.com/we-data-ch/typr/releases/download/vX.Y.Z/typr-vX.Y.Z-x86_64-apple-darwin.tar.gz"
+  license "Apache-2.0"
   version "X.Y.Z"
-  sha256 "<omis ici : rempli par la CI>"
+
+  livecheck do
+    url :stable
+    strategy :github_latest
+  end
 
   on_macos do
-    if Hardware::CPU.arm?
+    on_intel do
+      url "…/typr-vX.Y.Z-x86_64-apple-darwin.tar.gz"
+      sha256 "<omis ici : rempli par la CI>"
+    end
+
+    on_arm do
       url "…/typr-vX.Y.Z-aarch64-apple-darwin.tar.gz"
-      sha256 "…"
+      sha256 "<omis ici : rempli par la CI>"
     end
   end
 
+  # on_linux : idem, en musl. Ce bloc n'existe que si la release en publie.
+
   def install
     bin.install "typr"
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/typr --version")
   end
 
   def caveats
@@ -500,11 +601,18 @@ end
 
 ### Vérification
 
-- [ ] `brew install --formula we-data-ch/typr/typr` depuis un Mac clean
-- [ ] Fonctionne sur Apple Silicon **et** Intel
-- [ ] `brew upgrade typr` passe à la bonne version
-- [ ] `brew audit --strict` ne signale rien
-- [ ] Le SHA publié correspond à `checksums.txt` de la release
+- [ ] `brew install --formula we-data-ch/typr/typr` depuis un Mac clean — humain
+- [ ] Fonctionne sur Apple Silicon **et** Intel — humain
+- [ ] `brew upgrade typr` passe à la bonne version — humain
+- [x] `brew audit --strict` ne signale rien — `packaging-audit` et `brew`
+- [x] Le SHA publié correspond à `checksums.txt` de la release — job `brew`, qui
+      télécharge l'archive et compare
+- [ ] `brew install we-data-ch/typr/typr` résout le tap — le dépôt existe
+      (30 septembre 2026) ; la ligne n'est cochée qu'après un essai sur un Mac
+
+Ce que la CI ne peut pas faire, et qui reste à faire à la main une fois le tap
+créé : ouvrir un Mac vierge et taper `brew install`. `brew audit --strict` juge la
+formule, pas l'installation.
 
 ---
 

@@ -1,0 +1,48 @@
+# TypR — un sur-ensemble typé de R : transpileur et vérificateur de types.
+#
+# FICHIER GÉNÉRÉ — ne pas l'éditer à la main.
+#
+#   Gabarit : packaging/homebrew/Formula/typr.rb.in (dépôt we-data-ch/typr)
+#   Généré par : packaging/homebrew/render.sh --tag vX.Y.Z
+#
+# La version et les empreintes viennent de `checksums.txt` de la release : elles
+# ne peuvent donc pas dériver du binaire réellement publié, ce qui arrive dès
+# qu'un SHA est recopié à la main. Pour installer le tap ou corriger ce
+# fichier : packaging/homebrew/README.md
+class Typr < Formula
+  desc "A typed superset of R — transpiler and type checker"
+  homepage "https://we-data-ch.github.io/typr.github.io/"
+  version "@@VERSION@@"
+  license "Apache-2.0"
+
+  on_macos do
+    on_arm do
+      url "@@URL_AARCH64_APPLE@@"
+      sha256 "@@SHA256_AARCH64_APPLE@@"
+    end
+
+    on_intel do
+      url "@@URL_X86_64_APPLE@@"
+      sha256 "@@SHA256_X86_64_APPLE@@"
+    end
+  end
+
+@@LINUX@@
+
+  livecheck do
+    url :stable
+    strategy :github_latest
+  end
+
+  def install
+    bin.install "typr"
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/typr --version")
+  end
+
+  def caveats
+    "TypR is pre-1.0: 0.x releases can change the CLI surface."
+  end
+end

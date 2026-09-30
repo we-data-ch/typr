@@ -104,7 +104,8 @@ tag vX.Y.Z
    ├─ crates-io ...... typr-core → typr-lsp → typr-cli → typr
    ├─ wasm ........... WASM + version.json → dépôt du playground
    ├─ vscode ......... .vsix → Marketplace + Open VSX + attaché à la release
-   └─ vim ............ tarball du plugin, attaché à la release
+   ├─ vim ............ tarball du plugin, attaché à la release
+   └─ brew ........... formule générée → tap `we-data-ch/homebrew-typr`
 ```
 
 Les branches sont indépendantes : si le Marketplace échoue, les binaires et
@@ -151,6 +152,38 @@ en 0.5.7 et que les releases GitHub annonçaient 0.5.7.
 | `VSCE_PAT` | `vscode` | Azure DevOps → PAT, scope *Marketplace: Manage* |
 | `PLAYGROUND_DEPLOY_TOKEN` | `wasm` | PAT GitHub, scope `repo` sur le dépôt du playground |
 | `DOCS_DISPATCH_TOKEN` | `docs` | PAT GitHub, scope `repo` sur `typr.github.io` |
+| `HOMEBREW_TAP_TOKEN` | `brew` | PAT GitHub, scope `repo` sur `homebrew-typr` |
+
+## Le tap Homebrew
+
+`we-data-ch/homebrew-typr` ne contient que `Formula/typr.rb`, `README.md` et
+`LICENSE` — aucun binaire. Le job `brew` génère la formule à partir du
+`checksums.txt` de la release, la fait valider par `brew style` et
+`brew audit --strict`, puis la commite. La formule n'est donc jamais écrite à la
+main : voir `packaging/homebrew/README.md`.
+
+Le dépôt a été créé le 30 septembre 2026 et contient déjà la formule de
+v0.5.12 ; la CI le tient ensuite à chaque tag. S'il fallait le refaire, le geste
+est :
+
+```bash
+gh repo create we-data-ch/homebrew-typr --public --description "Tap Homebrew pour TypR"
+```
+
+Deux façons de le tenir, à trancher une fois pour toutes :
+
+- **`main` libre** — la CI pousse directement, comme `vscode` et `wasm` le font
+  pour leurs dépôts. Le tag fait foi, et le tap ne peut jamais être en retard.
+- **`main` protégé, admission via le dépôt `we-data-ch/homebrew-typr-autoupdate`**
+  — la CI n'écrit plus dans le tap mais dans le dépôt d'admission, qui ouvre une
+  PR que l'on relit. `homebrew-typr/typr` reste installable entre-temps, par ce que
+  `brew install` lit est la branche par défaut. Le tap devient alors impossible à
+  modifier sans relecture humaine, au prix d'un `brew update-autoupdate` à
+  installer sur les postes des mainteneurs.
+
+Le choix du lot 3 est le premier : il est cohérent avec le reste de la chaîne, et
+une formule générée par la CI depuis le `checksums.txt` n'a pas à être relue — ce
+qui la relèverait, c'est son unicité, pas sa rédaction.
 
 ## Aucun binaire dans le dépôt
 

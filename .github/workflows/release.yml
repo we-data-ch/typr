@@ -632,3 +632,141 @@ jobs:
         if: env.DOCS_DISPATCH_TOKEN == ''
         run: |
           echo "::warning title=Doc non rafraichie::DOCS_DISPATCH_TOKEN absent ; typr.github.io n'a pas ete redeploye pour cette release."
+
+  # ---------------------------------------------------------------------------
+  # 8b. Homebrew — le tap reçoit une formule *générée*, jamais écrite à la main.
+  #
+  #     Un SHA-256 recopié à la main finit toujours par désigner un binaire qui
+  #     n'est plus celui de la release : l'erreur n'apparaît qu'à
+  #     l'installation, chez l'utilisateur. Ici les empreintes sont lues dans le
+  #     `checksums.txt` que la release vient de publier, puis vérifiées contre
+  #     l'archive réellement téléchargée avant d'être commitées.
+  #
+  #     Indépendant des autres canaux, comme `vscode` et `vim` : un push refusé
+  #     sur le tap ne doit pas empêcher les binaires d'arriver.
+  # ---------------------------------------------------------------------------
+  brew:
+    name: Homebrew tap
+    needs: [verify, release]
+    runs-on: macos-latest
+    # Au niveau du job pour que l'étape de publication puisse tester sa présence
+    # dans son propre `if` : un `env` de step n'y est pas visible.
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+
+      - name: Récupérer checksums.txt de la release
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          set -euo pipefail
+          curl -fsSfL \
+            "https://github.com/${{ github.repository }}/releases/download/$TAG/checksums.txt" \
+            -o checksums.txt
+          cat checksums.txt
+
+      - name: Générer la formule et le README du tap
+        run: |
+          set -euo pipefail
+          packaging/homebrew/render.sh \
+            --tag "${{ needs.verify.outputs.tag }}" \
+            --checksums checksums.txt \
+            --out tap
+          cat tap/Formula/typr.rb
+
+      # La formule reprend `checksums.txt`, donc son empreinte est correcte par
+      # construction — sauf si le fichier a été réécrit entre le rendu et cet
+      # instant, ou si la ligne lue était celle d'un autre artefact. On
+      # télécharge donc une archive pour de vrai et on la compare : c'est le seul
+      # endroit où une erreur de sélection se verrait avant le commit.
+      - name: L'empreinte de la formule correspond à l'archive publiée
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          set -euo pipefail
+          ARTIFACT="typr-$TAG-aarch64-apple-darwin.tar.gz"
+          curl -fsSfL \
+            "https://github.com/${{ github.repository }}/releases/download/$TAG/$ARTIFACT" \
+            -o "$ARTIFACT"
+          ACTUAL=$(shasum -a 256 "$ARTIFACT" | cut -d' ' -f1)
+          rm -f "$ARTIFACT"
+          if ! grep -Fq "$ACTUAL" tap/Formula/typr.rb; then
+            echo "::error::l'empreinte de $ARTIFACT ($ACTUAL) ne figure pas dans la formule rendue"
+            exit 1
+          fi
+          echo "archive publiée et formule d'accord : $ACTUAL"
+
+      # `brew style` et `brew audit` jugent la formule comme le ferait
+      # l'utilisateur, et rien ici ne les remplace : ni ruby ni Homebrew ne
+      # tournent sous Linux. Une formule qu'ils refusent n'est pas committée.
+      #
+      # Le fichier est déposé dans un vrai tap (`Library/Taps/<user>/<repo>`) :
+      # c'est ce que fait `brew tap`, et c'est ce que rubocop attend pour
+      # connaître le nom du tap.
+      - name: Homebrew accepte la formule
+        run: |
+          set -euo pipefail
+          TAP_DIR="$(brew --repository)/Library/Taps/we-data-ch/homebrew-typr"
+          mkdir -p "$TAP_DIR/Formula"
+          cp tap/Formula/typr.rb "$TAP_DIR/Formula/typr.rb"
+          cp tap/README.md "$TAP_DIR/README.md"
+
+          # `brew readall` va plus loin que `brew style` : il charge la formule
+          # comme le fera `brew install`. Une formule que Homebrew sait lire mais
+          # pas charger est detectable ici, et nulle part ailleurs.
+          brew readall "$TAP_DIR"
+          brew style "$TAP_DIR/Formula/typr.rb"
+          brew audit --strict --formula="$TAP_DIR/Formula/typr.rb"
+
+      - name: Pousser la formule vers le tap
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          # Clone complet, pas `--depth 1` comme les autres canaux : en cas de
+          # push refusé il faut pouvoir rebaser, et un clone superficiel refuse
+          # de rebaser sur un historique qu'il n'a pas. Le tap fait quelques
+          # dizaines de kilo-octets.
+          git clone \
+            "https://x-access-token:$HOMEBREW_TAP_TOKEN@github.com/we-data-ch/homebrew-typr.git" \
+            taprepo
+
+          mkdir -p taprepo/Formula
+          cp tap/Formula/typr.rb taprepo/Formula/typr.rb
+          cp tap/README.md taprepo/README.md
+          cp LICENSE taprepo/LICENSE
+
+          git -C taprepo add Formula/typr.rb README.md LICENSE
+          if git -C taprepo diff --cached --quiet; then
+            echo "Le tap est déjà à jour ($VERSION)."
+            exit 0
+          fi
+          git -C taprepo commit -m "TypR $VERSION"
+
+          # Le tap a ses propres contributeurs : on rebase plutôt que d'écraser.
+          for attempt in 1 2 3; do
+            if git -C taprepo push origin HEAD:main; then
+              echo "tap $VERSION poussé (tentative $attempt)."
+              exit 0
+            fi
+            echo "push refusé — rebase sur origin/main et nouvelle tentative"
+            git -C taprepo fetch origin main
+            git -C taprepo rebase origin/main
+          done
+          echo "::error::impossible de pousser la formule vers le tap après 3 tentatives"
+          exit 1
+
+      # Sans jeton, le tap reste sur la version précédente : on le dit, on ne
+      # casse pas toute la release pour un seul canal — la règle que RELEASING.md
+      # énonce déjà.
+      - name: HOMEBREW_TAP_TOKEN absent — tap non mis à jour
+        if: env.HOMEBREW_TAP_TOKEN == ''
+        run: |
+          echo "::warning title=Homebrew non mis a jour::HOMEBREW_TAP_TOKEN absent ; le tap garde sa version precedente."
