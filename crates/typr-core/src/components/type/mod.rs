@@ -62,6 +62,14 @@ thread_local! {
         RefCell::new(HashMap::new());
 }
 
+fn mentions_rigid(typ: &Type) -> bool {
+    let mut found = false;
+    crate::processes::type_checking::signature_normalization::visit(typ, &mut |t| {
+        found |= matches!(t, Type::Generic(name, _) if is_rigid_name(name));
+    });
+    found
+}
+
 pub fn clear_subtype_cache() {
     SUBTYPE_CACHE.with(|c| c.borrow_mut().clear());
 }
@@ -211,6 +219,13 @@ impl TypeSystem for Type {
     }
 
     fn is_subtype(&self, other: &Type, context: &Context) -> (bool, Option<Context>) {
+        // The cache key hashes every generic alike and `PartialEq` deems any
+        // two generics equal, so `__rigid_1 <: __rigid_0` would be answered by
+        // an unrelated earlier `T <: U`. Rigids are distinct unknowns: never
+        // cache a query that mentions one.
+        if mentions_rigid(self) || mentions_rigid(other) {
+            return (self.is_subtype_raw(other, context), None);
+        }
         let key = (self.clone(), other.clone());
         let cached = SUBTYPE_CACHE.with(|c| c.borrow().get(&key).copied());
         if let Some(result) = cached {

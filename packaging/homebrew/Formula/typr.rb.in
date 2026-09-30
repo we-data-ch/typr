@@ -38,11 +38,11 @@ class Typr < Formula
     bin.install "typr"
   end
 
-  test do
-    assert_match version.to_s, shell_output("#{bin}/typr --version")
-  end
-
   def caveats
     "TypR is pre-1.0: 0.x releases can change the CLI surface."
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/typr --version")
   end
 end
