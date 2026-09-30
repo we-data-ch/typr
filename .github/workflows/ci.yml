@@ -323,14 +323,15 @@ jobs:
       - name: brew style et brew audit
         run: |
           set -euo pipefail
-          TAP_DIR="$(brew --repository)/Library/Taps/we-data-ch/homebrew-typr"
+          brew tap-new --no-git we-data-ch/typr
+          TAP_DIR="$(brew --repository we-data-ch/typr)"
           mkdir -p "$TAP_DIR/Formula"
           cp tap/Formula/typr.rb "$TAP_DIR/Formula/typr.rb"
           cp tap/README.md "$TAP_DIR/README.md"
 
-          brew readall "$TAP_DIR"
-          brew style "$TAP_DIR/Formula/typr.rb"
-          brew audit --strict --formula="$TAP_DIR/Formula/typr.rb"
+          brew readall we-data-ch/typr
+          brew style we-data-ch/typr/typr
+          brew audit --strict --formula we-data-ch/typr/typr
 
   install:
     name: Install scripts
@@ -410,6 +411,8 @@ jobs:
           }
 
           Write-Host "install.ps1 — PowerShell $($PSVersionTable.PSVersion) sur $env:OS"
+          # Le dernier code natif (2, attendu) ferait sinon échouer l'étape.
+          exit 0
 
   install-hosting:
     name: Install hosting

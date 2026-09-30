@@ -211,7 +211,16 @@ pub(crate) fn git_available() -> bool {
 /// `Rscript` — rather than adding a git-in-process dependency for a command
 /// that already needs network access.
 fn clone_repo(url: &str, rev: Option<&str>) -> Result<(PathBuf, String), String> {
-    let dir = std::env::temp_dir().join(format!("typr_types_fetch_{}_{}", std::process::id(), now_millis()));
+    // The counter keeps two clones started in the same millisecond (parallel
+    // tests, or a batch update) from sharing — and corrupting — one directory.
+    static CLONE_SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let seq = CLONE_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!(
+        "typr_types_fetch_{}_{}_{}",
+        std::process::id(),
+        now_millis(),
+        seq
+    ));
     fs::create_dir_all(&dir).map_err(|e| format!("could not create temp dir: {e}"))?;
 
     let clone_status = Command::new("git")
