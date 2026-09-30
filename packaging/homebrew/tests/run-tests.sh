@@ -278,7 +278,7 @@ test_render() {
   check_not_contains "$(cat "$readme")" "@@" "aucun marqueur résiduel dans le README"
 
   # Le README est dérivé de la formule, pas d'une deuxième source.
-  check_contains "$(cat "$readme")" "A typed superset of R — transpiler and type checker" \
+  check_contains "$(cat "$readme")" "Typed superset of R — transpiler and type checker" \
     "le README reprend le desc de la formule"
   check_contains "$(cat "$readme")" "https://we-data-ch.github.io/typr.github.io/" \
     "le README reprend le homepage de la formule"
