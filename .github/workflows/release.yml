@@ -74,19 +74,41 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            archive: tar.gz
-          - target: aarch64-unknown-linux-gnu
+          # Linux musl — la cible que vise le script d'installation par défaut.
+          # Liée statiquement : aucune contrainte de glibc, donc le binaire
+          # démarre sur Rocky 9, Debian 12, Ubuntu 22.04 *et* Alpine. C'est le
+          # correctif du défaut mesuré sur v0.5.12 (`GLIBC_2.39 not found`).
+          - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             archive: tar.gz
             cross: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            archive: tar.gz
+            cross: true
+          # Linux GNU — repli, construit sur 22.04 et non sur `latest` : `ubuntu-latest`
+          # passe à Ubuntu 26.04 en novembre 2026 (actions/runner-images#14748) et
+          # ferait monter le plancher de glibc de 2.35 à ~2.42 sans qu'une ligne du
+          # dépôt change. Ici le plancher est figé, quoi qu'il arrive au runner.
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+            archive: tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04
+            archive: tar.gz
+            cross: true
+          # `+crt-static` lie le runtime C : VCRUNTIME140.dll et les
+          # api-ms-win-crt-* du VC++ Redistributable disparaissent des imports.
+          # Sans ce flag, l'installation aboutit puis `typr --version` échoue
+          # sur un Windows 10/11 frais (DLL introuvable).
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             archive: zip
+            rustflags: -C target-feature=+crt-static
           - target: aarch64-pc-windows-msvc
             os: windows-latest
             archive: zip
+            rustflags: -C target-feature=+crt-static
           - target: x86_64-apple-darwin
             os: macos-latest
             archive: tar.gz
@@ -107,16 +129,23 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Install cross (Linux ARM)
+      - name: Install cross (Linux non natif)
         if: matrix.cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Build (cross)
         if: matrix.cross
+        env:
+          # `-C target-feature=+crt-static` sur les cibles `*-msvc` ; vide
+          # partout ailleurs. Comme `--target` est toujours passé, cargo
+          # n'applique pas RUSTFLAGS aux build scripts ni aux proc macros.
+          RUSTFLAGS: ${{ matrix.rustflags }}
         run: cross build --release --target ${{ matrix.target }}
 
       - name: Build (native)
         if: ${{ !matrix.cross }}
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Prepare artifacts (Unix)
@@ -131,6 +160,64 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
           Compress-Archive -Path ${{ env.BINARY_NAME }}.exe -DestinationPath ../../../${{ env.BINARY_NAME }}-${{ needs.verify.outputs.tag }}-${{ matrix.target }}.zip
+
+      # La liaison statique du runtime C ne se constate qu'en inspectant le PE
+      # produit : rustc accepte le flag, mais rien ne garantit qu'il ait été
+      # honoré. C'était le point non vérifié de l'analyse, donc on le vérifie ici
+      # plutôt que de le croire — sinon le défaut revient en silence au premier
+      # changement de dépendance.
+      - name: Runtime C statique (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $exe = "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * `
+                  -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+                  -property installationPath
+          if (-not $vs) { throw "Outils C++ de Visual Studio introuvables sur le runner" }
+          $vcvars = Join-Path $vs "VC\Auxiliary\Build\vcvars64.bat"
+
+          # dumpbin n'est pas dans le PATH du runner : il faut l'environnement VC.
+          $dlls = cmd /c "`"$vcvars`" >nul 2>&1 && dumpbin /nologo /dependents `"$exe`""
+          if ($LASTEXITCODE -ne 0) { throw "dumpbin /dependents a échoué sur $exe" }
+          Write-Host $dlls
+
+          # UCRT et VCRUNTIME viennent tous deux du VC++ Redistributable, absent
+          # d'un Windows 10/11 frais. S'ils réapparaissent, l'installation
+          # paraîtra réussie et `typr --version` échouera.
+          $runtime = $dlls | Select-String -Pattern 'VCRUNTIME140|VCRUNTIME140_1|MSVCP140|api-ms-win-crt-|ucrtbase\.dll'
+          if ($runtime) {
+            Write-Host "::error::le binaire importe encore le runtime du VC++ Redistributable :"
+            Write-Host $runtime
+            exit 1
+          }
+          Write-Host "Runtime C statique : aucune DLL du VC++ Redistributable importée."
+
+      # C'est cette étape — `typr --version` dans une distro vierge — qui échouait
+      # en septembre 2026 avec les binaires GNU, sur les 3 premières
+      # distributions. Un binaire musl qui trahirait un interpréteur
+      # (`PT_INTERP`) ne fonctionnerait que sur Alpine, et le défaut
+      # reviendrait sans qu'aucun test ne le voie : d'où les deux garde-fous.
+      - name: Binaire musl statique et exécutable
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          set -euo pipefail
+          BIN="$PWD/target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}"
+          file "$BIN"
+          # On lit la table de segments en entier plutôt que de s'arrêter à la
+          # première correspondance : `grep -q` sous `pipefail` laisse la
+          # garde-fou dépendre du tampon de pipe, et le décompte sert aussi au
+          # message d'erreur.
+          INTERP=$(readelf -lW "$BIN" | grep -cE '\bINTERP\b' || true)
+          if [ "$INTERP" -ne 0 ]; then
+            echo "::error::$BIN déclare un interpréteur — il n'est pas statique et ne tournera que sur Alpine"
+            exit 1
+          fi
+          for IMAGE in rockylinux:9 debian:12 alpine:3.20; do
+            echo "→ $IMAGE"
+            docker run --rm -v "$BIN:/w/typr:ro" "$IMAGE" sh -c '/w/typr --version'
+          done
 
       - uses: actions/upload-artifact@v4
         with:

@@ -94,7 +94,8 @@ tag vX.Y.Z
    │
    ├─ verify ......... refuse si tag ≠ Cargo.toml ≠ éditeurs
    │
-   ├─ build .......... 6 cibles (Linux/Windows/macOS × x86_64/aarch64)
+   ├─ build .......... 8 cibles (Linux musl + Linux GNU + Windows + macOS,
+     │                   × x86_64/aarch64)
    │   └─ release .... GitHub Release + checksums SHA-256
    │        ├─ docker ..... image depuis le binaire Linux, tags X.Y.Z + latest
    │        ├─ rstudio .... tarball R avec les binaires frais embarqués

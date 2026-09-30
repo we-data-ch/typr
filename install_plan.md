@@ -10,6 +10,74 @@ par-dessus, pas de refaire ce qui marche.
 
 ---
 
+## 0. Avancement
+
+| Lot | État |
+|---|---|
+| 0a — cibles musl dans la matrice | **fait** |
+| 0b — `+crt-static` sur `*-msvc` | **fait** (liaison vérifiée en CI, pas en local) |
+| 0c — binaire musl dans Rocky 9 / Debian 12 / Alpine | **fait** |
+| 1 → 7 | à faire |
+
+### Ce que le lot 0 a changé
+
+`.github/workflows/release.yml` est passé de 6 à 8 cibles.
+
+- `x86_64-unknown-linux-musl` et `aarch64-unknown-linux-musl` sont entrés dans
+  la matrice, construits par `cross` comme `aarch64-unknown-linux-gnu` l'était
+  déjà. Plus de cible `*-sys` : le binaire est `static-pie linked`, sans
+  `PT_INTERP`, et `objdump -T | grep -c GLIBC_` renvoie **0**.
+- Les deux cibles GNU sont sorties de `ubuntu-latest` pour `ubuntu-22.04`. Le
+  plancher de glibc de la voie de repli est ainsi figé à 2.35 au lieu de monter
+  tout seul à ~2.42 en novembre 2026 avec le runner.
+- Les deux cibles `*-msvc` reçoivent `-C target-feature=+crt-static` par
+  `RUSTFLAGS`. Comme `--target` est toujours passé, cargo n'applique pas la
+  variable aux build scripts ; le crate C embarqué (oniguruma, via `syntect`)
+  est donc compilé en `/MT` et non en `/MD` — `cc` lit `crt-static` dans
+  `CARGO_CFG_TARGET_FEATURE` pour choisir. Sans cela, le runtime du
+  VC++ Redistributable revenait par la porte du code C.
+
+### Mesures (30 septembre 2026)
+
+Binaire `x86_64-unknown-linux-musl` construit par `cross`, profil `release` :
+
+| Système | Avant (GNU) | Après (musl) |
+|---|---|---|
+| Rocky Linux 9 (glibc 2.34) | `GLIBC_2.39 not found` | `typr-cli 0.5.12` |
+| Debian 12 (glibc 2.36) | `GLIBC_2.39 not found` | `typr-cli 0.5.12` |
+| Ubuntu 22.04 (glibc 2.35) | `GLIBC_2.39 not found` | `typr-cli 0.5.12` |
+| Alpine 3.20 (musl) | non exécutable | `typr-cli 0.5.12` |
+| Debian 13, Ubuntu 24.04 | `typr-cli 0.5.12` | `typr-cli 0.5.12` |
+
+`typr check` produit des diagnostics identiques à ceux du binaire glibc sur le
+même fichier : le comportement n'a pas bougé, seul le lien a changé.
+
+### Deux garde-fous dans la CI
+
+La propriété qui fait marcher ces binaires — la liaison statique — est
+invisible dans le code : rien ne la casse quand elle disparaît, et c'est
+précisément le mode de défaillance qu'on cherche à supprimer. Deux étapes
+l'interdisent désormais.
+
+- `Runtime C statique (Windows)` lit la table d'imports PE avec `dumpbin` et
+  échoue si `VCRUNTIME140`, `MSVCP140` ou un `api-ms-win-crt-*` réapparaît.
+- `Binaire musl statique et exécutable` échoue si le binaire musl déclare un
+  `PT_INTERP` — un binaire musl qui trahirait son interpréteur ne tournerait
+  que sur Alpine — puis lance `typr --version` dans `rockylinux:9`,
+  `debian:12` et `alpine:3.20`.
+
+La seconde remplace la checklist de la section 4 : le test qui compte n'a pas
+lieu d'être fait à la main une fois, mais à chaque release.
+
+### Reste à confirmer en CI
+
+La liaison `+crt-static` sur `x86_64-pc-windows-msvc` reste **non vérifiée
+localement** : ni le linker MSVC ni le SDK ne sont disponibles ici. `rustc`
+accepte le flag pour les deux cibles `*-msvc` (vérifié jusqu'à l'émission des
+métadonnées), et le garde-fou `dumpbin` tranchera à la prochaine release.
+
+---
+
 ## 1. État actuel
 
 `.github/workflows/release.yml` produit, à partir d'un unique tag `vX.Y.Z` :
