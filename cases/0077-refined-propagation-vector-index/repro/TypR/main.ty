@@ -1,0 +1,6 @@
+# Index/comparison/length results carry their length: a proven `[3, int]` needs no check.
+let a: [5, int] <- [1, 2, 3, 4, 5];
+let head3: [3, int] <- a[1:3];
+let mid: [3, int] <- a[2:4];
+let big: [3, int] <- a[a > 2];
+let n: 5 <- length(a);

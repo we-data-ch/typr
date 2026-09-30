@@ -1,0 +1,29 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_length(v, 3L, \"TypR/main.ty:2\")"
+
+# early `return(v)` is a return position too
+[[rule]]
+file = "R/main.R"
+must_contain = "return(typr_refine_length(v, 3L"
+
+# only the branch that is not proven is wrapped
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_length(v, 3L, \"TypR/main.ty:9\")"
+
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_value(n, 0, TRUE, Inf, FALSE"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_length(c("
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_length(w"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_value(4"

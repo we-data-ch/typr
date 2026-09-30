@@ -11,7 +11,9 @@ pub mod interface_satisfaction;
 pub mod let_expression;
 pub mod match_expression;
 pub mod module_cache;
+pub mod narrowing;
 pub mod partial_application;
+pub mod refinement_check;
 pub mod signature_expression;
 pub mod type_arithmetic;
 pub mod type_checker;
@@ -22,6 +24,7 @@ pub mod unification;
 pub mod unification_map;
 pub mod vectorizability;
 
+use crate::processes::type_checking::refinement_check::{coerce_to, field_obligations, with_obligations, Coercion};
 use crate::components::context::config::TargetLanguage;
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
@@ -737,6 +740,11 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
             }
             Some(res)
         }
+        // `[#N, T] & length(> 0)`: generics live in the base, the refinements
+        // are decided at the boundary (`coerce_to`).
+        (Type::Refined(b1, _, _), Type::Refined(b2, _, _)) => get_gen_type(b1, b2),
+        (Type::Refined(b1, _, _), t2) => get_gen_type(b1, t2),
+        (t1, Type::Refined(b2, _, _)) => get_gen_type(t1, b2),
         (Type::Vec(_, ind1, typ1, _), Type::Vec(_, ind2, typ2, _)) => {
             let gen1 = get_gen_type(ind1, ind2);
             let gen2 = get_gen_type(typ1, typ2);
@@ -1152,7 +1160,40 @@ pub fn validate_forced_dispatch(context: &Context, var: &Var) -> Option<TypRErro
 
 //main
 pub fn typing(context: &Context, expr: &Lang) -> TypeContext {
-    let result = typing_impl(context, expr);
+    let at_return = context.is_return_position();
+    // `Lines`/`Scope`/`If`/`Return` hand the return position on to the
+    // expressions they contain; anything else is itself the value returned,
+    // and its own operands are not in return position.
+    let delegates = matches!(
+        expr,
+        Lang::Lines { .. } | Lang::Scope { .. } | Lang::If { .. } | Lang::Return { .. }
+    );
+    let mut result = if at_return && !delegates {
+        typing_impl(&context.clone().set_return_position(false), expr)
+    } else {
+        typing_impl(context, expr)
+    };
+    if at_return && !delegates && !result.has_errors() {
+        // Refined return type (plan Phase 5): a value whose refinement is not
+        // proven but not refuted is accepted, and checked at run time.
+        if let Some(expected) = context.get_expected_return_type() {
+            match coerce_to(&result.value, &expected, &result.context) {
+                Coercion::Runtime(set) => {
+                    result.context = result.context.add_refinement_obligation(&expr.get_help_data(), set);
+                    result.value = expected.reduce(&result.context);
+                }
+                Coercion::Reject => {
+                    if let Some(obs) = field_obligations(expr, &result.value, &expected, &result.context) {
+                        result.context = with_obligations(result.context.clone(), obs);
+                        result.value = expected.reduce(&result.context);
+                    }
+                }
+                Coercion::Static => {}
+            }
+        }
+    }
+    // The flag describes where `expr` sits, not what its operands did to it.
+    result.context = result.context.set_return_position(at_return);
     type_recorder::record(expr, &result.value);
     result
 }
@@ -1279,6 +1320,12 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             // (covers e.g. a record alias vs. its structural literal).
             let reduced1 = reduce_type(context, &tc1.value);
             let reduced2 = reduce_type(context, &tc2.value);
+            // R compares element-wise: `v > 2` is a vector of booleans as long
+            // as `v`, and a vector may be compared to a scalar of its element
+            // type (refined_types_plan.md, phase 7 — `v[v > 2]`).
+            if let Some(shape) = vectorized_comparison(context, &reduced1, &reduced2) {
+                return TypeContext::new(shape, expr.clone(), context.clone()).with_errors(errors);
+            }
             let both_numeric = matches!(reduced1, Type::Integer(_, _) | Type::Number(_, _))
                 && matches!(reduced2, Type::Integer(_, _) | Type::Number(_, _));
             let comparable = reduced1 == reduced2
@@ -1368,12 +1415,13 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
                 // error it raised (found via audit_type_checking.md Phase 6
                 // diagnostic-wording snapshots: `.Blue`-variant match errors
                 // came out twice for a two-statement program).
-                let new_context = exprs2.iter().fold(context2, |ctx, expr| {
+                let in_return_position = context2.is_return_position();
+                let new_context = exprs2.iter().fold(context2.set_return_position(false), |ctx, expr| {
                     let tc = typing(&ctx, expr);
                     all_errors.extend(tc.errors);
                     tc.context
                 });
-                let final_tc = typing(&new_context, &exp);
+                let final_tc = typing(&new_context.set_return_position(in_return_position), &exp);
                 all_errors.extend(final_tc.errors);
                 TypeContext::new(final_tc.value, final_tc.lang, final_tc.context).with_errors(all_errors)
             }
@@ -1402,12 +1450,12 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             else_block: false_branch,
             help_data: _h,
         } => {
-            let cond_tc = typing(context, cond);
+            let cond_tc = typing(&context.clone().set_return_position(false), cond);
             let mut errors = cond_tc.errors;
 
             if reduce_type(context, &cond_tc.value).is_boolean() {
-                let true_tc = typing(context, true_branch);
-                let false_tc = typing(context, false_branch);
+                let true_tc = typing(&narrowing::narrow(context, cond, true), true_branch);
+                let false_tc = typing(&narrowing::narrow(context, cond, false), false_branch);
                 errors.extend(true_tc.errors);
                 errors.extend(false_tc.errors);
 
@@ -1430,7 +1478,11 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
                 } else {
                     builder::union_type(&[true_tc.value, false_tc.value])
                 };
-                TypeContext::new(result_type, expr.clone(), context.clone()).with_errors(errors)
+                let context = context
+                    .clone()
+                    .absorb_obligations(&true_tc.context)
+                    .absorb_obligations(&false_tc.context);
+                TypeContext::new(result_type, expr.clone(), context).with_errors(errors)
             } else {
                 errors.push(TypRError::Type(TypeError::WrongExpression(cond.get_help_data())));
                 TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
@@ -1605,7 +1657,12 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
         } => {
             let tc = typing(context, arr_exp);
             let mut errors = tc.errors;
-            let typ1 = tc.value;
+            // `[T] & length(> 0)` is indexed like `[T]`: a refinement only
+            // constrains the value, it does not change its shape.
+            let typ1 = match reduce_type(context, &tc.value) {
+                refined @ Type::Refined(..) => refined.unrefined().clone(),
+                _ => tc.value,
+            };
 
             // Scalar indexing on a Tuple: list(a, b, c)[2] → element type at position 2
             if let Type::Tuple(types, _) = &typ1 {
@@ -1656,6 +1713,30 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
                     _ => builder::any_type(),
                 };
                 return TypeContext::new(element_type, expr.clone(), context.clone()).with_errors(errors);
+            }
+
+            // `v[1:3]` / `v[mask]` on a one-dimensional vector selects a
+            // sub-vector, not an element (refined_types_plan.md, phase 7). The
+            // result keeps the element type; its length is known only when the
+            // index is a literal range (`a:b`) — `mask` selections give `[int]`.
+            if let (Type::Vec(vt, _, elem, vh), Some([member])) = (&typ1, index.get_members_if_array().as_deref()) {
+                let dynamic = !matches!(member, Lang::Integer { .. } | Lang::Array { .. } | Lang::Vector { .. });
+                if dynamic && !matches!(**elem, Type::Vec(..)) {
+                    let idx_tc = typing(context, member);
+                    if let Type::Vec(_, n, ie, _) = reduce_type(context, &idx_tc.value) {
+                        let len = match reduce_type(context, &ie) {
+                            Type::Integer(..) => Some(literal_range_len(member).map_or_else(|| (*n).clone(), builder::integer_type)),
+                            Type::Boolean(..) => Some(builder::any_type()),
+                            _ => None,
+                        };
+                        if let Some(len) = len {
+                            let len = if matches!(len, Type::Integer(Tint::Val(_), _) | Type::Any(_)) { len } else { builder::any_type() };
+                            errors.extend(idx_tc.errors);
+                            let typ2 = Type::Vec(vt.clone(), Box::new(len), elem.clone(), vh.clone());
+                            return TypeContext::new(typ2, expr.clone(), context.clone()).with_errors(errors);
+                        }
+                    }
+                }
             }
 
             let args_target = typ1.clone().linearize();
@@ -1925,7 +2006,7 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Signature { .. } => eval(context, expr).with_lang(expr),
         Lang::TypeConstructor { .. } => eval(context, expr).with_lang(expr),
         Lang::Return { value: exp, .. } => {
-            let tc = typing(context, exp);
+            let tc = typing(&context.clone().set_return_position(true), exp);
             // C1 (audit_type_checking.md): an early `return` used to be typed
             // but never unified with the enclosing function's declared return
             // type — only the trailing expression was checked in `function()`.
@@ -4802,7 +4883,13 @@ p"#;
         // silent degradation: the call site still gets a real `Type::Function`
         // with the right arity, and the `Any` boundary is the documented,
         // intentional cost of the escape hatch (see rfcs/0028).
-        const BASELINE: usize = 21;
+        //
+        // 21 -> 23 (refined_types_plan.md, phase 7): vector indexing/comparison
+        // results (`v[mask]`, `v[a:f(x)]`, `u > w` with lengths that differ)
+        // carry `Any` in the *length slot* of `Type::Vec` — that is TypR's
+        // "length unknown" marker (`[int]` is `Vec(_, Any, int)`), not a
+        // degraded element type.
+        const BASELINE: usize = 23;
         let count = production_source().matches("any_type()").count();
         assert!(
             count <= BASELINE,
@@ -4855,4 +4942,42 @@ p"#;
              from mod.rs — verify typing() still matches every Lang variant explicitly"
         );
     }
+}
+
+/// Length of a literal range `a:b` / `a:s:b` (parsed as `seq(a, b, step)`), `None` for anything else.
+fn literal_range_len(member: &Lang) -> Option<i32> {
+    let Lang::FunctionApp { identifier, arguments, .. } = member else { return None };
+    match (&**identifier, arguments.as_slice()) {
+        (Lang::Variable { name, .. }, [Lang::Integer { value: a, .. }, Lang::Integer { value: b, .. }, Lang::Integer { value: step, .. }])
+            if name == "seq" && *step != 0 && (b - a) / step >= 0 =>
+        {
+            Some((b - a) / step + 1)
+        }
+        _ => None,
+    }
+}
+
+/// Result type of comparing `t1` with `t2` when at least one side is a
+/// one-dimensional vector and the element types are comparable: a vector of
+/// booleans whose length is that of the vector side(s). `None` otherwise.
+fn vectorized_comparison(context: &Context, t1: &Type, t2: &Type) -> Option<Type> {
+    let split = |t: &Type| match t {
+        Type::Vec(vt, n, e, h) if !matches!(**e, Type::Vec(..)) => Some((vt.clone(), (**n).clone(), (**e).clone(), h.clone())),
+        _ => None,
+    };
+    let (s1, s2) = (split(t1), split(t2));
+    let (e1, e2) = (
+        s1.as_ref().map_or_else(|| t1.clone(), |s| reduce_type(context, &s.2)),
+        s2.as_ref().map_or_else(|| t2.clone(), |s| reduce_type(context, &s.2)),
+    );
+    let numeric = |t: &Type| matches!(t, Type::Integer(..) | Type::Number(..));
+    if s1.is_none() && s2.is_none() || !(e1 == e2 || numeric(&e1) && numeric(&e2) || e1.is_subtype(&e2, context).0 || e2.is_subtype(&e1, context).0) {
+        return None;
+    }
+    let (vt, n, _, h) = match (s1, s2) {
+        (Some((vt, n1, _, h)), Some((_, n2, _, _))) => (vt, if n1 == n2 { n1 } else { builder::any_type() }, (), h),
+        (Some((vt, n, _, h)), None) | (None, Some((vt, n, _, h))) => (vt, n, (), h),
+        (None, None) => return None,
+    };
+    Some(Type::Vec(vt, Box::new(n), Box::new(builder::boolean_type()), h))
 }

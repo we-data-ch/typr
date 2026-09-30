@@ -43,6 +43,7 @@ syn match   typrTypesVariant "\v\.[A-Z][A-Za-z0-9_]*>"
 syn match   typrKeywordsBlock "\v<%(Test|JS|R)%(\s*[\[{])@="
 syn match   typrTypesConstructor "\v<%(library|Class|seq|c)%(\s*[\[(])@="
 syn match   typrTypesBuiltinIndexed "\v<%(df)%(\s*\[)@="
+syn match   typrTypesRefinement "\v<%(length)%(\s*\(\s*[\d<>])@="
 syn match   typrTypesBuiltin "\v<%(UnknownFunction|data__frame|data\.frame|dataframe|Record|Array|Tuple|tuple|list|Vec)[A-Za-z0-9_]@!"
 syn keyword typrTypesPrimitive int num char bool logic Any Empty Self
 syn keyword typrConstants true TRUE false FALSE null NULL na NA
@@ -75,6 +76,7 @@ hi def link typrKeywordsOperatorWord Keyword
 hi def link typrConstants Constant
 hi def link typrTypesPrimitive Type
 hi def link typrTypesBuiltin Type
+hi def link typrTypesRefinement Type
 hi def link typrTypesBuiltinIndexed Type
 hi def link typrTypesConstructor Function
 hi def link typrKeywordsBlock Keyword

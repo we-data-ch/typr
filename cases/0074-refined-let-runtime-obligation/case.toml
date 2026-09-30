@@ -1,0 +1,7 @@
+title = "Refined `let` annotation: unproven refinement becomes a runtime check, proven one emits none"
+cmd = "build"
+layer = "transpile"
+status = "fixed"
+created = "2026-09-30"
+origin = "perso"
+checked = false

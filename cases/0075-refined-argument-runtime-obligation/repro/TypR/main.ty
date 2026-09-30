@@ -1,0 +1,8 @@
+# Call arguments: an unproven refinement is checked by the caller, a proven one is not.
+let dist <- fn(p: [2, num], q: [2, num]): num { 0.0 };
+let pos <- fn(x: int & (> 0)): int { x };
+let n: int <- 5;
+let u: [num] <- [1.0, 2.0];
+dist(u, [3.0, 4.0]);
+pos(n);
+pos(3);

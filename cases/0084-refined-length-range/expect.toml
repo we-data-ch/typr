@@ -1,0 +1,17 @@
+# unproven boundaries carry a range check
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_length_range(v, 0, TRUE, Inf, FALSE, \"TypR/main.ty:7\")"
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_value(n, 0, FALSE, Inf, FALSE, \"TypR/main.ty:9\")"
+# the branch condition proves it (line 5), and [3, int] implies it (line 8)
+[[rule]]
+file = "R/main.R"
+must_not_contain = "main.ty:5"
+[[rule]]
+file = "R/main.R"
+must_not_contain = "main.ty:8"
+[[rule]]
+file = "R/main.R"
+must_not_contain = "main.ty:3\")"

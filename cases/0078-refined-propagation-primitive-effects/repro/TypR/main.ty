@@ -1,0 +1,13 @@
+# rev/head/tail: declared length effects. `head(a, 9)` clamps to 5; a call to an
+# unrelated function gets no refinement, so its result is checked at the boundary.
+@head: (x: Any, n: int) -> Any;
+@tail: (x: Any, n: int) -> Any;
+let a: [5, int] <- [1, 2, 3, 4, 5];
+let r: [5, int] <- rev(a);
+let h: [2, int] <- head(a, 2);
+let t: [3, int] <- tail(a, 3);
+let d: [3, int] <- head(a, -2);
+let all: [5, int] <- head(a, 9);
+let n: 5 <- length(rev(a));
+let idf <- fn(x: [int]): [int] { x };
+let k: [5, int] <- idf(a);

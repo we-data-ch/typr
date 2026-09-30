@@ -1,7 +1,10 @@
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::r#Type;
+use crate::processes::type_checking::refinement_check::{coerce_to, field_obligations, with_obligations, Coercion};
+use crate::processes::type_checking::type_arithmetic::refinement_error;
 use crate::processes::type_checking::vectorizability::is_vectorizable_function;
 use crate::processes::type_checking::Context;
 use crate::processes::type_checking::HelpData;
@@ -155,6 +158,9 @@ pub fn let_expression(
     };
 
     let mut alias_errors = collect_undefined_aliases(context, ty);
+    if let Some(e) = refinement_error(&ty.reduce(context)) {
+        alias_errors.push(TypRError::type_error(e));
+    }
 
     // E-EMBED-003 (named type embedding, `embedding.rs`): an explicit function
     // can only collide with an inherited embedded method by being declared after
@@ -176,8 +182,28 @@ pub fn let_expression(
         }
     }
 
-    let mut res = exp
-        .typing(&new_context)
+    // Refined annotation (plan Phase 5): what `is_subtype` cannot prove but
+    // does not refute (`let x: [3, int] <- some_vector`) is accepted here and
+    // becomes a runtime obligation on the initialiser, instead of a static
+    // error. The variable then carries the annotated type from this point on.
+    let mut typed = exp.typing(&new_context);
+    if !ty.is_empty() && !typed.has_errors() {
+        match coerce_to(&typed.value, ty, &typed.context) {
+            Coercion::Runtime(set) => {
+                typed.context = typed.context.add_refinement_obligation(&exp.get_help_data(), set);
+                typed.value = ty.reduce(&typed.context);
+            }
+            // a record literal: the check goes on each field that needs one
+            Coercion::Reject => {
+                if let Some(obs) = field_obligations(exp, &typed.value, ty, &typed.context) {
+                    typed.context = with_obligations(typed.context.clone(), obs);
+                    typed.value = ty.reduce(&typed.context);
+                }
+            }
+            Coercion::Static => {}
+        }
+    }
+    let mut res = typed
         .get_covariant_type(ty)
         .add_to_context(Var::try_from(name).unwrap());
 

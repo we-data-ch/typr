@@ -166,6 +166,9 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         ),
 
         // Tag type substitution
+        // `[#N, T] & length(> 0)`: the refinements carry no generic, only the base does
+        Type::Refined(base, set, h) => Type::Refined(Box::new(type_substitution(base, substitutions)), set.clone(), h.clone()),
+
         Type::Tag(name, inner_type, h) => Type::Tag(
             name.clone(),
             Box::new(type_substitution(inner_type, substitutions)),
@@ -200,6 +203,7 @@ fn type_contains_generic(typ: &Type, name: &str) -> bool {
         Type::Record(fields, _) => fields.iter().any(|f| type_contains_generic(&f.get_type(), name)),
         Type::Alias(_, params, _, _) => params.iter().any(|p| type_contains_generic(p, name)),
         Type::Tag(_, inner, _) => type_contains_generic(inner, name),
+        Type::Refined(base, _, _) => type_contains_generic(base, name),
         Type::Interface(fields, _) => fields.iter().any(|f| type_contains_generic(&f.get_type(), name)),
         Type::Multi(inner, _) => type_contains_generic(inner, name),
         Type::Tuple(elems, _) => elems.iter().any(|e| type_contains_generic(e, name)),
@@ -316,6 +320,11 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Option<Vec
         }
 
         // Array case
+        // Refinements are checked at the boundary (`coerce_to`): unification
+        // only binds the generics of the bases.
+        (Type::Refined(b1, _, _), Type::Refined(b2, _, _)) => unification_helper(values, b1, b2),
+        (Type::Refined(b, _, _), t) | (t, Type::Refined(b, _, _)) => unification_helper(values, b, t),
+
         (Type::Vec(_, size1, elem1, _), Type::Vec(_, size2, elem2, _)) => {
             let mut combined = unification_helper(values, size1, size2)?;
             let elem_matches = unification_helper(values, elem1, elem2)?;

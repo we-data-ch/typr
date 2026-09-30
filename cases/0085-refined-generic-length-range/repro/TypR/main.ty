@@ -1,0 +1,7 @@
+# A generic base keeps its refinements: `[#N, T] & length(> 0)` is checked like `[int] & length(> 0)`.
+let first <- fn(v: [#N, T] & length(> 0)): T { v[1] };
+let narrowed <- fn(v: [int]): int {
+  if (length(v) > 0) { first(v) } else { 0 }
+};
+let unchecked <- fn(v: [int]): int { first(v) };
+let sized <- fn(v: [3, char]): char { first(v) };

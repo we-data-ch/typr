@@ -1,0 +1,9 @@
+# Range bounds: `length(> 0)`, `(>= 0)`. Checked where unproven, absent where proven.
+let first <- fn(v: [int] & length(> 0)): int { v[1] };
+let nonneg <- fn(x: num & (>= 0)): num { x };
+let narrowed <- fn(v: [int]): int {
+  if (length(v) > 0) { first(v) } else { 0 }
+};
+let unchecked <- fn(v: [int]): int { first(v) };
+let sized <- fn(v: [3, int]): int { first(v) };
+let scalar <- fn(n: num): num { nonneg(n) };

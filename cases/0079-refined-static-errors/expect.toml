@@ -1,0 +1,22 @@
+# contradiction between two value bounds
+[[rule]]
+file = "@run"
+must_contain = "`int & (> 10) & (< 5)` has no"
+
+# capability check: `length` needs a vector, `(> c)` needs int/num
+[[rule]]
+file = "@run"
+must_contain = "`int` cannot be refined by `length`"
+
+[[rule]]
+file = "@run"
+must_contain = "`chr` cannot be refined by `value`"
+
+# `[int] & length(5)` is stored as `[5, int]`, so a second length contradicts it
+[[rule]]
+file = "@run"
+must_contain = "contradicts"
+
+[[rule]]
+file = "@run"
+must_not_contain = "panicked"

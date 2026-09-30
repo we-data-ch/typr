@@ -1,0 +1,5 @@
+# Each of these refinements is rejected at compile time.
+let a: int & (> 10) & (< 5) <- 7;
+let b: int & length(5) <- 3;
+let c: [int] & length(5) & length(10) <- [1, 2, 3, 4, 5];
+let d: chr & (> 0) <- "a";

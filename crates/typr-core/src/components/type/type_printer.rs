@@ -149,6 +149,8 @@ pub fn format(ty: &Type) -> String {
             format!("({} {} {})", left.pretty(), op, right.pretty())
         }
         Type::Variable(name, _) => name.to_string(),
+        Type::Refined(base, refs, _) => format!("{} & {}", format(base), refs),
+        Type::Property(p, _) => p.to_string(),
         t => format!("{:?}", t),
     }
 }

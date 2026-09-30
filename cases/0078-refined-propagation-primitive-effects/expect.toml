@@ -1,0 +1,21 @@
+# proven by the declared effects: no runtime check
+[[rule]]
+file = "R/main.R"
+must_contain = "head(a, 2L"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_length(rev"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_length(head"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_length(tail"
+
+# an undeclared function keeps its declared type: the boundary check stays
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_length(idf(a), 5L"

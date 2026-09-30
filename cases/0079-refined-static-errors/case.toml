@@ -1,0 +1,7 @@
+title = "contradictory or inapplicable refinements are rejected statically"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-09-30"
+origin = "perso"
+checked = false

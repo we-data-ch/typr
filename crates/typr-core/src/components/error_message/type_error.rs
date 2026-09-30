@@ -159,6 +159,11 @@ pub enum TypeError {
     /// the internal `UnknownFunction` placeholder to someone who wrote plain
     /// R — `(function_name, expected_arity, got_arity, position)`.
     UntypedFunctionArity(String, usize, usize, HelpData),
+    /// `T & p` where `T` cannot carry the property `p` (`int & length(3)`).
+    /// `(message, position)` — the message comes from `apply_refinements`.
+    InvalidRefinement(String, HelpData),
+    /// A refined type no value can inhabit (`int & (> 5) & (< 3)`).
+    UnsatisfiableRefinement(String, HelpData),
 }
 
 impl TypeError {
@@ -209,6 +214,8 @@ impl TypeError {
             TypeError::NoMatchingSignature(_, _, _, h) => Some(h.clone()),
             TypeError::NoDispatchImplementation(_, _, _, h) => Some(h.clone()),
             TypeError::UntypedFunctionArity(_, _, _, h) => Some(h.clone()),
+            TypeError::InvalidRefinement(_, h) => Some(h.clone()),
+            TypeError::UnsatisfiableRefinement(_, h) => Some(h.clone()),
         }
     }
 
@@ -261,6 +268,8 @@ impl TypeError {
             TypeError::NoMatchingSignature(..) => "T042",
             TypeError::NoDispatchImplementation(..) => "T043",
             TypeError::UntypedFunctionArity(..) => "T044",
+            TypeError::InvalidRefinement(..) => "T045",
+            TypeError::UnsatisfiableRefinement(..) => "T046",
         }
     }
 
@@ -490,6 +499,7 @@ impl TypeError {
                     name, expected, got
                 )
             }
+            TypeError::InvalidRefinement(msg, _) | TypeError::UnsatisfiableRefinement(msg, _) => msg.clone(),
         }
     }
 }
@@ -1090,6 +1100,24 @@ impl ErrorMsg for TypeError {
                     ))
                     .pos_text(format!("Called with {} argument(s) here", got))
                     .help("Its body is not type-checked; only the number of arguments is.")
+                    .build()
+            }
+            TypeError::InvalidRefinement(msg, help_data) => {
+                let (file_data, pos) = safe_file_pos(&help_data, 1);
+                SingleBuilder::new(file_data.0, file_data.1)
+                    .pos(pos)
+                    .text(msg)
+                    .pos_text("This refinement does not apply to that type")
+                    .help("`length(n)` refines vectors (`[T] & length(n)`); `(> c)` and `(< c)` refine `int` and `num`.")
+                    .build()
+            }
+            TypeError::UnsatisfiableRefinement(msg, help_data) => {
+                let (file_data, pos) = safe_file_pos(&help_data, 1);
+                SingleBuilder::new(file_data.0, file_data.1)
+                    .pos(pos)
+                    .text(msg)
+                    .pos_text("No value can have this type")
+                    .help("Its properties contradict each other; relax one of them.")
                     .build()
             }
             TypeError::NoDispatchImplementation(name, forced_type, available, help_data) => {

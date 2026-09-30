@@ -1,4 +1,7 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
+use crate::components::r#type::refinement::RefinementSet;
+use crate::processes::type_checking::type_arithmetic::declared_refinements;
+use crate::processes::type_checking::refinement_check::{coerce_to, field_obligations, residual, with_obligations, Coercion};
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::set_related_type_if_variable;
@@ -1099,6 +1102,52 @@ fn specialize_lambda(lambda_lang: &Lang, lambda_type: &Type, expected_type: &Typ
     (lambda_lang.clone(), lambda_type.clone())
 }
 
+/// Literal `n` of an index type `Integer(Val(n))`, if it is one.
+fn literal_index(t: &Type) -> Option<i64> {
+    match t {
+        Type::Integer(crate::components::r#type::tint::Tint::Val(n), _) => Some(*n as i64),
+        _ => None,
+    }
+}
+
+/// Declared effects of a few base-R primitives on a vector's length
+/// (refined_types_plan.md, phase 7). These functions live in `base.ty`, which
+/// is doc-only, so the compiler sees them as untyped (`Any`); the effect is
+/// hard-coded here and applied only to a result that is otherwise `Any`.
+/// Every other function keeps the conservative default: its declared return
+/// type, with no refinement.
+///
+/// - `length(x)`, `x : [N, T]`  -> the literal `N`
+/// - `rev(x)`                   -> `x`'s own type (same length, same elements)
+/// - `head(x, k)` / `tail(x, k)`, literal `k`, `x : [N, T]`
+///                              -> `[min(N, k), T]` (`[max(N + k, 0), T]` for `k < 0`)
+fn known_effect_call(var: &Var, context: &Context, parameters: &[Lang]) -> Option<Type> {
+    let name = var.get_name();
+    let arity = match name.as_str() {
+        "length" | "rev" => 1,
+        "head" | "tail" => 2,
+        _ => return None,
+    };
+    if parameters.len() != arity {
+        return None;
+    }
+    let arg = reduce_type(context, &typing(context, &parameters[0]).value);
+    let Type::Vec(vt, n, elem, h) = &arg else {
+        return None;
+    };
+    match name.as_str() {
+        "length" => literal_index(n).map(|_| (**n).clone()),
+        "rev" => Some(arg.clone()),
+        _ => {
+            let len = literal_index(n)?;
+            let k = literal_index(&reduce_type(context, &typing(context, &parameters[1]).value))?;
+            let kept = if k >= 0 { len.min(k) } else { (len + k).max(0) };
+            let index = Type::Integer(crate::components::r#type::tint::Tint::Val(kept as _), h.clone());
+            Some(Type::Vec(vt.clone(), Box::new(index), elem.clone(), h.clone()))
+        }
+    }
+}
+
 pub fn apply_from_variable(var: Var, context: &Context, parameters: &[Lang], h: &HelpData) -> TypeContext {
     thread_local! {
         static DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
@@ -1113,8 +1162,13 @@ pub fn apply_from_variable(var: Var, context: &Context, parameters: &[Lang], h: 
         return TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
             .with_errors(vec![TypRError::Type(TypeError::FunctionNotFound(var.clone()))]);
     }
-    let result = apply_from_variable_inner(var, context, parameters, h);
+    let mut result = apply_from_variable_inner(var.clone(), context, parameters, h);
     DEPTH.with(|d| d.set(d.get() - 1));
+    if matches!(result.value, Type::Any(_)) {
+        if let Some(len) = known_effect_call(&var, context, parameters) {
+            result.value = len;
+        }
+    }
     result
 }
 
@@ -1282,22 +1336,49 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
         },
     ];
 
-    for step in filters {
-        if let Some(fun_typ) = (step.filter)(&all_signatures, &types, &var, context) {
-            let (final_params, final_types) = specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
-            let final_fun_typ = match step.refine {
-                Some(refine) => refine(&all_signatures, &final_types, context).unwrap_or(fun_typ),
-                None => fun_typ,
-            };
-            return build_success(
-                &var,
-                &final_fun_typ,
-                final_params,
-                &final_types,
-                param_errors,
-                context,
-                h,
-            );
+    // Second attempt (refined types, plan Phase 5): when no signature accepts
+    // the arguments as typed, retry with each argument that only fails to
+    // *prove* a refinement (`[int]` given for `[3, int]`) standing in as the
+    // parameter type. The check that could not be proven statically becomes a
+    // runtime obligation on that argument, recorded in the context.
+    for attempt in 0..2 {
+        let (try_types, obligations): (Vec<Type>, Vec<(HelpData, RefinementSet)>) = if attempt == 0 {
+            (types.clone(), Vec::new())
+        } else {
+            match relax_refined_arguments(&all_signatures, &types, &expanded_parameters, context) {
+                Some(relaxed) => relaxed,
+                None => break,
+            }
+        };
+        let context = &obligations
+            .into_iter()
+            .fold(context.clone(), |ctx, (h, set)| ctx.add_refinement_obligation(&h, set));
+        for step in filters {
+            if let Some(fun_typ) = (step.filter)(&all_signatures, &try_types, &var, context) {
+                let (final_params, final_types) =
+                    specialize_lambdas(context, &expanded_parameters, &try_types, &fun_typ);
+                let final_fun_typ = match step.refine {
+                    Some(refine) => refine(&all_signatures, &final_types, context).unwrap_or(fun_typ),
+                    None => fun_typ,
+                };
+                // A generic base (`[#N, T] & length(> 0)`) unifies whatever the
+                // refinements say: decide them here, against the arguments.
+                let Some(generic_obligations) =
+                    generic_refinement_obligations(&final_fun_typ, &final_types, &expanded_parameters, context)
+                else {
+                    continue;
+                };
+                let context = &with_obligations(context.clone(), generic_obligations);
+                return build_success(
+                    &var,
+                    &final_fun_typ,
+                    final_params,
+                    &final_types,
+                    param_errors,
+                    context,
+                    h,
+                );
+            }
         }
     }
 
@@ -1367,6 +1448,71 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
         }
     }
     TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone()).with_errors(errors)
+}
+
+/// The refinements of a matched signature's parameters against the argument
+/// types: `None` when one provably fails (the signature does not match), else
+/// the runtime checks still owed, one per argument. Parameters whose base is
+/// concrete were already decided by the subtype test; what this adds is the
+/// generic ones, which unification accepts without looking at refinements.
+fn generic_refinement_obligations(
+    sig: &FunctionType,
+    types: &[Type],
+    args: &[Lang],
+    context: &Context,
+) -> Option<Vec<(HelpData, RefinementSet)>> {
+    let mut out = Vec::new();
+    for (i, (arg, param)) in types.iter().zip(sig.get_param_types().iter()).enumerate() {
+        // not reduced: the signature is already substituted (`N ↦ 0`), and reducing
+        // `[0, char] & length(> 0)` would collapse it to an error
+        let Some((base, want)) = declared_refinements(param) else { continue };
+        let have = arg.reduce(context).refinements_of();
+        if have.implies(&want) {
+            continue;
+        }
+        let integral = matches!(base, Type::Vec(..));
+        if have.contradicts(&want, integral) {
+            return None;
+        }
+        out.push((args.get(i)?.get_help_data(), residual(&have, &want)));
+    }
+    Some(out)
+}
+
+/// For the first signature of the right arity that every argument can flow
+/// into (`coerce_to` is never `Reject`) with at least one argument that needs
+/// a runtime check: the argument types with those arguments replaced by the
+/// parameter type, and the residual to check at each replaced position.
+fn relax_refined_arguments(
+    signatures: &[FunctionType],
+    types: &[Type],
+    args: &[Lang],
+    context: &Context,
+) -> Option<(Vec<Type>, Vec<(HelpData, RefinementSet)>)> {
+    signatures.iter().find_map(|sig| {
+        let params = sig.get_param_types();
+        if params.len() != types.len() {
+            return None;
+        }
+        let mut relaxed = Vec::with_capacity(types.len());
+        let mut obligations = Vec::new();
+        for (i, (arg, param)) in types.iter().zip(params.iter()).enumerate() {
+            match coerce_to(arg, param, context) {
+                Coercion::Static => relaxed.push(arg.clone()),
+                Coercion::Runtime(set) => {
+                    relaxed.push(param.clone());
+                    obligations.push((args[i].get_help_data(), set));
+                }
+                // a record literal argument: the checks go on its fields
+                Coercion::Reject => {
+                    let fields = args.get(i).and_then(|a| field_obligations(a, arg, param, context))?;
+                    relaxed.push(param.clone());
+                    obligations.extend(fields);
+                }
+            }
+        }
+        (!obligations.is_empty()).then_some((relaxed, obligations))
+    })
 }
 
 fn specialize_lambdas(

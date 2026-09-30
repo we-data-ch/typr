@@ -1,0 +1,8 @@
+# `let x: T <- e` where `e`'s refinement cannot be proven: accepted, and checked at run time.
+let v: [int] <- [1, 2, 3];
+let a: [3, int] <- v;
+let n: int <- 5;
+let p: int & (> 0) <- n;
+# Proven statically: no check may be emitted for these.
+let b: [3, int] <- [4, 5, 6];
+let q: int & (> 0) <- 3;

@@ -1,0 +1,11 @@
+# A record literal flowing into a record type with refined fields: the check goes on each
+# field expression that needs one, at each boundary (let, argument, return).
+type Account <- list { id: int & (> 0), tags: [int] & length(2) };
+let n: int <- 5;
+let v: [int] <- [1, 2];
+let a: Account <- list { id: n, tags: v };
+# Proven by the literals: no check.
+let b: Account <- list { id: 3, tags: [1, 2] };
+let describe <- fn(x: Account): int { 1 };
+let d <- describe(list { id: n, tags: [3, 4] });
+let make <- fn(k: int): Account { list { id: k, tags: [1, 2] } };

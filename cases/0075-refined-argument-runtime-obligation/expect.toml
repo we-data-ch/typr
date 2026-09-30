@@ -1,0 +1,15 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_length(u, 2L"
+
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_value(n, 0, TRUE, Inf, FALSE"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_value(3"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_length(c("

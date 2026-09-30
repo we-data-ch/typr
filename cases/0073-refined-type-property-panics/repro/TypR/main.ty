@@ -1,0 +1,3 @@
+# `int & (> 0)`: a base type refined by a value property (refined_types.md).
+# Positive integers must type-check; the compiler must never abort on this.
+let x: int & (> 0) <- 3;

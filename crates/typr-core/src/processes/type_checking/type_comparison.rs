@@ -135,9 +135,20 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
             let r2 = reduce_type_helper(context, t2, memory.clone());
             norm_arithmetic(*op, r1, r2, h.clone())
         }
+        // A property that was never attached to a base type (`let x: (> 0)`).
+        Type::Property(p, h) => Type::Failed(
+            format!("`{}` is a property, not a type: refine a base type with `T & {}`", p, p),
+            h.clone(),
+        ),
         Type::Operator(TypeOperator::Intersection, t1, t2, h) => {
-            let r1 = reduce_type_helper(context, t1, memory.clone());
-            let r2 = reduce_type_helper(context, t2, memory.clone());
+            // A `Property` operand is what `norm_intersection` folds into a
+            // `Refined`; reducing it alone would report it as a bare property.
+            let reduce_operand = |t: &Type| match t {
+                Type::Property(..) => t.clone(),
+                _ => reduce_type_helper(context, t, memory.clone()),
+            };
+            let r1 = reduce_operand(t1);
+            let r2 = reduce_operand(t2);
             norm_intersection(r1, r2, h.clone())
         }
         Type::Operator(TypeOperator::Access, t1, t2, h) => {

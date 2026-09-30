@@ -10,6 +10,7 @@ use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::refinement::{Interval, Measure, RefinementSet};
 use crate::components::r#type::tint::Tint;
 use crate::components::r#type::tnumber::Tnum;
 use crate::components::r#type::type_category::GKind;
@@ -131,6 +132,9 @@ pub fn norm_arithmetic(op: TypeOperator, t1: Type, t2: Type, h: HelpData) -> Typ
 /// nothing to merge structurally) — callers that need to see through it
 /// project the facet they need (see `facets.rs`).
 pub fn norm_intersection(t1: Type, t2: Type, h: HelpData) -> Type {
+    if matches!(t1, Type::Property(..) | Type::Refined(..)) || matches!(t2, Type::Property(..) | Type::Refined(..)) {
+        return norm_refinement(t1, t2, h);
+    }
     match (&t1, &t2) {
         (Type::Empty(_), _) | (_, Type::Empty(_)) => Type::Empty(h),
         (Type::Any(_), _) => t2,
@@ -151,6 +155,159 @@ pub fn norm_intersection(t1: Type, t2: Type, h: HelpData) -> Type {
                 )
             }
         }
+    }
+}
+
+/// The `TypeError` for a `Failed` produced by `apply_refinements`, or `None`
+/// for any other `Failed` (arithmetic, records, ...).
+pub fn refinement_error(t: &Type) -> Option<TypeError> {
+    match t {
+        Type::Failed(msg, h) if msg.starts_with("invalid refinement") || msg.contains("is a property, not a type") => {
+            Some(TypeError::InvalidRefinement(msg.clone(), h.clone()))
+        }
+        Type::Refined(base, set, h) if matches!(**base, Type::Any(_)) => Some(TypeError::InvalidRefinement(
+            format!("`{}` is a property, not a type: refine a base type with `T & {}`", set, set),
+            h.clone(),
+        )),
+        Type::Failed(msg, h) if msg.starts_with("unsatisfiable refinement") => {
+            Some(TypeError::UnsatisfiableRefinement(msg.clone(), h.clone()))
+        }
+        _ => None,
+    }
+}
+
+/// Split an `&` operand into `(base, refinements)`. A bare `Property` has no
+/// base (`int & (> 0)` is parsed as `Intersection(int, Property)`).
+fn split_refinement(t: Type) -> (Option<Type>, RefinementSet) {
+    match t {
+        Type::Property(p, _) => (None, RefinementSet::single(&p)),
+        // `Refined(Any, ..)` is the base-less carrier made below for `p & q`.
+        Type::Refined(base, set, _) if matches!(*base, Type::Any(_)) => (None, set),
+        Type::Refined(base, set, _) => (Some(*base), set),
+        t => (Some(t), RefinementSet::empty()),
+    }
+}
+
+/// The base and the refinements a declared type carries, read off its shape
+/// without reducing it: `[#N, T] & length(> 0)` stays an unreduced
+/// `Intersection` in a signature, and reducing it once `N` is substituted
+/// (`[0, char] & length(> 0)`) would collapse it into an error.
+pub(crate) fn declared_refinements(t: &Type) -> Option<(Type, RefinementSet)> {
+    fn walk(t: &Type) -> (Option<Type>, RefinementSet) {
+        match t {
+            Type::Operator(TypeOperator::Intersection, a, b, _) => {
+                let ((ba, sa), (bb, sb)) = (walk(a), walk(b));
+                (ba.or(bb), sa.meet(&sb))
+            }
+            t => split_refinement(t.clone()),
+        }
+    }
+    let (base, set) = walk(t);
+    base.filter(|_| !set.is_trivial()).map(|b| (b, set))
+}
+
+/// `&` where at least one operand is a `Property` or a `Refined` type
+/// (refined_types_plan.md, Phase 3): merge the bases like any other
+/// intersection, intersect the property sets, then check the result.
+fn norm_refinement(t1: Type, t2: Type, h: HelpData) -> Type {
+    let ((b1, s1), (b2, s2)) = (split_refinement(t1), split_refinement(t2));
+    let set = s1.meet(&s2);
+    let base = match (b1, b2) {
+        (Some(a), Some(b)) => match norm_intersection(a, b, h.clone()) {
+            failed @ Type::Failed(..) => return failed,
+            t => t,
+        },
+        (Some(t), None) | (None, Some(t)) => t,
+        // `p & q` with no base yet (`int & ((> 0) & (< 10))`): keep the merged
+        // properties until a base shows up. `refinement_error` rejects one
+        // that stays alone.
+        (None, None) => return Type::Refined(Box::new(Type::Any(h.clone())), set, h),
+    };
+    apply_refinements(base, set, h)
+}
+
+/// Attach `set` to `base`, or explain why that is impossible: the base does
+/// not support the measure (invalid refinement), or no value can satisfy the
+/// set (unsatisfiable refinement). `[T] & length(n)` folds into the length
+/// index of `Vec` (D4); a literal that satisfies the set stays a literal.
+pub(crate) fn apply_refinements(base: Type, set: RefinementSet, h: HelpData) -> Type {
+    if set.is_trivial() {
+        return base;
+    }
+    let unsatisfiable = |why: &str| {
+        Type::Failed(format!("unsatisfiable refinement: `{} & {}` {}", base.pretty(), set, why), h.clone())
+    };
+    let invalid = |m: Measure| {
+        Type::Failed(
+            format!("invalid refinement: `{}` cannot be refined by `{}`", base.pretty(), m),
+            h.clone(),
+        )
+    };
+    let full = Interval::full();
+    match &base {
+        Type::Empty(_) => base,
+        Type::Vec(kind, index, elem, vh) => {
+            if set.get(Measure::Value).is_some() {
+                return invalid(Measure::Value);
+            }
+            if set.is_empty(true) {
+                return unsatisfiable("has no value");
+            }
+            let len = set.get(Measure::Length).and_then(|iv| iv.as_point());
+            match (len, &**index) {
+                (Some(n), Type::Any(_)) => Type::Vec(
+                    kind.clone(),
+                    Box::new(Type::Integer(Tint::Val(n as i32), vh.clone())),
+                    elem.clone(),
+                    vh.clone(),
+                ),
+                (Some(n), Type::Integer(Tint::Val(m), _)) if n as i32 == *m => base.clone(),
+                (Some(n), Type::Integer(Tint::Val(m), _)) => {
+                    unsatisfiable(&format!("contradicts its length {} (asked for {})", m, n))
+                }
+                // A range (`length(> 0)`) against a known length: the literal
+                // either satisfies it (the range adds nothing) or contradicts it.
+                (None, Type::Integer(Tint::Val(m), _)) => {
+                    let range = set.get(Measure::Length).unwrap_or(&full);
+                    if Interval::point(*m as f64).implies(range) {
+                        base.clone()
+                    } else {
+                        unsatisfiable(&format!("contradicts its length {}", m))
+                    }
+                }
+                // Symbolic length (`#N`) or unknown length with a range: keep the property.
+                _ => Type::Refined(Box::new(base.clone()), set, h),
+            }
+        }
+        Type::Integer(tint, _) => {
+            if set.get(Measure::Length).is_some() {
+                return invalid(Measure::Length);
+            }
+            if set.is_empty(true) {
+                return unsatisfiable("has no integer value");
+            }
+            match tint {
+                Tint::Val(v) if Interval::point(*v as f64).implies(set.get(Measure::Value).unwrap_or(&full)) => {
+                    base.clone()
+                }
+                Tint::Val(_) => unsatisfiable("excludes this literal"),
+                Tint::Unknown => Type::Refined(Box::new(base.clone()), set, h),
+            }
+        }
+        Type::Number(tnum, _) => {
+            if set.get(Measure::Length).is_some() {
+                return invalid(Measure::Length);
+            }
+            if set.is_empty(false) {
+                return unsatisfiable("has no value");
+            }
+            match tnum {
+                Tnum::Val(v) if Interval::point(*v).implies(set.get(Measure::Value).unwrap_or(&full)) => base.clone(),
+                Tnum::Val(_) => unsatisfiable("excludes this literal"),
+                Tnum::Unknown => Type::Refined(Box::new(base.clone()), set, h),
+            }
+        }
+        _ => invalid(set.iter().next().map(|(m, _)| *m).unwrap_or(Measure::Value)),
     }
 }
 
@@ -257,6 +414,98 @@ fn collect_failed_types(typ: &Type, acc: &mut Vec<(String, HelpData)>) {
 
 #[cfg(test)]
 mod tests {
+    use crate::components::r#type::refinement::{Num, Refinement};
+
+    fn prop(r: Refinement) -> Type {
+        Type::Property(r, HelpData::default())
+    }
+    fn gt(c: f64) -> Type {
+        prop(Refinement::Gt(Num::new(c)))
+    }
+    fn lt(c: f64) -> Type {
+        prop(Refinement::Lt(Num::new(c)))
+    }
+    fn inter(a: Type, b: Type) -> Type {
+        norm_intersection(a, b, HelpData::default())
+    }
+
+    #[test]
+    fn test_refine_int_with_value_property() {
+        let res = inter(builder::integer_type_default(), gt(0.0));
+        assert!(matches!(res, Type::Refined(..)), "{:?}", res);
+    }
+
+    #[test]
+    fn test_refine_is_commutative_and_associative() {
+        let int = builder::integer_type_default;
+        let a = inter(inter(int(), gt(0.0)), lt(10.0));
+        let c = inter(int(), inter(lt(10.0), gt(0.0)));
+        let d = inter(lt(10.0), inter(gt(0.0), int()));
+        assert_eq!(a, c);
+        assert_eq!(a, d);
+    }
+
+    #[test]
+    fn test_refine_is_idempotent() {
+        let once = inter(builder::integer_type_default(), gt(0.0));
+        let twice = inter(once.clone(), gt(0.0));
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn test_refine_contradiction_is_unsatisfiable() {
+        let res = inter(inter(builder::integer_type_default(), gt(10.0)), lt(5.0));
+        assert!(matches!(refinement_error(&res), Some(TypeError::UnsatisfiableRefinement(..))), "{:?}", res);
+    }
+
+    #[test]
+    fn test_refine_integers_round_bounds() {
+        // (> 0) & (< 1) has real values but no integer.
+        let res = inter(inter(builder::integer_type_default(), gt(0.0)), lt(1.0));
+        assert!(matches!(refinement_error(&res), Some(TypeError::UnsatisfiableRefinement(..))));
+        let num = inter(inter(builder::number_type(), gt(0.0)), lt(1.0));
+        assert!(matches!(num, Type::Refined(..)));
+    }
+
+    #[test]
+    fn test_refine_capability_is_checked() {
+        let len = || prop(Refinement::Length(3));
+        assert!(matches!(
+            refinement_error(&inter(builder::integer_type_default(), len())),
+            Some(TypeError::InvalidRefinement(..))
+        ));
+        assert!(matches!(
+            refinement_error(&inter(builder::character_type_default(), gt(0.0))),
+            Some(TypeError::InvalidRefinement(..))
+        ));
+        let vec = builder::array_type(builder::any_type(), builder::integer_type_default());
+        assert!(matches!(refinement_error(&inter(vec, gt(0.0))), Some(TypeError::InvalidRefinement(..))));
+    }
+
+    #[test]
+    fn test_refine_length_folds_into_vec_index() {
+        let vec = builder::array_type(builder::any_type(), builder::integer_type_default());
+        let res = inter(vec, prop(Refinement::Length(5)));
+        assert_eq!(res, builder::array_type2(5, builder::integer_type_default()));
+        // Same length again: no-op. Another length: contradiction.
+        assert_eq!(inter(res.clone(), prop(Refinement::Length(5))), res);
+        let clash = inter(res, prop(Refinement::Length(3)));
+        assert!(matches!(refinement_error(&clash), Some(TypeError::UnsatisfiableRefinement(..))));
+    }
+
+    #[test]
+    fn test_refine_literal_is_proven_or_refuted() {
+        assert_eq!(inter(builder::integer_type(3), gt(0.0)), builder::integer_type(3));
+        let refuted = inter(builder::integer_type(-3), gt(0.0));
+        assert!(matches!(refinement_error(&refuted), Some(TypeError::UnsatisfiableRefinement(..))));
+    }
+
+    #[test]
+    fn test_bare_properties_are_not_types() {
+        let res = inter(gt(0.0), lt(5.0));
+        assert!(matches!(refinement_error(&res), Some(TypeError::InvalidRefinement(..))), "{:?}", res);
+    }
+
     use super::*;
     use crate::utils::builder;
 
@@ -501,5 +750,29 @@ mod tests {
         ]);
         let errors = validate_operator_kinds(&Context::default(), &typ);
         assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn length_range_on_vectors() {
+        use crate::components::r#type::refinement::{Interval, Measure};
+        let range = || prop(Refinement::Range(Measure::Length, Interval::greater_than(0.0)));
+        let unknown = Type::Vec(
+            crate::components::r#type::vector_type::VecType::S3,
+            Box::new(Type::Any(HelpData::default())),
+            Box::new(builder::integer_type_default()),
+            HelpData::default(),
+        );
+        // unknown length: the range is kept as a property
+        assert!(matches!(inter(unknown.clone(), range()), Type::Refined(..)));
+        // known length: satisfied range is redundant, violated one is a contradiction
+        let sized = |n| Type::Vec(
+            crate::components::r#type::vector_type::VecType::S3,
+            Box::new(builder::integer_type(n)),
+            Box::new(builder::integer_type_default()),
+            HelpData::default(),
+        );
+        assert_eq!(inter(sized(3), range()), sized(3));
+        let res = inter(sized(0), range());
+        assert!(matches!(refinement_error(&res), Some(TypeError::UnsatisfiableRefinement(..))), "{:?}", res);
     }
 }

@@ -1,0 +1,7 @@
+title = "branch conditions narrow refined variables"
+cmd = "build"
+layer = "transpile"
+status = "fixed"
+created = "2026-09-30"
+origin = "perso"
+checked = false

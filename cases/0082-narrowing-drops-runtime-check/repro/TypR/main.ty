@@ -1,0 +1,13 @@
+# Condition narrowing: inside the branch the condition proves the refinement.
+let dist <- fn(p: [2, num]): num { 0.0 };
+let pos <- fn(x: int & (> 0)): int { x };
+let f <- fn(v: [num], n: int): num {
+  if (length(v) == 2) { dist(v) } else { 0.0 };
+  if (2 == length(v)) { dist(v) } else { 0.0 };
+  if ((length(v) > 1) && (length(v) < 3)) { dist(v) } else { 0.0 };
+  if (n > 0) { pos(n) } else { 0 };
+  if (n <= 0) { 0 } else { pos(n) };
+  if (!(n < 1)) { pos(n) } else { 0 };
+  if (length(v) == 2) { if (n > 0) { dist(v) } else { 0.0 } } else { 0.0 };
+  0.0
+};

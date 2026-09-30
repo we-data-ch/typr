@@ -1,0 +1,7 @@
+title = "record literal with refined fields: per-field runtime checks (let, argument, return)"
+cmd = "build"
+layer = "transpile"
+status = "fixed"
+created = "2026-09-30"
+origin = "perso"
+checked = false

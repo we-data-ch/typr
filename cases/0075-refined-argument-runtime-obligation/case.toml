@@ -1,0 +1,7 @@
+title = "Refined parameter: unproven argument checked at the call site, proven one is not"
+cmd = "build"
+layer = "transpile"
+status = "fixed"
+created = "2026-09-30"
+origin = "perso"
+checked = false

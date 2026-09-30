@@ -4,6 +4,7 @@ use crate::components::language::operators::{op, Op};
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::kind::Kind;
+use crate::components::r#type::refinement::{Interval, Measure, Num, Refinement};
 use crate::components::r#type::tbool::Tbool;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
@@ -648,6 +649,67 @@ pub fn single_letter_type_alias(s: Span) -> IResult<Span, Type> {
     }
 }
 
+/// A refinement property, only meaningful right of `&`: `length(5)`, `(> 0)`,
+/// `(< 2.5)`. It becomes a `Type::Property`, which `norm_intersection` folds
+/// into a `Refined` type. Tried before `parenthese_value` and `type_variable`,
+/// which would otherwise read `(> 0)` / `length` as a group / a variable.
+fn refinement_property(s: Span) -> IResult<Span, Type> {
+    /// `>`, `>=`, `<`, `<=`
+    fn comparison(s: Span) -> IResult<Span, (char, bool)> {
+        let (s, op) = one_of("<>").parse(s)?;
+        let (s, eq) = opt(tag("=")).parse(s)?;
+        let (s, _) = multispace0.parse(s)?;
+        Ok((s, (op, eq.is_some())))
+    }
+    fn number(s: Span) -> IResult<Span, Span> {
+        terminated(recognize((opt(tag("-")), digit1, opt((tag("."), digit1)))), multispace0).parse(s)
+    }
+    /// `length(5)` or `length(> 0)`
+    fn length_prop(s: Span) -> IResult<Span, (Span, Option<(char, bool)>, Span)> {
+        let (s, kw) = terminated(tag("length"), multispace0).parse(s)?;
+        let (s, _) = terminated(tag("("), multispace0).parse(s)?;
+        let (s, cmp) = opt(comparison).parse(s)?;
+        let (s, n) = terminated(digit1, multispace0).parse(s)?;
+        let (s, _) = tag(")").parse(s)?;
+        Ok((s, (kw, cmp, n)))
+    }
+    fn compare_prop(s: Span) -> IResult<Span, ((char, bool), Span)> {
+        let (s, _) = terminated(tag("("), multispace0).parse(s)?;
+        let (s, cmp) = comparison(s)?;
+        let (s, n) = number(s)?;
+        let (s, _) = tag(")").parse(s)?;
+        Ok((s, (cmp, n)))
+    }
+    let help: HelpData = s.clone().into();
+    if let Ok((rest, (kw, cmp, n))) = length_prop(s.clone()) {
+        let Ok(n) = (*n).parse::<i32>() else {
+            return Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Digit)));
+        };
+        let prop = match cmp {
+            None => Refinement::Length(n),
+            Some(cmp) => Refinement::Range(Measure::Length, bound_interval(cmp, n as f64)),
+        };
+        return Ok((rest, Type::Property(prop, kw.into())));
+    }
+    let (rest, (cmp, num)) = compare_prop(s)?;
+    let c = (*num).parse().unwrap_or(0.0);
+    let prop = match cmp {
+        ('>', false) => Refinement::Gt(Num::new(c)),
+        ('<', false) => Refinement::Lt(Num::new(c)),
+        _ => Refinement::Range(Measure::Value, bound_interval(cmp, c)),
+    };
+    Ok((rest, Type::Property(prop, help)))
+}
+
+fn bound_interval((op, eq): (char, bool), c: f64) -> Interval {
+    match (op, eq) {
+        ('>', false) => Interval::greater_than(c),
+        ('>', true) => Interval::at_least(c),
+        ('<', false) => Interval::less_than(c),
+        _ => Interval::at_most(c),
+    }
+}
+
 fn parenthese_value(s: Span) -> IResult<Span, Type> {
     delimited(
         terminated(tag("("), multispace0),
@@ -936,43 +998,21 @@ fn empty(s: Span) -> IResult<Span, Type> {
     }
 }
 
-fn compute_operators(v: &mut Vec<(Type, Op)>) -> Type {
-    // (params, op)
-    let first = v.pop().unwrap();
-    match first {
-        (p, Op::Add(_)) => {
-            let res = compute_operators(v);
-            let pp = p;
-            Type::Operator(TypeOperator::Addition, Box::new(res.clone()), Box::new(pp), res.into())
-        }
-        (p, Op::Minus(_)) => {
-            let res = compute_operators(v);
-            let pp = p;
-            Type::Operator(
-                TypeOperator::Substraction,
-                Box::new(res.clone()),
-                Box::new(pp),
-                res.into(),
-            )
-        }
-        (p, Op::Mul(_)) => {
-            let res = compute_operators(v);
-            let pp = p;
-            Type::Operator(
-                TypeOperator::Multiplication,
-                Box::new(res.clone()),
-                Box::new(pp),
-                res.into(),
-            )
-        }
-        (p, Op::Div(_)) => {
-            let res = compute_operators(v);
-            let pp = p;
-            Type::Operator(TypeOperator::Division, Box::new(res.clone()), Box::new(pp), res.into())
-        }
-        (p, Op::Empty(_)) => p,
-        _ => panic!(),
-    }
+fn compute_operators(v: &mut Vec<(Type, Op)>) -> Option<Type> {
+    // (params, op). `None` when the chain holds an operator that has no
+    // meaning at the type level (`>`, `<`, `==`, ...): the caller turns that
+    // into a parse failure instead of aborting.
+    let (p, op) = v.pop()?;
+    let arith = match op {
+        Op::Add(_) => TypeOperator::Addition,
+        Op::Minus(_) => TypeOperator::Substraction,
+        Op::Mul(_) => TypeOperator::Multiplication,
+        Op::Div(_) => TypeOperator::Division,
+        Op::Empty(_) => return Some(p),
+        _ => return None,
+    };
+    let res = compute_operators(v)?;
+    Some(Type::Operator(arith, Box::new(res.clone()), Box::new(p), res.into()))
 }
 
 fn index_operator(s: Span) -> IResult<Span, (Type, Op)> {
@@ -985,9 +1025,12 @@ fn index_operator(s: Span) -> IResult<Span, (Type, Op)> {
 }
 
 fn index_chain(s: Span) -> IResult<Span, Type> {
-    let res = many1(index_operator).parse(s);
+    let res = many1(index_operator).parse(s.clone());
     match res {
-        Ok((s, v)) => Ok((s, compute_operators(&mut v.clone()))),
+        Ok((rest, v)) => match compute_operators(&mut v.clone()) {
+            Some(t) => Ok((rest, t)),
+            None => Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Verify))),
+        },
         Err(r) => Err(r),
     }
 }
@@ -1171,6 +1214,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             bracket_tuple_record, // Tuple[...] / Record[...] — before type_alias
             composite_vec_type,
             list_types, // tuple{}/record{}/list{} brace forms
+            refinement_property, // length(n), (> c), (< c)
             parenthese_value,
             tag_type,
             any,
@@ -1204,6 +1248,36 @@ mod tests {
     use crate::components::r#type::type_category::TypeCategory;
     use crate::components::r#type::type_system::TypeSystem;
     use crate::utils::builder;
+
+    #[test]
+    fn test_refinement_property_parses() {
+        let ok = |src: &str| refinement_property(src.into()).unwrap().1;
+        assert!(matches!(ok("length(5)"), Type::Property(Refinement::Length(5), _)));
+        assert!(matches!(ok("length( 5 )"), Type::Property(Refinement::Length(5), _)));
+        assert!(matches!(ok("(> 0)"), Type::Property(Refinement::Gt(_), _)));
+        assert!(matches!(ok("(< -2.5)"), Type::Property(Refinement::Lt(_), _)));
+        assert!(matches!(ok("(>= 0)"), Type::Property(Refinement::Range(Measure::Value, _), _)));
+        assert!(matches!(ok("(<= 9.5)"), Type::Property(Refinement::Range(Measure::Value, _), _)));
+        assert!(matches!(ok("length(> 0)"), Type::Property(Refinement::Range(Measure::Length, _), _)));
+        assert!(matches!(ok("length(<= 10)"), Type::Property(Refinement::Range(Measure::Length, _), _)));
+    }
+
+    #[test]
+    fn test_refinement_property_rejects_lookalikes() {
+        assert!(refinement_property("length(x)".into()).is_err());
+        assert!(refinement_property("length".into()).is_err());
+        assert!(refinement_property("(int)".into()).is_err());
+        assert!(refinement_property("(== 0)".into()).is_err());
+        assert!(refinement_property("length(>)".into()).is_err());
+    }
+
+    #[test]
+    fn test_intersection_with_property_does_not_panic() {
+        let t = ltype("int & (> 0)".into()).unwrap().1;
+        assert!(matches!(t, Type::Operator(TypeOperator::Intersection, _, _, _)));
+        let v = ltype("[int] & length(5)".into()).unwrap().1;
+        assert!(matches!(v, Type::Operator(TypeOperator::Intersection, _, _, _)));
+    }
 
     #[test]
     fn test_fabrice0() {

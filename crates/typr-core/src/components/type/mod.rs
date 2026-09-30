@@ -8,6 +8,7 @@ pub mod index;
 pub mod intersection_type;
 pub mod kind;
 pub mod module_type;
+pub mod refinement;
 pub mod tbool;
 pub mod tchar;
 pub mod tint;
@@ -29,6 +30,7 @@ use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::intersection_type::IntersectionType;
 use crate::components::r#type::kind::Kind;
 use crate::components::r#type::module_type::ModuleType;
+use crate::components::r#type::refinement::{Interval, Measure, Refinement, RefinementSet};
 use crate::components::r#type::tbool::Tbool;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
@@ -132,6 +134,14 @@ pub enum Type {
     Null(HelpData),
     NA(HelpData),
     KindedGen(Kind, String, HelpData),
+    // Refinement types. Appended last: the std `.bin` files serialise `Type`
+    // by variant index, so existing indices must not move.
+    /// `base & properties`, in normal form (see `refinement.rs`).
+    Refined(Box<Type>, RefinementSet, HelpData),
+    /// A bare property (`length(5)`, `(> 0)`). Parser output only: it must
+    /// be folded into a `Refined` by `norm_intersection` and never survive
+    /// `reduce_type`.
+    Property(Refinement, HelpData),
 }
 
 /// Structural fallback for interface-method-set comparison: for every
@@ -214,6 +224,18 @@ impl TypeSystem for Type {
         match (self, other) {
             (Type::Empty(_), _) => true,
             (typ1, typ2) if typ1 == typ2 => true,
+            // Refined types (plan §Phase 4). Only `Proven` answers `true`: an
+            // unproven refinement is never assumed, the boundary check of
+            // Phase 5 is what turns it into a runtime obligation. These arms
+            // come before the generic `Intersection` ones, which would
+            // otherwise ask `t1 <: typ || t2 <: typ` of a bare `Property`.
+            (Type::Refined(a, ps, _), Type::Refined(b, qs, _)) => {
+                a.is_subtype_raw(b, context) && a.refinements_of().meet(ps).implies(qs)
+            }
+            (Type::Refined(a, _, _), typ) => a.is_subtype_raw(typ, context),
+            (typ, Type::Refined(b, qs, _)) => {
+                typ.is_subtype_raw(b, context) && typ.refinements_of().implies(qs)
+            }
             (Type::Operator(TypeOperator::Intersection, t1, t2, _), typ) => {
                 t1.is_subtype_raw(typ, context) || t2.is_subtype_raw(typ, context)
             }
@@ -346,6 +368,10 @@ impl Type {
     pub fn lift(self, max_index: &(VecType, i32)) -> Type {
         match self.clone() {
             Type::Vec(_, i, _, _) if i.equal(max_index.1) => self,
+            // A parameter that already fixes a length keeps it: lifting only
+            // widens scalars and unsized vectors, it must not turn `[2, num]`
+            // into `[3, num]` to make a `[3, num]` argument fit.
+            Type::Vec(_, i, _, _) if matches!(*i, Type::Integer(..)) => self,
             Type::Vec(v, _, t, h) => Type::Vec(v, Box::new(builder::integer_type(max_index.1)), t.clone(), h.clone()),
             t => Type::Vec(
                 max_index.0.clone(),
@@ -768,8 +794,35 @@ impl Type {
         }
     }
 
+    /// The refinements this type carries, read back from its structure:
+    /// the length index of a `Vec` (`[5, int]` is `[int] & length(5)`, D4),
+    /// the value of a literal, or the set of an explicit `Refined`.
+    pub fn refinements_of(&self) -> RefinementSet {
+        match self {
+            Type::Vec(_, index, _, _) => match &**index {
+                Type::Integer(Tint::Val(n), _) => RefinementSet::single(&Refinement::Length(*n)),
+                _ => RefinementSet::empty(),
+            },
+            Type::Integer(Tint::Val(n), _) => RefinementSet::empty().with(Measure::Value, Interval::point(*n as f64)),
+            Type::Number(Tnum::Val(v), _) => RefinementSet::empty().with(Measure::Value, Interval::point(*v)),
+            Type::Refined(base, refs, _) => base.refinements_of().meet(refs),
+            _ => RefinementSet::empty(),
+        }
+    }
+
+    /// `self` without its explicit refinements (`int & (> 0)` gives `int`).
+    /// The length index of a `Vec` is part of its structure and is kept.
+    pub fn unrefined(&self) -> &Type {
+        match self {
+            Type::Refined(base, _, _) => base.unrefined(),
+            t => t,
+        }
+    }
+
     pub fn to_category(&self) -> TypeCategory {
         match self {
+            // A refined type dispatches like its base (`Refined <: base`).
+            Type::Refined(base, _, _) => base.to_category(),
             Type::Vec(_, _, _, _) => TypeCategory::Array,
             Type::Function(_, _, _) => TypeCategory::Function,
             Type::Record(_, _) => TypeCategory::Record,
@@ -865,6 +918,8 @@ impl Type {
             Type::Null(h) => h.clone(),
             Type::NA(h) => h.clone(),
             Type::KindedGen(_, _, h) => h.clone(),
+            Type::Refined(_, _, h) => h.clone(),
+            Type::Property(_, h) => h.clone(),
         }
     }
 
@@ -901,6 +956,8 @@ impl Type {
             Type::Null(_) => Type::Null(h2),
             Type::NA(_) => Type::NA(h2),
             Type::KindedGen(k, a, _) => Type::KindedGen(k, a, h2),
+            Type::Refined(b, r, _) => Type::Refined(b, r, h2),
+            Type::Property(p, _) => Type::Property(p, h2),
         }
     }
 
@@ -1231,6 +1288,8 @@ impl PartialEq for Type {
             ) => IntersectionType::try_from(self.clone()).ok() == IntersectionType::try_from(other.clone()).ok(),
             (Type::Operator(op1, a1, b1, _), Type::Operator(op2, a2, b2, _)) => op1 == op2 && a1 == a2 && b1 == b2,
             (Type::Module(a1, _, _), Type::Module(a2, _, _)) => a1 == a2,
+            (Type::Refined(b1, r1, _), Type::Refined(b2, r2, _)) => b1 == b2 && r1 == r2,
+            (Type::Property(p1, _), Type::Property(p2, _)) => p1 == p2,
             _ => false,
         }
     }
@@ -1371,6 +1430,15 @@ impl Hash for Type {
             Type::KindedGen(k, _, _) => {
                 42.hash(state);
                 k.hash(state);
+            }
+            Type::Refined(base, refs, _) => {
+                43.hash(state);
+                base.hash(state);
+                refs.hash(state);
+            }
+            Type::Property(p, _) => {
+                44.hash(state);
+                p.hash(state);
             }
         }
     }
@@ -1695,5 +1763,28 @@ mod tests {
         let ab = builder::union_type(&[a.clone(), b]);
         let ac = builder::union_type(&[a, c]);
         assert_ne!(ab, ac);
+    }
+
+    fn refined_int(set: RefinementSet) -> Type {
+        Type::Refined(Box::new(Type::Integer(Tint::Unknown, HelpData::default())), set, HelpData::default())
+    }
+    fn gt(c: f64) -> RefinementSet {
+        RefinementSet::single(&Refinement::Gt(refinement::Num::new(c)))
+    }
+
+    /// Phase 4: only a *proven* refinement makes a subtype.
+    #[test]
+    fn refined_subtyping_answers_true_only_when_proven() {
+        let ctx = Context::default();
+        let int = Type::Integer(Tint::Unknown, HelpData::default());
+        let lit = |n| Type::Integer(Tint::Val(n), HelpData::default());
+        let (pos, big) = (refined_int(gt(0.0)), refined_int(gt(5.0)));
+
+        assert!(lit(3).is_subtype(&pos, &ctx).0, "3 <: int & (> 0)");
+        assert!(!lit(-3).is_subtype(&pos, &ctx).0, "-3 is refuted");
+        assert!(!int.is_subtype(&pos, &ctx).0, "int is unknown, so not a subtype");
+        assert!(pos.is_subtype(&int, &ctx).0, "Refined <: base");
+        assert!(big.is_subtype(&pos, &ctx).0, "(> 5) implies (> 0)");
+        assert!(!pos.is_subtype(&big, &ctx).0, "(> 0) does not imply (> 5)");
     }
 }

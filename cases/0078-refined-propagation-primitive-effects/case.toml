@@ -1,0 +1,7 @@
+title = "rev, head and tail carry the refined length of their argument"
+cmd = "build"
+layer = "transpile"
+status = "fixed"
+created = "2026-09-30"
+origin = "perso"
+checked = false

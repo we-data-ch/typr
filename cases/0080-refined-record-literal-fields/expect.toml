@@ -1,0 +1,26 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "id = typr_refine_value(n, 0, TRUE, Inf, FALSE, \"TypR/main.ty:6\")"
+
+[[rule]]
+file = "R/main.R"
+must_contain = "tags = typr_refine_length(v, 2L, \"TypR/main.ty:6\")"
+
+# argument position
+[[rule]]
+file = "R/main.R"
+must_contain = "id = typr_refine_value(n, 0, TRUE, Inf, FALSE, \"TypR/main.ty:10\")"
+
+# return position
+[[rule]]
+file = "R/main.R"
+must_contain = "id = typr_refine_value(k, 0, TRUE, Inf, FALSE, \"TypR/main.ty:11\")"
+
+# proven by literals: no noise
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_value(3"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_length(c("

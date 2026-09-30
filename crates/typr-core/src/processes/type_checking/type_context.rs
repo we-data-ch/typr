@@ -1,6 +1,7 @@
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::processes::type_checking::type_arithmetic::refinement_error;
 use crate::processes::type_checking::Context;
 use crate::processes::type_checking::Lang;
 use crate::processes::type_checking::Type;
@@ -66,7 +67,11 @@ impl TypeContext {
         // But it also returns `Any` legitimately when the annotation IS `Any` (success), or when
         // there is no annotation (Empty) and the actual type is `Any`. Guard against both false
         // positives: only record an error when the annotation is an explicit non-Any, non-Empty type.
-        let annotation_is_constraining = !typ.is_empty() && !matches!(typ.reduce(&self.context), Type::Any(_));
+        let reduced_annotation = typ.reduce(&self.context);
+        // A malformed refinement is reported on its own (T045/T046) by `let_expression`.
+        let annotation_is_constraining = !typ.is_empty()
+            && !matches!(reduced_annotation, Type::Any(_))
+            && refinement_error(&reduced_annotation).is_none();
         if annotation_is_constraining {
             if let crate::components::r#type::Type::Any(_) = new_type {
                 errors.push(TypRError::type_error(TypeError::Let(typ.clone(), self.value.clone())));

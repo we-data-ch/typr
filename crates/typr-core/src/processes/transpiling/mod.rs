@@ -1,4 +1,5 @@
 pub mod checked_assertions;
+pub mod refinement_checks;
 pub mod translatable;
 
 use crate::components::context::config::Environment;
@@ -1236,7 +1237,17 @@ impl RTranslatable<(String, Context)> for Lang {
                     }
                 } else {
                     let (val_str, _) = val.to_simple_r(cont);
-                    format!("{}[[{}]]", exp_str, val_str)
+                    // `v[1:3]` / `v[mask]` select a sub-vector: single bracket
+                    // (`v[[1:3]]` would index recursively in R).
+                    let selects_subvector = matches!(reduce_type(cont, &typing(cont, exp).value), Type::Vec(..))
+                        && matches!(val.get_members_if_array().as_deref(), Some([m])
+                            if !matches!(m, Lang::Integer { .. } | Lang::Array { .. } | Lang::Vector { .. })
+                                && matches!(reduce_type(cont, &typing(cont, m).value), Type::Vec(..)));
+                    if selects_subvector {
+                        format!("{}[{}]", exp_str, val_str)
+                    } else {
+                        format!("{}[[{}]]", exp_str, val_str)
+                    }
                 };
                 (res, cont.clone())
             }
@@ -2814,7 +2825,22 @@ impl RTranslatable<(String, Context)> for Lang {
             result
         };
 
-        result
+        // Refinement the type checker could not prove at this boundary (`let`
+        // initialiser, call argument; `refinement_check::coerce_to`): the
+        // obligation is keyed by this expression's span. Single insertion
+        // point, so every boundary kind shares it.
+        let (r_code, r_cont) = result;
+        // `Lines`/`Scope`/`If`/`Return` share their span with the expression
+        // they hand the position to, which does the wrapping.
+        let r_code = if matches!(
+            self,
+            Lang::Lines { .. } | Lang::Scope { .. } | Lang::If { .. } | Lang::Return { .. }
+        ) {
+            r_code
+        } else {
+            refinement_checks::wrap_obligation(cont, r_code, &self.get_help_data())
+        };
+        (r_code, r_cont)
     }
 }
 

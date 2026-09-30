@@ -349,7 +349,9 @@ pub fn function(
     // C1 (audit_type_checking.md): thread the declared return type through so
     // every early `return` inside the body — not just the trailing expression
     // — gets checked against it (see `Lang::Return` in `type_checking/mod.rs`).
-    sub_context = sub_context.set_expected_return_type(Some(ret_ty.clone()));
+    sub_context = sub_context
+        .set_expected_return_type(Some(ret_ty.clone()))
+        .set_return_position(true);
 
     let body_type = body.typing(&sub_context);
     let mut errors = body_type.errors;
