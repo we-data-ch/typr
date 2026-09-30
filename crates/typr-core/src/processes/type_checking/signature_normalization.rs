@@ -14,8 +14,8 @@
 //! (phase 3) and the call site (phase 4) still read the raw signature, so
 //! only the errors are wired into `function()` for now.
 
-use crate::components::error_message::typr_error::TypRError;
 use crate::components::error_message::type_error::TypeError;
+use crate::components::error_message::typr_error::TypRError;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::facets;
@@ -278,9 +278,10 @@ fn bind_ids(
             _ => true,
         },
         Type::Tuple(ps, _) => match reduce_type(context, concrete) {
-            Type::Tuple(cs, _) if cs.len() == ps.len() => {
-                cs.iter().zip(ps.iter()).all(|(c, p)| bind_ids(c, p, arg, context, binds, clash))
-            }
+            Type::Tuple(cs, _) if cs.len() == ps.len() => cs
+                .iter()
+                .zip(ps.iter())
+                .all(|(c, p)| bind_ids(c, p, arg, context, binds, clash)),
             _ => true,
         },
         Type::Function(ps, rp, _) => match reduce_type(context, concrete) {
@@ -312,7 +313,9 @@ pub fn instantiate_at_call(
     // Cheap exit: a bound or a bare interface is always an alias/`Bounded` node.
     let mut candidate = false;
     for p in params {
-        visit(p, &mut |t| candidate |= matches!(t, Type::Alias(..) | Type::Bounded(..)));
+        visit(p, &mut |t| {
+            candidate |= matches!(t, Type::Alias(..) | Type::Bounded(..))
+        });
     }
     if !candidate {
         return CallInstance::NotBounded;
@@ -483,7 +486,13 @@ mod tests {
     #[test]
     fn bounded_is_equal_to_itself() {
         let h = crate::components::error_message::help_data::HelpData::default();
-        let b = || Type::Bounded("A".into(), Box::new(Type::Alias("L".into(), vec![], false, h.clone())), h.clone());
+        let b = || {
+            Type::Bounded(
+                "A".into(),
+                Box::new(Type::Alias("L".into(), vec![], false, h.clone())),
+                h.clone(),
+            )
+        };
         assert_eq!(b(), b());
     }
 }

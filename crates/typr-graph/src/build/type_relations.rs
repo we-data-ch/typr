@@ -40,7 +40,9 @@ pub(super) fn build(graph: &mut BlockGraph, context: &Context, items: &[&Lang]) 
         }
         for other in &type_decls {
             if other.key != decl.key && decl.target_type.is_subtype(&other.target_type, context).0 {
-                graph.relations.push(Relation::subtype(decl.key.clone(), other.key.clone()));
+                graph
+                    .relations
+                    .push(Relation::subtype(decl.key.clone(), other.key.clone()));
             }
         }
     }
@@ -167,14 +169,23 @@ fn collect_type_aliases(context: &Context, items: &[&Lang]) -> Vec<TypeAlias> {
     items
         .iter()
         .filter_map(|item| match item {
-            Lang::Alias { identifier, target_type, .. } => {
+            Lang::Alias {
+                identifier,
+                target_type,
+                ..
+            } => {
                 let name = variable_name(identifier)?;
                 let key = BlockKey::top_level(Namespace::Type, &name);
                 let interface_methods = match target_type.reduce(context) {
                     Type::Interface(methods, _) => Some(methods),
                     _ => None,
                 };
-                Some(TypeAlias { name, key, target_type: target_type.clone(), interface_methods })
+                Some(TypeAlias {
+                    name,
+                    key,
+                    target_type: target_type.clone(),
+                    interface_methods,
+                })
             }
             _ => None,
         })
@@ -227,11 +238,16 @@ fn satisfies(graph: &mut BlockGraph, context: &Context, decl: &TypeAlias, iface:
                 .find(|(method_name, ..)| *method_name == name)
                 .map(|(_, _, key)| key.clone())
                 .unwrap_or_else(|| decl.key.clone());
-            Evidence { requires: format!("{name}: {}", req.get_type().pretty()), provided_by }
+            Evidence {
+                requires: format!("{name}: {}", req.get_type().pretty()),
+                provided_by,
+            }
         })
         .collect();
     evidence.sort_by(|a, b| a.requires.cmp(&b.requires));
-    graph.relations.push(Relation::satisfies(decl.key.clone(), iface.key.clone(), evidence));
+    graph
+        .relations
+        .push(Relation::satisfies(decl.key.clone(), iface.key.clone(), evidence));
 }
 
 #[cfg(test)]
@@ -275,11 +291,17 @@ let n <- list(name = "Point");
         let graph = build_graph("let message: char <- \"Hello, TypR!\";\n\nmessage\n");
         let char_key = BlockKey::top_level(Namespace::Type, "char");
         assert!(graph.blocks.contains_key(&char_key), "{:#?}", graph.blocks.keys());
-        assert!(graph.blocks[&graph.root].body.as_ref().unwrap().children.contains(&char_key));
+        assert!(graph.blocks[&graph.root]
+            .body
+            .as_ref()
+            .unwrap()
+            .children
+            .contains(&char_key));
         let linked = |from: &str| {
-            graph.relations.iter().any(|r| {
-                r.kind == RelationKind::HasType && r.from == BlockKey::from_raw(from) && r.to == char_key
-            })
+            graph
+                .relations
+                .iter()
+                .any(|r| r.kind == RelationKind::HasType && r.from == BlockKey::from_raw(from) && r.to == char_key)
         };
         assert!(linked("val:message"), "{:#?}", graph.relations);
         assert!(linked("val:#1"));

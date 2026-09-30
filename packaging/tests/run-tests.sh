@@ -416,7 +416,7 @@ test_render() {
     "scoop/README.md" "scoop/bucket/typr.json" "scoop/bin/typr/$VERSION.json" \
     "winget/$WINGET_VERSION_FILE" "winget/$WINGET_INSTALLER_FILE" \
     "winget/$WINGET_LOCALE_FILE" | sort)
-  extra=$(cd "$dir" && find . -type f | sed 's|^\./||' | sort | grep -vxF "$expected" || true)
+  extra=$( (cd "$dir" && find . -type f | sed 's|^\./||' | sort) | grep -vxF "$expected" || true)
   if [ -z "$extra" ]; then ok "aucun fichier surnumeraire dans la sortie"; else ko "aucun fichier surnumeraire dans la sortie" "$extra"; fi
 }
 

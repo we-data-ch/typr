@@ -25,7 +25,6 @@ pub mod unification;
 pub mod unification_map;
 pub mod vectorizability;
 
-use crate::processes::type_checking::refinement_check::{coerce_to, field_obligations, with_obligations, Coercion};
 use crate::components::context::config::TargetLanguage;
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
@@ -53,6 +52,7 @@ use crate::processes::type_checking::function::is_compatible_return_type;
 use crate::processes::type_checking::function_application::function_application;
 use crate::processes::type_checking::let_expression::let_expression;
 use crate::processes::type_checking::match_expression::match_expression;
+use crate::processes::type_checking::refinement_check::{coerce_to, field_obligations, with_obligations, Coercion};
 
 use crate::processes::type_checking::partial_application::partial_application;
 use crate::processes::type_checking::signature_expression::signature_expression;
@@ -761,7 +761,10 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
             // depending on the hasher's seed).
             let mut res: HashSet<(Type, Type)> = HashSet::new();
             for argt2 in v2.iter() {
-                match v1.iter().find(|argt1| argt1.get_argument_str() == argt2.get_argument_str()) {
+                match v1
+                    .iter()
+                    .find(|argt1| argt1.get_argument_str() == argt2.get_argument_str())
+                {
                     Some(argt1) => {
                         let gen1 = get_gen_type(&argt1.get_argument(), &argt2.get_argument()).unwrap_or(vec![]);
                         // A shared field whose types cannot be matched makes
@@ -1018,7 +1021,12 @@ fn try_homogeneous_scalars(types: &[Type], n: usize, h: &HelpData) -> Option<Typ
         return None;
     }
     let elem = types[0].clone().generalize();
-    Some(Type::vec(VecType::Vector, builder::integer_type(n as i32), elem, h.clone()))
+    Some(Type::vec(
+        VecType::Vector,
+        builder::integer_type(n as i32),
+        elem,
+        h.clone(),
+    ))
 }
 
 /// Type-check a `c(...)` expression (`Lang::Vector`) following the polymorphic
@@ -1717,12 +1725,18 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
                     let idx_type = reduce_type(context, &idx_tc.value);
                     if let (Type::Vec(_, _, ie, _), Some(n)) = (&idx_type, idx_type.vec_length()) {
                         let len = match reduce_type(context, ie) {
-                            Type::Integer(..) => Some(literal_range_len(member).map_or_else(|| n.clone(), builder::integer_type)),
+                            Type::Integer(..) => {
+                                Some(literal_range_len(member).map_or_else(|| n.clone(), builder::integer_type))
+                            }
                             Type::Boolean(..) => Some(builder::any_type()),
                             _ => None,
                         };
                         if let Some(len) = len {
-                            let len = if matches!(len, Type::Integer(Tint::Val(_), _) | Type::Any(_)) { len } else { builder::any_type() };
+                            let len = if matches!(len, Type::Integer(Tint::Val(_), _) | Type::Any(_)) {
+                                len
+                            } else {
+                                builder::any_type()
+                            };
                             errors.extend(idx_tc.errors);
                             let typ2 = typ1.with_vec_length(len);
                             return TypeContext::new(typ2, expr.clone(), context.clone()).with_errors(errors);
@@ -4938,13 +4952,17 @@ p"#;
 
 /// Length of a literal range `a:b` / `a:s:b` (parsed as `seq(a, b, step)`), `None` for anything else.
 fn literal_range_len(member: &Lang) -> Option<i32> {
-    let Lang::FunctionApp { identifier, arguments, .. } = member else { return None };
+    let Lang::FunctionApp {
+        identifier, arguments, ..
+    } = member
+    else {
+        return None;
+    };
     match (&**identifier, arguments.as_slice()) {
-        (Lang::Variable { name, .. }, [Lang::Integer { value: a, .. }, Lang::Integer { value: b, .. }, Lang::Integer { value: step, .. }])
-            if name == "seq" && *step != 0 && (b - a) / step >= 0 =>
-        {
-            Some((b - a) / step + 1)
-        }
+        (
+            Lang::Variable { name, .. },
+            [Lang::Integer { value: a, .. }, Lang::Integer { value: b, .. }, Lang::Integer { value: step, .. }],
+        ) if name == "seq" && *step != 0 && (b - a) / step >= 0 => Some((b - a) / step + 1),
         _ => None,
     }
 }
@@ -4954,7 +4972,9 @@ fn literal_range_len(member: &Lang) -> Option<i32> {
 /// booleans whose length is that of the vector side(s). `None` otherwise.
 fn vectorized_comparison(context: &Context, t1: &Type, t2: &Type) -> Option<Type> {
     let split = |t: &Type| match t {
-        Type::Vec(vt, _, e, h) if !matches!(**e, Type::Vec(..)) => Some((vt.clone(), t.vec_length()?, (**e).clone(), h.clone())),
+        Type::Vec(vt, _, e, h) if !matches!(**e, Type::Vec(..)) => {
+            Some((vt.clone(), t.vec_length()?, (**e).clone(), h.clone()))
+        }
         _ => None,
     };
     let (s1, s2) = (split(t1), split(t2));
@@ -4963,7 +4983,9 @@ fn vectorized_comparison(context: &Context, t1: &Type, t2: &Type) -> Option<Type
         s2.as_ref().map_or_else(|| t2.clone(), |s| reduce_type(context, &s.2)),
     );
     let numeric = |t: &Type| matches!(t, Type::Integer(..) | Type::Number(..));
-    if s1.is_none() && s2.is_none() || !(e1 == e2 || numeric(&e1) && numeric(&e2) || e1.is_subtype(&e2, context).0 || e2.is_subtype(&e1, context).0) {
+    if s1.is_none() && s2.is_none()
+        || !(e1 == e2 || numeric(&e1) && numeric(&e2) || e1.is_subtype(&e2, context).0 || e2.is_subtype(&e1, context).0)
+    {
         return None;
     }
     let (vt, n, _, h) = match (s1, s2) {

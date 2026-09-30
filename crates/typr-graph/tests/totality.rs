@@ -43,11 +43,16 @@ fn builds_every_typechecking_case_without_panicking() {
 
         // Built from the originally parsed tree, not `result.type_context.lang` — `typing()` on
         // a `Lines` node returns only its last statement's rewritten form, not the whole program.
-        let outcome = catch_unwind(AssertUnwindSafe(|| typr_graph::build(&lang, &result.type_context.context, &table)));
+        let outcome = catch_unwind(AssertUnwindSafe(|| {
+            typr_graph::build(&lang, &result.type_context.context, &table)
+        }));
         assert!(outcome.is_ok(), "typr-graph panicked building {}", main_ty.display());
         checked += 1;
     }
 
-    assert!(checked > 0, "expected at least one cases/ repro to typecheck standalone and be built");
+    assert!(
+        checked > 0,
+        "expected at least one cases/ repro to typecheck standalone and be built"
+    );
     eprintln!("totality: built {checked} case(s) without panicking, skipped {skipped} (parse/typecheck failure or multi-file dependency)");
 }

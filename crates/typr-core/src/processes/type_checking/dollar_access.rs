@@ -184,7 +184,12 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
                             other => other,
                         };
                         TypeContext::new(
-                            Type::vec(VecType::Vector, reduced1.vec_length().unwrap_or_else(builder::any_type), inner_type, h.clone()),
+                            Type::vec(
+                                VecType::Vector,
+                                reduced1.vec_length().unwrap_or_else(builder::any_type),
+                                inner_type,
+                                h.clone(),
+                            ),
                             expr.clone(),
                             context.clone(),
                         )
@@ -215,7 +220,12 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
                             other => other,
                         };
                         TypeContext::new(
-                            Type::vec(VecType::Vector, reduced1.vec_length().unwrap_or_else(builder::any_type), inner_type, h.clone()),
+                            Type::vec(
+                                VecType::Vector,
+                                reduced1.vec_length().unwrap_or_else(builder::any_type),
+                                inner_type,
+                                h.clone(),
+                            ),
                             expr.clone(),
                             context.clone(),
                         )
@@ -303,7 +313,12 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
                     );
                     errors.extend(tc.errors);
                     TypeContext::new(
-                        Type::vec(vtype, reduced1.vec_length().unwrap_or_else(builder::any_type), tc.value, h.clone()),
+                        Type::vec(
+                            vtype,
+                            reduced1.vec_length().unwrap_or_else(builder::any_type),
+                            tc.value,
+                            h.clone(),
+                        ),
                         tc.lang,
                         context.clone(),
                     )

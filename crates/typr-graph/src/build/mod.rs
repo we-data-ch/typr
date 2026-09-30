@@ -35,7 +35,13 @@ pub fn build(lang: &Lang, context: &Context, types: &TypeTable) -> BlockGraph {
     for item in &items {
         if let Some((namespace, name)) = top_level_name(item) {
             let key = BlockKey::top_level(namespace, &name);
-            b.scope.bind(&name, PortRef { block: key, port: "out".to_string() });
+            b.scope.bind(
+                &name,
+                PortRef {
+                    block: key,
+                    port: "out".to_string(),
+                },
+            );
         }
     }
 
@@ -60,7 +66,10 @@ pub fn build(lang: &Lang, context: &Context, types: &TypeTable) -> BlockGraph {
         inputs,
         outputs: Vec::new(),
         origin: Origin::User,
-        body: Some(Body { children, wires: Vec::new() }),
+        body: Some(Body {
+            children,
+            wires: Vec::new(),
+        }),
     });
     b.graph
 }
@@ -150,7 +159,10 @@ impl<'a> Builder<'a> {
         // declaration, so it gets an anonymous positional key like any unnamed statement, but
         // rebinds `x` going forward — later top-level reads of `x` wire from this block, not
         // from whatever defined it before.
-        if let Lang::Assign { identifier, expression, .. } = item {
+        if let Lang::Assign {
+            identifier, expression, ..
+        } = item
+        {
             if let Some(reassigned) = variable_name(identifier) {
                 let key = BlockKey::top_level(Namespace::Val, &format!("#{index}"));
                 let port = self.build_expr(expression, key.clone(), Some(&reassigned));
@@ -185,7 +197,9 @@ impl<'a> Builder<'a> {
         let mut children = Vec::new();
         for (index, stmt) in stmts.iter().enumerate() {
             match stmt {
-                Lang::Let { variable, expression, .. } => match variable_name(variable) {
+                Lang::Let {
+                    variable, expression, ..
+                } => match variable_name(variable) {
                     Some(name) => {
                         let key = owner.named(&name);
                         let port = self.build_expr(expression, key.clone(), Some(&name));
@@ -205,7 +219,9 @@ impl<'a> Builder<'a> {
                 // `Loop`'s state ports, étape 5): rebinds `x` going forward, same as a `Let`,
                 // but keyed anonymously since the name is already claimed by its original
                 // declaration.
-                Lang::Assign { identifier, expression, .. } => {
+                Lang::Assign {
+                    identifier, expression, ..
+                } => {
                     let key = owner.anonymous(index);
                     match variable_name(identifier) {
                         Some(reassigned) => {
@@ -251,19 +267,29 @@ impl<'a> Builder<'a> {
         };
         wires.push(Wire {
             from: src,
-            to: PortRef { block: owner.clone(), port: port.to_string() },
+            to: PortRef {
+                block: owner.clone(),
+                port: port.to_string(),
+            },
         });
     }
 
     fn resolve_name(&mut self, name: &str, arg0: Option<&Type>) -> Option<Resolved> {
         if let Some((port, is_local)) = self.scope.resolve(name) {
             let crosses = if is_local { None } else { self.scope.nearest_boundary() };
-            return Some(Resolved { target: port, confidence: Confidence::Exact, crosses });
+            return Some(Resolved {
+                target: port,
+                confidence: Confidence::Exact,
+                crosses,
+            });
         }
         let (ty, confidence) = refs::resolve_by_name(self.context, name, arg0)?;
         let target_key = self.ensure_reference_block(name, &ty);
         Some(Resolved {
-            target: PortRef { block: target_key, port: "out".to_string() },
+            target: PortRef {
+                block: target_key,
+                port: "out".to_string(),
+            },
             confidence,
             crosses: self.scope.nearest_boundary(),
         })
@@ -277,7 +303,13 @@ impl<'a> Builder<'a> {
     fn resolve_definition(&mut self, name: &str, arg0: Option<&Type>) -> Option<(BlockKey, Confidence)> {
         let resolved = self.resolve_name(name, arg0)?;
         if let Some(boundary) = resolved.crosses.clone() {
-            self.ensure_capture_port(boundary, name, resolved.target.clone(), resolved.confidence.clone(), None);
+            self.ensure_capture_port(
+                boundary,
+                name,
+                resolved.target.clone(),
+                resolved.confidence.clone(),
+                None,
+            );
         }
         Some((resolved.target.block, resolved.confidence))
     }
@@ -287,14 +319,26 @@ impl<'a> Builder<'a> {
     /// (spec §3.3).
     fn resolve_and_wire(&mut self, name: &str, arg0: Option<&Type>) -> PortRef {
         match self.resolve_name(name, arg0) {
-            Some(Resolved { target, confidence, crosses: Some(boundary) }) => {
+            Some(Resolved {
+                target,
+                confidence,
+                crosses: Some(boundary),
+            }) => {
                 self.ensure_capture_port(boundary.clone(), name, target, confidence, None);
-                PortRef { block: boundary, port: name.to_string() }
+                PortRef {
+                    block: boundary,
+                    port: name.to_string(),
+                }
             }
-            Some(Resolved { target, crosses: None, .. }) => target,
+            Some(Resolved {
+                target, crosses: None, ..
+            }) => target,
             None => {
                 let key = self.ensure_unresolved_block(name);
-                PortRef { block: key, port: "out".to_string() }
+                PortRef {
+                    block: key,
+                    port: "out".to_string(),
+                }
             }
         }
     }
@@ -387,7 +431,11 @@ impl<'a> Builder<'a> {
     ) -> PortRef {
         // A comment has no type: the parser models it as a `char` value, which must neither be
         // printed on the block nor linked (`HasType`) to the `char` primitive.
-        let ty = if kind == BlockKind::Comment { None } else { self.recorded_type(lang) };
+        let ty = if kind == BlockKind::Comment {
+            None
+        } else {
+            self.recorded_type(lang)
+        };
         // A literal's recorded type is the value (`"hi"`, `3`), which names no type block.
         let primitive = match &ty {
             Some(Type::Char(..)) => Some("char"),
@@ -400,11 +448,15 @@ impl<'a> Builder<'a> {
             self.type_notes.push((key.clone(), p.to_string()));
         }
         if let Some(Type::Alias(alias_name, _, _, _)) = &ty {
-            self.graph
-                .relations
-                .push(Relation::has_type(key.clone(), BlockKey::top_level(Namespace::Type, alias_name)));
+            self.graph.relations.push(Relation::has_type(
+                key.clone(),
+                BlockKey::top_level(Namespace::Type, alias_name),
+            ));
         }
-        let default_port = outputs.first().map(|p| p.name.clone()).unwrap_or_else(|| "out".to_string());
+        let default_port = outputs
+            .first()
+            .map(|p| p.name.clone())
+            .unwrap_or_else(|| "out".to_string());
         self.graph.insert(Block {
             key: key.clone(),
             kind,
@@ -416,6 +468,9 @@ impl<'a> Builder<'a> {
             origin,
             body,
         });
-        PortRef { block: key, port: default_port }
+        PortRef {
+            block: key,
+            port: default_port,
+        }
     }
 }

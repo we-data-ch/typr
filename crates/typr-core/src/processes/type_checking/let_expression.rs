@@ -107,7 +107,9 @@ pub fn collect_undefined_aliases(context: &Context, ty: &Type) -> Vec<TypRError>
             errors
         }
         Type::Vec(_, _, inner, _) => {
-            let mut errors = ty.vec_length().map_or_else(Vec::new, |length| collect_undefined_aliases(context, &length));
+            let mut errors = ty
+                .vec_length()
+                .map_or_else(Vec::new, |length| collect_undefined_aliases(context, &length));
             errors.extend(collect_undefined_aliases(context, inner));
             errors
         }

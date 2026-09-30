@@ -373,8 +373,9 @@ jobs:
         run: docker build -t typr-install-tests -f install/tests/Dockerfile .
 
       - name: install.ps1 — suite de tests
-        run: docker run --rm -v "$PWD:/w" -w /w typr-install-tests \
-               pwsh -NoProfile -File install/tests/run-tests.ps1
+        run: >-
+          docker run --rm -v "$PWD:/w" -w /w typr-install-tests
+          pwsh -NoProfile -File install/tests/run-tests.ps1
 
       # Les deux suites précédentes tournent sous Linux : ni le registre Windows,
   # ni %LOCALAPPDATA%, ni Expand-Archive ne sont réellement exercés. Ce job
@@ -400,7 +401,7 @@ jobs:
           # sous PowerShell 7.
           $env:TYPR_INSTALL_ORIGIN = 'https://we-data-ch.github.io/typr.github.io'
 
-          & ./install/install.ps1 -DryRun
+          & ./install/install.ps1 -DryRun -Version 'v0.0.0'
           if ($LASTEXITCODE -ne 0) { throw "-DryRun a échoué (code $LASTEXITCODE)" }
 
           & ./install/install.ps1 -DryRun -Version 'pas-un-tag'

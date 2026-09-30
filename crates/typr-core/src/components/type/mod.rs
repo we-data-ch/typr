@@ -241,9 +241,7 @@ impl TypeSystem for Type {
                 a.is_subtype_raw(b, context) && a.refinements_of().meet(ps).implies(qs)
             }
             (Type::Refined(a, _, _), typ) => a.is_subtype_raw(typ, context),
-            (typ, Type::Refined(b, qs, _)) => {
-                typ.is_subtype_raw(b, context) && typ.refinements_of().implies(qs)
-            }
+            (typ, Type::Refined(b, qs, _)) => typ.is_subtype_raw(b, context) && typ.refinements_of().implies(qs),
             (Type::Operator(TypeOperator::Intersection, t1, t2, _), typ) => {
                 t1.is_subtype_raw(typ, context) || t2.is_subtype_raw(typ, context)
             }
@@ -1193,7 +1191,11 @@ impl Type {
 
     pub fn linearize(self) -> Vec<Type> {
         match self {
-            Type::Vec(_, t1, t2, h) => [t1.to_type(h)].iter().chain((*t2).linearize().iter()).cloned().collect(),
+            Type::Vec(_, t1, t2, h) => [t1.to_type(h)]
+                .iter()
+                .chain((*t2).linearize().iter())
+                .cloned()
+                .collect(),
             other => vec![other],
         }
     }
@@ -1206,9 +1208,10 @@ impl Type {
     pub fn from_linear(mut dims_and_base: Vec<Type>) -> Type {
         match dims_and_base.pop() {
             None => builder::any_type(),
-            Some(base) => dims_and_base.into_iter().rev().fold(base, |acc, dim| {
-                Type::vec(VecType::S3, dim, acc, HelpData::default())
-            }),
+            Some(base) => dims_and_base
+                .into_iter()
+                .rev()
+                .fold(base, |acc, dim| Type::vec(VecType::S3, dim, acc, HelpData::default())),
         }
     }
 
@@ -1236,7 +1239,11 @@ impl Type {
     /// [3, T] -> rank: 3, vector type: Array, Type T
     pub fn get_size_type(&self) -> (i32, VecType, Type) {
         match self {
-            Type::Vec(v, i, t, h) => (i.to_type(h.clone()).get_index().unwrap_or(0) as i32, v.clone(), (**t).clone()),
+            Type::Vec(v, i, t, h) => (
+                i.to_type(h.clone()).get_index().unwrap_or(0) as i32,
+                v.clone(),
+                (**t).clone(),
+            ),
             typ => (1, VecType::Empty, typ.clone()),
         }
     }
@@ -1868,7 +1875,11 @@ mod tests {
     }
 
     fn refined_int(set: RefinementSet) -> Type {
-        Type::Refined(Box::new(Type::Integer(Tint::Unknown, HelpData::default())), set, HelpData::default())
+        Type::Refined(
+            Box::new(Type::Integer(Tint::Unknown, HelpData::default())),
+            set,
+            HelpData::default(),
+        )
     }
     fn gt(c: f64) -> RefinementSet {
         RefinementSet::single(&Refinement::Gt(refinement::Num::new(c)))

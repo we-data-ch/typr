@@ -514,10 +514,16 @@ impl TypeError {
             }
             TypeError::InvalidRefinement(msg, _) | TypeError::UnsatisfiableRefinement(msg, _) => msg.clone(),
             TypeError::ConflictingBound(id, b1, b2, _) => {
-                format!("'{}' is bounded by both '{}' and '{}' in the same signature.", id, b1, b2)
+                format!(
+                    "'{}' is bounded by both '{}' and '{}' in the same signature.",
+                    id, b1, b2
+                )
             }
             TypeError::BoundCollidesWithGeneric(id, _) => {
-                format!("'{}' is used both as a free generic and as a bound id (`I@{}`).", id, id)
+                format!(
+                    "'{}' is used both as a free generic and as a bound id (`I@{}`).",
+                    id, id
+                )
             }
             TypeError::IdBoundToTwoTypes(id, t1, _, t2, _) => {
                 format!("'{}' is bound to '{}' and then to '{}' in the same call.", id, t1, t2)
@@ -1130,7 +1136,9 @@ impl ErrorMsg for TypeError {
                     .pos(pos)
                     .text(msg)
                     .pos_text("This refinement does not apply to that type")
-                    .help("`length(n)` refines vectors (`[T] & length(n)`); `(> c)` and `(< c)` refine `int` and `num`.")
+                    .help(
+                        "`length(n)` refines vectors (`[T] & length(n)`); `(> c)` and `(< c)` refine `int` and `num`.",
+                    )
                     .build()
             }
             TypeError::UnsatisfiableRefinement(msg, help_data) => {

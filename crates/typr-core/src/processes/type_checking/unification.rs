@@ -1,9 +1,9 @@
-use crate::utils::builder;
 use crate::components::context::Context;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::Type;
 use crate::processes::type_checking::type_comparison;
+use crate::utils::builder;
 use std::collections::HashSet;
 
 /// Compare two index/label keys by *name*.
@@ -168,7 +168,9 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
 
         // Tag type substitution
         // `[#N, T] & length(> 0)`: the refinements carry no generic, only the base does
-        Type::Refined(base, set, h) => Type::Refined(Box::new(type_substitution(base, substitutions)), set.clone(), h.clone()),
+        Type::Refined(base, set, h) => {
+            Type::Refined(Box::new(type_substitution(base, substitutions)), set.clone(), h.clone())
+        }
 
         Type::Tag(name, inner_type, h) => Type::Tag(
             name.clone(),

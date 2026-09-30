@@ -11,8 +11,8 @@ use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
-use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::refinement::RefinementSet;
+use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 
@@ -91,7 +91,12 @@ pub fn field_obligations(
     expected: &Type,
     context: &Context,
 ) -> Option<Vec<(HelpData, RefinementSet)>> {
-    let Lang::List { value: fields, spreads, .. } = expr else { return None };
+    let Lang::List {
+        value: fields, spreads, ..
+    } = expr
+    else {
+        return None;
+    };
     if !spreads.is_empty() {
         return None;
     }
@@ -115,7 +120,9 @@ pub fn field_obligations(
 
 /// `context` with each obligation of `field_obligations` recorded.
 pub fn with_obligations(context: Context, obligations: Vec<(HelpData, RefinementSet)>) -> Context {
-    obligations.into_iter().fold(context, |ctx, (h, set)| ctx.add_refinement_obligation(&h, set))
+    obligations
+        .into_iter()
+        .fold(context, |ctx, (h, set)| ctx.add_refinement_obligation(&h, set))
 }
 
 /// The measures of `want` that `have` does not already imply.
@@ -131,7 +138,11 @@ mod tests {
     use crate::utils::fluent_parser::FluentParser;
 
     fn ty(src: &str) -> (Type, Context) {
-        let ctx = FluentParser::new().push(&format!("type T <- {};", src)).run().context.clone();
+        let ctx = FluentParser::new()
+            .push(&format!("type T <- {};", src))
+            .run()
+            .context
+            .clone();
         let alias = Type::Alias("T".into(), vec![], false, HelpData::default());
         (alias.reduce(&ctx), ctx)
     }
@@ -191,13 +202,22 @@ mod tests {
     fn errors_of(src: &str) -> usize {
         use crate::processes::parsing::parse2;
         use crate::processes::type_checking::typing_with_errors;
-        { let r = typing_with_errors(&Context::default(), &crate::processes::parsing::parse_from_string(src, "test")); r.get_errors().len() }
+        {
+            let r = typing_with_errors(
+                &Context::default(),
+                &crate::processes::parsing::parse_from_string(src, "test"),
+            );
+            r.get_errors().len()
+        }
     }
 
     #[test]
     fn return_position_accepts_unproven_and_rejects_contradiction() {
         assert_eq!(errors_of("let f <- fn(v: [int]): [3, int] { v };"), 0);
-        assert_eq!(errors_of("let f <- fn(v: [int], c: bool): [3, int] { if (c) { return v; }; [1, 2, 3] };"), 0);
+        assert_eq!(
+            errors_of("let f <- fn(v: [int], c: bool): [3, int] { if (c) { return v; }; [1, 2, 3] };"),
+            0
+        );
         assert!(errors_of("let f <- fn(): [3, int] { [1, 2] };") > 0);
         assert!(errors_of("let f <- fn(v: [char]): [3, int] { v };") > 0);
     }
@@ -205,7 +225,10 @@ mod tests {
     #[test]
     fn argument_position_accepts_unproven_and_rejects_contradiction() {
         let decl = "let g <- fn(p: [2, num]): num { 1.0 };";
-        assert_eq!(errors_of(&format!("{} let u: [num] <- [1.0, 2.0]; let r <- g(u);", decl)), 0);
+        assert_eq!(
+            errors_of(&format!("{} let u: [num] <- [1.0, 2.0]; let r <- g(u);", decl)),
+            0
+        );
         assert!(errors_of(&format!("{} let c: [bool] <- [true, false]; let r <- g(c);", decl)) > 0);
     }
 }

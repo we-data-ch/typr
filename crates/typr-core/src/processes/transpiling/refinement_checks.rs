@@ -28,7 +28,8 @@ pub fn wrap_obligation(context: &Context, r_expr: String, expr_h: &HelpData) -> 
 }
 
 pub fn wrap_set(r_expr: String, set: &RefinementSet, loc: &str) -> String {
-    set.iter().fold(r_expr, |acc, (measure, iv)| wrap_measure(acc, *measure, iv, loc))
+    set.iter()
+        .fold(r_expr, |acc, (measure, iv)| wrap_measure(acc, *measure, iv, loc))
 }
 
 fn wrap_measure(x: String, measure: Measure, iv: &Interval, loc: &str) -> String {
@@ -54,7 +55,13 @@ fn bound_args(iv: &Interval) -> String {
         Bound::Open(c) => (r_number(c.get()), true),
         Bound::Closed(c) => (r_number(c.get()), false),
     };
-    format!("{}, {}, {}, {}", lo, lo_open.to_string().to_uppercase(), hi, hi_open.to_string().to_uppercase())
+    format!(
+        "{}, {}, {}, {}",
+        lo,
+        lo_open.to_string().to_uppercase(),
+        hi,
+        hi_open.to_string().to_uppercase()
+    )
 }
 
 fn r_number(v: f64) -> String {
@@ -88,7 +95,10 @@ mod tests {
     #[test]
     fn length_and_value_forms() {
         let set = RefinementSet::single(&Refinement::Length(3));
-        assert_eq!(wrap_set("x".into(), &set, "m.ty:1"), "typr_refine_length(x, 3L, \"m.ty:1\")");
+        assert_eq!(
+            wrap_set("x".into(), &set, "m.ty:1"),
+            "typr_refine_length(x, 3L, \"m.ty:1\")"
+        );
         let set = RefinementSet::single(&Refinement::Gt(crate::components::r#type::refinement::Num::new(0.0)));
         assert_eq!(
             wrap_set("x".into(), &set, "m.ty:1"),

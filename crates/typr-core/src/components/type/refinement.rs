@@ -198,9 +198,7 @@ impl Interval {
         match (self.lo.value(), self.hi.value()) {
             (Some(l), Some(h)) => match l.cmp(&h) {
                 Ordering::Greater => true,
-                Ordering::Equal => {
-                    !(matches!(self.lo, Bound::Closed(_)) && matches!(self.hi, Bound::Closed(_)))
-                }
+                Ordering::Equal => !(matches!(self.lo, Bound::Closed(_)) && matches!(self.hi, Bound::Closed(_))),
                 Ordering::Less => false,
             },
             _ => false,
@@ -428,7 +426,11 @@ impl Length {
                 // runtime check and the printer show. Emptiness is judged on
                 // integers, lengths being whole numbers.
                 let m = cur.meet(iv);
-                Some(if m.to_integral().is_empty() { Err(()) } else { Ok(Length::Range(m)) })
+                Some(if m.to_integral().is_empty() {
+                    Err(())
+                } else {
+                    Ok(Length::Range(m))
+                })
             }
             Length::Sym(_) if self.bounds().implies(iv) => Some(Ok(self.clone())),
             Length::Sym(_) if self.bounds().contradicts(iv) => Some(Err(())),
@@ -444,7 +446,9 @@ fn sym_lower_bound(t: &Type) -> f64 {
     match t {
         Type::Integer(Tint::Val(n), _) => *n as f64,
         Type::Operator(TypeOperator::Addition, a, b, _) => sym_lower_bound(a).max(0.0) + sym_lower_bound(b).max(0.0),
-        Type::Operator(TypeOperator::Multiplication, a, b, _) => sym_lower_bound(a).max(0.0) * sym_lower_bound(b).max(0.0),
+        Type::Operator(TypeOperator::Multiplication, a, b, _) => {
+            sym_lower_bound(a).max(0.0) * sym_lower_bound(b).max(0.0)
+        }
         _ => 0.0,
     }
 }
@@ -492,10 +496,7 @@ impl RefinementSet {
 
     /// Intersection (`&`) of two sets.
     pub fn meet(&self, other: &RefinementSet) -> RefinementSet {
-        other
-            .0
-            .iter()
-            .fold(self.clone(), |acc, (m, iv)| acc.with(*m, *iv))
+        other.0.iter().fold(self.clone(), |acc, (m, iv)| acc.with(*m, *iv))
     }
 
     /// Some measure has an empty interval: no value can satisfy the set.
@@ -503,7 +504,11 @@ impl RefinementSet {
     /// always for `Length`).
     pub fn is_empty(&self, integral: bool) -> bool {
         self.0.iter().any(|(m, iv)| {
-            let iv = if integral || *m == Measure::Length { iv.to_integral() } else { *iv };
+            let iv = if integral || *m == Measure::Length {
+                iv.to_integral()
+            } else {
+                *iv
+            };
             iv.is_empty()
         })
     }
@@ -615,7 +620,10 @@ mod tests {
         assert!(len(0).contradicts(&len_pos, true));
         assert!(!len_pos.implies(&len(5)));
         // `length(> 0)` and `length(< 1)` leave no integer length
-        let none = len_pos.meet(&RefinementSet::single(&Refinement::Range(Measure::Length, Interval::less_than(1.0))));
+        let none = len_pos.meet(&RefinementSet::single(&Refinement::Range(
+            Measure::Length,
+            Interval::less_than(1.0),
+        )));
         assert!(none.is_empty(true));
         assert_eq!(len_pos.to_string(), "length(> 0)");
         let ge = RefinementSet::single(&Refinement::Range(Measure::Value, Interval::at_least(0.0)));
@@ -666,11 +674,13 @@ mod type_tests {
     fn refined_equality_and_hash_ignore_construction_order() {
         let a = refined(
             builder::integer_type_default(),
-            RefinementSet::single(&Refinement::Gt(Num::new(0.0))).meet(&RefinementSet::single(&Refinement::Lt(Num::new(9.0)))),
+            RefinementSet::single(&Refinement::Gt(Num::new(0.0)))
+                .meet(&RefinementSet::single(&Refinement::Lt(Num::new(9.0)))),
         );
         let b = refined(
             builder::integer_type_default(),
-            RefinementSet::single(&Refinement::Lt(Num::new(9.0))).meet(&RefinementSet::single(&Refinement::Gt(Num::new(0.0)))),
+            RefinementSet::single(&Refinement::Lt(Num::new(9.0)))
+                .meet(&RefinementSet::single(&Refinement::Gt(Num::new(0.0)))),
         );
         assert_eq!(a, b);
         let set: HashSet<Type> = [a, b].into_iter().collect();
@@ -679,13 +689,19 @@ mod type_tests {
 
     #[test]
     fn refinements_are_read_back_from_structure() {
-        assert_eq!(vec_of_len(Some(5)).refinements_of(), RefinementSet::single(&Refinement::Length(5)));
+        assert_eq!(
+            vec_of_len(Some(5)).refinements_of(),
+            RefinementSet::single(&Refinement::Length(5))
+        );
         assert!(vec_of_len(None).refinements_of().is_trivial());
         assert_eq!(
             int_lit(3).refinements_of().get(Measure::Value),
             Some(&Interval::point(3.0))
         );
-        let r = refined(vec_of_len(Some(2)), RefinementSet::single(&Refinement::Gt(Num::new(0.0))));
+        let r = refined(
+            vec_of_len(Some(2)),
+            RefinementSet::single(&Refinement::Gt(Num::new(0.0))),
+        );
         let got = r.refinements_of();
         assert_eq!(got.get(Measure::Length), Some(&Interval::point(2.0)));
         assert_eq!(got.get(Measure::Value), Some(&Interval::greater_than(0.0)));

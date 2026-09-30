@@ -275,11 +275,7 @@ fn replace_bounded_with_rigids(
 
 /// Rewrites the rigids of `typ` back to what the user wrote (`Lovable@B`, or
 /// plain `Lovable` for a bare interface) so an error never shows `__RIGID_1`.
-fn name_rigids(
-    typ: &Type,
-    rigid_of_id: &std::collections::HashMap<String, String>,
-    params: &[ArgumentType],
-) -> Type {
+fn name_rigids(typ: &Type, rigid_of_id: &std::collections::HashMap<String, String>, params: &[ArgumentType]) -> Type {
     let mut bounds: Vec<(String, Type)> = Vec::new();
     for p in params {
         signature_normalization::visit(&p.get_type(), &mut |t| {
@@ -430,7 +426,8 @@ pub fn function(
         } else if !arg_typ.is_variadic() && signature_normalization::has_bounded(&normalized_param.get_type()) {
             // `[#N, Lovable@A]`, `tuple{Lovable@A, T}`: the bound sits below the
             // top, so the parameter keeps its shape with a rigid at each `@Id`.
-            let nested = replace_bounded_with_rigids(&mut sub_context, &mut rigid_of_id, &normalized_param.get_type(), h);
+            let nested =
+                replace_bounded_with_rigids(&mut sub_context, &mut rigid_of_id, &normalized_param.get_type(), h);
             let var = arg_typ.clone().set_type(nested.clone()).to_var(&sub_context);
             sub_context = sub_context.clone().push_var_type(var, nested, &sub_context);
         } else {
@@ -1256,7 +1253,8 @@ mod tests {
              let same <- fn(a: Cat, b: Cat): bool {{ true }};\n\
              let f <- {src};"
         );
-        let tc = TypeChecker::new(Context::default()).typing_no_panic(&crate::processes::parsing::parse_from_string(&program, "t.ty"));
+        let tc = TypeChecker::new(Context::default())
+            .typing_no_panic(&crate::processes::parsing::parse_from_string(&program, "t.ty"));
         !tc.has_errors()
     }
 
@@ -1274,7 +1272,9 @@ mod tests {
 
     #[test]
     fn test_bound_methods_are_callable_on_distinct_ids() {
-        assert!(body_is_ok("fn(a: Lovable@A, b: Lovable@B): bool { a.love() == b.love() }"));
+        assert!(body_is_ok(
+            "fn(a: Lovable@A, b: Lovable@B): bool { a.love() == b.love() }"
+        ));
     }
 
     #[test]

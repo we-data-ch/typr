@@ -166,7 +166,10 @@ pub fn refinement_error(t: &Type) -> Option<TypeError> {
             Some(TypeError::InvalidRefinement(msg.clone(), h.clone()))
         }
         Type::Refined(base, set, h) if matches!(**base, Type::Any(_)) => Some(TypeError::InvalidRefinement(
-            format!("`{}` is a property, not a type: refine a base type with `T & {}`", set, set),
+            format!(
+                "`{}` is a property, not a type: refine a base type with `T & {}`",
+                set, set
+            ),
             h.clone(),
         )),
         Type::Failed(msg, h) if msg.starts_with("unsatisfiable refinement") => {
@@ -235,7 +238,10 @@ pub(crate) fn apply_refinements(base: Type, set: RefinementSet, h: HelpData) -> 
         return base;
     }
     let unsatisfiable = |why: &str| {
-        Type::Failed(format!("unsatisfiable refinement: `{} & {}` {}", base.pretty(), set, why), h.clone())
+        Type::Failed(
+            format!("unsatisfiable refinement: `{} & {}` {}", base.pretty(), set, why),
+            h.clone(),
+        )
     };
     let invalid = |m: Measure| {
         Type::Failed(
@@ -259,9 +265,7 @@ pub(crate) fn apply_refinements(base: Type, set: RefinementSet, h: HelpData) -> 
                 // `[5, T]`, `[T] & length(> 0)` is a ranged length.
                 Some(Ok(l)) => Type::Vec(kind.clone(), l, elem.clone(), vh.clone()),
                 Some(Err(())) => match (length.as_known(), wanted.as_point()) {
-                    (Some(m), Some(n)) => {
-                        unsatisfiable(&format!("contradicts its length {} (asked for {})", m, n))
-                    }
+                    (Some(m), Some(n)) => unsatisfiable(&format!("contradicts its length {} (asked for {})", m, n)),
                     (Some(m), None) => unsatisfiable(&format!("contradicts its length {}", m)),
                     _ => unsatisfiable("contradicts its length"),
                 },
@@ -448,14 +452,21 @@ mod tests {
     #[test]
     fn test_refine_contradiction_is_unsatisfiable() {
         let res = inter(inter(builder::integer_type_default(), gt(10.0)), lt(5.0));
-        assert!(matches!(refinement_error(&res), Some(TypeError::UnsatisfiableRefinement(..))), "{:?}", res);
+        assert!(
+            matches!(refinement_error(&res), Some(TypeError::UnsatisfiableRefinement(..))),
+            "{:?}",
+            res
+        );
     }
 
     #[test]
     fn test_refine_integers_round_bounds() {
         // (> 0) & (< 1) has real values but no integer.
         let res = inter(inter(builder::integer_type_default(), gt(0.0)), lt(1.0));
-        assert!(matches!(refinement_error(&res), Some(TypeError::UnsatisfiableRefinement(..))));
+        assert!(matches!(
+            refinement_error(&res),
+            Some(TypeError::UnsatisfiableRefinement(..))
+        ));
         let num = inter(inter(builder::number_type(), gt(0.0)), lt(1.0));
         assert!(matches!(num, Type::Refined(..)));
     }
@@ -472,7 +483,10 @@ mod tests {
             Some(TypeError::InvalidRefinement(..))
         ));
         let vec = builder::array_type(builder::any_type(), builder::integer_type_default());
-        assert!(matches!(refinement_error(&inter(vec, gt(0.0))), Some(TypeError::InvalidRefinement(..))));
+        assert!(matches!(
+            refinement_error(&inter(vec, gt(0.0))),
+            Some(TypeError::InvalidRefinement(..))
+        ));
     }
 
     #[test]
@@ -483,20 +497,30 @@ mod tests {
         // Same length again: no-op. Another length: contradiction.
         assert_eq!(inter(res.clone(), prop(Refinement::Length(5))), res);
         let clash = inter(res, prop(Refinement::Length(3)));
-        assert!(matches!(refinement_error(&clash), Some(TypeError::UnsatisfiableRefinement(..))));
+        assert!(matches!(
+            refinement_error(&clash),
+            Some(TypeError::UnsatisfiableRefinement(..))
+        ));
     }
 
     #[test]
     fn test_refine_literal_is_proven_or_refuted() {
         assert_eq!(inter(builder::integer_type(3), gt(0.0)), builder::integer_type(3));
         let refuted = inter(builder::integer_type(-3), gt(0.0));
-        assert!(matches!(refinement_error(&refuted), Some(TypeError::UnsatisfiableRefinement(..))));
+        assert!(matches!(
+            refinement_error(&refuted),
+            Some(TypeError::UnsatisfiableRefinement(..))
+        ));
     }
 
     #[test]
     fn test_bare_properties_are_not_types() {
         let res = inter(gt(0.0), lt(5.0));
-        assert!(matches!(refinement_error(&res), Some(TypeError::InvalidRefinement(..))), "{:?}", res);
+        assert!(
+            matches!(refinement_error(&res), Some(TypeError::InvalidRefinement(..))),
+            "{:?}",
+            res
+        );
     }
 
     use super::*;
@@ -757,18 +781,31 @@ mod tests {
         );
         // unknown length: the range folds into the length itself
         let folded = inter(unknown.clone(), range());
-        assert!(matches!(&folded, Type::Vec(_, l, _, _) if l.as_proper_range().is_some()), "{:?}", folded);
-        assert_eq!(folded.refinements_of().get(Measure::Length), Some(&Interval::greater_than(0.0)));
-        // known length: satisfied range is redundant, violated one is a contradiction
-        let sized = |n| Type::vec(
-            crate::components::r#type::vector_type::VecType::S3,
-            builder::integer_type(n),
-            builder::integer_type_default(),
-            HelpData::default(),
+        assert!(
+            matches!(&folded, Type::Vec(_, l, _, _) if l.as_proper_range().is_some()),
+            "{:?}",
+            folded
         );
+        assert_eq!(
+            folded.refinements_of().get(Measure::Length),
+            Some(&Interval::greater_than(0.0))
+        );
+        // known length: satisfied range is redundant, violated one is a contradiction
+        let sized = |n| {
+            Type::vec(
+                crate::components::r#type::vector_type::VecType::S3,
+                builder::integer_type(n),
+                builder::integer_type_default(),
+                HelpData::default(),
+            )
+        };
         assert_eq!(inter(sized(3), range()), sized(3));
         let res = inter(sized(0), range());
-        assert!(matches!(refinement_error(&res), Some(TypeError::UnsatisfiableRefinement(..))), "{:?}", res);
+        assert!(
+            matches!(refinement_error(&res), Some(TypeError::UnsatisfiableRefinement(..))),
+            "{:?}",
+            res
+        );
     }
 
     #[test]
@@ -794,7 +831,11 @@ mod tests {
         assert!(!vec_of(builder::integer_type(0)).is_subtype(&pos, &ctx).0);
         // a contradiction is reported
         let none = inter(pos.clone(), range(Interval::less_than(1.0)));
-        assert!(matches!(refinement_error(&none), Some(TypeError::UnsatisfiableRefinement(..))), "{:?}", none);
+        assert!(
+            matches!(refinement_error(&none), Some(TypeError::UnsatisfiableRefinement(..))),
+            "{:?}",
+            none
+        );
         // printed as a refinement
         assert_eq!(pos.pretty(), "[int] & length(> 0)");
     }
@@ -816,14 +857,27 @@ mod tests {
         let vec_of = |len: Type| Type::vec(VecType::S3, len, builder::integer_type_default(), HelpData::default());
         let range = |iv: Interval| prop(Refinement::Range(Measure::Length, iv));
         // `#N + 1` is at least 1: it proves length(> 0), `#N` alone does not
-        let pos = inter(vec_of(Type::Any(HelpData::default())), range(Interval::greater_than(0.0)));
+        let pos = inter(
+            vec_of(Type::Any(HelpData::default())),
+            range(Interval::greater_than(0.0)),
+        );
         assert!(vec_of(plus1.clone()).is_subtype(&pos, &ctx).0);
         assert!(!vec_of(n()).is_subtype(&pos, &ctx).0);
         // narrowing `#N + 1` by a satisfied range is a no-op; by an unproven one it stays a property
-        assert_eq!(inter(vec_of(plus1.clone()), range(Interval::greater_than(0.0))), vec_of(plus1));
-        assert!(matches!(inter(vec_of(n()), range(Interval::greater_than(0.0))), Type::Refined(..)));
+        assert_eq!(
+            inter(vec_of(plus1.clone()), range(Interval::greater_than(0.0))),
+            vec_of(plus1)
+        );
+        assert!(matches!(
+            inter(vec_of(n()), range(Interval::greater_than(0.0))),
+            Type::Refined(..)
+        ));
         // a symbolic length is never negative
         let neg = inter(vec_of(n()), range(Interval::less_than(0.0)));
-        assert!(matches!(refinement_error(&neg), Some(TypeError::UnsatisfiableRefinement(..))), "{:?}", neg);
+        assert!(
+            matches!(refinement_error(&neg), Some(TypeError::UnsatisfiableRefinement(..))),
+            "{:?}",
+            neg
+        );
     }
 }

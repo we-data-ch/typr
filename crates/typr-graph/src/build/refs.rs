@@ -47,12 +47,7 @@ pub fn resolve_by_name(context: &Context, name: &str, arg0: Option<&Type>) -> Op
             match matching.as_slice() {
                 [only] => Some(((*only).clone(), Confidence::Exact)),
                 [] => Some((many[0].clone(), Confidence::ByName)),
-                _ => Some((
-                    many[0].clone(),
-                    Confidence::Ambiguous {
-                        candidates: Vec::new(),
-                    },
-                )),
+                _ => Some((many[0].clone(), Confidence::Ambiguous { candidates: Vec::new() })),
             }
         }
     }

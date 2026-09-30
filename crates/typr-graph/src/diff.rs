@@ -123,14 +123,8 @@ pub fn diff(old: &BlockGraph, new: &BlockGraph) -> GraphDiff {
 
         let old_interface = interface_targets(old, key);
         let new_interface = interface_targets(new, key);
-        let interface_added: Vec<BlockKey> = new_interface
-            .difference(&old_interface)
-            .cloned()
-            .collect();
-        let interface_removed: Vec<BlockKey> = old_interface
-            .difference(&new_interface)
-            .cloned()
-            .collect();
+        let interface_added: Vec<BlockKey> = new_interface.difference(&old_interface).cloned().collect();
+        let interface_removed: Vec<BlockKey> = old_interface.difference(&new_interface).cloned().collect();
         if !interface_added.is_empty() || !interface_removed.is_empty() {
             d.interface = Some(InterfaceChange {
                 added: interface_added,
@@ -154,9 +148,7 @@ fn interface_targets(graph: &BlockGraph, key: &BlockKey) -> BTreeSet<BlockKey> {
     graph
         .relations
         .iter()
-        .filter(|r| {
-            r.from == *key && matches!(r.kind, RelationKind::Satisfies | RelationKind::DeclaredAs)
-        })
+        .filter(|r| r.from == *key && matches!(r.kind, RelationKind::Satisfies | RelationKind::DeclaredAs))
         .map(|r| r.to.clone())
         .collect()
 }
@@ -193,16 +185,10 @@ pub fn to_text(diff: &GraphDiff) -> String {
             ));
         }
         if let Some(c) = &m.captures {
-            out.push_str(&format!(
-                "    captures: {}\n",
-                format_port_delta(&c.added, &c.removed)
-            ));
+            out.push_str(&format!("    captures: {}\n", format_port_delta(&c.added, &c.removed)));
         }
         if let Some(i) = &m.interface {
-            out.push_str(&format!(
-                "    interface: {}\n",
-                format_key_delta(&i.added, &i.removed)
-            ));
+            out.push_str(&format!("    interface: {}\n", format_key_delta(&i.added, &i.removed)));
         }
     }
     out
@@ -382,10 +368,7 @@ mod tests {
         let mut new = BlockGraph::new(BlockKey::from_raw("val:@program"));
         let mut a2 = block("val:a", BlockKind::Scope);
         a2.body = Some(Body {
-            children: vec![
-                BlockKey::from_raw("val:a/#0"),
-                BlockKey::from_raw("val:a/#1"),
-            ],
+            children: vec![BlockKey::from_raw("val:a/#0"), BlockKey::from_raw("val:a/#1")],
             wires: Vec::new(),
         });
         new.insert(a2);

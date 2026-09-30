@@ -97,7 +97,12 @@ impl ArgumentType {
     pub fn body_type(&self) -> Type {
         if self.3 {
             let h = self.1.get_help_data();
-            Type::vec(VecType::S3, Type::IndexGen("N".to_string(), h.clone()), self.1.clone(), h)
+            Type::vec(
+                VecType::S3,
+                Type::IndexGen("N".to_string(), h.clone()),
+                self.1.clone(),
+                h,
+            )
         } else {
             self.1.clone()
         }

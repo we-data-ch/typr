@@ -1,17 +1,19 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
-use crate::components::r#type::refinement::RefinementSet;
-use crate::processes::type_checking::type_arithmetic::declared_refinements;
-use crate::processes::type_checking::refinement_check::{coerce_to, field_obligations, residual, with_obligations, Coercion};
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::set_related_type_if_variable;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::refinement::RefinementSet;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::facets;
-use crate::processes::type_checking::signature_normalization::{self, CallInstance};
 use crate::processes::type_checking::interface_satisfaction;
 use crate::processes::type_checking::match_types_to_generic;
+use crate::processes::type_checking::refinement_check::{
+    coerce_to, field_obligations, residual, with_obligations, Coercion,
+};
+use crate::processes::type_checking::signature_normalization::{self, CallInstance};
+use crate::processes::type_checking::type_arithmetic::declared_refinements;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
 use crate::processes::type_checking::Context;
@@ -1317,9 +1319,7 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
                     id_clashes.push(clash);
                     None
                 }
-                CallInstance::Instantiated(params, ret) => {
-                    Some(sig.clone().set_params(params).set_return_type(ret))
-                }
+                CallInstance::Instantiated(params, ret) => Some(sig.clone().set_params(params).set_return_type(ret)),
             }
         })
         .collect();
@@ -1508,7 +1508,9 @@ fn generic_refinement_obligations(
     for (i, (arg, param)) in types.iter().zip(sig.get_param_types().iter()).enumerate() {
         // not reduced: the signature is already substituted (`N ↦ 0`), and reducing
         // `[0, char] & length(> 0)` would collapse it to an error
-        let Some((base, want)) = declared_refinements(param) else { continue };
+        let Some((base, want)) = declared_refinements(param) else {
+            continue;
+        };
         let have = arg.reduce(context).refinements_of();
         if have.implies(&want) {
             continue;

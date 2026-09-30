@@ -473,7 +473,12 @@ pub fn start() {
             _ => check_project(),
         },
         Some(Commands::Graph {
-            graph_command: Some(GraphCommands::Diff { old_file, new_file, format }),
+            graph_command:
+                Some(GraphCommands::Diff {
+                    old_file,
+                    new_file,
+                    format,
+                }),
             ..
         }) => crate::graph::graph_diff(&old_file, &new_file, &format),
         Some(Commands::Graph {

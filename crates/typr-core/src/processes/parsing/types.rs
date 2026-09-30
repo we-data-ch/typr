@@ -226,9 +226,7 @@ fn named_array_type_full(s: Span) -> IResult<Span, Type> {
         .parse(s);
 
     match res {
-        Ok((s, (start, num, _, typ, _))) => {
-            Ok((s, Type::vec(VecType::Array, num, typ, start.into())))
-        }
+        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::vec(VecType::Array, num, typ, start.into()))),
         Err(r) => Err(r),
     }
 }
@@ -265,10 +263,7 @@ fn vector_type_full(s: Span) -> IResult<Span, Type> {
         .parse(s);
 
     match res {
-        Ok((s, (start, num, _, typ, _))) => Ok((
-            s,
-            Type::vec(VecType::Vector, num, typ, start.into()),
-        )),
+        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::vec(VecType::Vector, num, typ, start.into()))),
         Err(r) => Err(r),
     }
 }
@@ -605,9 +600,12 @@ fn bound_suffix(s: Span) -> IResult<Span, String> {
             // One capital letter, not followed by more identifier characters:
             // `@Self` or `@Abc` must fail rather than lose `elf` / `bc`.
             map(
-                terminated(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), not(one_of(
-                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_",
-                ))),
+                terminated(
+                    one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+                    not(one_of(
+                        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_",
+                    )),
+                ),
                 |c| c.to_string(),
             ),
         )),
@@ -619,7 +617,8 @@ pub fn type_alias(s: Span) -> IResult<Span, Type> {
     let res = (pascal_case_no_space, opt(type_params), opt(bound_suffix), multispace0).parse(s);
     match res {
         Ok((rest, ((name, h), params, None, ws)))
-            if (!ws.fragment().is_empty() && bound_suffix(rest.clone()).is_ok()) || rest.fragment().starts_with('@') =>
+            if (!ws.fragment().is_empty() && bound_suffix(rest.clone()).is_ok())
+                || rest.fragment().starts_with('@') =>
         {
             // `Lovable @A` or `Lovable@Self`: a malformed suffix. Left alone, the priority
             // resolver would silently drop the stray `@...` type.
@@ -1049,7 +1048,10 @@ fn index_chain(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((rest, v)) => match compute_operators(&mut v.clone()) {
             Some(t) => Ok((rest, t)),
-            None => Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Verify))),
+            None => Err(nom::Err::Error(nom::error::Error::new(
+                s,
+                nom::error::ErrorKind::Verify,
+            ))),
         },
         Err(r) => Err(r),
     }
@@ -1233,7 +1235,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             unknown_function,
             bracket_tuple_record, // Tuple[...] / Record[...] — before type_alias
             composite_vec_type,
-            list_types, // tuple{}/record{}/list{} brace forms
+            list_types,          // tuple{}/record{}/list{} brace forms
             refinement_property, // length(n), (> c), (< c)
             parenthese_value,
             tag_type,
@@ -1297,14 +1299,19 @@ mod tests {
             let _ = crate::processes::parsing::take_parse_errors();
             let _ = ltype(src.into());
             let errors = crate::processes::parsing::take_parse_errors();
-            assert!(errors.iter().any(|e| matches!(e, SyntaxError::DetachedBoundSuffix(_))), "{src}");
+            assert!(
+                errors.iter().any(|e| matches!(e, SyntaxError::DetachedBoundSuffix(_))),
+                "{src}"
+            );
         }
     }
 
     #[test]
     fn test_bounded_suffix_nested() {
         let t = ltype("[3, Lovable@A]".into()).unwrap().1;
-        assert!(matches!(&t, Type::Vec(_, _, elem, _) if matches!(elem.as_ref(), Type::Bounded(id, _, _) if id == "A")));
+        assert!(
+            matches!(&t, Type::Vec(_, _, elem, _) if matches!(elem.as_ref(), Type::Bounded(id, _, _) if id == "A"))
+        );
         let t = ltype("tuple{Lovable@B, Lovable@A}".into()).unwrap().1;
         assert!(matches!(&t, Type::Tuple(v, _) if v.len() == 2 && v.iter().all(|e| matches!(e, Type::Bounded(..)))));
         let t = ltype("(Lovable@A) -> Lovable@A".into()).unwrap().1;
@@ -1321,7 +1328,10 @@ mod tests {
     #[test]
     fn test_bare_alias_and_sigil_unchanged() {
         assert!(matches!(ltype("Lovable".into()).unwrap().1, Type::Alias(..)));
-        assert!(matches!(ltype("@A".into()).unwrap().1, Type::KindedGen(Kind::Interface, ..)));
+        assert!(matches!(
+            ltype("@A".into()).unwrap().1,
+            Type::KindedGen(Kind::Interface, ..)
+        ));
     }
 
     #[test]
@@ -1339,10 +1349,22 @@ mod tests {
         assert!(matches!(ok("length( 5 )"), Type::Property(Refinement::Length(5), _)));
         assert!(matches!(ok("(> 0)"), Type::Property(Refinement::Gt(_), _)));
         assert!(matches!(ok("(< -2.5)"), Type::Property(Refinement::Lt(_), _)));
-        assert!(matches!(ok("(>= 0)"), Type::Property(Refinement::Range(Measure::Value, _), _)));
-        assert!(matches!(ok("(<= 9.5)"), Type::Property(Refinement::Range(Measure::Value, _), _)));
-        assert!(matches!(ok("length(> 0)"), Type::Property(Refinement::Range(Measure::Length, _), _)));
-        assert!(matches!(ok("length(<= 10)"), Type::Property(Refinement::Range(Measure::Length, _), _)));
+        assert!(matches!(
+            ok("(>= 0)"),
+            Type::Property(Refinement::Range(Measure::Value, _), _)
+        ));
+        assert!(matches!(
+            ok("(<= 9.5)"),
+            Type::Property(Refinement::Range(Measure::Value, _), _)
+        ));
+        assert!(matches!(
+            ok("length(> 0)"),
+            Type::Property(Refinement::Range(Measure::Length, _), _)
+        ));
+        assert!(matches!(
+            ok("length(<= 10)"),
+            Type::Property(Refinement::Range(Measure::Length, _), _)
+        ));
     }
 
     #[test]

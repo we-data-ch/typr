@@ -14,8 +14,8 @@ use crate::components::language::var::Var;
 use crate::components::language::var_function::VarFunction;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
-use crate::components::r#type::refinement::{RefinementObligation, RefinementSet};
 use crate::components::r#type::kind::Kind;
+use crate::components::r#type::refinement::{RefinementObligation, RefinementSet};
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::Type;
@@ -301,7 +301,9 @@ impl Context {
             .find(|o| o.file == file && o.start == start && o.end == end)
         {
             Some(o) => o.set = set,
-            None => self.refinement_obligations.push(RefinementObligation { file, start, end, set }),
+            None => self
+                .refinement_obligations
+                .push(RefinementObligation { file, start, end, set }),
         }
         self
     }

@@ -98,7 +98,9 @@ fn literal(l: &Lang) -> Option<f64> {
 fn subject(l: &Lang) -> Option<(String, Measure)> {
     match l {
         Lang::Variable { name, .. } => Some((name.clone(), Measure::Value)),
-        Lang::FunctionApp { identifier, arguments, .. } if arguments.len() == 1 => match (&**identifier, &arguments[0]) {
+        Lang::FunctionApp {
+            identifier, arguments, ..
+        } if arguments.len() == 1 => match (&**identifier, &arguments[0]) {
             (Lang::Variable { name: f, .. }, Lang::Variable { name, .. }) if f == "length" => {
                 Some((name.clone(), Measure::Length))
             }
@@ -114,17 +116,31 @@ fn facts(cond: &Lang, holds: bool, out: &mut Vec<Fact>) {
         // `(c)` parses as a one-expression scope.
         Lang::Scope { body, .. } if body.len() == 1 => facts(&body[0], holds, out),
         Lang::Not { value, .. } => facts(value, !holds, out),
-        Lang::Operator { operator: Op::And(_) | Op::And2(_), lhs, rhs, .. } if holds => {
+        Lang::Operator {
+            operator: Op::And(_) | Op::And2(_),
+            lhs,
+            rhs,
+            ..
+        } if holds => {
             facts(lhs, true, out);
             facts(rhs, true, out);
         }
-        Lang::Operator { operator: Op::Or(_) | Op::Or2(_), lhs, rhs, .. } if !holds => {
+        Lang::Operator {
+            operator: Op::Or(_) | Op::Or2(_),
+            lhs,
+            rhs,
+            ..
+        } if !holds => {
             facts(lhs, false, out);
             facts(rhs, false, out);
         }
         // `&&` / `||` reach the checker as a call to the operator's function.
-        Lang::FunctionApp { identifier, arguments, .. } if arguments.len() == 2 => {
-            let Lang::Variable { name, .. } = &**identifier else { return };
+        Lang::FunctionApp {
+            identifier, arguments, ..
+        } if arguments.len() == 2 => {
+            let Lang::Variable { name, .. } = &**identifier else {
+                return;
+            };
             let wanted = match name.trim_matches('`') {
                 "&&" | "&" if holds => true,
                 "||" | "|" if !holds => false,
@@ -134,7 +150,12 @@ fn facts(cond: &Lang, holds: bool, out: &mut Vec<Fact>) {
             facts(&arguments[1], wanted, out);
         }
         // `Lang::Operator` stores the *left* operand in `rhs`.
-        Lang::Operator { operator, lhs: right, rhs: left, .. } => {
+        Lang::Operator {
+            operator,
+            lhs: right,
+            rhs: left,
+            ..
+        } => {
             let Some(cmp) = Cmp::of(operator) else { return };
             let (lhs, rhs) = (left, right);
             let (subj, c, cmp) = match (subject(lhs), literal(rhs), literal(lhs), subject(rhs)) {
@@ -179,7 +200,10 @@ fn narrow_variable(context: Context, name: &str, facts: RefinementSet) -> Contex
     }
     let (var, declared) = entries.remove(0);
     let reduced = reduce_type(&context, &declared);
-    if !matches!(reduced.unrefined(), Type::Vec(..) | Type::Integer(..) | Type::Number(..)) {
+    if !matches!(
+        reduced.unrefined(),
+        Type::Vec(..) | Type::Integer(..) | Type::Number(..)
+    ) {
         return context;
     }
     let mut set = reduced.refinements_of().meet(&facts);
