@@ -142,6 +142,10 @@ pub enum Type {
     /// be folded into a `Refined` by `norm_intersection` and never survive
     /// `reduce_type`.
     Property(Refinement, HelpData),
+    /// `Lovable@A`: an implicit generic `A` bounded by an interface (RFC
+    /// `interface_generic_unification`). Appended last for the `.bin` layout.
+    /// Only meaningful in signatures; the id `_` is anonymous.
+    Bounded(String, Box<Type>, HelpData),
 }
 
 /// Structural fallback for interface-method-set comparison: for every
@@ -223,6 +227,10 @@ impl TypeSystem for Type {
     fn is_subtype_raw(&self, other: &Type, context: &Context) -> bool {
         match (self, other) {
             (Type::Empty(_), _) => true,
+            // Rigid variables (`Lovable@A` in a body) are distinct unknowns:
+            // `PartialEq` deems any two generics equal, which must not make
+            // `__rigid_0` a subtype of `__rigid_1`.
+            (Type::Generic(a, _), Type::Generic(b, _)) if is_rigid_name(a) && is_rigid_name(b) => a == b,
             (typ1, typ2) if typ1 == typ2 => true,
             // Refined types (plan §Phase 4). Only `Proven` answers `true`: an
             // unproven refinement is never assumed, the boundary check of
@@ -914,6 +922,7 @@ impl Type {
             Type::LabelGen(_, _) => TypeCategory::Generic,
             Type::IndexGen(_, _) => TypeCategory::GenericKinded(GKind::Number),
             Type::KindedGen(k, _, _) => TypeCategory::GenericKinded(GKind::from_kind(*k)),
+            Type::Bounded(_, bound, _) => bound.to_category(),
             Type::Integer(_, _) => TypeCategory::Integer,
             Type::Alias(_, _, false, _) => TypeCategory::Alias,
             Type::Alias(name, _, _, _) => TypeCategory::Opaque(name.clone()),
@@ -996,6 +1005,7 @@ impl Type {
             Type::Null(h) => h.clone(),
             Type::NA(h) => h.clone(),
             Type::KindedGen(_, _, h) => h.clone(),
+            Type::Bounded(_, _, h) => h.clone(),
             Type::Refined(_, _, h) => h.clone(),
             Type::Property(_, h) => h.clone(),
         }
@@ -1034,6 +1044,7 @@ impl Type {
             Type::Null(_) => Type::Null(h2),
             Type::NA(_) => Type::NA(h2),
             Type::KindedGen(k, a, _) => Type::KindedGen(k, a, h2),
+            Type::Bounded(id, b, _) => Type::Bounded(id, b, h2),
             Type::Refined(b, r, _) => Type::Refined(b, r, h2),
             Type::Property(p, _) => Type::Property(p, h2),
         }
@@ -1368,6 +1379,7 @@ impl PartialEq for Type {
             (Type::Module(a1, _, _), Type::Module(a2, _, _)) => a1 == a2,
             (Type::Refined(b1, r1, _), Type::Refined(b2, r2, _)) => b1 == b2 && r1 == r2,
             (Type::Property(p1, _), Type::Property(p2, _)) => p1 == p2,
+            (Type::Bounded(i1, b1, _), Type::Bounded(i2, b2, _)) => i1 == i2 && b1 == b2,
             _ => false,
         }
     }
@@ -1481,6 +1493,12 @@ impl Hash for Type {
             }
             Type::Char(_, _) => 3.hash(state),
             Type::Function(_, _, _) => 5.hash(state),
+            // Rigid names take part in the hash (though `PartialEq` ignores them) so
+            // the subtype cache keeps `(r0, r1)` apart from `(r0, r0)`.
+            Type::Generic(name, _) if is_rigid_name(name) => {
+                6.hash(state);
+                name.hash(state);
+            }
             Type::Generic(_, _) => 6.hash(state),
             Type::IndexGen(_, _) => 7.hash(state),
             Type::LabelGen(_, _) => 8.hash(state),
@@ -1518,6 +1536,11 @@ impl Hash for Type {
             Type::Property(p, _) => {
                 44.hash(state);
                 p.hash(state);
+            }
+            Type::Bounded(id, bound, _) => {
+                45.hash(state);
+                id.hash(state);
+                bound.hash(state);
             }
         }
     }
@@ -1866,4 +1889,9 @@ mod tests {
         assert!(big.is_subtype(&pos, &ctx).0, "(> 5) implies (> 0)");
         assert!(!pos.is_subtype(&big, &ctx).0, "(> 0) does not imply (> 5)");
     }
+}
+
+/// Name prefix given by `Context::fresh_rigid_name`.
+pub(crate) fn is_rigid_name(name: &str) -> bool {
+    name.starts_with("__rigid_")
 }

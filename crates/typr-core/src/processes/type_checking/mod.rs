@@ -15,6 +15,7 @@ pub mod narrowing;
 pub mod partial_application;
 pub mod refinement_check;
 pub mod signature_expression;
+pub mod signature_normalization;
 pub mod type_arithmetic;
 pub mod type_checker;
 pub mod type_comparison;

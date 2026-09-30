@@ -28,12 +28,14 @@ use nom::character::complete::multispace0;
 use nom::character::complete::multispace1;
 use nom::character::complete::none_of;
 use nom::character::complete::one_of;
+use nom::combinator::map;
 use nom::combinator::not;
 use nom::combinator::opt;
 use nom::combinator::recognize;
 use nom::multi::many0;
 use nom::multi::many1;
 use nom::sequence::delimited;
+use nom::sequence::preceded;
 use nom::sequence::terminated;
 use nom::IResult;
 use nom::Parser;
@@ -593,11 +595,44 @@ pub fn pascal_case_no_space(s: Span) -> IResult<Span, (String, HelpData)> {
     }
 }
 
+/// The `@Id` suffix of `Lovable@A`: an implicit generic `A` bounded by `Lovable`.
+/// It must touch the alias name (no space), and `@_` is the anonymous id.
+fn bound_suffix(s: Span) -> IResult<Span, String> {
+    preceded(
+        tag("@"),
+        alt((
+            map(tag("_"), |_| "_".to_string()),
+            // One capital letter, not followed by more identifier characters:
+            // `@Self` or `@Abc` must fail rather than lose `elf` / `bc`.
+            map(
+                terminated(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), not(one_of(
+                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_",
+                ))),
+                |c| c.to_string(),
+            ),
+        )),
+    )
+    .parse(s)
+}
+
 pub fn type_alias(s: Span) -> IResult<Span, Type> {
-    let res = (pascal_case_no_space, terminated(opt(type_params), multispace0)).parse(s);
+    let res = (pascal_case_no_space, opt(type_params), opt(bound_suffix), multispace0).parse(s);
     match res {
-        Ok((s, ((name, h), Some(v)))) => Ok((s, Type::Alias(name, v.clone(), false, h))),
-        Ok((s, ((name, h), None))) => Ok((s, Type::Alias(name, vec![], false, h))),
+        Ok((rest, ((name, h), params, None, ws)))
+            if (!ws.fragment().is_empty() && bound_suffix(rest.clone()).is_ok()) || rest.fragment().starts_with('@') =>
+        {
+            // `Lovable @A` or `Lovable@Self`: a malformed suffix. Left alone, the priority
+            // resolver would silently drop the stray `@...` type.
+            push_parse_error(SyntaxError::DetachedBoundSuffix(rest.clone().into()));
+            Ok((rest, Type::Alias(name, params.unwrap_or_default(), false, h)))
+        }
+        Ok((s, ((name, h), params, bound, _))) => {
+            let alias = Type::Alias(name, params.unwrap_or_default(), false, h.clone());
+            match bound {
+                Some(id) => Ok((s, Type::Bounded(id, Box::new(alias), h))),
+                None => Ok((s, alias)),
+            }
+        }
         Err(r) => Err(r),
     }
 }
@@ -1233,6 +1268,69 @@ mod tests {
     use crate::components::r#type::type_category::TypeCategory;
     use crate::components::r#type::type_system::TypeSystem;
     use crate::utils::builder;
+
+    fn bounded(src: &str) -> (String, String) {
+        match ltype(src.into()).unwrap().1 {
+            Type::Bounded(id, bound, _) => (id, bound.pretty()),
+            other => panic!("expected Bounded, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_bounded_suffix_parses() {
+        assert_eq!(bounded("Lovable@A"), ("A".to_string(), "Lovable".to_string()));
+        assert_eq!(bounded("Lovable@_"), ("_".to_string(), "Lovable".to_string()));
+        assert_eq!(bounded("Eq@T"), ("T".to_string(), "Eq".to_string()));
+    }
+
+    #[test]
+    fn test_bounded_suffix_rejects_long_ids() {
+        // `@Self` / `@Abc` must not parse as `@S` / `@A` with the tail swallowed.
+        assert!(bound_suffix("@Self".into()).is_err());
+        assert!(bound_suffix("@Abc".into()).is_err());
+        assert!(bound_suffix("@A".into()).is_ok());
+    }
+
+    #[test]
+    fn test_malformed_bound_suffix_is_an_error() {
+        for src in ["Lovable@Self", "Lovable@Abc"] {
+            let _ = crate::processes::parsing::take_parse_errors();
+            let _ = ltype(src.into());
+            let errors = crate::processes::parsing::take_parse_errors();
+            assert!(errors.iter().any(|e| matches!(e, SyntaxError::DetachedBoundSuffix(_))), "{src}");
+        }
+    }
+
+    #[test]
+    fn test_bounded_suffix_nested() {
+        let t = ltype("[3, Lovable@A]".into()).unwrap().1;
+        assert!(matches!(&t, Type::Vec(_, _, elem, _) if matches!(elem.as_ref(), Type::Bounded(id, _, _) if id == "A")));
+        let t = ltype("tuple{Lovable@B, Lovable@A}".into()).unwrap().1;
+        assert!(matches!(&t, Type::Tuple(v, _) if v.len() == 2 && v.iter().all(|e| matches!(e, Type::Bounded(..)))));
+        let t = ltype("(Lovable@A) -> Lovable@A".into()).unwrap().1;
+        assert!(matches!(&t, Type::Function(args, ret, _)
+            if matches!(&args[0].get_type(), Type::Bounded(..)) && matches!(ret.as_ref(), Type::Bounded(..))));
+    }
+
+    #[test]
+    fn test_bounded_suffix_prints_back() {
+        let t = ltype("Lovable@A".into()).unwrap().1;
+        assert_eq!(t.pretty(), "Lovable@A");
+    }
+
+    #[test]
+    fn test_bare_alias_and_sigil_unchanged() {
+        assert!(matches!(ltype("Lovable".into()).unwrap().1, Type::Alias(..)));
+        assert!(matches!(ltype("@A".into()).unwrap().1, Type::KindedGen(Kind::Interface, ..)));
+    }
+
+    #[test]
+    fn test_detached_bound_suffix_is_an_error() {
+        let _ = crate::processes::parsing::take_parse_errors();
+        let _ = ltype("Lovable @A".into());
+        let errors = crate::processes::parsing::take_parse_errors();
+        assert!(errors.iter().any(|e| matches!(e, SyntaxError::DetachedBoundSuffix(_))));
+    }
 
     #[test]
     fn test_refinement_property_parses() {

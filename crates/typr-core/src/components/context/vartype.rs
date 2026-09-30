@@ -390,6 +390,8 @@ impl VarType {
 
     pub fn get_class(&self, t: &Type) -> String {
         let res = match t {
+            // `Lovable@A` is transpiled as its bound; the id is type-checker only.
+            Type::Bounded(_, bound, _) => return self.get_class(bound),
             Type::Integer(_, _) => "integer".to_string(),
             Type::Char(_, _) => "character".to_string(),
             Type::Boolean(_, _) => "logical".to_string(),
@@ -495,6 +497,8 @@ impl VarType {
 
     pub fn get_type_anotation(&self, t: &Type) -> String {
         let res = match t {
+            // `Lovable@A` is transpiled as its bound; the id is type-checker only.
+            Type::Bounded(_, bound, _) => return self.get_type_anotation(bound),
             Type::Boolean(_, _) => "as.Boolean".to_string(),
             Type::Integer(_, _) => "as.Integer".to_string(),
             Type::Number(_, _) => "as.Number".to_string(),
@@ -532,7 +536,10 @@ impl VarType {
             // function that was never defined, an R runtime "could not find
             // function as.FunctionN" error at the very first typed generic
             // function declared at project top level.
-            _ if t.has_generic() => "as.Generic".to_string(),
+            // An `I@Id` is a generic variable too, but `extract_generics` does not report it.
+            _ if t.has_generic() || crate::processes::type_checking::signature_normalization::has_bounded(t) => {
+                "as.Generic".to_string()
+            }
             _ => self
                 .aliases
                 .iter()
@@ -545,6 +552,8 @@ impl VarType {
 
     pub fn get_type_anotation_no_parentheses(&self, t: &Type) -> String {
         match t {
+            // `Lovable@A` is transpiled as its bound; the id is type-checker only.
+            Type::Bounded(_, bound, _) => return self.get_type_anotation_no_parentheses(bound),
             Type::Boolean(_, _) => "logical".to_string(),
             Type::Integer(_, _) => "integer".to_string(),
             Type::Number(_, _) => "number".to_string(),
@@ -561,6 +570,8 @@ impl VarType {
 
     pub fn get_class_unquoted(&self, t: &Type) -> String {
         match t {
+            // `Lovable@A` is transpiled as its bound; the id is type-checker only.
+            Type::Bounded(_, bound, _) => return self.get_class_unquoted(bound),
             Type::Integer(_, _) => "integer".to_string(),
             Type::Char(_, _) => "character".to_string(),
             Type::Boolean(_, _) => "logical".to_string(),

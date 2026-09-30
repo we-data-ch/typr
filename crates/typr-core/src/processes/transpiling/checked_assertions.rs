@@ -64,6 +64,9 @@ fn checked_descriptor(context: &Context, typ: &Type) -> Option<String> {
         Type::Char(_, _) => Some("\"character\"".to_string()),
         Type::Boolean(_, _) => Some("\"logical\"".to_string()),
         Type::Function(_, _, _) => Some("\"function\"".to_string()),
+        // `Lovable@A` asserts like its bound `Lovable`: the id only matters
+        // to the type checker, never to the runtime value.
+        Type::Bounded(_, bound, _) => checked_descriptor(context, bound),
         Type::Any(_)
         | Type::Generic(_, _)
         | Type::IndexGen(_, _)

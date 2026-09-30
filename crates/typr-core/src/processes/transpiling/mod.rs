@@ -1283,6 +1283,11 @@ impl RTranslatable<(String, Context)> for Lang {
                             .map(|v| v.get_type())
                             .filter(|t| !matches!(t, Type::Empty(_) | Type::UnknownFunction(_)))
                             .unwrap_or_else(|| typing(cont, expr).value);
+                        // `Lovable@A` dispatches as its bound `Lovable`.
+                        let related_type = match related_type {
+                            Type::Bounded(_, bound, _) => *bound,
+                            other => other,
+                        };
                         let method = match cont.get_environment() {
                             Environment::Project => format!(
                                 "#' @method {}\n",
@@ -2907,6 +2912,25 @@ mod tests {
             r.contains("`double_up.default` <- `double_up.Incrementable`"),
             "expected .default fallback alias, got: {r}"
         );
+    }
+
+    #[test]
+    fn test_bounded_id_does_not_change_generated_r() {
+        // `Lovable@A` is a type-checker-only id: the generated R (S3 method
+        // suffix, `.default` fallback, return cast) must match the bare form.
+        let header = [
+            "type Lovable <- interface { love: (Self) -> int };",
+            "type Cat <- list { name: char };",
+            "let love <- fn(c: Cat): int { 1 };",
+        ];
+        let with = |def: &'static str| {
+            let mut p = header.to_vec();
+            p.push(def);
+            transpile_program(&p)
+        };
+        let bare = with("let idf <- fn(a: Lovable): Lovable { a };");
+        let ided = with("let idf <- fn(a: Lovable@A): Lovable@A { a };");
+        assert_eq!(bare, ided, "@A must not leak into the generated R");
     }
 
     #[test]

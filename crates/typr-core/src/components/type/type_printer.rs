@@ -114,6 +114,7 @@ pub fn format(ty: &Type) -> String {
         Type::IndexGen(i, _) => format!("#{}", i),
         Type::LabelGen(l, _) => format!("${}", l),
         Type::KindedGen(k, name, _) => format!("{}{}", k, name),
+        Type::Bounded(id, bound, _) => format!("{}@{}", format(bound), id),
         Type::Tuple(elements, _) => {
             let body = elements.iter().map(format).collect::<Vec<_>>().join(", ");
             format!("tuple{{{}}}", body)
@@ -188,6 +189,7 @@ pub fn verbose(t: &Type) -> String {
         }
         Type::IndexGen(idgen, _) => format!("#{}", idgen),
         Type::KindedGen(k, name, _) => format!("{}{}", k, name),
+        Type::Bounded(id, bound, _) => format!("{}@{}", format(bound), id),
         Type::Vec(vtype, length, t, h) => {
             match length.range_property() {
                 Some(prop) => format!("{}[{}] & {}", vtype, t.pretty2(), prop),

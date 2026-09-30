@@ -9,6 +9,7 @@ use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::facets;
+use crate::processes::type_checking::signature_normalization::{self, CallInstance};
 use crate::processes::type_checking::interface_satisfaction;
 use crate::processes::type_checking::match_types_to_generic;
 use crate::processes::type_checking::type_comparison::reduce_type;
@@ -1296,7 +1297,32 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
     let (expanded_parameters, types, param_errors, arg_context) =
         get_expanded_parameters_with_their_types(context, parameters);
     let context = &arg_context;
-    let all_signatures = var.get_functions_from_name(context);
+    let declared_signatures = var.get_functions_from_name(context);
+    // `I@Id` variables (and repeated bare interfaces) are bound against the
+    // arguments up front; the regular filters then see concrete signatures.
+    let mut id_clashes: Vec<signature_normalization::IdClash> = Vec::new();
+    let all_signatures: Vec<FunctionType> = declared_signatures
+        .iter()
+        .filter_map(|sig| {
+            match signature_normalization::instantiate_at_call(
+                context,
+                &sig.get_param_types(),
+                &sig.get_return_type(),
+                sig.is_variadic(),
+                &types,
+            ) {
+                CallInstance::NotBounded => Some(sig.clone()),
+                CallInstance::Rejected => None,
+                CallInstance::Clash(clash) => {
+                    id_clashes.push(clash);
+                    None
+                }
+                CallInstance::Instantiated(params, ret) => {
+                    Some(sig.clone().set_params(params).set_return_type(ret))
+                }
+            }
+        })
+        .collect();
 
     let filters: &[FilterStep] = &[
         FilterStep {
@@ -1393,7 +1419,7 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
     // empty) may mean it's declared in an in-scope module but never `use`d —
     // same idea as `VariableNotImported` for a bare variable reference, just
     // reached through function-call resolution instead of `Lang::Variable`.
-    let not_imported = all_signatures
+    let not_imported = declared_signatures
         .is_empty()
         .then(|| context.find_variable_source_module(&var.get_name()))
         .flatten();
@@ -1411,21 +1437,33 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
         // `Lang::RFunction`'s typing rule) gets its own arity message instead
         // of `NoMatchingSignature`, which would otherwise print the callee's
         // own `Any` signature back at the caller as if it were informative.
-        None if all_signatures.len() == 1 && all_signatures[0].is_r_function() => {
+        None if declared_signatures.len() == 1 && declared_signatures[0].is_r_function() => {
             errors.push(TypRError::Type(TypeError::UntypedFunctionArity(
                 var.get_name(),
-                all_signatures[0].get_param_types().len(),
+                declared_signatures[0].get_param_types().len(),
                 types.len(),
                 h.clone(),
             )));
         }
-        None if !all_signatures.is_empty() => {
+        // Every signature was turned down for the same reason: one `@Id`
+        // bound to two argument types. Say which, instead of listing signatures.
+        None if !id_clashes.is_empty() && id_clashes.len() == declared_signatures.len() => {
+            let c = &id_clashes[0];
+            errors.push(TypRError::Type(TypeError::IdBoundToTwoTypes(
+                c.id.clone(),
+                c.first_type.pretty(),
+                expanded_parameters[c.first_arg].get_help_data(),
+                c.second_type.pretty(),
+                expanded_parameters[c.second_arg].get_help_data(),
+            )));
+        }
+        None if !declared_signatures.is_empty() => {
             // The name IS bound to function signature(s) — the call just
             // doesn't match any of them (wrong arity or argument types).
             // Reporting `FunctionNotFound` here reads as "the variable
             // doesn't exist", which is wrong and misleading (e.g. `f()` on
             // a 1-parameter lambda looked like lambda-lets were unsupported).
-            let signatures = all_signatures
+            let signatures = declared_signatures
                 .iter()
                 .map(|sig| {
                     format!(

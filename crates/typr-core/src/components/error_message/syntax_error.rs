@@ -45,6 +45,9 @@ pub enum SyntaxError {
         found: usize,
         help_data: HelpData,
     },
+    /// `Lovable @A` / `Lovable@Self`: the `@Id` bound suffix must be one capital
+    /// letter touching the interface name.
+    DetachedBoundSuffix(HelpData),
     WithNode(Box<Lang>, Box<SyntaxError>),
 }
 
@@ -69,6 +72,7 @@ impl SyntaxError {
             SyntaxError::WrongCommentSyntax(h) => Some(h.clone()),
             SyntaxError::SingleEqualsComparison(h) => Some(h.clone()),
             SyntaxError::TupleDestructureArityMismatch { help_data, .. } => Some(help_data.clone()),
+            SyntaxError::DetachedBoundSuffix(h) => Some(h.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
     }
@@ -97,6 +101,7 @@ impl SyntaxError {
             SyntaxError::WrongCommentSyntax(..) => "S015",
             SyntaxError::SingleEqualsComparison(..) => "S016",
             SyntaxError::TupleDestructureArityMismatch { .. } => "S017",
+            SyntaxError::DetachedBoundSuffix(..) => "S018",
             SyntaxError::WithNode(_, inner) => inner.code(),
         }
     }
@@ -161,6 +166,9 @@ impl SyntaxError {
             }
             SyntaxError::TupleDestructureArityMismatch { expected, found, .. } => {
                 format!("Tuple destructuring expects {expected} element(s), but the source tuple has {found}")
+            }
+            SyntaxError::DetachedBoundSuffix(_) => {
+                "The `@Id` suffix must be a single capital letter touching the interface name: write `Lovable@A`, not `Lovable @A` or `Lovable@Self`".to_string()
             }
             SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
@@ -367,6 +375,16 @@ impl ErrorMsg for SyntaxError {
                             expected - found
                         )
                     })
+                    .build()
+            }
+            SyntaxError::DetachedBoundSuffix(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), 1))
+                    .text("Malformed `@Id` suffix")
+                    .pos_text("Expected `@` + one capital letter, right after the name")
+                    .help("Write `Lovable@A` (no space, one-letter id)")
                     .build()
             }
             SyntaxError::WithNode(_, inner) => return inner.display(),

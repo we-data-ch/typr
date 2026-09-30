@@ -795,6 +795,10 @@ impl Context {
     }
 
     pub fn get_class(&self, t: &Type) -> String {
+        // `Lovable@A` dispatches and casts as its bound; the id is type-checker only.
+        if let Type::Bounded(_, bound, _) = t {
+            return self.get_class(bound);
+        }
         // For a named alias whose underlying type is a record or array, return the alias
         // name directly. push_types may have also registered the same underlying type with
         // an auto-generated "Record0"/"Array0" name; searching aliases by type value would
@@ -816,6 +820,10 @@ impl Context {
     }
 
     pub fn get_class_unquoted(&self, t: &Type) -> String {
+        // `Lovable@A` dispatches and casts as its bound; the id is type-checker only.
+        if let Type::Bounded(_, bound, _) = t {
+            return self.get_class_unquoted(bound);
+        }
         // Same rationale as get_class: bypass the record/array alias search for named aliases.
         if let Type::Alias(name, _, false, _) = t {
             if let Some((_, underlying)) = self.aliases().find(|(v, _)| v.get_name() == *name) {
