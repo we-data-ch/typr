@@ -17,7 +17,8 @@ par-dessus, pas de refaire ce qui marche.
 | 0a — cibles musl dans la matrice | **fait** |
 | 0b — `+crt-static` sur `*-msvc` | **fait** (liaison vérifiée en CI, pas en local) |
 | 0c — binaire musl dans Rocky 9 / Debian 12 / Alpine | **fait** |
-| 1 → 7 | à faire |
+| 1 — scripts d'installation + hébergement + CI | **fait** (voir ci-dessous) |
+| 2 → 7 | à faire |
 
 ### Ce que le lot 0 a changé
 
@@ -75,6 +76,53 @@ La liaison `+crt-static` sur `x86_64-pc-windows-msvc` reste **non vérifiée
 localement** : ni le linker MSVC ni le SDK ne sont disponibles ici. `rustc`
 accepte le flag pour les deux cibles `*-msvc` (vérifié jusqu'à l'émission des
 métadonnées), et le garde-fou `dumpbin` tranchera à la prochaine release.
+
+### Ce que le lot 1 a livré
+
+Sept fichiers sous `install/`, tous du texte, aucun binaire.
+
+| Fichier | Contenu |
+|---|---|
+| `install/install.sh` | `sh` POSIX : musl par défaut, GNU sur `--gnu`, SHA-256, stable/beta |
+| `install/install.ps1` | PowerShell 5.1 et 7 : `.zip`, SHA-256, PATH par registre |
+| `install/README.md` | usage, options, codes de sortie, dépannage |
+| `install/tests/run-tests.sh` | 59 assertions contre un serveur de fixtures |
+| `install/tests/run-tests.ps1` | 49 assertions, plus PSScriptAnalyzer |
+| `install/tests/fixture-server.py` | `/releases/latest`, `releases.atom`, archives, `checksums.txt` |
+| `install/tests/Dockerfile` | image PowerShell 7.4 + PSScriptAnalyzer + shellcheck |
+
+Trois jobs de CI : `install` (shellcheck, `dash -n`, les deux suites),
+`install-windows` (le script sous Windows PowerShell 5.1 réel), et
+`install-hosting` (copie vers `typr.github.io/static/install/`).
+
+**59 + 49 assertions passent** ; shellcheck est propre sur les deux scripts
+shell. Le vrai test d'installation a réussi en local :
+`TYPR_INSTALL_DIR=$(mktemp -d) ./install/install.sh --gnu --version v0.5.12`
+puis `typr-cli 0.5.12`.
+
+Cinq défauts réels sont sortis des tests, tous invisibles à la lecture :
+
+- `Try-Save-File` rendait `$null` — donc falsy — sur un téléchargement réussi,
+  parce qu'une fonction PowerShell renvoie ce que son `try` a émis, et un
+  succès n'émet rien. Chaque installation Windows échouait.
+- `$input` est une variable automatique PowerShell. Y écrire pouvait faire lire
+  un `$null` à `CopyTo` et rendre le téléchargement silencieusement infructueux.
+- Le fichier n'avait pas de BOM UTF-8. PowerShell 5.1 lit un `.ps1` sans BOM
+  en ANSI avec la page de code de la machine : sur un Windows français ou
+  allemand, chaque accent de ce fichier devenait illisible. Le BOM est
+  maintenant testé explicitement, sinon un reformatage l'effacerait en silence.
+- Une ligne `checksums.txt` au SHA malformé était signalée « aucune ligne pour
+  cette archive » au lieu de « ligne malformée ». Deux diagnostics très
+  différents — release mal publiée contre fichier corrompu — se confondaient.
+  `install.sh` et `install.ps1` nomment désormais la même cause.
+- Le harnais de test perdait les codes de retour : `& script.ps1` ne propage
+  pas le `exit` du script appelé au processus. Le refus d'un tag illisible (2)
+  était indiscernable d'un refus d'environnement (1).
+
+Deux points restent **non vérifiés localement**, et la CI les couvre sans
+prétendre le contraire : la liaison `+crt-static` (ci-dessus) et le démarrage
+d'un binaire Windows réel — le runner n'a pas de VC++ Redistributable, et la
+fixture n'est de toute façon pas un exécutable Windows.
 
 ---
 
