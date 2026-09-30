@@ -1,0 +1,10 @@
+type Lovable <- interface { love: (Self) -> int };
+type Cat <- list { name: char };
+type Dog <- list { name: char, age: int };
+let love <- fn(c: Cat): int { 1 };
+let love <- fn(d: Dog): int { 2 };
+let cat <- Cat:{ name = "tom" };
+let dog <- Dog:{ name = "rex", age = 3 };
+type Same <- interface { same: (Self, Self) -> bool };
+let same <- fn(a: Cat, b: Cat): bool { true };
+let f <- fn(a: Same@A, b: Same@B): bool { a.same(b) };

@@ -1,0 +1,3 @@
+[[rule]]
+file = "@run"
+must_contain = "Type errors found"

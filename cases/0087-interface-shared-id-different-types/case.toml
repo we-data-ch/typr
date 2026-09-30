@@ -1,0 +1,7 @@
+title = "two parameters sharing the identifier X must receive the same type"
+cmd = "check"
+layer = "type"
+status = "open"
+created = "2026-09-30"
+origin = "perso"
+checked = false

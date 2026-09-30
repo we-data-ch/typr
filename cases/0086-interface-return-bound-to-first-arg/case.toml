@@ -1,0 +1,7 @@
+title = "a return typed Lovable@B is bound to the first argument, not to B"
+cmd = "check"
+layer = "type"
+status = "open"
+created = "2026-09-30"
+origin = "perso"
+checked = false
