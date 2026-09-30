@@ -1,3 +1,4 @@
+use crate::utils::builder;
 use crate::components::context::Context;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_operator::TypeOperator;
@@ -117,10 +118,10 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
         }
 
         // Array type substitution
-        Type::Vec(vtype, size, element_type, h) => Type::Vec(
+        Type::Vec(vtype, _, element_type, h) => Type::vec(
             vtype.clone(),
-            Box::new(type_substitution(size, substitutions)),
-            Box::new(type_substitution(element_type, substitutions)),
+            type_substitution(&type_.vec_length().unwrap_or_else(builder::any_type), substitutions),
+            type_substitution(element_type, substitutions),
             h.clone(),
         ),
 
@@ -199,7 +200,9 @@ fn type_contains_generic(typ: &Type, name: &str) -> bool {
         Type::Function(params, ret, _) => {
             params.iter().any(|p| type_contains_generic(&p.get_type(), name)) || type_contains_generic(ret, name)
         }
-        Type::Vec(_, size, elem, _) => type_contains_generic(size, name) || type_contains_generic(elem, name),
+        Type::Vec(_, _, elem, _) => {
+            typ.vec_length().is_some_and(|size| type_contains_generic(&size, name)) || type_contains_generic(elem, name)
+        }
         Type::Record(fields, _) => fields.iter().any(|f| type_contains_generic(&f.get_type(), name)),
         Type::Alias(_, params, _, _) => params.iter().any(|p| type_contains_generic(p, name)),
         Type::Tag(_, inner, _) => type_contains_generic(inner, name),
@@ -325,8 +328,10 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Option<Vec
         (Type::Refined(b1, _, _), Type::Refined(b2, _, _)) => unification_helper(values, b1, b2),
         (Type::Refined(b, _, _), t) | (t, Type::Refined(b, _, _)) => unification_helper(values, b, t),
 
-        (Type::Vec(_, size1, elem1, _), Type::Vec(_, size2, elem2, _)) => {
-            let mut combined = unification_helper(values, size1, size2)?;
+        (Type::Vec(_, _, elem1, _), Type::Vec(_, _, elem2, _)) => {
+            let size1 = type1.vec_length()?;
+            let size2 = type2.vec_length()?;
+            let mut combined = unification_helper(values, &size1, &size2)?;
             let elem_matches = unification_helper(values, elem1, elem2)?;
             if !merge_substitutions(&mut combined, elem_matches) {
                 return None;

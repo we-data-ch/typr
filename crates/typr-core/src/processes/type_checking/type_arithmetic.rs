@@ -246,7 +246,8 @@ pub(crate) fn apply_refinements(base: Type, set: RefinementSet, h: HelpData) -> 
     let full = Interval::full();
     match &base {
         Type::Empty(_) => base,
-        Type::Vec(kind, index, elem, vh) => {
+        Type::Vec(_, _, _, vh) => {
+            let index = base.vec_length().unwrap_or_else(|| Type::Any(vh.clone()));
             if set.get(Measure::Value).is_some() {
                 return invalid(Measure::Value);
             }
@@ -254,13 +255,8 @@ pub(crate) fn apply_refinements(base: Type, set: RefinementSet, h: HelpData) -> 
                 return unsatisfiable("has no value");
             }
             let len = set.get(Measure::Length).and_then(|iv| iv.as_point());
-            match (len, &**index) {
-                (Some(n), Type::Any(_)) => Type::Vec(
-                    kind.clone(),
-                    Box::new(Type::Integer(Tint::Val(n as i32), vh.clone())),
-                    elem.clone(),
-                    vh.clone(),
-                ),
+            match (len, &index) {
+                (Some(n), Type::Any(_)) => base.with_vec_length(Type::Integer(Tint::Val(n as i32), vh.clone())),
                 (Some(n), Type::Integer(Tint::Val(m), _)) if n as i32 == *m => base.clone(),
                 (Some(n), Type::Integer(Tint::Val(m), _)) => {
                     unsatisfiable(&format!("contradicts its length {} (asked for {})", m, n))
@@ -397,8 +393,10 @@ fn collect_failed_types(typ: &Type, acc: &mut Vec<(String, HelpData)>) {
         Type::Record(fields, _) | Type::Interface(fields, _) => {
             fields.iter().for_each(|a| collect_failed_types(&a.get_type(), acc))
         }
-        Type::Vec(_, idx, body, _) => {
-            collect_failed_types(idx, acc);
+        Type::Vec(_, _, body, _) => {
+            if let Some(idx) = typ.vec_length() {
+                collect_failed_types(&idx, acc);
+            }
             collect_failed_types(body, acc);
         }
         Type::Tag(_, inner, _) | Type::Multi(inner, _) => collect_failed_types(inner, acc),
@@ -756,19 +754,19 @@ mod tests {
     fn length_range_on_vectors() {
         use crate::components::r#type::refinement::{Interval, Measure};
         let range = || prop(Refinement::Range(Measure::Length, Interval::greater_than(0.0)));
-        let unknown = Type::Vec(
+        let unknown = Type::vec(
             crate::components::r#type::vector_type::VecType::S3,
-            Box::new(Type::Any(HelpData::default())),
-            Box::new(builder::integer_type_default()),
+            Type::Any(HelpData::default()),
+            builder::integer_type_default(),
             HelpData::default(),
         );
         // unknown length: the range is kept as a property
         assert!(matches!(inter(unknown.clone(), range()), Type::Refined(..)));
         // known length: satisfied range is redundant, violated one is a contradiction
-        let sized = |n| Type::Vec(
+        let sized = |n| Type::vec(
             crate::components::r#type::vector_type::VecType::S3,
-            Box::new(builder::integer_type(n)),
-            Box::new(builder::integer_type_default()),
+            builder::integer_type(n),
+            builder::integer_type_default(),
             HelpData::default(),
         );
         assert_eq!(inter(sized(3), range()), sized(3));

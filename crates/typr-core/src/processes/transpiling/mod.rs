@@ -1771,7 +1771,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     // into a `data.frame` instead of a `list`, the class
                     // chain carries `"data.frame"`, and a concrete size
                     // index (`df[3]{...}`) additionally checks `nrow(x)`.
-                    Type::Vec(VecType::DataFrame, size, fields_type, _)
+                    Type::Vec(VecType::DataFrame, _, fields_type, _)
                         if matches!(fields_type.as_ref(), Type::Record(_, _)) =>
                     {
                         use crate::components::r#type::tint::Tint;
@@ -1832,7 +1832,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         // Row-count check: only emitted when the size index is
                         // a concrete literal (`df[3]{...}`); a generic (`#N`)
                         // or unconstrained (`df{...}`) size imposes no check.
-                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                        let size_check = if let Some(Type::Integer(Tint::Val(n), _)) = typ_for_dispatch.vec_length() {
                             format!(
                                 "  if (nrow(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected {n} rows, got \", nrow(x)))\n"
                             )
@@ -1851,7 +1851,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     // constructor delegates straight to the validator — plus
                     // an optional length check when the size index is a
                     // concrete literal.
-                    Type::Vec(VecType::Vector, size, elem_type, _) => {
+                    Type::Vec(VecType::Vector, _, elem_type, _) => {
                         use crate::components::r#type::tint::Tint;
                         let constructor = format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
                         let elem_check = record_field_class(elem_type.as_ref(), cont).map(|cls| {
@@ -1859,7 +1859,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "  if (!inherits(x, \"{cls}\")) stop(\"Validation failed for type {name}: expected vector of {cls}\")\n"
                             )
                         }).unwrap_or_default();
-                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                        let size_check = if let Some(Type::Integer(Tint::Val(n), _)) = typ_for_dispatch.vec_length() {
                             format!(
                                 "  if (length(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected length {n}, got \", length(x)))\n"
                             )
@@ -1886,7 +1886,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     // still appends the alias class (S3 dispatch for
                     // alias-typed parameters relies on it); `c()`/subsetting
                     // strip it, but TypR re-annotates from the static type.
-                    Type::Vec(VecType::S3, size, elem_type, _) | Type::Vec(VecType::Array, size, elem_type, _)
+                    Type::Vec(VecType::S3, _, elem_type, _) | Type::Vec(VecType::Array, _, elem_type, _)
                         if cont.atomic_array_elem(typ).is_some() =>
                     {
                         use crate::components::r#type::tint::Tint;
@@ -1909,7 +1909,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "  if (!is.numeric(x)) stop(\"Validation failed for type {name}: expected a numeric vector\")\n"
                             ),
                         };
-                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                        let size_check = if let Some(Type::Integer(Tint::Val(n), _)) = typ_for_dispatch.vec_length() {
                             format!(
                                 "  if (length(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected length {n}, got \", length(x)))\n"
                             )
@@ -1919,7 +1919,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         let validator = format!("validate_{name} <- function(x) {{\n{elem_check}{size_check}  x\n}}");
                         (format!("{constructor}\n{annotator}\n{validator}"), cont.clone())
                     }
-                    Type::Vec(VecType::S3, size, elem_type, _) | Type::Vec(VecType::Array, size, elem_type, _) => {
+                    Type::Vec(VecType::S3, _, elem_type, _) | Type::Vec(VecType::Array, _, elem_type, _) => {
                         use crate::components::r#type::tint::Tint;
                         let constructor = format!(
                             "{name} <- function(x) {{\n  if (!inherits(x, \"typed_vec\")) x <- typed_vec(x)\n  as.{name}(x)\n}}"
@@ -1933,7 +1933,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "  if (!all(vapply(x$data, inherits, logical(1), \"{cls}\"))) stop(\"Validation failed for type {name}: expected elements of class {cls}\")\n"
                             )
                         }).unwrap_or_default();
-                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                        let size_check = if let Some(Type::Integer(Tint::Val(n), _)) = typ_for_dispatch.vec_length() {
                             format!(
                                 "  if (length(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected length {n}, got \", length(x)))\n"
                             )

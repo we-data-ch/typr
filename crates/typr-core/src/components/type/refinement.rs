@@ -525,7 +525,7 @@ mod type_tests {
             Some(n) => int_lit(n),
             None => builder::integer_type_default(),
         };
-        Type::Vec(VecType::S3, Box::new(index), Box::new(builder::integer_type_default()), HelpData::default())
+        Type::vec(VecType::S3, index, builder::integer_type_default(), HelpData::default())
     }
 
     #[test]

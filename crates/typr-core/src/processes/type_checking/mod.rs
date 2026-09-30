@@ -745,8 +745,8 @@ fn get_gen_type(type1: &Type, type2: &Type) -> Option<Vec<(Type, Type)>> {
         (Type::Refined(b1, _, _), Type::Refined(b2, _, _)) => get_gen_type(b1, b2),
         (Type::Refined(b1, _, _), t2) => get_gen_type(b1, t2),
         (t1, Type::Refined(b2, _, _)) => get_gen_type(t1, b2),
-        (Type::Vec(_, ind1, typ1, _), Type::Vec(_, ind2, typ2, _)) => {
-            let gen1 = get_gen_type(ind1, ind2);
+        (Type::Vec(_, _, typ1, _), Type::Vec(_, _, typ2, _)) => {
+            let gen1 = get_gen_type(&type1.vec_length()?, &type2.vec_length()?);
             let gen2 = get_gen_type(typ1, typ2);
             match (gen1, gen2) {
                 (None, _) | (_, None) => None,
@@ -965,25 +965,20 @@ fn try_concat_vectors(types: &[Type], h: &HelpData) -> Option<Type> {
     let mut elem: Option<Type> = None;
     for t in types {
         match t {
-            Type::Vec(vt, idx, el, _) if vt.is_vector() || vt.is_array() => {
+            Type::Vec(vt, _, el, _) if vt.is_vector() || vt.is_array() => {
                 let el_gen = (**el).clone().generalize();
                 match &elem {
                     None => elem = Some(el_gen),
                     Some(e) if *e == el_gen => {}
                     _ => return None, // heterogeneous element types
                 }
-                indices.push((**idx).clone());
+                indices.extend(t.vec_length());
             }
             _ => return None,
         }
     }
     let elem = elem?;
-    Some(Type::Vec(
-        VecType::Vector,
-        Box::new(vec_index_sum(&indices, h)),
-        Box::new(elem),
-        h.clone(),
-    ))
+    Some(Type::vec(VecType::Vector, vec_index_sum(&indices, h), elem, h.clone()))
 }
 
 /// Rule 2 (records) — list concatenation: every argument is a record. Result is
@@ -1022,12 +1017,7 @@ fn try_homogeneous_scalars(types: &[Type], n: usize, h: &HelpData) -> Option<Typ
         return None;
     }
     let elem = types[0].clone().generalize();
-    Some(Type::Vec(
-        VecType::Vector,
-        Box::new(builder::integer_type(n as i32)),
-        Box::new(elem),
-        h.clone(),
-    ))
+    Some(Type::vec(VecType::Vector, builder::integer_type(n as i32), elem, h.clone()))
 }
 
 /// Type-check a `c(...)` expression (`Lang::Vector`) following the polymorphic
@@ -1043,12 +1033,7 @@ fn typing_vector(context: &Context, expr: &Lang, exprs: &[Lang], h: &HelpData) -
 
     let new_type = if types.is_empty() {
         // c() -> Vec[0, Any]
-        Type::Vec(
-            VecType::Vector,
-            Box::new(builder::integer_type(0)),
-            Box::default(),
-            h.clone(),
-        )
+        Type::vec(VecType::Vector, builder::integer_type(0), Type::default(), h.clone())
     } else if let Some(t) = try_concat_vectors(&types, h) {
         t
     } else if let Some(t) = try_concat_records(&types, h) {
@@ -1060,10 +1045,10 @@ fn typing_vector(context: &Context, expr: &Lang, exprs: &[Lang], h: &HelpData) -
     } else {
         // Rule 4 — no rule applies: incompatible arguments for c(...).
         errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
-        Type::Vec(
+        Type::vec(
             VecType::Vector,
-            Box::new(builder::integer_type(exprs.len() as i32)),
-            Box::default(),
+            builder::integer_type(exprs.len() as i32),
+            Type::default(),
             h.clone(),
         )
     };
@@ -1603,11 +1588,12 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             for (arg_val, tc) in fields.iter().zip(type_contexts.iter()) {
                 let name = arg_val.get_argument();
                 match &tc.value {
-                    Type::Vec(_, idx, _, _) => {
+                    col @ Type::Vec(..) => {
+                        let idx = col.vec_length().unwrap_or_else(builder::any_type);
                         if fields.first().map(|f| f.get_argument()) == Some(name.clone()) {
-                            index = (**idx).clone();
+                            index = idx.clone();
                         }
-                        if let Type::Integer(Tint::Val(len), _) = idx.as_ref() {
+                        if let Type::Integer(Tint::Val(len), _) = &idx {
                             match &known_length {
                                 None => known_length = Some((name.clone(), *len)),
                                 Some((first_name, first_len)) if first_len != len => {
@@ -1634,10 +1620,10 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             }
 
             TypeContext::new(
-                Type::Vec(
+                Type::vec(
                     VecType::DataFrame,
-                    Box::new(index),
-                    Box::new(Type::Record(field_types, h.clone())),
+                    index,
+                    Type::Record(field_types, h.clone()),
                     h.clone(),
                 ),
                 expr.clone(),
@@ -1719,20 +1705,21 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             // sub-vector, not an element (refined_types_plan.md, phase 7). The
             // result keeps the element type; its length is known only when the
             // index is a literal range (`a:b`) — `mask` selections give `[int]`.
-            if let (Type::Vec(vt, _, elem, vh), Some([member])) = (&typ1, index.get_members_if_array().as_deref()) {
+            if let (Type::Vec(_, _, elem, _), Some([member])) = (&typ1, index.get_members_if_array().as_deref()) {
                 let dynamic = !matches!(member, Lang::Integer { .. } | Lang::Array { .. } | Lang::Vector { .. });
                 if dynamic && !matches!(**elem, Type::Vec(..)) {
                     let idx_tc = typing(context, member);
-                    if let Type::Vec(_, n, ie, _) = reduce_type(context, &idx_tc.value) {
-                        let len = match reduce_type(context, &ie) {
-                            Type::Integer(..) => Some(literal_range_len(member).map_or_else(|| (*n).clone(), builder::integer_type)),
+                    let idx_type = reduce_type(context, &idx_tc.value);
+                    if let (Type::Vec(_, _, ie, _), Some(n)) = (&idx_type, idx_type.vec_length()) {
+                        let len = match reduce_type(context, ie) {
+                            Type::Integer(..) => Some(literal_range_len(member).map_or_else(|| n.clone(), builder::integer_type)),
                             Type::Boolean(..) => Some(builder::any_type()),
                             _ => None,
                         };
                         if let Some(len) = len {
                             let len = if matches!(len, Type::Integer(Tint::Val(_), _) | Type::Any(_)) { len } else { builder::any_type() };
                             errors.extend(idx_tc.errors);
-                            let typ2 = Type::Vec(vt.clone(), Box::new(len), elem.clone(), vh.clone());
+                            let typ2 = typ1.with_vec_length(len);
                             return TypeContext::new(typ2, expr.clone(), context.clone()).with_errors(errors);
                         }
                     }
@@ -2872,10 +2859,10 @@ mod tests {
         fields.insert(ArgumentType::new("Pulse", &builder::integer_type_default()));
 
         let record_type = Type::Record(fields, HelpData::default());
-        let df_type = Type::Vec(
+        let df_type = Type::vec(
             VecType::DataFrame,
-            Box::new(builder::integer_type(3)),
-            Box::new(record_type.clone()),
+            builder::integer_type(3),
+            record_type.clone(),
             HelpData::default(),
         );
 
@@ -2897,10 +2884,10 @@ mod tests {
         fields.insert(ArgumentType::new("Pulse", &builder::integer_type_default()));
 
         let record_type = Type::Record(fields, HelpData::default());
-        let df_type = Type::Vec(
+        let df_type = Type::vec(
             VecType::DataFrame,
-            Box::new(builder::integer_type(3)),
-            Box::new(record_type.clone()),
+            builder::integer_type(3),
+            record_type.clone(),
             HelpData::default(),
         );
 
@@ -4962,7 +4949,7 @@ fn literal_range_len(member: &Lang) -> Option<i32> {
 /// booleans whose length is that of the vector side(s). `None` otherwise.
 fn vectorized_comparison(context: &Context, t1: &Type, t2: &Type) -> Option<Type> {
     let split = |t: &Type| match t {
-        Type::Vec(vt, n, e, h) if !matches!(**e, Type::Vec(..)) => Some((vt.clone(), (**n).clone(), (**e).clone(), h.clone())),
+        Type::Vec(vt, _, e, h) if !matches!(**e, Type::Vec(..)) => Some((vt.clone(), t.vec_length()?, (**e).clone(), h.clone())),
         _ => None,
     };
     let (s1, s2) = (split(t1), split(t2));
@@ -4979,5 +4966,5 @@ fn vectorized_comparison(context: &Context, t1: &Type, t2: &Type) -> Option<Type
         (Some((vt, n, _, h)), None) | (None, Some((vt, n, _, h))) => (vt, n, (), h),
         (None, None) => return None,
     };
-    Some(Type::Vec(vt, Box::new(n), Box::new(builder::boolean_type()), h))
+    Some(Type::vec(vt, n, builder::boolean_type(), h))
 }

@@ -365,6 +365,51 @@ impl Type {
         }
     }
 
+    /// Builds a vector type. `length` is the length slot: `Integer(n)` for a
+    /// known length, `Any` for an unsized vector, or an index generic /
+    /// index arithmetic (`#N`, `#N+1`). Every construction and every read of
+    /// that slot goes through `vec` / `vec_length` so that where
+    /// the length lives (today the `Vec` index, eventually `Measure::Length`
+    /// in a `Refined`) is decided in one place.
+    pub fn vec(kind: VecType, length: Type, elem: Type, help: HelpData) -> Type {
+        Type::Vec(kind, Box::new(length), Box::new(elem), help)
+    }
+
+    /// The length of a `Vec`, `None` for any other type. Returned by value:
+    /// once the length lives in a `Refined` it has to be rebuilt on demand,
+    /// not borrowed. Cheap (an index type is a literal or a tiny tree).
+    pub fn vec_length(&self) -> Option<Type> {
+        match self {
+            Type::Vec(_, length, _, _) => Some((**length).clone()),
+            _ => None,
+        }
+    }
+
+    /// The element type of a `Vec`.
+    pub fn vec_elem(&self) -> Option<&Type> {
+        match self {
+            Type::Vec(_, _, elem, _) => Some(elem),
+            _ => None,
+        }
+    }
+
+    /// `self` with its length slot replaced when it is a `Vec`; any other
+    /// type is returned unchanged.
+    pub fn with_vec_length(&self, length: Type) -> Type {
+        match self {
+            Type::Vec(kind, _, elem, help) => Type::vec(kind.clone(), length, (**elem).clone(), help.clone()),
+            t => t.clone(),
+        }
+    }
+
+    /// `self` with its element type replaced when it is a `Vec`.
+    pub fn with_vec_elem(&self, elem: Type) -> Type {
+        match self {
+            Type::Vec(kind, length, _, help) => Type::vec(kind.clone(), (**length).clone(), elem, help.clone()),
+            t => t.clone(),
+        }
+    }
+
     pub fn lift(self, max_index: &(VecType, i32)) -> Type {
         match self.clone() {
             Type::Vec(_, i, _, _) if i.equal(max_index.1) => self,
@@ -373,10 +418,10 @@ impl Type {
             // into `[3, num]` to make a `[3, num]` argument fit.
             Type::Vec(_, i, _, _) if matches!(*i, Type::Integer(..)) => self,
             Type::Vec(v, _, t, h) => Type::Vec(v, Box::new(builder::integer_type(max_index.1)), t.clone(), h.clone()),
-            t => Type::Vec(
+            t => Type::vec(
                 max_index.0.clone(),
-                Box::new(builder::integer_type(max_index.1)),
-                Box::new(t.clone()),
+                builder::integer_type(max_index.1),
+                t.clone(),
                 t.get_help_data(),
             ),
         }
@@ -637,10 +682,10 @@ impl Type {
                 a.index_calculation().mul_index(&b.index_calculation())
             }
             Type::Operator(TypeOperator::Division, a, b, _) => a.index_calculation().div_index(&b.index_calculation()),
-            Type::Vec(vtype, ind, typ, h) => Type::Vec(
+            Type::Vec(vtype, ind, typ, h) => Type::vec(
                 vtype.clone(),
-                Box::new(ind.index_calculation()),
-                Box::new(typ.index_calculation()),
+                ind.index_calculation(),
+                typ.index_calculation(),
                 h.clone(),
             ),
             Type::Function(args, ret_typ, h) => {
@@ -1118,7 +1163,7 @@ impl Type {
         match dims_and_base.pop() {
             None => builder::any_type(),
             Some(base) => dims_and_base.into_iter().rev().fold(base, |acc, dim| {
-                Type::Vec(VecType::S3, Box::new(dim), Box::new(acc), HelpData::default())
+                Type::vec(VecType::S3, dim, acc, HelpData::default())
             }),
         }
     }

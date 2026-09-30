@@ -34,7 +34,7 @@ pub enum Coercion {
 fn base_of(t: &Type) -> Type {
     match t {
         Type::Refined(base, _, _) => base_of(base),
-        Type::Vec(kind, _, elem, h) => Type::Vec(kind.clone(), Box::new(Type::Any(h.clone())), elem.clone(), h.clone()),
+        Type::Vec(_, _, _, h) => t.with_vec_length(Type::Any(h.clone())),
         t => t.clone(),
     }
 }

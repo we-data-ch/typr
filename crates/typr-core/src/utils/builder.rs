@@ -83,12 +83,12 @@ pub fn tuple_type(types: &[Type]) -> Type {
 }
 
 pub fn array_type(i: Type, t: Type) -> Type {
-    Type::Vec(VecType::S3, Box::new(i), Box::new(t), HelpData::default())
+    Type::vec(VecType::S3, i, t, HelpData::default())
 }
 
 pub fn array_type2(i: i32, t: Type) -> Type {
     let i2 = integer_type(i);
-    Type::Vec(VecType::S3, Box::new(i2), Box::new(t), HelpData::default())
+    Type::vec(VecType::S3, i2, t, HelpData::default())
 }
 
 pub fn dataframe_type(i: Type, columns: &[(String, Type)]) -> Type {
@@ -96,10 +96,10 @@ pub fn dataframe_type(i: Type, columns: &[(String, Type)]) -> Type {
         .iter()
         .map(|param| ArgumentType::from(param.to_owned()))
         .collect::<HashSet<_>>();
-    Type::Vec(
+    Type::vec(
         VecType::DataFrame,
-        Box::new(i),
-        Box::new(Type::Record(fields, HelpData::default())),
+        i,
+        Type::Record(fields, HelpData::default()),
         HelpData::default(),
     )
 }

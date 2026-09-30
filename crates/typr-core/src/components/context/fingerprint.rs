@@ -64,10 +64,10 @@ pub fn canonical_type_debug(t: &Type) -> String {
             canonical_type_debug(ret),
             h
         ),
-        Type::Vec(vt, size, inner, h) => format!(
+        Type::Vec(vt, _, inner, h) => format!(
             "Vec({:?}, {:?}, {:?}, {:?})",
             vt,
-            canonical_type_debug(size),
+            t.vec_length().map(|size| canonical_type_debug(&size)).unwrap_or_default(),
             canonical_type_debug(inner),
             h
         ),

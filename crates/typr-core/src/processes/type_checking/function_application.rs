@@ -368,9 +368,11 @@ fn collect_named_generics(concrete: &Type, param: &Type, subs: &mut std::collect
         Type::IndexGen(name, _) => {
             subs.entry(name.clone()).or_insert_with(|| concrete.clone());
         }
-        Type::Vec(_, size_param, elem_param, _) => {
-            if let Type::Vec(_, size_concrete, elem_concrete, _) = concrete {
-                collect_named_generics(size_concrete, size_param, subs);
+        Type::Vec(_, _, elem_param, _) => {
+            if let Type::Vec(_, _, elem_concrete, _) = concrete {
+                if let (Some(size_concrete), Some(size_param)) = (concrete.vec_length(), param.vec_length()) {
+                    collect_named_generics(&size_concrete, &size_param, subs);
+                }
                 collect_named_generics(elem_concrete, elem_param, subs);
             }
         }
@@ -466,10 +468,10 @@ fn apply_named_generics(ty: &Type, subs: &std::collections::HashMap<String, Type
             resolve_named_generic_chain(name, subs, &mut seen)
         }
         Type::IndexGen(name, _) => subs.get(name).cloned().unwrap_or_else(|| ty.clone()),
-        Type::Vec(vt, size, elem, h) => Type::Vec(
+        Type::Vec(vt, _, elem, h) => Type::vec(
             vt.clone(),
-            Box::new(apply_named_generics(size, subs)),
-            Box::new(apply_named_generics(elem, subs)),
+            apply_named_generics(&ty.vec_length().unwrap_or_else(builder::any_type), subs),
+            apply_named_generics(elem, subs),
             h.clone(),
         ),
         Type::Function(params, ret, h) => Type::Function(
@@ -515,8 +517,10 @@ fn collect_interface_bindings(concrete: &Type, param: &Type, context: &Context, 
         return;
     }
     match (concrete, param) {
-        (Type::Vec(_, size_c, elem_c, _), Type::Vec(_, size_p, elem_p, _)) => {
-            collect_interface_bindings(size_c, size_p, context, mapping);
+        (Type::Vec(_, _, elem_c, _), Type::Vec(_, _, elem_p, _)) => {
+            if let (Some(size_c), Some(size_p)) = (concrete.vec_length(), param.vec_length()) {
+                collect_interface_bindings(&size_c, &size_p, context, mapping);
+            }
             collect_interface_bindings(elem_c, elem_p, context, mapping);
         }
         (Type::Function(params_c, ret_c, _), Type::Function(params_p, ret_p, _)) => {
@@ -534,10 +538,10 @@ fn substitute_interface_types(ty: &Type, mapping: &[(Type, Type)]) -> Type {
         return concrete.clone();
     }
     match ty {
-        Type::Vec(vt, size, elem, h) => Type::Vec(
+        Type::Vec(vt, _, elem, h) => Type::vec(
             vt.clone(),
-            Box::new(substitute_interface_types(size, mapping)),
-            Box::new(substitute_interface_types(elem, mapping)),
+            substitute_interface_types(&ty.vec_length().unwrap_or_else(builder::any_type), mapping),
+            substitute_interface_types(elem, mapping),
             h.clone(),
         ),
         Type::Function(params, ret, h) => Type::Function(
@@ -1132,18 +1136,19 @@ fn known_effect_call(var: &Var, context: &Context, parameters: &[Lang]) -> Optio
         return None;
     }
     let arg = reduce_type(context, &typing(context, &parameters[0]).value);
-    let Type::Vec(vt, n, elem, h) = &arg else {
+    let Type::Vec(vt, _, elem, h) = &arg else {
         return None;
     };
+    let n = arg.vec_length()?;
     match name.as_str() {
-        "length" => literal_index(n).map(|_| (**n).clone()),
+        "length" => literal_index(&n).map(|_| n.clone()),
         "rev" => Some(arg.clone()),
         _ => {
-            let len = literal_index(n)?;
+            let len = literal_index(&n)?;
             let k = literal_index(&reduce_type(context, &typing(context, &parameters[1]).value))?;
             let kept = if k >= 0 { len.min(k) } else { (len + k).max(0) };
             let index = Type::Integer(crate::components::r#type::tint::Tint::Val(kept as _), h.clone());
-            Some(Type::Vec(vt.clone(), Box::new(index), elem.clone(), h.clone()))
+            Some(Type::vec(vt.clone(), index, (**elem).clone(), h.clone()))
         }
     }
 }

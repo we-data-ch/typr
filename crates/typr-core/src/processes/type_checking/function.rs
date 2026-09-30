@@ -53,8 +53,10 @@ fn collect_generic_kind_occurrences(typ: &Type, acc: &mut Vec<(String, ObservedK
                 .for_each(|a| collect_generic_kind_occurrences(&a.get_type(), acc));
             collect_generic_kind_occurrences(ret, acc);
         }
-        Type::Vec(_, idx, body, _) => {
-            collect_generic_kind_occurrences(idx, acc);
+        Type::Vec(_, _, body, _) => {
+            if let Some(length) = typ.vec_length() {
+                collect_generic_kind_occurrences(&length, acc);
+            }
             collect_generic_kind_occurrences(body, acc);
         }
         Type::Record(fields, _) | Type::Interface(fields, _) => fields
@@ -190,8 +192,10 @@ fn collect_interface_leaf_types(context: &Context, typ: &Type, acc: &mut Vec<Typ
                 .for_each(|a| collect_interface_leaf_types(context, &a.get_type(), acc));
             collect_interface_leaf_types(context, ret, acc);
         }
-        Type::Vec(_, idx, body, _) => {
-            collect_interface_leaf_types(context, idx, acc);
+        Type::Vec(_, _, body, _) => {
+            if let Some(length) = typ.vec_length() {
+                collect_interface_leaf_types(context, &length, acc);
+            }
             collect_interface_leaf_types(context, body, acc);
         }
         Type::Record(fields, _) => fields

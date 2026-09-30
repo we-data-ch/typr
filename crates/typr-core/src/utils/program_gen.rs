@@ -197,9 +197,9 @@ fn gen_var(env: &GenEnv, goal: &Type) -> Option<String> {
 /// since v1 never hands a `Vec` goal to anything else — function
 /// params/returns are primitive-only). Falls back to 2 otherwise.
 fn vec_len(goal: &Type) -> usize {
-    if let Type::Vec(_, idx, _, _) = goal {
-        if let Type::Integer(Tint::Val(n), _) = idx.as_ref() {
-            return (*n).max(1) as usize;
+    if let Some(idx) = goal.vec_length() {
+        if let Type::Integer(Tint::Val(n), _) = idx {
+            return n.max(1) as usize;
         }
     }
     2

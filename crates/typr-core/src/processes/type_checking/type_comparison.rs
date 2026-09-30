@@ -98,12 +98,7 @@ pub fn reduce_type_helper(context: &Context, type_: &Type, memory: Vector<String
             let ret_typ2 = reduce_type_helper(context, ret_typ, memory.clone());
             Type::Function(typs2, Box::new(ret_typ2), h.to_owned())
         }
-        Type::Vec(vtype, ind, typ, h) => Type::Vec(
-            vtype.clone(),
-            ind.clone(),
-            Box::new(reduce_type_helper(context, typ, memory.clone())),
-            h.clone(),
-        ),
+        Type::Vec(_, _, elem, _) => type_.with_vec_elem(reduce_type_helper(context, elem, memory.clone())),
         Type::Operator(TypeOperator::Union, t1, t2, h) => {
             // G4 (audit_type_checking.md): branches used to be compared
             // un-reduced, and — when neither subsumed the other — returned

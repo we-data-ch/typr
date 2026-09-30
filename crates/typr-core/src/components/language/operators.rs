@@ -73,12 +73,7 @@ fn lang_to_cast_type(lang: &Lang) -> Option<Type> {
                 [idx, elem] => (lang_to_cast_type(idx)?, elem),
                 _ => return None,
             };
-            Some(Type::Vec(
-                VecType::S3,
-                Box::new(idx),
-                Box::new(lang_to_cast_type(elem)?),
-                help_data.clone(),
-            ))
+            Some(Type::vec(VecType::S3, idx, lang_to_cast_type(elem)?, help_data.clone()))
         }
         Lang::ArrayIndexing {
             identifier,
@@ -98,12 +93,7 @@ fn lang_to_cast_type(lang: &Lang) -> Option<Type> {
                 [idx, elem] => (lang_to_cast_type(idx)?, elem),
                 _ => return None,
             };
-            Some(Type::Vec(
-                VecType::S3,
-                Box::new(idx),
-                Box::new(lang_to_cast_type(elem)?),
-                help_data.clone(),
-            ))
+            Some(Type::vec(VecType::S3, idx, lang_to_cast_type(elem)?, help_data.clone()))
         }
         _ => None,
     }

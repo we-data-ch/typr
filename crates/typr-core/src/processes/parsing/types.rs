@@ -181,7 +181,7 @@ fn array_type_full(s: Span) -> IResult<Span, Type> {
         .parse(s);
 
     match res {
-        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::Vec(VecType::S3, Box::new(num), Box::new(typ), start.into()))),
+        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::vec(VecType::S3, num, typ, start.into()))),
         Err(r) => Err(r),
     }
 }
@@ -197,12 +197,7 @@ fn array_type_short(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, (start, typ, _))) => Ok((
             s,
-            Type::Vec(
-                VecType::S3,
-                Box::new(Type::Any(start.clone().into())),
-                Box::new(typ),
-                start.into(),
-            ),
+            Type::vec(VecType::S3, Type::Any(start.clone().into()), typ, start.into()),
         )),
         Err(r) => Err(r),
     }
@@ -230,7 +225,7 @@ fn named_array_type_full(s: Span) -> IResult<Span, Type> {
 
     match res {
         Ok((s, (start, num, _, typ, _))) => {
-            Ok((s, Type::Vec(VecType::Array, Box::new(num), Box::new(typ), start.into())))
+            Ok((s, Type::vec(VecType::Array, num, typ, start.into())))
         }
         Err(r) => Err(r),
     }
@@ -247,12 +242,7 @@ fn named_array_type_short(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, (start, typ, _))) => Ok((
             s,
-            Type::Vec(
-                VecType::Array,
-                Box::new(Type::Any(start.clone().into())),
-                Box::new(typ),
-                start.into(),
-            ),
+            Type::vec(VecType::Array, Type::Any(start.clone().into()), typ, start.into()),
         )),
         Err(r) => Err(r),
     }
@@ -275,7 +265,7 @@ fn vector_type_full(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, (start, num, _, typ, _))) => Ok((
             s,
-            Type::Vec(VecType::Vector, Box::new(num), Box::new(typ), start.into()),
+            Type::vec(VecType::Vector, num, typ, start.into()),
         )),
         Err(r) => Err(r),
     }
@@ -292,12 +282,7 @@ fn vector_type_short(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, (start, typ, _))) => Ok((
             s,
-            Type::Vec(
-                VecType::Vector,
-                Box::new(Type::Any(start.clone().into())),
-                Box::new(typ),
-                start.into(),
-            ),
+            Type::vec(VecType::Vector, Type::Any(start.clone().into()), typ, start.into()),
         )),
         Err(r) => Err(r),
     }
@@ -321,10 +306,10 @@ fn dataframe_type_full(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, (start, num, _, _, columns, _))) => Ok((
             s,
-            Type::Vec(
+            Type::vec(
                 VecType::DataFrame,
-                Box::new(num),
-                Box::new(Type::Record(columns.iter().cloned().collect(), start.clone().into())),
+                num,
+                Type::Record(columns.iter().cloned().collect(), start.clone().into()),
                 start.into(),
             ),
         )),
@@ -344,10 +329,10 @@ fn dataframe_type_short(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, (start, _, columns, _))) => Ok((
             s,
-            Type::Vec(
+            Type::vec(
                 VecType::DataFrame,
-                Box::new(Type::Any(start.clone().into())),
-                Box::new(Type::Record(columns.iter().cloned().collect(), start.clone().into())),
+                Type::Any(start.clone().into()),
+                Type::Record(columns.iter().cloned().collect(), start.clone().into()),
                 start.into(),
             ),
         )),
@@ -377,10 +362,10 @@ fn named_record_type(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, ((name, h), _, num, _, _, columns, _))) => Ok((
             s,
-            Type::Vec(
+            Type::vec(
                 VecType::Named(name),
-                Box::new(num),
-                Box::new(Type::Record(columns.iter().cloned().collect(), h.clone())),
+                num,
+                Type::Record(columns.iter().cloned().collect(), h.clone()),
                 h,
             ),
         )),
@@ -408,10 +393,10 @@ fn named_record_bad_index(s: Span) -> IResult<Span, Type> {
             push_parse_error(SyntaxError::RecordConstructorIndex(h.clone()));
             Ok((
                 s,
-                Type::Vec(
+                Type::vec(
                     VecType::Named(name),
-                    Box::new(first),
-                    Box::new(Type::Record(columns.iter().cloned().collect(), h.clone())),
+                    first,
+                    Type::Record(columns.iter().cloned().collect(), h.clone()),
                     h,
                 ),
             ))
@@ -445,10 +430,10 @@ fn recursive_with_record_error(s: Span) -> IResult<Span, Type> {
             push_parse_error(SyntaxError::RecordInRecursiveParams(h.clone()));
             Ok((
                 s,
-                Type::Vec(
+                Type::vec(
                     VecType::S3,
-                    Box::new(num),
-                    Box::new(Type::Record(columns.iter().cloned().collect(), h.clone())),
+                    num,
+                    Type::Record(columns.iter().cloned().collect(), h.clone()),
                     h,
                 ),
             ))
@@ -1360,8 +1345,8 @@ mod tests {
         assert!(res.is_ok(), "dataframe type with numeric index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::DataFrame, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::DataFrame, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Integer(_, _) => {}
                     other => panic!("Expected Integer index, got {:?}", other),
                 }
@@ -1405,7 +1390,7 @@ mod tests {
         assert!(res.is_ok(), "dataframe with Any index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::DataFrame, idx, _, _) => match idx.as_ref() {
+            Type::Vec(VecType::DataFrame, _, _, _) => match typ.vec_length().expect("vec length") {
                 Type::Any(_) => {}
                 other => panic!("Expected Any index, got {:?}", other),
             },
@@ -1419,7 +1404,7 @@ mod tests {
         assert!(res.is_ok(), "Vec with Any index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::Vector, idx, _, _) => match idx.as_ref() {
+            Type::Vec(VecType::Vector, _, _, _) => match typ.vec_length().expect("vec length") {
                 Type::Any(_) => {}
                 other => panic!("Expected Any index, got {:?}", other),
             },
@@ -1433,7 +1418,7 @@ mod tests {
         assert!(res.is_ok(), "Array with Any index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::S3, idx, _, _) => match idx.as_ref() {
+            Type::Vec(VecType::S3, _, _, _) => match typ.vec_length().expect("vec length") {
                 Type::Any(_) => {}
                 other => panic!("Expected Any index, got {:?}", other),
             },
@@ -1447,8 +1432,8 @@ mod tests {
         assert!(res.is_ok(), "dataframe without index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::DataFrame, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::DataFrame, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Any(_) => {}
                     other => panic!("Expected Any index, got {:?}", other),
                 }
@@ -1467,7 +1452,7 @@ mod tests {
         assert!(res.is_ok(), "df without index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::DataFrame, idx, _, _) => match idx.as_ref() {
+            Type::Vec(VecType::DataFrame, _, _, _) => match typ.vec_length().expect("vec length") {
                 Type::Any(_) => {}
                 other => panic!("Expected Any index, got {:?}", other),
             },
@@ -1481,8 +1466,8 @@ mod tests {
         assert!(res.is_ok(), "Vec[type] short form should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::Vector, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::Vector, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Any(_) => {}
                     other => panic!("Expected Any index, got {:?}", other),
                 }
@@ -1501,8 +1486,8 @@ mod tests {
         assert!(res.is_ok(), "[type] short form should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::S3, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::S3, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Any(_) => {}
                     other => panic!("Expected Any index, got {:?}", other),
                 }
@@ -1521,8 +1506,8 @@ mod tests {
         assert!(res.is_ok(), "Array[index, type] should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::Array, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::Array, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Integer(_, _) => {}
                     other => panic!("Expected Integer index, got {:?}", other),
                 }
@@ -1541,8 +1526,8 @@ mod tests {
         assert!(res.is_ok(), "Array[type] short form should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::Array, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::Array, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Any(_) => {}
                     other => panic!("Expected Any index, got {:?}", other),
                 }
@@ -1609,9 +1594,9 @@ mod tests {
     fn test_named_record_constructor_parses() {
         let typ = ltype("Tibble[3]{ id: int, active: bool }".into()).unwrap().1;
         match &typ {
-            Type::Vec(VecType::Named(name), idx, body, _) => {
+            Type::Vec(VecType::Named(name), _, body, _) => {
                 assert_eq!(name, "Tibble");
-                assert!(matches!(idx.as_ref(), Type::Integer(_, _)));
+                assert!(matches!(typ.vec_length(), Some(Type::Integer(_, _))));
                 match body.as_ref() {
                     Type::Record(fields, _) => assert_eq!(fields.len(), 2),
                     other => panic!("Expected Record body, got {:?}", other),
