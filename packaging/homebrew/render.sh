@@ -307,8 +307,10 @@ shas=$(grep -cE '^[[:space:]]+sha256 "[0-9a-f]{64}"$' "$TMP/typr.rb" || true)
   || die "la formule rendue déclare $shas empreintes, attendu $EXPECTED_SHAS.
 Le gabarit et le rendu ne correspondent plus."
 
-grep -Fq "version \"$VERSION\"" "$TMP/typr.rb" \
-  || die "la formule rendue ne déclare pas version \"$VERSION\"."
+# Pas de `version` explicite : `brew audit` la juge redondante, Homebrew la
+# déduit de l'URL. On vérifie donc que l'URL porte bien la version attendue.
+grep -Fq "/download/v$VERSION/" "$TMP/typr.rb" \
+  || die "la formule rendue ne pointe pas vers la release v$VERSION."
 
 # Le README du tap est dérivé de la formule, pas d'une deuxième source : desc et
 # homepage sont relus dans ce qui vient d'être écrit, donc les deux fichiers ne

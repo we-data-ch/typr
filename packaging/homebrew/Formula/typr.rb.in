@@ -4,6 +4,7 @@
 #
 #   Gabarit : packaging/homebrew/Formula/typr.rb.in (dépôt we-data-ch/typr)
 #   Généré par : packaging/homebrew/render.sh --tag vX.Y.Z
+#   Version    : @@VERSION@@ (déduite de l'URL par Homebrew, sans `version`)
 #
 # La version et les empreintes viennent de `checksums.txt` de la release : elles
 # ne peuvent donc pas dériver du binaire réellement publié, ce qui arrive dès
@@ -12,7 +13,6 @@
 class Typr < Formula
   desc "Typed superset of R — transpiler and type checker"
   homepage "https://we-data-ch.github.io/typr.github.io/"
-  version "@@VERSION@@"
   license "Apache-2.0"
 
   livecheck do

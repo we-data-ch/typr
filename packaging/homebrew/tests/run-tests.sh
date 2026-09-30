@@ -228,7 +228,7 @@ test_render() {
   check_file "$readme" "README.md est écrit"
   [ -f "$formula" ] || return 0
 
-  check_contains "$(cat "$formula")" "version \"${TAG#v}\"" "la version est déclarée"
+  check_contains "$(cat "$formula")" "/download/${TAG}/" "la version est portée par l'URL"
   check_contains "$(cat "$formula")" "class Typr < Formula" "la classe est Typr"
 
   local target
@@ -305,7 +305,7 @@ test_pin_and_prerelease() {
   dir=$(work no-v)
   out=$("$RENDER" --tag "9.9.9" --checksums "$FIXTURE" --out "$dir" 2>&1)
   check_rc 0 $? "un tag sans le v initial est accepté"
-  check_contains "$(cat "$dir/Formula/typr.rb")" 'version "9.9.9"' "la version est rendue sans le v"
+  check_contains "$(cat "$dir/Formula/typr.rb")" '/download/v9.9.9/' "la version est rendue sans le v"
 
   # release.yml marque `-alpha.N` et `-beta.N` prerelease : la formule doit les
   # accepter, sinon le canal Homebrew s'arrêterait à la première d'entre elles.
