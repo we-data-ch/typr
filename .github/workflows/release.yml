@@ -279,7 +279,7 @@ jobs:
           VERSION: ${{ needs.verify.outputs.version }}
         run: |
           set -euo pipefail
-          for crate in typr-core typr-lsp typr-mcp typr-cli typr; do
+          for crate in typr-core typr-lsp typr-mcp typr-graph typr-cli typr; do
             PUBLISHED=$(curl -s -H "User-Agent: typr-release" \
               "https://crates.io/api/v1/crates/$crate/$VERSION" \
               | grep -c '"num":"'"$VERSION"'"' || true)
@@ -959,7 +959,10 @@ jobs:
           Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
           Write-Host "scoop : $(scoop --version)"
 
-          scoop install "manifests\scoop\typr.json"
+          # Scoop ne résout pas un chemin relatif comme un fichier : il le prend pour
+          # un nom de paquet. Il lui faut un chemin absolu.
+          $manifest = (Resolve-Path "manifests\scoop\typr.json").Path
+          scoop install $manifest
           if ($LASTEXITCODE -ne 0) {
             throw "scoop install a échoué (code $LASTEXITCODE)"
           }
