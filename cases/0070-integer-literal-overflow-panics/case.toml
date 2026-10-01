@@ -1,0 +1,7 @@
+title = "an integer literal outside the i32 range panics the parser instead of typing as num"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-09-29"
+origin = "perso"
+checked = false

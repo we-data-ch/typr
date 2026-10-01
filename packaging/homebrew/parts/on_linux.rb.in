@@ -1,0 +1,18 @@
+  # Linux : binaire musl, lié statiquement. C'est le même choix que
+  # l'installeur `install.sh`, et pour la même raison — le binaire GNU exige une
+  # glibc plus récente que celle de Rocky 9 (2.34), Debian 12 (2.36) ou Ubuntu
+  # 22.04 (2.35) : l'installation y réussit, puis `typr --version` échoue sur
+  # « GLIBC_2.39 not found ». Aucun repli GNU n'est proposé ici, pour la même
+  # raison : ce serait réintroduire le défaut que le canal principal vient de
+  # supprimer.
+  on_linux do
+    on_intel do
+      url "@@URL_X86_64_LINUX@@"
+      sha256 "@@SHA256_X86_64_LINUX@@"
+    end
+
+    on_arm do
+      url "@@URL_AARCH64_LINUX@@"
+      sha256 "@@SHA256_AARCH64_LINUX@@"
+    end
+  end

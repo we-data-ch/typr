@@ -1,4 +1,5 @@
 use crate::components::error_message::help_data::HelpData;
+use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::intersection_type::IntersectionType;
 use crate::components::r#type::pretty;
 use crate::components::r#type::tchar::Tchar;
@@ -8,6 +9,19 @@ use crate::components::r#type::type_operator::TypeOperator;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
+use std::collections::HashSet;
+
+/// A record's fields in a deterministic order for printing. `Type::Record` stores its fields in
+/// a `HashSet`, whose iteration order is randomized per-process (std's default `RandomState`) —
+/// printing them as found makes every `list{...}` string (and anything built from it: error
+/// messages, `typr graph`'s recorded block types) flip field order from run to run even when the
+/// type itself never changed. Sorting by field name here only changes what gets printed, not the
+/// set itself or any equality/subtyping decision.
+fn sorted_fields(fields: &HashSet<ArgumentType>) -> Vec<&ArgumentType> {
+    let mut v: Vec<&ArgumentType> = fields.iter().collect();
+    v.sort_by(|a, b| a.get_argument_str().cmp(&b.get_argument_str()));
+    v
+}
 
 fn simplify_for_dataframe(ty: &Type) -> String {
     let fmt = |t: &Type| format(t);
@@ -17,8 +31,8 @@ fn simplify_for_dataframe(ty: &Type) -> String {
         Type::Vec(VecType::Array, _, inner, _) => simplify_for_dataframe(inner),
         Type::Vec(VecType::S3, _, inner, _) => simplify_for_dataframe(inner),
         Type::Record(fields, _) => {
-            let formatted_fields = fields
-                .iter()
+            let formatted_fields = sorted_fields(fields)
+                .into_iter()
                 .map(|arg_typ| {
                     format!(
                         "{}: {}",
@@ -43,13 +57,17 @@ pub fn format(ty: &Type) -> String {
                 format!("{}<{}>", name, paras.join(", "))
             }
         }
-        Type::Vec(vtype, dim, ty, _) => {
+        Type::Vec(vtype, length, ty, h) => {
+            let dim = &length.to_type(h.clone());
             let inner = if matches!(vtype, VecType::DataFrame) {
                 simplify_for_dataframe(ty)
             } else {
                 verbose(ty)
             };
-            format!("{}[{}, {}]", vtype, short(dim), inner)
+            match length.range_property() {
+                Some(prop) => format!("{}[{}] & {}", vtype, inner, prop),
+                None => format!("{}[{}, {}]", vtype, short(dim), inner),
+            }
         }
         Type::Function(params, ret_ty, _h) => {
             let formatted_params = params
@@ -66,8 +84,8 @@ pub fn format(ty: &Type) -> String {
             }
         }
         Type::Record(fields, _) => {
-            let formatted_fields = fields
-                .iter()
+            let formatted_fields = sorted_fields(fields)
+                .into_iter()
                 .map(|arg_typ| format!("{}: {}", arg_typ.get_argument_str(), format(&arg_typ.get_type())))
                 .collect::<Vec<_>>();
             format!("list{{{}}}", formatted_fields.join(", "))
@@ -96,6 +114,7 @@ pub fn format(ty: &Type) -> String {
         Type::IndexGen(i, _) => format!("#{}", i),
         Type::LabelGen(l, _) => format!("${}", l),
         Type::KindedGen(k, name, _) => format!("{}{}", k, name),
+        Type::Bounded(id, bound, _) => format!("{}@{}", format(bound), id),
         Type::Tuple(elements, _) => {
             let body = elements.iter().map(format).collect::<Vec<_>>().join(", ");
             format!("tuple{{{}}}", body)
@@ -135,6 +154,8 @@ pub fn format(ty: &Type) -> String {
             format!("({} {} {})", left.pretty(), op, right.pretty())
         }
         Type::Variable(name, _) => name.to_string(),
+        Type::Refined(base, refs, _) => format!("{} & {}", format(base), refs),
+        Type::Property(p, _) => p.to_string(),
         t => format!("{:?}", t),
     }
 }
@@ -160,17 +181,19 @@ pub fn verbose(t: &Type) -> String {
         Type::Null(_) => "null".to_string(),
         Type::Char(_tchar, _) => "char".to_string(),
         Type::Record(fields, _) => {
-            let formatted_fields = fields
-                .iter()
+            let formatted_fields = sorted_fields(fields)
+                .into_iter()
                 .map(|arg_typ| format!("{}: {}", format(&arg_typ.get_argument()), format(&arg_typ.get_type())))
                 .collect::<Vec<_>>();
             format!("list{{{}}}", formatted_fields.join(", "))
         }
         Type::IndexGen(idgen, _) => format!("#{}", idgen),
         Type::KindedGen(k, name, _) => format!("{}{}", k, name),
-        Type::Vec(vtype, i, t, _) => {
-            format!("{}[{}, {}]", vtype, i.pretty(), t.pretty2())
-        }
+        Type::Bounded(id, bound, _) => format!("{}@{}", format(bound), id),
+        Type::Vec(vtype, length, t, h) => match length.range_property() {
+            Some(prop) => format!("{}[{}] & {}", vtype, t.pretty2(), prop),
+            None => format!("{}[{}, {}]", vtype, length.to_type(h.clone()).pretty(), t.pretty2()),
+        },
         val if val.to_category() == TypeCategory::Template => val.pretty(),
         val => val.pretty(), //val => panic!("{:?} doesn't have a second format", val)
     }

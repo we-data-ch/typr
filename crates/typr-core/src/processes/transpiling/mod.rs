@@ -1,4 +1,5 @@
 pub mod checked_assertions;
+pub mod refinement_checks;
 pub mod translatable;
 
 use crate::components::context::config::Environment;
@@ -1236,7 +1237,17 @@ impl RTranslatable<(String, Context)> for Lang {
                     }
                 } else {
                     let (val_str, _) = val.to_simple_r(cont);
-                    format!("{}[[{}]]", exp_str, val_str)
+                    // `v[1:3]` / `v[mask]` select a sub-vector: single bracket
+                    // (`v[[1:3]]` would index recursively in R).
+                    let selects_subvector = matches!(reduce_type(cont, &typing(cont, exp).value), Type::Vec(..))
+                        && matches!(val.get_members_if_array().as_deref(), Some([m])
+                            if !matches!(m, Lang::Integer { .. } | Lang::Array { .. } | Lang::Vector { .. })
+                                && matches!(reduce_type(cont, &typing(cont, m).value), Type::Vec(..)));
+                    if selects_subvector {
+                        format!("{}[{}]", exp_str, val_str)
+                    } else {
+                        format!("{}[[{}]]", exp_str, val_str)
+                    }
                 };
                 (res, cont.clone())
             }
@@ -1272,6 +1283,11 @@ impl RTranslatable<(String, Context)> for Lang {
                             .map(|v| v.get_type())
                             .filter(|t| !matches!(t, Type::Empty(_) | Type::UnknownFunction(_)))
                             .unwrap_or_else(|| typing(cont, expr).value);
+                        // `Lovable@A` dispatches as its bound `Lovable`.
+                        let related_type = match related_type {
+                            Type::Bounded(_, bound, _) => *bound,
+                            other => other,
+                        };
                         let method = match cont.get_environment() {
                             Environment::Project => format!(
                                 "#' @method {}\n",
@@ -1760,7 +1776,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     // into a `data.frame` instead of a `list`, the class
                     // chain carries `"data.frame"`, and a concrete size
                     // index (`df[3]{...}`) additionally checks `nrow(x)`.
-                    Type::Vec(VecType::DataFrame, size, fields_type, _)
+                    Type::Vec(VecType::DataFrame, _, fields_type, _)
                         if matches!(fields_type.as_ref(), Type::Record(_, _)) =>
                     {
                         use crate::components::r#type::tint::Tint;
@@ -1821,7 +1837,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         // Row-count check: only emitted when the size index is
                         // a concrete literal (`df[3]{...}`); a generic (`#N`)
                         // or unconstrained (`df{...}`) size imposes no check.
-                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                        let size_check = if let Some(Type::Integer(Tint::Val(n), _)) = typ_for_dispatch.vec_length() {
                             format!(
                                 "  if (nrow(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected {n} rows, got \", nrow(x)))\n"
                             )
@@ -1840,7 +1856,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     // constructor delegates straight to the validator — plus
                     // an optional length check when the size index is a
                     // concrete literal.
-                    Type::Vec(VecType::Vector, size, elem_type, _) => {
+                    Type::Vec(VecType::Vector, _, elem_type, _) => {
                         use crate::components::r#type::tint::Tint;
                         let constructor = format!("{name} <- function(x) {{\n  validate_{name}(x)\n}}");
                         let elem_check = record_field_class(elem_type.as_ref(), cont).map(|cls| {
@@ -1848,7 +1864,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "  if (!inherits(x, \"{cls}\")) stop(\"Validation failed for type {name}: expected vector of {cls}\")\n"
                             )
                         }).unwrap_or_default();
-                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                        let size_check = if let Some(Type::Integer(Tint::Val(n), _)) = typ_for_dispatch.vec_length() {
                             format!(
                                 "  if (length(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected length {n}, got \", length(x)))\n"
                             )
@@ -1875,7 +1891,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     // still appends the alias class (S3 dispatch for
                     // alias-typed parameters relies on it); `c()`/subsetting
                     // strip it, but TypR re-annotates from the static type.
-                    Type::Vec(VecType::S3, size, elem_type, _) | Type::Vec(VecType::Array, size, elem_type, _)
+                    Type::Vec(VecType::S3, _, elem_type, _) | Type::Vec(VecType::Array, _, elem_type, _)
                         if cont.atomic_array_elem(typ).is_some() =>
                     {
                         use crate::components::r#type::tint::Tint;
@@ -1898,7 +1914,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "  if (!is.numeric(x)) stop(\"Validation failed for type {name}: expected a numeric vector\")\n"
                             ),
                         };
-                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                        let size_check = if let Some(Type::Integer(Tint::Val(n), _)) = typ_for_dispatch.vec_length() {
                             format!(
                                 "  if (length(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected length {n}, got \", length(x)))\n"
                             )
@@ -1908,7 +1924,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         let validator = format!("validate_{name} <- function(x) {{\n{elem_check}{size_check}  x\n}}");
                         (format!("{constructor}\n{annotator}\n{validator}"), cont.clone())
                     }
-                    Type::Vec(VecType::S3, size, elem_type, _) | Type::Vec(VecType::Array, size, elem_type, _) => {
+                    Type::Vec(VecType::S3, _, elem_type, _) | Type::Vec(VecType::Array, _, elem_type, _) => {
                         use crate::components::r#type::tint::Tint;
                         let constructor = format!(
                             "{name} <- function(x) {{\n  if (!inherits(x, \"typed_vec\")) x <- typed_vec(x)\n  as.{name}(x)\n}}"
@@ -1922,7 +1938,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 "  if (!all(vapply(x$data, inherits, logical(1), \"{cls}\"))) stop(\"Validation failed for type {name}: expected elements of class {cls}\")\n"
                             )
                         }).unwrap_or_default();
-                        let size_check = if let Type::Integer(Tint::Val(n), _) = size.as_ref() {
+                        let size_check = if let Some(Type::Integer(Tint::Val(n), _)) = typ_for_dispatch.vec_length() {
                             format!(
                                 "  if (length(x) != {n}) stop(paste0(\"Validation failed for type {name}: expected length {n}, got \", length(x)))\n"
                             )
@@ -2814,7 +2830,22 @@ impl RTranslatable<(String, Context)> for Lang {
             result
         };
 
-        result
+        // Refinement the type checker could not prove at this boundary (`let`
+        // initialiser, call argument; `refinement_check::coerce_to`): the
+        // obligation is keyed by this expression's span. Single insertion
+        // point, so every boundary kind shares it.
+        let (r_code, r_cont) = result;
+        // `Lines`/`Scope`/`If`/`Return` share their span with the expression
+        // they hand the position to, which does the wrapping.
+        let r_code = if matches!(
+            self,
+            Lang::Lines { .. } | Lang::Scope { .. } | Lang::If { .. } | Lang::Return { .. }
+        ) {
+            r_code
+        } else {
+            refinement_checks::wrap_obligation(cont, r_code, &self.get_help_data())
+        };
+        (r_code, r_cont)
     }
 }
 
@@ -2881,6 +2912,25 @@ mod tests {
             r.contains("`double_up.default` <- `double_up.Incrementable`"),
             "expected .default fallback alias, got: {r}"
         );
+    }
+
+    #[test]
+    fn test_bounded_id_does_not_change_generated_r() {
+        // `Lovable@A` is a type-checker-only id: the generated R (S3 method
+        // suffix, `.default` fallback, return cast) must match the bare form.
+        let header = [
+            "type Lovable <- interface { love: (Self) -> int };",
+            "type Cat <- list { name: char };",
+            "let love <- fn(c: Cat): int { 1 };",
+        ];
+        let with = |def: &'static str| {
+            let mut p = header.to_vec();
+            p.push(def);
+            transpile_program(&p)
+        };
+        let bare = with("let idf <- fn(a: Lovable): Lovable { a };");
+        let ided = with("let idf <- fn(a: Lovable@A): Lovable@A { a };");
+        assert_eq!(bare, ided, "@A must not leak into the generated R");
     }
 
     #[test]

@@ -1,0 +1,9 @@
+#@case external-type-definition-low-tier-degrades-to-any: registry.md §5.4 (D2) —
+# a locked external Type Definition entry below the project's `trust` threshold
+# must degrade to a variadic `Any` function, never a hard type error. `gizmo`
+# is declared `@spin_gizmo: (int) -> int;` at tier `T3` (typr.lock, cache/) but
+# the project has no `typr.toml`, so the default `trust = "T2"` applies:
+# `spin_gizmo` must load as callable-with-anything, not as its strict
+# signature and not as a wholly unknown symbol.
+let result <- spin_gizmo("not-an-int");
+print(result);

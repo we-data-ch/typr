@@ -7,6 +7,7 @@ members = [
     "crates/typr-lsp",
     "crates/typr-wasm",
     "crates/typr-mcp",
+    "crates/typr-graph",
 ]
 
 [package]
@@ -32,7 +33,7 @@ typr-cli.workspace = true
 typr-core.workspace = true
 
 [workspace.package]
-version = "0.5.12"
+version = "0.6.0"
 edition = "2021"
 authors = ["Fabrice Hategekimana <fab.hatege15@gmail.com>"]
 license = "Apache-2.0"
@@ -52,6 +53,7 @@ rand = "0.10.0"
 anyhow = "1.0.100"
 countmap = "0.2"
 toml = "0.8"
+sha2 = "0.10"
 
 clap = { version = "4.5", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
@@ -63,11 +65,12 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 
-typr-core = { path = "crates/typr-core", version = "0.5" }
-typr-cli = { path = "crates/typr-cli", version = "0.5" }
-typr-lsp = { path = "crates/typr-lsp", version = "0.5" }
-typr-wasm = { path = "crates/typr-wasm", version = "0.5" }
-typr-mcp = { path = "crates/typr-mcp", version = "0.5" }
+typr-core = { path = "crates/typr-core", version = "0.6" }
+typr-cli = { path = "crates/typr-cli", version = "0.6" }
+typr-lsp = { path = "crates/typr-lsp", version = "0.6" }
+typr-wasm = { path = "crates/typr-wasm", version = "0.6" }
+typr-mcp = { path = "crates/typr-mcp", version = "0.6" }
+typr-graph = { path = "crates/typr-graph", version = "0.6" }
 
 [profile.release]
 opt-level = 3

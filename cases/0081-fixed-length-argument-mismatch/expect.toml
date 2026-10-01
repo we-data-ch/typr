@@ -1,0 +1,8 @@
+# both 3-element calls are rejected; the 2-element one is not
+[[rule]]
+file = "@run"
+must_contain = "No signature of function 'dist' matches this call."
+
+[[rule]]
+file = "@run"
+must_not_contain = "panicked"

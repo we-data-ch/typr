@@ -1,0 +1,42 @@
+# TypR
+
+@@DESC@@
+
+## Installation
+
+```bash
+brew install we-data-ch/typr/typr
+```
+
+@@LINUX@@
+
+## Utilisation
+
+```bash
+typr check fichier.ty
+typr build fichier.ty
+typr --version
+```
+
+Mise à jour :
+
+```bash
+brew update && brew upgrade typr
+```
+
+Désinstallation :
+
+```bash
+brew uninstall typr
+```
+
+## Versions
+
+Ce dépôt ne publie pas de binaire : la formule ne contient que l'URL de la
+release et son SHA-256, lus dans le `checksums.txt` de cette release. Un tag
+`vX.Y.Z` de [we-data-ch/typr](https://github.com/we-data-ch/typr) produit le
+commit suivant ici — voir `packaging/homebrew/README.md` dans le dépôt source.
+
+Documentation : @@HOMEPAGE@@
+
+Licence : Apache-2.0 — voir `LICENSE`.

@@ -1,6 +1,6 @@
 ---
 source: crates/typr-core/tests/snapshot_tests.rs
-assertion_line: 283
+assertion_line: 287
 expression: ty
 ---
 Function(
@@ -12,6 +12,7 @@ Function(
                 ),
                 HelpData {
                     offset: 15,
+                    end: 15,
                     file_name: "",
                 },
             ),
@@ -19,6 +20,7 @@ Function(
                 Unknown,
                 HelpData {
                     offset: 17,
+                    end: 17,
                     file_name: "",
                 },
             ),
@@ -33,6 +35,7 @@ Function(
                 ),
                 HelpData {
                     offset: 23,
+                    end: 23,
                     file_name: "",
                 },
             ),
@@ -40,6 +43,7 @@ Function(
                 Unknown,
                 HelpData {
                     offset: 25,
+                    end: 25,
                     file_name: "",
                 },
             ),
@@ -52,11 +56,13 @@ Function(
         Unknown,
         HelpData {
             offset: 31,
+            end: 31,
             file_name: "",
         },
     ),
     HelpData {
         offset: 0,
+        end: 45,
         file_name: "",
     },
 )

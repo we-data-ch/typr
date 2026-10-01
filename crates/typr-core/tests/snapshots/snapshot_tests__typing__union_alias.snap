@@ -1,5 +1,6 @@
 ---
 source: crates/typr-core/tests/snapshot_tests.rs
+assertion_line: 309
 expression: ty
 ---
 Tag(
@@ -10,11 +11,13 @@ Tag(
         ),
         HelpData {
             offset: 0,
+            end: 13,
             file_name: "",
         },
     ),
     HelpData {
         offset: 0,
+        end: 13,
         file_name: "",
     },
 )

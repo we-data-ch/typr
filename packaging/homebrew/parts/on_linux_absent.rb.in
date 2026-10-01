@@ -1,0 +1,5 @@
+  # Linux : cette version ne publie pas encore de binaire musl — les cibles
+  # `*-unknown-linux-musl` sont entrées dans la matrice de release après
+  # v0.5.12. Le bloc `on_linux` reviendra tout seul à la prochaine release qui en
+  # publiera, sans que ce fichier soit touché : c'est le job `brew` de
+  # `release.yml` qui régénère la formule au tag.

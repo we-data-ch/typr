@@ -1,0 +1,12 @@
+# exit=101
+
+## stdout/stderr
+
+  Parsing...
+thread 'main' (268307) panicked at crates/typr-core/src/processes/parsing/types.rs:974:14:
+explicit panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+## R généré
+

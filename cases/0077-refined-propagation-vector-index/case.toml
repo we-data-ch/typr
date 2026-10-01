@@ -1,0 +1,7 @@
+title = "Vector index, comparison and length propagate refined lengths"
+cmd = "build"
+layer = "transpile"
+status = "fixed"
+created = "2026-09-30"
+origin = "perso"
+checked = false

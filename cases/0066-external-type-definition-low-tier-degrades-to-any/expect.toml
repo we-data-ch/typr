@@ -1,0 +1,20 @@
+[[rule]]
+file = "@run"
+must_contain = "successful"
+
+[[rule]]
+file = "@run"
+must_not_contain = "Type errors found"
+
+# If cache resolution were broken (e.g. `typr.lock`'s digest not matching
+# the cache, or `$XDG_CACHE_HOME` not reaching the sandboxed invocation),
+# `resolve_one_locked_definition` skips the package with one of these
+# messages and `spin_gizmo` falls back to a genuinely unknown symbol — which
+# *does* raise a hard type error (unlike a degraded-but-loaded definition).
+[[rule]]
+file = "@run"
+must_not_contain = "not in the local cache"
+
+[[rule]]
+file = "@run"
+must_not_contain = "no longer matches typr.lock"

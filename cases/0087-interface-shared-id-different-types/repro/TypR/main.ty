@@ -1,0 +1,9 @@
+type Lovable <- interface { love: (Self) -> int };
+type Cat <- list { name: char };
+type Dog <- list { age: int };
+let love <- fn(c: Cat): int { 1 };
+let love <- fn(d: Dog): int { 2 };
+let cat <- Cat:{ name = "tom" };
+let dog <- Dog:{ age = 3 };
+let same_kind <- fn(a: Lovable@X, b: Lovable@X): int { a.love() };
+same_kind(cat, dog);

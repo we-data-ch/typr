@@ -1,0 +1,15 @@
+# A union is a subtype of another union only when every one of its members
+# fits in one of the other's. Each `bad_*` conversion below is invalid.
+type Shape <- .Circle(int) | .Square(int);
+type Unrelated <- .Triangle(char) | .Hexagon(bool);
+type WrongPayload <- .Circle(char) | .Square(char);
+type Partial <- .Circle(int) | .Triangle(int);
+
+let bad_unrelated <- fn(s: Shape): Unrelated { s };
+let bad_payload <- fn(s: Shape): WrongPayload { s };
+let bad_partial <- fn(s: Shape): Partial { s };
+
+# Valid widening: must keep type-checking.
+type Wider <- .Circle(int) | .Square(int) | .Triangle(int);
+let ok_wider <- fn(s: Shape): Wider { s };
+let ok_same <- fn(s: Shape): Shape { s };

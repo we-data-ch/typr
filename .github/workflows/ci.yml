@@ -192,6 +192,11 @@ jobs:
           sudo apt-get install -y r-base-core
           sudo Rscript -e "install.packages(c('R6','S7','Matrix'), repos='https://cloud.r-project.org')"
 
+      - name: Install air (formats the generated R code)
+        run: |
+          curl -LsSf https://github.com/posit-dev/air/releases/latest/download/air-installer.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Build typr
         run: cargo build --release
 
@@ -203,3 +208,268 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           tail -5 case-run.log >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  packaging:
+    name: Packaging (générateur Homebrew)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Installer shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: render.sh — shellcheck
+        run: shellcheck -s sh packaging/homebrew/render.sh
+
+      - name: render.sh — analyse syntaxique
+        run: |
+          # `dash -n` avec le dash du runner : c'est l'interpréteur le plus
+          # strict, il refuse les extensions de bash que `sh -n` tolère.
+          dash -n packaging/homebrew/render.sh
+          bash -n packaging/homebrew/render.sh
+          bash -n packaging/homebrew/tests/run-tests.sh
+
+      - name: render.sh — suite de tests
+        run: bash packaging/homebrew/tests/run-tests.sh
+
+  # Les manifestes WinGet et Scoop sont validés ici sur la fixture, donc sans
+  # réseau et sans release : c'est le même code de substitution que la release
+  # exercera, avec des empreintes factices. Ce que la fixture ne peut pas
+  # vérifier — WinGet qui installe vraiment, Scoop qui télécharge et vérifie une
+  # empreinte — appartient au job `winget` et au job `scoop` de release.yml, qui
+  # travaillent sur une release publiée.
+  #
+  # `packaging/tests/validate-schemas.py` valide contre les JSON Schema officiels
+  # de winget-pkgs et de Scoop, téléchargés depuis leurs dépôts : winget-pkgs
+  # n'accepte que le sien, et un schéma recopié ici validerait moins que ce qui
+  # sera exigé dès la version suivante.
+  packaging-win:
+    name: Packaging (WinGet + Scoop)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Installer shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Installer les dépendances de validation
+        run: python3 -m pip install --user --upgrade pyyaml jsonschema
+
+      - name: Cache des schémas officiels
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/typr-packaging/schemas
+          key: winget-scoop-schemas-${{ hashFiles('packaging/**/*.in') }}
+
+      - name: render.sh — shellcheck
+        run: shellcheck -s sh packaging/render.sh
+
+      - name: render.sh — analyse syntaxique
+        run: |
+          # `dash -n` avec le dash du runner : c'est l'interpréteur le plus
+          # strict, il refuse les extensions de bash que `sh -n` tolère.
+          dash -n packaging/render.sh
+          bash -n packaging/render.sh
+          bash -n packaging/tests/run-tests.sh
+          python3 -m py_compile packaging/tests/validate-schemas.py
+
+      - name: render.sh — suite de tests
+        run: bash packaging/tests/run-tests.sh
+
+      # La suite tolère que les schémas soient indisponibles — le réseau peut
+      # tomber, et une suite qui échoue pour ça n'apprend rien. Ici, hors de la
+      # suite, la validation est obligatoire : un manifeste que winget-pkgs ou le
+      # dépôt Scoop refuseraient doit arrêter la PR, pas la release.
+      - name: Manifestes rendus — schémas officiels
+        run: |
+          set -euo pipefail
+          packaging/render.sh \
+            --tag v9.9.9 \
+            --checksums packaging/tests/fixtures/checksums-v9.9.9.txt \
+            --release-date 2026-01-02 \
+            --out rendered
+          python3 packaging/tests/validate-schemas.py rendered
+
+  # La validation par Homebrew ne peut pas tourner dans le job précédent : ni
+  # `brew style` ni `brew audit` n'existent sous Linux, et les deux sont justement
+  # ce qui décide si `brew install` fonctionnera. Elle a donc lieu ici, sur un
+  # runner macOS, à chaque PR — sinon une formule que Homebrew refuse ne se
+  # verrait qu'à la release, quand le tag est déjà poussé et qu'il faut en créer
+  # un autre pour la corriger.
+  #
+  # Le rendu se fait sur la fixture, donc sans réseau et sans release : c'est le
+  # même code de substitution que la release exercera, avec des empreintes
+  # factices. La vérification des empreintes *réelles* appartient au job `brew`
+  # de release.yml, qui peut télécharger les archives publiées.
+  packaging-audit:
+    name: Packaging (audit Homebrew)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Rendre la formule depuis la fixture
+        run: |
+          set -euo pipefail
+          packaging/homebrew/render.sh \
+            --tag v9.9.9 \
+            --checksums packaging/homebrew/tests/fixtures/checksums-v9.9.9.txt \
+            --out tap
+          cat tap/Formula/typr.rb
+
+      - name: brew style et brew audit
+        run: |
+          set -euo pipefail
+          brew tap-new --no-git we-data-ch/typr
+          TAP_DIR="$(brew --repository we-data-ch/typr)"
+          mkdir -p "$TAP_DIR/Formula"
+          cp tap/Formula/typr.rb "$TAP_DIR/Formula/typr.rb"
+          cp tap/README.md "$TAP_DIR/README.md"
+
+          brew readall we-data-ch/typr
+          brew style we-data-ch/typr/typr
+          brew audit --strict --formula we-data-ch/typr/typr
+
+  install:
+    name: Install scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # La suite Unix tourne nativement : `sh` et `dash` existent sur le runner,
+      # et c'est `sh` qui interprète le script chez la plupart des utilisateurs.
+      # Le conteneur ne servirait qu'à re-vérifier les mêmes interpréteurs avec
+      # un système de fichiers différent — ce que fait déjà le job `test` pour
+      # le compilateur.
+      - name: Installer shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: install.sh — shellcheck (script)
+        run: shellcheck -s sh install/install.sh
+
+      - name: install.sh — shellcheck (tests)
+        run: shellcheck -s bash install/tests/run-tests.sh
+
+      - name: install.sh — analyse syntaxique
+        run: |
+          # `sh -n` avec le dash du runner : c'est l'interpréteur le plus
+          # strict, il refuse les extensions de bash que `sh -n` tolère.
+          dash -n install/install.sh
+          bash -n install/install.sh
+
+      - name: install.sh — suite de tests
+        run: bash install/tests/run-tests.sh
+
+      # install.ps1 est une suite séparée : elle a besoin de PowerShell, de
+      # PSScriptAnalyzer et d'un serveur de fixtures en Python. Le conteneur
+      # est construit depuis install/tests/Dockerfile, épinglé sur un tag
+      # PowerShell précis — `latest` ferait échouer la CI au jour où la base
+      # change, sans qu'aucune modification du dépôt soit en cause.
+      - name: install.ps1 — build de l image de test
+        run: docker build -t typr-install-tests -f install/tests/Dockerfile .
+
+      - name: install.ps1 — suite de tests
+        run: >-
+          docker run --rm -v "$PWD:/w" -w /w typr-install-tests
+          pwsh -NoProfile -File install/tests/run-tests.ps1
+
+      # Les deux suites précédentes tournent sous Linux : ni le registre Windows,
+  # ni %LOCALAPPDATA%, ni Expand-Archive ne sont réellement exercés. Ce job
+  # attrape ce que Linux ne peut pas voir.
+  #
+  # Il ne remplace pas la preuve qu'un binaire y démarre : le runner n'a pas de
+  # VC++ Redistributable, et la fixture n'est de toute façon pas un exécutable
+  # Windows. La validation de bout en bout se fait sur une machine réelle, avec
+  # une vraie release publiée.
+  install-windows:
+    name: Install scripts (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Le script s'exécute et distingue ses deux codes d'échec
+        shell: pwsh
+        run: |
+          # Rien n'est installé : -DryRun ne télécharge rien, et le ORIGIN
+          # explicite évite de dépendre du réseau. On vérifie surtout que le
+          # script tourne sous Windows PowerShell 5.1 — le runtime le plus
+          # ancien encore présent sur une machine de bureau — et pas seulement
+          # sous PowerShell 7.
+          $env:TYPR_INSTALL_ORIGIN = 'https://we-data-ch.github.io/typr.github.io'
+
+          & ./install/install.ps1 -DryRun -Version 'v0.0.0'
+          if ($LASTEXITCODE -ne 0) { throw "-DryRun a échoué (code $LASTEXITCODE)" }
+
+          & ./install/install.ps1 -DryRun -Version 'pas-un-tag'
+          if ($LASTEXITCODE -ne 2) {
+            throw "un tag illisible doit sortir en 2 (code obtenu : $LASTEXITCODE)"
+          }
+
+          Write-Host "install.ps1 — PowerShell $($PSVersionTable.PSVersion) sur $env:OS"
+          # Le dernier code natif (2, attendu) ferait sinon échouer l'étape.
+          exit 0
+
+  install-hosting:
+    name: Install hosting
+    runs-on: ubuntu-latest
+    needs: install
+    # Le dépôt de documentation est poussé seulement sur les branches publiées :
+    # un push sur une PR laisserait une page d installation qui peut mentir.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Vérifier le jeton de déploiement
+        env:
+          DOCS_DEPLOY_TOKEN: ${{ secrets.DOCS_DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$DOCS_DEPLOY_TOKEN" ]; then
+            echo "::error::DOCS_DEPLOY_TOKEN absent : la copie vers typr.github.io ne peut pas avoir lieu."
+            exit 1
+          fi
+
+      # Les scripts d installation sont servis depuis le dépôt de documentation,
+      # pas depuis celui-ci : c est là que GitHub Pages est branché, et les deux
+      # URLs doivent rester stables même si le code bouge.
+      #
+      # On ne copie que ce que Pages sert. Les tests et le Dockerfile n ont rien
+      # à faire dans le site, et le publier reviendrait à exposer la mécanique de
+      # test — y compris les détails du protocole de fixture.
+      - name: Copier les scripts vers le dépôt de documentation
+        env:
+          DOCS_DEPLOY_TOKEN: ${{ secrets.DOCS_DEPLOY_TOKEN }}
+        run: |
+          git clone --depth 1 \
+            "https://x-access-token:${DOCS_DEPLOY_TOKEN}@github.com/we-data-ch/typr.github.io.git" \
+            site
+
+          mkdir -p site/static/install
+          # Le BOM est nécessaire : le script affiche des accents, et Pages sert
+          # le fichier tel quel. Sans BOM, un navigateur et PS 5.1 le liraient
+          # en ANSI.
+          cp install/install.sh install/install.ps1 site/static/install/
+
+          # Aucun autre fichier n est attendu sous static/install : un reste
+          # d une version précédente (un vieux install.bat) continuerait d être
+          # servi à l adresse où il a déjà été indexé.
+          git -C site status --porcelain
+          git -C site add static/install/install.sh static/install/install.ps1
+          if git -C site diff --cached --quiet; then
+            echo "Les scripts publiés sont déjà à jour."
+            exit 0
+          fi
+
+          git -C site -c user.name='github-actions[bot]' \
+                  -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+                  commit -m "install : scripts d installation ($(git rev-parse --short HEAD))"
+
+          # Un push direct sur main est refusé si la branche est protégée. Le
+          # contournement par empty commit + force n est pas utilisé : mieux
+          # vaut voir le job échouer bruyamment qu écraser une protection
+          # posée par un humain.
+          git -C site push

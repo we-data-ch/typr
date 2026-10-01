@@ -1,0 +1,9 @@
+#@case untyped-r-function-arity-error: RFC 0028 - calling an untyped R
+# function with the wrong number of arguments must report a specific arity
+# error, not the generic "no signature matches" message that exposed the
+# internal UnknownFunction placeholder.
+let my_addition <- function(a, b) {
+	a + b
+};
+
+my_addition(1, 2, 3)

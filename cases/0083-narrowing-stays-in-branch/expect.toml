@@ -1,0 +1,9 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_length(v, 2L, \"TypR/main.ty:4\")"
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_length(v, 2L, \"TypR/main.ty:5\")"
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_length(v, 2L, \"TypR/main.ty:6\")"

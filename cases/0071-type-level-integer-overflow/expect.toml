@@ -1,0 +1,7 @@
+[[rule]]
+file = "@run"
+must_not_contain = "panicked"
+
+[[rule]]
+file = "@run"
+must_contain = "Syntax error"

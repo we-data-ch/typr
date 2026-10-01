@@ -1,0 +1,18 @@
+[[rule]]
+file = "@run"
+must_contain = "successful"
+
+[[rule]]
+file = "@run"
+must_not_contain = "Type errors found"
+
+# Same 3-way discriminator as case 0066: if cache/lock resolution were
+# broken, `turn_sprocket` would fall back to a genuinely unknown symbol,
+# which raises a hard type error instead of degrading.
+[[rule]]
+file = "@run"
+must_not_contain = "not in the local cache"
+
+[[rule]]
+file = "@run"
+must_not_contain = "no longer matches typr.lock"

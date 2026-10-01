@@ -1,0 +1,41 @@
+# exit=1
+
+## stdout/stderr
+
+  Parsing... done (7 ms)
+  Type checking... failed
+Type errors found:
+  × Type error: type 0 doesn't match type 10
+   ╭─[TypR/main.ty:5:2]
+ 4 │ 
+ 5 │ x <- 10;
+   ·  ▲   ┬
+   ·  │   ╰── Received 10
+   ·  ╰── Expected 0
+ 6 │ x <- x + 1;
+   ╰────
+
+  × Type error: type 0 doesn't match type int
+   ╭─[TypR/main.ty:6:2]
+ 5 │ x <- 10;
+ 6 │ x <- x + 1;
+   ·  ▲    ┬
+   ·  │    ╰── Received int
+   ·  ╰── Expected 0
+ 7 │ 
+   ╰────
+
+  × Type error: type 0 doesn't match type int
+   ╭─[TypR/main.ty:8:14]
+ 7 │ 
+ 8 │ x |> f() |> g()!;
+   ·              ┬ ▲
+   ·              │ ╰── Expected 0
+   ·              ╰── Received int
+ 9 │ 
+   ╰────
+
+
+
+## R généré
+

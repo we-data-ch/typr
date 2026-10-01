@@ -1,0 +1,25 @@
+# lines 5-11 are proven by their condition: no check there
+[[rule]]
+file = "R/main.R"
+must_not_contain = "main.ty:5"
+[[rule]]
+file = "R/main.R"
+must_not_contain = "main.ty:6"
+[[rule]]
+file = "R/main.R"
+must_not_contain = "main.ty:7"
+[[rule]]
+file = "R/main.R"
+must_not_contain = "main.ty:8"
+[[rule]]
+file = "R/main.R"
+must_not_contain = "main.ty:9"
+[[rule]]
+file = "R/main.R"
+must_not_contain = "main.ty:11"
+[[rule]]
+file = "R/main.R"
+must_not_contain = "main.ty:10"
+[[rule]]
+file = "R/main.R"
+must_contain = "dist(v)"

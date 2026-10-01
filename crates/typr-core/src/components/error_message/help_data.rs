@@ -35,12 +35,28 @@ fn get_cached_source(file_name: &str) -> Option<String> {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Eq, Clone, Hash, Default)]
 pub struct HelpData {
     offset: usize,
+    #[serde(default)]
+    end: usize,
     file_name: String,
 }
 
 impl HelpData {
     pub fn get_offset(&self) -> usize {
         self.offset
+    }
+
+    /// Offset just past the last byte of this node's source range.
+    /// Filled in by the parser once the node's production has fully consumed its input;
+    /// equal to `offset` for synthetic (non-source-derived) nodes.
+    pub fn get_end(&self) -> usize {
+        self.end
+    }
+
+    /// Sets the end offset. The parser calls this once a production completes, using the
+    /// position of the remaining input right after this node's own text (see the `_impl`/
+    /// wrapper split in `processes/parsing`).
+    pub fn set_end(&mut self, end: usize) {
+        self.end = end;
     }
 
     pub fn get_file_name(&self) -> String {
@@ -84,6 +100,7 @@ impl HelpData {
     pub fn random() -> Self {
         HelpData {
             offset: 7_usize,
+            end: 7_usize,
             file_name: "asfdlwone".to_string(),
         }
     }
@@ -91,8 +108,10 @@ impl HelpData {
 
 impl From<LocatedSpan<&str, String>> for HelpData {
     fn from(ls: LocatedSpan<&str, String>) -> Self {
+        let offset = ls.location_offset();
         HelpData {
-            offset: ls.location_offset(),
+            offset,
+            end: offset,
             file_name: ls.extra,
         }
     }
@@ -101,7 +120,13 @@ impl From<LocatedSpan<&str, String>> for HelpData {
 impl From<Vec<Lang>> for HelpData {
     fn from(val: Vec<Lang>) -> Self {
         if !val.is_empty() {
-            val[0].clone().into()
+            let first = val[0].get_help_data();
+            let last = val[val.len() - 1].get_help_data();
+            HelpData {
+                offset: first.offset,
+                end: last.end,
+                file_name: first.file_name,
+            }
         } else {
             HelpData::default()
         }

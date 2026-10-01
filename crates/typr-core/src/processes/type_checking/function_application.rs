@@ -4,10 +4,16 @@ use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::set_related_type_if_variable;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::function_type::FunctionType;
+use crate::components::r#type::refinement::RefinementSet;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::facets;
 use crate::processes::type_checking::interface_satisfaction;
 use crate::processes::type_checking::match_types_to_generic;
+use crate::processes::type_checking::refinement_check::{
+    coerce_to, field_obligations, residual, with_obligations, Coercion,
+};
+use crate::processes::type_checking::signature_normalization::{self, CallInstance};
+use crate::processes::type_checking::type_arithmetic::declared_refinements;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::typing;
 use crate::processes::type_checking::Context;
@@ -365,9 +371,11 @@ fn collect_named_generics(concrete: &Type, param: &Type, subs: &mut std::collect
         Type::IndexGen(name, _) => {
             subs.entry(name.clone()).or_insert_with(|| concrete.clone());
         }
-        Type::Vec(_, size_param, elem_param, _) => {
-            if let Type::Vec(_, size_concrete, elem_concrete, _) = concrete {
-                collect_named_generics(size_concrete, size_param, subs);
+        Type::Vec(_, _, elem_param, _) => {
+            if let Type::Vec(_, _, elem_concrete, _) = concrete {
+                if let (Some(size_concrete), Some(size_param)) = (concrete.vec_length(), param.vec_length()) {
+                    collect_named_generics(&size_concrete, &size_param, subs);
+                }
                 collect_named_generics(elem_concrete, elem_param, subs);
             }
         }
@@ -463,10 +471,10 @@ fn apply_named_generics(ty: &Type, subs: &std::collections::HashMap<String, Type
             resolve_named_generic_chain(name, subs, &mut seen)
         }
         Type::IndexGen(name, _) => subs.get(name).cloned().unwrap_or_else(|| ty.clone()),
-        Type::Vec(vt, size, elem, h) => Type::Vec(
+        Type::Vec(vt, _, elem, h) => Type::vec(
             vt.clone(),
-            Box::new(apply_named_generics(size, subs)),
-            Box::new(apply_named_generics(elem, subs)),
+            apply_named_generics(&ty.vec_length().unwrap_or_else(builder::any_type), subs),
+            apply_named_generics(elem, subs),
             h.clone(),
         ),
         Type::Function(params, ret, h) => Type::Function(
@@ -512,8 +520,10 @@ fn collect_interface_bindings(concrete: &Type, param: &Type, context: &Context, 
         return;
     }
     match (concrete, param) {
-        (Type::Vec(_, size_c, elem_c, _), Type::Vec(_, size_p, elem_p, _)) => {
-            collect_interface_bindings(size_c, size_p, context, mapping);
+        (Type::Vec(_, _, elem_c, _), Type::Vec(_, _, elem_p, _)) => {
+            if let (Some(size_c), Some(size_p)) = (concrete.vec_length(), param.vec_length()) {
+                collect_interface_bindings(&size_c, &size_p, context, mapping);
+            }
             collect_interface_bindings(elem_c, elem_p, context, mapping);
         }
         (Type::Function(params_c, ret_c, _), Type::Function(params_p, ret_p, _)) => {
@@ -531,10 +541,10 @@ fn substitute_interface_types(ty: &Type, mapping: &[(Type, Type)]) -> Type {
         return concrete.clone();
     }
     match ty {
-        Type::Vec(vt, size, elem, h) => Type::Vec(
+        Type::Vec(vt, _, elem, h) => Type::vec(
             vt.clone(),
-            Box::new(substitute_interface_types(size, mapping)),
-            Box::new(substitute_interface_types(elem, mapping)),
+            substitute_interface_types(&ty.vec_length().unwrap_or_else(builder::any_type), mapping),
+            substitute_interface_types(elem, mapping),
             h.clone(),
         ),
         Type::Function(params, ret, h) => Type::Function(
@@ -1099,6 +1109,53 @@ fn specialize_lambda(lambda_lang: &Lang, lambda_type: &Type, expected_type: &Typ
     (lambda_lang.clone(), lambda_type.clone())
 }
 
+/// Literal `n` of an index type `Integer(Val(n))`, if it is one.
+fn literal_index(t: &Type) -> Option<i64> {
+    match t {
+        Type::Integer(crate::components::r#type::tint::Tint::Val(n), _) => Some(*n as i64),
+        _ => None,
+    }
+}
+
+/// Declared effects of a few base-R primitives on a vector's length
+/// (refined_types_plan.md, phase 7). These functions live in `base.ty`, which
+/// is doc-only, so the compiler sees them as untyped (`Any`); the effect is
+/// hard-coded here and applied only to a result that is otherwise `Any`.
+/// Every other function keeps the conservative default: its declared return
+/// type, with no refinement.
+///
+/// - `length(x)`, `x : [N, T]`  -> the literal `N`
+/// - `rev(x)`                   -> `x`'s own type (same length, same elements)
+/// - `head(x, k)` / `tail(x, k)`, literal `k`, `x : [N, T]`
+///                              -> `[min(N, k), T]` (`[max(N + k, 0), T]` for `k < 0`)
+fn known_effect_call(var: &Var, context: &Context, parameters: &[Lang]) -> Option<Type> {
+    let name = var.get_name();
+    let arity = match name.as_str() {
+        "length" | "rev" => 1,
+        "head" | "tail" => 2,
+        _ => return None,
+    };
+    if parameters.len() != arity {
+        return None;
+    }
+    let arg = reduce_type(context, &typing(context, &parameters[0]).value);
+    let Type::Vec(vt, _, elem, h) = &arg else {
+        return None;
+    };
+    let n = arg.vec_length()?;
+    match name.as_str() {
+        "length" => literal_index(&n).map(|_| n.clone()),
+        "rev" => Some(arg.clone()),
+        _ => {
+            let len = literal_index(&n)?;
+            let k = literal_index(&reduce_type(context, &typing(context, &parameters[1]).value))?;
+            let kept = if k >= 0 { len.min(k) } else { (len + k).max(0) };
+            let index = Type::Integer(crate::components::r#type::tint::Tint::Val(kept as _), h.clone());
+            Some(Type::vec(vt.clone(), index, (**elem).clone(), h.clone()))
+        }
+    }
+}
+
 pub fn apply_from_variable(var: Var, context: &Context, parameters: &[Lang], h: &HelpData) -> TypeContext {
     thread_local! {
         static DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
@@ -1113,8 +1170,13 @@ pub fn apply_from_variable(var: Var, context: &Context, parameters: &[Lang], h: 
         return TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone())
             .with_errors(vec![TypRError::Type(TypeError::FunctionNotFound(var.clone()))]);
     }
-    let result = apply_from_variable_inner(var, context, parameters, h);
+    let mut result = apply_from_variable_inner(var.clone(), context, parameters, h);
     DEPTH.with(|d| d.set(d.get() - 1));
+    if matches!(result.value, Type::Any(_)) {
+        if let Some(len) = known_effect_call(&var, context, parameters) {
+            result.value = len;
+        }
+    }
     result
 }
 
@@ -1237,7 +1299,30 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
     let (expanded_parameters, types, param_errors, arg_context) =
         get_expanded_parameters_with_their_types(context, parameters);
     let context = &arg_context;
-    let all_signatures = var.get_functions_from_name(context);
+    let declared_signatures = var.get_functions_from_name(context);
+    // `I@Id` variables (and repeated bare interfaces) are bound against the
+    // arguments up front; the regular filters then see concrete signatures.
+    let mut id_clashes: Vec<signature_normalization::IdClash> = Vec::new();
+    let all_signatures: Vec<FunctionType> = declared_signatures
+        .iter()
+        .filter_map(|sig| {
+            match signature_normalization::instantiate_at_call(
+                context,
+                &sig.get_param_types(),
+                &sig.get_return_type(),
+                sig.is_variadic(),
+                &types,
+            ) {
+                CallInstance::NotBounded => Some(sig.clone()),
+                CallInstance::Rejected => None,
+                CallInstance::Clash(clash) => {
+                    id_clashes.push(clash);
+                    None
+                }
+                CallInstance::Instantiated(params, ret) => Some(sig.clone().set_params(params).set_return_type(ret)),
+            }
+        })
+        .collect();
 
     let filters: &[FilterStep] = &[
         FilterStep {
@@ -1282,22 +1367,49 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
         },
     ];
 
-    for step in filters {
-        if let Some(fun_typ) = (step.filter)(&all_signatures, &types, &var, context) {
-            let (final_params, final_types) = specialize_lambdas(context, &expanded_parameters, &types, &fun_typ);
-            let final_fun_typ = match step.refine {
-                Some(refine) => refine(&all_signatures, &final_types, context).unwrap_or(fun_typ),
-                None => fun_typ,
-            };
-            return build_success(
-                &var,
-                &final_fun_typ,
-                final_params,
-                &final_types,
-                param_errors,
-                context,
-                h,
-            );
+    // Second attempt (refined types, plan Phase 5): when no signature accepts
+    // the arguments as typed, retry with each argument that only fails to
+    // *prove* a refinement (`[int]` given for `[3, int]`) standing in as the
+    // parameter type. The check that could not be proven statically becomes a
+    // runtime obligation on that argument, recorded in the context.
+    for attempt in 0..2 {
+        let (try_types, obligations): (Vec<Type>, Vec<(HelpData, RefinementSet)>) = if attempt == 0 {
+            (types.clone(), Vec::new())
+        } else {
+            match relax_refined_arguments(&all_signatures, &types, &expanded_parameters, context) {
+                Some(relaxed) => relaxed,
+                None => break,
+            }
+        };
+        let context = &obligations
+            .into_iter()
+            .fold(context.clone(), |ctx, (h, set)| ctx.add_refinement_obligation(&h, set));
+        for step in filters {
+            if let Some(fun_typ) = (step.filter)(&all_signatures, &try_types, &var, context) {
+                let (final_params, final_types) =
+                    specialize_lambdas(context, &expanded_parameters, &try_types, &fun_typ);
+                let final_fun_typ = match step.refine {
+                    Some(refine) => refine(&all_signatures, &final_types, context).unwrap_or(fun_typ),
+                    None => fun_typ,
+                };
+                // A generic base (`[#N, T] & length(> 0)`) unifies whatever the
+                // refinements say: decide them here, against the arguments.
+                let Some(generic_obligations) =
+                    generic_refinement_obligations(&final_fun_typ, &final_types, &expanded_parameters, context)
+                else {
+                    continue;
+                };
+                let context = &with_obligations(context.clone(), generic_obligations);
+                return build_success(
+                    &var,
+                    &final_fun_typ,
+                    final_params,
+                    &final_types,
+                    param_errors,
+                    context,
+                    h,
+                );
+            }
         }
     }
 
@@ -1307,7 +1419,7 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
     // empty) may mean it's declared in an in-scope module but never `use`d —
     // same idea as `VariableNotImported` for a bare variable reference, just
     // reached through function-call resolution instead of `Lang::Variable`.
-    let not_imported = all_signatures
+    let not_imported = declared_signatures
         .is_empty()
         .then(|| context.find_variable_source_module(&var.get_name()))
         .flatten();
@@ -1320,13 +1432,38 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
                 h.clone(),
             )));
         }
-        None if !all_signatures.is_empty() => {
+        // RFC 0028: a name bound to exactly one signature shaped like an
+        // untyped R function (n `Any` params, `Any` return, non-variadic —
+        // `Lang::RFunction`'s typing rule) gets its own arity message instead
+        // of `NoMatchingSignature`, which would otherwise print the callee's
+        // own `Any` signature back at the caller as if it were informative.
+        None if declared_signatures.len() == 1 && declared_signatures[0].is_r_function() => {
+            errors.push(TypRError::Type(TypeError::UntypedFunctionArity(
+                var.get_name(),
+                declared_signatures[0].get_param_types().len(),
+                types.len(),
+                h.clone(),
+            )));
+        }
+        // Every signature was turned down for the same reason: one `@Id`
+        // bound to two argument types. Say which, instead of listing signatures.
+        None if !id_clashes.is_empty() && id_clashes.len() == declared_signatures.len() => {
+            let c = &id_clashes[0];
+            errors.push(TypRError::Type(TypeError::IdBoundToTwoTypes(
+                c.id.clone(),
+                c.first_type.pretty(),
+                expanded_parameters[c.first_arg].get_help_data(),
+                c.second_type.pretty(),
+                expanded_parameters[c.second_arg].get_help_data(),
+            )));
+        }
+        None if !declared_signatures.is_empty() => {
             // The name IS bound to function signature(s) — the call just
             // doesn't match any of them (wrong arity or argument types).
             // Reporting `FunctionNotFound` here reads as "the variable
             // doesn't exist", which is wrong and misleading (e.g. `f()` on
             // a 1-parameter lambda looked like lambda-lets were unsupported).
-            let signatures = all_signatures
+            let signatures = declared_signatures
                 .iter()
                 .map(|sig| {
                     format!(
@@ -1354,6 +1491,73 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
         }
     }
     TypeContext::new(builder::any_type(), Lang::Empty(h.clone()), context.clone()).with_errors(errors)
+}
+
+/// The refinements of a matched signature's parameters against the argument
+/// types: `None` when one provably fails (the signature does not match), else
+/// the runtime checks still owed, one per argument. Parameters whose base is
+/// concrete were already decided by the subtype test; what this adds is the
+/// generic ones, which unification accepts without looking at refinements.
+fn generic_refinement_obligations(
+    sig: &FunctionType,
+    types: &[Type],
+    args: &[Lang],
+    context: &Context,
+) -> Option<Vec<(HelpData, RefinementSet)>> {
+    let mut out = Vec::new();
+    for (i, (arg, param)) in types.iter().zip(sig.get_param_types().iter()).enumerate() {
+        // not reduced: the signature is already substituted (`N ↦ 0`), and reducing
+        // `[0, char] & length(> 0)` would collapse it to an error
+        let Some((base, want)) = declared_refinements(param) else {
+            continue;
+        };
+        let have = arg.reduce(context).refinements_of();
+        if have.implies(&want) {
+            continue;
+        }
+        let integral = matches!(base, Type::Vec(..));
+        if have.contradicts(&want, integral) {
+            return None;
+        }
+        out.push((args.get(i)?.get_help_data(), residual(&have, &want)));
+    }
+    Some(out)
+}
+
+/// For the first signature of the right arity that every argument can flow
+/// into (`coerce_to` is never `Reject`) with at least one argument that needs
+/// a runtime check: the argument types with those arguments replaced by the
+/// parameter type, and the residual to check at each replaced position.
+fn relax_refined_arguments(
+    signatures: &[FunctionType],
+    types: &[Type],
+    args: &[Lang],
+    context: &Context,
+) -> Option<(Vec<Type>, Vec<(HelpData, RefinementSet)>)> {
+    signatures.iter().find_map(|sig| {
+        let params = sig.get_param_types();
+        if params.len() != types.len() {
+            return None;
+        }
+        let mut relaxed = Vec::with_capacity(types.len());
+        let mut obligations = Vec::new();
+        for (i, (arg, param)) in types.iter().zip(params.iter()).enumerate() {
+            match coerce_to(arg, param, context) {
+                Coercion::Static => relaxed.push(arg.clone()),
+                Coercion::Runtime(set) => {
+                    relaxed.push(param.clone());
+                    obligations.push((args[i].get_help_data(), set));
+                }
+                // a record literal argument: the checks go on its fields
+                Coercion::Reject => {
+                    let fields = args.get(i).and_then(|a| field_obligations(a, arg, param, context))?;
+                    relaxed.push(param.clone());
+                    obligations.extend(fields);
+                }
+            }
+        }
+        (!obligations.is_empty()).then_some((relaxed, obligations))
+    })
 }
 
 fn specialize_lambdas(

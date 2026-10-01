@@ -1,0 +1,26 @@
+# A record-typed argument that is not the first must be checked against the
+# parameter type, like the first one and scalar ones are. Each call below is
+# invalid and must be rejected.
+type Pt <- list { x: int };
+type Qq <- list { z: int };
+type Rr <- list { x: char };
+
+let take_other <- fn(a: int, p: Pt): int { a };
+let other <- Qq:{ z = 1 };
+let bad_other <- take_other(1, other);
+
+let take_field <- fn(a: int, p: Pt): int { a };
+let wrong_field <- Rr:{ x = "s" };
+let bad_field <- take_field(1, wrong_field);
+
+let take_third <- fn(a: int, b: int, p: Pt): int { a };
+let bad_third <- take_third(1, 2, other);
+
+# Anonymous records (no constructor) must be checked as well.
+let take_anon <- fn(a: int, p: Pt): int { a };
+let anon_missing <- :{ z = 1 };
+let bad_anon_missing <- take_anon(1, anon_missing);
+
+let take_anon_ty <- fn(a: int, p: Pt): int { a };
+let anon_wrong <- :{ x = "s" };
+let bad_anon_wrong <- take_anon_ty(1, anon_wrong);

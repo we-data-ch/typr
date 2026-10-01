@@ -186,6 +186,16 @@ pub const ENTRIES: &[ExplainEntry] = &[
         good: "let :{a, b, c} <- :{1, 2, 3};",
     },
     ExplainEntry {
+        code: "S018",
+        title: "Malformed `@Id` bound suffix",
+        explanation: "In `Lovable@A`, the `@A` suffix names an implicit generic bounded by the \
+            interface `Lovable`. It must be one capital letter touching the interface name: with a \
+            space, or a longer id like `@Self`, the tail would be read as a separate type and \
+            silently dropped.",
+        bad: "let f <- fn(a: Lovable @A): bool { true };",
+        good: "let f <- fn(a: Lovable@A): bool { true };",
+    },
+    ExplainEntry {
         code: "T001",
         title: "Type mismatch on a 'let' binding",
         explanation: "The value on the right-hand side doesn't match the type annotation on the \
@@ -570,6 +580,31 @@ pub const ENTRIES: &[ExplainEntry] = &[
             that type, or force dispatch to one of the types listed as available.",
         bad: "type Personne <- list{ name: char };\ntype Voiture <- list{ marque: char };\nlet greet <- fn(x: Personne, y: Personne): Personne { x };\nlet p1 <- Personne:{ name = \"a\" };\nlet p2 <- Personne:{ name = \"b\" };\ngreet<Voiture>(p1, p2);",
         good: "type Personne <- list{ name: char };\ntype Voiture <- list{ marque: char };\nlet greet <- fn(x: Personne, y: Personne): Personne { x };\nlet p1 <- Personne:{ name = \"a\" };\nlet p2 <- Personne:{ name = \"b\" };\ngreet<Personne>(p1, p2);",
+    },
+    ExplainEntry {
+        code: "T047",
+        title: "Two different bounds for one `@Id`",
+        explanation: "An `@Id` names one type, so `Lovable@A` and `Printable@A` in the same \
+            signature would ask that type to be both interfaces at once. Give the second bound \
+            its own id.",
+        bad: "type Lovable <- interface { love: (Self) -> char };\ntype Printable <- interface { show: (Self) -> char };\nlet f <- fn(a: Lovable@A, b: Printable@A): bool { true };",
+        good: "type Lovable <- interface { love: (Self) -> char };\ntype Printable <- interface { show: (Self) -> char };\nlet f <- fn(a: Lovable@A, b: Printable@B): bool { true };",
+    },
+    ExplainEntry {
+        code: "T048",
+        title: "Bound id clashes with a free generic",
+        explanation: "Free generics (`T`) and `I@Id` ids share one namespace inside a signature; \
+            using `T` for both would make it unclear whether `T` is unconstrained or bounded.",
+        bad: "type Lovable <- interface { love: (Self) -> char };\nlet f <- fn(a: T, b: Lovable@T): bool { true };",
+        good: "type Lovable <- interface { love: (Self) -> char };\nlet f <- fn(a: T, b: Lovable@A): bool { true };",
+    },
+    ExplainEntry {
+        code: "T049",
+        title: "One `@Id` bound to two different types in a call",
+        explanation: "Parameters that share an id (`Lovable@A`, or a bare `Lovable` used twice) must \
+            receive the same type. Give them different ids when they may differ.",
+        bad: "type Lovable <- interface { love: (Self) -> char };\ntype Cat <- list { name: char };\ntype Dog <- list { age: int };\nlet love <- fn(c: Cat): char { c.name };\nlet love <- fn(d: Dog): char { \"dog\" };\nlet cat <- Cat:{ name = \"tom\" };\nlet dog <- Dog:{ age = 3 };\nlet f <- fn(a: Lovable@X, b: Lovable@X): char { a.love() };\nf(cat, dog);",
+        good: "type Lovable <- interface { love: (Self) -> char };\ntype Cat <- list { name: char };\ntype Dog <- list { age: int };\nlet love <- fn(c: Cat): char { c.name };\nlet love <- fn(d: Dog): char { \"dog\" };\nlet cat <- Cat:{ name = \"tom\" };\nlet dog <- Dog:{ age = 3 };\nlet f <- fn(a: Lovable@X, b: Lovable@Y): char { a.love() };\nf(cat, dog);",
     },
 ];
 

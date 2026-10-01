@@ -1,0 +1,13 @@
+format_version = 1
+[package]
+name = "sprocket"
+since = "2.0.0"
+[definition]
+version = "0.1.0"
+tier = "T1"
+[provider]
+type = "community"
+repository = "github:test/typr-sprocket"
+[capabilities]
+r_shims = false
+extern_raw = false

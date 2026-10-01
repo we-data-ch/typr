@@ -1,0 +1,6 @@
+# A parameter with a fixed length must not be widened to fit a longer argument.
+let dist <- fn(p: [2, num]): num { 0.0 };
+let a: [3, num] <- [1.0, 2.0, 3.0];
+dist(a);
+dist([1.0, 2.0, 3.0]);
+dist([1.0, 2.0]);

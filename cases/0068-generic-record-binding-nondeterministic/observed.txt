@@ -1,0 +1,61 @@
+# exit=1
+
+## stdout/stderr
+
+  Parsing... done (9 ms)
+  Type checking... failed
+Type errors found:
+  × Type error: type int doesn't match type true
+   ╭─[TypR/main.ty:7:9]
+ 6 │ let r1 <- :{ a = 1, b = "s", c = true };
+ 7 │ let y1: int <- first(r1);
+   ·         ▲       ┬
+   ·         │       ╰── Received true
+   ·         ╰── Expected int
+ 8 │ let r2 <- :{ a = 2, b = "t", c = false };
+   ╰────
+
+  × Type error: type int doesn't match type "t"
+    ╭─[TypR/main.ty:9:9]
+  8 │ let r2 <- :{ a = 2, b = "t", c = false };
+  9 │ let y2: int <- first(r2);
+    ·         ▲       ┬
+    ·         │       ╰── Received "t"
+    ·         ╰── Expected int
+ 10 │ let r3 <- :{ a = 3, b = "u", c = true };
+    ╰────
+
+  × Type error: type int doesn't match type true
+    ╭─[TypR/main.ty:11:9]
+ 10 │ let r3 <- :{ a = 3, b = "u", c = true };
+ 11 │ let y3: int <- first(r3);
+    ·         ▲       ┬
+    ·         │       ╰── Received true
+    ·         ╰── Expected int
+ 12 │ let r4 <- :{ a = 4, b = "v", c = false };
+    ╰────
+
+  × Type error: type int doesn't match type false
+    ╭─[TypR/main.ty:13:9]
+ 12 │ let r4 <- :{ a = 4, b = "v", c = false };
+ 13 │ let y4: int <- first(r4);
+    ·         ▲       ┬
+    ·         │       ╰── Received false
+    ·         ╰── Expected int
+ 14 │ let r5 <- :{ a = 5, b = "w", c = true };
+    ╰────
+
+  × Type error: type int doesn't match type false
+    ╭─[TypR/main.ty:17:9]
+ 16 │ let r6 <- :{ a = 6, b = "x", c = false };
+ 17 │ let y6: int <- first(r6);
+    ·         ▲       ┬
+    ·         │       ╰── Received false
+    ·         ╰── Expected int
+ 18 │ let r7 <- :{ a = 7, b = "y", c = true };
+    ╰────
+
+
+
+## R généré
+

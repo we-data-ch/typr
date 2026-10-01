@@ -1,0 +1,8 @@
+# Narrowing must not leak: the else-branch, code after the `if`, and `||` (then) prove nothing.
+let dist <- fn(p: [2, num]): num { 0.0 };
+let f <- fn(v: [num]): num {
+  if (length(v) == 2) { 1.0 } else { dist(v) };
+  dist(v);
+  if ((length(v) == 2) || (length(v) == 3)) { dist(v) } else { 0.0 };
+  0.0
+};

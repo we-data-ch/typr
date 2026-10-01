@@ -221,9 +221,11 @@ fn collect_type_tokens(typ: &Type, tokens: &mut Vec<RawToken>) {
             }
             collect_type_tokens(ret, tokens);
         }
-        Type::Vec(_, a, b, _) => {
-            collect_type_tokens(a, tokens);
-            collect_type_tokens(b, tokens);
+        Type::Vec(_, _, elem, _) => {
+            if let Some(length) = typ.vec_length() {
+                collect_type_tokens(&length, tokens);
+            }
+            collect_type_tokens(elem, tokens);
         }
         Type::Record(fields, _) | Type::Interface(fields, _) => {
             for f in fields {

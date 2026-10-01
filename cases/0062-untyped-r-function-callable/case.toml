@@ -1,0 +1,6 @@
+title = "untyped R function (`function(a, b)`) is callable, arity-checked, result `Any` (RFC 0028)"
+cmd = "build"
+layer = "type"
+status = "fixed"
+created = "2026-09-12"
+origin = "perso"

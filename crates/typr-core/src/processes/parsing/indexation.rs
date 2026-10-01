@@ -39,7 +39,10 @@ fn parse_integer(s: &str) -> IResult<&str, i32> {
     let res = recognize(pair(opt(char('-')), digit1)).parse(s);
 
     match res {
-        Ok((s, int)) => Ok((s, int.parse::<i32>().unwrap())),
+        Ok((s, int)) => int
+            .parse::<i32>()
+            .map(|n| (s, n))
+            .map_err(|_| nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Digit))),
         Err(r) => Err(r),
     }
 }
@@ -47,7 +50,10 @@ fn parse_integer(s: &str) -> IResult<&str, i32> {
 /// Parse un nombre positif
 fn parse_positive_integer(s: &str) -> IResult<&str, i32> {
     match digit1.parse(s) {
-        Ok((s, int)) => Ok((s, int.parse::<i32>().unwrap())),
+        Ok((s, int)) => int
+            .parse::<i32>()
+            .map(|n| (s, n))
+            .map_err(|_| nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Digit))),
         Err(r) => Err(r),
     }
 }

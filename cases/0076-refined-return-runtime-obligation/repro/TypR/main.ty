@@ -1,0 +1,12 @@
+# Return type: every value in return position (trailing expr, early return, if branch) is checked unless proven.
+let mk <- fn(v: [int]): [3, int] { v };
+let pick <- fn(v: [int], c: bool): [3, int] {
+  if (c) { return v; };
+  let w: [3, int] <- [1, 2, 3];
+  w
+};
+let branch <- fn(v: [int], c: bool): [3, int] {
+  if (c) { v } else { [7, 8, 9] }
+};
+let sq <- fn(n: int): int & (> 0) { n };
+let ok <- fn(): int & (> 0) { 4 };

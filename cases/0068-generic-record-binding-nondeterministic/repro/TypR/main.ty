@@ -1,0 +1,21 @@
+# A generic record parameter with several fields of different types: the
+# checker must bind T to the type of field `a` every time, regardless of
+# the internal iteration order of the record's field set.
+let first <- fn(p: list { a: T, b: U, c: V }): T { p.a };
+
+let r1 <- :{ a = 1, b = "s", c = true };
+let y1: int <- first(r1);
+let r2 <- :{ a = 2, b = "t", c = false };
+let y2: int <- first(r2);
+let r3 <- :{ a = 3, b = "u", c = true };
+let y3: int <- first(r3);
+let r4 <- :{ a = 4, b = "v", c = false };
+let y4: int <- first(r4);
+let r5 <- :{ a = 5, b = "w", c = true };
+let y5: int <- first(r5);
+let r6 <- :{ a = 6, b = "x", c = false };
+let y6: int <- first(r6);
+let r7 <- :{ a = 7, b = "y", c = true };
+let y7: int <- first(r7);
+let r8 <- :{ a = 8, b = "z", c = false };
+let y8: int <- first(r8);

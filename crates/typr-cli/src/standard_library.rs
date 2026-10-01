@@ -4,6 +4,7 @@
 //! and prints the content of the standard library.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use typr_core::components::context::vartype::VarType;
 use typr_core::components::context::Context;
@@ -436,20 +437,26 @@ fn panic_payload_message(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
-/// Build a VarType from typed standard library .ty source files.
+/// Parse and type-check a sequence of `.ty` sources, threading a *starting*
+/// context through them so that later files can reference types from earlier
+/// ones (and from whatever `base_context` already carries). Signature lines
+/// (`@`) are preprocessed to strip named parameters.
 ///
-/// Parses and type-checks each .ty source file sequentially, threading the
-/// context through so that later files can reference types from earlier ones.
-/// Signature lines (`@`) are preprocessed to strip named parameters.
+/// This is the shared loop behind both `build_typed_vartype` (bundled
+/// stdlib, always starts from `Context::empty()`) and
+/// `load_external_ty_definitions` (a third-party definition repository,
+/// starts from the caller's own context so it can see the stdlib's types).
 ///
-/// Returns the built `VarType` plus the list of `(filename, panic message)`
-/// for every source file that was skipped because parsing/type-checking it
-/// panicked. A skipped file's signatures are silently absent from the
-/// resulting `VarType` — the caller MUST surface this loudly (see
-/// `standard_library()`), never let it pass as a quiet informational line,
-/// since it means real stdlib entries silently vanished from the compiler.
-fn build_typed_vartype(ty_sources: &[(&str, &str)]) -> (VarType, Vec<(String, String)>) {
-    let mut context = Context::empty();
+/// Returns the resulting `Context` plus the list of `(filename, panic
+/// message)` for every source file that was skipped because parsing/
+/// type-checking it panicked. A skipped file's signatures are silently
+/// absent from the resulting context — the caller MUST surface this loudly,
+/// never let it pass as a quiet informational line.
+fn extend_context_with_ty_sources(
+    base_context: Context,
+    ty_sources: &[(&str, &str)],
+) -> (Context, Vec<(String, String)>) {
+    let mut context = base_context;
     let mut skipped: Vec<(String, String)> = Vec::new();
 
     // Silence the default panic hook while probing these files: a skip is an
@@ -486,7 +493,286 @@ fn build_typed_vartype(ty_sources: &[(&str, &str)]) -> (VarType, Vec<(String, St
 
     std::panic::set_hook(previous_hook);
 
+    (context, skipped)
+}
+
+/// Build a VarType from typed standard library .ty source files.
+///
+/// Parses and type-checks each .ty source file sequentially, threading the
+/// context through so that later files can reference types from earlier ones.
+///
+/// Returns the built `VarType` plus the list of `(filename, panic message)`
+/// for every source file that was skipped because parsing/type-checking it
+/// panicked. A skipped file's signatures are silently absent from the
+/// resulting `VarType` — the caller MUST surface this loudly (see
+/// `standard_library()`), never let it pass as a quiet informational line,
+/// since it means real stdlib entries silently vanished from the compiler.
+fn build_typed_vartype(ty_sources: &[(&str, &str)]) -> (VarType, Vec<(String, String)>) {
+    let (context, skipped) = extend_context_with_ty_sources(Context::empty(), ty_sources);
     (context.get_vartype(), skipped)
+}
+
+/// Ranking of the three tiers by trustworthiness, most trusted first (`T1`
+/// = 3, `T2` = 2, `T3` = 1). `None` for anything else — including a tier
+/// string a manifest or `#! tier:` annotation declares that this build
+/// doesn't recognize, per `type_definition.rs::DefinitionSection::tier`'s
+/// "an unrecognized future tier degrades instead of failing the whole
+/// manifest to parse".
+fn tier_rank(tier: &str) -> Option<u8> {
+    match tier {
+        "T1" => Some(3),
+        "T2" => Some(2),
+        "T3" => Some(1),
+        _ => None,
+    }
+}
+
+/// Does `entry_tier` meet the project's `trust` threshold?
+///
+/// `rfcs/0031-external-type-definitions.md`, "Loading external `.ty` into
+/// the context": "entry tier ≥ project trust: loaded with its declared
+/// signature […]; entry tier < project trust: loaded as
+/// `Type::UnknownFunction`". An entry tier or a project `trust` this build
+/// doesn't recognize never meets the threshold — D2 (`typR/registry.md`
+/// §0/§5.4) requires an unreliable or unreadable trust signal to widen
+/// towards `Any`, never to be silently treated as trusted.
+fn meets_trust(entry_tier: &str, trust: &str) -> bool {
+    match (tier_rank(entry_tier), tier_rank(trust)) {
+        (Some(entry), Some(required)) => entry >= required,
+        _ => false,
+    }
+}
+
+/// Every function name declared across `ty_sources` whose *effective* tier —
+/// its own `#! tier:` annotation, falling back to `default_tier` (the
+/// manifest's `[definition] tier`, RFC-0031) when absent — falls below
+/// `trust`. These are exactly the names `load_external_ty_definitions`
+/// degrades to `(Any, UnknownFunction)` after type-checking.
+fn names_below_trust(ty_sources: &[(&str, &str)], default_tier: &str, trust: &str) -> HashSet<String> {
+    let mut below = HashSet::new();
+    for (_filename, source) in ty_sources {
+        let meta_map = parse_meta_from_source(source);
+        for line in source.lines() {
+            let trimmed = line.trim();
+            if !trimmed.starts_with('@') {
+                continue;
+            }
+            let Some(raw_name) = extract_raw_signature_name(trimmed) else {
+                continue;
+            };
+            let tier = meta_map
+                .get(&raw_name)
+                .and_then(|m| m.tier.as_deref())
+                .unwrap_or(default_tier);
+            if !meets_trust(tier, trust) {
+                below.insert(unwrap_backtick_name(&raw_name));
+            }
+        }
+    }
+    below
+}
+
+/// Load externally-provided `.ty` definitions on top of an existing typing
+/// context, using the exact same parse/type-check loop that builds the
+/// bundled standard library from `R_T1_SOURCES` — so an external definition
+/// can reference the stdlib's own types (`Foreign<T>`, etc.) exactly the way
+/// `std.ty` itself does — and then degrading every entry whose effective
+/// tier falls below `trust` to `Type::UnknownFunction`.
+///
+/// This is the "chargement d'un `.ty` externe dans le contexte" +
+/// "seuil `trust` + règle de dégradation vers `Any`" items of
+/// `typR/registry.md` §13 J2 (`rfcs/0031-external-type-definitions.md`,
+/// "Loading external `.ty` into the context"). `ty_sources` is expected to
+/// come from a single resolved definition repository, so a single
+/// `default_tier` (its manifest's `[definition] tier`) applies to every
+/// entry with no `#! tier:` of its own; `trust` is the consuming project's
+/// own threshold (`typr.toml [types] trust`, not yet read from disk — the
+/// machinery that resolves a `typr.lock` entry into these arguments is the
+/// next checklist item).
+///
+/// A degraded entry is never dropped or rejected: it is loaded exactly like
+/// any other untyped R name (`(Any, UnknownFunction)`), keeping it callable
+/// with arity/type checking simply skipped — this is D2 made real
+/// (`typR/registry.md` §0/§5.4): a definition the project doesn't trust
+/// enough can only make TypR check *less*, never break a build.
+///
+/// `base_context` is typically `Context::default()` (or a project's own
+/// context built on top of it) — starting from it, rather than
+/// `Context::empty()`, is what lets a third-party `.ty` see the bundled
+/// stdlib while it is being type-checked.
+///
+/// Called from `load_project_type_definitions`, below, which resolves a
+/// project's `typr.lock` into exactly the `(ty_sources, default_tier,
+/// trust)` triples this function expects.
+pub fn load_external_ty_definitions(
+    base_context: Context,
+    ty_sources: &[(&str, &str)],
+    default_tier: &str,
+    trust: &str,
+) -> (Context, Vec<(String, String)>) {
+    let (mut context, skipped) = extend_context_with_ty_sources(base_context, ty_sources);
+    let degraded_names = names_below_trust(ty_sources, default_tier, trust);
+    context.typing_context = context.typing_context.clone().degrade_to_any(&degraded_names);
+    (context, skipped)
+}
+
+/// Every function name declared across `ty_sources`, regardless of tier —
+/// what `degrade_if_version_out_of_range` widens to `Any` when the whole
+/// definition is out of its declared version range. Unlike
+/// `names_below_trust`, tier plays no role here: a version mismatch is a
+/// property of the *definition*, not of any one entry's declared
+/// trustworthiness.
+fn all_declared_names(ty_sources: &[(&str, &str)]) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for (_filename, source) in ty_sources {
+        for line in source.lines() {
+            let trimmed = line.trim();
+            if !trimmed.starts_with('@') {
+                continue;
+            }
+            if let Some(raw_name) = extract_raw_signature_name(trimmed) {
+                names.insert(unwrap_backtick_name(&raw_name));
+            }
+        }
+    }
+    names
+}
+
+/// Parse a dotted version string into numeric components, ignoring any
+/// non-digit suffix on a component (`"1.11.0-beta"` -> `[1, 11, 0]`) and
+/// treating an unparsable component as `0` — good enough for the floor/
+/// ceiling comparison below, never a reason to fail a build over a
+/// malformed version string.
+fn parse_version(v: &str) -> Vec<u64> {
+    v.split(['.', '-', '+'])
+        .map(|part| {
+            let digits: String = part.chars().take_while(|c| c.is_ascii_digit()).collect();
+            digits.parse::<u64>().unwrap_or(0)
+        })
+        .collect()
+}
+
+/// Is `a` strictly less than `b`, comparing dotted version strings
+/// component-wise (`"1.9"` < `"1.10"`, not string order)? Both are padded to
+/// the same length first so `"1.2"` and `"1.2.0"` compare equal rather than
+/// the shorter one spuriously losing.
+fn version_less_than(a: &str, b: &str) -> bool {
+    let mut pa = parse_version(a);
+    let mut pb = parse_version(b);
+    while pa.len() < pb.len() {
+        pa.push(0);
+    }
+    while pb.len() < pa.len() {
+        pb.push(0);
+    }
+    pa < pb
+}
+
+/// registry.md §7.2 "Compatibilité de versions : borne minimale, pas plage
+/// fermée": when the R package version actually observed at resolution time
+/// (`typr.lock`'s `r_version_seen`, populated by `typr types add`/`update`)
+/// falls below the definition's declared `since` floor, or above its
+/// optional `until` ceiling, every name the definition declares degrades to
+/// `Any` — same D2 degrade-never-fail contract as the trust threshold
+/// (§0/§5.4), just gated on a different signal, and applied on top of it
+/// rather than instead of it.
+///
+/// No comparison is made, and nothing degrades, when `r_version_seen` is
+/// `None`: a version that was never observed (offline resolution, or R
+/// unavailable when the definition was added/updated) is not the same as an
+/// incompatible one, and D2 forbids treating an unreadable signal as
+/// grounds for anything other than staying exactly as trusting as the tier
+/// check already decided.
+fn degrade_if_version_out_of_range(
+    context: Context,
+    ty_sources: &[(&str, &str)],
+    since: &str,
+    until: Option<&str>,
+    r_version_seen: Option<&str>,
+) -> (Context, Option<String>) {
+    let Some(observed) = r_version_seen else {
+        return (context, None);
+    };
+    let below_floor = version_less_than(observed, since);
+    let above_ceiling = until.map(|u| version_less_than(u, observed)).unwrap_or(false);
+    if !below_floor && !above_ceiling {
+        return (context, None);
+    }
+
+    let reason = if below_floor {
+        format!(
+            "observed R package version {observed} is older than this definition's declared floor (since = \"{since}\")"
+        )
+    } else {
+        format!(
+            "observed R package version {observed} is newer than this definition's declared ceiling (until = \"{}\")",
+            until.unwrap_or_default()
+        )
+    };
+
+    let names = all_declared_names(ty_sources);
+    let mut context = context;
+    context.typing_context = context.typing_context.clone().degrade_to_any(&names);
+    (context, Some(reason))
+}
+
+/// Load every package's resolved external Type Definition on top of
+/// `base_context` — the "reading `typr.lock` at `check`/`build`/`run` time"
+/// wiring that `type_registry.rs`'s module doc and `load_external_ty_definitions`
+/// name as the last missing piece of `typR/registry.md` §13 J2. Called from
+/// every `check`/`build`/`run` entry point in `project.rs`.
+///
+/// A project with no `typr.lock` is unaffected (`resolve_locked_definitions`
+/// returns nothing to load). A locked package whose cache is missing, stale,
+/// or out of its declared version range degrades or is skipped with a
+/// `warning:` line — never a hard error: this function cannot make a build
+/// that passed before fail now (D2, registry.md §0/§5.4).
+///
+/// `project_root` is the directory holding `typr.toml`/`typr.lock` — every
+/// call site in `project.rs` passes `Path::new(".")`, since CLI commands
+/// already run with the project root as the current directory (same
+/// convention as `PathBuf::from("TypR/main.ty")` elsewhere in that module).
+/// Taking it as a parameter, rather than hard-coding `"."` in here, is what
+/// lets tests point it at a temporary project without touching the process's
+/// current directory.
+pub fn load_project_type_definitions(project_root: &std::path::Path, base_context: Context) -> Context {
+    let trust = crate::type_registry::TypesConfig::read(project_root)
+        .trust
+        .unwrap_or_else(|| "T2".to_string());
+    let (resolved, warnings) = crate::type_registry::resolve_locked_definitions(project_root);
+    for w in &warnings {
+        eprintln!("warning: {w}");
+    }
+
+    let mut context = base_context;
+    for def in &resolved {
+        let sources: Vec<(&str, &str)> = def.ty_sources.iter().map(|(f, s)| (f.as_str(), s.as_str())).collect();
+
+        let (next_context, skipped) = load_external_ty_definitions(context, &sources, &def.default_tier, &trust);
+        for (filename, message) in &skipped {
+            eprintln!(
+                "warning: `{}` — {} could not be loaded ({message}); its declared names stay untyped",
+                def.package, filename
+            );
+        }
+
+        let (next_context, version_warning) = degrade_if_version_out_of_range(
+            next_context,
+            &sources,
+            &def.since,
+            def.until.as_deref(),
+            def.r_version_seen.as_deref(),
+        );
+        if let Some(reason) = version_warning {
+            eprintln!(
+                "warning: `{}` — {reason}; its declared types are degraded to Any for this run (registry.md §7.2)",
+                def.package
+            );
+        }
+
+        context = next_context;
+    }
+    context
 }
 
 /// Build a documentation graph over a set of `.ty` sources.
@@ -772,6 +1058,256 @@ mod tests {
         let (_vartype, skipped) = build_typed_vartype(&sources);
 
         assert!(skipped.is_empty());
+    }
+
+    /// `load_external_ty_definitions` is the registry.md §13 J2 "chargement
+    /// d'un `.ty` externe dans le contexte" mechanism: it must merge new
+    /// signatures on top of an existing context, exactly like an
+    /// `R_T1_SOURCES` file merges on top of the ones processed before it.
+    #[test]
+    fn load_external_ty_definitions_merges_new_signatures_into_base_context() {
+        let (base_context, base_skipped) =
+            extend_context_with_ty_sources(Context::empty(), &[("base.ty", "@base_fn: (int) -> int;")]);
+        assert!(base_skipped.is_empty());
+
+        let (context, skipped) = load_external_ty_definitions(
+            base_context,
+            &[("shiny.generated.ty", "@fluidPage: (Any) -> Any;")],
+            "T2",
+            "T2",
+        );
+
+        assert!(skipped.is_empty());
+        let names: Vec<String> = context
+            .get_vartype()
+            .variables
+            .iter()
+            .map(|(v, _)| v.get_name())
+            .collect();
+        assert!(
+            names.contains(&"base_fn".to_string()),
+            "base context signature must survive the merge"
+        );
+        assert!(
+            names.contains(&"fluidPage".to_string()),
+            "external signature must be loaded"
+        );
+    }
+
+    /// An external definition can reference a type the bundled stdlib itself
+    /// declares (`Foreign<T>`, `foreign.ty`) — proving the context is
+    /// threaded through from `base_context`, not type-checked in isolation.
+    /// This is what lets a third-party `.ty` use `Foreign<T>` the way
+    /// `std.ty` itself does (RFC-0031, "Loading external `.ty` into the
+    /// context").
+    #[test]
+    fn load_external_ty_definitions_sees_types_declared_in_base_context() {
+        let (base_context, base_skipped) =
+            extend_context_with_ty_sources(Context::empty(), &[("foreign.ty", FOREIGN_TY)]);
+        assert!(base_skipped.is_empty());
+
+        let (_context, skipped) = load_external_ty_definitions(
+            base_context,
+            &[(
+                "shiny.generated.ty",
+                "type UiObject <- Foreign<Any>;\n@fluidPage: (Any) -> UiObject;",
+            )],
+            "T2",
+            "T2",
+        );
+
+        assert!(
+            skipped.is_empty(),
+            "external definition referencing a base-context type must type-check: {:?}",
+            skipped
+        );
+    }
+
+    /// A broken external definition is reported as skipped — same contract as
+    /// a broken bundled stdlib file — and never corrupts the base context:
+    /// signatures already resolved before it stay intact. This is the D2
+    /// "an unreliable definition widens to `Any`, it never fails the build"
+    /// principle at its narrowest: at minimum, a bad external file must not
+    /// take the rest of the project's own types down with it.
+    #[test]
+    fn load_external_ty_definitions_skips_a_broken_source_without_losing_the_base_context() {
+        let (base_context, base_skipped) =
+            extend_context_with_ty_sources(Context::empty(), &[("base.ty", "@base_fn: (int) -> int;")]);
+        assert!(base_skipped.is_empty());
+
+        let (context, skipped) =
+            load_external_ty_definitions(base_context, &[("broken.ty", "let f <- fn(x) { x };")], "T2", "T2");
+
+        assert_eq!(skipped.len(), 1);
+        assert_eq!(skipped[0].0, "broken.ty");
+        let names: Vec<String> = context
+            .get_vartype()
+            .variables
+            .iter()
+            .map(|(v, _)| v.get_name())
+            .collect();
+        assert!(
+            names.contains(&"base_fn".to_string()),
+            "base context must survive a skipped external source"
+        );
+    }
+
+    /// registry.md §13 J2 "seuil `trust` + règle de dégradation vers `Any`":
+    /// an entry whose own `#! tier:` is below the project's `trust` loads as
+    /// `(Any, UnknownFunction)` instead of its declared signature, while an
+    /// entry at or above `trust` keeps it — same source, same call, only the
+    /// tier differs.
+    #[test]
+    fn entries_below_trust_degrade_to_any_entries_at_or_above_keep_their_signature() {
+        let source = "\
+#! tier: T3
+@untrusted_fn: (int) -> int;
+
+#! tier: T1
+@trusted_fn: (int) -> int;";
+
+        let (context, skipped) = load_external_ty_definitions(Context::default(), &[("mixed.ty", source)], "T2", "T2");
+        assert!(skipped.is_empty());
+
+        let untrusted_type = context
+            .get_type_from_variable(&Var::from_name("untrusted_fn"))
+            .expect("degraded entry must still be present, just untyped");
+        assert!(
+            untrusted_type.is_unknown_function(),
+            "T3 entry under a T2 trust threshold must degrade to UnknownFunction, got {:?}",
+            untrusted_type
+        );
+
+        let trusted_type = context
+            .get_type_from_variable(&Var::from_name("trusted_fn"))
+            .expect("trusted entry must be present");
+        assert!(
+            !trusted_type.is_unknown_function(),
+            "T1 entry under a T2 trust threshold must keep its declared signature, got {:?}",
+            trusted_type
+        );
+    }
+
+    /// An entry with no `#! tier:` of its own falls back to the manifest's
+    /// `[definition] tier` (`default_tier`) — a whole low-tier definition
+    /// with no per-entry annotations must degrade uniformly.
+    #[test]
+    fn entry_with_no_own_tier_falls_back_to_the_manifest_default_tier() {
+        let source = "@generated_fn: (int) -> int;";
+
+        let (context, skipped) =
+            load_external_ty_definitions(Context::default(), &[("generated.ty", source)], "T3", "T2");
+        assert!(skipped.is_empty());
+
+        let typ = context
+            .get_type_from_variable(&Var::from_name("generated_fn"))
+            .expect("entry must still be present");
+        assert!(
+            typ.is_unknown_function(),
+            "an entry with no #! tier must inherit the manifest's T3 default and degrade under T2 trust"
+        );
+    }
+
+    // -- version_less_than / degrade_if_version_out_of_range (registry.md §7.2) --
+
+    /// The whole reason `version_less_than` exists instead of a plain string
+    /// comparison: `"1.9" < "1.10"` numerically, but `"1.10" < "1.9"`
+    /// lexicographically.
+    #[test]
+    fn version_less_than_compares_components_numerically() {
+        assert!(version_less_than("1.9", "1.10"));
+        assert!(!version_less_than("1.10", "1.9"));
+        assert!(version_less_than("1.11.0", "2.0.0"));
+        assert!(!version_less_than("2.0.0", "1.11.0"));
+    }
+
+    /// `"1.2"` and `"1.2.0"` must compare equal (neither less than the
+    /// other) rather than the shorter string spuriously losing to padding.
+    #[test]
+    fn version_less_than_treats_missing_trailing_components_as_zero() {
+        assert!(!version_less_than("1.2", "1.2.0"));
+        assert!(!version_less_than("1.2.0", "1.2"));
+    }
+
+    /// An observed version below the definition's `since` floor degrades
+    /// every declared name to `Any` and names the floor in the reason.
+    #[test]
+    fn degrade_if_version_out_of_range_degrades_below_the_since_floor() {
+        let source = "@f: (int) -> int;";
+        let (context, skipped) = extend_context_with_ty_sources(Context::default(), &[("pkg.ty", source)]);
+        assert!(skipped.is_empty());
+
+        let (context, reason) =
+            degrade_if_version_out_of_range(context, &[("pkg.ty", source)], "1.11.0", None, Some("1.9.0"));
+
+        let reason = reason.expect("an observed version below `since` must degrade");
+        assert!(
+            reason.contains("older") && reason.contains("1.11.0"),
+            "unexpected reason: {reason}"
+        );
+        let typ = context.get_type_from_variable(&Var::from_name("f")).unwrap();
+        assert!(typ.is_unknown_function());
+    }
+
+    /// An observed version above the definition's `until` ceiling degrades
+    /// every declared name to `Any` and names the ceiling in the reason.
+    #[test]
+    fn degrade_if_version_out_of_range_degrades_above_the_until_ceiling() {
+        let source = "@f: (int) -> int;";
+        let (context, skipped) = extend_context_with_ty_sources(Context::default(), &[("pkg.ty", source)]);
+        assert!(skipped.is_empty());
+
+        let (context, reason) =
+            degrade_if_version_out_of_range(context, &[("pkg.ty", source)], "1.0.0", Some("1.5.0"), Some("2.0.0"));
+
+        let reason = reason.expect("an observed version above `until` must degrade");
+        assert!(
+            reason.contains("newer") && reason.contains("1.5.0"),
+            "unexpected reason: {reason}"
+        );
+        let typ = context.get_type_from_variable(&Var::from_name("f")).unwrap();
+        assert!(typ.is_unknown_function());
+    }
+
+    /// An observed version inside `[since, until]` is a no-op: the declared
+    /// signature survives untouched.
+    #[test]
+    fn degrade_if_version_out_of_range_is_a_no_op_within_range() {
+        let source = "@f: (int) -> int;";
+        let (context, skipped) = extend_context_with_ty_sources(Context::default(), &[("pkg.ty", source)]);
+        assert!(skipped.is_empty());
+
+        let (context, reason) =
+            degrade_if_version_out_of_range(context, &[("pkg.ty", source)], "1.0.0", Some("2.0.0"), Some("1.5.0"));
+
+        assert!(reason.is_none());
+        let typ = context.get_type_from_variable(&Var::from_name("f")).unwrap();
+        assert!(!typ.is_unknown_function());
+    }
+
+    /// D2: a version that was never observed (`r_version_seen == None`) must
+    /// never be treated as out of range — only an actually-observed
+    /// incompatible version may trigger the degradation.
+    #[test]
+    fn degrade_if_version_out_of_range_is_a_no_op_when_version_was_never_observed() {
+        let source = "@f: (int) -> int;";
+        let (context, skipped) = extend_context_with_ty_sources(Context::default(), &[("pkg.ty", source)]);
+        assert!(skipped.is_empty());
+
+        let (context, reason) = degrade_if_version_out_of_range(context, &[("pkg.ty", source)], "1.11.0", None, None);
+
+        assert!(reason.is_none());
+        let typ = context.get_type_from_variable(&Var::from_name("f")).unwrap();
+        assert!(!typ.is_unknown_function());
+    }
+
+    /// An unrecognized tier string — on the entry or on the project's own
+    /// `trust` setting — must never be silently treated as trusted (D2,
+    /// `typR/registry.md` §0/§5.4): it always degrades.
+    #[test]
+    fn unrecognized_tier_or_trust_never_meets_the_threshold() {
+        assert!(!meets_trust("T1", "not-a-tier"));
+        assert!(!meets_trust("not-a-tier", "T3"));
     }
 
     /// Phase 1: build_stdlib_docs parses #! annotations from .ty files and

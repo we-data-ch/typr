@@ -81,6 +81,41 @@ typr_assert_type <- function(x, expected, loc, what) {
   x
 }
 
+#' @title Vérifications des types raffinés (`[int] & length(3)`, `int & (> 0)`)
+#' Émises par le compilateur seulement là où il n'a pas pu prouver le
+#' raffinement. Elles renvoient `x` pour s'insérer dans n'importe quelle
+#' expression ; `all()`/`isTRUE()` les rendent sûres face aux vecteurs et aux NA.
+typr_refine_length <- function(x, n, loc) {
+  if (!isTRUE(length(x) == n)) {
+    stop(sprintf("Type refinement violation at %s: expected length %d, got %d",
+                 loc, n, length(x)), call. = FALSE)
+  }
+  x
+}
+
+typr_refine_length_range <- function(x, lo, lo_open, hi, hi_open, loc) {
+  n <- length(x)
+  ok <- (if (lo_open) n > lo else n >= lo) && (if (hi_open) n < hi else n <= hi)
+  if (!isTRUE(ok)) {
+    stop(sprintf("Type refinement violation at %s: length %d is out of bounds %s%s, %s%s",
+                 loc, n, if (lo_open || is.infinite(lo)) "(" else "[", format(lo), format(hi),
+                 if (hi_open || is.infinite(hi)) ")" else "]"), call. = FALSE)
+  }
+  x
+}
+
+typr_refine_value <- function(x, lo, lo_open, hi, hi_open, loc) {
+  above <- if (lo_open) x > lo else x >= lo
+  below <- if (hi_open) x < hi else x <= hi
+  if (!isTRUE(all(above & below))) {
+    bad <- x[!(above & below)][1L]
+    stop(sprintf("Type refinement violation at %s: value %s is out of bounds %s%s, %s%s",
+                 loc, format(bad), if (lo_open || is.infinite(lo)) "(" else "[", format(lo), format(hi),
+                 if (hi_open || is.infinite(hi)) ")" else "]"), call. = FALSE)
+  }
+  x
+}
+
 # --- Génériques S3 ---
 
 get <- function(a, ...) UseMethod("get")

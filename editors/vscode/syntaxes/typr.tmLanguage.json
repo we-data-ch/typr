@@ -55,6 +55,9 @@
       "include": "#types.builtin"
     },
     {
+      "include": "#types.refinement"
+    },
+    {
       "include": "#types.builtin-indexed"
     },
     {
@@ -470,6 +473,15 @@
         {
           "match": "(?<![A-Za-z0-9_])(Empty|logic|Self|bool|char|Any|int|num)(?![A-Za-z0-9_])",
           "name": "support.type.primitive.typr"
+        }
+      ]
+    },
+    "types.refinement": {
+      "comment": "`[int] & length(5)`, `[int] & length(> 0)` (`parsing/types.rs::refinement_property`). `length` is also R's most common function, so it only counts glued to `(<digit>` or `(<comparison>`: `length(x)` stays a plain call.",
+      "patterns": [
+        {
+          "match": "(?<![A-Za-z0-9_])(length)(?=\\s*\\(\\s*[\\d<>])",
+          "name": "support.type.builtin.typr"
         }
       ]
     },

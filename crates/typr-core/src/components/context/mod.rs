@@ -15,6 +15,7 @@ use crate::components::language::var_function::VarFunction;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::kind::Kind;
+use crate::components::r#type::refinement::{RefinementObligation, RefinementSet};
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::Type;
@@ -89,6 +90,12 @@ pub struct Context {
     /// checked against in `function()`. `None` outside a function body.
     #[serde(skip)]
     pub expected_return_type: Option<Type>,
+    /// True while typing an expression whose value is the function's result
+    /// (trailing expression, `if` branches, `return` argument). Lets `typing()`
+    /// check that value against `expected_return_type` (refined types). Not
+    /// serialised and never part of a context's identity.
+    #[serde(skip)]
+    pub return_position: bool,
     /// Inner typing contexts computed while type-checking each `module M { ... }`
     /// body, keyed by module name. Populated during type-checking; consumed
     /// during transpilation to avoid re-running `typing()` on every module body.
@@ -134,6 +141,10 @@ pub struct Context {
     /// apart by name alone).
     #[serde(default)]
     pub vectorizable_fns: Vec<(String, bool)>,
+    /// Refinement checks the type checker requires at a boundary the
+    /// transpiler reaches later (`refinement_check::coerce_to`).
+    #[serde(default)]
+    pub refinement_obligations: Vec<RefinementObligation>,
     config: Config,
 }
 
@@ -183,10 +194,12 @@ impl Default for Context {
             test_preamble: Vec::new(),
             self_type: None,
             expected_return_type: None,
+            return_position: false,
             extern_fns: Vec::new(),
             import_from_fns: Vec::new(),
             signature_fns: Vec::new(),
             vectorizable_fns: Vec::new(),
+            refinement_obligations: Vec::new(),
             module_inner_contexts: HashMap::new(),
             processed_modules: HashMap::new(),
             modules_in_progress: HashSet::new(),
@@ -228,10 +241,12 @@ impl Context {
             test_preamble: Vec::new(),
             self_type: None,
             expected_return_type: None,
+            return_position: false,
             extern_fns: Vec::new(),
             import_from_fns: Vec::new(),
             signature_fns: Vec::new(),
             vectorizable_fns: Vec::new(),
+            refinement_obligations: Vec::new(),
             module_inner_contexts: HashMap::new(),
             processed_modules: HashMap::new(),
             modules_in_progress: HashSet::new(),
@@ -275,6 +290,30 @@ impl Context {
             None => self.vectorizable_fns.push((name.to_string(), is_vectorizable)),
         }
         self
+    }
+
+    /// Record that the expression at `h` must satisfy `set` at run time.
+    pub fn add_refinement_obligation(mut self, h: &HelpData, set: RefinementSet) -> Self {
+        let (file, start, end) = (h.get_file_name(), h.get_offset(), h.get_end());
+        match self
+            .refinement_obligations
+            .iter_mut()
+            .find(|o| o.file == file && o.start == start && o.end == end)
+        {
+            Some(o) => o.set = set,
+            None => self
+                .refinement_obligations
+                .push(RefinementObligation { file, start, end, set }),
+        }
+        self
+    }
+
+    pub fn refinement_obligation_at(&self, h: &HelpData) -> Option<&RefinementSet> {
+        let (file, start, end) = (h.get_file_name(), h.get_offset(), h.get_end());
+        self.refinement_obligations
+            .iter()
+            .find(|o| o.file == file && o.start == start && o.end == end)
+            .map(|o| &o.set)
     }
 
     pub fn is_vectorizable_fn(&self, name: &str) -> bool {
@@ -334,6 +373,26 @@ impl Context {
             expected_return_type,
             ..self
         }
+    }
+
+    pub fn set_return_position(mut self, on: bool) -> Context {
+        self.return_position = on;
+        self
+    }
+
+    pub fn is_return_position(&self) -> bool {
+        self.return_position
+    }
+
+    /// Keep the refinement obligations `inner` recorded (a sub-context built
+    /// for a nested scope is otherwise dropped by its parent).
+    pub fn absorb_obligations(mut self, inner: &Context) -> Context {
+        for entry in &inner.refinement_obligations {
+            if !self.refinement_obligations.contains(entry) {
+                self.refinement_obligations.push(entry.clone());
+            }
+        }
+        self
     }
 
     pub fn get_expected_return_type(&self) -> Option<Type> {
@@ -685,6 +744,7 @@ impl Context {
             subtypes: new_subtypes,
             ..self
         }
+        .absorb_obligations(inner)
     }
 
     pub fn get_type_from_existing_variable(&self, var: Var) -> Type {
@@ -737,6 +797,10 @@ impl Context {
     }
 
     pub fn get_class(&self, t: &Type) -> String {
+        // `Lovable@A` dispatches and casts as its bound; the id is type-checker only.
+        if let Type::Bounded(_, bound, _) = t {
+            return self.get_class(bound);
+        }
         // For a named alias whose underlying type is a record or array, return the alias
         // name directly. push_types may have also registered the same underlying type with
         // an auto-generated "Record0"/"Array0" name; searching aliases by type value would
@@ -758,6 +822,10 @@ impl Context {
     }
 
     pub fn get_class_unquoted(&self, t: &Type) -> String {
+        // `Lovable@A` dispatches and casts as its bound; the id is type-checker only.
+        if let Type::Bounded(_, bound, _) = t {
+            return self.get_class_unquoted(bound);
+        }
         // Same rationale as get_class: bypass the record/array alias search for named aliases.
         if let Type::Alias(name, _, false, _) = t {
             if let Some((_, underlying)) = self.aliases().find(|(v, _)| v.get_name() == *name) {
@@ -1384,6 +1452,12 @@ impl Add for Context {
                 signature_fns.push(name);
             }
         }
+        let mut refinement_obligations = self.refinement_obligations;
+        for entry in other.refinement_obligations {
+            if !refinement_obligations.contains(&entry) {
+                refinement_obligations.push(entry);
+            }
+        }
         let mut vectorizable_fns = self.vectorizable_fns;
         for (name, is_vec) in other.vectorizable_fns {
             match vectorizable_fns.iter_mut().find(|(n, _)| n == &name) {
@@ -1408,10 +1482,12 @@ impl Add for Context {
             test_preamble,
             self_type: None,
             expected_return_type: None,
+            return_position: false,
             extern_fns,
             import_from_fns,
             signature_fns,
             vectorizable_fns,
+            refinement_obligations,
             config: self.config,
             module_inner_contexts,
             processed_modules,

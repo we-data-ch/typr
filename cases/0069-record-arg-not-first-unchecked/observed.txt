@@ -1,0 +1,11 @@
+# exit=0
+
+## stdout/stderr
+Code verification successful!
+
+  Parsing... done (8 ms)
+  Type checking... done (29 ms)
+
+
+## R généré
+

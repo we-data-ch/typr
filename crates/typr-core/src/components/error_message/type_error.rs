@@ -152,6 +152,25 @@ pub enum TypeError {
     /// `name.Suffix`" error in the generated R —
     /// `(function_name, forced_type, available_types, position)`.
     NoDispatchImplementation(String, Type, Vec<Type>, HelpData),
+    /// A call to an untyped R function (`Lang::RFunction`, RFC 0028) supplied
+    /// the wrong number of arguments. Distinguished from `NoMatchingSignature`
+    /// because the callee has exactly one signature and no argument types to
+    /// report — only arity was ever checked, and saying so avoids exposing
+    /// the internal `UnknownFunction` placeholder to someone who wrote plain
+    /// R — `(function_name, expected_arity, got_arity, position)`.
+    UntypedFunctionArity(String, usize, usize, HelpData),
+    /// `T & p` where `T` cannot carry the property `p` (`int & length(3)`).
+    /// `(message, position)` — the message comes from `apply_refinements`.
+    InvalidRefinement(String, HelpData),
+    /// A refined type no value can inhabit (`int & (> 5) & (< 3)`).
+    UnsatisfiableRefinement(String, HelpData),
+    /// `Lovable@A` and `Printable@A` in one signature: `(id, first_bound, other_bound, position)`.
+    ConflictingBound(String, String, String, HelpData),
+    /// `fn(a: T, b: Lovable@T)`: an `I@Id` id that is also a free generic. `(id, position)`.
+    BoundCollidesWithGeneric(String, HelpData),
+    /// A call binds one `I@Id` to two different types:
+    /// `(id, first_type, first_arg_position, second_type, second_arg_position)`.
+    IdBoundToTwoTypes(String, String, HelpData, String, HelpData),
 }
 
 impl TypeError {
@@ -201,6 +220,12 @@ impl TypeError {
             TypeError::DataFrameColumnLengthMismatch(_, _, _, _, h) => Some(h.clone()),
             TypeError::NoMatchingSignature(_, _, _, h) => Some(h.clone()),
             TypeError::NoDispatchImplementation(_, _, _, h) => Some(h.clone()),
+            TypeError::UntypedFunctionArity(_, _, _, h) => Some(h.clone()),
+            TypeError::InvalidRefinement(_, h) => Some(h.clone()),
+            TypeError::UnsatisfiableRefinement(_, h) => Some(h.clone()),
+            TypeError::ConflictingBound(_, _, _, h) => Some(h.clone()),
+            TypeError::BoundCollidesWithGeneric(_, h) => Some(h.clone()),
+            TypeError::IdBoundToTwoTypes(_, _, _, _, h) => Some(h.clone()),
         }
     }
 
@@ -252,6 +277,12 @@ impl TypeError {
             TypeError::UnknownUnionVariant(..) => "T041",
             TypeError::NoMatchingSignature(..) => "T042",
             TypeError::NoDispatchImplementation(..) => "T043",
+            TypeError::UntypedFunctionArity(..) => "T044",
+            TypeError::InvalidRefinement(..) => "T045",
+            TypeError::UnsatisfiableRefinement(..) => "T046",
+            TypeError::ConflictingBound(..) => "T047",
+            TypeError::BoundCollidesWithGeneric(..) => "T048",
+            TypeError::IdBoundToTwoTypes(..) => "T049",
         }
     }
 
@@ -474,6 +505,28 @@ impl TypeError {
                     forced_type.pretty(),
                     available.iter().map(|t| t.pretty()).collect::<Vec<_>>().join(", ")
                 )
+            }
+            TypeError::UntypedFunctionArity(name, expected, got, _) => {
+                format!(
+                    "'{}' is an untyped R function taking {} argument(s), called with {}.",
+                    name, expected, got
+                )
+            }
+            TypeError::InvalidRefinement(msg, _) | TypeError::UnsatisfiableRefinement(msg, _) => msg.clone(),
+            TypeError::ConflictingBound(id, b1, b2, _) => {
+                format!(
+                    "'{}' is bounded by both '{}' and '{}' in the same signature.",
+                    id, b1, b2
+                )
+            }
+            TypeError::BoundCollidesWithGeneric(id, _) => {
+                format!(
+                    "'{}' is used both as a free generic and as a bound id (`I@{}`).",
+                    id, id
+                )
+            }
+            TypeError::IdBoundToTwoTypes(id, t1, _, t2, _) => {
+                format!("'{}' is bound to '{}' and then to '{}' in the same call.", id, t1, t2)
             }
         }
     }
@@ -1063,6 +1116,71 @@ impl ErrorMsg for TypeError {
                         name,
                         signatures.join("\n    ")
                     ))
+                    .build()
+            }
+            TypeError::UntypedFunctionArity(name, expected, got, help_data) => {
+                let (file_data, pos) = safe_file_pos(&help_data, name.len());
+                SingleBuilder::new(file_data.0, file_data.1)
+                    .pos(pos)
+                    .text(format!(
+                        "'{}' is an untyped R function taking {} argument(s), called with {}.",
+                        name, expected, got
+                    ))
+                    .pos_text(format!("Called with {} argument(s) here", got))
+                    .help("Its body is not type-checked; only the number of arguments is.")
+                    .build()
+            }
+            TypeError::InvalidRefinement(msg, help_data) => {
+                let (file_data, pos) = safe_file_pos(&help_data, 1);
+                SingleBuilder::new(file_data.0, file_data.1)
+                    .pos(pos)
+                    .text(msg)
+                    .pos_text("This refinement does not apply to that type")
+                    .help(
+                        "`length(n)` refines vectors (`[T] & length(n)`); `(> c)` and `(< c)` refine `int` and `num`.",
+                    )
+                    .build()
+            }
+            TypeError::UnsatisfiableRefinement(msg, help_data) => {
+                let (file_data, pos) = safe_file_pos(&help_data, 1);
+                SingleBuilder::new(file_data.0, file_data.1)
+                    .pos(pos)
+                    .text(msg)
+                    .pos_text("No value can have this type")
+                    .help("Its properties contradict each other; relax one of them.")
+                    .build()
+            }
+            TypeError::ConflictingBound(id, b1, b2, help_data) => {
+                let (file_data, pos) = safe_file_pos(&help_data, 1);
+                SingleBuilder::new(file_data.0, file_data.1)
+                    .pos(pos)
+                    .text(format!("'{}' is bounded by both '{}' and '{}'", id, b1, b2))
+                    .pos_text(format!("'{}' already bounded by '{}'", id, b1))
+                    .help("One id names one type, so it can satisfy only one interface here. Use a different id for the second bound.")
+                    .build()
+            }
+            TypeError::IdBoundToTwoTypes(id, t1, h1, t2, h2) => {
+                let ((file_name1, text1), pos1) = safe_file_pos(&h1, 0);
+                let ((file_name2, text2), pos2) = safe_file_pos(&h2, 1);
+                DoubleBuilder::new(file_name1, text1, file_name2, text2)
+                    .pos1(pos1)
+                    .pos2(pos2)
+                    .text(format!("'{}' is bound to '{}' and then to '{}' in the same call", id, t1, t2))
+                    .pos_text1(format!("'{}' is '{}' here", id, t1))
+                    .pos_text2(format!("but '{}' here", t2))
+                    .help(format!(
+                        "Every parameter declared `@{}` must receive the same type. Give the parameters different ids (`@A`, `@B`) if they may differ.",
+                        id
+                    ))
+                    .build()
+            }
+            TypeError::BoundCollidesWithGeneric(id, help_data) => {
+                let (file_data, pos) = safe_file_pos(&help_data, 1);
+                SingleBuilder::new(file_data.0, file_data.1)
+                    .pos(pos)
+                    .text(format!("'{}' is both a free generic and a bound id", id))
+                    .pos_text("Bound id clashes with a generic of the same name")
+                    .help("Rename one of them: generics and `I@Id` ids share one namespace within a signature.")
                     .build()
             }
             TypeError::NoDispatchImplementation(name, forced_type, available, help_data) => {

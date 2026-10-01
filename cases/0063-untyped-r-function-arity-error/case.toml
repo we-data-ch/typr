@@ -1,0 +1,6 @@
+title = "wrong arity on an untyped R function reports a dedicated message, not `UnknownFunction`"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-09-12"
+origin = "perso"

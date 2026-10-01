@@ -4,6 +4,7 @@ use crate::components::language::operators::{op, Op};
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::kind::Kind;
+use crate::components::r#type::refinement::{Interval, Measure, Num, Refinement};
 use crate::components::r#type::tbool::Tbool;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
@@ -27,12 +28,14 @@ use nom::character::complete::multispace0;
 use nom::character::complete::multispace1;
 use nom::character::complete::none_of;
 use nom::character::complete::one_of;
+use nom::combinator::map;
 use nom::combinator::not;
 use nom::combinator::opt;
 use nom::combinator::recognize;
 use nom::multi::many0;
 use nom::multi::many1;
 use nom::sequence::delimited;
+use nom::sequence::preceded;
 use nom::sequence::terminated;
 use nom::IResult;
 use nom::Parser;
@@ -156,7 +159,11 @@ fn generic(s: Span) -> IResult<Span, Type> {
 fn simple_index(s: Span) -> IResult<Span, Type> {
     let res = terminated(digit1, multispace0).parse(s);
     match res {
-        Ok((s, fl)) => Ok((s, Type::Integer(fl.parse::<i32>().unwrap().into(), fl.into()))),
+        Ok((s, fl)) => match fl.parse::<i32>() {
+            Ok(value) => Ok((s, Type::Integer(value.into(), fl.into()))),
+            // A dimension beyond i32 is a syntax error, not a panic.
+            Err(_) => Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Digit))),
+        },
         Err(r) => Err(r),
     }
 }
@@ -176,7 +183,7 @@ fn array_type_full(s: Span) -> IResult<Span, Type> {
         .parse(s);
 
     match res {
-        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::Vec(VecType::S3, Box::new(num), Box::new(typ), start.into()))),
+        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::vec(VecType::S3, num, typ, start.into()))),
         Err(r) => Err(r),
     }
 }
@@ -192,12 +199,7 @@ fn array_type_short(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, (start, typ, _))) => Ok((
             s,
-            Type::Vec(
-                VecType::S3,
-                Box::new(Type::Any(start.clone().into())),
-                Box::new(typ),
-                start.into(),
-            ),
+            Type::vec(VecType::S3, Type::Any(start.clone().into()), typ, start.into()),
         )),
         Err(r) => Err(r),
     }
@@ -224,9 +226,7 @@ fn named_array_type_full(s: Span) -> IResult<Span, Type> {
         .parse(s);
 
     match res {
-        Ok((s, (start, num, _, typ, _))) => {
-            Ok((s, Type::Vec(VecType::Array, Box::new(num), Box::new(typ), start.into())))
-        }
+        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::vec(VecType::Array, num, typ, start.into()))),
         Err(r) => Err(r),
     }
 }
@@ -242,12 +242,7 @@ fn named_array_type_short(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, (start, typ, _))) => Ok((
             s,
-            Type::Vec(
-                VecType::Array,
-                Box::new(Type::Any(start.clone().into())),
-                Box::new(typ),
-                start.into(),
-            ),
+            Type::vec(VecType::Array, Type::Any(start.clone().into()), typ, start.into()),
         )),
         Err(r) => Err(r),
     }
@@ -268,10 +263,7 @@ fn vector_type_full(s: Span) -> IResult<Span, Type> {
         .parse(s);
 
     match res {
-        Ok((s, (start, num, _, typ, _))) => Ok((
-            s,
-            Type::Vec(VecType::Vector, Box::new(num), Box::new(typ), start.into()),
-        )),
+        Ok((s, (start, num, _, typ, _))) => Ok((s, Type::vec(VecType::Vector, num, typ, start.into()))),
         Err(r) => Err(r),
     }
 }
@@ -287,12 +279,7 @@ fn vector_type_short(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, (start, typ, _))) => Ok((
             s,
-            Type::Vec(
-                VecType::Vector,
-                Box::new(Type::Any(start.clone().into())),
-                Box::new(typ),
-                start.into(),
-            ),
+            Type::vec(VecType::Vector, Type::Any(start.clone().into()), typ, start.into()),
         )),
         Err(r) => Err(r),
     }
@@ -316,10 +303,10 @@ fn dataframe_type_full(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, (start, num, _, _, columns, _))) => Ok((
             s,
-            Type::Vec(
+            Type::vec(
                 VecType::DataFrame,
-                Box::new(num),
-                Box::new(Type::Record(columns.iter().cloned().collect(), start.clone().into())),
+                num,
+                Type::Record(columns.iter().cloned().collect(), start.clone().into()),
                 start.into(),
             ),
         )),
@@ -339,10 +326,10 @@ fn dataframe_type_short(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, (start, _, columns, _))) => Ok((
             s,
-            Type::Vec(
+            Type::vec(
                 VecType::DataFrame,
-                Box::new(Type::Any(start.clone().into())),
-                Box::new(Type::Record(columns.iter().cloned().collect(), start.clone().into())),
+                Type::Any(start.clone().into()),
+                Type::Record(columns.iter().cloned().collect(), start.clone().into()),
                 start.into(),
             ),
         )),
@@ -372,10 +359,10 @@ fn named_record_type(s: Span) -> IResult<Span, Type> {
     match res {
         Ok((s, ((name, h), _, num, _, _, columns, _))) => Ok((
             s,
-            Type::Vec(
+            Type::vec(
                 VecType::Named(name),
-                Box::new(num),
-                Box::new(Type::Record(columns.iter().cloned().collect(), h.clone())),
+                num,
+                Type::Record(columns.iter().cloned().collect(), h.clone()),
                 h,
             ),
         )),
@@ -403,10 +390,10 @@ fn named_record_bad_index(s: Span) -> IResult<Span, Type> {
             push_parse_error(SyntaxError::RecordConstructorIndex(h.clone()));
             Ok((
                 s,
-                Type::Vec(
+                Type::vec(
                     VecType::Named(name),
-                    Box::new(first),
-                    Box::new(Type::Record(columns.iter().cloned().collect(), h.clone())),
+                    first,
+                    Type::Record(columns.iter().cloned().collect(), h.clone()),
                     h,
                 ),
             ))
@@ -440,10 +427,10 @@ fn recursive_with_record_error(s: Span) -> IResult<Span, Type> {
             push_parse_error(SyntaxError::RecordInRecursiveParams(h.clone()));
             Ok((
                 s,
-                Type::Vec(
+                Type::vec(
                     VecType::S3,
-                    Box::new(num),
-                    Box::new(Type::Record(columns.iter().cloned().collect(), h.clone())),
+                    num,
+                    Type::Record(columns.iter().cloned().collect(), h.clone()),
                     h,
                 ),
             ))
@@ -551,8 +538,12 @@ fn integer_literal(s: Span) -> IResult<Span, Type> {
     let res = terminated(digit1, multispace0).parse(s);
     match res {
         Ok((s, span)) => {
-            let val: i32 = (*span).parse().unwrap_or(0);
-            Ok((s, Type::Integer(Tint::Val(val), span.into())))
+            // Out of range is a parse failure: `unwrap_or(0)` used to turn
+            // `type Big <- 99999999999` into the singleton type `0`.
+            match (*span).parse::<i32>() {
+                Ok(val) => Ok((s, Type::Integer(Tint::Val(val), span.into()))),
+                Err(_) => Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Digit))),
+            }
         }
         Err(r) => Err(r),
     }
@@ -599,11 +590,48 @@ pub fn pascal_case_no_space(s: Span) -> IResult<Span, (String, HelpData)> {
     }
 }
 
+/// The `@Id` suffix of `Lovable@A`: an implicit generic `A` bounded by `Lovable`.
+/// It must touch the alias name (no space), and `@_` is the anonymous id.
+fn bound_suffix(s: Span) -> IResult<Span, String> {
+    preceded(
+        tag("@"),
+        alt((
+            map(tag("_"), |_| "_".to_string()),
+            // One capital letter, not followed by more identifier characters:
+            // `@Self` or `@Abc` must fail rather than lose `elf` / `bc`.
+            map(
+                terminated(
+                    one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+                    not(one_of(
+                        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_",
+                    )),
+                ),
+                |c| c.to_string(),
+            ),
+        )),
+    )
+    .parse(s)
+}
+
 pub fn type_alias(s: Span) -> IResult<Span, Type> {
-    let res = (pascal_case_no_space, terminated(opt(type_params), multispace0)).parse(s);
+    let res = (pascal_case_no_space, opt(type_params), opt(bound_suffix), multispace0).parse(s);
     match res {
-        Ok((s, ((name, h), Some(v)))) => Ok((s, Type::Alias(name, v.clone(), false, h))),
-        Ok((s, ((name, h), None))) => Ok((s, Type::Alias(name, vec![], false, h))),
+        Ok((rest, ((name, h), params, None, ws)))
+            if (!ws.fragment().is_empty() && bound_suffix(rest.clone()).is_ok())
+                || rest.fragment().starts_with('@') =>
+        {
+            // `Lovable @A` or `Lovable@Self`: a malformed suffix. Left alone, the priority
+            // resolver would silently drop the stray `@...` type.
+            push_parse_error(SyntaxError::DetachedBoundSuffix(rest.clone().into()));
+            Ok((rest, Type::Alias(name, params.unwrap_or_default(), false, h)))
+        }
+        Ok((s, ((name, h), params, bound, _))) => {
+            let alias = Type::Alias(name, params.unwrap_or_default(), false, h.clone());
+            match bound {
+                Some(id) => Ok((s, Type::Bounded(id, Box::new(alias), h))),
+                None => Ok((s, alias)),
+            }
+        }
         Err(r) => Err(r),
     }
 }
@@ -637,6 +665,67 @@ pub fn single_letter_type_alias(s: Span) -> IResult<Span, Type> {
         Ok((s, ((name, h), Some(v)))) => Ok((s, Type::Alias(name, v.clone(), false, h))),
         Ok((s, ((name, h), None))) => Ok((s, Type::Alias(name, vec![], false, h))),
         Err(r) => Err(r),
+    }
+}
+
+/// A refinement property, only meaningful right of `&`: `length(5)`, `(> 0)`,
+/// `(< 2.5)`. It becomes a `Type::Property`, which `norm_intersection` folds
+/// into a `Refined` type. Tried before `parenthese_value` and `type_variable`,
+/// which would otherwise read `(> 0)` / `length` as a group / a variable.
+fn refinement_property(s: Span) -> IResult<Span, Type> {
+    /// `>`, `>=`, `<`, `<=`
+    fn comparison(s: Span) -> IResult<Span, (char, bool)> {
+        let (s, op) = one_of("<>").parse(s)?;
+        let (s, eq) = opt(tag("=")).parse(s)?;
+        let (s, _) = multispace0.parse(s)?;
+        Ok((s, (op, eq.is_some())))
+    }
+    fn number(s: Span) -> IResult<Span, Span> {
+        terminated(recognize((opt(tag("-")), digit1, opt((tag("."), digit1)))), multispace0).parse(s)
+    }
+    /// `length(5)` or `length(> 0)`
+    fn length_prop(s: Span) -> IResult<Span, (Span, Option<(char, bool)>, Span)> {
+        let (s, kw) = terminated(tag("length"), multispace0).parse(s)?;
+        let (s, _) = terminated(tag("("), multispace0).parse(s)?;
+        let (s, cmp) = opt(comparison).parse(s)?;
+        let (s, n) = terminated(digit1, multispace0).parse(s)?;
+        let (s, _) = tag(")").parse(s)?;
+        Ok((s, (kw, cmp, n)))
+    }
+    fn compare_prop(s: Span) -> IResult<Span, ((char, bool), Span)> {
+        let (s, _) = terminated(tag("("), multispace0).parse(s)?;
+        let (s, cmp) = comparison(s)?;
+        let (s, n) = number(s)?;
+        let (s, _) = tag(")").parse(s)?;
+        Ok((s, (cmp, n)))
+    }
+    let help: HelpData = s.clone().into();
+    if let Ok((rest, (kw, cmp, n))) = length_prop(s.clone()) {
+        let Ok(n) = (*n).parse::<i32>() else {
+            return Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Digit)));
+        };
+        let prop = match cmp {
+            None => Refinement::Length(n),
+            Some(cmp) => Refinement::Range(Measure::Length, bound_interval(cmp, n as f64)),
+        };
+        return Ok((rest, Type::Property(prop, kw.into())));
+    }
+    let (rest, (cmp, num)) = compare_prop(s)?;
+    let c = (*num).parse().unwrap_or(0.0);
+    let prop = match cmp {
+        ('>', false) => Refinement::Gt(Num::new(c)),
+        ('<', false) => Refinement::Lt(Num::new(c)),
+        _ => Refinement::Range(Measure::Value, bound_interval(cmp, c)),
+    };
+    Ok((rest, Type::Property(prop, help)))
+}
+
+fn bound_interval((op, eq): (char, bool), c: f64) -> Interval {
+    match (op, eq) {
+        ('>', false) => Interval::greater_than(c),
+        ('>', true) => Interval::at_least(c),
+        ('<', false) => Interval::less_than(c),
+        _ => Interval::at_most(c),
     }
 }
 
@@ -928,43 +1017,21 @@ fn empty(s: Span) -> IResult<Span, Type> {
     }
 }
 
-fn compute_operators(v: &mut Vec<(Type, Op)>) -> Type {
-    // (params, op)
-    let first = v.pop().unwrap();
-    match first {
-        (p, Op::Add(_)) => {
-            let res = compute_operators(v);
-            let pp = p;
-            Type::Operator(TypeOperator::Addition, Box::new(res.clone()), Box::new(pp), res.into())
-        }
-        (p, Op::Minus(_)) => {
-            let res = compute_operators(v);
-            let pp = p;
-            Type::Operator(
-                TypeOperator::Substraction,
-                Box::new(res.clone()),
-                Box::new(pp),
-                res.into(),
-            )
-        }
-        (p, Op::Mul(_)) => {
-            let res = compute_operators(v);
-            let pp = p;
-            Type::Operator(
-                TypeOperator::Multiplication,
-                Box::new(res.clone()),
-                Box::new(pp),
-                res.into(),
-            )
-        }
-        (p, Op::Div(_)) => {
-            let res = compute_operators(v);
-            let pp = p;
-            Type::Operator(TypeOperator::Division, Box::new(res.clone()), Box::new(pp), res.into())
-        }
-        (p, Op::Empty(_)) => p,
-        _ => panic!(),
-    }
+fn compute_operators(v: &mut Vec<(Type, Op)>) -> Option<Type> {
+    // (params, op). `None` when the chain holds an operator that has no
+    // meaning at the type level (`>`, `<`, `==`, ...): the caller turns that
+    // into a parse failure instead of aborting.
+    let (p, op) = v.pop()?;
+    let arith = match op {
+        Op::Add(_) => TypeOperator::Addition,
+        Op::Minus(_) => TypeOperator::Substraction,
+        Op::Mul(_) => TypeOperator::Multiplication,
+        Op::Div(_) => TypeOperator::Division,
+        Op::Empty(_) => return Some(p),
+        _ => return None,
+    };
+    let res = compute_operators(v)?;
+    Some(Type::Operator(arith, Box::new(res.clone()), Box::new(p), res.into()))
 }
 
 fn index_operator(s: Span) -> IResult<Span, (Type, Op)> {
@@ -977,9 +1044,15 @@ fn index_operator(s: Span) -> IResult<Span, (Type, Op)> {
 }
 
 fn index_chain(s: Span) -> IResult<Span, Type> {
-    let res = many1(index_operator).parse(s);
+    let res = many1(index_operator).parse(s.clone());
     match res {
-        Ok((s, v)) => Ok((s, compute_operators(&mut v.clone()))),
+        Ok((rest, v)) => match compute_operators(&mut v.clone()) {
+            Some(t) => Ok((rest, t)),
+            None => Err(nom::Err::Error(nom::error::Error::new(
+                s,
+                nom::error::ErrorKind::Verify,
+            ))),
+        },
         Err(r) => Err(r),
     }
 }
@@ -1162,7 +1235,8 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             unknown_function,
             bracket_tuple_record, // Tuple[...] / Record[...] — before type_alias
             composite_vec_type,
-            list_types, // tuple{}/record{}/list{} brace forms
+            list_types,          // tuple{}/record{}/list{} brace forms
+            refinement_property, // length(n), (> c), (< c)
             parenthese_value,
             tag_type,
             any,
@@ -1196,6 +1270,119 @@ mod tests {
     use crate::components::r#type::type_category::TypeCategory;
     use crate::components::r#type::type_system::TypeSystem;
     use crate::utils::builder;
+
+    fn bounded(src: &str) -> (String, String) {
+        match ltype(src.into()).unwrap().1 {
+            Type::Bounded(id, bound, _) => (id, bound.pretty()),
+            other => panic!("expected Bounded, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_bounded_suffix_parses() {
+        assert_eq!(bounded("Lovable@A"), ("A".to_string(), "Lovable".to_string()));
+        assert_eq!(bounded("Lovable@_"), ("_".to_string(), "Lovable".to_string()));
+        assert_eq!(bounded("Eq@T"), ("T".to_string(), "Eq".to_string()));
+    }
+
+    #[test]
+    fn test_bounded_suffix_rejects_long_ids() {
+        // `@Self` / `@Abc` must not parse as `@S` / `@A` with the tail swallowed.
+        assert!(bound_suffix("@Self".into()).is_err());
+        assert!(bound_suffix("@Abc".into()).is_err());
+        assert!(bound_suffix("@A".into()).is_ok());
+    }
+
+    #[test]
+    fn test_malformed_bound_suffix_is_an_error() {
+        for src in ["Lovable@Self", "Lovable@Abc"] {
+            let _ = crate::processes::parsing::take_parse_errors();
+            let _ = ltype(src.into());
+            let errors = crate::processes::parsing::take_parse_errors();
+            assert!(
+                errors.iter().any(|e| matches!(e, SyntaxError::DetachedBoundSuffix(_))),
+                "{src}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_bounded_suffix_nested() {
+        let t = ltype("[3, Lovable@A]".into()).unwrap().1;
+        assert!(
+            matches!(&t, Type::Vec(_, _, elem, _) if matches!(elem.as_ref(), Type::Bounded(id, _, _) if id == "A"))
+        );
+        let t = ltype("tuple{Lovable@B, Lovable@A}".into()).unwrap().1;
+        assert!(matches!(&t, Type::Tuple(v, _) if v.len() == 2 && v.iter().all(|e| matches!(e, Type::Bounded(..)))));
+        let t = ltype("(Lovable@A) -> Lovable@A".into()).unwrap().1;
+        assert!(matches!(&t, Type::Function(args, ret, _)
+            if matches!(&args[0].get_type(), Type::Bounded(..)) && matches!(ret.as_ref(), Type::Bounded(..))));
+    }
+
+    #[test]
+    fn test_bounded_suffix_prints_back() {
+        let t = ltype("Lovable@A".into()).unwrap().1;
+        assert_eq!(t.pretty(), "Lovable@A");
+    }
+
+    #[test]
+    fn test_bare_alias_and_sigil_unchanged() {
+        assert!(matches!(ltype("Lovable".into()).unwrap().1, Type::Alias(..)));
+        assert!(matches!(
+            ltype("@A".into()).unwrap().1,
+            Type::KindedGen(Kind::Interface, ..)
+        ));
+    }
+
+    #[test]
+    fn test_detached_bound_suffix_is_an_error() {
+        let _ = crate::processes::parsing::take_parse_errors();
+        let _ = ltype("Lovable @A".into());
+        let errors = crate::processes::parsing::take_parse_errors();
+        assert!(errors.iter().any(|e| matches!(e, SyntaxError::DetachedBoundSuffix(_))));
+    }
+
+    #[test]
+    fn test_refinement_property_parses() {
+        let ok = |src: &str| refinement_property(src.into()).unwrap().1;
+        assert!(matches!(ok("length(5)"), Type::Property(Refinement::Length(5), _)));
+        assert!(matches!(ok("length( 5 )"), Type::Property(Refinement::Length(5), _)));
+        assert!(matches!(ok("(> 0)"), Type::Property(Refinement::Gt(_), _)));
+        assert!(matches!(ok("(< -2.5)"), Type::Property(Refinement::Lt(_), _)));
+        assert!(matches!(
+            ok("(>= 0)"),
+            Type::Property(Refinement::Range(Measure::Value, _), _)
+        ));
+        assert!(matches!(
+            ok("(<= 9.5)"),
+            Type::Property(Refinement::Range(Measure::Value, _), _)
+        ));
+        assert!(matches!(
+            ok("length(> 0)"),
+            Type::Property(Refinement::Range(Measure::Length, _), _)
+        ));
+        assert!(matches!(
+            ok("length(<= 10)"),
+            Type::Property(Refinement::Range(Measure::Length, _), _)
+        ));
+    }
+
+    #[test]
+    fn test_refinement_property_rejects_lookalikes() {
+        assert!(refinement_property("length(x)".into()).is_err());
+        assert!(refinement_property("length".into()).is_err());
+        assert!(refinement_property("(int)".into()).is_err());
+        assert!(refinement_property("(== 0)".into()).is_err());
+        assert!(refinement_property("length(>)".into()).is_err());
+    }
+
+    #[test]
+    fn test_intersection_with_property_does_not_panic() {
+        let t = ltype("int & (> 0)".into()).unwrap().1;
+        assert!(matches!(t, Type::Operator(TypeOperator::Intersection, _, _, _)));
+        let v = ltype("[int] & length(5)".into()).unwrap().1;
+        assert!(matches!(v, Type::Operator(TypeOperator::Intersection, _, _, _)));
+    }
 
     #[test]
     fn test_fabrice0() {
@@ -1278,8 +1465,8 @@ mod tests {
         assert!(res.is_ok(), "dataframe type with numeric index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::DataFrame, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::DataFrame, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Integer(_, _) => {}
                     other => panic!("Expected Integer index, got {:?}", other),
                 }
@@ -1323,7 +1510,7 @@ mod tests {
         assert!(res.is_ok(), "dataframe with Any index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::DataFrame, idx, _, _) => match idx.as_ref() {
+            Type::Vec(VecType::DataFrame, _, _, _) => match typ.vec_length().expect("vec length") {
                 Type::Any(_) => {}
                 other => panic!("Expected Any index, got {:?}", other),
             },
@@ -1337,7 +1524,7 @@ mod tests {
         assert!(res.is_ok(), "Vec with Any index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::Vector, idx, _, _) => match idx.as_ref() {
+            Type::Vec(VecType::Vector, _, _, _) => match typ.vec_length().expect("vec length") {
                 Type::Any(_) => {}
                 other => panic!("Expected Any index, got {:?}", other),
             },
@@ -1351,7 +1538,7 @@ mod tests {
         assert!(res.is_ok(), "Array with Any index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::S3, idx, _, _) => match idx.as_ref() {
+            Type::Vec(VecType::S3, _, _, _) => match typ.vec_length().expect("vec length") {
                 Type::Any(_) => {}
                 other => panic!("Expected Any index, got {:?}", other),
             },
@@ -1365,8 +1552,8 @@ mod tests {
         assert!(res.is_ok(), "dataframe without index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::DataFrame, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::DataFrame, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Any(_) => {}
                     other => panic!("Expected Any index, got {:?}", other),
                 }
@@ -1385,7 +1572,7 @@ mod tests {
         assert!(res.is_ok(), "df without index should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::DataFrame, idx, _, _) => match idx.as_ref() {
+            Type::Vec(VecType::DataFrame, _, _, _) => match typ.vec_length().expect("vec length") {
                 Type::Any(_) => {}
                 other => panic!("Expected Any index, got {:?}", other),
             },
@@ -1399,8 +1586,8 @@ mod tests {
         assert!(res.is_ok(), "Vec[type] short form should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::Vector, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::Vector, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Any(_) => {}
                     other => panic!("Expected Any index, got {:?}", other),
                 }
@@ -1419,8 +1606,8 @@ mod tests {
         assert!(res.is_ok(), "[type] short form should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::S3, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::S3, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Any(_) => {}
                     other => panic!("Expected Any index, got {:?}", other),
                 }
@@ -1439,8 +1626,8 @@ mod tests {
         assert!(res.is_ok(), "Array[index, type] should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::Array, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::Array, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Integer(_, _) => {}
                     other => panic!("Expected Integer index, got {:?}", other),
                 }
@@ -1459,8 +1646,8 @@ mod tests {
         assert!(res.is_ok(), "Array[type] short form should parse");
         let typ = res.unwrap().1;
         match &typ {
-            Type::Vec(VecType::Array, idx, body, _) => {
-                match idx.as_ref() {
+            Type::Vec(VecType::Array, _, body, _) => {
+                match typ.vec_length().expect("vec length") {
                     Type::Any(_) => {}
                     other => panic!("Expected Any index, got {:?}", other),
                 }
@@ -1527,9 +1714,9 @@ mod tests {
     fn test_named_record_constructor_parses() {
         let typ = ltype("Tibble[3]{ id: int, active: bool }".into()).unwrap().1;
         match &typ {
-            Type::Vec(VecType::Named(name), idx, body, _) => {
+            Type::Vec(VecType::Named(name), _, body, _) => {
                 assert_eq!(name, "Tibble");
-                assert!(matches!(idx.as_ref(), Type::Integer(_, _)));
+                assert!(matches!(typ.vec_length(), Some(Type::Integer(_, _))));
                 match body.as_ref() {
                     Type::Record(fields, _) => assert_eq!(fields.len(), 2),
                     other => panic!("Expected Record body, got {:?}", other),

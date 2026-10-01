@@ -1,0 +1,16 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_length(v, 3L"
+
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_value(n, 0, TRUE, Inf, FALSE"
+
+# Proven by the type: a check here would be noise for the R reader.
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_value(3"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "typr_refine_length(c("

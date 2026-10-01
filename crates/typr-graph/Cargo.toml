@@ -1,0 +1,17 @@
+[package]
+name = "typr-graph"
+description = "Builds a hierarchical block-graph view of a TypR program (see visualization_graph_v2.md)"
+readme = "../../README.md"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+typr-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+insta = { version = "1", features = ["yaml"] }

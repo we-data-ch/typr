@@ -94,16 +94,20 @@ tag vX.Y.Z
    │
    ├─ verify ......... refuse si tag ≠ Cargo.toml ≠ éditeurs
    │
-   ├─ build .......... 6 cibles (Linux/Windows/macOS × x86_64/aarch64)
+   ├─ build .......... 8 cibles (Linux musl + Linux GNU + Windows + macOS,
+     │                   × x86_64/aarch64)
    │   └─ release .... GitHub Release + checksums SHA-256
    │        ├─ docker ..... image depuis le binaire Linux, tags X.Y.Z + latest
    │        ├─ rstudio .... tarball R avec les binaires frais embarqués
    │        └─ docs ....... repository_dispatch → reconstruction du site
    │
-   ├─ crates-io ...... typr-core → typr-lsp → typr-cli → typr
-   ├─ wasm ........... WASM + version.json → dépôt du playground
-   ├─ vscode ......... .vsix → Marketplace + Open VSX + attaché à la release
-   └─ vim ............ tarball du plugin, attaché à la release
+    ├─ crates-io ...... typr-core → typr-lsp → typr-cli → typr
+    ├─ wasm ........... WASM + version.json → dépôt du playground
+    ├─ vscode ......... .vsix → Marketplace + Open VSX + attaché à la release
+    ├─ vim ............ tarball du plugin, attaché à la release
+    ├─ brew ........... formule générée → tap `we-data-ch/homebrew-typr`
+    ├─ winget ......... manifestes générés → PR `microsoft/winget-pkgs`
+    └─ scoop .......... manifeste généré → bucket `we-data-ch/scoop-bucket`
 ```
 
 Les branches sont indépendantes : si le Marketplace échoue, les binaires et
@@ -150,6 +154,76 @@ en 0.5.7 et que les releases GitHub annonçaient 0.5.7.
 | `VSCE_PAT` | `vscode` | Azure DevOps → PAT, scope *Marketplace: Manage* |
 | `PLAYGROUND_DEPLOY_TOKEN` | `wasm` | PAT GitHub, scope `repo` sur le dépôt du playground |
 | `DOCS_DISPATCH_TOKEN` | `docs` | PAT GitHub, scope `repo` sur `typr.github.io` |
+| `HOMEBREW_TAP_TOKEN` | `brew` | PAT GitHub, scope `repo` sur `homebrew-typr` |
+| `WINGET_CREATE_GITHUB_TOKEN` | `winget` | PAT GitHub, scope `public_repo` (lu par `wingetcreate` dans l'environnement) |
+| `SCOOP_BUCKET_TOKEN` | `scoop` | PAT GitHub, écriture sur `scoop-bucket` |
+
+## Le tap Homebrew
+
+`we-data-ch/homebrew-typr` ne contient que `Formula/typr.rb`, `README.md` et
+`LICENSE` — aucun binaire. Le job `brew` génère la formule à partir du
+`checksums.txt` de la release, la fait valider par `brew style` et
+`brew audit --strict`, puis la commite. La formule n'est donc jamais écrite à la
+main : voir `packaging/homebrew/README.md`.
+
+Le dépôt a été créé le 30 septembre 2026 et contient déjà la formule de
+v0.5.12 ; la CI le tient ensuite à chaque tag. S'il fallait le refaire, le geste
+est :
+
+```bash
+gh repo create we-data-ch/homebrew-typr --public --description "Tap Homebrew pour TypR"
+```
+
+Deux façons de le tenir, à trancher une fois pour toutes :
+
+- **`main` libre** — la CI pousse directement, comme `vscode` et `wasm` le font
+  pour leurs dépôts. Le tag fait foi, et le tap ne peut jamais être en retard.
+- **`main` protégé, admission via le dépôt `we-data-ch/homebrew-typr-autoupdate`**
+  — la CI n'écrit plus dans le tap mais dans le dépôt d'admission, qui ouvre une
+  PR que l'on relit. `homebrew-typr/typr` reste installable entre-temps, par ce que
+  `brew install` lit est la branche par défaut. Le tap devient alors impossible à
+  modifier sans relecture humaine, au prix d'un `brew update-autoupdate` à
+  installer sur les postes des mainteneurs.
+
+Le choix du lot 3 est le premier : il est cohérent avec le reste de la chaîne, et
+une formule générée par la CI depuis le `checksums.txt` n'a pas à être relue — ce
+qui la relèverait, c'est son unicité, pas sa rédaction.
+
+## Les canaux WinGet et Scoop
+
+Aucun binaire non plus : `winget-pkgs` ne publie que trois fichiers YAML, et le
+bucket Scoop que des URL et leurs SHA-256. Les deux canaux lisent le **même**
+`checksums.txt` que la formule Homebrew, et sont rendus par le même script,
+`packaging/render.sh` — voir `packaging/README.md`.
+
+Ce que les deux jobs font de plus que le tap, c'est **installer pour de vrai**
+avant de publier :
+
+- `winget` télécharge les deux archives Windows et compare leurs empreintes à
+  celles des manifestes rendus, puis passe le dossier à `wingetcreate submit`,
+  qui le valide avec le validateur officiel avant d'ouvrir la PR ;
+- `scoop` lance `scoop install` sur le manifeste local, attend le shim `typr`, et
+  exige que `typr --version` annonce la version de la release.
+
+Un canal qui refuse d'installer ne publie donc rien — mieux vaut un job rouge
+qu'un manifeste que personne ne peut installer.
+
+**Le dépôt `we-data-ch/scoop-bucket` doit exister avant le premier tag.** Le job
+`clone` échoue bruyamment s'il est absent, parce qu'un `git push` vers une URL
+inexistante échouerait lui aussi, mais trois minutes plus tard :
+
+```bash
+gh repo create we-data-ch/scoop-bucket --public --description "Bucket Scoop pour TypR"
+```
+
+Les secrets manquants ne bloquent pas la release : le rendu et les installations
+locales ont lieu, seule la publication est sautée avec un avertissement. C'est
+voulu — pour qu'un tag serve à autre chose qu'à produire un job rouge.
+
+Le bucket garde dix versions, purgées par ordre d'ajout dans l'historique et non
+par ordre alphabétique. `typr update` sert à cela : sans purge, un utilisateur qui
+n'aurait pas fait `scoop update` pendant un an verrait une liste de manifests
+toujours plus longue.
 
 ## Aucun binaire dans le dépôt
 

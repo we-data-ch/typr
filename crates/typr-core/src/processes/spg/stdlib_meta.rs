@@ -14,6 +14,14 @@ pub struct FunctionMeta {
     pub coercion_notes: Option<String>,
     pub examples: Vec<String>,
     pub seealso: Vec<String>,
+    /// Minimum R package version this entry was declared against — a floor,
+    /// never a closed range (`typR/registry.md` §7.2). Meaningful only in an
+    /// external type definition (`rfcs/0031-external-type-definitions.md`);
+    /// absent from the standard library.
+    pub since: Option<String>,
+    /// Only set when a break is *known*, never speculative. Same scope as
+    /// `since`.
+    pub until: Option<String>,
 }
 
 impl FunctionMeta {
@@ -27,6 +35,8 @@ impl FunctionMeta {
             examples: self.examples,
             seealso: self.seealso,
             pkg: self.pkg,
+            since: self.since,
+            until: self.until,
         }
     }
 
@@ -39,6 +49,8 @@ impl FunctionMeta {
             || !self.examples.is_empty()
             || !self.seealso.is_empty()
             || self.pkg.is_some()
+            || self.since.is_some()
+            || self.until.is_some()
     }
 }
 
@@ -98,6 +110,14 @@ pub fn parse_meta_from_source(source: &str) -> HashMap<String, FunctionMeta> {
                     "ret" => {
                         let target = pending_meta.get_or_insert_with(FunctionMeta::default);
                         target.ret_doc = Some(strip_leading_colon(value));
+                    }
+                    "since" => {
+                        let target = pending_meta.get_or_insert_with(FunctionMeta::default);
+                        target.since = Some(strip_leading_colon(value));
+                    }
+                    "until" => {
+                        let target = pending_meta.get_or_insert_with(FunctionMeta::default);
+                        target.until = Some(strip_leading_colon(value));
                     }
                     "coercion" | "note" => {
                         let target = pending_meta.get_or_insert_with(FunctionMeta::default);
@@ -280,6 +300,33 @@ let x: int <- 5;";
         let map = parse_meta_from_source(src);
         assert!(map.contains_key("rnorm"));
         assert!(!map.contains_key("stats::rnorm"));
+    }
+
+    #[test]
+    fn since_and_until_are_parsed() {
+        let src = "\
+#! pkg: dplyr
+#! tier: T3
+#! since: 1.1.0
+#! until: 2.0.0
+@filter: (Any, Any) -> Any;";
+
+        let map = parse_meta_from_source(src);
+        let meta = map.get("filter").unwrap();
+        assert_eq!(meta.since.as_deref(), Some("1.1.0"));
+        assert_eq!(meta.until.as_deref(), Some("2.0.0"));
+    }
+
+    #[test]
+    fn since_without_until_leaves_until_none() {
+        let src = "\
+#! since: 1.11.0
+@fluidPage: (Any) -> Any;";
+
+        let map = parse_meta_from_source(src);
+        let meta = map.get("fluidPage").unwrap();
+        assert_eq!(meta.since.as_deref(), Some("1.11.0"));
+        assert!(meta.until.is_none());
     }
 
     #[test]

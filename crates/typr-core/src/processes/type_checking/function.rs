@@ -2,9 +2,11 @@ use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::var::Var;
+use crate::components::r#type::is_rigid_name;
 use crate::components::r#type::kind::Kind;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::processes::type_checking::facets;
+use crate::processes::type_checking::signature_normalization;
 use crate::processes::type_checking::type_comparison::reduce_type;
 use crate::processes::type_checking::ArgumentType;
 use crate::processes::type_checking::HelpData;
@@ -53,8 +55,10 @@ fn collect_generic_kind_occurrences(typ: &Type, acc: &mut Vec<(String, ObservedK
                 .for_each(|a| collect_generic_kind_occurrences(&a.get_type(), acc));
             collect_generic_kind_occurrences(ret, acc);
         }
-        Type::Vec(_, idx, body, _) => {
-            collect_generic_kind_occurrences(idx, acc);
+        Type::Vec(_, _, body, _) => {
+            if let Some(length) = typ.vec_length() {
+                collect_generic_kind_occurrences(&length, acc);
+            }
             collect_generic_kind_occurrences(body, acc);
         }
         Type::Record(fields, _) | Type::Interface(fields, _) => fields
@@ -190,8 +194,10 @@ fn collect_interface_leaf_types(context: &Context, typ: &Type, acc: &mut Vec<Typ
                 .for_each(|a| collect_interface_leaf_types(context, &a.get_type(), acc));
             collect_interface_leaf_types(context, ret, acc);
         }
-        Type::Vec(_, idx, body, _) => {
-            collect_interface_leaf_types(context, idx, acc);
+        Type::Vec(_, _, body, _) => {
+            if let Some(length) = typ.vec_length() {
+                collect_interface_leaf_types(context, &length, acc);
+            }
             collect_interface_leaf_types(context, body, acc);
         }
         Type::Record(fields, _) => fields
@@ -234,6 +240,63 @@ fn is_interface_return_only(params: &[ArgumentType], ret_ty: &Type, context: &Co
     !anchors.contains(&reduced_ret)
 }
 
+/// The rigid standing for `id` in the body, created (with `bound` as its
+/// interface constraint) the first time the id is met.
+fn rigid_for_id(
+    ctx: &mut Context,
+    rigid_of_id: &mut std::collections::HashMap<String, String>,
+    id: &str,
+    bound: Type,
+) -> String {
+    if let Some(name) = rigid_of_id.get(id) {
+        return name.clone();
+    }
+    let (name, new_ctx) = ctx.clone().fresh_rigid_name();
+    *ctx = new_ctx.add_interface_constraint(name.clone(), reduce_type(ctx, &bound));
+    rigid_of_id.insert(id.to_string(), name.clone());
+    name
+}
+
+/// Every `Bounded(id, bound)` in `typ` becomes the rigid of `id`.
+fn replace_bounded_with_rigids(
+    ctx: &mut Context,
+    rigid_of_id: &mut std::collections::HashMap<String, String>,
+    typ: &Type,
+    h: &HelpData,
+) -> Type {
+    signature_normalization::rewrite(typ, &mut |t| match t {
+        Type::Bounded(id, bound, _) => {
+            let name = rigid_for_id(ctx, rigid_of_id, id, (**bound).clone());
+            Some(Type::Generic(name, h.clone()))
+        }
+        _ => None,
+    })
+}
+
+/// Rewrites the rigids of `typ` back to what the user wrote (`Lovable@B`, or
+/// plain `Lovable` for a bare interface) so an error never shows `__RIGID_1`.
+fn name_rigids(typ: &Type, rigid_of_id: &std::collections::HashMap<String, String>, params: &[ArgumentType]) -> Type {
+    let mut bounds: Vec<(String, Type)> = Vec::new();
+    for p in params {
+        signature_normalization::visit(&p.get_type(), &mut |t| {
+            if let Type::Bounded(id, bound, _) = t {
+                bounds.push((id.clone(), (**bound).clone()));
+            }
+        });
+    }
+    signature_normalization::rewrite(typ, &mut |t| {
+        let Type::Generic(name, h) = t else { return None };
+        let (id, _) = rigid_of_id.iter().find(|(_, rigid)| *rigid == name)?;
+        let (_, bound) = bounds.iter().find(|(b, _)| b == id)?;
+        let bare = matches!(bound, Type::Alias(alias, ..) if alias == id);
+        Some(if bare {
+            bound.clone()
+        } else {
+            Type::Bounded(id.clone(), Box::new(bound.clone()), h.clone())
+        })
+    })
+}
+
 /// Check if a type is a constrained rigid generic that satisfies the declared return type.
 /// This handles the case where the body returns a rigid variable `A` and the declared return
 /// is the interface `I` that constrains `A`.
@@ -242,6 +305,13 @@ fn is_rigid_compatible(body_type: &Type, declared_ret: &Type, context: &Context)
         Type::Generic(name, _) => name,
         _ => return false,
     };
+    // A declared rigid (`Lovable@B`) is matched by that very rigid only; the
+    // bound-based rule below would let any `Lovable` rigid through.
+    if let Type::Generic(declared, _) = declared_ret {
+        if is_rigid_name(declared) {
+            return declared == name;
+        }
+    }
     let Some(interface) = context.get_interface_constraint(name) else {
         return false;
     };
@@ -297,6 +367,11 @@ pub fn function(
         .with_errors(vec![TypRError::Type(TypeError::InterfaceReturnOnly(ret_ty.clone()))]);
     }
 
+    // RFC interface_generic_unification §7.3 — `I@Id` well-formedness. Only the
+    // errors are consumed for now; the desugared signature is used from phase 3.
+    let normalized = signature_normalization::normalize_signature(context, params, ret_ty);
+    let bound_errors = normalized.errors;
+
     // RFC sigils.md §7 — intra-signature kind-consistency pass.
     let kind_consistency_errors = check_kind_consistency(params, ret_ty);
     let default_param_errors = check_default_params(params, context);
@@ -319,22 +394,55 @@ pub fn function(
     // as the constraint, so `facets::record_facet` can still recover the
     // record side of a mixed intersection through the rigid generic.
     let mut sub_context = context.clone();
-    for arg_typ in params {
-        let param_type = arg_typ.body_type();
+    // D4: one rigid per `I@Id` identifier (a bare `I` being `I@I`), so two
+    // parameters sharing an id share their rigid, and distinct ids stay distinct.
+    let mut rigid_of_id: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for (arg_typ, normalized_param) in params.iter().zip(normalized.params.iter()) {
+        // `Lovable@A` is typed through its bound; the id only decides sharing.
+        let param_type = match arg_typ.body_type() {
+            Type::Bounded(_, bound, _) => *bound,
+            other => other,
+        };
         let reduced = reduce_type(&sub_context, &param_type);
         if facets::interface_facet(&sub_context, &reduced).is_some() {
-            let (rigid_name, new_ctx) = sub_context.clone().fresh_rigid_name();
-            let rigid_type = Type::Generic(rigid_name.clone(), h.clone());
-            sub_context = new_ctx.add_interface_constraint(rigid_name, reduced).push_var_type(
+            let id = match normalized_param.get_type() {
+                Type::Bounded(id, _, _) if !arg_typ.is_variadic() => Some(id),
+                _ => None,
+            };
+            let rigid_name = match id {
+                Some(id) => rigid_for_id(&mut sub_context, &mut rigid_of_id, &id, reduced),
+                None => {
+                    let (name, new_ctx) = sub_context.clone().fresh_rigid_name();
+                    sub_context = new_ctx.add_interface_constraint(name.clone(), reduced);
+                    name
+                }
+            };
+            let rigid_type = Type::Generic(rigid_name, h.clone());
+            sub_context = sub_context.clone().push_var_type(
                 Var::from_name(&arg_typ.get_argument_str()).set_type(rigid_type.clone()),
                 rigid_type,
                 &sub_context,
             );
+        } else if !arg_typ.is_variadic() && signature_normalization::has_bounded(&normalized_param.get_type()) {
+            // `[#N, Lovable@A]`, `tuple{Lovable@A, T}`: the bound sits below the
+            // top, so the parameter keeps its shape with a rigid at each `@Id`.
+            let nested =
+                replace_bounded_with_rigids(&mut sub_context, &mut rigid_of_id, &normalized_param.get_type(), h);
+            let var = arg_typ.clone().set_type(nested.clone()).to_var(&sub_context);
+            sub_context = sub_context.clone().push_var_type(var, nested, &sub_context);
         } else {
             let var = arg_typ.clone().set_type(param_type.clone()).to_var(&sub_context);
             sub_context = sub_context.clone().push_var_type(var, param_type.clone(), &sub_context);
         }
     }
+
+    // A return type `Lovable@B` (or `tuple{Lovable@B, …}`) is held to the rigid
+    // of `B`, not to any rigid whose bound is `Lovable`.
+    let checked_ret = if signature_normalization::has_bounded(&normalized.ret) {
+        replace_bounded_with_rigids(&mut sub_context, &mut rigid_of_id, &normalized.ret, h)
+    } else {
+        ret_ty.clone()
+    };
 
     // `Self:{ ... }` (generic_constructor.md §4.1): bind `Self` to whatever
     // type the first parameter ended up with in `sub_context` (the declared
@@ -349,15 +457,21 @@ pub fn function(
     // C1 (audit_type_checking.md): thread the declared return type through so
     // every early `return` inside the body — not just the trailing expression
     // — gets checked against it (see `Lang::Return` in `type_checking/mod.rs`).
-    sub_context = sub_context.set_expected_return_type(Some(ret_ty.clone()));
+    sub_context = sub_context
+        .set_expected_return_type(Some(checked_ret.clone()))
+        .set_return_position(true);
 
     let body_type = body.typing(&sub_context);
     let mut errors = body_type.errors;
+    errors.extend(bound_errors);
     errors.extend(kind_consistency_errors);
     errors.extend(default_param_errors);
     errors.extend(undefined_alias_errors);
-    let is_compatible = is_compatible_return_type(&body_type.value, ret_ty, &sub_context);
-    (!is_compatible).then(|| errors.push(builder::unmatching_return_type(ret_ty, &body_type.value)));
+    let is_compatible = is_compatible_return_type(&body_type.value, &checked_ret, &sub_context);
+    (!is_compatible).then(|| {
+        let found = name_rigids(&body_type.value, &rigid_of_id, &normalized.params);
+        errors.push(builder::unmatching_return_type(ret_ty, &found))
+    });
     // Structural types registered on the fly while typing the body (e.g. the
     // `ArrayN` alias created by an inline `expr as! [T]` cast) must survive
     // into the outer context: the transpiler resolves them there to emit the
@@ -1118,5 +1232,61 @@ mod tests {
             "Should not have InterfaceReturnOnly error, got: {:?}",
             tc2.get_errors()
         );
+    }
+
+    // =====================================================================
+    // `I@Id` in the body (interface_generic_unification, phase 3)
+    // =====================================================================
+
+    /// Type-checks the interface declarations followed by `src` (one source, as
+    /// the CLI does); true when it is error-free.
+    fn body_is_ok(src: &str) -> bool {
+        use crate::components::context::Context;
+        use crate::processes::parsing::parse2;
+        use crate::processes::type_checking::type_checker::TypeChecker;
+
+        let program = format!(
+            "type Lovable <- interface {{ love: (Self) -> char }};\n\
+             type Same <- interface {{ same: (Self, Self) -> bool }};\n\
+             type Cat <- list {{ name: char }};\n\
+             let love <- fn(c: Cat): char {{ \"meow\" }};\n\
+             let same <- fn(a: Cat, b: Cat): bool {{ true }};\n\
+             let f <- {src};"
+        );
+        let tc = TypeChecker::new(Context::default())
+            .typing_no_panic(&crate::processes::parsing::parse_from_string(&program, "t.ty"));
+        !tc.has_errors()
+    }
+
+    #[test]
+    fn test_bound_return_follows_its_own_id() {
+        assert!(body_is_ok("fn(a: Lovable@A, b: Lovable@B): Lovable@B { b }"));
+        assert!(body_is_ok("fn(a: Lovable@A, b: Lovable@B): Lovable@A { a }"));
+    }
+
+    #[test]
+    fn test_bound_return_rejects_another_id() {
+        assert!(!body_is_ok("fn(a: Lovable@A, b: Lovable@B): Lovable@A { b }"));
+        assert!(!body_is_ok("fn(a: Lovable@A, b: Lovable@B): Lovable@B { a }"));
+    }
+
+    #[test]
+    fn test_bound_methods_are_callable_on_distinct_ids() {
+        assert!(body_is_ok(
+            "fn(a: Lovable@A, b: Lovable@B): bool { a.love() == b.love() }"
+        ));
+    }
+
+    #[test]
+    fn test_self_self_method_needs_a_shared_id() {
+        assert!(!body_is_ok("fn(a: Same@A, b: Same@B): bool { a.same(b) }"));
+        assert!(body_is_ok("fn(a: Same@A, b: Same@A): bool { a.same(b) }"));
+        // D3-A: two bare occurrences of an interface share one variable.
+        assert!(body_is_ok("fn(a: Same, b: Same): bool { a.same(b) }"));
+    }
+
+    #[test]
+    fn test_bare_interface_return_is_tied_to_the_shared_variable() {
+        assert!(body_is_ok("fn(a: Lovable, b: Lovable): Lovable { b }"));
     }
 }

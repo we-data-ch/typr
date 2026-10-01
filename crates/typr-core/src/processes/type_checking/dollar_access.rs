@@ -45,7 +45,8 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
     let mut errors = tc1.errors;
     let ty1 = tc1.value;
 
-    match (ty1.reduce(context), e2.clone(), &op) {
+    let reduced1 = ty1.reduce(context);
+    match (reduced1.clone(), e2.clone(), &op) {
         (Type::Record(fields, _), Lang::Variable { name, help_data: h, .. }, _) => {
             field_access::find_field_or_push_error(&fields, &name, &ty1, h, &mut errors)
                 .map(|ty| TypeContext::new(ty, expr.clone(), context.clone()).with_errors(errors.clone()))
@@ -167,7 +168,7 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
         }
         // DataFrame $ access: df$col -> [N, col_type] (VecType::Vector)
         (
-            Type::Vec(VecType::DataFrame, n, ref body, h),
+            Type::Vec(VecType::DataFrame, _, ref body, h),
             Lang::Variable {
                 name,
                 help_data: ref vh,
@@ -183,7 +184,12 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
                             other => other,
                         };
                         TypeContext::new(
-                            Type::Vec(VecType::Vector, n.clone(), Box::new(inner_type), h.clone()),
+                            Type::vec(
+                                VecType::Vector,
+                                reduced1.vec_length().unwrap_or_else(builder::any_type),
+                                inner_type,
+                                h.clone(),
+                            ),
                             expr.clone(),
                             context.clone(),
                         )
@@ -199,7 +205,7 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
         },
         // DataFrame $ access with string literal: df$"col"
         (
-            Type::Vec(VecType::DataFrame, n, ref body, h),
+            Type::Vec(VecType::DataFrame, _, ref body, h),
             Lang::Char {
                 value: name,
                 help_data: ref vh,
@@ -214,7 +220,12 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
                             other => other,
                         };
                         TypeContext::new(
-                            Type::Vec(VecType::Vector, n, Box::new(inner_type), h.clone()),
+                            Type::vec(
+                                VecType::Vector,
+                                reduced1.vec_length().unwrap_or_else(builder::any_type),
+                                inner_type,
+                                h.clone(),
+                            ),
                             expr.clone(),
                             context.clone(),
                         )
@@ -229,7 +240,7 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
             }
         },
         // DataFrame $ update with list: df$:{col: new_type}
-        (Type::Vec(VecType::DataFrame, n, ref body, h), Lang::List { value: fields2, .. }, _) => match body.as_ref() {
+        (Type::Vec(VecType::DataFrame, _, ref body, h), Lang::List { value: fields2, .. }, _) => match body.as_ref() {
             Type::Record(fields1, rh) => {
                 let at = fields2[0].clone();
                 let fields3 = fields1
@@ -237,10 +248,10 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
                     .map(replace_fields_type_if_needed(context, at))
                     .collect::<HashSet<_>>();
                 TypeContext::new(
-                    Type::Vec(
+                    Type::vec(
                         VecType::DataFrame,
-                        n,
-                        Box::new(Type::Record(fields3, rh.clone())),
+                        reduced1.vec_length().unwrap_or_else(builder::any_type),
+                        Type::Record(fields3, rh.clone()),
                         h.clone(),
                     ),
                     expr.clone(),
@@ -255,7 +266,7 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
         },
         // DataFrame $ function call: df$fn(args)
         (
-            Type::Vec(VecType::DataFrame, _n, ref body, _h),
+            Type::Vec(VecType::DataFrame, _, ref body, _h),
             Lang::FunctionApp {
                 identifier: exp,
                 arguments: params,
@@ -293,7 +304,7 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
                 TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
             }
         },
-        (Type::Vec(vtype, n, _, h), Lang::Variable { .. }, _) => match ArrayLang::try_from(e1.clone()) {
+        (Type::Vec(vtype, _, _, h), Lang::Variable { .. }, _) => match ArrayLang::try_from(e1.clone()) {
             Ok(arr_lang) => match arr_lang.get_first_argument() {
                 Some(first_arg) => {
                     let tc = typing(
@@ -302,7 +313,12 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
                     );
                     errors.extend(tc.errors);
                     TypeContext::new(
-                        Type::Vec(vtype, n, Box::new(tc.value), h.clone()),
+                        Type::vec(
+                            vtype,
+                            reduced1.vec_length().unwrap_or_else(builder::any_type),
+                            tc.value,
+                            h.clone(),
+                        ),
                         tc.lang,
                         context.clone(),
                     )

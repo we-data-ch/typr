@@ -430,6 +430,16 @@ impl SyntaxManifest {
                  a delimiter are in `types.constructor` and `keywords.block`.",
             ),
             Rule::new(
+                "types.refinement",
+                "support.type.builtin.typr",
+                words_before(&["length"], "\\s*\\(\\s*[\\d<>]"),
+            )
+            .with_note(
+                "`[int] & length(5)`, `[int] & length(> 0)` (`parsing/types.rs::refinement_property`). \
+                 `length` is also R's most common function, so it only counts glued to \
+                 `(<digit>` or `(<comparison>`: `length(x)` stays a plain call.",
+            ),
+            Rule::new(
                 "types.builtin-indexed",
                 "support.type.builtin.typr",
                 words_before(&["df"], "\\s*\\["),

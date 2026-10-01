@@ -39,7 +39,10 @@ use crate::cache::CACHE_DIR;
 /// The committed base-R table, used to seed a fresh cache.
 const SEED_JSON: &str = include_str!("../configs/src/r_name_db.json");
 /// The introspection script run against packages the seed does not cover.
-const INTROSPECT_R: &str = include_str!("../configs/src/introspect_pkg.R");
+/// Also the backbone of `typr gen-types` (see `crate::gen_types`), which reads
+/// this same script's `F`/`P` lines (formals, package version) alongside the
+/// `N`/`V`/`C`/`E` lines this cache consumes.
+pub(crate) const INTROSPECT_R: &str = include_str!("../configs/src/introspect_pkg.R");
 
 pub const CACHE_FILE: &str = "r_names.json";
 

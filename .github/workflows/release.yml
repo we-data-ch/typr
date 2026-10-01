@@ -74,19 +74,41 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            archive: tar.gz
-          - target: aarch64-unknown-linux-gnu
+          # Linux musl — la cible que vise le script d'installation par défaut.
+          # Liée statiquement : aucune contrainte de glibc, donc le binaire
+          # démarre sur Rocky 9, Debian 12, Ubuntu 22.04 *et* Alpine. C'est le
+          # correctif du défaut mesuré sur v0.5.12 (`GLIBC_2.39 not found`).
+          - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             archive: tar.gz
             cross: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            archive: tar.gz
+            cross: true
+          # Linux GNU — repli, construit sur 22.04 et non sur `latest` : `ubuntu-latest`
+          # passe à Ubuntu 26.04 en novembre 2026 (actions/runner-images#14748) et
+          # ferait monter le plancher de glibc de 2.35 à ~2.42 sans qu'une ligne du
+          # dépôt change. Ici le plancher est figé, quoi qu'il arrive au runner.
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+            archive: tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04
+            archive: tar.gz
+            cross: true
+          # `+crt-static` lie le runtime C : VCRUNTIME140.dll et les
+          # api-ms-win-crt-* du VC++ Redistributable disparaissent des imports.
+          # Sans ce flag, l'installation aboutit puis `typr --version` échoue
+          # sur un Windows 10/11 frais (DLL introuvable).
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             archive: zip
+            rustflags: -C target-feature=+crt-static
           - target: aarch64-pc-windows-msvc
             os: windows-latest
             archive: zip
+            rustflags: -C target-feature=+crt-static
           - target: x86_64-apple-darwin
             os: macos-latest
             archive: tar.gz
@@ -107,16 +129,23 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Install cross (Linux ARM)
+      - name: Install cross (Linux non natif)
         if: matrix.cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Build (cross)
         if: matrix.cross
+        env:
+          # `-C target-feature=+crt-static` sur les cibles `*-msvc` ; vide
+          # partout ailleurs. Comme `--target` est toujours passé, cargo
+          # n'applique pas RUSTFLAGS aux build scripts ni aux proc macros.
+          RUSTFLAGS: ${{ matrix.rustflags }}
         run: cross build --release --target ${{ matrix.target }}
 
       - name: Build (native)
         if: ${{ !matrix.cross }}
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Prepare artifacts (Unix)
@@ -131,6 +160,64 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
           Compress-Archive -Path ${{ env.BINARY_NAME }}.exe -DestinationPath ../../../${{ env.BINARY_NAME }}-${{ needs.verify.outputs.tag }}-${{ matrix.target }}.zip
+
+      # La liaison statique du runtime C ne se constate qu'en inspectant le PE
+      # produit : rustc accepte le flag, mais rien ne garantit qu'il ait été
+      # honoré. C'était le point non vérifié de l'analyse, donc on le vérifie ici
+      # plutôt que de le croire — sinon le défaut revient en silence au premier
+      # changement de dépendance.
+      - name: Runtime C statique (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $exe = "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * `
+                  -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+                  -property installationPath
+          if (-not $vs) { throw "Outils C++ de Visual Studio introuvables sur le runner" }
+          $vcvars = Join-Path $vs "VC\Auxiliary\Build\vcvars64.bat"
+
+          # dumpbin n'est pas dans le PATH du runner : il faut l'environnement VC.
+          $dlls = cmd /c "`"$vcvars`" >nul 2>&1 && dumpbin /nologo /dependents `"$exe`""
+          if ($LASTEXITCODE -ne 0) { throw "dumpbin /dependents a échoué sur $exe" }
+          Write-Host $dlls
+
+          # UCRT et VCRUNTIME viennent tous deux du VC++ Redistributable, absent
+          # d'un Windows 10/11 frais. S'ils réapparaissent, l'installation
+          # paraîtra réussie et `typr --version` échouera.
+          $runtime = $dlls | Select-String -Pattern 'VCRUNTIME140|VCRUNTIME140_1|MSVCP140|api-ms-win-crt-|ucrtbase\.dll'
+          if ($runtime) {
+            Write-Host "::error::le binaire importe encore le runtime du VC++ Redistributable :"
+            Write-Host $runtime
+            exit 1
+          }
+          Write-Host "Runtime C statique : aucune DLL du VC++ Redistributable importée."
+
+      # C'est cette étape — `typr --version` dans une distro vierge — qui échouait
+      # en septembre 2026 avec les binaires GNU, sur les 3 premières
+      # distributions. Un binaire musl qui trahirait un interpréteur
+      # (`PT_INTERP`) ne fonctionnerait que sur Alpine, et le défaut
+      # reviendrait sans qu'aucun test ne le voie : d'où les deux garde-fous.
+      - name: Binaire musl statique et exécutable
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          set -euo pipefail
+          BIN="$PWD/target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}"
+          file "$BIN"
+          # On lit la table de segments en entier plutôt que de s'arrêter à la
+          # première correspondance : `grep -q` sous `pipefail` laisse la
+          # garde-fou dépendre du tampon de pipe, et le décompte sert aussi au
+          # message d'erreur.
+          INTERP=$(readelf -lW "$BIN" | grep -cE '\bINTERP\b' || true)
+          if [ "$INTERP" -ne 0 ]; then
+            echo "::error::$BIN déclare un interpréteur — il n'est pas statique et ne tournera que sur Alpine"
+            exit 1
+          fi
+          for IMAGE in rockylinux:9 debian:12 alpine:3.20; do
+            echo "→ $IMAGE"
+            docker run --rm -v "$BIN:/w/typr:ro" "$IMAGE" sh -c '/w/typr --version'
+          done
 
       - uses: actions/upload-artifact@v4
         with:
@@ -545,3 +632,419 @@ jobs:
         if: env.DOCS_DISPATCH_TOKEN == ''
         run: |
           echo "::warning title=Doc non rafraichie::DOCS_DISPATCH_TOKEN absent ; typr.github.io n'a pas ete redeploye pour cette release."
+
+  # ---------------------------------------------------------------------------
+  # 8b. Homebrew — le tap reçoit une formule *générée*, jamais écrite à la main.
+  #
+  #     Un SHA-256 recopié à la main finit toujours par désigner un binaire qui
+  #     n'est plus celui de la release : l'erreur n'apparaît qu'à
+  #     l'installation, chez l'utilisateur. Ici les empreintes sont lues dans le
+  #     `checksums.txt` que la release vient de publier, puis vérifiées contre
+  #     l'archive réellement téléchargée avant d'être commitées.
+  #
+  #     Indépendant des autres canaux, comme `vscode` et `vim` : un push refusé
+  #     sur le tap ne doit pas empêcher les binaires d'arriver.
+  # ---------------------------------------------------------------------------
+  brew:
+    name: Homebrew tap
+    needs: [verify, release]
+    runs-on: macos-latest
+    # Au niveau du job pour que l'étape de publication puisse tester sa présence
+    # dans son propre `if` : un `env` de step n'y est pas visible.
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+
+      - name: Récupérer checksums.txt de la release
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          set -euo pipefail
+          curl -fsSfL \
+            "https://github.com/${{ github.repository }}/releases/download/$TAG/checksums.txt" \
+            -o checksums.txt
+          cat checksums.txt
+
+      - name: Générer la formule et le README du tap
+        run: |
+          set -euo pipefail
+          packaging/homebrew/render.sh \
+            --tag "${{ needs.verify.outputs.tag }}" \
+            --checksums checksums.txt \
+            --out tap
+          cat tap/Formula/typr.rb
+
+      # La formule reprend `checksums.txt`, donc son empreinte est correcte par
+      # construction — sauf si le fichier a été réécrit entre le rendu et cet
+      # instant, ou si la ligne lue était celle d'un autre artefact. On
+      # télécharge donc une archive pour de vrai et on la compare : c'est le seul
+      # endroit où une erreur de sélection se verrait avant le commit.
+      - name: L'empreinte de la formule correspond à l'archive publiée
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          set -euo pipefail
+          ARTIFACT="typr-$TAG-aarch64-apple-darwin.tar.gz"
+          curl -fsSfL \
+            "https://github.com/${{ github.repository }}/releases/download/$TAG/$ARTIFACT" \
+            -o "$ARTIFACT"
+          ACTUAL=$(shasum -a 256 "$ARTIFACT" | cut -d' ' -f1)
+          rm -f "$ARTIFACT"
+          if ! grep -Fq "$ACTUAL" tap/Formula/typr.rb; then
+            echo "::error::l'empreinte de $ARTIFACT ($ACTUAL) ne figure pas dans la formule rendue"
+            exit 1
+          fi
+          echo "archive publiée et formule d'accord : $ACTUAL"
+
+      # `brew style` et `brew audit` jugent la formule comme le ferait
+      # l'utilisateur, et rien ici ne les remplace : ni ruby ni Homebrew ne
+      # tournent sous Linux. Une formule qu'ils refusent n'est pas committée.
+      #
+      # Le fichier est déposé dans un vrai tap (`Library/Taps/<user>/<repo>`) :
+      # c'est ce que fait `brew tap`, et c'est ce que rubocop attend pour
+      # connaître le nom du tap.
+      - name: Homebrew accepte la formule
+        run: |
+          set -euo pipefail
+          TAP_DIR="$(brew --repository)/Library/Taps/we-data-ch/homebrew-typr"
+          mkdir -p "$TAP_DIR/Formula"
+          cp tap/Formula/typr.rb "$TAP_DIR/Formula/typr.rb"
+          cp tap/README.md "$TAP_DIR/README.md"
+
+          # `brew readall` va plus loin que `brew style` : il charge la formule
+          # comme le fera `brew install`. Une formule que Homebrew sait lire mais
+          # pas charger est detectable ici, et nulle part ailleurs.
+          brew readall "$TAP_DIR"
+          brew style "$TAP_DIR/Formula/typr.rb"
+          brew audit --strict --formula="$TAP_DIR/Formula/typr.rb"
+
+      - name: Pousser la formule vers le tap
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          # Clone complet, pas `--depth 1` comme les autres canaux : en cas de
+          # push refusé il faut pouvoir rebaser, et un clone superficiel refuse
+          # de rebaser sur un historique qu'il n'a pas. Le tap fait quelques
+          # dizaines de kilo-octets.
+          git clone \
+            "https://x-access-token:$HOMEBREW_TAP_TOKEN@github.com/we-data-ch/homebrew-typr.git" \
+            taprepo
+
+          mkdir -p taprepo/Formula
+          cp tap/Formula/typr.rb taprepo/Formula/typr.rb
+          cp tap/README.md taprepo/README.md
+          cp LICENSE taprepo/LICENSE
+
+          git -C taprepo add Formula/typr.rb README.md LICENSE
+          if git -C taprepo diff --cached --quiet; then
+            echo "Le tap est déjà à jour ($VERSION)."
+            exit 0
+          fi
+          git -C taprepo commit -m "TypR $VERSION"
+
+          # Le tap a ses propres contributeurs : on rebase plutôt que d'écraser.
+          for attempt in 1 2 3; do
+            if git -C taprepo push origin HEAD:main; then
+              echo "tap $VERSION poussé (tentative $attempt)."
+              exit 0
+            fi
+            echo "push refusé — rebase sur origin/main et nouvelle tentative"
+            git -C taprepo fetch origin main
+            git -C taprepo rebase origin/main
+          done
+          echo "::error::impossible de pousser la formule vers le tap après 3 tentatives"
+          exit 1
+
+      # Sans jeton, le tap reste sur la version précédente : on le dit, on ne
+      # casse pas toute la release pour un seul canal — la règle que RELEASING.md
+      # énonce déjà.
+      - name: HOMEBREW_TAP_TOKEN absent — tap non mis à jour
+        if: env.HOMEBREW_TAP_TOKEN == ''
+        run: |
+          echo "::warning title=Homebrew non mis a jour::HOMEBREW_TAP_TOKEN absent ; le tap garde sa version precedente."
+
+  # ---------------------------------------------------------------------------
+  # WinGet — pull request vers microsoft/winget-pkgs
+  #
+  # Ce job dépend d'un jeton GitHub ayant `public_repo` : winget-pkgs est un dépôt
+  # public, dans lequel il faut pouvoir ouvrir une pull request. Sans jeton, les
+  # étapes de rendu et de contrôle s'exécutent quand même, et seule la soumission
+  # est sautée.
+  # ---------------------------------------------------------------------------
+  winget:
+    name: WinGet manifest
+    needs: [verify, release]
+    runs-on: windows-latest
+    # Au niveau du job pour que l'étape de publication puisse tester sa présence
+    # dans son propre `if` : un `env` de step n'y est pas visible.
+    env:
+      WINGET_CREATE_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+
+      - name: Récupérer checksums.txt de la release
+        shell: bash
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          set -euo pipefail
+          curl -fsSfL \
+            "https://github.com/${{ github.repository }}/releases/download/$TAG/checksums.txt" \
+            -o checksums.txt
+          cat checksums.txt
+
+      - name: Générer les manifestes depuis checksums.txt
+        shell: bash
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          set -euo pipefail
+          packaging/render.sh --tag "$TAG" --checksums checksums.txt --out manifests
+          find manifests -type f | sort
+
+      # Les manifestes reprennent `checksums.txt`, donc leur empreinte est
+      # correcte par construction — sauf si le fichier a été réécrit entre le
+      # rendu et cet instant, ou si la ligne lue était celle d'un autre artefact.
+      # On télécharge donc les deux archives pour de vrai et on les compare :
+      # c'est le seul endroit où une erreur de sélection se verrait avant la
+      # soumission. `Get-FileHash` plutôt qu'un `sha256sum` de Git Bash, pour
+      # ne pas dépendre du jeu d'outils embarqué par Git for Windows.
+      - name: Les empreintes des manifestes correspondent aux archives publiées
+        shell: pwsh
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $targets = @('x86_64', 'aarch64')
+          # Les manifestes sont lus et accolés en une seule chaîne : `Contains`
+          # sur un tableau teste l'égalité d'un élément, pas la présence d'un
+          # motif — l'assertion passerait donc pour n'importe quelle empreinte.
+          $manifests = (Get-ChildItem -Recurse manifests -File |
+                         ForEach-Object { Get-Content -Raw $_.FullName }) -join "`n"
+
+          foreach ($target in $targets) {
+            $artifact = "typr-$env:TAG-$target-pc-windows-msvc.zip"
+            $url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:TAG/$artifact"
+            Invoke-WebRequest -Uri $url -OutFile $artifact
+            $actual = (Get-FileHash -Algorithm SHA256 $artifact).Hash.ToLowerInvariant()
+            Remove-Item $artifact
+
+            if (-not $manifests.Contains($actual)) {
+              throw "l'empreinte de $artifact ($actual) ne figure dans aucun manifeste rendu"
+            }
+            Write-Host "$artifact : $actual, présente dans les manifestes rendus"
+          }
+
+      # `wingetcreate submit <dossier>` est la commande prévue pour une première
+      # soumission : `update` exigerait que le paquet existe déjà dans
+      # winget-pkgs. Le chemin de destination (`manifests/w/we-data-ch/typpr/
+      # <version>/`) est calculé par l'outil d'après le contenu des manifestes ;
+      # le dossier rendu n'a donc pas besoin d'être pré-dispositionné.
+      #
+      # L'outil valide les fichiers avec le validateur officiel de WinGet avant
+      # d'ouvrir la pull request : c'est le même contrôle que winget-pkgs
+      # appliquera, et il échoue ici plutôt qu'après la fusion.
+      #
+      # Le jeton passe par la variable d'environnement `WINGET_CREATE_GITHUB_TOKEN`
+      # et non par `--token` : sur la ligne de commande il apparaîtrait dans la
+      # liste des processus du runner et dans les journaux.
+      #
+      # `wingetcreate` réécrit les manifestes avec son propre sérialiseur : les
+      # commentaires de nos gabarits ne se retrouvent donc pas dans la pull
+      # request. Ce qui compte — les champs — est celui que l'outil a validé.
+      - name: wingetcreate
+        if: env.WINGET_CREATE_TOKEN != ''
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          Invoke-WebRequest `
+            -Uri https://github.com/microsoft/winget-create/releases/latest/download/wingetcreate.exe `
+            -OutFile wingetcreate.exe
+
+          $env:WINGET_CREATE_GITHUB_TOKEN = $env:WINGET_CREATE_TOKEN
+          & .\wingetcreate.exe submit --prtitle "TypR $env:VERSION" --no-open manifests/winget
+          if ($LASTEXITCODE -ne 0) {
+            throw "wingetcreate submit a échoué (code $LASTEXITCODE)"
+          }
+
+      # `wingetcreate` n'a pas de commande `validate` autonome, et `submit` exige
+      # une authentification même pour valider : sans jeton, la validation
+      # officielle ne peut pas tourner ici. Elle a alors lieu à chaque PR, dans
+      # le job `packaging-win` de ci.yml, contre les schémas JSON de winget-pkgs.
+      - name: WINGET_CREATE_GITHUB_TOKEN absent — manifestes non soumis
+        if: env.WINGET_CREATE_TOKEN == ''
+        shell: bash
+        run: |
+          echo "::warning title=WinGet non publie::WINGET_CREATE_GITHUB_TOKEN absent ; les manifestes rendus sont valides (job packaging-win de ci.yml) mais aucune pull request n'est ouverte."
+
+  # ---------------------------------------------------------------------------
+  # Scoop — commit vers we-data-ch/scoop-bucket, après installation réelle
+  #
+  # Contrairement à WinGet, un bucket est un dépôt ordinaire : pas de compte à
+  # créer, pas de validation à passer. Le contrôle utile n'est donc pas la
+  # validation du manifeste — Scoop n'en fait pas au commit — mais
+  # l'installation : `scoop install <manifeste local>` télécharge l'archive
+  # publiée, en vérifie l'empreinte, l'extrait et crée le shim `typr`. C'est le
+  # seul endroit où toute la chaîne est exercée pour de vrai.
+  # ---------------------------------------------------------------------------
+  scoop:
+    name: Scoop bucket
+    needs: [verify, release]
+    runs-on: windows-latest
+    env:
+      SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+      # Le bucket est écrit par un clone HTTPS : le jeton apparaît dans l'URL
+      # donnée à git, jamais dans un argument de ligne de commande.
+      BUCKET_URL: https://x-access-token:${{ secrets.SCOOP_BUCKET_TOKEN }}@github.com/we-data-ch/scoop-bucket.git
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+
+      - name: Récupérer checksums.txt de la release
+        shell: bash
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          set -euo pipefail
+          curl -fsSfL \
+            "https://github.com/${{ github.repository }}/releases/download/$TAG/checksums.txt" \
+            -o checksums.txt
+          cat checksums.txt
+
+      - name: Générer les manifestes depuis checksums.txt
+        shell: bash
+        env:
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          set -euo pipefail
+          packaging/render.sh --tag "$TAG" --checksums checksums.txt --out manifests
+          find manifests -type f | sort
+
+      # Installation réelle depuis le manifeste local : Scoop accepte un chemin
+      # vers un fichier de manifeste, ce qui évite d'avoir à publier le bucket
+      # avant de pouvoir tester. L'archive est celle de la release, son
+      # empreinte est celle du manifeste — une erreur de sélection se verrait
+      # ici, à l'extraction.
+      #
+      # `scoop install` échoue si le hash ne correspond pas, mais on le vérifie
+      # quand même séparément : Scoop passe alors par aria2, dont les messages
+      # parlent de miroir et pas d'empreinte.
+      - name: Scoop installe le binaire publié et le lance
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # Le manifeste porte un tiret cadratin ; lu avec l'encodage de
+          # console par défaut de Windows PowerShell 5.1, il devient illisible.
+          # `pwsh` est en UTF-8 par défaut, on le dit quand même.
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $OutputEncoding = [System.Text.Encoding]::UTF8
+
+          Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+          Write-Host "scoop : $(scoop --version)"
+
+          scoop install "manifests\scoop\typr.json"
+          if ($LASTEXITCODE -ne 0) {
+            throw "scoop install a échoué (code $LASTEXITCODE)"
+          }
+
+          # L'installateur de Scoop met les shims dans le PATH *de l'utilisateur*,
+          # donc du PATH du processus seulement à la prochaine session : sans
+          # cette ligne, `typr` serait introuvable alors que l'installation a
+          # réussi.
+          $env:PATH = "$env:USERPROFILE\scoop\shims;$env:PATH"
+
+          # `typr --version` répond `typr <version>` (clap, `#[command(version)]`).
+          $reported = (& typr --version) -join ' '
+          Write-Host "typr --version : $reported"
+          if ($reported -notmatch [regex]::Escape($env:VERSION)) {
+            throw "le binaire installé annonce « $reported », pas la version $env:VERSION de la release"
+          }
+
+      - name: Pousser le bucket
+        if: env.SCOOP_BUCKET_TOKEN != ''
+        shell: bash
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          # Clone complet, pas `--depth 1` : en cas de push refusé il faut pouvoir
+          # rebaser, et un clone superficiel refuse de rebaser sur un historique
+          # qu'il n'a pas.
+          if ! git clone "$BUCKET_URL" bucket; then
+            echo "::error::le dépôt we-data-ch/scoop-bucket est inaccessible — il doit exister avant la première release (README.md du dépôt : « Prérequis »)."
+            exit 1
+          fi
+
+          mkdir -p bucket/bucket bucket/bin/typr
+          cp manifests/scoop/bucket/typr.json bucket/bucket/typr.json
+          cp "manifests/scoop/bin/typr/$VERSION.json" "bucket/bin/typr/$VERSION.json"
+          cp manifests/scoop/README.md bucket/README.md
+          cp LICENSE bucket/LICENSE
+
+          # Un bucket garde l'historique : `typr update` sert à cela. On n'en
+          # conserve que les dix dernières versions, classées par ordre d'ajout
+          # dans l'historique — un tri alphabétique des versions serait faux, et
+          # `0.5.9` se retrouverait devant `0.5.12`.
+          #
+          # `git log` sort du plus récent au plus ancien : il suffit donc de
+          # laisser passer les dix premières lignes pour purger les plus anciennes.
+          #
+          # Le tout premier commit tombe dans un dépôt vide, où `git log` n'a rien
+          # à raconter et sortirait en erreur.
+          if git -C bucket rev-parse --verify HEAD >/dev/null 2>&1; then
+            git -C bucket log --diff-filter=A --name-only --format= -- 'bucket/bin/typr/*.json' \
+              | grep -v '^$' | awk '!seen[$0]++' | tail -n +11 \
+              | while read -r old; do
+                  git -C bucket rm -q "$old"
+                  echo "  purgé : $old"
+                done
+          else
+            echo "bucket vide : premier commit, rien à purger."
+          fi
+
+          git -C bucket add bucket/typr.json "bucket/bin/typr/$VERSION.json" README.md LICENSE
+          if git -C bucket diff --cached --quiet; then
+            echo "Le bucket est déjà à jour ($VERSION)."
+            exit 0
+          fi
+          git -C bucket commit -m "TypR $VERSION"
+
+          # Le bucket a ses propres contributeurs : on rebase plutôt que
+          # d'écraser.
+          for attempt in 1 2 3; do
+            if git -C bucket push origin HEAD:main; then
+              echo "bucket $VERSION poussé (tentative $attempt)."
+              exit 0
+            done
+            echo "push refusé — rebase sur origin/main et nouvelle tentative"
+            git -C bucket fetch origin main
+            git -C bucket rebase origin/main
+          done
+          echo "::error::impossible de pousser le bucket après 3 tentatives"
+          exit 1
+
+      - name: SCOOP_BUCKET_TOKEN absent — bucket non mis à jour
+        if: env.SCOOP_BUCKET_TOKEN == ''
+        shell: bash
+        run: |
+          echo "::warning title=Scoop non publie::SCOOP_BUCKET_TOKEN absent ; le bucket garde sa version precedente (l installation reelle, elle, a ete verifiee)."

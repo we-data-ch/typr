@@ -1,0 +1,11 @@
+# checksums.txt factice — la forme exacte de la release v0.5.12, dont
+# checksums.txt a été recopié tel quel : six archives, aucune cible musl
+# (les cibles `*-unknown-linux-musl` sont entrées dans la matrice après
+# cette version). Sert à vérifier que le rendu fonctionne quand Linux
+# n'est pas encore disponible — voir packaging/homebrew/tests/run-tests.sh.
+d06235ea40a816abafc22a02f42306709e1ca9c23c1c4a01ac1f003e5a5313ce  typr-v0.5.12-aarch64-apple-darwin.tar.gz
+10187a6f8df2c778b50210bbf8594c5dcb185da39aacaf22fa250e7f011bdc9d  typr-v0.5.12-aarch64-pc-windows-msvc.zip
+146a2e37a80d9847803da2216947bf66e1cc9cbb962ba8da5f7838fe4e4b5e4b  typr-v0.5.12-aarch64-unknown-linux-gnu.tar.gz
+57ba2a134ba48be5d9df81300b67b99a1144e085ce013b072580bbcf5f1d0091  typr-v0.5.12-x86_64-apple-darwin.tar.gz
+b06c470b6a5642754f6289818928f2cd40aa62a40dd9a6fece340e2517ebf784  typr-v0.5.12-x86_64-pc-windows-msvc.zip
+fdf7cff81660575fdaa40a4a7a578a97a18e381d52075eaec4eef78fd0287acb  typr-v0.5.12-x86_64-unknown-linux-gnu.tar.gz

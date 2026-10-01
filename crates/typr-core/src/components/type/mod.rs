@@ -8,6 +8,7 @@ pub mod index;
 pub mod intersection_type;
 pub mod kind;
 pub mod module_type;
+pub mod refinement;
 pub mod tbool;
 pub mod tchar;
 pub mod tint;
@@ -29,6 +30,7 @@ use crate::components::r#type::function_type::FunctionType;
 use crate::components::r#type::intersection_type::IntersectionType;
 use crate::components::r#type::kind::Kind;
 use crate::components::r#type::module_type::ModuleType;
+use crate::components::r#type::refinement::{Interval, Length, Measure, Refinement, RefinementSet};
 use crate::components::r#type::tbool::Tbool;
 use crate::components::r#type::tchar::Tchar;
 use crate::components::r#type::tint::Tint;
@@ -58,6 +60,14 @@ use std::hash::Hasher;
 thread_local! {
     static SUBTYPE_CACHE: RefCell<HashMap<(Type, Type), bool>> =
         RefCell::new(HashMap::new());
+}
+
+fn mentions_rigid(typ: &Type) -> bool {
+    let mut found = false;
+    crate::processes::type_checking::signature_normalization::visit(typ, &mut |t| {
+        found |= matches!(t, Type::Generic(name, _) if is_rigid_name(name));
+    });
+    found
 }
 
 pub fn clear_subtype_cache() {
@@ -109,7 +119,7 @@ pub enum Type {
     Generic(String, HelpData),
     IndexGen(String, HelpData),
     LabelGen(String, HelpData),
-    Vec(VecType, Box<Type>, Box<Type>, HelpData),
+    Vec(VecType, Length, Box<Type>, HelpData),
     Record(HashSet<ArgumentType>, HelpData),
     Module(Vec<ArgumentType>, Vec<String>, HelpData),
     Alias(String, Vec<Type>, bool, HelpData), //for opacity
@@ -132,6 +142,18 @@ pub enum Type {
     Null(HelpData),
     NA(HelpData),
     KindedGen(Kind, String, HelpData),
+    // Refinement types. Appended last: the std `.bin` files serialise `Type`
+    // by variant index, so existing indices must not move.
+    /// `base & properties`, in normal form (see `refinement.rs`).
+    Refined(Box<Type>, RefinementSet, HelpData),
+    /// A bare property (`length(5)`, `(> 0)`). Parser output only: it must
+    /// be folded into a `Refined` by `norm_intersection` and never survive
+    /// `reduce_type`.
+    Property(Refinement, HelpData),
+    /// `Lovable@A`: an implicit generic `A` bounded by an interface (RFC
+    /// `interface_generic_unification`). Appended last for the `.bin` layout.
+    /// Only meaningful in signatures; the id `_` is anonymous.
+    Bounded(String, Box<Type>, HelpData),
 }
 
 /// Structural fallback for interface-method-set comparison: for every
@@ -197,6 +219,13 @@ impl TypeSystem for Type {
     }
 
     fn is_subtype(&self, other: &Type, context: &Context) -> (bool, Option<Context>) {
+        // The cache key hashes every generic alike and `PartialEq` deems any
+        // two generics equal, so `__rigid_1 <: __rigid_0` would be answered by
+        // an unrelated earlier `T <: U`. Rigids are distinct unknowns: never
+        // cache a query that mentions one.
+        if mentions_rigid(self) || mentions_rigid(other) {
+            return (self.is_subtype_raw(other, context), None);
+        }
         let key = (self.clone(), other.clone());
         let cached = SUBTYPE_CACHE.with(|c| c.borrow().get(&key).copied());
         if let Some(result) = cached {
@@ -213,13 +242,36 @@ impl TypeSystem for Type {
     fn is_subtype_raw(&self, other: &Type, context: &Context) -> bool {
         match (self, other) {
             (Type::Empty(_), _) => true,
+            // Rigid variables (`Lovable@A` in a body) are distinct unknowns:
+            // `PartialEq` deems any two generics equal, which must not make
+            // `__rigid_0` a subtype of `__rigid_1`.
+            (Type::Generic(a, _), Type::Generic(b, _)) if is_rigid_name(a) && is_rigid_name(b) => a == b,
             (typ1, typ2) if typ1 == typ2 => true,
+            // Refined types (plan §Phase 4). Only `Proven` answers `true`: an
+            // unproven refinement is never assumed, the boundary check of
+            // Phase 5 is what turns it into a runtime obligation. These arms
+            // come before the generic `Intersection` ones, which would
+            // otherwise ask `t1 <: typ || t2 <: typ` of a bare `Property`.
+            (Type::Refined(a, ps, _), Type::Refined(b, qs, _)) => {
+                a.is_subtype_raw(b, context) && a.refinements_of().meet(ps).implies(qs)
+            }
+            (Type::Refined(a, _, _), typ) => a.is_subtype_raw(typ, context),
+            (typ, Type::Refined(b, qs, _)) => typ.is_subtype_raw(b, context) && typ.refinements_of().implies(qs),
             (Type::Operator(TypeOperator::Intersection, t1, t2, _), typ) => {
                 t1.is_subtype_raw(typ, context) || t2.is_subtype_raw(typ, context)
             }
             (_, Type::Any(_)) => true,
-            (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => {
-                n1.is_subtype_raw(n2, context) && t1.is_subtype_raw(t2, context)
+            (Type::Vec(_, n1, t1, h1), Type::Vec(_, n2, t2, h2)) => {
+                let length_ok = match (n1, n2) {
+                    // Numeric ranges, or a symbolic length against a range:
+                    // interval inclusion (`[#N + 1, T] <: [T] & length(> 0)`).
+                    (_, Length::Range(_)) => n1.implies(n2),
+                    // A proper range has no index form: it never meets an
+                    // index expression.
+                    (Length::Range(_), Length::Sym(_)) if n1.as_proper_range().is_some() => false,
+                    _ => n1.to_type(h1.clone()).is_subtype_raw(&n2.to_type(h2.clone()), context),
+                };
+                length_ok && t1.is_subtype_raw(t2, context)
             }
             // A function type is structural: only the arity, the parameter
             // *types* and the return type carry meaning. Parameter names are a
@@ -267,9 +319,6 @@ impl TypeSystem for Type {
                 p1.len() == p2.len() && p1.iter().zip(p2.iter()).all(|(t1, t2)| t1.is_subtype_raw(t2, context))
             }
             (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(set2),
-            (Type::Operator(TypeOperator::Union, _t1, _t2, _), Type::Operator(TypeOperator::Union, _tp1, _tp2, _)) => {
-                true
-            } //TODO: Fix this
             // A union is a subtype of `T` when *every* member is. Without this
             // rule an `if`/`else` over literal-typed branches — which unions
             // their types — could never satisfy the base annotation:
@@ -346,14 +395,77 @@ impl Type {
         }
     }
 
+    /// Builds a vector type. `length` is the length slot: `Integer(n)` for a
+    /// known length, `Any` for an unsized vector, or an index generic /
+    /// index arithmetic (`#N`, `#N+1`). Every construction and every read of
+    /// that slot goes through `vec` / `vec_length` so that where
+    /// the length lives (today the `Vec` index, eventually `Measure::Length`
+    /// in a `Refined`) is decided in one place.
+    pub fn vec(kind: VecType, length: Type, elem: Type, help: HelpData) -> Type {
+        Type::Vec(kind, Length::from_type(&length), Box::new(elem), help)
+    }
+
+    /// The length of a `Vec`, `None` for any other type. Returned by value:
+    /// once the length lives in a `Refined` it has to be rebuilt on demand,
+    /// not borrowed. Cheap (an index type is a literal or a tiny tree).
+    pub fn vec_length(&self) -> Option<Type> {
+        match self {
+            Type::Vec(_, length, _, help) => Some(length.to_type(help.clone())),
+            _ => None,
+        }
+    }
+
+    /// The element type of a `Vec`.
+    pub fn vec_elem(&self) -> Option<&Type> {
+        match self {
+            Type::Vec(_, _, elem, _) => Some(elem),
+            _ => None,
+        }
+    }
+
+    /// `self` with its length slot replaced when it is a `Vec`; any other
+    /// type is returned unchanged.
+    pub fn with_vec_length(&self, length: Type) -> Type {
+        match self {
+            Type::Vec(kind, _, elem, help) => Type::vec(kind.clone(), length, (**elem).clone(), help.clone()),
+            t => t.clone(),
+        }
+    }
+
+    /// A `Vec` whose length is a proper range (`length(> 0)`) reads as
+    /// unsized; anything else is returned unchanged. For code that reasons
+    /// on the shape of a vector, which a range does not change.
+    pub fn without_length_range(self) -> Type {
+        match &self {
+            Type::Vec(kind, l, elem, help) if l.as_proper_range().is_some() => {
+                Type::Vec(kind.clone(), Length::unknown(), elem.clone(), help.clone())
+            }
+            _ => self,
+        }
+    }
+
+    /// `self` with its element type replaced when it is a `Vec`.
+    pub fn with_vec_elem(&self, elem: Type) -> Type {
+        match self {
+            Type::Vec(kind, length, _, help) => Type::Vec(kind.clone(), length.clone(), Box::new(elem), help.clone()),
+            t => t.clone(),
+        }
+    }
+
     pub fn lift(self, max_index: &(VecType, i32)) -> Type {
         match self.clone() {
-            Type::Vec(_, i, _, _) if i.equal(max_index.1) => self,
-            Type::Vec(v, _, t, h) => Type::Vec(v, Box::new(builder::integer_type(max_index.1)), t.clone(), h.clone()),
-            t => Type::Vec(
+            Type::Vec(_, i, _, _) if i.as_known() == Some(max_index.1) => self,
+            // A parameter that already fixes a length keeps it: lifting only
+            // widens scalars and unsized vectors, it must not turn `[2, num]`
+            // into `[3, num]` to make a `[3, num]` argument fit.
+            Type::Vec(_, i, _, _) if matches!(i, Length::Range(iv) if iv.as_point().is_some()) => self,
+            // `length(> 0)` and the like constrain the length: not widened.
+            Type::Vec(_, i, _, _) if i.as_proper_range().is_some() => self,
+            Type::Vec(v, _, t, h) => Type::Vec(v, Length::known(max_index.1), t.clone(), h.clone()),
+            t => Type::vec(
                 max_index.0.clone(),
-                Box::new(builder::integer_type(max_index.1)),
-                Box::new(t.clone()),
+                builder::integer_type(max_index.1),
+                t.clone(),
                 t.get_help_data(),
             ),
         }
@@ -576,10 +688,10 @@ impl Type {
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .collect::<Vec<_>>(),
-            Type::Vec(_, ind, typ, _) => typ
+            Type::Vec(_, ind, typ, h) => typ
                 .extract_generics()
                 .iter()
-                .chain(ind.extract_generics().iter())
+                .chain(ind.to_type(h.clone()).extract_generics().iter())
                 .collect::<HashSet<_>>()
                 .into_iter()
                 .cloned()
@@ -614,10 +726,10 @@ impl Type {
                 a.index_calculation().mul_index(&b.index_calculation())
             }
             Type::Operator(TypeOperator::Division, a, b, _) => a.index_calculation().div_index(&b.index_calculation()),
-            Type::Vec(vtype, ind, typ, h) => Type::Vec(
+            Type::Vec(vtype, ind, typ, h) => Type::vec(
                 vtype.clone(),
-                Box::new(ind.index_calculation()),
-                Box::new(typ.index_calculation()),
+                ind.to_type(h.clone()).index_calculation(),
+                typ.index_calculation(),
                 h.clone(),
             ),
             Type::Function(args, ret_typ, h) => {
@@ -668,8 +780,8 @@ impl Type {
     }
 
     pub fn get_shape(&self) -> Option<String> {
-        if let Type::Vec(_, i, t, _) = self {
-            match (*i.clone(), t.get_shape()) {
+        if let Type::Vec(_, i, t, h) = self {
+            match (i.to_type(h.clone()), t.get_shape()) {
                 (Type::IndexGen(_, _), _) => Some("dim(===)".to_string()),
                 (Type::Integer(j, _), Some(rest)) => Some(format!("{}, {}", j, rest)),
                 (Type::Integer(j, _), None) => Some(format!("{}", j)),
@@ -688,10 +800,13 @@ impl Type {
                 (**ret_ty).clone(),
                 h.clone(),
             )),
+            // RFC 0028: preloaded untyped builtins (`Position`, `t`, `Reduce`,
+            // …) carry no declared arity, so they accept any number of
+            // arguments — a single variadic `Any` parameter, returning `Any`.
             Type::UnknownFunction(h) => Some(FunctionType::new(
                 VecType::Empty,
-                vec![],
-                builder::unknown_function_type(),
+                vec![ArgumentType::new("...", &builder::any_type()).set_variadic(true)],
+                builder::any_type(),
                 h.clone(),
             )),
             _ => None,
@@ -768,8 +883,45 @@ impl Type {
         }
     }
 
+    /// The refinements this type carries, read back from its structure:
+    /// the length index of a `Vec` (`[5, int]` is `[int] & length(5)`, D4),
+    /// the value of a literal, or the set of an explicit `Refined`.
+    pub fn refinements_of(&self) -> RefinementSet {
+        match self {
+            Type::Vec(_, length, _, _) => {
+                let iv = length.bounds();
+                // A symbolic length only contributes what it provably has
+                // (`#N + 1` is at least 1); `>= 0` is true of every length.
+                let informative = match length {
+                    Length::Range(_) => !iv.is_full(),
+                    Length::Sym(_) => iv != Interval::at_least(0.0),
+                };
+                if informative {
+                    RefinementSet::empty().with(Measure::Length, iv)
+                } else {
+                    RefinementSet::empty()
+                }
+            }
+            Type::Integer(Tint::Val(n), _) => RefinementSet::empty().with(Measure::Value, Interval::point(*n as f64)),
+            Type::Number(Tnum::Val(v), _) => RefinementSet::empty().with(Measure::Value, Interval::point(*v)),
+            Type::Refined(base, refs, _) => base.refinements_of().meet(refs),
+            _ => RefinementSet::empty(),
+        }
+    }
+
+    /// `self` without its explicit refinements (`int & (> 0)` gives `int`).
+    /// The length index of a `Vec` is part of its structure and is kept.
+    pub fn unrefined(&self) -> &Type {
+        match self {
+            Type::Refined(base, _, _) => base.unrefined(),
+            t => t,
+        }
+    }
+
     pub fn to_category(&self) -> TypeCategory {
         match self {
+            // A refined type dispatches like its base (`Refined <: base`).
+            Type::Refined(base, _, _) => base.to_category(),
             Type::Vec(_, _, _, _) => TypeCategory::Array,
             Type::Function(_, _, _) => TypeCategory::Function,
             Type::Record(_, _) => TypeCategory::Record,
@@ -783,6 +935,7 @@ impl Type {
             Type::LabelGen(_, _) => TypeCategory::Generic,
             Type::IndexGen(_, _) => TypeCategory::GenericKinded(GKind::Number),
             Type::KindedGen(k, _, _) => TypeCategory::GenericKinded(GKind::from_kind(*k)),
+            Type::Bounded(_, bound, _) => bound.to_category(),
             Type::Integer(_, _) => TypeCategory::Integer,
             Type::Alias(_, _, false, _) => TypeCategory::Alias,
             Type::Alias(name, _, _, _) => TypeCategory::Opaque(name.clone()),
@@ -865,6 +1018,9 @@ impl Type {
             Type::Null(h) => h.clone(),
             Type::NA(h) => h.clone(),
             Type::KindedGen(_, _, h) => h.clone(),
+            Type::Bounded(_, _, h) => h.clone(),
+            Type::Refined(_, _, h) => h.clone(),
+            Type::Property(_, h) => h.clone(),
         }
     }
 
@@ -901,6 +1057,9 @@ impl Type {
             Type::Null(_) => Type::Null(h2),
             Type::NA(_) => Type::NA(h2),
             Type::KindedGen(k, a, _) => Type::KindedGen(k, a, h2),
+            Type::Bounded(id, b, _) => Type::Bounded(id, b, h2),
+            Type::Refined(b, r, _) => Type::Refined(b, r, h2),
+            Type::Property(p, _) => Type::Property(p, h2),
         }
     }
 
@@ -918,7 +1077,7 @@ impl Type {
     pub fn to_array(&self) -> Option<Array> {
         match self {
             Type::Vec(_, t1, t2, h) => Some(Array {
-                index: (**t1).clone(),
+                index: t1.to_type(h.clone()),
                 base_type: (**t2).clone(),
                 help_data: h.clone(),
             }),
@@ -1047,7 +1206,11 @@ impl Type {
 
     pub fn linearize(self) -> Vec<Type> {
         match self {
-            Type::Vec(_, t1, t2, _) => [*t1].iter().chain((*t2).linearize().iter()).cloned().collect(),
+            Type::Vec(_, t1, t2, h) => [t1.to_type(h)]
+                .iter()
+                .chain((*t2).linearize().iter())
+                .cloned()
+                .collect(),
             other => vec![other],
         }
     }
@@ -1060,9 +1223,10 @@ impl Type {
     pub fn from_linear(mut dims_and_base: Vec<Type>) -> Type {
         match dims_and_base.pop() {
             None => builder::any_type(),
-            Some(base) => dims_and_base.into_iter().rev().fold(base, |acc, dim| {
-                Type::Vec(VecType::S3, Box::new(dim), Box::new(acc), HelpData::default())
-            }),
+            Some(base) => dims_and_base
+                .into_iter()
+                .rev()
+                .fold(base, |acc, dim| Type::vec(VecType::S3, dim, acc, HelpData::default())),
         }
     }
 
@@ -1090,7 +1254,11 @@ impl Type {
     /// [3, T] -> rank: 3, vector type: Array, Type T
     pub fn get_size_type(&self) -> (i32, VecType, Type) {
         match self {
-            Type::Vec(v, i, t, _) => (i.get_index().unwrap_or(0) as i32, v.clone(), (**t).clone()),
+            Type::Vec(v, i, t, h) => (
+                i.to_type(h.clone()).get_index().unwrap_or(0) as i32,
+                v.clone(),
+                (**t).clone(),
+            ),
             typ => (1, VecType::Empty, typ.clone()),
         }
     }
@@ -1110,7 +1278,7 @@ impl Type {
                 if let VecType::Named(name) = vtype {
                     acc.push((name.clone(), h.clone()));
                 }
-                idx.collect_named_constructors_into(acc);
+                idx.to_type(h.clone()).collect_named_constructors_into(acc);
                 body.collect_named_constructors_into(acc);
             }
             Type::Function(args, ret, _) => {
@@ -1231,6 +1399,9 @@ impl PartialEq for Type {
             ) => IntersectionType::try_from(self.clone()).ok() == IntersectionType::try_from(other.clone()).ok(),
             (Type::Operator(op1, a1, b1, _), Type::Operator(op2, a2, b2, _)) => op1 == op2 && a1 == a2 && b1 == b2,
             (Type::Module(a1, _, _), Type::Module(a2, _, _)) => a1 == a2,
+            (Type::Refined(b1, r1, _), Type::Refined(b2, r2, _)) => b1 == b2 && r1 == r2,
+            (Type::Property(p1, _), Type::Property(p2, _)) => p1 == p2,
+            (Type::Bounded(i1, b1, _), Type::Bounded(i2, b2, _)) => i1 == i2 && b1 == b2,
             _ => false,
         }
     }
@@ -1260,8 +1431,9 @@ impl PartialOrd for Type {
             (typ1, typ2) if typ1 == typ2 => Some(Ordering::Equal),
             // Array subtyping
             (_, Type::Any(_)) => Some(Ordering::Less),
-            (Type::Vec(_, n1, t1, _), Type::Vec(_, n2, t2, _)) => {
-                (n1.partial_cmp(n2).is_some() && t1.partial_cmp(t2).is_some()).then_some(Ordering::Less)
+            (Type::Vec(_, n1, t1, h1), Type::Vec(_, n2, t2, h2)) => {
+                (n1.to_type(h1.clone()).partial_cmp(&n2.to_type(h2.clone())).is_some() && t1.partial_cmp(t2).is_some())
+                    .then_some(Ordering::Less)
             }
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
                 let args1_types: Vec<Type> = args1.iter().map(|arg| arg.get_type()).collect();
@@ -1343,6 +1515,12 @@ impl Hash for Type {
             }
             Type::Char(_, _) => 3.hash(state),
             Type::Function(_, _, _) => 5.hash(state),
+            // Rigid names take part in the hash (though `PartialEq` ignores them) so
+            // the subtype cache keeps `(r0, r1)` apart from `(r0, r0)`.
+            Type::Generic(name, _) if is_rigid_name(name) => {
+                6.hash(state);
+                name.hash(state);
+            }
             Type::Generic(_, _) => 6.hash(state),
             Type::IndexGen(_, _) => 7.hash(state),
             Type::LabelGen(_, _) => 8.hash(state),
@@ -1371,6 +1549,20 @@ impl Hash for Type {
             Type::KindedGen(k, _, _) => {
                 42.hash(state);
                 k.hash(state);
+            }
+            Type::Refined(base, refs, _) => {
+                43.hash(state);
+                base.hash(state);
+                refs.hash(state);
+            }
+            Type::Property(p, _) => {
+                44.hash(state);
+                p.hash(state);
+            }
+            Type::Bounded(id, bound, _) => {
+                45.hash(state);
+                id.hash(state);
+                bound.hash(state);
             }
         }
     }
@@ -1696,4 +1888,36 @@ mod tests {
         let ac = builder::union_type(&[a, c]);
         assert_ne!(ab, ac);
     }
+
+    fn refined_int(set: RefinementSet) -> Type {
+        Type::Refined(
+            Box::new(Type::Integer(Tint::Unknown, HelpData::default())),
+            set,
+            HelpData::default(),
+        )
+    }
+    fn gt(c: f64) -> RefinementSet {
+        RefinementSet::single(&Refinement::Gt(refinement::Num::new(c)))
+    }
+
+    /// Phase 4: only a *proven* refinement makes a subtype.
+    #[test]
+    fn refined_subtyping_answers_true_only_when_proven() {
+        let ctx = Context::default();
+        let int = Type::Integer(Tint::Unknown, HelpData::default());
+        let lit = |n| Type::Integer(Tint::Val(n), HelpData::default());
+        let (pos, big) = (refined_int(gt(0.0)), refined_int(gt(5.0)));
+
+        assert!(lit(3).is_subtype(&pos, &ctx).0, "3 <: int & (> 0)");
+        assert!(!lit(-3).is_subtype(&pos, &ctx).0, "-3 is refuted");
+        assert!(!int.is_subtype(&pos, &ctx).0, "int is unknown, so not a subtype");
+        assert!(pos.is_subtype(&int, &ctx).0, "Refined <: base");
+        assert!(big.is_subtype(&pos, &ctx).0, "(> 5) implies (> 0)");
+        assert!(!pos.is_subtype(&big, &ctx).0, "(> 0) does not imply (> 5)");
+    }
+}
+
+/// Name prefix given by `Context::fresh_rigid_name`.
+pub(crate) fn is_rigid_name(name: &str) -> bool {
+    name.starts_with("__rigid_")
 }

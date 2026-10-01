@@ -1,0 +1,19 @@
+[[rule]]
+file = "@run"
+must_contain = "No signature of function 'take_other' matches this call"
+
+[[rule]]
+file = "@run"
+must_contain = "No signature of function 'take_field' matches this call"
+
+[[rule]]
+file = "@run"
+must_contain = "No signature of function 'take_third' matches this call"
+
+[[rule]]
+file = "@run"
+must_contain = "No signature of function 'take_anon' matches this call"
+
+[[rule]]
+file = "@run"
+must_contain = "No signature of function 'take_anon_ty' matches this call"

@@ -1,0 +1,7 @@
+title = "any union is accepted as a subtype of any other union"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-09-29"
+origin = "perso"
+checked = false
