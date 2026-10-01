@@ -65,12 +65,12 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 
-typr-core = { path = "crates/typr-core", version = "0.5" }
-typr-cli = { path = "crates/typr-cli", version = "0.5" }
-typr-lsp = { path = "crates/typr-lsp", version = "0.5" }
-typr-wasm = { path = "crates/typr-wasm", version = "0.5" }
-typr-mcp = { path = "crates/typr-mcp", version = "0.5" }
-typr-graph = { path = "crates/typr-graph", version = "0.5" }
+typr-core = { path = "crates/typr-core", version = "0.6" }
+typr-cli = { path = "crates/typr-cli", version = "0.6" }
+typr-lsp = { path = "crates/typr-lsp", version = "0.6" }
+typr-wasm = { path = "crates/typr-wasm", version = "0.6" }
+typr-mcp = { path = "crates/typr-mcp", version = "0.6" }
+typr-graph = { path = "crates/typr-graph", version = "0.6" }
 
 [profile.release]
 opt-level = 3
