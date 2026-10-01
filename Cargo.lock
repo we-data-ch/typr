@@ -1902,7 +1902,7 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
 name = "typr"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "typr-cli",
  "typr-core",
@@ -1910,7 +1910,7 @@ dependencies = [
 
 [[package]]
 name = "typr-cli"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1938,7 +1938,7 @@ dependencies = [
 
 [[package]]
 name = "typr-core"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1960,7 +1960,7 @@ dependencies = [
 
 [[package]]
 name = "typr-graph"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "insta",
  "serde",
@@ -1970,7 +1970,7 @@ dependencies = [
 
 [[package]]
 name = "typr-lsp"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1996,7 +1996,7 @@ dependencies = [
 
 [[package]]
 name = "typr-mcp"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "rmcp",
@@ -2009,7 +2009,7 @@ dependencies = [
 
 [[package]]
 name = "typr-wasm"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "serde",
  "serde-wasm-bindgen",
