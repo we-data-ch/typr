@@ -40,7 +40,7 @@ pub(super) fn alias_name(ty: &Type) -> Option<String> {
 /// declared `impl`. Shared between `build_type_decl` (its `TypeDecl` outputs) and the type
 /// relations pass (étape 3's `Satisfies` evidence).
 pub(super) fn discover_methods(context: &Context, type_name: &str) -> Vec<(String, String, BlockKey)> {
-    context
+    let mut methods: Vec<_> = context
         .variables()
         .filter_map(|(var, ty)| match ty {
             Type::Function(params, _, _) => {
@@ -58,7 +58,18 @@ pub(super) fn discover_methods(context: &Context, type_name: &str) -> Vec<(Strin
             }
             _ => None,
         })
-        .collect()
+        .collect();
+    // `Context::variables()` has no stable order; the graph must.
+    methods.sort_by(|a, b| a.0.cmp(&b.0));
+    methods
+}
+
+/// Record fields and interface methods live in a `HashSet`, whose iteration order changes from one
+/// run to the next. The graph (and its snapshots) must not: members are emitted by name.
+fn sorted_members(members: &HashSet<ArgumentType>) -> Vec<&ArgumentType> {
+    let mut sorted: Vec<&ArgumentType> = members.iter().collect();
+    sorted.sort_by_key(|m| safe_argument_name(m));
+    sorted
 }
 
 fn body_statements(body: &Lang) -> Vec<&Lang> {
@@ -605,7 +616,7 @@ impl<'a> Builder<'a> {
         name: Option<String>,
     ) -> PortRef {
         let mut children = Vec::new();
-        for m in methods {
+        for m in sorted_members(methods) {
             children.push(self.insert_type_expr_leaf(&key, m));
         }
         self.finish_block(
@@ -626,7 +637,7 @@ impl<'a> Builder<'a> {
     fn build_type_decl(&mut self, target_type: &Type, lang: &Lang, key: BlockKey, name: Option<String>) -> PortRef {
         let mut children = Vec::new();
         if let Type::Record(fields, _) = target_type {
-            for f in fields {
+            for f in sorted_members(fields) {
                 children.push(self.insert_type_expr_leaf(&key, f));
             }
         }

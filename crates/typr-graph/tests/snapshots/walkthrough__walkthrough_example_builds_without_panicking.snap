@@ -1,6 +1,6 @@
 ---
 source: crates/typr-graph/tests/walkthrough.rs
-assertion_line: 45
+assertion_line: 53
 expression: json
 ---
 {
@@ -27,14 +27,14 @@ expression: json
           "visibility": "Public"
         },
         {
-          "name": "show",
-          "type": "fn(p: Point) -> char",
+          "name": "norm2",
+          "type": "fn(p: Point) -> int",
           "implicit": false,
           "visibility": "Public"
         },
         {
-          "name": "norm2",
-          "type": "fn(p: Point) -> int",
+          "name": "show",
+          "type": "fn(p: Point) -> char",
           "implicit": false,
           "visibility": "Public"
         }
@@ -976,13 +976,13 @@ expression: json
   "relations": [
     {
       "kind": "TypePosition",
-      "from": "val:show",
+      "from": "val:norm2",
       "to": "type:Point",
       "index": 0
     },
     {
       "kind": "TypePosition",
-      "from": "val:norm2",
+      "from": "val:show",
       "to": "type:Point",
       "index": 0
     },
