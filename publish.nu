@@ -23,8 +23,8 @@ const RSTUDIO_DESC = "editors/rstudio/DESCRIPTION"
 const GH_REPO = "we-data-ch/typr"
 const DOCKER_REPO = "fabricehategekimana/typr"
 # Ordre de publication imposé par le graphe de dépendances :
-# typr-core → typr-lsp → typr-mcp → typr-cli → typr
-const CRATES = ["typr-core", "typr-lsp", "typr-mcp", "typr-cli", "typr"]
+# typr-core → typr-lsp → typr-mcp → typr-graph → typr-cli → typr
+const CRATES = ["typr-core", "typr-lsp", "typr-mcp", "typr-graph", "typr-cli", "typr"]
 
 # --- lecture / écriture de la version ----------------------------------------
 
