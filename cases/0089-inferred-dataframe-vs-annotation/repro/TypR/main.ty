@@ -1,0 +1,8 @@
+let total <- fn(
+  sales: dataframe[3]{ units: num, price: num }
+): num {
+  sum(sales$units * sales$price)
+};
+
+let sales <- data.frame(units = c(1.0, 2.0, 3.0), price = c(5.0, 6.0, 7.0));
+total(sales);

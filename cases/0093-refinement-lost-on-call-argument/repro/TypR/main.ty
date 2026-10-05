@@ -1,0 +1,3 @@
+let h <- fn(n: int, x: [num] & length(>= 1)): num { x[1] };
+let read_x <- fn(): [num] { [1.0, 2.0] };
+let a <- h(2, read_x());

@@ -1,0 +1,7 @@
+title = "NA in a type error is printed as NA(HelpData {...}); aliases of Foreign print as Foreign"
+cmd = "check"
+layer = "type"
+status = "open"
+created = "2026-10-01"
+origin = "perso"
+checked = false

@@ -1,0 +1,7 @@
+let f <- fn(s: char): char {
+  s
+};
+
+let g <- fn(): char {
+  NA
+};

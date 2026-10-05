@@ -1,0 +1,26 @@
+# exit=1
+
+## stdout/stderr
+
+  Parsing... done (3 ms)
+  Type checking... failed
+Type errors found:
+  × Type error: The output type of the function don't match it's type
+  │ annotation
+  │ Expected: char
+  │ Found: NA(HelpData { offset: 61, end: 64, file_name: "TypR/main.ty" })
+   ╭─[TypR/main.ty:5:16]
+ 4 │ 
+ 5 │ let g <- fn(): char {
+   ·                ▲
+   ·                ╰── Expected char
+ 6 │   NA
+   ·   ┬
+   ·   ╰── Received NA(HelpData { offset: 61, end: 64, file_name: "TypR/main.ty" })
+ 7 │ };
+   ╰────
+
+
+
+## R généré
+

@@ -1,0 +1,7 @@
+title = "length refinement on a parameter is not checked when the argument is a call returning [num]"
+cmd = "build"
+layer = "transpile"
+status = "open"
+created = "2026-10-01"
+origin = "perso"
+checked = false

@@ -1,0 +1,7 @@
+title = "user function named like an R builtin (norm) accepts an incompatible call"
+cmd = "build"
+layer = "type"
+status = "open"
+created = "2026-10-01"
+origin = "perso"
+checked = false

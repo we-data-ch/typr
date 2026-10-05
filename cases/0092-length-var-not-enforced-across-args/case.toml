@@ -1,0 +1,7 @@
+title = "#N is not enforced across two arguments: [#N, num] accepts lengths 3 and 2"
+cmd = "build"
+layer = "type"
+status = "open"
+created = "2026-10-01"
+origin = "perso"
+checked = false
