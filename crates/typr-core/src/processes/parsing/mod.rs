@@ -2462,7 +2462,13 @@ mod tesus {
                     ..
                 } => {
                     assert!(matches!(field.as_ref(), Lang::Variable { name, .. } if name == "x"));
-                    assert!(matches!(receiver.as_ref(), Lang::Operator { operator: Op::Dollar(_), .. }));
+                    assert!(matches!(
+                        receiver.as_ref(),
+                        Lang::Operator {
+                            operator: Op::Dollar(_),
+                            ..
+                        }
+                    ));
                 }
                 other => panic!("Expected a `$` target, got {:?}", other),
             },

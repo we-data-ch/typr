@@ -256,7 +256,12 @@ fn substitute_generics(typ: &Type, subs: &std::collections::HashMap<String, Type
             None => typ.clone(),
         },
         Type::Function(args, ret, h) => Type::Function(go_args(args), Box::new(go(ret)), h.clone()),
-        Type::Record(fields, h) => Type::Record(go_args(&fields.iter().cloned().collect::<Vec<_>>()).into_iter().collect(), h.clone()),
+        Type::Record(fields, h) => Type::Record(
+            go_args(&fields.iter().cloned().collect::<Vec<_>>())
+                .into_iter()
+                .collect(),
+            h.clone(),
+        ),
         Type::Tuple(ts, h) => Type::Tuple(ts.iter().map(go).collect(), h.clone()),
         Type::Tag(n, inner, h) => Type::Tag(n.clone(), Box::new(go(inner)), h.clone()),
         Type::Multi(inner, h) => Type::Multi(Box::new(go(inner)), h.clone()),
@@ -441,7 +446,8 @@ pub fn function(
         for name in names {
             if name != "Self" && !is_rigid_name(&name) && !generic_rigids.contains_key(&name) {
                 let (rigid, new_ctx) = sub_context.clone().fresh_rigid_name();
-                sub_context = new_ctx.add_interface_constraint(rigid.clone(), Type::Interface(Default::default(), h.clone()));
+                sub_context =
+                    new_ctx.add_interface_constraint(rigid.clone(), Type::Interface(Default::default(), h.clone()));
                 generic_rigids.insert(name, Type::Generic(rigid, h.clone()));
             }
         }
@@ -1364,7 +1370,9 @@ mod tests {
         assert!(body_is_ok("fn(a: T, b: U): T { a }"));
         assert!(body_is_ok("fn(a: T, b: U): list { a: T, b: U } { list(a = a, b = b) }"));
         assert!(!body_is_ok("fn(a: T, b: U): T { b }"));
-        assert!(!body_is_ok("fn(a: T, b: U): list { a: U, b: T } { list(a = a, b = b) }"));
+        assert!(!body_is_ok(
+            "fn(a: T, b: U): list { a: U, b: T } { list(a = a, b = b) }"
+        ));
         assert!(!body_is_ok("fn(x: T): T { x + 1 }"));
     }
 
@@ -1373,5 +1381,6 @@ mod tests {
         assert!(body_is_ok("fn(a: [#N, T]): [#N, T] { a }"));
         assert!(body_is_ok("fn(a: [#N, T], b: U): U { b }"));
         assert!(!body_is_ok("fn(a: [#N, T], b: U): T { b }"));
-        assert!(!body_is_ok("fn(a: [#N, T], b: [#N, U]): [#N, T] { b }"));    }
+        assert!(!body_is_ok("fn(a: [#N, T], b: [#N, U]): [#N, T] { b }"));
+    }
 }

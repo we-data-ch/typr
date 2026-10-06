@@ -4,6 +4,6 @@
 //! All CLI functionality is provided by the typr-cli crate.
 
 fn main() {
-    // `start` start the cli with `typr ...` 
+    // `start` start the cli with `typr ...`
     typr_cli::start()
 }
