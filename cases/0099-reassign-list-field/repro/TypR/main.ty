@@ -1,0 +1,5 @@
+let d <- :{ a: 8, b: false, c: :{ x: "u" }};
+d$b <- true;
+d$a <- 3;
+d$c$x <- "v";
+print(d$b);

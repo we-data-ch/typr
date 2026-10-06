@@ -385,8 +385,10 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 )
                 .with_errors(errors)
             } else {
+                // Report the widened type the check actually used (`bool`,
+                // not the literal `false` an unannotated `let` inferred).
                 errors.push(TypRError::Type(TypeError::Let(
-                    left_type.clone().set_help_data(h.clone()),
+                    widened_left_type.set_help_data(h.clone()),
                     right_type.clone(),
                 )));
                 TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)

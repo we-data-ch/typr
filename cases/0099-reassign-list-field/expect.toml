@@ -1,0 +1,6 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "d$b <- TRUE"
+[[rule]]
+file = "R/main.R"
+must_contain = "d$c$x <- \"v\""

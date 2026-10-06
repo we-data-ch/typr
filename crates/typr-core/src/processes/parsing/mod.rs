@@ -956,9 +956,25 @@ fn assign(s: Span) -> IResult<Span, Vec<Lang>> {
     Ok((rest, v))
 }
 
+/// Left-hand side of a reassignment: a variable, optionally followed by a
+/// `$field` chain (`d$b <- true;`, `d$b$c <- 1;`) to update a list field in
+/// place. Built as nested `Op::Dollar` nodes with the same operand roles as an
+/// ordinary `$` access (`rhs` = receiver, `lhs` = field name).
+fn assign_target(s: Span) -> IResult<Span, (Lang, Case)> {
+    let (s, (var, case)) = variable(s)?;
+    let (s, fields) = many0(preceded(terminated(tag("$"), multispace0), variable)).parse(s)?;
+    let target = fields.into_iter().fold(var, |receiver, (field, _)| Lang::Operator {
+        operator: Op::Dollar(field.get_help_data()),
+        help_data: receiver.get_help_data(),
+        rhs: Box::new(receiver),
+        lhs: Box::new(field),
+    });
+    Ok((s, (target, case)))
+}
+
 fn assign_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     let res = (
-        variable,
+        assign_target,
         alt((terminated(tag("="), multispace0), terminated(tag("<-"), multispace0))),
         parse_elements,
         opt(terminated(tag(";"), multispace0)),
@@ -2431,6 +2447,26 @@ mod tesus {
                 assert_eq!(selector, UseSelector::Wildcard);
             }
             other => panic!("Expected UseModule, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_assign_list_field() {
+        let res = assign("d$c$x <- 1;".into()).unwrap().1;
+        match &res[0] {
+            Lang::Assign { identifier, .. } => match identifier.as_ref() {
+                Lang::Operator {
+                    operator: Op::Dollar(_),
+                    rhs: receiver,
+                    lhs: field,
+                    ..
+                } => {
+                    assert!(matches!(field.as_ref(), Lang::Variable { name, .. } if name == "x"));
+                    assert!(matches!(receiver.as_ref(), Lang::Operator { operator: Op::Dollar(_), .. }));
+                }
+                other => panic!("Expected a `$` target, got {:?}", other),
+            },
+            other => panic!("Expected Assign, got {:?}", other),
         }
     }
 
