@@ -240,6 +240,31 @@ fn is_interface_return_only(params: &[ArgumentType], ret_ty: &Type, context: &Co
     !anchors.contains(&reduced_ret)
 }
 
+/// Replaces every `Generic(name)` of `subs` inside `typ` (structurally, through
+/// arrays, records, tuples, functions, tags and alias parameters).
+fn substitute_generics(typ: &Type, subs: &std::collections::HashMap<String, Type>) -> Type {
+    let go = |t: &Type| substitute_generics(t, subs);
+    let go_args = |args: &[ArgumentType]| -> Vec<ArgumentType> {
+        args.iter()
+            .map(|a| ArgumentType::new(&a.get_argument_str(), &go(&a.get_type())))
+            .collect()
+    };
+    match typ {
+        Type::Generic(name, _) => subs.get(name).cloned().unwrap_or_else(|| typ.clone()),
+        Type::Vec(vt, _, elem, h) => match typ.vec_length() {
+            Some(len) => Type::vec(vt.clone(), len, go(elem), h.clone()),
+            None => typ.clone(),
+        },
+        Type::Function(args, ret, h) => Type::Function(go_args(args), Box::new(go(ret)), h.clone()),
+        Type::Record(fields, h) => Type::Record(go_args(&fields.iter().cloned().collect::<Vec<_>>()).into_iter().collect(), h.clone()),
+        Type::Tuple(ts, h) => Type::Tuple(ts.iter().map(go).collect(), h.clone()),
+        Type::Tag(n, inner, h) => Type::Tag(n.clone(), Box::new(go(inner)), h.clone()),
+        Type::Multi(inner, h) => Type::Multi(Box::new(go(inner)), h.clone()),
+        Type::Alias(n, params, o, h) => Type::Alias(n.clone(), params.iter().map(go).collect(), *o, h.clone()),
+        _ => typ.clone(),
+    }
+}
+
 /// The rigid standing for `id` in the body, created (with `bound` as its
 /// interface constraint) the first time the id is met.
 fn rigid_for_id(
@@ -397,14 +422,47 @@ pub fn function(
     // D4: one rigid per `I@Id` identifier (a bare `I` being `I@I`), so two
     // parameters sharing an id share their rigid, and distinct ids stay distinct.
     let mut rigid_of_id: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    // A generic written in a parameter type (`fn(a: T, b: U): T`, `[#N, T]`) is
+    // an empty-interface rigid: opaque in the body, one per name, so `T` and `U`
+    // cannot be mixed up. Nested occurrences (`[#N, T]`, the return type) are
+    // rewritten to the same rigid below.
+    let mut generic_rigids: std::collections::HashMap<String, Type> = std::collections::HashMap::new();
+    for arg_typ in params.iter().filter(|a| !a.is_variadic()) {
+        let mut names: Vec<String> = arg_typ
+            .body_type()
+            .extract_generics()
+            .into_iter()
+            .filter_map(|g| match g {
+                Type::Generic(name, _) => Some(name),
+                _ => None,
+            })
+            .collect();
+        names.sort();
+        for name in names {
+            if name != "Self" && !is_rigid_name(&name) && !generic_rigids.contains_key(&name) {
+                let (rigid, new_ctx) = sub_context.clone().fresh_rigid_name();
+                sub_context = new_ctx.add_interface_constraint(rigid.clone(), Type::Interface(Default::default(), h.clone()));
+                generic_rigids.insert(name, Type::Generic(rigid, h.clone()));
+            }
+        }
+    }
     for (arg_typ, normalized_param) in params.iter().zip(normalized.params.iter()) {
         // `Lovable@A` is typed through its bound; the id only decides sharing.
         let param_type = match arg_typ.body_type() {
             Type::Bounded(_, bound, _) => *bound,
             other => other,
         };
+        let param_type = if generic_rigids.is_empty() {
+            param_type
+        } else {
+            substitute_generics(&param_type, &generic_rigids)
+        };
         let reduced = reduce_type(&sub_context, &param_type);
-        if facets::interface_facet(&sub_context, &reduced).is_some() {
+        let already_rigid = matches!(&param_type, Type::Generic(n, _) if is_rigid_name(n));
+        if already_rigid {
+            let var = arg_typ.clone().set_type(param_type.clone()).to_var(&sub_context);
+            sub_context = sub_context.clone().push_var_type(var, param_type.clone(), &sub_context);
+        } else if facets::interface_facet(&sub_context, &reduced).is_some() {
             let id = match normalized_param.get_type() {
                 Type::Bounded(id, _, _) if !arg_typ.is_variadic() => Some(id),
                 _ => None,
@@ -440,8 +498,10 @@ pub fn function(
     // of `B`, not to any rigid whose bound is `Lovable`.
     let checked_ret = if signature_normalization::has_bounded(&normalized.ret) {
         replace_bounded_with_rigids(&mut sub_context, &mut rigid_of_id, &normalized.ret, h)
-    } else {
+    } else if generic_rigids.is_empty() {
         ret_ty.clone()
+    } else {
+        substitute_generics(ret_ty, &generic_rigids)
     };
 
     // `Self:{ ... }` (generic_constructor.md §4.1): bind `Self` to whatever
@@ -470,6 +530,14 @@ pub fn function(
     let is_compatible = is_compatible_return_type(&body_type.value, &checked_ret, &sub_context);
     (!is_compatible).then(|| {
         let found = name_rigids(&body_type.value, &rigid_of_id, &normalized.params);
+        let back: std::collections::HashMap<String, Type> = generic_rigids
+            .iter()
+            .filter_map(|(name, rigid)| match rigid {
+                Type::Generic(r, _) => Some((r.clone(), Type::Generic(name.clone(), h.clone()))),
+                _ => None,
+            })
+            .collect();
+        let found = substitute_generics(&found, &back);
         errors.push(builder::unmatching_return_type(ret_ty, &found))
     });
     // Structural types registered on the fly while typing the body (e.g. the
@@ -1289,4 +1357,21 @@ mod tests {
     fn test_bare_interface_return_is_tied_to_the_shared_variable() {
         assert!(body_is_ok("fn(a: Lovable, b: Lovable): Lovable { b }"));
     }
+
+    // A bare generic written as a whole parameter type is an empty-interface rigid.
+    #[test]
+    fn test_bare_generics_are_rigid_in_the_body() {
+        assert!(body_is_ok("fn(a: T, b: U): T { a }"));
+        assert!(body_is_ok("fn(a: T, b: U): list { a: T, b: U } { list(a = a, b = b) }"));
+        assert!(!body_is_ok("fn(a: T, b: U): T { b }"));
+        assert!(!body_is_ok("fn(a: T, b: U): list { a: U, b: T } { list(a = a, b = b) }"));
+        assert!(!body_is_ok("fn(x: T): T { x + 1 }"));
+    }
+
+    #[test]
+    fn test_nested_generics_are_rigid_in_the_body() {
+        assert!(body_is_ok("fn(a: [#N, T]): [#N, T] { a }"));
+        assert!(body_is_ok("fn(a: [#N, T], b: U): U { b }"));
+        assert!(!body_is_ok("fn(a: [#N, T], b: U): T { b }"));
+        assert!(!body_is_ok("fn(a: [#N, T], b: [#N, U]): [#N, T] { b }"));    }
 }

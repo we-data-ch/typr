@@ -922,6 +922,7 @@ impl Context {
             .iter()
             .filter(|typ| (*typ).clone().to_module_type().is_err())
             .filter(|typ| !typ.is_empty())
+            .filter(|typ| !matches!(typ, Type::Interface(methods, _) if methods.is_empty()))
             // A supertype that still mentions an unresolved generic (e.g. a
             // record-kinded `%T` picked up structurally from a generic alias
             // like `Animator<%T> <- %T & list {...}`) has no R class name —

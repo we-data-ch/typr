@@ -246,7 +246,9 @@ impl TypeSystem for Type {
             // `PartialEq` deems any two generics equal, which must not make
             // `__rigid_0` a subtype of `__rigid_1`.
             (Type::Generic(a, _), Type::Generic(b, _)) if is_rigid_name(a) && is_rigid_name(b) => a == b,
-            (typ1, typ2) if typ1 == typ2 => true,
+            // `PartialEq` ignores which generic sits inside a composite, so
+            // `[#N, __rigid_0] == [#N, __rigid_1]`: compare those structurally.
+            (typ1, typ2) if typ1 == typ2 && !(mentions_rigid(typ1) && mentions_rigid(typ2)) => true,
             // Refined types (plan §Phase 4). Only `Proven` answers `true`: an
             // unproven refinement is never assumed, the boundary check of
             // Phase 5 is what turns it into a runtime obligation. These arms

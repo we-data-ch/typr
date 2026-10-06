@@ -1712,6 +1712,10 @@ impl RTranslatable<(String, Context)> for Lang {
                             .filter(|(_, alias_typ)| !alias_typ.has_generic())
                             .filter_map(|(var, alias_typ)| {
                                 let methods = facets::interface_facet(cont, alias_typ)?;
+                                // An empty interface constrains nothing: no runtime class.
+                                if methods.is_empty() {
+                                    return None;
+                                }
                                 (seen_ifaces.insert(var.get_name()) && self_alias.is_subtype_raw(alias_typ, cont))
                                     .then(|| (var.get_name(), methods.len()))
                             })

@@ -1,0 +1,7 @@
+let swap_wrong <- fn(a: T, b: U): T {
+  b
+};
+
+let nested_wrong <- fn(a: [#N, T], b: [#N, U]): [#N, T] {
+  b
+};

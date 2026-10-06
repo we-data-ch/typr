@@ -1,0 +1,15 @@
+[[rule]]
+file = "@run"
+must_contain = "Expected: T"
+[[rule]]
+file = "@run"
+must_contain = "Found: U"
+[[rule]]
+file = "@run"
+must_contain = "Expected: [#N, T]"
+[[rule]]
+file = "@run"
+must_not_contain = "__RIGID"
+[[rule]]
+file = "@run"
+must_not_contain = "successful"
