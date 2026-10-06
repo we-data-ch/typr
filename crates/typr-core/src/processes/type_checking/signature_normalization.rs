@@ -253,6 +253,9 @@ fn bind_ids(
             if !concrete.is_subtype_raw(&reduce_type(context, bound), context) {
                 return false;
             }
+            // A literal argument binds the id to its general type (`3` → `int`),
+            // as for a free generic: `f(3, 5)` must not clash on `3` vs `5`.
+            let concrete = &concrete.clone().generalize();
             match binds.iter().find(|(k, _, _)| k == id) {
                 Some((_, previous, first_arg)) => {
                     let same = same_type(previous, concrete, context);

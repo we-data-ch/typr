@@ -1,0 +1,7 @@
+title = "A repeated bare interface (a: Simple, b: Simple) should bind literal arguments to their general type: f(3, 5) was rejected as bound to 3 then 5"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-06"
+origin = "perso"
+checked = false

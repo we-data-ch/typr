@@ -256,7 +256,10 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Option<Vec
             } else if type_contains_generic(t, g) {
                 None
             } else {
-                Some(vec![(Type::Generic(g.clone(), h.clone()), t.clone())])
+                // A generic stands for a general type: a literal argument
+                // (`7`, `"hello"`, `true`) binds it to `int`/`char`/`bool`,
+                // so `f(3, 5)` with `f: (T, T) -> T` agrees on `int`.
+                Some(vec![(Type::Generic(g.clone(), h.clone()), t.clone().generalize())])
             }
         }
 
