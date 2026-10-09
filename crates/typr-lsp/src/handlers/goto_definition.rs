@@ -405,11 +405,7 @@ mod goto_definition_tests {
 
         assert_eq!(def.range.start.line, 1);
         let decl_col = content.lines().nth(1).unwrap().find("pi_approx").unwrap() as u32;
-        // +1: `Var`'s `HelpData` is captured from `starting_char`'s
-        // *remaining* span (i.e. just past the first character) rather than
-        // the identifier's own start — a pre-existing typr-core parsing
-        // quirk (see `reference-ty-gotchas`), not specific to this lookup.
-        assert_eq!(def.range.start.character, decl_col + 1);
+        assert_eq!(def.range.start.character, decl_col);
     }
 
     /// A function parameter, used inside the body, must resolve to its own

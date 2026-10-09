@@ -12,6 +12,7 @@ use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
+use crate::processes::type_checking::field_access;
 use crate::processes::type_checking::flatten_operator_union;
 use crate::processes::type_checking::merge_record_fields_override;
 use crate::processes::type_checking::resolve_module_member_type;
@@ -149,7 +150,10 @@ pub fn constructor_call(
                         merge_record_fields_override(&spread_merged, &spread_fields.into_iter().collect::<Vec<_>>());
                 }
                 _ => {
-                    errors.push(TypRError::Type(TypeError::WrongExpression(spread_expr.get_help_data())));
+                    errors.push(TypRError::Type(TypeError::SpreadNonRecord(
+                        field_access::display_with_reduction(context, &tc.value),
+                        spread_expr.get_help_data(),
+                    )));
                 }
             }
         }

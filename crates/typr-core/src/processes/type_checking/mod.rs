@@ -1550,7 +1550,10 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
                         unresolved.push(kinded);
                     }
                     _ => {
-                        errors.push(TypRError::Type(TypeError::WrongExpression(spread_expr.get_help_data())));
+                        errors.push(TypRError::Type(TypeError::SpreadNonRecord(
+                            field_access::display_with_reduction(context, &tc.value),
+                            spread_expr.get_help_data(),
+                        )));
                     }
                 }
             }
@@ -3735,8 +3738,8 @@ p"#;
             result
                 .errors
                 .iter()
-                .any(|e| matches!(e, TypRError::Type(TypeError::WrongExpression(..)))),
-            "Expected a WrongExpression error for spreading a non-record, got: {:?}",
+                .any(|e| matches!(e, TypRError::Type(TypeError::SpreadNonRecord(..)))),
+            "Expected a SpreadNonRecord error for spreading a non-record, got: {:?}",
             result.errors
         );
     }

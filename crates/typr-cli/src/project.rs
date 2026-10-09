@@ -756,11 +756,13 @@ pub fn check_project() {
 }
 
 pub fn check_file(path: &PathBuf) {
+    // The file may be given from anywhere inside the project (e.g. from
+    // `TypR/`), so anchor everything on the project root, not the cwd.
+    let dir = crate::metaprogramming::find_project_root(&path.to_string_lossy()).unwrap_or_else(|| PathBuf::from("."));
     let context = crate::standard_library::load_project_type_definitions(
-        Path::new("."),
+        &dir,
         Context::default().set_environment(Environment::Project),
     );
-    let dir = PathBuf::from(".");
     write_std_for_type_checking(&dir);
 
     let step = Step::new("Parsing");
@@ -1164,7 +1166,7 @@ fn rprof_wrap(r_body: &str) -> String {
     )
 }
 
-pub fn run_project(profile: bool, checked_mode: bool, strict_mode: bool) {
+pub fn run_in_project(profile: bool, checked_mode: bool, strict_mode: bool) {
     build_project_impl(false, checked_mode, strict_mode, true, true, true);
     // Use the TypR loader instead of devtools to respect module encapsulation.
     // Top-level code in main.ty already runs as a side effect of sourcing it
@@ -1228,8 +1230,9 @@ pub fn run_file(path: &Path) {
     run_file_impl(path, false, false, false, false);
 }
 
-// run the file while keeping the generated files
-pub fn run_file_keep(path: &Path, profile: bool, checked_mode: bool, strict_mode: bool) {
+/// run the file while keeping the generated 
+/// R files (app.R, std.R, types.R, generic_functions.R)
+pub fn run_file_keep_R_files(path: &Path, profile: bool, checked_mode: bool, strict_mode: bool) {
     run_file_impl(path, true, profile, checked_mode, strict_mode);
 }
 
@@ -1258,6 +1261,7 @@ impl Drop for TempDirGuard {
     }
 }
 
+// @explore
 fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: bool, strict_mode: bool) {
     let step = Step::new("Parsing");
     let content = get_content(path);

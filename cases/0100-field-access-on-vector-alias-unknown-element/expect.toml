@@ -1,0 +1,28 @@
+# The generic WrongExpression message mimicked a syntax error.
+[[rule]]
+file = "@run"
+must_not_contain = "Unknown element"
+
+# `$` on a non-record names the field and what the alias stands for.
+[[rule]]
+file = "@run"
+must_contain = "Cannot access field 'position': type Position (= [2, int])"
+
+[[rule]]
+file = "@run"
+must_contain = "has no field 'position'"
+
+# `...self` on a non-record gets its own error.
+[[rule]]
+file = "@run"
+must_contain = "Cannot spread a value of type Position (= [2, int])"
+
+# Positions: field error at `position` (line 7, col 18 = after `self$`),
+# spread error at `self` (line 8, col 6) — not one byte past the start.
+[[rule]]
+file = "@run"
+must_contain = "TypR/main.ty:7:18]"
+
+[[rule]]
+file = "@run"
+must_contain = "TypR/main.ty:8:6]"

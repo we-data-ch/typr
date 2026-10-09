@@ -606,6 +606,23 @@ pub const ENTRIES: &[ExplainEntry] = &[
         bad: "type Lovable <- interface { love: (Self) -> char };\ntype Cat <- list { name: char };\ntype Dog <- list { age: int };\nlet love <- fn(c: Cat): char { c.name };\nlet love <- fn(d: Dog): char { \"dog\" };\nlet cat <- Cat:{ name = \"tom\" };\nlet dog <- Dog:{ age = 3 };\nlet f <- fn(a: Lovable@X, b: Lovable@X): char { a.love() };\nf(cat, dog);",
         good: "type Lovable <- interface { love: (Self) -> char };\ntype Cat <- list { name: char };\ntype Dog <- list { age: int };\nlet love <- fn(c: Cat): char { c.name };\nlet love <- fn(d: Dog): char { \"dog\" };\nlet cat <- Cat:{ name = \"tom\" };\nlet dog <- Dog:{ age = 3 };\nlet f <- fn(a: Lovable@X, b: Lovable@Y): char { a.love() };\nf(cat, dog);",
     },
+    ExplainEntry {
+        code: "T050",
+        title: "Field access on a value that isn't a record",
+        explanation: "`e$field` reads a field of a record (`list { ... }`), a module or a data frame. \
+            Any other type — a vector alias like `[2, int]`, a scalar — has no named fields; \
+            the message shows what an alias stands for so the mismatch is visible.",
+        bad: "type Position <- [2, int];\nlet p: Position <- [1, 2];\np$x;",
+        good: "type Position <- list { x: int, y: int };\nlet p <- :{ x: 1, y: 2 };\np$x;",
+    },
+    ExplainEntry {
+        code: "T051",
+        title: "Spreading a value that isn't a record",
+        explanation: "`...e` in a record literal or a constructor copies `e`'s fields into the \
+            record being built, so `e` must itself be a record.",
+        bad: "let v <- [1, 2];\nlet r <- :{ a: 1, ...v };",
+        good: "let v <- :{ b: 2 };\nlet r <- :{ a: 1, ...v };",
+    },
 ];
 
 pub fn find(code: &str) -> Option<&'static ExplainEntry> {

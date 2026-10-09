@@ -134,9 +134,7 @@ fn annotation_quick_fix(lang: &Lang, context: &Context, content: &str, range: Ra
     }
     let var = Var::try_from(variable).ok()?;
     let name = var.get_name();
-    // See `collect_inlay_hints`'s `Lang::Let` arm: a `Var`'s `HelpData` offset
-    // is captured one byte past the identifier's real start.
-    let real_start_offset = var.get_help_data().get_offset().saturating_sub(1);
+    let real_start_offset = var.get_help_data().get_offset();
     let end_offset = real_start_offset + name.len();
     let start_line = offset_to_position(real_start_offset, content).line;
     let end_pos = offset_to_position(end_offset, content);

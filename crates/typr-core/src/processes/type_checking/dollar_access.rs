@@ -325,12 +325,12 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
                     .with_errors(errors)
                 }
                 None => {
-                    errors.push(TypRError::Type(TypeError::WrongExpression(expr.get_help_data())));
+                    errors.push(non_record_access_error(context, expr, e2, &ty1));
                     TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
                 }
             },
             Err(_) => {
-                errors.push(TypRError::Type(TypeError::WrongExpression(expr.get_help_data())));
+                errors.push(non_record_access_error(context, expr, e2, &ty1));
                 TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
             }
         },
@@ -354,9 +354,29 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
             errors.extend(tc.errors);
             TypeContext::new(tc.value, tc.lang, tc.context).with_errors(errors)
         }
+        (_, _, Op::Dollar(_)) => {
+            errors.push(non_record_access_error(context, expr, e2, &ty1));
+            TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
+        }
         (_a, _b, _c) => {
             errors.push(TypRError::Type(TypeError::WrongExpression(expr.get_help_data())));
             TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
         }
+    }
+}
+
+/// `e1$field` on a type with no fields (a vector alias, a scalar, ...):
+/// names the field and the receiver's type rather than the generic
+/// `WrongExpression`, which only says the expression is wrong.
+fn non_record_access_error(context: &Context, expr: &Lang, field: &Lang, receiver: &Type) -> TypRError {
+    match field {
+        Lang::Variable { name, help_data, .. } | Lang::Char { value: name, help_data } => {
+            TypRError::Type(TypeError::FieldAccessOnNonRecord(
+                name.clone(),
+                field_access::display_with_reduction(context, receiver),
+                help_data.clone(),
+            ))
+        }
+        _ => TypRError::Type(TypeError::WrongExpression(expr.get_help_data())),
     }
 }

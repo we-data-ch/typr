@@ -6,11 +6,13 @@
 //! These helpers factor out the lookup + error-push, leaving each call site
 //! to decide what to do with the found `Type` (return it directly, unwrap a
 //! `Vec` layer for a DataFrame column, etc).
+use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use crate::utils::builder;
 
@@ -73,5 +75,17 @@ where
             })));
             None
         }
+    }
+}
+
+/// `ty` as shown in a "not a record" diagnostic: the alias name followed by
+/// what it stands for (`Position (= Vec[2, int])`), so the user sees why
+/// the field/spread is rejected without looking up the alias.
+pub fn display_with_reduction(context: &Context, ty: &Type) -> String {
+    let (shown, reduced) = (ty.pretty(), ty.reduce(context).pretty());
+    if shown == reduced {
+        shown
+    } else {
+        format!("{} (= {})", shown, reduced)
     }
 }

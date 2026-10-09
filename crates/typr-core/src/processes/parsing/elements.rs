@@ -312,11 +312,14 @@ fn body_char(s: Span) -> IResult<Span, (char, HelpData)> {
 }
 
 pub fn variable_exp(s: Span) -> IResult<Span, (String, HelpData)> {
+    // Position of the identifier's first character — `starting_char`'s own
+    // HelpData is taken from its *remaining* span, one byte too far.
+    let h: HelpData = s.clone().into();
     let res = (starting_char, many0(body_char)).parse(s);
     match res {
-        Ok((s, ((s1, h), v))) => {
+        Ok((s, ((s1, _), v))) => {
             let res2 = v.iter().map(|(val, _h)| *val).collect::<String>();
-            Ok((s, (format!("{}{}", s1, res2), h.clone())))
+            Ok((s, (format!("{}{}", s1, res2), h)))
         }
         Err(r) => Err(r),
     }

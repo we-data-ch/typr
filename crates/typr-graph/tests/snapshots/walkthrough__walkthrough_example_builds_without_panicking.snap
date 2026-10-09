@@ -1,6 +1,5 @@
 ---
 source: crates/typr-graph/tests/walkthrough.rs
-assertion_line: 53
 expression: json
 ---
 {
@@ -262,7 +261,7 @@ expression: json
       "name": "+",
       "span": {
         "file": "fil_rouge",
-        "start": 193,
+        "start": 192,
         "end": 204
       },
       "type": "int",
@@ -322,7 +321,7 @@ expression: json
       "kind": "Apply",
       "span": {
         "file": "fil_rouge",
-        "start": 197,
+        "start": 196,
         "end": 204
       },
       "type": "int",
@@ -371,7 +370,7 @@ expression: json
       "kind": "Access",
       "span": {
         "file": "fil_rouge",
-        "start": 200,
+        "start": 199,
         "end": 202
       },
       "type": "int",
@@ -414,7 +413,7 @@ expression: json
       "name": "a",
       "span": {
         "file": "fil_rouge",
-        "start": 180,
+        "start": 179,
         "end": 192
       },
       "type": "int",
@@ -463,7 +462,7 @@ expression: json
       "kind": "Access",
       "span": {
         "file": "fil_rouge",
-        "start": 183,
+        "start": 182,
         "end": 185
       },
       "type": "int",
@@ -708,7 +707,7 @@ expression: json
       "name": "*",
       "span": {
         "file": "fil_rouge",
-        "start": 124,
+        "start": 123,
         "end": 129
       },
       "type": "int",
@@ -767,7 +766,7 @@ expression: json
       "name": "total",
       "span": {
         "file": "fil_rouge",
-        "start": 323,
+        "start": 322,
         "end": 341
       },
       "type": "int",
@@ -829,7 +828,7 @@ expression: json
       "name": "+",
       "span": {
         "file": "fil_rouge",
-        "start": 323,
+        "start": 322,
         "end": 331
       },
       "type": "int",
@@ -890,7 +889,7 @@ expression: json
       "kind": "Apply",
       "span": {
         "file": "fil_rouge",
-        "start": 323,
+        "start": 322,
         "end": 331
       },
       "type": "int",

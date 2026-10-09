@@ -25,10 +25,13 @@ use typr_core::processes::parsing::parse;
 
 /// Walk up from `file_path`'s directory looking for a `DESCRIPTION` +
 /// `NAMESPACE` pair, returning the directory that contains them. Works for
-/// both absolute paths (LSP, arbitrary process cwd) and the relative paths
-/// the CLI uses (where it's always invoked from the project root).
+/// both absolute paths (LSP, arbitrary process cwd) and relative ones: a
+/// relative path is first made absolute against the cwd, otherwise a file
+/// given from inside `TypR/` (`typr check object.ty`) would stop the walk at
+/// `""` and never reach the project root.
 pub fn find_project_root(file_path: &str) -> Option<PathBuf> {
-    let mut dir = Path::new(file_path).parent();
+    let file_path = std::path::absolute(file_path).unwrap_or_else(|_| PathBuf::from(file_path));
+    let mut dir = file_path.parent();
     while let Some(d) = dir {
         if d.join("DESCRIPTION").exists() && d.join("NAMESPACE").exists() {
             return Some(d.to_path_buf());

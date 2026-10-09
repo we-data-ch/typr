@@ -1,0 +1,7 @@
+title = "self$position on a vector alias (type Position <- [2, int]) reported a parse-looking `Unknown element `elf$position + other,`` with the position one byte off and the line +1"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-08"
+origin = "perso"
+checked = false
