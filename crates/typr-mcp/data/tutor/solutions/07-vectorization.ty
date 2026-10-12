@@ -1,0 +1,9 @@
+let to_fahrenheit <- fn(c: num): num {
+  c * 1.8 + 32.0
+};
+
+let temps <- [0.0, 20.0, 37.0];
+
+let fahrenheit: Vec[3, num] <- to_fahrenheit(temps);
+
+print(fahrenheit);

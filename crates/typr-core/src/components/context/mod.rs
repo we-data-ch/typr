@@ -1318,10 +1318,15 @@ impl Context {
     }
 
     pub fn get_functions_from_name(&self, name: &str) -> Vec<(Var, Type)> {
+        // A typed definition shadows the untyped base-R placeholder of the same
+        // name: otherwise its variadic `Any` signature accepts every call the
+        // typed one rejects (`let double <- fn(x: int)…; double("two")`).
+        let shadowed = !self.typing_context.name_exists_outside_of_std(name);
         self.typing_context
             .entries_named(name)
             .into_iter()
             .filter(|(_, typ2)| typ2.is_function())
+            .filter(|(_, typ2)| !(shadowed && typ2.is_unknown_function()))
             .collect()
     }
 

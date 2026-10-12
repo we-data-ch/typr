@@ -4481,6 +4481,43 @@ p"#;
         );
     }
 
+    fn errors_of(src: &str) -> bool {
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string(src, "test.ty");
+        typing_with_errors(&Context::default(), &ast).has_errors()
+    }
+
+    #[test]
+    fn user_function_shadows_untyped_r_builtin_of_same_name() {
+        // `double` is also a base-R name, preloaded as an untyped variadic
+        // `Any` function. A typed definition must replace it, not sit beside
+        // it and accept the calls the typed signature rejects.
+        let def = "let double <- fn(x: int): int { x * 2 };";
+        assert!(errors_of(&format!("{def} double(\"two\");")));
+        assert!(!errors_of(&format!("{def} double(4);")));
+    }
+
+    #[test]
+    fn shadowing_a_builtin_keeps_vectorized_calls_typed() {
+        // Previously `v.double()` fell through to the builtin and came back
+        // `any`, which then failed against the `Vec[3, int]` annotation.
+        assert!(!errors_of(
+            "let double <- fn(x: int): int { x * 2 };\
+             let v: Vec[3, int] <- [1, 2, 3];\
+             let w: Vec[3, int] <- v.double();"
+        ));
+    }
+
+    #[test]
+    fn literal_tag_payload_is_accepted_by_a_union_parameter() {
+        // `.Circle(2.0)` has payload type `2.0` (a singleton); the union's
+        // member says `num`. A literal is a subtype of its base.
+        let def = "type Shape <- .Circle(num) | .Square(num);\
+                   let id <- fn(s: Shape): Shape { s };";
+        assert!(!errors_of(&format!("{def} id(.Circle(2.0));")));
+        assert!(errors_of(&format!("{def} id(.Circle(\"x\"));")));
+    }
+
     // =====================================================================
     // Phase 4 (audit_type_checking.md) — operators, control flow, assignment.
     // =====================================================================

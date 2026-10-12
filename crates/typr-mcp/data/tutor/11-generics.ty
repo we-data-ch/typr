@@ -1,5 +1,5 @@
 # =============================================================================
-#  TypR tutor  ·  Lesson 10 of 12  ·  Generics: no more NULL surprises
+#  TypR tutor  ·  Lesson 11 of 13  ·  Generics: no more NULL surprises
 # =============================================================================
 #
 #  In R, "maybe there is no value" is often a NULL or an NA that slips
@@ -9,7 +9,7 @@
 #
 #  'T' is a type parameter: Option<int> holds maybe an int, Option<char>
 #  maybe a char. The compiler forces you to handle .None, because to get the
-#  value out of a .Some you have to 'match' it (lesson 9).
+#  value out of a .Some you have to 'match' it (lesson 10).
 #
 #  A function can be generic too: write T in its signature, and TypR works
 #  out what T is at each call.

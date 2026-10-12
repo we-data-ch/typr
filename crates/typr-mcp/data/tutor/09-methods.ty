@@ -1,8 +1,8 @@
 # =============================================================================
-#  TypR tutor  ·  Lesson 8 of 12  ·  Functions on your types
+#  TypR tutor  ·  Lesson 9 of 13  ·  Functions on your types
 # =============================================================================
 #
-#  Lessons 6 and 7 meet here. A function whose first parameter is a Book can
+#  Lessons 6 and 8 meet here. A function whose first parameter is a Book can
 #  be called "on" a book, with the method style:
 #
 #      let describe <- fn(b: Book): char { b$title };

@@ -128,7 +128,7 @@ Building from a local checkout instead of installing? Point `command` at
 ## Learning TypR: `typr tutor`
 
 Like `vimtutor`, `typr tutor` teaches by doing: it creates a `typr-tutor/` folder holding
-twelve short lessons, each a TypR file whose comments explain and whose code you complete.
+thirteen short lessons, each a TypR file whose comments explain and whose code you complete.
 `typr tutor check` grades your answer with the compiler and, once it passes, lists the
 documentation pages to read next. `typr tutor hint`, `list`, `reset N` and `solution N`
 do what they say. No AI needed — and if you want one, the MCP server's `tutor` prompt runs

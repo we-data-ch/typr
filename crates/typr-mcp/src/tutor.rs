@@ -108,12 +108,13 @@ const L03: (&str, &str) = lesson_files!("03-break-it");
 const L04: (&str, &str) = lesson_files!("04-fix-it");
 const L05: (&str, &str) = lesson_files!("05-functions");
 const L06: (&str, &str) = lesson_files!("06-three-calls");
-const L07: (&str, &str) = lesson_files!("07-records");
-const L08: (&str, &str) = lesson_files!("08-methods");
-const L09: (&str, &str) = lesson_files!("09-unions-match");
-const L10: (&str, &str) = lesson_files!("10-generics");
-const L11: (&str, &str) = lesson_files!("11-talk-to-r");
-const L12: (&str, &str) = lesson_files!("12-graduation");
+const L07: (&str, &str) = lesson_files!("07-vectorization");
+const L08: (&str, &str) = lesson_files!("08-records");
+const L09: (&str, &str) = lesson_files!("09-methods");
+const L10: (&str, &str) = lesson_files!("10-unions-match");
+const L11: (&str, &str) = lesson_files!("11-generics");
+const L12: (&str, &str) = lesson_files!("12-talk-to-r");
+const L13: (&str, &str) = lesson_files!("13-graduation");
 
 pub const LESSONS: &[Lesson] = &[
     Lesson {
@@ -320,11 +321,46 @@ pub const LESSONS: &[Lesson] = &[
     },
     Lesson {
         number: 7,
-        slug: "07-records",
-        title: "Model your data with records",
-        goal: "Declare a record type and build a value of it.",
+        slug: "07-vectorization",
+        title: "Write once, run on many",
+        goal: "Call a function written for one value on a whole array, with no loop.",
         starter: L07.0,
         solution: L07.1,
+        expect: Expect::Compiles,
+        requires: &[
+            Rule {
+                pattern: "to_fahrenheit(temps)",
+                message: "call the function on the whole array: to_fahrenheit(temps)",
+            },
+            Rule {
+                pattern: "fn(",
+                message: "'to_fahrenheit' should be a function: fn(c: num): num { ... }",
+            },
+        ],
+        forbids: &[NO_GAPS],
+        hints: &[
+            "Write the function for ONE temperature, like lesson 5: fn(c: num): num { ... }",
+            "The body is the formula from the comment: c * 1.8 + 32.0 (remember 1.8 and 32.0 are nums).",
+            "No loop and no map: fahrenheit is just to_fahrenheit(temps). The compiler lifts the call.",
+        ],
+        docs: &[
+            DocLink {
+                title: "Vectorization by design",
+                path: "philosophy/vectorization_by_design",
+            },
+            DocLink {
+                title: "Functions",
+                path: "reference/functions",
+            },
+        ],
+    },
+    Lesson {
+        number: 8,
+        slug: "08-records",
+        title: "Model your data with records",
+        goal: "Declare a record type and build a value of it.",
+        starter: L08.0,
+        solution: L08.1,
         expect: Expect::Compiles,
         requires: &[
             Rule {
@@ -357,12 +393,12 @@ pub const LESSONS: &[Lesson] = &[
         ],
     },
     Lesson {
-        number: 8,
-        slug: "08-methods",
+        number: 9,
+        slug: "09-methods",
         title: "Functions on your types",
         goal: "Write a function on a record and call it in method style.",
-        starter: L08.0,
-        solution: L08.1,
+        starter: L09.0,
+        solution: L09.1,
         expect: Expect::Compiles,
         requires: &[
             Rule {
@@ -391,12 +427,12 @@ pub const LESSONS: &[Lesson] = &[
         ],
     },
     Lesson {
-        number: 9,
-        slug: "09-unions-match",
+        number: 10,
+        slug: "10-unions-match",
         title: "Unions and pattern matching",
         goal: "Handle every case of a union with an exhaustive match.",
-        starter: L09.0,
-        solution: L09.1,
+        starter: L10.0,
+        solution: L10.1,
         expect: Expect::Compiles,
         requires: &[
             Rule {
@@ -425,12 +461,12 @@ pub const LESSONS: &[Lesson] = &[
         ],
     },
     Lesson {
-        number: 10,
-        slug: "10-generics",
+        number: 11,
+        slug: "11-generics",
         title: "Generics: no more NULL surprises",
         goal: "Write a generic function over Option<T>.",
-        starter: L10.0,
-        solution: L10.1,
+        starter: L11.0,
+        solution: L11.1,
         expect: Expect::Compiles,
         requires: &[
             Rule {
@@ -463,12 +499,12 @@ pub const LESSONS: &[Lesson] = &[
         ],
     },
     Lesson {
-        number: 11,
-        slug: "11-talk-to-r",
+        number: 12,
+        slug: "12-talk-to-r",
         title: "Talk to R",
         goal: "Type an existing R function with an @ signature.",
-        starter: L11.0,
-        solution: L11.1,
+        starter: L12.0,
+        solution: L12.1,
         expect: Expect::Compiles,
         requires: &[
             Rule {
@@ -505,12 +541,12 @@ pub const LESSONS: &[Lesson] = &[
         ],
     },
     Lesson {
-        number: 12,
-        slug: "12-graduation",
+        number: 13,
+        slug: "13-graduation",
         title: "Your own program",
         goal: "Combine a type, a typed function and a match in a program of your own.",
-        starter: L12.0,
-        solution: L12.1,
+        starter: L13.0,
+        solution: L13.1,
         expect: Expect::Compiles,
         requires: &[
             Rule {
@@ -529,7 +565,7 @@ pub const LESSONS: &[Lesson] = &[
         forbids: &[NO_GAPS],
         hints: &[
             "Start small: a union type with three tags, then a function that matches on it.",
-            "Lesson 9's file is a good model: a union, a function with a match, one call.",
+            "Lesson 10's file is a good model: a union, a function with a match, one call.",
         ],
         docs: &[
             DocLink {

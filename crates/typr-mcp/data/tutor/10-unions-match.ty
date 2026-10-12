@@ -1,5 +1,5 @@
 # =============================================================================
-#  TypR tutor  ·  Lesson 9 of 12  ·  Unions and pattern matching
+#  TypR tutor  ·  Lesson 10 of 13  ·  Unions and pattern matching
 # =============================================================================
 #
 #  Sometimes a value is "one of several shapes". A UNION lists the cases,
