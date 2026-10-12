@@ -82,6 +82,11 @@ fn print_step(title: &str) {
 /// `std.ty` instead of the user's file — neither is a state any working
 /// project depends on, and treating it as a mere warning would leave the
 /// silent-data-loss case exactly as silent as before.
+/// `HiddenNameAfterDot` (`x..f()`) and `PublicHiddenName` (`@pub let .x`)
+/// are fatal from day one: both only became reachable when hidden `.names`
+/// were introduced (`x..f` didn't parse at all before), so no existing
+/// project can depend on them, and each is a contradiction rather than a
+/// style slip — the recovered AST would silently pick one reading.
 fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
     if errors.is_empty() {
         return false;
@@ -93,6 +98,8 @@ fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
                 | SyntaxError::SingleLetterTypeName { .. }
                 | SyntaxError::KeywordRecordPositionalElements { .. }
                 | SyntaxError::TupleDestructureArityMismatch { .. }
+                | SyntaxError::HiddenNameAfterDot(..)
+                | SyntaxError::PublicHiddenName { .. }
         )
     });
     if !warnings.is_empty() {
@@ -526,7 +533,13 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
         .map(|(var, _)| var.get_name())
         .filter(|x| !x.contains("<-"))
         .map(|fn_name| {
-            let export = if environment.is_project() { "#' @export\n" } else { "" }.to_string();
+            // A hidden `.name` stays out of the package's NAMESPACE.
+            let export = if environment.is_project() && !fn_name.starts_with('.') {
+                "#' @export\n"
+            } else {
+                ""
+            }
+            .to_string();
             format!(
                 "{}{} <- function(x, ...) UseMethod('{}', x)",
                 export,

@@ -166,79 +166,24 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
         (Type::UnknownFunction(h), Lang::FunctionApp { .. }, _) => {
             TypeContext::new(Type::UnknownFunction(h), expr.clone(), context.clone()).with_errors(errors)
         }
-        // DataFrame $ access: df$col -> [N, col_type] (VecType::Vector)
+        // DataFrame $ access: df$col / df$"col" -> [N, col_type] (VecType::Vector)
         (
-            Type::Vec(VecType::DataFrame, _, ref body, h),
+            Type::Vec(VecType::DataFrame, _, _, _),
             Lang::Variable {
-                name,
-                help_data: ref vh,
-                ..
-            },
-            _,
-        ) => match body.as_ref() {
-            Type::Record(fields, _) => {
-                match field_access::find_field_or_push_error(fields, &name, &ty1, vh.clone(), &mut errors) {
-                    Some(field_ty) => {
-                        let inner_type = match field_ty {
-                            Type::Vec(_, _, inner, _) => *inner,
-                            other => other,
-                        };
-                        TypeContext::new(
-                            Type::vec(
-                                VecType::Vector,
-                                reduced1.vec_length().unwrap_or_else(builder::any_type),
-                                inner_type,
-                                h.clone(),
-                            ),
-                            expr.clone(),
-                            context.clone(),
-                        )
-                        .with_errors(errors)
-                    }
-                    None => TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors),
-                }
+                name, help_data: vh, ..
             }
-            _ => {
-                errors.push(TypRError::Type(TypeError::WrongExpression(expr.get_help_data())));
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
-            }
-        },
-        // DataFrame $ access with string literal: df$"col"
-        (
-            Type::Vec(VecType::DataFrame, _, ref body, h),
-            Lang::Char {
+            | Lang::Char {
                 value: name,
-                help_data: ref vh,
+                help_data: vh,
             },
             _,
-        ) => match body.as_ref() {
-            Type::Record(fields, _) => {
-                match field_access::find_field_or_push_error(fields, &name, &ty1, vh.clone(), &mut errors) {
-                    Some(field_ty) => {
-                        let inner_type = match field_ty {
-                            Type::Vec(_, _, inner, _) => *inner,
-                            other => other,
-                        };
-                        TypeContext::new(
-                            Type::vec(
-                                VecType::Vector,
-                                reduced1.vec_length().unwrap_or_else(builder::any_type),
-                                inner_type,
-                                h.clone(),
-                            ),
-                            expr.clone(),
-                            context.clone(),
-                        )
-                        .with_errors(errors)
-                    }
-                    None => TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors),
-                }
-            }
-            _ => {
-                errors.push(TypRError::Type(TypeError::WrongExpression(expr.get_help_data())));
-                TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors)
-            }
-        },
+        ) => {
+            field_access::dataframe_column_or_push_error(&reduced1, &ty1, &name, vh, expr.get_help_data(), &mut errors)
+                .map(|ty| TypeContext::new(ty, expr.clone(), context.clone()).with_errors(errors.clone()))
+                .unwrap_or_else(|| {
+                    TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors.clone())
+                })
+        }
         // DataFrame $ update with list: df$:{col: new_type}
         (Type::Vec(VecType::DataFrame, _, ref body, h), Lang::List { value: fields2, .. }, _) => match body.as_ref() {
             Type::Record(fields1, rh) => {

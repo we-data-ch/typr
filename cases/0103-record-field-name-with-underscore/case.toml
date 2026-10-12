@@ -1,0 +1,7 @@
+title = "A record field name containing `_` (`list{ a_b = 1 }`, `Pt:{ x_y = 1 }`) fails to parse or silently becomes a tuple"
+cmd = "run"
+layer = "parse"
+status = "fixed"
+created = "2026-10-11"
+origin = "perso"
+checked = false

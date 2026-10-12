@@ -13,6 +13,7 @@ use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::Lang;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::utils::builder;
 
@@ -50,6 +51,41 @@ where
             None
         }
     }
+}
+
+/// `df$col` / `df.col` on a typed dataframe (`reduced_df` is its reduced
+/// `Vec(DataFrame, N, Record{...})`): the column, as a plain vector of the
+/// column's element type with the dataframe's row count. `None` (after
+/// pushing an error) when the column is unknown or the body isn't a record.
+pub fn dataframe_column_or_push_error(
+    reduced_df: &Type,
+    receiver_type: &Type,
+    name: &str,
+    name_help: HelpData,
+    expr_help: HelpData,
+    errors: &mut Vec<TypRError>,
+) -> Option<Type> {
+    let (body, h) = match reduced_df {
+        Type::Vec(VecType::DataFrame, _, body, h) => (body, h),
+        _ => return None,
+    };
+    let fields = match body.as_ref() {
+        Type::Record(fields, _) => fields,
+        _ => {
+            errors.push(TypRError::Type(TypeError::WrongExpression(expr_help)));
+            return None;
+        }
+    };
+    let inner_type = match find_field_or_push_error(fields, name, receiver_type, name_help, errors)? {
+        Type::Vec(_, _, inner, _) => *inner,
+        other => other,
+    };
+    Some(Type::vec(
+        VecType::Vector,
+        reduced_df.vec_length().unwrap_or_else(builder::any_type),
+        inner_type,
+        h.clone(),
+    ))
 }
 
 /// `module.member` / `module$member` lookup: on miss, pushes

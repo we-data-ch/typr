@@ -6,6 +6,7 @@ use crate::components::error_message::type_error::TypeError;
 use crate::components::error_message::typr_error::TypRError;
 use crate::components::language::Lang;
 use crate::components::r#type::type_system::TypeSystem;
+use crate::components::r#type::vector_type::VecType;
 use crate::components::r#type::Type;
 use crate::processes::type_checking::field_access;
 use crate::processes::type_checking::type_context::TypeContext;
@@ -52,6 +53,22 @@ pub fn dot_pipe_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang) -> 
     // fall through to the catch-all `WrongExpression` error below.
     if let Lang::Variable { name, .. } | Lang::Char { value: name, .. } = e2 {
         let ty1 = e1.typing(context).value.reduce(context);
+        // `df.col`: a typed dataframe's column, exactly like `df$col`.
+        if let Type::Vec(VecType::DataFrame, _, _, _) = ty1 {
+            let mut errors = Vec::new();
+            return field_access::dataframe_column_or_push_error(
+                &ty1,
+                &ty1,
+                name,
+                e2.get_help_data(),
+                expr.get_help_data(),
+                &mut errors,
+            )
+            .map(|ty| TypeContext::new(ty, expr.clone(), context.clone()).with_errors(errors.clone()))
+            .unwrap_or_else(|| {
+                TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors.clone())
+            });
+        }
         if let Type::Record(fields, _) = ty1.clone() {
             let mut errors = Vec::new();
             return field_access::find_field_or_push_error(&fields, name, &ty1, e2.get_help_data(), &mut errors)

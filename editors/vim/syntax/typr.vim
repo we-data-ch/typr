@@ -39,6 +39,7 @@ syn match   typrOperatorsArrow "\v\-\>|\=\>"
 syn match   typrTypesAlias "\v<[A-Z][A-Za-z0-9_]+>"
 syn match   typrTypesGeneric "\v<[A-Z][A-Za-z0-9_]@!"
 syn match   typrTypesSigilGeneric "\v[#%@^?$]%(Self|[A-Z])[A-Za-z0-9_]@!"
+syn match   typrVariablesHidden "\v%([A-Za-z0-9_.)\]])@<!\.[a-z_][A-Za-z0-9_]*>"
 syn match   typrTypesVariant "\v\.[A-Z][A-Za-z0-9_]*>"
 syn match   typrKeywordsBlock "\v<%(Test|JS|R)%(\s*[\[{])@="
 syn match   typrTypesConstructor "\v<%(library|Class|seq|c)%(\s*[\[(])@="
@@ -81,6 +82,7 @@ hi def link typrTypesBuiltinIndexed Type
 hi def link typrTypesConstructor Function
 hi def link typrKeywordsBlock Keyword
 hi def link typrTypesVariant Identifier
+hi def link typrVariablesHidden Identifier
 hi def link typrTypesSigilGeneric Type
 hi def link typrTypesGeneric Type
 hi def link typrTypesAlias Type

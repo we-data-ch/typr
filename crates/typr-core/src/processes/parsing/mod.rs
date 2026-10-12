@@ -70,6 +70,19 @@ pub fn push_parse_error(err: SyntaxError) {
     PARSE_ERRORS.with(|e| e.borrow_mut().push(err));
 }
 
+/// Like `push_parse_error`, for errors raised inside a combinator that `alt`
+/// may retry at the same position: a second report of the same error code at
+/// the same offset is dropped.
+pub fn push_parse_error_once(err: SyntaxError) {
+    let key = |e: &SyntaxError| (e.code(), e.get_help_data().map(|h| (h.get_file_name(), h.get_offset())));
+    PARSE_ERRORS.with(|e| {
+        let mut errors = e.borrow_mut();
+        if !errors.iter().any(|known| key(known) == key(&err)) {
+            errors.push(err);
+        }
+    });
+}
+
 fn take_parse_errors() -> Vec<SyntaxError> {
     PARSE_ERRORS.with(|e| e.borrow_mut().drain(..).collect())
 }
@@ -434,7 +447,15 @@ fn let_exp_impl(s: Span) -> IResult<Span, Vec<Lang>> {
                         is_export: _,
                         help_data: h,
                     } => {
-                        let vari = Var::from_language(var.deref().clone()).unwrap().to_language();
+                        let parsed = Var::from_language(var.deref().clone()).unwrap();
+                        if is_pub && parsed.is_hidden() {
+                            push_parse_error(SyntaxError::PublicHiddenName {
+                                name: parsed.get_name(),
+                                annotation: frag.to_string(),
+                                help_data: parsed.get_help_data(),
+                            });
+                        }
+                        let vari = parsed.to_language();
                         Lang::Let {
                             variable: Box::new(vari),
                             r#type: typ.clone(),
@@ -2237,6 +2258,55 @@ mod tesus {
             }
         } else {
             panic!("Expected Let");
+        }
+    }
+
+    #[test]
+    fn test_hidden_names_dot_and_double_underscore_are_one_binding() {
+        let _ = take_parse_errors();
+        for (src, name) in [("let .cache <- 1;", ".cache"), ("let __cache <- 1;", ".cache")] {
+            let le = let_exp(src.into()).unwrap().1;
+            match &le[0] {
+                Lang::Let { variable, .. } => {
+                    assert_eq!(Var::from_language((**variable).clone()).unwrap().get_name(), name)
+                }
+                other => panic!("Expected Let, got {:?}", other),
+            }
+        }
+        assert!(take_parse_errors().is_empty());
+    }
+
+    #[test]
+    fn test_pub_or_export_hidden_name_is_error() {
+        for src in ["@pub let .cache <- 1;", "@export let __cache <- 1;"] {
+            let _ = take_parse_errors();
+            let _ = let_exp(src.into()).unwrap();
+            let errors = take_parse_errors();
+            assert!(
+                matches!(errors.as_slice(), [SyntaxError::PublicHiddenName { .. }]),
+                "{src}: {errors:?}"
+            );
+        }
+        let _ = take_parse_errors();
+        let _ = let_exp("@testable let .cache <- 1;".into()).unwrap();
+        assert!(
+            take_parse_errors().is_empty(),
+            "@testable stays allowed on a hidden name"
+        );
+    }
+
+    #[test]
+    fn test_hidden_name_after_dot_operator_is_reported_once() {
+        let _ = take_parse_errors();
+        let _ = base_parse("x..twice();".into()).unwrap();
+        let errors = take_parse_errors();
+        assert!(
+            matches!(errors.as_slice(), [SyntaxError::HiddenNameAfterDot(_)]),
+            "{errors:?}"
+        );
+        for ok in ["x.__twice();", "x |> .twice();", "r$.a;", "x.Some;"] {
+            let _ = base_parse(ok.into()).unwrap();
+            assert!(take_parse_errors().is_empty(), "{ok} must not be reported");
         }
     }
 

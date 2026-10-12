@@ -1,0 +1,13 @@
+type Pt <- list{ x: int, .secret: int };
+
+let .norm <- fn(p: Pt): int { p.x + p.__secret };
+let .twice <- fn(a: int): int { a * 2 };
+let .cache <- 20;
+
+let p <- Pt:{ x = 1, .secret = 41 };
+print(p.__norm());
+print(p |> .norm());
+print(.twice(__cache));
+type Seg <- list{ a: int, b: int };
+let .norm <- fn(s: Seg): int { s.b - s.a };
+print(Seg:{ a = 2, b = 9 }.__norm());

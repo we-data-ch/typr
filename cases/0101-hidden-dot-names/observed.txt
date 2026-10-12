@@ -1,0 +1,4 @@
+# exit=1
+
+## stdout/stderr
+Syntax error: Unknown element `<- fn(p: Pt): int { p.x + p.__secret }; ...`

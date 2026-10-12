@@ -39,7 +39,8 @@ qui joue le rôle de valeur de retour implicite (comme en R).
 | Booléen | `true` / `TRUE`, `false` / `FALSE` | forme minuscule *et* majuscule acceptées |
 | Nul | `null` / `NULL` | `Lang::Null` — distinct de `NA` |
 | Manquant | `na` / `NA` | `Lang::NA` — distinct de `null` |
-| Identifiant variable | `mon_nom` | doit commencer par `a-z_` ; `snake_case` attendu |
+| Identifiant variable | `mon_nom` | doit commencer par `a-z_` ; `snake_case` attendu ; `__` → `.` en R (`as__x` → `as.x`), pour les variables, fonctions, membres de module et champs de record |
+| Identifiant caché | `.cache`, `__cache` | `.` puis `a-z_` ; privé par le nom (jamais `@pub`/`@export`, S020) — `__` en tête ≡ `.` (même liaison) |
 | Identifiant type | `MonType` | `PascalCase` obligatoire pour `type`/`opaque`/alias |
 | Identifiant cité | `` `+` ``, `` `nom bizarre` `` | backticks — utile pour nommer un opérateur custom |
 | Commentaire | `# commentaire` | `//` n'existe pas — un fichier `.ty` avec `//` échoue silencieusement (piège connu, voir §14) |
@@ -123,7 +124,7 @@ Tuple[T..., U]             # variadique : T... capture une séquence de types
 | Array (S3, complet) | `[#N, int]` | taille indexée par le générique `#N` |
 | `Array[...]` | `Array[3, int]` | variante nommée, taille fixe = 3 |
 | `Vec[...]` | `Vec[num]`, `Vec[#N, num]` | vecteur R natif |
-| `dataframe[...]{...}` | `df[#N]{ name: char, age: int }` | `df` = alias court de `dataframe` |
+| `dataframe[...]{...}` | `df[#N]{ name: char, age: int }` | `df` = alias court de `dataframe` ; colonne : `t.age` ≡ `t$age` → `[#N, int]` |
 | Record générique nommé | `Tibble[3]{ id: int, active: bool }` | nécessite une déclaration `typeconstructor` préalable |
 
 Règle d'or du parseur : un bloc `{ ... }` qui suit fait toujours de la construction un *record* —
@@ -431,6 +432,13 @@ use("dplyr", c("filter", "select"));   # adaptateur legacy
 
 Un module compile vers un environnement R ; les membres non `@pub` restent invisibles depuis
 l'extérieur (sauf en build `--test` via `@testable`, exposés en `M$.test_nom`).
+
+Noms cachés : un `.` en tête (`.cache`, `.helper`, champ `.secret`) rend un nom privé *par sa
+syntaxe*, comme en R — émis tel quel (`ls()` et l'`exportPattern("^[^\\.]")` par défaut d'un
+package l'ignorent), son générique S3 ne reçoit pas de `#' @export`. `@pub`/`@export` sur un nom
+caché est une erreur (S020) ; `@testable` reste permis. `__nom` est l'orthographe ASCII de `.nom`
+(même liaison), obligatoire juste après l'opérateur `.` : `x..helper()` se lirait comme le
+spread `..` et est refusé (S019) — écrire `x.__helper()` ou `x |> .helper()`.
 
 ---
 

@@ -1,0 +1,7 @@
+# exit=0
+
+## stdout/stderr
+NULL
+1
+NULL
+...

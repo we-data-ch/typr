@@ -1,0 +1,8 @@
+type Tab <- df[2]{ colx: int, col__y: char };
+
+let t <- Tab:{ colx = [1, 2], col__y = ["a", "b"] };
+let a: [2, int] <- t.colx;
+
+print(a);
+print(t.col__y);
+print(sum(t.colx) + sum(t$colx));

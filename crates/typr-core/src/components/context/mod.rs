@@ -1000,7 +1000,7 @@ impl Context {
             .collect::<HashSet<_>>();
         let mut result: Vec<(Var, Type)> = res
             .iter()
-            .map(|(var, typ)| (var.clone().add_backticks_if_percent(), typ.clone()))
+            .map(|(var, typ)| (var.clone().add_backticks_if_needed(), typ.clone()))
             .collect();
         // Stable order: the list is rendered into generic_functions.R, which
         // must not reshuffle between builds (HashSet iteration is random).

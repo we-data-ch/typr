@@ -11,6 +11,7 @@ use crate::processes::parsing::base_parse;
 use crate::processes::parsing::lang_token::LangToken;
 use crate::processes::parsing::operation_priority::PriorityTokens;
 use crate::processes::parsing::push_parse_error;
+use crate::processes::parsing::push_parse_error_once;
 use crate::processes::parsing::types::if_type;
 use crate::processes::parsing::types::label;
 use crate::processes::parsing::types::ltype;
@@ -315,11 +316,23 @@ pub fn variable_exp(s: Span) -> IResult<Span, (String, HelpData)> {
     // Position of the identifier's first character — `starting_char`'s own
     // HelpData is taken from its *remaining* span, one byte too far.
     let h: HelpData = s.clone().into();
-    let res = (starting_char, many0(body_char)).parse(s);
+    // An optional leading `.` makes a *hidden* name, as in R (`.cache`,
+    // `.helper`): private by name, never `@pub`/`@export`. It must be followed
+    // by `[a-z_]` like any identifier, so it never overlaps a tag (`.Some`),
+    // the spread/variadic tokens (`..`, `...`) or a number (`.5`).
+    let res = (opt(char('.')), starting_char, many0(body_char)).parse(s);
     match res {
-        Ok((s, ((s1, _), v))) => {
+        Ok((s, (dot, (s1, _), v))) => {
             let res2 = v.iter().map(|(val, _h)| *val).collect::<String>();
-            Ok((s, (format!("{}{}", s1, res2), h)))
+            let name = format!("{}{}{}", if dot.is_some() { "." } else { "" }, s1, res2);
+            // `__name` is the ASCII spelling of `.name` (usable where a
+            // leading dot can't go, e.g. `x.__f()`): both must be the *same*
+            // binding for the type checker, so normalize to the dotted form.
+            let name = match name.strip_prefix("__") {
+                Some(rest) if !rest.is_empty() => format!(".{}", rest),
+                _ => name,
+            };
+            Ok((s, (name, h)))
         }
         Err(r) => Err(r),
     }
@@ -421,16 +434,26 @@ fn equality_params(s: Span) -> IResult<Span, Span> {
     terminated(alt((tag("="), tag(":"))), multispace0).parse(s)
 }
 
+/// A field/argument name in `name = value`: any identifier (`a_b`, hidden
+/// `.b`/`__b`), or the bare alphanumerics accepted historically (`Name`).
+fn argument_name(s: Span) -> IResult<Span, String> {
+    alt((
+        map(variable_exp, |(name, _)| name),
+        map(alphanumeric1, |name: Span| name.to_string()),
+    ))
+    .parse(s)
+}
+
 fn argument_val(s: Span) -> IResult<Span, ArgumentValue> {
     let res = (
-        terminated(alphanumeric1, multispace0),
+        terminated(argument_name, multispace0),
         equality_params,
         parse_elements,
         opt(terminated(tag(","), multispace0)),
     )
         .parse(s);
     match res {
-        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentValue(e1.to_string(), e2))),
+        Ok((s, (e1, _, e2, _))) => Ok((s, ArgumentValue(e1, e2))),
         Err(r) => Err(r),
     }
 }
@@ -1939,9 +1962,22 @@ fn scope_impl(s: Span) -> IResult<Span, Lang> {
     }
 }
 
+/// `x..f()` / `r..a`: a hidden name right after the UFCS/field `.` reads as
+/// the `..` spread token. Reported (S019) but recovered as `x.(.f)()` — the
+/// spelling to suggest is `x.__f()` (`__` → `.` in R) or `x |> .f()`.
+fn starts_with_hidden_name(s: &Span) -> bool {
+    let mut chars = s.fragment().chars();
+    chars.next() == Some('.') && chars.next().is_some_and(|c| c.is_ascii_lowercase() || c == '_')
+}
+
 fn element_operator_token(s: Span) -> IResult<Span, LangToken> {
     match op.parse(s) {
-        Ok((s, op)) => Ok((s, LangToken::Operator(op))),
+        Ok((s, op)) => {
+            if matches!(op, Op::Dot(_)) && starts_with_hidden_name(&s) {
+                push_parse_error_once(SyntaxError::HiddenNameAfterDot(s.clone().into()));
+            }
+            Ok((s, LangToken::Operator(op)))
+        }
         Err(r) => Err(r),
     }
 }
@@ -2159,6 +2195,23 @@ mod tests {
     fn test_variable1() {
         let res = variable_exp("hello".into()).unwrap().1 .0;
         assert_eq!(res, "hello", "Should return the variable name 'hello'");
+    }
+
+    #[test]
+    fn test_hidden_variable_never_takes_a_tag_or_spread() {
+        assert_eq!(variable_exp(".helper".into()).unwrap().1 .0, ".helper");
+        assert_eq!(variable_exp("__helper".into()).unwrap().1 .0, ".helper");
+        assert_eq!(variable_exp("as__character".into()).unwrap().1 .0, "as__character");
+        assert!(variable_exp(".Some".into()).is_err());
+        assert!(variable_exp("..x".into()).is_err());
+        assert!(variable_exp(".5".into()).is_err());
+    }
+
+    #[test]
+    fn test_record_field_names_accept_underscore_and_hidden() {
+        for (src, field) in [("a_b = 1", "a_b"), (".c = 2", ".c"), ("Name = 3", "Name")] {
+            assert_eq!(argument_val(src.into()).unwrap().1 .0, field);
+        }
     }
 
     #[test]

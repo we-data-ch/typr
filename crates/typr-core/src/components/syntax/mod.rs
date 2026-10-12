@@ -479,6 +479,20 @@ impl SyntaxManifest {
             )
             .with_note("Union-variant tag, `.Variant` (`parsing/elements.rs::tag_exp`)."),
             Rule::new(
+                "variables.hidden",
+                "variable.other.hidden.typr",
+                matches(
+                    "(?<![A-Za-z0-9_.)\\]])\\.[a-z_][A-Za-z0-9_]*\\b",
+                    "%([A-Za-z0-9_.)\\]])@<!\\.[a-z_][A-Za-z0-9_]*>",
+                ),
+            )
+            .with_note(
+                "Hidden name, `.helper` — private by name, as in R \
+                 (`parsing/elements.rs::variable_exp`). Lowercase after the dot, so a tag \
+                 (`.Some`) never matches; the look-behind leaves the member of `x.f` to the \
+                 access operator. Ahead of `operators.access`, which owns a lone `.`.",
+            ),
+            Rule::new(
                 "types.sigil-generic",
                 "entity.name.type.parameter.typr",
                 RuleBody::Sigils,
@@ -595,8 +609,9 @@ impl SyntaxManifest {
             )
             .with_note(
                 "An identifier starts lowercase-or-underscore and continues in `[A-Za-z0-9_]` — \
-                 no dots, unlike R (`parsing/elements.rs::starting_char`/`body_char`). \
-                 `data.frame` is a single dedicated tag, not an identifier.",
+                 no inner dots, unlike R (`parsing/elements.rs::starting_char`/`body_char`): \
+                 `__` stands for `.` (`as__character` → `as.character`). A *leading* dot is \
+                 the hidden-name rule above. `data.frame` is a single dedicated tag.",
             ),
             Rule::new("punctuation.terminator", "punctuation.terminator.typr", symbols(&[";"])),
             Rule::new(

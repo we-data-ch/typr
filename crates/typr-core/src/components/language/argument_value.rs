@@ -1,4 +1,5 @@
 use crate::components::context::Context;
+use crate::components::language::r_name_symbol;
 use crate::components::language::Lang;
 use crate::processes::transpiling::translatable::RTranslatable;
 use serde::{Deserialize, Serialize};
@@ -26,6 +27,6 @@ impl fmt::Display for ArgumentValue {
 
 impl RTranslatable<String> for ArgumentValue {
     fn to_r(&self, cont: &Context) -> String {
-        format!("{} = {}", self.0, self.1.to_r(cont).0)
+        format!("{} = {}", r_name_symbol(&self.0), self.1.to_r(cont).0)
     }
 }

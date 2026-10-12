@@ -196,6 +196,26 @@ pub const ENTRIES: &[ExplainEntry] = &[
         good: "let f <- fn(a: Lovable@A): bool { true };",
     },
     ExplainEntry {
+        code: "S019",
+        title: "Hidden name after the `.` operator",
+        explanation: "A hidden name starts with `.` (`.helper`, private by name, as in R). Right \
+            after the UFCS/field `.` operator that gives `x..helper()`, which reads as the `..` \
+            spread token. After a dot, spell the hidden name with its ASCII form `__` (which \
+            compiles to `.` in R), or call it through the pipe.",
+        bad: "let .twice <- fn(a: int): int { a * 2 }; let y <- 3..twice();",
+        good: "let .twice <- fn(a: int): int { a * 2 }; let y <- 3.__twice();",
+    },
+    ExplainEntry {
+        code: "S020",
+        title: "Hidden name marked `@pub`/`@export`",
+        explanation: "A leading `.` (or its ASCII spelling `__`) makes a name hidden, i.e. \
+            private by definition — the same convention R's default `exportPattern(\"^[^\\\\.]\")` \
+            follows. Annotating it `@pub` or `@export` contradicts the name: either drop the \
+            annotation or drop the leading dot.",
+        bad: "module M { @pub let .cache <- 0; };",
+        good: "module M { let .cache <- 0; @pub let cache <- 0; };",
+    },
+    ExplainEntry {
         code: "T001",
         title: "Type mismatch on a 'let' binding",
         explanation: "The value on the right-hand side doesn't match the type annotation on the \

@@ -1653,6 +1653,23 @@ impl fmt::Display for Lang {
     }
 }
 
+/// A TypR field/argument name as R spells it, for a string position
+/// (`x[["a.b"]]`, `c("a.b")`): `__` stands for `.` (`a__b` → `a.b`).
+pub fn r_name_string(name: &str) -> String {
+    name.replace("__", ".")
+}
+
+/// Same name in a symbol position (`list(a.b = 1)`, `function(a.b)`,
+/// `x$a.b`): also backtick-quoted when R can't take it bare (`_x`).
+pub fn r_name_symbol(name: &str) -> String {
+    let name = r_name_string(name);
+    if name.starts_with('_') {
+        format!("`{}`", name)
+    } else {
+        name
+    }
+}
+
 pub fn format_backtick(s: String) -> String {
     "`".to_string() + &s.replace("`", "") + "`"
 }

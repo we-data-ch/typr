@@ -1,0 +1,37 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "`.cache` <- "
+
+[[rule]]
+file = "R/main.R"
+must_contain = ".norm(p)"
+
+[[rule]]
+file = "R/main.R"
+must_contain = ".twice(.cache)"
+
+# roxygen S3 tag: only the class suffix is split off (was `@method  norm Pt`)
+[[rule]]
+file = "R/main.R"
+must_contain = "#' @method .norm Pt"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "__"
+
+[[rule]]
+file = "R/main.R"
+must_contain = "#' @method .norm Seg"
+
+# hidden generics get their UseMethod stub, but stay out of the NAMESPACE
+[[rule]]
+file = "R/generic_functions.R"
+must_contain = ".norm <- function(x, ...) UseMethod('.norm', x)"
+
+[[rule]]
+file = "R/generic_functions.R"
+must_not_contain = "#' @export\n.norm"
+
+[[rule]]
+file = "@run"
+must_contain = "42\n42\n40\n7"

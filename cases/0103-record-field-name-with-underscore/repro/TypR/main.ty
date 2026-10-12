@@ -1,0 +1,4 @@
+type Pt <- list{ x_y: int };
+let p <- Pt:{ x_y = 1 };
+let r <- list{ a_b = 2 };
+print(p.x_y + r.a_b);

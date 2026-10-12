@@ -1,0 +1,13 @@
+type Pt <- list{ x: int };
+
+module M {
+  @pub let my__v <- 2;
+  @pub let as__pt <- fn(p: Pt): int { p.x };
+  @pub let _u <- 7;
+  @pub let f <- fn(p: Pt): int { p.x + 1 };
+};
+
+print(M::my__v);
+print(M::as__pt(Pt:{ x = 5 }));
+print(M::_u);
+print(M::f(Pt:{ x = 1 }));

@@ -1,0 +1,15 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "`_inc`(`_x`)"
+
+[[rule]]
+file = "R/generic_functions.R"
+must_contain = "`_inc` <- function(x, ...)"
+
+[[rule]]
+file = "@run"
+must_contain = "4"
+
+[[rule]]
+file = "@run"
+must_not_contain = "failed"

@@ -78,9 +78,11 @@ impl Var {
         self.set_type(typ)
     }
 
-    pub fn add_backticks_if_percent(self) -> Self {
+    /// Backtick-quote a name R can't take bare: a `%op%`, or one starting
+    /// with `_` (`_x`, legal in TypR, not in R).
+    pub fn add_backticks_if_needed(self) -> Self {
         let s = self.get_name();
-        let res = if s.starts_with('%') && s.ends_with('%') {
+        let res = if (s.starts_with('%') && s.ends_with('%')) || s.starts_with('_') {
             format!("`{}`", s)
         } else {
             s.to_string()
@@ -241,6 +243,12 @@ impl Var {
         self.name.to_string()
     }
 
+    /// A hidden name — `.cache`, or its ASCII spelling `__cache` (`__` → `.`
+    /// in R) — is private by name: it can't carry `@pub`/`@export`.
+    pub fn is_hidden(&self) -> bool {
+        self.name.starts_with('.') || (self.name.starts_with("__") && self.name.len() > 2)
+    }
+
     pub fn get_type(&self) -> Type {
         self.related_type.clone()
     }
@@ -323,7 +331,8 @@ impl Var {
     }
 
     pub fn display_type(self, cont: &Context) -> Self {
-        if !self.get_name().contains(".") {
+        // A dot means "already suffixed" — except a hidden name's leading one.
+        if !self.get_name().replace('`', "").trim_start_matches('.').contains('.') {
             let type_str = match self.get_type() {
                 Type::Empty(_) | Type::Any(_) => "".to_string(),
                 ty => {

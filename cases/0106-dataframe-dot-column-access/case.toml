@@ -1,0 +1,7 @@
+title = "`t.col` on a typed dataframe is rejected (Undefined variable 'col') while `t$col` type-checks"
+cmd = "run"
+layer = "type"
+status = "fixed"
+created = "2026-10-12"
+origin = "perso"
+checked = false
