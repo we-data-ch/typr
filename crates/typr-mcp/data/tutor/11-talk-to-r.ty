@@ -1,0 +1,33 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 11 of 12  ·  Talk to R
+# =============================================================================
+#
+#  Every R function and every R package stays available from TypR. But the
+#  compiler cannot guess the types of a function it has never seen: what it
+#  returns is 'any', a value it knows nothing about. You can use an 'any'
+#  freely, but you cannot pretend it is a char.
+#
+#  To type an R function, declare its SIGNATURE with '@':
+#
+#      @nchar: (char) -> int;
+#
+#  This generates no code at all; it only teaches the compiler. From then
+#  on, every call to nchar is checked like one of your own functions.
+#
+#  TypR's standard library already declares many base R functions this way.
+#  For the rest (base R or any package), you write the '@' line yourself.
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE
+#
+#  R's strrep(x, times) repeats the string x 'times' times:
+#  strrep("-", 3) gives "---". This program does not compile, because
+#  strrep returns 'any' and 'line' must be a char.
+#
+#  Add a signature for strrep ABOVE its first use, so that it compiles.
+#
+# -----------------------------------------------------------------------------
+
+let line: char <- strrep("-", 20);
+
+print(line);

@@ -1,0 +1,6 @@
+let twice <- fn(x: int): int {
+  x * 2
+};
+
+print(twice(21));
+twice("two");

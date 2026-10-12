@@ -1,0 +1,5 @@
+let perimeter <- fn(width: num, height: num): num {
+  2.0 * (width + height)
+};
+
+print(perimeter(3.0, 4.0));

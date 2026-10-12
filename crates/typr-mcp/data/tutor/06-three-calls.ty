@@ -1,0 +1,34 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 6 of 12  ·  One function, three ways to call it
+# =============================================================================
+#
+#  In TypR, the first argument of any function can move in front of it.
+#  These three lines are exactly the same call:
+#
+#      add(5, 3)          # classic call
+#      (5) |> add(3)      # pipe: "take 5, then add 3"
+#      (5).add(3)         # method style: "5, add 3"
+#
+#  This works for ANY function, yours or R's, without declaring anything.
+#  It is called "uniform function call syntax". It shines when calls nest:
+#  reading add(add(1, 2), 3) means reading from the inside out, while
+#  (1).add(2).add(3) reads left to right.
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE
+#
+#  Rewrite 'nested' twice, keeping the same result:
+#    - 'piped'   using the pipe  |>
+#    - 'chained' using the method style  .add(...)
+#
+# -----------------------------------------------------------------------------
+
+let add <- fn(a: int, b: int): int {
+  a + b
+};
+
+let nested <- add(add(1, 2), 3);
+let piped <- ???;
+let chained <- ???;
+
+print(chained);

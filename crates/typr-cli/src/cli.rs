@@ -12,10 +12,12 @@
 
 use crate::project::{
     build_file, build_project, check_file, check_project, clean, cran, debug_file, document, generate_spg, load, new,
-    pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep_R_files, run_in_project, test, use_package, DebugOptions,
+    pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep_R_files, run_in_project, test, use_package,
+    DebugOptions,
 };
 use crate::repl;
 use crate::standard_library::{standard_library, standard_library_doc};
+use crate::tutor;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -159,6 +161,19 @@ enum Commands {
         cache_command: CacheCommands,
     },
     Repl,
+    /// Learn TypR step by step, like vimtutor: short lessons you complete in
+    /// your editor, graded by the compiler, each one leading into the docs.
+    ///
+    /// `typr tutor` creates a `typr-tutor/` folder (or resumes it) and tells
+    /// you which file to open. To learn with an AI assistant instead, connect
+    /// it to `typr mcp` and use its `tutor` prompt: same lessons, same grading.
+    Tutor {
+        #[command(subcommand)]
+        tutor_command: Option<TutorCommands>,
+        /// The tutor workspace folder.
+        #[arg(long, global = true, value_name = "DIR", default_value = "typr-tutor")]
+        dir: PathBuf,
+    },
     Lsp,
     /// Start an MCP server over stdio, exposing the compiler to AI agents
     /// (`check` and `build` tools — see crates/typr-mcp).
@@ -352,6 +367,20 @@ enum CaseCommands {
 }
 
 #[derive(Subcommand, Debug)]
+enum TutorCommands {
+    /// Grade a lesson file (default: the first lesson not passed yet).
+    Check { lesson: Option<usize> },
+    /// Show the next hint for a lesson (default: the current one).
+    Hint { lesson: Option<usize> },
+    /// List the lessons and your progress.
+    List,
+    /// Restore a lesson file to its original content.
+    Reset { lesson: usize },
+    /// Print a reference solution for a lesson.
+    Solution { lesson: usize },
+}
+
+#[derive(Subcommand, Debug)]
 enum CacheCommands {
     /// Delete the cached table. The next build re-seeds it from the embedded
     /// base-R snapshot and re-introspects the project's packages.
@@ -441,6 +470,7 @@ fn skips_r_deps_check(command: &Option<Commands>) -> bool {
         Some(Commands::Init)
             | Some(Commands::Lsp)
             | Some(Commands::Mcp)
+            | Some(Commands::Tutor { .. })
             | Some(Commands::Std { .. })
             | Some(Commands::Cache { .. })
             | Some(Commands::Syntax { .. })
@@ -616,6 +646,23 @@ pub fn start() {
         }
         // $ typr rpl
         Some(Commands::Repl) => repl::start(),
+        // $ typr tutor
+        Some(Commands::Tutor { tutor_command, dir }) => {
+            // Grading type-checks in process: same large-stack rationale as `Lsp`.
+            std::thread::Builder::new()
+                .stack_size(8 * 1024 * 1024)
+                .spawn(move || match tutor_command {
+                    None => tutor::start(&dir),
+                    Some(TutorCommands::Check { lesson }) => tutor::check(&dir, lesson),
+                    Some(TutorCommands::Hint { lesson }) => tutor::hint(&dir, lesson),
+                    Some(TutorCommands::List) => tutor::list(&dir),
+                    Some(TutorCommands::Reset { lesson }) => tutor::reset(&dir, lesson),
+                    Some(TutorCommands::Solution { lesson }) => tutor::solution(lesson),
+                })
+                .unwrap()
+                .join()
+                .unwrap();
+        }
         // $ typr syntax
         Some(Commands::Syntax {
             json,

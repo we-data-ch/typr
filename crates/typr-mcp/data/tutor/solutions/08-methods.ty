@@ -1,0 +1,9 @@
+type Book <- list { title: char, pages: int };
+
+let dune <- Book:{ title = "Dune", pages = 412 };
+
+let is_long <- fn(b: Book): bool {
+  b$pages > 300
+};
+
+print(dune.is_long());

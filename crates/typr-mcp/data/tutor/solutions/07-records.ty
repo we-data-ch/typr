@@ -1,0 +1,8 @@
+type Book <- list {
+  title: char,
+  pages: int
+};
+
+let dune <- Book:{ title = "Dune", pages = 412 };
+
+print(dune$title);

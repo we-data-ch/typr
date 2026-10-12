@@ -82,6 +82,7 @@ typr test               # run testthat suites
 typr document           # generate .Rd documentation
 typr pkgdown            # build a documentation website
 typr repl               # interactive session
+typr tutor              # learn TypR step by step, like vimtutor
 typr lsp                # language server (used by the editor extensions)
 typr mcp                # MCP server (exposes the compiler to AI agents)
 ```
@@ -99,6 +100,12 @@ Tools exposed today (see `crates/typr-mcp`):
 |---|---|
 | `check` | Type-checks TypR source, returns `{ok, diagnostics[{code, message}]}` with stable `T0xx`/`S0xx` codes |
 | `build` | Same as `check`, plus the transpiled R code (`r_code`) — produced even when there are type errors |
+| `tutor_lessons` / `tutor_lesson` / `tutor_check` / `tutor_hint` | The TypR tutor's lessons, graded by the compiler — the same course as `typr tutor` |
+
+The server also offers a `tutor` **prompt**: pick it in your client (in Claude Code,
+`/mcp__typr__tutor`) and the assistant becomes a tutor that walks you through the lessons,
+grades your attempts without writing them for you, and points you to the documentation
+pages each lesson opens onto.
 
 Point a client at the `typr` binary with the `mcp` argument. After `cargo install typr`,
 `typr` is on `PATH`, so a client config (e.g. Claude Desktop's/Claude Code's `mcpServers`
@@ -117,6 +124,15 @@ block) just needs:
 
 Building from a local checkout instead of installing? Point `command` at
 `target/debug/typr` (or `target/release/typr`) directly.
+
+## Learning TypR: `typr tutor`
+
+Like `vimtutor`, `typr tutor` teaches by doing: it creates a `typr-tutor/` folder holding
+twelve short lessons, each a TypR file whose comments explain and whose code you complete.
+`typr tutor check` grades your answer with the compiler and, once it passes, lists the
+documentation pages to read next. `typr tutor hint`, `list`, `reset N` and `solution N`
+do what they say. No AI needed — and if you want one, the MCP server's `tutor` prompt runs
+the same lessons. Lessons live in `crates/typr-mcp/data/tutor/`.
 
 ## Repository layout
 

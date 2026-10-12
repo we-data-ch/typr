@@ -1,0 +1,13 @@
+type Option<T> <- .Some(T) | .None;
+
+let unwrap_or <- fn(o: Option<T>, default: T): T {
+  match o {
+    .Some(x) => x,
+    .None => default,
+  }
+};
+
+let a: int <- unwrap_or(.Some(4), 0);
+let b: char <- unwrap_or(.None, "empty");
+
+print(b);

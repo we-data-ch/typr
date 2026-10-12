@@ -1,0 +1,35 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 2 of 12  ·  Values and their types
+# =============================================================================
+#
+#  You declare a name with 'let' and give it a value with '<-', like in R.
+#  You may also say what TYPE of value it holds, after a colon:
+#
+#      let city: char <- "Geneva";
+#
+#  The compiler now remembers that 'city' is a character string, and will
+#  complain if you ever treat it as something else.
+#
+#  TypR has four primitive types:
+#
+#      int    whole numbers           42
+#      num    decimal numbers         3.14
+#      char   text (strings)          "hello"
+#      bool   true or false           true
+#
+#  Careful: 42 is an int, 42.0 is a num. TypR keeps them apart, R does not.
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE
+#
+#  Replace each '???' with the right type, so that every annotation matches
+#  its value. Then run:   typr tutor check
+#
+# -----------------------------------------------------------------------------
+
+let name: ??? <- "Ada";
+let age: ??? <- 36;
+let height: ??? <- 1.68;
+let is_admin: ??? <- false;
+
+print(name);
