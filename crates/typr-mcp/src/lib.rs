@@ -34,6 +34,10 @@
 //! see that module's docs for the handful of declared-but-dead codes it
 //! doesn't (and can't) cover.
 //!
+//! `report_issue` and the local session log close the feedback loop — see
+//! [`feedback`] for what is recorded, where, and how to turn it off
+//! (`TYPR_MCP_LOG=off`).
+//!
 //! Type checking is recursive, so a long-lived server must drive it from a
 //! large-stack thread — see [`run_stdio`].
 //!
@@ -69,6 +73,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 mod explain;
+mod feedback;
+
+use std::sync::Arc;
+use std::time::Instant;
+
+use feedback::{ReportParams, ReportResult, SessionLog};
 
 use typr_core::components::context::config::{Config, Environment};
 use typr_core::components::error_message::syntax_error::SyntaxError;
@@ -575,20 +585,46 @@ fn search_docs(query: &str) -> DocsSearchResult {
     DocsSearchResult { matches }
 }
 
+/// The server holds the session's interaction log (see [`feedback`]); the
+/// tools themselves stay pure functions of their input.
 #[derive(Clone, Default)]
-pub struct TyprMcpServer;
+pub struct TyprMcpServer {
+    log: Arc<SessionLog>,
+}
+
+impl TyprMcpServer {
+    /// Run `f`, then record its input and output in the session log.
+    fn logged<I: Serialize, O: Serialize>(&self, kind: &str, name: &str, input: &I, f: impl FnOnce() -> O) -> O {
+        let start = Instant::now();
+        let output = f();
+        self.log.record(
+            kind,
+            name,
+            serde_json::to_value(input).unwrap_or_default(),
+            serde_json::to_value(&output).unwrap_or_default(),
+            start.elapsed().as_millis(),
+        );
+        output
+    }
+}
 
 #[tool_router]
 impl TyprMcpServer {
     pub fn new() -> Self {
-        Self
+        Self {
+            log: Arc::new(SessionLog::from_env()),
+        }
     }
 
     #[tool(description = "Type-check TypR source code in-process (no filesystem, no project \
         directory) and report diagnostics with stable error codes (T0xx for type errors, \
         S0xx for syntax errors).")]
     async fn check(&self, Parameters(CheckParams { source }): Parameters<CheckParams>) -> Json<CheckResult> {
-        Json(check_source(&source))
+        Json(
+            self.logged("tool", "check", &serde_json::json!({ "source": source }), || {
+                check_source(&source)
+            }),
+        )
     }
 
     #[tool(
@@ -600,7 +636,19 @@ impl TyprMcpServer {
         trusting the output."
     )]
     async fn build(&self, Parameters(CheckParams { source }): Parameters<CheckParams>) -> Json<BuildResult> {
-        Json(build_source(&source))
+        let start = Instant::now();
+        let result = build_source(&source);
+        // The inlined std lib makes `r_code` large and identical across calls:
+        // log only the user's part of it.
+        let main_code = result.r_code.split("# === Main Code ===\n").nth(1).unwrap_or("");
+        self.log.record(
+            "tool",
+            "build",
+            serde_json::json!({ "source": source }),
+            serde_json::json!({ "ok": result.ok, "diagnostics": result.diagnostics, "main_code": main_code }),
+            start.elapsed().as_millis(),
+        );
+        Json(result)
     }
 
     #[tool(description = "Explain a TypR diagnostic code (T0xx/S0xx, from a `check`/`build` \
@@ -609,7 +657,11 @@ impl TyprMcpServer {
         produce — `found: false` means this code is declared but dead (unreachable in the \
         current compiler), so fall back to the short `message` `check`/`build` already returned.")]
     async fn explain(&self, Parameters(ExplainParams { code }): Parameters<ExplainParams>) -> Json<ExplainResult> {
-        Json(explain_code(&code))
+        Json(
+            self.logged("tool", "explain", &serde_json::json!({ "code": code }), || {
+                explain_code(&code)
+            }),
+        )
     }
 
     #[tool(description = "Search typr.github.io/docs/ by keyword and get back matching pages \
@@ -624,7 +676,40 @@ impl TyprMcpServer {
         &self,
         Parameters(DocsSearchParams { query }): Parameters<DocsSearchParams>,
     ) -> Json<DocsSearchResult> {
-        Json(search_docs(&query))
+        Json(
+            self.logged("tool", "docs_search", &serde_json::json!({ "query": query }), || {
+                search_docs(&query)
+            }),
+        )
+    }
+
+    #[tool(
+        description = "Prepare a bug report for the TypR team, ONLY when the user asks you to \
+        report a problem (or agrees when you offer to). Use it for: valid code rejected, invalid \
+        code accepted, an internal error (S000), wrong R output, a diagnostic/`explain` entry \
+        that didn't help, or a missing feature/doc. `repro` must be ANONYMIZED: never the \
+        user's code verbatim — rename identifiers, replace literals, drop unrelated lines until \
+        it is a small generic snippet that still triggers the same behavior. Pass the original \
+        failure's codes in `original_codes`; the repro is re-checked against them and \
+        `reproduced: false` means it drifted — fix the repro and call again. Nothing is sent: \
+        the result holds an `issue_url` (pre-filled GitHub issue) that you hand to the user to \
+        open, review and submit, plus the local `report_path`."
+    )]
+    async fn report_issue(&self, Parameters(params): Parameters<ReportParams>) -> Json<ReportResult> {
+        let result = feedback::build_report(&params, &self.log);
+        self.log.record(
+            "report",
+            "report_issue",
+            serde_json::json!({
+                "title": params.title,
+                "kind": params.kind,
+                "repro": params.repro,
+                "original_codes": params.original_codes,
+            }),
+            serde_json::json!({ "reproduced": result.reproduced, "report_path": result.report_path }),
+            0,
+        );
+        Json(result)
     }
 }
 
@@ -651,7 +736,11 @@ impl ServerHandler for TyprMcpServer {
              gotchas, the sanctioned ways to drop out of the type system, and a side-by-side \
              R/TypR comparison — read these to write idiomatic TypR instead of R with type \
              annotations bolted on. `typr://docs-index` lists every page on the docs site with \
-             its URL, for browsing the full table `docs_search` searches over.",
+             its URL, for browsing the full table `docs_search` searches over. \
+             `report_issue` prepares a GitHub issue for the TypR team — the language is young, \
+             so when a diagnostic looks wrong (valid code rejected, S000 internal error, R \
+             output that misbehaves) or `explain`/the docs didn't get you unstuck, tell the user \
+             and offer to report it; call it only once they agree, with an anonymized repro.",
         )
     }
 
@@ -668,7 +757,16 @@ impl ServerHandler for TyprMcpServer {
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, McpError> {
-        read_syntax_resource(&request.uri).map(Into::into)
+        let result = read_syntax_resource(&request.uri);
+        // Log which resources the agent reads, not their (static) contents.
+        self.log.record(
+            "resource",
+            &request.uri,
+            serde_json::Value::Null,
+            serde_json::json!({ "ok": result.is_ok() }),
+            0,
+        );
+        result.map(Into::into)
     }
 }
 
