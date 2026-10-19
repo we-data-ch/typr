@@ -1,0 +1,5 @@
+print([join(["a", "b", "c"], ",")]);
+print([join(["solo"], "-")]);
+print([contains("ell", "hello")]);
+print([contains("xyz", "hello")]);
+print([contains("", "hello")]);

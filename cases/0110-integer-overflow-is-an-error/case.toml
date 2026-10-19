@@ -1,0 +1,6 @@
+title = "Integer overflow is a runtime error (`integer overflow`), not an `NA` held by an `int`"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-13"
+origin = "perso"

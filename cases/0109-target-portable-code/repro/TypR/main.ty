@@ -1,0 +1,9 @@
+@extern(r = "stats::median", rust = "typr_std::stats::median")
+med: (x: [#N, num]) -> num;
+
+let area <- fn(x: num): num { x * x };
+
+let count <- fn(n: int): int { if (n == 0) { 0 } else { count(n - 1) } };
+
+@pub
+let both <- fn(xs: [#N, num]): num { med(xs) };

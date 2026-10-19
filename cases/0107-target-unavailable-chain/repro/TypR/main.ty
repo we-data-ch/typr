@@ -1,0 +1,7 @@
+let summarise <- fn(path: char): Any {
+    R { readr::read_csv(path) }
+};
+
+let load <- fn(path: char): Any { summarise(path) };
+
+let main <- fn(): Any { load("data.csv") };

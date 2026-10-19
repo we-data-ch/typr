@@ -201,6 +201,36 @@ avec succès — mais ce corps est **silencieusement jeté** : seule la paire `(
 Le seul patron qui marche pour la stdlib est signature seule + implémentation R écrite à la main
 dans `std.R`.
 
+#### Cibles de compilation (`rfcs/0000-compilation-targets.md`, Step 1)
+
+Chaque définition de premier niveau a un **ensemble de disponibilité** (les cibles `r`, `rust`
+où elle peut être compilée), *inféré* depuis ce qu'elle utilise ; `typr check` refuse (T052) une
+racine (`main`, membre `@pub`/`@export`, niveau supérieur) qui dépend de quelque chose d'absent
+d'une cible demandée. Pas de backend Rust encore : seule la vérification existe.
+
+```typr
+@extern(r = "stats::median", rust = "typr_std::stats::median")   # un externe par cible, sans corps
+median: (x: [#N, num]) -> num;
+
+@extern(r = "base::rev")        # externe pour `r`, le corps ci-dessous sert aux autres cibles
+let rev <- fn(xs: [#N, T]): [#N, T] { ... };
+
+@target(r)                      # borne supérieure vérifiée ; @target(r, rust) = « doit rester portable » (T053)
+let plot_results <- fn(...): Empty { ... };
+```
+
+| Forme | Sens |
+|---|---|
+| `@extern pkg::f: T;` | inchangé ; sucre pour `@extern(r = "pkg::f") f: T;` |
+| `@extern(r = "…", rust = "…") nom: T;` | externe sans corps, une implémentation par cible |
+| `@extern(rust = "…")` devant un `let` | externe pour certaines cibles, corps TypR pour les autres |
+| `@target(r, rust)` | cibles *déclarées* ; vérifié (T053) et appliqué |
+| `#! targets: r, rust` | métadonnée `.ty` : disponibilité d'une entrée de la stdlib (absente = `r` seul) |
+
+Nom de cible inconnu : erreur S021. `typr.toml` : `[project] targets = ["r", "rust"]` (défaut
+`["r"]`) ; `typr check --target rust` vérifie une seule cible. Hors portée du Step 1 : résolution
+inter-fichiers/inter-modules, alias de type qui cachent un `dataframe`/`Foreign<T>`.
+
 #### `Foreign<T>` — valeurs R externes opaques
 
 `opaque Foreign<T> <- Any;` (`configs/std/foreign.ty`) est le type compagnon idiomatique de

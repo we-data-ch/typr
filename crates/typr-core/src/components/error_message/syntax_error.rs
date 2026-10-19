@@ -1,3 +1,4 @@
+use crate::components::context::config::Target;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::help_message::SingleBuilder;
@@ -38,6 +39,11 @@ pub enum SyntaxError {
         help_data: HelpData,
     },
     MutationTargetNotAssignable(HelpData),
+    /// `@target(rus)` / `@extern(js2 = ...)`: a target name the compiler doesn't know.
+    UnknownTarget {
+        name: String,
+        help_data: HelpData,
+    },
     WrongCommentSyntax(HelpData),
     SingleEqualsComparison(HelpData),
     TupleDestructureArityMismatch {
@@ -82,6 +88,7 @@ impl SyntaxError {
             SyntaxError::TupleDestructureArityMismatch { help_data, .. } => Some(help_data.clone()),
             SyntaxError::DetachedBoundSuffix(h) => Some(h.clone()),
             SyntaxError::HiddenNameAfterDot(h) => Some(h.clone()),
+            SyntaxError::UnknownTarget { help_data, .. } => Some(help_data.clone()),
             SyntaxError::PublicHiddenName { help_data, .. } => Some(help_data.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
@@ -114,6 +121,7 @@ impl SyntaxError {
             SyntaxError::DetachedBoundSuffix(..) => "S018",
             SyntaxError::HiddenNameAfterDot(..) => "S019",
             SyntaxError::PublicHiddenName { .. } => "S020",
+            SyntaxError::UnknownTarget { .. } => "S021",
             SyntaxError::WithNode(_, inner) => inner.code(),
         }
     }
@@ -188,6 +196,10 @@ impl SyntaxError {
             SyntaxError::PublicHiddenName { name, annotation, .. } => {
                 format!("`{name}` is a hidden name (leading `.`/`__`), private by definition — it can't be `{annotation}`")
             }
+            SyntaxError::UnknownTarget { name, .. } => format!(
+                "Unknown target `{name}`: valid targets are {}",
+                Target::NAMES.join(", ")
+            ),
             SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
     }
@@ -413,6 +425,16 @@ impl ErrorMsg for SyntaxError {
                     .text("A hidden name can't follow the `.` operator")
                     .pos_text("`..` here reads as the spread token")
                     .help("Spell the hidden name with `__` after a dot (`x.__f()`, `r.__a`), or use the pipe: `x |> .f()`")
+                    .build()
+            }
+            SyntaxError::UnknownTarget { name, help_data } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), name.len()))
+                    .text(format!("Unknown target `{name}`"))
+                    .pos_text("Not a compilation target")
+                    .help(format!("Valid targets: {}", Target::NAMES.join(", ")))
                     .build()
             }
             SyntaxError::PublicHiddenName {

@@ -1,0 +1,6 @@
+title = "T052: a root that needs an R-only definition fails on target `rust`, naming the chain (compilation-targets RFC, Step 1)"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-13"
+origin = "perso"

@@ -53,6 +53,8 @@ pub mod metaprogramming;
 pub mod progress;
 pub mod project;
 pub mod r_deps;
+pub mod r_env;
+pub mod r_manifest;
 pub mod r_name_cache;
 pub mod r_name_lint;
 pub mod rd_renderer;

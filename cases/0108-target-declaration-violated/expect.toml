@@ -1,0 +1,7 @@
+[[rule]]
+file = "@run"
+must_contain = "is declared `@target(r, rust)` but is not"
+
+[[rule]]
+file = "@run"
+must_not_contain = "Code verification successful!"

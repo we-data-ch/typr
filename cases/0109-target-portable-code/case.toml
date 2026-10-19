@@ -1,0 +1,6 @@
+title = "Portable code (records-free arithmetic, recursion, extern with a rust implementation) checks on `r` and `rust`"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-13"
+origin = "perso"

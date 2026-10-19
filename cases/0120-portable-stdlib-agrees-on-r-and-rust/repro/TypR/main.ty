@@ -1,0 +1,10 @@
+let inc <- fn(x: int): int { x + 1 };
+let big <- fn(x: int): bool { x > 2 };
+let xs <- [1, 2, 3, 4];
+print(map(xs, inc));
+print(filter(xs, big));
+print([reduce(xs, fn(a: int, b: int): int { a + b })]);
+print([fold(xs, 10, fn(a: int, b: int): int { a + b })]);
+print(extend(xs, 5));
+print([startsWith("hello", "hel")]);
+print([endsWith("hello", "hel")]);

@@ -22,6 +22,11 @@ pub struct FunctionMeta {
     /// Only set when a break is *known*, never speculative. Same scope as
     /// `since`.
     pub until: Option<String>,
+    /// `#! targets: r, rust` — the targets the entry is available on
+    /// (rfcs/0000-compilation-targets.md §4). `None`: not declared, which means
+    /// `r` only. Unknown target names are dropped here; they are rejected where
+    /// the sources are authored (`@target`, `@extern`).
+    pub targets: Option<std::collections::BTreeSet<crate::components::context::config::Target>>,
 }
 
 impl FunctionMeta {
@@ -51,6 +56,7 @@ impl FunctionMeta {
             || self.pkg.is_some()
             || self.since.is_some()
             || self.until.is_some()
+            || self.targets.is_some()
     }
 }
 
@@ -114,6 +120,15 @@ pub fn parse_meta_from_source(source: &str) -> HashMap<String, FunctionMeta> {
                     "since" => {
                         let target = pending_meta.get_or_insert_with(FunctionMeta::default);
                         target.since = Some(strip_leading_colon(value));
+                    }
+                    "targets" => {
+                        let target = pending_meta.get_or_insert_with(FunctionMeta::default);
+                        target.targets = Some(
+                            strip_leading_colon(value)
+                                .split(',')
+                                .filter_map(|t| t.trim().parse().ok())
+                                .collect(),
+                        );
                     }
                     "until" => {
                         let target = pending_meta.get_or_insert_with(FunctionMeta::default);
@@ -188,7 +203,12 @@ fn extract_signature_name(line: &str) -> Option<String> {
         }
     }
     let sep = sep?;
+    // `@extern(r = "...", rust = "...") name: T;` — the name follows the argument list.
     let head = &rest[..sep];
+    let head = match head.strip_prefix("extern(").and_then(|h| h.rsplit_once(')')) {
+        Some((_, after)) => after,
+        None => head,
+    };
     let name = head
         .strip_prefix("extern ")
         .map(|n| n.rsplit("::").next().unwrap_or(n))

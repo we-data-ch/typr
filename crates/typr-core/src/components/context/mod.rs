@@ -5,7 +5,7 @@ pub mod vartype;
 
 use crate::components::context::config::Config;
 use crate::components::context::config::Environment;
-use crate::components::context::config::TargetLanguage;
+use crate::components::context::config::Target;
 use crate::components::context::graph::Graph;
 use crate::components::context::unification_map::UnificationMap;
 use crate::components::context::vartype::VarType;
@@ -1332,7 +1332,7 @@ impl Context {
 
     pub fn get_type_definition(&self, _functions: &VarFunction) -> String {
         match self.get_target_language() {
-            TargetLanguage::R => self
+            Target::R | Target::Rust => self
                 .typing_context
                 .aliases
                 .iter()
@@ -1340,7 +1340,7 @@ impl Context {
                 .chain(self.get_primitive_type_definition().iter().cloned())
                 .collect::<Vec<_>>()
                 .join("\n"),
-            TargetLanguage::JS => {
+            Target::JS => {
                 todo!();
             }
         }
@@ -1353,7 +1353,7 @@ impl Context {
         }
     }
 
-    pub fn set_target_language(self, language: TargetLanguage) -> Self {
+    pub fn set_target_language(self, language: Target) -> Self {
         Self {
             config: self.config.set_target_language(language),
             typing_context: self.typing_context.source(language),
@@ -1368,7 +1368,7 @@ impl Context {
         }
     }
 
-    pub fn get_target_language(&self) -> TargetLanguage {
+    pub fn get_target_language(&self) -> Target {
         self.config.get_target_language()
     }
 

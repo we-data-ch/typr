@@ -41,6 +41,12 @@ pub struct HelpData {
 }
 
 impl HelpData {
+    /// A position given by its parts, for diagnostics raised from a representation that no longer
+    /// carries the parser's `HelpData` (the typed IR keeps file and offsets).
+    pub fn at(file_name: impl Into<String>, offset: usize, end: usize) -> Self {
+        HelpData { offset, end, file_name: file_name.into() }
+    }
+
     pub fn get_offset(&self) -> usize {
         self.offset
     }

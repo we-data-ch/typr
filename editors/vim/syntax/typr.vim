@@ -52,7 +52,7 @@ syn keyword typrKeywordsOperatorWord and or in
 syn match   typrKeywordsCast "\v<%(as\!|as)[A-Za-z0-9_]@!"
 syn keyword typrKeywordsDeclaration let fn function type opaque typeconstructor recursive interface record object module mod import use extern embed
 syn keyword typrKeywordsControl if else match for while loop break next return
-syn match   typrAnnotations "\v%(\@importFrom|\@testable|\@export|\@extern|\@pub)[A-Za-z0-9_]@!"
+syn match   typrAnnotations "\v%(\@importFrom|\@testable|\@export|\@extern|\@target|\@pub)[A-Za-z0-9_]@!"
 syn match   typrNumbersInteger "\v<[0-9]+>"
 syn match   typrNumbersFloat "\v<[0-9]+\.[0-9]+>"
 syn region  typrStringsBacktick start=+`+ end=+`+

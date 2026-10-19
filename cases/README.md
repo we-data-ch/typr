@@ -113,7 +113,7 @@ projet** :
    (fichier:ligne). Optionnel : un fichier `.case.md` à la racine pour une description plus longue.
 
 2. `typr case snapshot [slug]` → produit un bundle auto-portant `<slug>.case/` **dans le projet** :
-   - `repro/` = copie curatée (`TypR/` + `DESCRIPTION`/`NAMESPACE`, sans `renv/`, `.git/`, etc.) ;
+   - `repro/` = copie curatée (`TypR/` + `DESCRIPTION`/`NAMESPACE`, sans `.uvr/`, `.git/`, etc.) ;
    - `case.toml` / `expect.md` (depuis `.case.md` + marqueurs) / `expect.toml` (squelette) ;
    - `observed.txt` = build capturé du snapshot ;
    - crée un `.case.md` squelette s'il n'existe pas encore.
@@ -157,7 +157,7 @@ typr case show <id>
 
 Pour un cas `r-run` créé depuis un vrai projet : `typr case add <slug> --from <dir> --cmd run
 --layer r-run` (`add` curate la copie comme `snapshot` — `TypR/` + `DESCRIPTION`/`NAMESPACE`
-seulement, sans `renv/`/`.git/`).
+seulement, sans `.uvr/`/`.git/`).
 
 `run` rejoue chaque cas en réinvoquant ce même binaire `typr` (via `current_exe`) sur une copie
 temporaire de `repro/` — un rebuild est donc pris en compte automatiquement (pas de `--build`).

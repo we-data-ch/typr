@@ -1,0 +1,1 @@
+Documented divergence (Step 5). `pick(false, [1, 2], [3, 4])` returns a value that, on `r`, prints with `attr(,"class")` `"integer" "State" "Any" "None"`; the `rust` target prints `[1] 3 4`. The class is an artefact of how the R target wraps an `Any` argument; it is not part of the portable meaning.

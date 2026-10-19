@@ -1,0 +1,1 @@
+Differential case (Step 5): a function defined for several types is resolved statically on `rust` (the R target dispatches in S3), and a parameter typed by an interface is an implicit type parameter, monomorphised per caller.

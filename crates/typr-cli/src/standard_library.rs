@@ -331,6 +331,22 @@ const R_T1_SOURCES: &[(&str, &str)] = &[
     ("ord.ty", ORD_TY),
 ];
 
+/// The standard-library entries that declare `#! targets:` (rfcs/0000-compilation-targets.md §4),
+/// by name, read from the T1 sources the compiler sees. An entry that doesn't declare is `r` only.
+/// The granularity is the name: an overloaded name is available on a target as soon as one of its
+/// signatures declares it, and the backend refuses the argument types it doesn't implement.
+pub fn declared_targets() -> std::collections::HashMap<String, std::collections::BTreeSet<typr_core::components::context::config::Target>> {
+    let mut out: std::collections::HashMap<String, std::collections::BTreeSet<_>> = Default::default();
+    for (_, source) in R_T1_SOURCES {
+        for (name, meta) in parse_meta_from_source(source) {
+            if let Some(targets) = meta.targets {
+                out.entry(name.trim_matches('`').to_string()).or_default().extend(targets);
+            }
+        }
+    }
+    out
+}
+
 /// Doc-only R `.ty` sources (tier T2/mixed): consumed by `typr std doc`
 /// (Sink A / MCP) but NEVER part of `.std_r_typed.bin` — the compiler sees
 /// T2 entries as `UnknownFunction`, keeping zero memory cost.
@@ -1028,6 +1044,26 @@ pub fn standard_library() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Step 7: what the `.ty` sources declare portable and what the Rust backend implements are the
+    /// same list. A tag without an implementation would pass the availability pass and then fail in
+    /// the backend; an implementation without a tag would be unreachable.
+    #[test]
+    fn declared_rust_targets_match_the_backend_intrinsics() {
+        use typr_core::components::context::config::Target;
+        use typr_core::processes::rust_backend::{INTRINSICS, UNDECLARABLE_INTRINSICS};
+        let declared: std::collections::BTreeSet<String> = declared_targets()
+            .into_iter()
+            .filter(|(_, t)| t.contains(&Target::Rust))
+            .map(|(n, _)| n)
+            .collect();
+        let implemented: std::collections::BTreeSet<String> = INTRINSICS
+            .iter()
+            .filter(|n| !UNDECLARABLE_INTRINSICS.contains(n))
+            .map(|n| n.to_string())
+            .collect();
+        assert_eq!(declared, implemented);
+    }
 
     /// A stdlib file that fails to parse must be reported as skipped with a
     /// real, non-generic message (not silently dropped, not the

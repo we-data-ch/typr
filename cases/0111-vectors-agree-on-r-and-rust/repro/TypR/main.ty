@@ -1,0 +1,15 @@
+let v <- [1, 2, 3];
+print(v + [10, 20, 30]);
+print(v * 2);
+print(v + [1, 2]);
+print([1.5, 2.0, 3.25]);
+print(v == [1, 5, 3]);
+print(["a", "bcd"]);
+print(v[2]);
+print(v[1:2]);
+print(length(v));
+print(sum(v));
+print(1:30);
+let total <- fn(xs: [#N, int]): int { let acc <- 0; for (x in xs) { acc = acc + x; }; acc };
+let n <- total(v);
+print(c(n));

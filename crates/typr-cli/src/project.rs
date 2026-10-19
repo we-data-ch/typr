@@ -17,7 +17,9 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+use typr_core::processes::rust_backend::Platform;
 use typr_core::components::context::config::Environment;
+use typr_core::components::context::config::Target;
 use typr_core::components::context::Context;
 use typr_core::components::error_message::help_message::ErrorMsg;
 use typr_core::components::error_message::syntax_error::SyntaxError;
@@ -100,6 +102,7 @@ fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
                 | SyntaxError::TupleDestructureArityMismatch { .. }
                 | SyntaxError::HiddenNameAfterDot(..)
                 | SyntaxError::PublicHiddenName { .. }
+                | SyntaxError::UnknownTarget { .. }
         )
     });
     if !warnings.is_empty() {
@@ -629,7 +632,7 @@ pub fn write_to_r_lang(content: String, output_dir: &Path, file_name: &str, envi
     }
 }
 
-pub fn new(name: &str, renv: bool) {
+pub fn new(name: &str, uvr: bool) {
     println!("Creating the R package '{}'...", name);
 
     let current_dir = match std::env::current_dir() {
@@ -731,8 +734,8 @@ pub fn new(name: &str, renv: bool) {
 
     println!("Package R '{}' successfully created!", name);
 
-    if renv {
-        renv_init(&project_path);
+    if uvr {
+        uvr_init(name, &project_path);
     }
 
     let package_structure = include_str!("../configs/package_structure.md").replace("{{PACKAGE_NAME}}", name);
@@ -742,7 +745,74 @@ pub fn new(name: &str, renv: bool) {
     println!("{}", instructions);
 }
 
-pub fn check_project() {
+/// The targets a project builds for: `[project] targets` in `typr.toml`
+/// (rfcs/0000-compilation-targets.md §7), `["r"]` when absent so an existing
+/// project is unchanged. An unknown name stops the command.
+pub fn project_targets(root: &Path) -> Vec<Target> {
+    let declared = fs::read_to_string(root.join(crate::type_registry::PROJECT_CONFIG_NAME))
+        .ok()
+        .and_then(|src| src.parse::<toml::Value>().ok())
+        .and_then(|v| v.get("project")?.get("targets")?.as_array().cloned());
+    let Some(names) = declared else { return vec![Target::R] };
+    let mut targets = Vec::new();
+    for name in names.iter().filter_map(|n| n.as_str()) {
+        match name.parse::<Target>() {
+            Ok(t) if !targets.contains(&t) => targets.push(t),
+            Ok(_) => {}
+            Err(bad) => {
+                eprintln!(
+                    "error: unknown target `{bad}` in typr.toml [project] targets (valid: {})",
+                    Target::NAMES.join(", ")
+                );
+                std::process::exit(1);
+            }
+        }
+    }
+    if targets.is_empty() {
+        vec![Target::R]
+    } else {
+        targets
+    }
+}
+
+/// `--target t` narrows the check to one target; it must be one the project declares.
+fn targets_to_check(root: &Path, requested: Option<&str>) -> Vec<Target> {
+    let declared = project_targets(root);
+    let Some(name) = requested else { return declared };
+    match name.parse::<Target>() {
+        // A one-off `--target rust` on an `r`-only project is how you ask
+        // "how far is this project from portable?" (RFC §Step 1), so it needn't be declared.
+        Ok(t) => vec![t],
+        Err(bad) => {
+            eprintln!(
+                "error: unknown target `{bad}` (valid: {})",
+                Target::NAMES.join(", ")
+            );
+            std::process::exit(1);
+        }
+    }
+}
+
+/// The availability pass (RFC §4): every root must be available on every
+/// checked target. Returns whether it found an error.
+fn check_availability(lang: &Lang, context: &Context, targets: &[Target]) -> bool {
+    let stdlib = typr_core::processes::availability::StdlibAvailability::from_context(context)
+        .with_targets(crate::standard_library::declared_targets());
+    let errors = typr_core::processes::availability::check(lang, &stdlib, targets);
+    if errors.is_empty() {
+        return false;
+    }
+    let step = Step::new("Checking targets");
+    step.fail();
+    eprintln!("Target availability errors found:");
+    for error in errors {
+        eprintln!("{}", error.display());
+    }
+    true
+}
+
+pub fn check_project(target: Option<&str>) {
+    let targets = targets_to_check(Path::new("."), target);
     let context = crate::standard_library::load_project_type_definitions(
         Path::new("."),
         Context::default().set_environment(Environment::Project),
@@ -765,13 +835,18 @@ pub fn check_project() {
         std::process::exit(1);
     }
     step.done();
+    if check_availability(&lang, &context, &targets) {
+        std::process::exit(1);
+    }
+    crate::r_manifest::warn(Path::new("."));
     println!("Code verification successful!");
 }
 
-pub fn check_file(path: &PathBuf) {
+pub fn check_file(path: &PathBuf, target: Option<&str>) {
     // The file may be given from anywhere inside the project (e.g. from
     // `TypR/`), so anchor everything on the project root, not the cwd.
     let dir = crate::metaprogramming::find_project_root(&path.to_string_lossy()).unwrap_or_else(|| PathBuf::from("."));
+    let targets = targets_to_check(&dir, target);
     let context = crate::standard_library::load_project_type_definitions(
         &dir,
         Context::default().set_environment(Environment::Project),
@@ -796,7 +871,210 @@ pub fn check_file(path: &PathBuf) {
         std::process::exit(1);
     }
     step.done();
+    if check_availability(&lang, &context, &targets) {
+        std::process::exit(1);
+    }
+    crate::r_manifest::warn(&dir);
     println!("File verification {:?} successful!", path);
+}
+
+/// The target `typr build|run` works for: `--target`, else the first target the project
+/// declares (`r` for a bare file or an old project).
+pub fn build_target(file: Option<&Path>, requested: Option<&str>) -> Target {
+    if let Some(name) = requested {
+        return name.parse::<Target>().unwrap_or_else(|bad| {
+            eprintln!("error: unknown target `{bad}` (valid: {})", Target::NAMES.join(", "));
+            std::process::exit(1);
+        });
+    }
+    let root = match file {
+        Some(f) => crate::metaprogramming::find_project_root(&f.to_string_lossy()),
+        None => Some(PathBuf::from(".")),
+    };
+    root.map(|r| project_targets(&r)).and_then(|t| t.first().copied()).unwrap_or(Target::R)
+}
+
+/// `typr build|run --target rust` (rfcs/0000-compilation-targets.md §7, Step 3): type-check,
+/// check availability on `rust`, lower to the typed IR, write a Cargo project under
+/// `target/rust/` and build it. `file` is a single source file; without it the project's
+/// `TypR/main.ty` is used. Returns the path of the generated manifest.
+pub fn rust_build(file: Option<&Path>, run: bool, platform: Option<&str>) {
+    let entry = file.map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("TypR/main.ty"));
+    let root = crate::metaprogramming::find_project_root(&entry.to_string_lossy()).unwrap_or_else(|| PathBuf::from("."));
+    let context = crate::standard_library::load_project_type_definitions(
+        &root,
+        Context::default().set_environment(Environment::Project),
+    );
+    write_std_for_type_checking(&root);
+
+    let step = Step::new("Parsing");
+    let (lang, syntax_errors) = parse_code(&entry, context.get_environment());
+    if report_syntax_errors(syntax_errors) {
+        step.fail();
+        std::process::exit(1);
+    }
+    step.done();
+
+    let step = Step::new("Type checking");
+    let (program, errors) = typr_core::processes::ir::check_and_lower(&context, &lang);
+    if !errors.is_empty() {
+        step.fail();
+        eprintln!("Type errors found:");
+        for error in errors {
+            eprintln!("{}", error.display());
+        }
+        std::process::exit(1);
+    }
+    step.done();
+    if check_availability(&lang, &context, &[Target::Rust]) {
+        std::process::exit(1);
+    }
+
+    let platform = rust_platform(&root, platform);
+    if run && platform != Platform::Bin {
+        eprintln!("error: `typr run` needs the `bin` platform; `{platform}` produces a library (use `typr build`)");
+        std::process::exit(1);
+    }
+    if platform == Platform::Extendr {
+        let errors = typr_core::processes::rust_backend::boundary_errors(&program);
+        if !errors.is_empty() {
+            let step = Step::new("Checking the R boundary");
+            step.fail();
+            eprintln!("Export errors found:");
+            for error in errors {
+                eprintln!("{}", error.display());
+            }
+            std::process::exit(1);
+        }
+    }
+
+    let step = Step::new("Generating Rust");
+    let crate_name = rust_crate_name(&root);
+    let options = typr_core::processes::rust_backend::Options { platform, module_name: crate_name.clone() };
+    let generated = match typr_core::processes::rust_backend::emit_with(&program, &options) {
+        Ok(out) => out,
+        Err(errors) => {
+            step.fail();
+            eprintln!("Cannot compile to `rust`:");
+            for e in errors {
+                eprintln!("  - {e}");
+            }
+            std::process::exit(1);
+        }
+    };
+    let out = root.join("target").join("rust");
+    if let Err(e) = fs::create_dir_all(out.join("src")) {
+        step.fail();
+        eprintln!("error: cannot create {}: {e}", out.display());
+        std::process::exit(1);
+    }
+    let (lib_section, dependencies) = match platform {
+        Platform::Bin => ("", ""),
+        Platform::Lib => ("\n[lib]\npath = \"src/lib.rs\"\n", ""),
+        Platform::Wasm => ("\n[lib]\npath = \"src/lib.rs\"\ncrate-type = [\"cdylib\"]\n", ""),
+        Platform::Extendr => (
+            "\n[lib]\npath = \"src/lib.rs\"\ncrate-type = [\"staticlib\"]\n",
+            "extendr-api = \"*\"\n",
+        ),
+    };
+    let manifest = format!(
+        "# Generated by `typr build --target rust`. A build artifact: do not edit.\n[package]\nname = \"{crate_name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n{lib_section}\n[workspace]\n\n[dependencies]\n{dependencies}"
+    );
+    let mut written = fs::write(out.join("Cargo.toml"), manifest).is_ok()
+        && fs::write(out.join("src").join(platform.entry_file()), &generated.source).is_ok();
+    if let Some(wrappers) = &generated.r_wrappers {
+        written = written && fs::create_dir_all(out.join("R")).is_ok() && fs::write(out.join("R").join("extendr-wrappers.R"), wrappers).is_ok();
+    }
+    if !written {
+        step.fail();
+        eprintln!("error: cannot write the Cargo project under {}", out.display());
+        std::process::exit(1);
+    }
+    step.done();
+
+    let mut cargo = Command::new("cargo");
+    cargo
+        .arg(if run { "run" } else { "build" })
+        .arg("--quiet")
+        .arg("--manifest-path")
+        .arg(out.join("Cargo.toml"));
+    if platform == Platform::Wasm {
+        cargo.args(["--target", "wasm32-unknown-unknown"]);
+    }
+    match cargo.status() {
+        Ok(status) if status.success() => {
+            if !run {
+                println!("Rust project built in {}", out.display());
+            }
+        }
+        Ok(status) => std::process::exit(status.code().unwrap_or(1)),
+        Err(e) => {
+            eprintln!("error: cannot run `cargo`: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// `--platform`, else `[rust] platform` in `typr.toml`, else `bin`.
+fn rust_platform(root: &Path, requested: Option<&str>) -> Platform {
+    let configured = fs::read_to_string(root.join(crate::type_registry::PROJECT_CONFIG_NAME))
+        .ok()
+        .and_then(|src| src.parse::<toml::Value>().ok())
+        .and_then(|v| v.get("rust")?.get("platform")?.as_str().map(String::from));
+    match requested.map(String::from).or(configured) {
+        None => Platform::Bin,
+        Some(name) => name.parse::<Platform>().unwrap_or_else(|bad| {
+            eprintln!("error: unknown platform `{bad}` (valid: {})", Platform::NAMES.join(", "));
+            std::process::exit(1);
+        }),
+    }
+}
+
+/// `[rust] crate_name` in `typr.toml`, else the project directory's name in snake case.
+fn rust_crate_name(root: &Path) -> String {
+    let configured = fs::read_to_string(root.join(crate::type_registry::PROJECT_CONFIG_NAME))
+        .ok()
+        .and_then(|src| src.parse::<toml::Value>().ok())
+        .and_then(|v| v.get("rust")?.get("crate_name")?.as_str().map(String::from));
+    let raw = configured.unwrap_or_else(|| {
+        root.canonicalize()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+            .unwrap_or_else(|| "typr_out".to_string())
+    });
+    let mut name: String = raw
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '_' })
+        .collect();
+    if name.is_empty() || name.starts_with(|c: char| c.is_ascii_digit()) {
+        name.insert_str(0, "typr_");
+    }
+    name
+}
+
+/// `typr ir FILE`: type-check a file and print its typed IR. Type errors are reported and stop
+/// the command: an IR with `?` types is not worth reading.
+pub fn ir_file(path: &PathBuf) {
+    let dir = crate::metaprogramming::find_project_root(&path.to_string_lossy()).unwrap_or_else(|| PathBuf::from("."));
+    let context = crate::standard_library::load_project_type_definitions(
+        &dir,
+        Context::default().set_environment(Environment::Project),
+    );
+    write_std_for_type_checking(&dir);
+
+    let (lang, syntax_errors) = parse_code(path, context.get_environment());
+    if report_syntax_errors(syntax_errors) {
+        std::process::exit(1);
+    }
+    let (program, errors) = typr_core::processes::ir::check_and_lower(&context, &lang);
+    if !errors.is_empty() {
+        eprintln!("Type errors found:");
+        for error in errors {
+            eprintln!("{}", error.display());
+        }
+        std::process::exit(1);
+    }
+    print!("{program}");
 }
 
 /// Build a ROxygen2 comment block for a function node from the SPG.
@@ -1205,7 +1483,7 @@ pub fn run_in_project(profile: bool, checked_mode: bool, strict_mode: bool) {
         base_command.to_string()
     };
     let step = Step::new("Running");
-    match Command::new("Rscript").arg("-e").arg(&r_command).output() {
+    match crate::r_env::current_env().rscript_eval(&r_command).command().output() {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1243,7 +1521,7 @@ pub fn run_file(path: &Path) {
     run_file_impl(path, false, false, false, false);
 }
 
-/// run the file while keeping the generated 
+/// run the file while keeping the generated
 /// R files (app.R, std.R, types.R, generic_functions.R)
 pub fn run_file_keep_R_files(path: &Path, profile: bool, checked_mode: bool, strict_mode: bool) {
     run_file_impl(path, true, profile, checked_mode, strict_mode);
@@ -1404,13 +1682,17 @@ if (is.null(p) || nrow(p$by.self) == 0L) {{
 "#,
             r_path_str = r_path_str
         );
-        Command::new("Rscript")
+        crate::r_env::project_env(work_dir)
+            .rscript_eval(&profile_script)
+            .command()
             .current_dir(work_dir)
-            .arg("-e")
-            .arg(&profile_script)
             .output()
     } else {
-        Command::new("Rscript").current_dir(work_dir).arg(&r_path).output()
+        crate::r_env::project_env(work_dir)
+            .rscript_file(&r_path)
+            .command()
+            .current_dir(work_dir)
+            .output()
     }
 }
 
@@ -1438,7 +1720,7 @@ pub fn test(profile: bool) {
 
     println!("Execution of: R -e \"{}\"", r_command);
 
-    let output = Command::new("R").arg("-e").arg(&r_command).output();
+    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
 
     match output {
         Ok(output) => {
@@ -1537,119 +1819,75 @@ pub fn generate_spg(output: Option<PathBuf>) {
     println!("Semantic graph written to {:?}", out_path);
 }
 
-pub fn renv_init(project_path: &std::path::Path) {
-    println!("Initializing renv...");
-
-    let r_command = "renv::init()";
-    println!("Executing: R -e \"{}\"", r_command);
-
-    let output = Command::new("R")
-        .arg("-e")
-        .arg(r_command)
-        .current_dir(project_path)
-        .output();
-
-    match output {
-        Ok(output) => {
-            if output.status.success() {
-                println!("renv initialized successfully!");
-
-                if !output.stdout.is_empty() {
-                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
-                }
-            } else {
-                eprintln!("Warning: renv initialization may have failed");
-                if !output.stderr.is_empty() {
-                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
-                }
+/// Run `cmd` (a uvr/R subprocess), streaming nothing but reporting failures.
+/// Returns `true` on success.
+fn run_cmd(cmd: &crate::r_env::Cmd, dir: Option<&Path>) -> bool {
+    let mut command = cmd.command();
+    if let Some(dir) = dir {
+        command.current_dir(dir);
+    }
+    match command.output() {
+        Ok(output) if output.status.success() => {
+            if !output.stdout.is_empty() {
+                println!("\n{}", String::from_utf8_lossy(&output.stdout));
             }
+            true
+        }
+        Ok(output) => {
+            if !output.stderr.is_empty() {
+                eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
+            }
+            false
         }
         Err(e) => {
-            eprintln!("Warning: Could not execute renv::init(): {}", e);
-            eprintln!("Make sure that renv is installed (install.packages('renv')).");
+            eprintln!("Error executing `{}`: {}", cmd.program, e);
+            false
         }
     }
 }
 
-pub fn renv_snapshot() {
-    println!("Taking renv snapshot...");
+/// R packages every uvr project of ours needs as dev-dependencies.
+pub const UVR_DEV_PACKAGES: [&str; 3] = ["devtools", "testthat", "usethis"];
 
-    let r_command = "renv::snapshot()";
-    println!("Executing: R -e \"{}\"", r_command);
-
-    let output = Command::new("R").arg("-e").arg(r_command).output();
-
-    match output {
-        Ok(output) => {
-            if output.status.success() {
-                println!("renv snapshot saved successfully!");
-
-                if !output.stdout.is_empty() {
-                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
-                }
-            } else {
-                eprintln!("Warning: renv snapshot may have failed");
-                if !output.stderr.is_empty() {
-                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
-                }
-            }
-        }
-        Err(e) => {
-            eprintln!("Warning: Could not execute renv::snapshot(): {}", e);
-        }
+/// `typr new`: set up the uvr environment. A missing uvr is not fatal — the
+/// project exists either way — but is reported with what to run later.
+pub fn uvr_init(name: &str, project_path: &Path) {
+    use crate::r_env;
+    if let Err(msg) = r_env::require_uvr() {
+        eprintln!("Warning: {}\nThe project was created without a uvr environment; \
+                   run `uvr init --here {}` once uvr is installed.", msg, name);
+        return;
+    }
+    println!("Initializing uvr...");
+    if !run_cmd(&r_env::init(name, false), Some(project_path)) {
+        eprintln!("Warning: `uvr init` failed; run it yourself in '{}'.", project_path.display());
+        return;
+    }
+    let dev: Vec<String> = UVR_DEV_PACKAGES.iter().map(|p| p.to_string()).collect();
+    println!("Installing dev dependencies: {}", dev.join(", "));
+    if run_cmd(&r_env::add_packages(&dev, true), Some(project_path)) {
+        println!("uvr initialized successfully!");
+    } else {
+        eprintln!("Warning: could not install the dev dependencies; run `uvr add --dev {}`.", dev.join(" "));
     }
 }
 
-fn is_renv_active() -> bool {
-    std::env::current_dir()
-        .map(|d| d.join("renv.lock").exists())
-        .unwrap_or(false)
+/// The current project's uvr environment, or exit with a hint: every package
+/// installation goes through uvr.
+fn require_uvr_project() {
+    if let Err(msg) = crate::r_env::require_uvr() {
+        eprintln!("Error: {}", msg);
+        std::process::exit(1);
+    }
+    if crate::r_env::current_env().root().is_none() {
+        eprintln!("Error: no `uvr.toml` found. Run `uvr init --here <name>` in the project first.");
+        std::process::exit(1);
+    }
 }
 
 pub fn pkg_install(packages: Option<&[String]>) {
     match packages {
-        Some(pkgs) if !pkgs.is_empty() => {
-            let renv = is_renv_active();
-
-            let r_command = if renv {
-                println!("Installing packages via renv: {:?}", pkgs);
-                let pkgs_str = pkgs.iter().map(|p| format!("'{}'", p)).collect::<Vec<_>>().join(", ");
-                format!("renv::install(c({}))", pkgs_str)
-            } else {
-                println!("Installing packages from CRAN: {:?}", pkgs);
-                let pkgs_str = pkgs.iter().map(|p| format!("'{}'", p)).collect::<Vec<_>>().join(", ");
-                format!("install.packages(c({}))", pkgs_str)
-            };
-            println!("Executing: R -e \"{}\"", r_command);
-
-            let output = Command::new("R").arg("-e").arg(&r_command).output();
-
-            match output {
-                Ok(output) => {
-                    if output.status.success() {
-                        println!("Package(s) installed successfully!");
-
-                        if !output.stdout.is_empty() {
-                            println!("\n{}", String::from_utf8_lossy(&output.stdout));
-                        }
-
-                        if !renv {
-                            renv_snapshot();
-                        }
-                    } else {
-                        eprintln!("Error during package installation");
-                        if !output.stderr.is_empty() {
-                            eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
-                        }
-                        std::process::exit(1);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error executing R command: {}", e);
-                    std::process::exit(1);
-                }
-            }
-        }
+        Some(pkgs) if !pkgs.is_empty() => use_packages(pkgs),
         _ => {
             println!("Installing the local package...");
 
@@ -1665,7 +1903,7 @@ pub fn pkg_install(packages: Option<&[String]>) {
             let r_command = format!("devtools::install_local('{}')", project_path);
             println!("Executing: R -e \"{}\"", r_command);
 
-            let output = Command::new("R").arg("-e").arg(&r_command).output();
+            let output = crate::r_env::current_env().r_eval(&r_command).command().output();
 
             match output {
                 Ok(output) => {
@@ -1709,7 +1947,7 @@ pub fn pkg_uninstall() {
     let r_command = format!("remove.packages('{}')", package_name);
     println!("Executing: R -e \"{}\"", r_command);
 
-    let output = Command::new("R").arg("-e").arg(&r_command).output();
+    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
 
     match output {
         Ok(output) => {
@@ -1755,7 +1993,7 @@ pub fn pkgdown() {
     };
     let project_path = current_dir.to_str().unwrap_or(".");
     let r_command = format!("pkgdown::build_site('{}')", project_path);
-    let output = Command::new("R").arg("-e").arg(&r_command).output();
+    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
     match output {
         Ok(out) if out.status.success() => {
             step.done();
@@ -1904,7 +2142,7 @@ fn update_namespace(quiet: bool, manifest: Option<&mut cache::BuildManifest>) {
         "devtools::document('{}', roclets = c('collate', 'namespace'))",
         project_path
     );
-    let output = Command::new("R").arg("-e").arg(&r_command).output();
+    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
     match output {
         Ok(out) if out.status.success() => {
             step.done();
@@ -1936,35 +2174,30 @@ fn update_namespace(quiet: bool, manifest: Option<&mut cache::BuildManifest>) {
 }
 
 pub fn use_package(package_name: &str) {
-    println!("Adding the package '{}' as a dependency...", package_name);
-    let r_command = format!("usethis::use_package('{}')", package_name);
-    println!("Execution of: R -e \"{}\"", r_command);
+    use_packages(&[package_name.to_string()]);
+}
 
-    let output = Command::new("R").arg("-e").arg(&r_command).output();
+/// Declare R packages in both places: installed through uvr (`uvr.toml`,
+/// `uvr.lock`, `.uvr/library`) and listed in `DESCRIPTION` `Imports`.
+pub fn use_packages(packages: &[String]) {
+    require_uvr_project();
 
-    match output {
-        Ok(output) => {
-            if output.status.success() {
-                println!("Package '{}' successfully added to dependencies!", package_name);
+    println!("Adding {} as dependenc{}...", packages.join(", "), if packages.len() == 1 { "y" } else { "ies" });
+    if !run_cmd(&crate::r_env::add_packages(packages, false), None) {
+        eprintln!("Error: `uvr add` failed");
+        std::process::exit(1);
+    }
 
-                if !output.stdout.is_empty() {
-                    println!("\n{}", String::from_utf8_lossy(&output.stdout));
-                }
-            } else {
-                eprintln!("Error adding package '{}'", package_name);
-
-                if !output.stderr.is_empty() {
-                    eprintln!("\n{}", String::from_utf8_lossy(&output.stderr));
-                }
-
-                std::process::exit(1);
-            }
-        }
-        Err(e) => {
-            eprintln!("Error executing command R: {}", e);
-            eprintln!("Make sure that R and usethis are installed.");
+    let env = crate::r_env::current_env();
+    for package_name in packages {
+        let r_command = format!("usethis::use_package('{}')", package_name);
+        println!("Execution of: R -e \"{}\"", r_command);
+        if !run_cmd(&env.r_eval(&r_command), None) {
+            eprintln!("Error adding package '{}' to DESCRIPTION", package_name);
+            eprintln!("Make sure that usethis is installed (`uvr add --dev usethis`).");
             std::process::exit(1);
         }
+        println!("Package '{}' successfully added to dependencies!", package_name);
     }
 }
 
@@ -1973,7 +2206,7 @@ pub fn load() {
 
     println!("Execution of: R -e \"{}\"", r_command);
 
-    let output = Command::new("R").arg("-e").arg(&r_command).output();
+    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
 
     match output {
         Ok(output) => {
@@ -2003,7 +2236,7 @@ pub fn cran() {
     let r_command = "devtools::check()".to_string();
     println!("Execution of: R -e \"{}\"", r_command);
 
-    let output = Command::new("R").arg("-e").arg(&r_command).output();
+    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
 
     match output {
         Ok(output) => {

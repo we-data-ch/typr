@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::context::config::Config;
-use crate::components::context::config::TargetLanguage;
+use crate::components::context::config::Target;
 use crate::components::context::Context;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
@@ -186,8 +186,8 @@ impl VarType {
     pub fn from_config(config: Config) -> VarType {
         let vartype = VarType::new();
         match config.target_language {
-            TargetLanguage::R => vartype.load_r().unwrap().load_typed_r().unwrap(),
-            TargetLanguage::JS => vartype.load_js().unwrap().load_typed_js().unwrap(),
+            Target::R | Target::Rust => vartype.load_r().unwrap().load_typed_r().unwrap(),
+            Target::JS => vartype.load_js().unwrap().load_typed_js().unwrap(),
         }
     }
 
@@ -811,10 +811,10 @@ impl VarType {
         self.set_default_var_types()
     }
 
-    pub fn source(self, target_language: TargetLanguage) -> Self {
+    pub fn source(self, target_language: Target) -> Self {
         match target_language {
-            TargetLanguage::JS => self.set_js_var_types(),
-            TargetLanguage::R => self.set_r_var_types(),
+            Target::JS => self.set_js_var_types(),
+            Target::R | Target::Rust => self.set_r_var_types(),
         }
     }
 

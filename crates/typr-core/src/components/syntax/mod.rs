@@ -343,7 +343,7 @@ impl SyntaxManifest {
             Rule::new(
                 "annotations",
                 "storage.modifier.annotation.typr",
-                annotations(&["@export", "@pub", "@testable", "@extern", "@importFrom"]),
+                annotations(&["@export", "@pub", "@testable", "@extern", "@target", "@importFrom"]),
             )
             .with_note(
                 "Visibility/interop annotations (RFC-TR-032). Ahead of the `@T` interface \

@@ -1,3 +1,4 @@
+use crate::components::context::config::Target;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::help_message::DoubleBuilder;
 use crate::components::error_message::help_message::ErrorMsg;
@@ -177,6 +178,58 @@ pub enum TypeError {
     /// `...e` (record literal or constructor spread) where `e` isn't a
     /// record — `(type_display, position)`.
     SpreadNonRecord(String, HelpData),
+    /// A root (`main`, a `@pub` member, the top level) can't be built for `target`
+    /// because something it uses isn't available there
+    /// (rfcs/0000-compilation-targets.md §4).
+    NotAvailableOnTarget(Box<TargetUnavailable>),
+    /// `@target(...)` promises more targets than the definition's body and
+    /// externals can serve.
+    TargetDeclarationViolated(Box<TargetViolation>),
+    /// An exported function's signature has a type that doesn't cross the R <-> Rust boundary
+    /// (`--platform extendr`, rfcs/0000-compilation-targets.md §6).
+    NotExportable(Box<BoundaryViolation>),
+}
+
+/// Payload of [`TypeError::NotExportable`].
+#[derive(Debug, Clone)]
+pub struct BoundaryViolation {
+    pub name: String,
+    /// `parameter `m`` or `the return type`.
+    pub position: String,
+    /// The offending type as the user would write it.
+    pub ty: String,
+    /// Why it doesn't cross, e.g. "`Model` is a union".
+    pub reason: String,
+    pub site: HelpData,
+}
+
+/// Payload of [`TypeError::NotAvailableOnTarget`].
+#[derive(Debug, Clone)]
+pub struct TargetUnavailable {
+    pub root: String,
+    pub target: Target,
+    /// Where the root uses the offending definition (or the construct itself).
+    pub use_site: HelpData,
+    /// `root → … → leaf`, names only. Empty when the root contains the construct itself.
+    pub chain: Vec<String>,
+    /// The first definition on the chain, as written in the root. Equals `root` for a direct leak.
+    pub offender: String,
+    /// The targets `offender` is available on.
+    pub offender_targets: Vec<Target>,
+    /// Why the leaf lacks the target, e.g. "uses an `R { ... }` block".
+    pub reason: String,
+    pub reason_site: HelpData,
+}
+
+/// Payload of [`TypeError::TargetDeclarationViolated`].
+#[derive(Debug, Clone)]
+pub struct TargetViolation {
+    pub name: String,
+    pub declared: Vec<Target>,
+    pub target: Target,
+    pub declared_site: HelpData,
+    pub reason: String,
+    pub reason_site: HelpData,
 }
 
 impl TypeError {
@@ -234,6 +287,9 @@ impl TypeError {
             TypeError::IdBoundToTwoTypes(_, _, _, _, h) => Some(h.clone()),
             TypeError::FieldAccessOnNonRecord(_, _, h) => Some(h.clone()),
             TypeError::SpreadNonRecord(_, h) => Some(h.clone()),
+            TypeError::NotAvailableOnTarget(e) => Some(e.use_site.clone()),
+            TypeError::TargetDeclarationViolated(e) => Some(e.declared_site.clone()),
+            TypeError::NotExportable(e) => Some(e.site.clone()),
         }
     }
 
@@ -293,6 +349,9 @@ impl TypeError {
             TypeError::IdBoundToTwoTypes(..) => "T049",
             TypeError::FieldAccessOnNonRecord(..) => "T050",
             TypeError::SpreadNonRecord(..) => "T051",
+            TypeError::NotAvailableOnTarget(..) => "T052",
+            TypeError::TargetDeclarationViolated(..) => "T053",
+            TypeError::NotExportable(..) => "T054",
         }
     }
 
@@ -544,6 +603,19 @@ impl TypeError {
             TypeError::SpreadNonRecord(typ, _) => {
                 format!("Cannot spread a value of type {}: only records can be spread", typ)
             }
+            TypeError::NotAvailableOnTarget(e) => {
+                format!("`{}` is not available on target `{}`: {}", e.root, e.target, e.reason)
+            }
+            TypeError::NotExportable(e) => {
+                format!("`{}` cannot be exported through extendr: {} ({})", e.name, e.position, e.reason)
+            }
+            TypeError::TargetDeclarationViolated(e) => format!(
+                "`{}` is declared `@target({})` but is not available on `{}`: {}",
+                e.name,
+                e.declared.iter().map(|t| t.name()).collect::<Vec<_>>().join(", "),
+                e.target,
+                e.reason
+            ),
         }
     }
 }
@@ -1186,6 +1258,68 @@ impl ErrorMsg for TypeError {
                     .text(format!("Cannot access field '{}': type {} is not a record", field, typ))
                     .pos_text(format!("{} has no field '{}'", typ, field))
                     .help("`$` reads a field of a record (`list { ... }`), a module or a data frame.")
+                    .build()
+            }
+            TypeError::NotAvailableOnTarget(e) => {
+                let ((file_name, text), pos) = node_file_pos(&e.use_site);
+                let only_on = if e.offender_targets.is_empty() {
+                    "not available on any target".to_string()
+                } else {
+                    format!(
+                        "only available on {}",
+                        e.offender_targets
+                            .iter()
+                            .map(|t| format!("`{}`", t))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                };
+                let mut help = String::new();
+                let path = std::iter::once(&e.root)
+                    .chain(e.chain.iter())
+                    .map(|n| format!("`{}`", n))
+                    .collect::<Vec<_>>()
+                    .join(" -> ");
+                help.push_str(&format!("{} {}\n", path, e.reason));
+                help.push_str(&format!(
+                    "Give `{}` an implementation for `{}` with `@extern({} = \"...\")`, or restrict `{}` with `@target(...)`",
+                    e.chain.last().unwrap_or(&e.offender),
+                    e.target,
+                    e.target,
+                    e.root
+                ));
+                SingleBuilder::new(file_name, text)
+                    .pos(pos)
+                    .text(format!("`{}` is not available on target `{}`", e.root, e.target))
+                    .pos_text(format!("`{}` is {}", e.offender, only_on))
+                    .help(help)
+                    .build()
+            }
+            TypeError::NotExportable(e) => {
+                // The signature is on the definition's first line; its span runs to the end of
+                // the body.
+                let ((file_name, text), (offset, _)) = safe_file_pos(&e.site, 0);
+                let line = text[offset..].find('\n').unwrap_or(text.len() - offset);
+                let pos = (offset, line);
+                SingleBuilder::new(file_name, text)
+                    .pos(pos)
+                    .text(format!("`{}` cannot be exported through extendr", e.name))
+                    .pos_text(format!("{}: {}", e.position, e.reason))
+                    .help("Only `int`, `num`, `bool`, `char` (and their `| na` forms), vectors of those and records of those cross into R. Export a wrapper taking the payload as a record, and build the union inside.")
+                    .build()
+            }
+            TypeError::TargetDeclarationViolated(e) => {
+                let ((file_name, text), pos) = safe_file_pos(&e.declared_site, "@target".len());
+                SingleBuilder::new(file_name, text)
+                    .pos(pos)
+                    .text(format!(
+                        "`{}` is declared `@target({})` but is not available on `{}`",
+                        e.name,
+                        e.declared.iter().map(|t| t.name()).collect::<Vec<_>>().join(", "),
+                        e.target
+                    ))
+                    .pos_text("declared here")
+                    .help(format!("{}", e.reason))
                     .build()
             }
             TypeError::SpreadNonRecord(typ, help_data) => {

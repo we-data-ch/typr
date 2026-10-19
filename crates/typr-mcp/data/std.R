@@ -184,6 +184,8 @@ tolower.default    <- function(a, ...) base::tolower(a)
 toupper.default    <- function(a, ...) base::toupper(a)
 startsWith.default <- function(a, b, ...) base::startsWith(a, b)
 endsWith.default   <- function(a, b, ...) base::endsWith(a, b)
+join.default       <- function(a, s, ...) base::paste(a, collapse = s)
+contains.default   <- function(a, b, ...) base::grepl(a, b, fixed = TRUE)
 grepl.default      <- function(a, b, ...) base::grepl(a, b, ...)
 setwd.default      <- function(a, ...) base::setwd(a)
 unlink.default     <- function(a, ...) base::unlink(a, ...) == 0L
@@ -218,7 +220,12 @@ get.default <- function(a, name, ...) {
 # R iterates them natively in `for (x in ...)`.
 as_vec.default <- function(x, ...) x
 
-set_at.default <- function(a, i, val) replace(a, i, val)
+# `replace` would grow the vector past its end and pad it with `NA`, which an `int` must never
+# hold: an index out of range is an error, as for `v[i]`.
+set_at.default <- function(a, i, val) {
+  if (i < 1 || i > length(a)) stop("subscript out of bounds")
+  replace(a, i, val)
+}
 
 get.data <- function(a, name) {
   a$data[[1]]
@@ -265,6 +272,26 @@ print.Boolean   <- function(x, ...) { cat(unclass(x), fill = TRUE); invisible(x)
 print.Number    <- function(x, ...) { cat(unclass(x), fill = TRUE); invisible(x) }
 
 # --- Opérateurs ---
+
+# Integer overflow is a runtime error, not an `NA`: an `int` never holds `NA`
+# (rfcs/0000-compilation-targets.md, §2). R's own `+`/`-`/`*` turn an overflow
+# into `NA` with a warning, which would break that invariant, so the arithmetic
+# of `Integer` is checked here. An `NA` in the result that was in neither operand
+# can only come from an overflow. Other warnings (recycling...) are re-signalled.
+Ops.Integer <- function(e1, e2) {
+  if (!(.Generic %in% c("+", "-", "*"))) return(NextMethod())
+  warns <- list()
+  r <- withCallingHandlers(
+    NextMethod(),
+    warning = function(w) {
+      warns[[length(warns) + 1L]] <<- w
+      invokeRestart("muffleWarning")
+    }
+  )
+  if (is.integer(r) && anyNA(r) && !anyNA(e1) && !anyNA(e2)) stop("integer overflow", call. = FALSE)
+  for (w in warns) warning(w)
+  r
+}
 
 `%==%.default` <- function(x, y) {
   unclass(x) == unclass(y)

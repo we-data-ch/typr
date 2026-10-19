@@ -144,7 +144,7 @@
       "comment": "Visibility/interop annotations (RFC-TR-032). Ahead of the `@T` interface sigil and of any bare-`@` rule, both of which would eat their `@`.",
       "patterns": [
         {
-          "match": "(@importFrom|@testable|@export|@extern|@pub)(?![A-Za-z0-9_])",
+          "match": "(@importFrom|@testable|@export|@extern|@target|@pub)(?![A-Za-z0-9_])",
           "name": "storage.modifier.annotation.typr"
         }
       ]

@@ -1,0 +1,7 @@
+type Shape <- .Circle(num) | .Square(num);
+
+@pub let area <- fn(s: Shape): num {
+    match s { .Circle(r) => 3.14159 * r * r, .Square(c) => c * c }
+};
+
+@pub let double <- fn(x: int): int { x + x };

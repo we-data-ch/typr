@@ -1,0 +1,11 @@
+let v: [int] <- [1, 2, 3];
+let a: [3, int] <- v;
+print(a);
+let n: int <- 5;
+let pos <- fn(x: int & (> 0)): int { x };
+print([pos(n), 6]);
+let mk <- fn(w: [int]): [3, int] { w };
+print(mk(v));
+let short: [int] <- [4, 5];
+print(mk(short));
+print(a);

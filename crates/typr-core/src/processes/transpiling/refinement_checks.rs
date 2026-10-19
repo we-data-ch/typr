@@ -72,7 +72,7 @@ fn r_number(v: f64) -> String {
     }
 }
 
-fn format_loc(loc: &HelpData) -> String {
+pub(crate) fn format_loc(loc: &HelpData) -> String {
     let file = loc.get_file_name();
     if file.is_empty() {
         return "<unknown>".to_string();

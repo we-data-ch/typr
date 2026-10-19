@@ -1,0 +1,11 @@
+[[rule]]
+file = "@run"
+must_contain = "cannot be exported through extendr"
+
+[[rule]]
+file = "@run"
+must_contain = "`Shape` is a union"
+
+[[rule]]
+file = "@run"
+must_not_contain = "`double` cannot be exported"

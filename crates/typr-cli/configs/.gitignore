@@ -1,7 +1,3 @@
-r#"^.*\.Rproj$
-^\.Rproj\.user$
-^TypR$
-^\.git$
-^\.gitignore$
-"#
 .typr_cache/
+.uvr/
+.Rproj.user/

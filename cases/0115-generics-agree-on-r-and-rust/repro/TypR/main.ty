@@ -1,0 +1,11 @@
+type Box<T> <- list { v: T };
+let id <- fn(x: T): T { x };
+let unbox <- fn(b: Box<T>): T { b$v };
+let apply <- fn(f: (T) -> U, x: T): U { f(x) };
+let adder <- fn(n: int): (int) -> int { fn(x: int): int { x + n } };
+print([id(1)]);
+print([id("s")]);
+print([unbox(Box:{ v = 7 })]);
+print([unbox(Box:{ v = "boxed" })]);
+print([apply(adder(1), 10)]);
+print([apply(fn(x: int): char { "r" }, 3)]);

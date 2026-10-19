@@ -1,0 +1,1 @@
+Differential case (Step 7): `set_at` and `as_vec` are tagged `#! targets: r, rust`. `set_at` with an index outside the vector is an error on both targets (`subscript out of bounds`): R's `replace` used to grow the vector and pad it with `NA`, which an `int` must never hold, so `std.R` now checks the bound. The last `print` must not run; stdout is compared, not the message.

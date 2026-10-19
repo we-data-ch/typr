@@ -1,0 +1,7 @@
+[[rule]]
+file = "@run"
+must_contain = "Code verification successful!"
+
+[[rule]]
+file = "@run"
+must_not_contain = "is not available on target"

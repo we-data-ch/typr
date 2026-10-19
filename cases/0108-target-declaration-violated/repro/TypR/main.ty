@@ -1,0 +1,2 @@
+@target(r, rust)
+let score <- fn(x: num): Any { R { x } };

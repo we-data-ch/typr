@@ -102,6 +102,14 @@ fn default_status() -> String {
 struct ExpectFile {
     #[serde(default)]
     rule: Vec<Rule>,
+    /// Differential case (rfcs/0000-compilation-targets.md §8): `typr run --target t` for each
+    /// target, and the programs' stdout must be identical. Needs at least two.
+    #[serde(default)]
+    targets: Vec<String>,
+    /// A documented divergence between the targets, with its reason. The case then passes only
+    /// while the outputs *differ*: the day they agree, the note is stale and the case fails.
+    #[serde(default)]
+    divergence: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -219,7 +227,7 @@ pub fn unique_tmp() -> PathBuf {
 /// `cache/` directory laid out exactly like `$XDG_CACHE_HOME` (i.e. `cache/typr/types/…`) lets
 /// a case exercise real `typr.lock` resolution — tier/version degradation — without touching
 /// the developer's real cache or the network. Cases with no `cache/` folder are unaffected.
-fn build_sandbox(case: &Path) -> Sandbox {
+fn build_sandbox(case: &Path, target: Option<&str>) -> Sandbox {
     let meta = read_meta(case);
     let repro = case.join("repro");
     let tmp = unique_tmp();
@@ -242,6 +250,9 @@ fn build_sandbox(case: &Path) -> Sandbox {
             std::process::exit(1);
         }
         command.env("XDG_CACHE_HOME", &cache_work);
+    }
+    if let Some(t) = target {
+        command.arg("--target").arg(t);
     }
     if meta.checked && (meta.cmd == "build" || meta.cmd == "run") {
         command.arg("--checked");
@@ -369,6 +380,38 @@ pub fn list(status: Option<String>) {
     }
 }
 
+/// What a program printed: stdout only. The CLI's progress lines go to stderr, so for `typr run`
+/// stdout is the program's own output on every target.
+fn program_output(sb: &Sandbox) -> String {
+    sb.stdout.lines().map(str::trim_end).collect::<Vec<_>>().join("\n").trim_end().to_string()
+}
+
+/// Replays the case on every other target and compares stdout with the first one's (`sb`).
+fn differential_checks(case: &Path, expect: &ExpectFile, sb: &Sandbox, keep: bool) -> Vec<RuleResult> {
+    let first = &expect.targets[0];
+    let reference = program_output(sb);
+    let mut results = Vec::new();
+    let mut diverged = Vec::new();
+    for t in &expect.targets[1..] {
+        let other = build_sandbox(case, Some(t));
+        let got = program_output(&other);
+        if got != reference {
+            diverged.push(format!("`{first}` and `{t}` print different output:\n--- {first}\n{reference}\n--- {t}\n{got}"));
+        }
+        cleanup(&other.work, keep);
+    }
+    match (&expect.divergence, diverged.is_empty()) {
+        (None, true) => results.push(RuleResult { ok: true, msg: format!("{} agree", expect.targets.join(" and ")) }),
+        (None, false) => results.extend(diverged.into_iter().map(|m| RuleResult { ok: false, msg: m })),
+        (Some(reason), false) => results.push(RuleResult { ok: true, msg: format!("documented divergence: {reason}") }),
+        (Some(reason), true) => results.push(RuleResult {
+            ok: false,
+            msg: format!("the targets now agree: remove `divergence` (\"{reason}\")"),
+        }),
+    }
+    results
+}
+
 pub fn run(filter: Option<String>, status: Option<String>, keep: bool) {
     let dirs: Vec<PathBuf> = case_dirs()
         .into_iter()
@@ -391,8 +434,13 @@ pub fn run(filter: Option<String>, status: Option<String>, keep: bool) {
 
     for case in &dirs {
         let meta = read_meta(case);
-        let sb = build_sandbox(case);
-        let checks = check_rules(case, &sb);
+        let expect = read_expect(case);
+        let differential = expect.targets.len() >= 2;
+        let sb = build_sandbox(case, expect.targets.first().filter(|_| differential).map(String::as_str));
+        let mut checks = check_rules(case, &sb);
+        if differential {
+            checks.extend(differential_checks(case, &expect, &sb, keep));
+        }
         let failed: Vec<&RuleResult> = checks.iter().filter(|c| !c.ok).collect();
         let rules_pass = !checks.is_empty() && failed.is_empty();
 
@@ -489,7 +537,7 @@ pub fn add(slug: &str, from: Option<String>, cmd: &str, layer: &str) {
 
     match from {
         // Curated copy (TypR/ + DESCRIPTION/NAMESPACE only), same as `snapshot` — avoids
-        // dragging renv/.git/large caches from a real project into the catalog.
+        // dragging .uvr/.git/large caches from a real project into the catalog.
         Some(src) => {
             if let Err(e) = copy_repro_curated(&PathBuf::from(&src), &dir.join("repro")) {
                 eprintln!("{RED}Impossible de copier {src}: {e}{RESET}");
@@ -522,7 +570,7 @@ pub fn add(slug: &str, from: Option<String>, cmd: &str, layer: &str) {
     );
 
     // capture observed.txt
-    let sb = build_sandbox(&dir);
+    let sb = build_sandbox(&dir, None);
     let r_dump = dump_generated_r(&sb.work);
     let _ = std::fs::write(
         dir.join("observed.txt"),
@@ -539,7 +587,7 @@ pub fn add(slug: &str, from: Option<String>, cmd: &str, layer: &str) {
 
 pub fn freeze(id: &str) {
     let case = resolve_case(id);
-    let sb = build_sandbox(&case);
+    let sb = build_sandbox(&case, None);
 
     let mut files = ruled_files(&case);
     if files.is_empty() {
@@ -776,7 +824,7 @@ fn copy_repro_curated(project: &Path, repro: &Path) -> std::io::Result<()> {
     if typr_src.is_dir() {
         copy_dir(&typr_src, &repro.join("TypR"))?;
     }
-    for f in ["DESCRIPTION", "NAMESPACE"] {
+    for f in ["DESCRIPTION", "NAMESPACE", "uvr.toml"] {
         let src = project.join(f);
         if src.is_file() {
             std::fs::copy(&src, repro.join(f))?;

@@ -1,0 +1,6 @@
+let v <- [10, 20, 30];
+print(set_at(v, 2, 99));
+print(v);
+print(as_vec(v));
+let w <- set_at(v, 7, 1);
+print(v)

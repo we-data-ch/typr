@@ -68,6 +68,10 @@ let normalize <- fn(x: [num], na.rm: bool = false): [num] {
 | VS Code / Positron | search **TypR** in the Marketplace |
 | Vim / Neovim | `typr-vim-*.tar.gz` from the [latest release](https://github.com/we-data-ch/typr/releases/latest), or a plugin manager — see [editors/vim](editors/vim) |
 
+R dependencies of a TypR project are managed by [uvr](https://github.com/nbafrank/uvr), which
+`typr new`/`typr use` call for you. It is not installed automatically; if it is missing, typr
+prints the install command (`cargo install --git https://github.com/nbafrank/uvr`).
+
 All channels are published from the same tag and carry the same version number.
 See [RELEASING.md](RELEASING.md).
 

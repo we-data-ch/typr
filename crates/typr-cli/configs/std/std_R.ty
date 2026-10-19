@@ -98,6 +98,7 @@
 #! ret: single value after left-fold
 #! note: equivalent to base R Reduce()
 #! example: reduce(c(1,2,3,4), add)   # -> 10
+#! targets: r, rust
 @reduce: ([#N, T], (T, T) -> T) -> T;
 #! pkg: base
 #! tier: T1
@@ -107,6 +108,7 @@
 #! ret: final accumulator
 #! note: equivalent to base R Reduce() with init
 #! example: fold(c(1,2,3), 0, add)   # -> 6
+#! targets: r, rust
 @fold: ([#N, T], U, (U, T) -> U) -> U;
 #! pkg: base
 #! tier: T1
@@ -114,6 +116,7 @@
 #! param b: element to append
 #! ret: new vector with b appended
 #! example: extend(c(1,2), 3)   # -> c(1,2,3)
+#! targets: r, rust
 @extend: ([#N, T], T) -> [#N, T];
 #! pkg: base
 #! tier: T3
@@ -195,10 +198,12 @@
 #! param x: numeric vector
 #! ret: sum over all elements
 #! example: sum(c(1, 2, 3))   # -> 6
+#! targets: r, rust
 @sum: ([#N, T]) -> T;
 #! pkg: base
 #! tier: T1
 #! param x: value to display
 #! ret: prints to the console, returns nothing
 #! example: print(sum(c(1, 2, 3)))
+#! targets: r, rust
 @print: (Any) -> Empty;

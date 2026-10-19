@@ -26,6 +26,9 @@ You should be inside a saved `.ty` file to run it.
 
 # Usage
 
+TypR projects manage their R packages with [uvr](https://github.com/nbafrank/uvr). Its companion
+R package `uvr-r` (not on CRAN) is optional: it only adds RStudio conveniences.
+
 You can create a new project in a specific place with:
 
 ```r

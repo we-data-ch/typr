@@ -25,7 +25,7 @@ pub mod unification;
 pub mod unification_map;
 pub mod vectorizability;
 
-use crate::components::context::config::TargetLanguage;
+use crate::components::context::config::Target;
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::type_error::TypeError;
@@ -160,48 +160,6 @@ pub fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>>
 #[cfg(target_arch = "wasm32")]
 pub fn execute_r_function(_function_code: &str) -> Result<String, Box<dyn Error>> {
     Err("R execution is not supported in WASM mode".into())
-}
-
-/// Check if an R package is already installed in the system.
-/// Only available in native mode.
-#[cfg(not(target_arch = "wasm32"))]
-fn is_package_installed(name: &str) -> bool {
-    let check_code = format!("length(find.package(\"{}\", quiet = TRUE)) > 0", name);
-    let output = Command::new("Rscript").args(["-e", &check_code]).output();
-
-    match output {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout);
-            stdout.trim().contains("TRUE")
-        }
-        Err(_) => false,
-    }
-}
-
-/// Install an R package. Only available in native mode.
-/// First checks if the package is already installed in the system.
-#[cfg(not(target_arch = "wasm32"))]
-fn install_package(name: &str) {
-    if is_package_installed(name) {
-        return;
-    }
-
-    let _status = Command::new("Rscript")
-        .args([
-            "-e",
-            &format!(
-                "if (!requireNamespace(\"{}\", quietly = TRUE)) install.packages(\"{}\")",
-                name, name
-            ),
-        ])
-        .status()
-        .expect("failed to execute Rscript");
-}
-
-/// Stub for WASM mode - package installation is not supported
-#[cfg(target_arch = "wasm32")]
-fn install_package(_name: &str) {
-    // No-op in WASM mode - packages must be pre-registered
 }
 
 /// Validate that every `Name[N]{...}` record-constructor usage in `typ` refers to a
@@ -395,24 +353,20 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             }
         }
         Lang::Library {
-            value: name,
+            value: _name,
             help_data: _h,
         } => {
-            // In WASM mode, library imports are no-op (types must be pre-registered)
-            // In native mode, this would install and load the package
-            install_package(name);
-
-            // For now, just return unknown function type
-            // The package types should be pre-loaded in the context for WASM
+            // Type-checking never installs anything: packages are declared and installed
+            // explicitly (`typr use`, `uvr add`). The package types come from the context.
             (builder::unknown_function_type(), expr.clone(), context.clone()).into()
         }
         Lang::Signature {
             identifier: var,
             target_type: typ,
-            is_extern,
-            extern_r_name,
+            externs,
             ..
-        } => signature_expression(context, expr, var, typ, *is_extern, extern_r_name.clone()),
+        } => signature_expression(context, expr, var, typ, externs.get(&Target::R).cloned()),
+        Lang::Attribute { .. } => (builder::unknown_function_type(), expr.clone(), context.clone()).into(),
         Lang::TypeConstructor {
             name,
             parameters,
@@ -1996,7 +1950,7 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             }
         }
         Lang::JSBlock(body, _, h) => {
-            let js_context = Context::default().set_target_language(TargetLanguage::JS);
+            let js_context = Context::default().set_target_language(Target::JS);
             let _ = typing(&js_context, body).context;
             //TODO add js subcontext
             let (new_context, id) = (context.clone(), 0); //.add_js_subcontext(js_context);
@@ -2015,6 +1969,8 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Library { .. } => eval(context, expr).with_lang(expr),
         Lang::TestBlock { .. } => eval(context, expr).with_lang(expr),
         Lang::Signature { .. } => eval(context, expr).with_lang(expr),
+        // Availability bookkeeping only; read by `processes::availability`.
+        Lang::Attribute { .. } => eval(context, expr).with_lang(expr),
         Lang::TypeConstructor { .. } => eval(context, expr).with_lang(expr),
         Lang::Return { value: exp, .. } => {
             let tc = typing(&context.clone().set_return_position(true), exp);
