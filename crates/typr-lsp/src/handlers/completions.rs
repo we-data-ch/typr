@@ -251,6 +251,14 @@ fn detect_completion_context(prefix: &str) -> CompletionCtx {
         }
     }
 
+    // `M::` — module member access (the dot form `M.` is handled above).
+    if let Some(before) = trimmed.strip_suffix("::") {
+        let expr = extract_last_expression(before.trim_end());
+        if expr.chars().next().is_some_and(|c| c.is_alphabetic()) {
+            return CompletionCtx::Module(expr);
+        }
+    }
+
     if let Some(colon_pos) = trimmed.rfind(':') {
         let after_colon = &trimmed[colon_pos + 1..];
         if !after_colon.contains('=') && !after_colon.contains(';') {
@@ -258,7 +266,11 @@ fn detect_completion_context(prefix: &str) -> CompletionCtx {
         }
     }
 
-    if trimmed.trim_start().starts_with("type ") && trimmed.contains('=') {
+    // On the cursor's own line only: the prefix spans up to 10 lines, so a
+    // `type ...` declaration just above used to turn every expression
+    // completion below it into type completions.
+    let trimmed_line = current_line.trim_end();
+    if trimmed_line.starts_with("type ") && trimmed_line.contains('=') {
         return CompletionCtx::Type;
     }
 
@@ -312,10 +324,14 @@ fn extract_last_expression(s: &str) -> String {
                 break;
             }
             '<' | '>' if depth_paren == 0 && depth_bracket == 0 && depth_brace == 0 => {
-                if i > 0 && last_statement.as_bytes().get(i - 1) == Some(&b'-') {
+                // `->` is an arrow inside the expression: keep scanning.
+                if ch == '>' && i > 0 && last_statement.as_bytes().get(i - 1) == Some(&b'-') {
                     continue;
                 }
-                start = i + 1;
+                // `<-` binds: the expression starts after the `-`, not at it
+                // (`let a <- p` used to yield `- p`).
+                let arrow = ch == '<' && last_statement.as_bytes().get(i + 1) == Some(&b'-');
+                start = if arrow { i + 2 } else { i + 1 };
                 break;
             }
             _ => {}
@@ -405,31 +421,42 @@ fn get_module_completions(
     module_name: &str,
     doc_map: &HashMap<String, String>,
 ) -> Vec<CompletionItem> {
-    let module_context = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        context.extract_module_as_vartype(module_name)
-    }));
-
-    let module_ctx = match module_context {
-        Ok(ctx) => ctx,
-        Err(_) => return Vec::new(),
+    // Only the module's own public members — its `Type::Module` signature —
+    // not `extract_module_as_vartype`, whose context starts from
+    // `Context::default()` and so also lists the whole standard library.
+    let members = match context.get_type_from_variable(&Var::from_name(module_name)) {
+        Ok(Type::Module(args, _, _)) => args,
+        _ => return Vec::new(),
     };
 
-    let mut items = Vec::new();
+    members
+        .iter()
+        // `M::` is always outside `M`: a hidden `.name` is private by
+        // definition (it can't be `@pub`, S020), so it's never offered here.
+        .filter_map(|arg| {
+            std::panic::catch_unwind(|| arg.get_argument_str())
+                .ok()
+                .map(|name| (name, arg))
+        })
+        .filter(|(name, _)| !is_hidden_name(name))
+        .map(|(name, arg)| {
+            let typ = arg.get_type();
+            let kind = if name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                CompletionItemKind::INTERFACE
+            } else if typ.is_function() {
+                CompletionItemKind::FUNCTION
+            } else {
+                CompletionItemKind::VARIABLE
+            };
+            var_to_completion_item(&Var::from_name(&name), &typ, kind, doc_map)
+        })
+        .collect()
+}
 
-    for (var, typ) in module_ctx.variables() {
-        let kind = if typ.is_function() {
-            CompletionItemKind::FUNCTION
-        } else {
-            CompletionItemKind::VARIABLE
-        };
-        items.push(var_to_completion_item(var, typ, kind, doc_map));
-    }
-
-    for (var, typ) in module_ctx.aliases() {
-        items.push(var_to_completion_item(var, typ, CompletionItemKind::INTERFACE, doc_map));
-    }
-
-    items
+/// A hidden name (`.helper`, private by name). Its ASCII spelling `__helper`
+/// is normalized to the dotted form by the parser, so the dot is enough.
+fn is_hidden_name(name: &str) -> bool {
+    name.trim_matches('`').starts_with('.')
 }
 
 /// Suggest sibling `.ty` files for `mod <name>;`. The directory scanned mirrors
@@ -1030,5 +1057,102 @@ mod completion_resolve_tests {
             .and_then(|d| d.get("file_path"))
             .and_then(|v| v.as_str());
         assert_eq!(file_path, Some("test.ty"));
+    }
+}
+
+#[cfg(test)]
+mod hidden_name_tests {
+    use super::*;
+
+    const DOC: &str = "type Pt <- list{ x: int };\n\
+        module M {\n\
+          let .hid <- 1;\n\
+          @testable let .hidt <- 2;\n\
+          let .hidf <- fn(p: Pt): int { p.x };\n\
+          @pub let pub_g <- fn(p: Pt): int { p.x };\n\
+        };\n\
+        let .top <- 3;\n\
+        let .topf <- fn(p: Pt): int { p.x };\n\
+        let p <- Pt:{ x = 1 };\n";
+
+    fn labels_at_end(content: &str, path: &str) -> Vec<String> {
+        let line = content.lines().count() as u32 - 1;
+        let col = content.lines().last().unwrap().len() as u32;
+        get_completions_at(content, line, col, path)
+            .0
+            .into_iter()
+            .map(|i| i.label)
+            .collect()
+    }
+
+    fn hidden(labels: &[String]) -> Vec<&str> {
+        labels
+            .iter()
+            .map(|l| l.as_str())
+            .filter(|l| l.starts_with('.'))
+            .collect()
+    }
+
+    /// `M::` lists M's public members only — not its hidden ones (never
+    /// public, S020), and not the whole standard library either.
+    #[test]
+    fn module_member_completion_lists_public_members_only() {
+        let labels = labels_at_end(&format!("{DOC}let a <- M::"), "test.ty");
+        assert_eq!(labels, vec!["pub_g".to_string()]);
+    }
+
+    /// The current file's own hidden names are in scope (it is their module);
+    /// the module's are not, whatever the completion kind.
+    #[test]
+    fn hidden_names_only_complete_inside_their_module() {
+        let expr = labels_at_end(&format!("{DOC}let a <- "), "test.ty");
+        assert_eq!(hidden(&expr), vec![".top", ".topf"], "expression completions");
+        for tail in ["let a <- p.", "let a <- p |> "] {
+            let labels = labels_at_end(&format!("{DOC}{tail}"), "test.ty");
+            assert_eq!(hidden(&labels), vec![".topf"], "{tail}");
+        }
+    }
+
+    /// Same across files: a file module's hidden names stay out of the
+    /// importer's completions, even after `use utils::*`.
+    #[test]
+    fn hidden_names_of_a_file_module_do_not_leak() {
+        let dir = std::env::temp_dir().join(format!("typr_lsp_hidden_{}", std::process::id()));
+        let typr_dir = dir.join("TypR");
+        let _ = std::fs::create_dir_all(&typr_dir);
+        std::fs::write(dir.join("DESCRIPTION"), "Package: x\n").unwrap();
+        std::fs::write(dir.join("NAMESPACE"), "").unwrap();
+        std::fs::write(
+            typr_dir.join("utils.ty"),
+            "type Pt <- list{ x: int };\nlet .uhid <- 1;\nlet .uhidf <- fn(p: Pt): int { p.x };\n@pub let pub_u <- fn(p: Pt): int { p.x };\n",
+        )
+        .unwrap();
+        let main_file = typr_dir.join("main.ty");
+        let mut seen = Vec::new();
+        for tail in ["let a <- utils::", "let a <- ", "let a <- p."] {
+            let content = format!("mod utils;\nuse utils::*;\nlet p <- Pt:{{ x = 1 }};\n{tail}");
+            std::fs::write(&main_file, &content).unwrap();
+            let labels = labels_at_end(&content, main_file.to_str().unwrap());
+            seen.push((tail, labels.contains(&"pub_u".to_string()), labels));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+        for (tail, has_pub, labels) in seen {
+            assert!(has_pub, "{tail}: public member missing");
+            assert!(hidden(&labels).is_empty(), "{tail}: {:?}", hidden(&labels));
+        }
+    }
+
+    #[test]
+    fn module_access_and_assignment_contexts_are_detected() {
+        assert!(matches!(detect_completion_context("let a <- M::"), CompletionCtx::Module(m) if m == "M"));
+        // A `type` declaration a few lines above no longer turns the
+        // expression position into a type position.
+        let prefix = "type Pt <- list{ x: int };\nlet a <- ";
+        assert!(matches!(detect_completion_context(prefix), CompletionCtx::Expression));
+        assert_eq!(extract_last_expression("let a <- p"), "p");
+        assert_eq!(
+            extract_last_expression("let f <- fn(x: int) -> int"),
+            "fn(x: int) -> int"
+        );
     }
 }

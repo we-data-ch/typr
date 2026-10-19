@@ -1,0 +1,31 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 5 of 13  ·  Write a typed function
+# =============================================================================
+#
+#  A function is a value like any other: you bind it with 'let'.
+#
+#      let add <- fn(a: int, b: int): int {
+#        a + b
+#      };
+#
+#    - each parameter has a type:      a: int, b: int
+#    - the return type comes after ')': ': int'
+#    - the last expression of the body is the returned value (no 'return')
+#    - the whole definition ends with ';', like any statement
+#
+#  The return type is mandatory: it is the promise your function makes, and
+#  the compiler checks that the body keeps it.
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE
+#
+#  Write 'perimeter': it takes the width and the height of a rectangle (two
+#  num) and returns its perimeter (a num): 2 times (width + height).
+#
+#  Remember lesson 2: 2 is an int, 2.0 is a num.
+#
+# -----------------------------------------------------------------------------
+
+let perimeter <- ???;
+
+print(perimeter(3.0, 4.0));

@@ -1,0 +1,35 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 11 of 13  ·  Generics: no more NULL surprises
+# =============================================================================
+#
+#  In R, "maybe there is no value" is often a NULL or an NA that slips
+#  through and breaks something far away. TypR makes absence explicit:
+#
+#      type Option<T> <- .Some(T) | .None;
+#
+#  'T' is a type parameter: Option<int> holds maybe an int, Option<char>
+#  maybe a char. The compiler forces you to handle .None, because to get the
+#  value out of a .Some you have to 'match' it (lesson 10).
+#
+#  A function can be generic too: write T in its signature, and TypR works
+#  out what T is at each call.
+#
+#      let first_or <- fn(o: Option<T>, fallback: T): T { ... };
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE
+#
+#  Write 'unwrap_or': given an Option<T> and a default value of type T, it
+#  returns the value inside .Some, or the default when it is .None.
+#  Both calls at the bottom must compile, one with int, one with char.
+#
+# -----------------------------------------------------------------------------
+
+type Option<T> <- .Some(T) | .None;
+
+let unwrap_or <- ???;
+
+let a: int <- unwrap_or(.Some(4), 0);
+let b: char <- unwrap_or(.None, "empty");
+
+print(b);

@@ -1,0 +1,12 @@
+type Light <- .Red | .Orange | .Green;
+
+let next <- fn(l: Light): Light {
+  match l {
+    .Red => .Green,
+    .Green => .Orange,
+    .Orange => .Red,
+  }
+};
+
+let now: Light <- .Red;
+let later <- now.next().next();

@@ -1,0 +1,42 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 10 of 13  ·  Unions and pattern matching
+# =============================================================================
+#
+#  Sometimes a value is "one of several shapes". A UNION lists the cases,
+#  each one a TAG starting with a dot, optionally carrying a value:
+#
+#      type Shape <- .Circle(num) | .Square(num);
+#      let c: Shape <- .Circle(2.0);
+#
+#  'match' looks at which tag you have and opens it:
+#
+#      match c {
+#        .Circle(r) => 3.14 * r * r,
+#        .Square(side) => side * side,
+#      }
+#
+#  The compiler checks that the match is EXHAUSTIVE: forget a case and the
+#  program does not compile. Add a tag to a union, and the compiler shows you
+#  every match you must update. Plain R's switch() cannot do that.
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE
+#
+#  Someone added '.Triangle(num)' (an equilateral triangle, given its side)
+#  to Shape, but forgot to update 'area'. Run   typr tutor check   to see
+#  the compiler catch it, then add the missing arm. The area of an
+#  equilateral triangle of side s is about  0.433 * s * s.
+#
+# -----------------------------------------------------------------------------
+
+type Shape <- .Circle(num) | .Square(num) | .Triangle(num);
+
+let area <- fn(s: Shape): num {
+  match s {
+    .Circle(r) => 3.14 * r * r,
+    .Square(side) => side * side,
+  }
+};
+
+let t: Shape <- .Triangle(2.0);
+print(area(t));

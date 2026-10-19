@@ -48,6 +48,14 @@ pub enum SyntaxError {
     /// `Lovable @A` / `Lovable@Self`: the `@Id` bound suffix must be one capital
     /// letter touching the interface name.
     DetachedBoundSuffix(HelpData),
+    /// `x..f()` / `r..a`: a hidden name right after the UFCS/field `.` operator.
+    HiddenNameAfterDot(HelpData),
+    /// `@pub let .x` / `@export let __x`: a hidden name is private by name.
+    PublicHiddenName {
+        name: String,
+        annotation: String,
+        help_data: HelpData,
+    },
     WithNode(Box<Lang>, Box<SyntaxError>),
 }
 
@@ -73,6 +81,8 @@ impl SyntaxError {
             SyntaxError::SingleEqualsComparison(h) => Some(h.clone()),
             SyntaxError::TupleDestructureArityMismatch { help_data, .. } => Some(help_data.clone()),
             SyntaxError::DetachedBoundSuffix(h) => Some(h.clone()),
+            SyntaxError::HiddenNameAfterDot(h) => Some(h.clone()),
+            SyntaxError::PublicHiddenName { help_data, .. } => Some(help_data.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
     }
@@ -102,6 +112,8 @@ impl SyntaxError {
             SyntaxError::SingleEqualsComparison(..) => "S016",
             SyntaxError::TupleDestructureArityMismatch { .. } => "S017",
             SyntaxError::DetachedBoundSuffix(..) => "S018",
+            SyntaxError::HiddenNameAfterDot(..) => "S019",
+            SyntaxError::PublicHiddenName { .. } => "S020",
             SyntaxError::WithNode(_, inner) => inner.code(),
         }
     }
@@ -169,6 +181,12 @@ impl SyntaxError {
             }
             SyntaxError::DetachedBoundSuffix(_) => {
                 "The `@Id` suffix must be a single capital letter touching the interface name: write `Lovable@A`, not `Lovable @A` or `Lovable@Self`".to_string()
+            }
+            SyntaxError::HiddenNameAfterDot(_) => {
+                "A hidden name can't follow the `.` operator (`x..f` reads as the `..` spread): write `x.__f()` or `x |> .f()`".to_string()
+            }
+            SyntaxError::PublicHiddenName { name, annotation, .. } => {
+                format!("`{name}` is a hidden name (leading `.`/`__`), private by definition — it can't be `{annotation}`")
             }
             SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
@@ -385,6 +403,32 @@ impl ErrorMsg for SyntaxError {
                     .text("Malformed `@Id` suffix")
                     .pos_text("Expected `@` + one capital letter, right after the name")
                     .help("Write `Lovable@A` (no space, one-letter id)")
+                    .build()
+            }
+            SyntaxError::HiddenNameAfterDot(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), 1))
+                    .text("A hidden name can't follow the `.` operator")
+                    .pos_text("`..` here reads as the spread token")
+                    .help("Spell the hidden name with `__` after a dot (`x.__f()`, `r.__a`), or use the pipe: `x |> .f()`")
+                    .build()
+            }
+            SyntaxError::PublicHiddenName {
+                name,
+                annotation,
+                help_data,
+            } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), name.len()))
+                    .text(format!("A hidden name can't be `{annotation}`"))
+                    .pos_text("Hidden by its leading `.`/`__`")
+                    .help(format!(
+                        "Drop `{annotation}` to keep `{name}` private, or rename it without the leading `.`/`__` to make it public"
+                    ))
                     .build()
             }
             SyntaxError::WithNode(_, inner) => return inner.display(),

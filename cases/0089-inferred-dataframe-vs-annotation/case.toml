@@ -1,0 +1,7 @@
+title = "data.frame(...) inferred type does not match a dataframe[N]{...} annotation"
+cmd = "build"
+layer = "type"
+status = "open"
+created = "2026-10-01"
+origin = "perso"
+checked = false

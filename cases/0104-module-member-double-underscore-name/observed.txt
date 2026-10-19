@@ -1,0 +1,4 @@
+# exit=1
+
+## stdout/stderr
+Erreur dans eval(quote({ : objet 'my__v' introuvable

@@ -1,6 +1,7 @@
 use crate::components::context::Context;
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::type_operator::TypeOperator;
+use crate::components::r#type::type_system::TypeSystem;
 use crate::components::r#type::Type;
 use crate::processes::type_checking::type_comparison;
 use crate::utils::builder;
@@ -256,7 +257,10 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Option<Vec
             } else if type_contains_generic(t, g) {
                 None
             } else {
-                Some(vec![(Type::Generic(g.clone(), h.clone()), t.clone())])
+                // A generic stands for a general type: a literal argument
+                // (`7`, `"hello"`, `true`) binds it to `int`/`char`/`bool`,
+                // so `f(3, 5)` with `f: (T, T) -> T` agrees on `int`.
+                Some(vec![(Type::Generic(g.clone(), h.clone()), t.clone().generalize())])
             }
         }
 
@@ -365,6 +369,18 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Option<Vec
                     .get_type_pattern()
                     .map(|arg_type| match_wildcard(fields1, arg_type))
             }
+        }
+
+        // A literal against its base (`2` for `num`, `"a"` for `char`): no
+        // generic to bind, the singleton is simply a subtype. Reached through
+        // a tag payload — `area(.Circle(2.0))` against `.Circle(num) | …`.
+        (Type::Number(..), Type::Number(..))
+        | (Type::Integer(..), Type::Integer(..))
+        | (Type::Char(..), Type::Char(..))
+        | (Type::Boolean(..), Type::Boolean(..))
+            if type1.is_subtype(type2, &Context::empty()).0 =>
+        {
+            Some(vec![])
         }
 
         // Default case - types are not unifiable

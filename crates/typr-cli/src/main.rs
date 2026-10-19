@@ -25,6 +25,7 @@ mod registry_validate;
 mod repl;
 mod standard_library;
 mod syntax;
+mod tutor;
 mod type_definition;
 mod type_registry;
 mod vignette_renderer;

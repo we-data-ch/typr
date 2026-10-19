@@ -1,0 +1,12 @@
+type Shape <- .Circle(num) | .Square(num) | .Triangle(num);
+
+let area <- fn(s: Shape): num {
+  match s {
+    .Circle(r) => 3.14 * r * r,
+    .Square(side) => side * side,
+    .Triangle(side) => 0.433 * side * side,
+  }
+};
+
+let t: Shape <- .Triangle(2.0);
+print(area(t));

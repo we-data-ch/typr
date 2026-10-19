@@ -1,0 +1,7 @@
+let year: int <- 2026;
+
+let square <- fn(x: num): num {
+  x * x
+};
+
+print(square(3.0));

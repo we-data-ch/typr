@@ -1,0 +1,19 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "Pt(x_y = "
+
+[[rule]]
+file = "R/main.R"
+must_contain = "list(a_b = "
+
+[[rule]]
+file = "@run"
+must_not_contain = "Syntax"
+
+[[rule]]
+file = "@run"
+must_contain = "3"
+
+[[rule]]
+file = "@run"
+must_not_contain = "failed"

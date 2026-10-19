@@ -1,0 +1,24 @@
+type Qq <- list{ a__b: int, c: int };
+
+let r <- list{ a__b = 1, c = 2 };
+let q <- Qq:{ a__b = 2, c = 3 };
+let q2 <- Qq:{ ..q, c = 4 };
+let s <- :{ ...r, d = 1 };
+let get_ab <- fn(x: Qq): int { x.a__b };
+
+print(r.a__b);
+print(r$a__b);
+print(q.a__b + q$a__b);
+print(q2.a__b);
+print(s.a__b);
+print(get_ab(q));
+
+let d <- :{ a__b: 8, _u: 1 };
+d$a__b <- 3;
+print(d.a__b + d._u);
+
+let m <- match d {
+  :{ a__b: v } => v,
+  _ => 0
+};
+print(m);

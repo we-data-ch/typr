@@ -34,6 +34,14 @@
 //! see that module's docs for the handful of declared-but-dead codes it
 //! doesn't (and can't) cover.
 //!
+//! `report_issue` and the local session log close the feedback loop — see
+//! [`feedback`] for what is recorded, where, and how to turn it off
+//! (`TYPR_MCP_LOG=off`).
+//!
+//! The `tutor_*` tools and the `tutor` prompt run the TypR tutor (see
+//! [`tutor`]), an interactive course for newcomers shared with the
+//! `typr tutor` terminal command: same lessons, same compiler-backed grading.
+//!
 //! Type checking is recursive, so a long-lived server must drive it from a
 //! large-stack thread — see [`run_stdio`].
 //!
@@ -58,8 +66,9 @@
 
 use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::model::{
-    ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult,
-    Resource, ResourceContents, ServerCapabilities, ServerInfo,
+    GetPromptRequestParams, GetPromptResponse, GetPromptResult, ListPromptsResult, ListResourcesResult,
+    PaginatedRequestParams, Prompt, PromptArgument, PromptMessage, ReadResourceRequestParams, ReadResourceResponse,
+    ReadResourceResult, Resource, ResourceContents, Role, ServerCapabilities, ServerInfo,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::stdio;
@@ -69,6 +78,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 mod explain;
+mod feedback;
+pub mod tutor;
+
+use std::sync::Arc;
+use std::time::Instant;
+
+use feedback::{ReportParams, ReportResult, SessionLog};
 
 use typr_core::components::context::config::{Config, Environment};
 use typr_core::components::error_message::syntax_error::SyntaxError;
@@ -263,7 +279,12 @@ fn panic_payload_diagnostic(payload: Box<dyn std::any::Any + Send>) -> Diagnosti
 }
 
 fn check_source(source: &str) -> CheckResult {
-    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| check_source_inner(source))) {
+    check_source_as(source, "main.ty")
+}
+
+/// [`check_source`], with `file_name` in the diagnostics instead of `main.ty`.
+fn check_source_as(source: &str, file_name: &str) -> CheckResult {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| check_source_inner(source, file_name))) {
         Ok(result) => result,
         Err(payload) => CheckResult {
             ok: false,
@@ -272,8 +293,8 @@ fn check_source(source: &str) -> CheckResult {
     }
 }
 
-fn check_source_inner(source: &str) -> CheckResult {
-    let parsed = parse_from_string_with_errors(source, "main.ty");
+fn check_source_inner(source: &str, file_name: &str) -> CheckResult {
+    let parsed = parse_from_string_with_errors(source, file_name);
     if parsed.has_errors() {
         let diagnostics = parsed
             .errors
@@ -575,20 +596,165 @@ fn search_docs(query: &str) -> DocsSearchResult {
     DocsSearchResult { matches }
 }
 
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct TutorLessonSummary {
+    pub number: usize,
+    pub title: String,
+    pub goal: String,
+    /// File name in a `typr tutor` workspace (`typr-tutor/<file>`), for a
+    /// learner who also has the terminal version open.
+    pub file: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct TutorLessonsResult {
+    pub lessons: Vec<TutorLessonSummary>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TutorLessonParams {
+    /// Lesson number, starting at 1 (see `tutor_lessons`).
+    pub lesson: usize,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct TutorDocLink {
+    pub title: String,
+    pub url: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct TutorLessonResult {
+    pub number: usize,
+    pub title: String,
+    pub goal: String,
+    pub file: String,
+    /// The lesson file: prose in `#` comments, then the exercise code with
+    /// its `???` gaps or bugs. Show it (or teach from it); the learner edits it.
+    pub content: String,
+    /// How many hints `tutor_hint` can give for this lesson.
+    pub hint_count: usize,
+    /// Pages to point the learner to once the lesson is passed.
+    pub docs: Vec<TutorDocLink>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TutorCheckParams {
+    /// Lesson number, starting at 1.
+    pub lesson: usize,
+    /// The learner's version of the lesson file (comments may be kept).
+    pub source: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct TutorCheckResult {
+    #[serde(flatten)]
+    pub grade: tutor::Grade,
+    /// Present once the lesson is passed: where to read more, then the next
+    /// lesson's number (absent after the last one).
+    pub docs: Vec<TutorDocLink>,
+    pub next_lesson: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TutorHintParams {
+    /// Lesson number, starting at 1.
+    pub lesson: usize,
+    /// Which hint, starting at 1. Hints go from vague to nearly the answer:
+    /// ask for the next one only when the previous didn't unblock the learner.
+    pub level: usize,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct TutorHintResult {
+    pub lesson: usize,
+    pub level: usize,
+    pub hint: String,
+    pub hint_count: usize,
+}
+
+fn unknown_lesson(number: usize) -> McpError {
+    McpError::invalid_params(
+        format!("no lesson {number}: lessons are numbered 1 to {}", tutor::LESSONS.len()),
+        None,
+    )
+}
+
+fn tutor_doc_links(lesson: &tutor::Lesson) -> Vec<TutorDocLink> {
+    lesson
+        .docs
+        .iter()
+        .map(|d| TutorDocLink {
+            title: d.title.to_string(),
+            url: d.url(),
+        })
+        .collect()
+}
+
+const TUTOR_PROMPT: &str = "You are the TypR tutor, the AI companion of `typr tutor` (TypR's \
+answer to vimtutor). The learner knows some R and is discovering TypR, a typed superset of R \
+that compiles to plain R.
+
+How to teach:
+- Follow the lessons in order unless the learner asks otherwise: `tutor_lessons` lists them, \
+`tutor_lesson` returns a lesson file (prose in `#` comments, then an exercise with `???` gaps \
+or a bug). Present the lesson in your own words, briefly, then show the exercise.
+- The learner writes the code, not you. Never hand over a full solution unless they \
+explicitly ask for it after trying. Prefer a question that points at the problem over the fix.
+- Grade every attempt with `tutor_check` (pass the learner's code as-is). Rely on its verdict, \
+not on your own reading: it runs the real compiler. When it fails, start from its `feedback`, \
+and explain diagnostics with its `explanations` (or the `explain` tool) in plain words.
+- When the learner is stuck, give hints with `tutor_hint`, one level at a time.
+- When a lesson passes, celebrate briefly, then ALWAYS offer the `docs` links it returns and \
+say in one sentence what each page will teach them: the tutor is a doorway into the \
+documentation. Use `docs_search` for any question beyond the lesson.
+- Encourage experiments: `check` and `build` (to see the generated R) work on any snippet.
+- If the learner has a `typr-tutor/` folder from the terminal version, they can edit the \
+lesson files there and you can read them; both versions grade the same way.
+- If the compiler rejects code that the lesson says is valid, say so honestly and offer \
+`report_issue`.
+- Answer in the learner's language; keep code, keywords and error codes as they are.";
+
+/// The server holds the session's interaction log (see [`feedback`]); the
+/// tools themselves stay pure functions of their input.
 #[derive(Clone, Default)]
-pub struct TyprMcpServer;
+pub struct TyprMcpServer {
+    log: Arc<SessionLog>,
+}
+
+impl TyprMcpServer {
+    /// Run `f`, then record its input and output in the session log.
+    fn logged<I: Serialize, O: Serialize>(&self, kind: &str, name: &str, input: &I, f: impl FnOnce() -> O) -> O {
+        let start = Instant::now();
+        let output = f();
+        self.log.record(
+            kind,
+            name,
+            serde_json::to_value(input).unwrap_or_default(),
+            serde_json::to_value(&output).unwrap_or_default(),
+            start.elapsed().as_millis(),
+        );
+        output
+    }
+}
 
 #[tool_router]
 impl TyprMcpServer {
     pub fn new() -> Self {
-        Self
+        Self {
+            log: Arc::new(SessionLog::from_env()),
+        }
     }
 
     #[tool(description = "Type-check TypR source code in-process (no filesystem, no project \
         directory) and report diagnostics with stable error codes (T0xx for type errors, \
         S0xx for syntax errors).")]
     async fn check(&self, Parameters(CheckParams { source }): Parameters<CheckParams>) -> Json<CheckResult> {
-        Json(check_source(&source))
+        Json(
+            self.logged("tool", "check", &serde_json::json!({ "source": source }), || {
+                check_source(&source)
+            }),
+        )
     }
 
     #[tool(
@@ -600,7 +766,19 @@ impl TyprMcpServer {
         trusting the output."
     )]
     async fn build(&self, Parameters(CheckParams { source }): Parameters<CheckParams>) -> Json<BuildResult> {
-        Json(build_source(&source))
+        let start = Instant::now();
+        let result = build_source(&source);
+        // The inlined std lib makes `r_code` large and identical across calls:
+        // log only the user's part of it.
+        let main_code = result.r_code.split("# === Main Code ===\n").nth(1).unwrap_or("");
+        self.log.record(
+            "tool",
+            "build",
+            serde_json::json!({ "source": source }),
+            serde_json::json!({ "ok": result.ok, "diagnostics": result.diagnostics, "main_code": main_code }),
+            start.elapsed().as_millis(),
+        );
+        Json(result)
     }
 
     #[tool(description = "Explain a TypR diagnostic code (T0xx/S0xx, from a `check`/`build` \
@@ -609,7 +787,11 @@ impl TyprMcpServer {
         produce — `found: false` means this code is declared but dead (unreachable in the \
         current compiler), so fall back to the short `message` `check`/`build` already returned.")]
     async fn explain(&self, Parameters(ExplainParams { code }): Parameters<ExplainParams>) -> Json<ExplainResult> {
-        Json(explain_code(&code))
+        Json(
+            self.logged("tool", "explain", &serde_json::json!({ "code": code }), || {
+                explain_code(&code)
+            }),
+        )
     }
 
     #[tool(description = "Search typr.github.io/docs/ by keyword and get back matching pages \
@@ -624,14 +806,145 @@ impl TyprMcpServer {
         &self,
         Parameters(DocsSearchParams { query }): Parameters<DocsSearchParams>,
     ) -> Json<DocsSearchResult> {
-        Json(search_docs(&query))
+        Json(
+            self.logged("tool", "docs_search", &serde_json::json!({ "query": query }), || {
+                search_docs(&query)
+            }),
+        )
+    }
+
+    #[tool(
+        description = "TypR tutor (an interactive course like vimtutor): list the lessons, in \
+        order, with their number, title and goal. Use with the `tutor` prompt."
+    )]
+    async fn tutor_lessons(&self) -> Json<TutorLessonsResult> {
+        Json(self.logged("tool", "tutor_lessons", &serde_json::Value::Null, || {
+            TutorLessonsResult {
+                lessons: tutor::LESSONS
+                    .iter()
+                    .map(|l| TutorLessonSummary {
+                        number: l.number,
+                        title: l.title.to_string(),
+                        goal: l.goal.to_string(),
+                        file: l.file_name(),
+                    })
+                    .collect(),
+            }
+        }))
+    }
+
+    #[tool(
+        description = "TypR tutor: get one lesson file — its prose (in `#` comments) and its \
+        exercise (code with `???` gaps or a bug for the learner to fix), plus the docs pages it \
+        leads to. The learner writes the answer; grade it with `tutor_check`."
+    )]
+    async fn tutor_lesson(
+        &self,
+        Parameters(TutorLessonParams { lesson }): Parameters<TutorLessonParams>,
+    ) -> Result<Json<TutorLessonResult>, McpError> {
+        let l = tutor::find(lesson).ok_or_else(|| unknown_lesson(lesson))?;
+        Ok(Json(self.logged(
+            "tool",
+            "tutor_lesson",
+            &serde_json::json!({ "lesson": lesson }),
+            || TutorLessonResult {
+                number: l.number,
+                title: l.title.to_string(),
+                goal: l.goal.to_string(),
+                file: l.file_name(),
+                content: l.starter.to_string(),
+                hint_count: l.hints.len(),
+                docs: tutor_doc_links(l),
+            },
+        )))
+    }
+
+    #[tool(description = "TypR tutor: grade the learner's attempt at a lesson with the real \
+        compiler. Returns `passed`, the compiler's `diagnostics`, longer `explanations` of their \
+        codes, and `feedback` saying what is still missing in the tutor's words. Once passed, \
+        `docs` lists the pages to read next and `next_lesson` the following lesson.")]
+    async fn tutor_check(
+        &self,
+        Parameters(TutorCheckParams { lesson, source }): Parameters<TutorCheckParams>,
+    ) -> Result<Json<TutorCheckResult>, McpError> {
+        let l = tutor::find(lesson).ok_or_else(|| unknown_lesson(lesson))?;
+        let input = serde_json::json!({ "lesson": lesson, "source": source });
+        Ok(Json(self.logged("tool", "tutor_check", &input, || {
+            let grade = tutor::grade(l, &source);
+            let passed = grade.passed;
+            TutorCheckResult {
+                grade,
+                docs: if passed { tutor_doc_links(l) } else { Vec::new() },
+                next_lesson: tutor::find(lesson + 1).filter(|_| passed).map(|n| n.number),
+            }
+        })))
+    }
+
+    #[tool(
+        description = "TypR tutor: get a hint for a lesson. Hints go from vague (level 1) to \
+        nearly the answer (last level): give them one at a time, only as far as the learner \
+        needs."
+    )]
+    async fn tutor_hint(
+        &self,
+        Parameters(TutorHintParams { lesson, level }): Parameters<TutorHintParams>,
+    ) -> Result<Json<TutorHintResult>, McpError> {
+        let l = tutor::find(lesson).ok_or_else(|| unknown_lesson(lesson))?;
+        let index = level.clamp(1, l.hints.len()) - 1;
+        Ok(Json(self.logged(
+            "tool",
+            "tutor_hint",
+            &serde_json::json!({ "lesson": lesson, "level": level }),
+            || TutorHintResult {
+                lesson,
+                level: index + 1,
+                hint: l.hints[index].to_string(),
+                hint_count: l.hints.len(),
+            },
+        )))
+    }
+
+    #[tool(
+        description = "Prepare a bug report for the TypR team, ONLY when the user asks you to \
+        report a problem (or agrees when you offer to). Use it for: valid code rejected, invalid \
+        code accepted, an internal error (S000), wrong R output, a diagnostic/`explain` entry \
+        that didn't help, or a missing feature/doc. `repro` must be ANONYMIZED: never the \
+        user's code verbatim — rename identifiers, replace literals, drop unrelated lines until \
+        it is a small generic snippet that still triggers the same behavior. Pass the original \
+        failure's codes in `original_codes`; the repro is re-checked against them and \
+        `reproduced: false` means it drifted — fix the repro and call again. Nothing is sent: \
+        the result holds an `issue_url` (pre-filled GitHub issue) that you hand to the user to \
+        open, review and submit, plus the local `report_path`."
+    )]
+    async fn report_issue(&self, Parameters(params): Parameters<ReportParams>) -> Json<ReportResult> {
+        let result = feedback::build_report(&params, &self.log);
+        self.log.record(
+            "report",
+            "report_issue",
+            serde_json::json!({
+                "title": params.title,
+                "kind": params.kind,
+                "repro": params.repro,
+                "original_codes": params.original_codes,
+            }),
+            serde_json::json!({ "reproduced": result.reproduced, "report_path": result.report_path }),
+            0,
+        );
+        Json(result)
     }
 }
 
 #[tool_handler]
 impl ServerHandler for TyprMcpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().enable_resources().build()).with_instructions(
+        ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .enable_prompts()
+                .build(),
+        )
+        .with_instructions(
             "TypR compiler tools. `check` type-checks TypR source and returns diagnostics \
              tagged with stable error codes. `build` does the same but also returns the \
              transpiled R code. `explain` takes one of those codes and returns a longer \
@@ -651,8 +964,73 @@ impl ServerHandler for TyprMcpServer {
              gotchas, the sanctioned ways to drop out of the type system, and a side-by-side \
              R/TypR comparison — read these to write idiomatic TypR instead of R with type \
              annotations bolted on. `typr://docs-index` lists every page on the docs site with \
-             its URL, for browsing the full table `docs_search` searches over.",
+             its URL, for browsing the full table `docs_search` searches over. \
+             `report_issue` prepares a GitHub issue for the TypR team — the language is young, \
+             so when a diagnostic looks wrong (valid code rejected, S000 internal error, R \
+             output that misbehaves) or `explain`/the docs didn't get you unstuck, tell the user \
+             and offer to report it; call it only once they agree, with an anonymized repro. \
+             `tutor_lessons`/`tutor_lesson`/`tutor_check`/`tutor_hint` run an interactive TypR \
+             course for newcomers (the `tutor` prompt explains how to teach it): when a user \
+             wants to learn TypR, offer it.",
         )
+    }
+
+    async fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, McpError> {
+        Ok(ListPromptsResult::with_all_items(vec![Prompt::new(
+            "tutor",
+            Some("Learn TypR step by step with an AI tutor: hands-on lessons graded by the real compiler, each one leading into the documentation."),
+            Some(vec![PromptArgument::new("lesson")
+                .with_description("Lesson number to start from (default: 1).")
+                .with_required(false)]),
+        )
+        .with_title("TypR tutor")]))
+    }
+
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResponse, McpError> {
+        if request.name != "tutor" {
+            return Err(McpError::invalid_params(
+                format!("unknown prompt: {}", request.name),
+                None,
+            ));
+        }
+        let start = request
+            .arguments
+            .as_ref()
+            .and_then(|args| args.get("lesson"))
+            .and_then(|v| {
+                v.as_u64()
+                    .map(|n| n as usize)
+                    .or_else(|| v.as_str()?.trim().parse().ok())
+            })
+            .unwrap_or(1);
+        let lesson = tutor::find(start).ok_or_else(|| unknown_lesson(start))?;
+        self.log.record(
+            "prompt",
+            "tutor",
+            serde_json::json!({ "lesson": start }),
+            serde_json::Value::Null,
+            0,
+        );
+        let kickoff = format!(
+            "Start the TypR tutor at lesson {} of {} (\"{}\"). Welcome me in two or three sentences, \
+             tell me how the course works, then fetch the lesson with `tutor_lesson` and teach it.",
+            lesson.number,
+            tutor::LESSONS.len(),
+            lesson.title
+        );
+        Ok(GetPromptResult::new(vec![
+            PromptMessage::new_text(Role::User, TUTOR_PROMPT),
+            PromptMessage::new_text(Role::User, kickoff),
+        ])
+        .into())
     }
 
     async fn list_resources(
@@ -668,7 +1046,16 @@ impl ServerHandler for TyprMcpServer {
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, McpError> {
-        read_syntax_resource(&request.uri).map(Into::into)
+        let result = read_syntax_resource(&request.uri);
+        // Log which resources the agent reads, not their (static) contents.
+        self.log.record(
+            "resource",
+            &request.uri,
+            serde_json::Value::Null,
+            serde_json::json!({ "ok": result.is_ok() }),
+            0,
+        );
+        result.map(Into::into)
     }
 }
 

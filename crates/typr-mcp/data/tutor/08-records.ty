@@ -1,0 +1,39 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 8 of 13  ·  Model your data with records
+# =============================================================================
+#
+#  An R list with named fields becomes, in TypR, a RECORD type:
+#
+#      type Person <- list {
+#        name: char,
+#        age: int
+#      };
+#
+#  Type names start with an uppercase letter (PascalCase); variable names
+#  are lowercase (snake_case). The parser enforces it.
+#
+#  You build a value of that type with  TypeName:{ field = value, ... }
+#
+#      let alice <- Person:{ name = "Alice", age = 25 };
+#
+#  and read a field with '$', like in R:  alice$age
+#
+#  In the generated R, 'Person' becomes a real constructor that VALIDATES its
+#  fields: a wrong field type is caught at compile time AND at run time.
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE
+#
+#  1. Complete the type 'Book' with two fields: 'title' (a char) and
+#     'pages' (an int).
+#  2. Build 'dune', a Book titled "Dune" with 412 pages.
+#
+# -----------------------------------------------------------------------------
+
+type Book <- list {
+  ???
+};
+
+let dune <- ???;
+
+print(dune$title);

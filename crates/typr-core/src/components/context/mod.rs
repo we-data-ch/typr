@@ -922,6 +922,7 @@ impl Context {
             .iter()
             .filter(|typ| (*typ).clone().to_module_type().is_err())
             .filter(|typ| !typ.is_empty())
+            .filter(|typ| !matches!(typ, Type::Interface(methods, _) if methods.is_empty()))
             // A supertype that still mentions an unresolved generic (e.g. a
             // record-kinded `%T` picked up structurally from a generic alias
             // like `Animator<%T> <- %T & list {...}`) has no R class name —
@@ -999,7 +1000,7 @@ impl Context {
             .collect::<HashSet<_>>();
         let mut result: Vec<(Var, Type)> = res
             .iter()
-            .map(|(var, typ)| (var.clone().add_backticks_if_percent(), typ.clone()))
+            .map(|(var, typ)| (var.clone().add_backticks_if_needed(), typ.clone()))
             .collect();
         // Stable order: the list is rendered into generic_functions.R, which
         // must not reshuffle between builds (HashSet iteration is random).
@@ -1317,10 +1318,15 @@ impl Context {
     }
 
     pub fn get_functions_from_name(&self, name: &str) -> Vec<(Var, Type)> {
+        // A typed definition shadows the untyped base-R placeholder of the same
+        // name: otherwise its variadic `Any` signature accepts every call the
+        // typed one rejects (`let double <- fn(x: int)…; double("two")`).
+        let shadowed = !self.typing_context.name_exists_outside_of_std(name);
         self.typing_context
             .entries_named(name)
             .into_iter()
             .filter(|(_, typ2)| typ2.is_function())
+            .filter(|(_, typ2)| !(shadowed && typ2.is_unknown_function()))
             .collect()
     }
 

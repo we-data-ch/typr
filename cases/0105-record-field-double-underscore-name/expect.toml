@@ -1,0 +1,36 @@
+[[rule]]
+file = "R/main.R"
+must_not_contain = "a__b"
+
+[[rule]]
+file = "R/main.R"
+must_contain = "list(a.b = "
+
+[[rule]]
+file = "R/main.R"
+must_contain = "r$a.b"
+
+[[rule]]
+file = "R/main.R"
+must_contain = "`_u` = "
+
+[[rule]]
+file = "R/main.R"
+must_contain = "d[['_u']]"
+
+# constructor / validator of the record alias
+[[rule]]
+file = "R/main.R"
+must_contain = "Qq <- function(a.b, c, .spread = NULL)"
+
+[[rule]]
+file = "R/main.R"
+must_contain = "required_fields <- c(\"a.b\", \"c\")"
+
+[[rule]]
+file = "@run"
+must_contain = "1\n1\n4\n2\n1\n2\n4\n3"
+
+[[rule]]
+file = "@run"
+must_not_contain = "NULL"

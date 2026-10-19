@@ -87,15 +87,9 @@ fn collect_inlay_hints(lang: &Lang, context: &Context, content: &str, hints: &mu
                 if let Ok(var) = Var::try_from(variable) {
                     let types = context.get_types_from_name(&var.get_name());
                     if let Some(typ) = types.last().filter(|t| !matches!(t, Type::Empty(_))) {
-                        // `Var`'s `HelpData` offset is captured one byte past
-                        // the identifier's real start (see the `+1` note on
-                        // `module_field_access_resolves_to_member_let` — the
-                        // same parser quirk applies to every `Var`, not just
-                        // module fields), so the identifier's real start is
-                        // one byte earlier; from there, its end is `name`'s
-                        // byte length further.
+                        // The identifier ends `name`'s byte length past its start.
                         let name = var.get_name();
-                        let real_start_offset = var.get_help_data().get_offset().saturating_sub(1);
+                        let real_start_offset = var.get_help_data().get_offset();
                         let end_offset = real_start_offset + name.len();
                         let position = offset_to_position(end_offset, content);
                         hints.push(InlayHint {

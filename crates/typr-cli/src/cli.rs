@@ -12,10 +12,12 @@
 
 use crate::project::{
     build_file, build_project, check_file, check_project, clean, cran, debug_file, document, generate_spg, load, new,
-    pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep, run_project, test, use_package, DebugOptions,
+    pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep_R_files, run_in_project, test, use_package,
+    DebugOptions,
 };
 use crate::repl;
 use crate::standard_library::{standard_library, standard_library_doc};
+use crate::tutor;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -159,6 +161,19 @@ enum Commands {
         cache_command: CacheCommands,
     },
     Repl,
+    /// Learn TypR step by step, like vimtutor: short lessons you complete in
+    /// your editor, graded by the compiler, each one leading into the docs.
+    ///
+    /// `typr tutor` creates a `typr-tutor/` folder (or resumes it) and tells
+    /// you which file to open. To learn with an AI assistant instead, connect
+    /// it to `typr mcp` and use its `tutor` prompt: same lessons, same grading.
+    Tutor {
+        #[command(subcommand)]
+        tutor_command: Option<TutorCommands>,
+        /// The tutor workspace folder.
+        #[arg(long, global = true, value_name = "DIR", default_value = "typr-tutor")]
+        dir: PathBuf,
+    },
     Lsp,
     /// Start an MCP server over stdio, exposing the compiler to AI agents
     /// (`check` and `build` tools — see crates/typr-mcp).
@@ -352,6 +367,20 @@ enum CaseCommands {
 }
 
 #[derive(Subcommand, Debug)]
+enum TutorCommands {
+    /// Grade a lesson file (default: the first lesson not passed yet).
+    Check { lesson: Option<usize> },
+    /// Show the next hint for a lesson (default: the current one).
+    Hint { lesson: Option<usize> },
+    /// List the lessons and your progress.
+    List,
+    /// Restore a lesson file to its original content.
+    Reset { lesson: usize },
+    /// Print a reference solution for a lesson.
+    Solution { lesson: usize },
+}
+
+#[derive(Subcommand, Debug)]
 enum CacheCommands {
     /// Delete the cached table. The next build re-seeds it from the embedded
     /// base-R snapshot and re-introspects the project's packages.
@@ -441,6 +470,7 @@ fn skips_r_deps_check(command: &Option<Commands>) -> bool {
         Some(Commands::Init)
             | Some(Commands::Lsp)
             | Some(Commands::Mcp)
+            | Some(Commands::Tutor { .. })
             | Some(Commands::Std { .. })
             | Some(Commands::Cache { .. })
             | Some(Commands::Syntax { .. })
@@ -458,6 +488,7 @@ pub fn start() {
         crate::r_deps::warn_if_missing();
     }
 
+    // $ typr [path].ty
     if let Some(path) = cli.file {
         if cli.command.is_none() {
             run_file(&path);
@@ -466,36 +497,17 @@ pub fn start() {
     }
 
     match cli.command {
-        Some(Commands::Init) => crate::r_deps::init(),
-        Some(Commands::New { name, renv }) => new(&name, renv),
-        Some(Commands::Check { file }) => match file {
-            Some(path) => check_file(&path),
-            _ => check_project(),
+        // $ typr run
+        Some(Commands::Run {
+            file,
+            profile,
+            checked,
+            strict,
+        }) => match file {
+            Some(path) => run_file_keep_R_files(&path, profile, checked, strict),
+            _ => run_in_project(profile, checked, strict),
         },
-        Some(Commands::Graph {
-            graph_command:
-                Some(GraphCommands::Diff {
-                    old_file,
-                    new_file,
-                    format,
-                }),
-            ..
-        }) => crate::graph::graph_diff(&old_file, &new_file, &format),
-        Some(Commands::Graph {
-            graph_command: None,
-            file: Some(file),
-            format,
-            focus,
-            projection,
-        }) => crate::graph::graph_file(&file, &format, focus.as_deref(), projection.as_deref()),
-        Some(Commands::Graph {
-            graph_command: None,
-            file: None,
-            ..
-        }) => {
-            eprintln!("typr graph requires a FILE, or use `typr graph diff <old> <new>`");
-            std::process::exit(1);
-        }
+        // $ typr build
         Some(Commands::Build {
             file,
             test,
@@ -506,15 +518,45 @@ pub fn start() {
             Some(path) => build_file(&path, test, checked, strict),
             _ => build_project(test, no_incremental, checked, strict),
         },
-        Some(Commands::Run {
-            file,
-            profile,
-            checked,
-            strict,
-        }) => match file {
-            Some(path) => run_file_keep(&path, profile, checked, strict),
-            _ => run_project(profile, checked, strict),
+        // $ typr check
+        Some(Commands::Check { file }) => match file {
+            Some(path) => check_file(&path),
+            _ => check_project(),
         },
+        // $ typr test
+        Some(Commands::Test { profile }) => test(profile),
+        // $ typr new
+        Some(Commands::New { name, renv }) => new(&name, renv),
+        // $ typr init
+        Some(Commands::Init) => crate::r_deps::init(),
+        // $ typr graph diff
+        Some(Commands::Graph {
+            graph_command:
+                Some(GraphCommands::Diff {
+                    old_file,
+                    new_file,
+                    format,
+                }),
+            ..
+        }) => crate::graph::graph_diff(&old_file, &new_file, &format),
+        // $ typr graph [file]
+        Some(Commands::Graph {
+            graph_command: None,
+            file: Some(file),
+            format,
+            focus,
+            projection,
+        }) => crate::graph::graph_file(&file, &format, focus.as_deref(), projection.as_deref()),
+        // $ typr graph
+        Some(Commands::Graph {
+            graph_command: None,
+            file: None,
+            ..
+        }) => {
+            eprintln!("typr graph requires a FILE, or use `typr graph diff <old> <new>`");
+            std::process::exit(1);
+        }
+        // $ typr debug
         Some(Commands::Debug {
             file,
             ast,
@@ -532,11 +574,12 @@ pub fn start() {
                 show_files: files,
             },
         ),
-        Some(Commands::Test { profile }) => test(profile),
+        // $ typr pkg
         Some(Commands::Pkg { pkg_command }) => match pkg_command {
             PkgCommands::Install { packages } => pkg_install(packages.as_deref()),
             PkgCommands::Uninstall => pkg_uninstall(),
         },
+        // $ typr case
         Some(Commands::Case { case_command }) => match case_command {
             CaseCommands::List { status } => crate::cases::list(status),
             CaseCommands::Run { filter, status, keep } => crate::cases::run(filter, status, keep),
@@ -545,6 +588,7 @@ pub fn start() {
             CaseCommands::Freeze { id } => crate::cases::freeze(&id),
             CaseCommands::Show { id } => crate::cases::show(&id),
         },
+        // $ typr fuzz
         Some(Commands::Fuzz { fuzz_command }) => match fuzz_command {
             FuzzCommands::Run {
                 n,
@@ -555,20 +599,28 @@ pub fn start() {
             FuzzCommands::Stats { n, max_depth } => crate::fuzz::stats(n, max_depth),
             FuzzCommands::Promote { hash } => crate::fuzz::promote(&hash),
         },
+        // $ typr document
         Some(Commands::Document) => document(),
+        // $ typr pkgdown
         Some(Commands::Pkgdown) => pkgdown(),
         Some(Commands::Use { package_name }) => {
             use_package(&package_name);
             try_auto_resolve_type_definition(std::path::Path::new("."), &package_name);
         }
+        // $ typr load
         Some(Commands::Load) => load(),
+        // $ typr cran
         Some(Commands::Cran) => cran(),
+        // $ typr std
         Some(Commands::Std { std_command }) => match std_command {
             None => standard_library(),
             Some(StdCommands::Doc { output, format }) => standard_library_doc(output, &format),
         },
+        // $ typr clean
         Some(Commands::Clean) => clean(),
+        // $ typr cache
         Some(Commands::Cache { cache_command }) => run_cache_command(cache_command),
+        // $ typr lsp
         Some(Commands::Lsp) => {
             // Use a larger stack size (8MB) to avoid stack overflow
             // during deep recursive parsing/type-checking operations
@@ -579,6 +631,7 @@ pub fn start() {
                 .unwrap();
             rt.block_on(typr_lsp::run_lsp());
         }
+        // $ typr mcp
         Some(Commands::Mcp) => {
             // Same large-stack rationale as `Lsp`: type checking recurses.
             let rt = tokio::runtime::Builder::new_multi_thread()
@@ -591,7 +644,26 @@ pub fn start() {
                 std::process::exit(1);
             }
         }
+        // $ typr rpl
         Some(Commands::Repl) => repl::start(),
+        // $ typr tutor
+        Some(Commands::Tutor { tutor_command, dir }) => {
+            // Grading type-checks in process: same large-stack rationale as `Lsp`.
+            std::thread::Builder::new()
+                .stack_size(8 * 1024 * 1024)
+                .spawn(move || match tutor_command {
+                    None => tutor::start(&dir),
+                    Some(TutorCommands::Check { lesson }) => tutor::check(&dir, lesson),
+                    Some(TutorCommands::Hint { lesson }) => tutor::hint(&dir, lesson),
+                    Some(TutorCommands::List) => tutor::list(&dir),
+                    Some(TutorCommands::Reset { lesson }) => tutor::reset(&dir, lesson),
+                    Some(TutorCommands::Solution { lesson }) => tutor::solution(lesson),
+                })
+                .unwrap()
+                .join()
+                .unwrap();
+        }
+        // $ typr syntax
         Some(Commands::Syntax {
             json,
             target,
@@ -599,9 +671,13 @@ pub fn start() {
             write,
             check,
         }) => run_syntax_command(json, target, output, write, check),
+        // $ typr spg
         Some(Commands::Spg { output }) => generate_spg(output),
+        // $ typr gen-types
         Some(Commands::GenTypes { package, out }) => crate::gen_types::run(&package, out),
+        // $ typr types
         Some(Commands::Types { types_command }) => run_types_command(types_command),
+        // $ typr search
         Some(Commands::Search { package }) => run_search_command(&package),
         _ => {
             println!("Please specify a subcommand or file to execute");

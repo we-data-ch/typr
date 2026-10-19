@@ -1,0 +1,4 @@
+# rel([1,2,3], [1,2]) binds #N to 3 then 2: the build must fail, so no R file is produced
+[[rule]]
+file = "R/main.R"
+must_not_contain = "`r` <-"

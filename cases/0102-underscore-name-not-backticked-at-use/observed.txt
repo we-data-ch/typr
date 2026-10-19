@@ -1,0 +1,4 @@
+# exit=1
+
+## stdout/stderr
+Error: unexpected input in "print(_"

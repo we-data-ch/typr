@@ -1,0 +1,4 @@
+# norm([1.0, 2.0]) does not match [3, num]: must be a type error, so no R file
+[[rule]]
+file = "R/main.R"
+must_not_contain = "`r` <-"

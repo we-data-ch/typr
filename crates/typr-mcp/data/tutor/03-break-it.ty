@@ -1,0 +1,31 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 3 of 13  ·  Break it on purpose
+# =============================================================================
+#
+#  The compiler's job is to say NO to code that would fail at run time.
+#  Before learning to please it, let's see it at work.
+#
+#  Below is a small typed function. 'fn(x: int): int' reads: "a function that
+#  takes an int called x and returns an int".
+#
+#  In plain R, twice("two") would only blow up when the line runs, maybe in
+#  production, maybe months later. In TypR it never gets that far.
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE   (an inverted one: this time, success means an error!)
+#
+#  This program compiles fine. Add a line at the end that calls 'twice' with
+#  a value of the wrong type, so that the compiler REJECTS the program with a
+#  type error. Then run:   typr tutor check
+#
+#  Read the error message carefully: it says what was expected, what it
+#  received, and where. Every error has a code (like T001); the tutor shows
+#  a longer explanation for it.
+#
+# -----------------------------------------------------------------------------
+
+let twice <- fn(x: int): int {
+  x * 2
+};
+
+print(twice(21));

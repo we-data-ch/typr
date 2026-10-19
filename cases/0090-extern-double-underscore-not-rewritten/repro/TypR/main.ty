@@ -1,0 +1,3 @@
+@extern utils::read__csv: (path: char) -> Any;
+
+let raw <- utils::read__csv("sales.csv");

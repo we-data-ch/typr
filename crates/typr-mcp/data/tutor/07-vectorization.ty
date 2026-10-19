@@ -1,0 +1,47 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 7 of 13  ·  Write once, run on many
+# =============================================================================
+#
+#  In R you often write a loop, or reach for sapply(), to apply a function to
+#  every element of a vector. In TypR you don't. You write the function for ONE
+#  value, and the compiler lifts it when you hand it many:
+#
+#      let double <- fn(x: int): int { x * 2 };
+#
+#      double(4)              # -> 8
+#      double([1, 2, 3])      # -> [2, 4, 6]    same function, no loop
+#
+#  [1, 2, 3] is an array. Its type is written  Vec[3, int]  : "three ints".
+#  The length is part of the type, so the compiler knows the result of
+#  double([1, 2, 3]) has three elements too.
+#
+#  Lifting is still type-checked: double(["a", "b"]) is refused, because
+#  'double' wants ints, whether you give it one or three.
+#
+#  The same goes for functions of several arguments: scale([1, 2, 3], 10) pairs
+#  each element with the 10.
+#
+#  Why not simply loop? Because "to apply f to each element" is something the
+#  type system can see, so you don't have to say it. The longer story is in
+#  the documentation page linked when you pass this lesson.
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE
+#
+#  1. Write 'to_fahrenheit': it takes one temperature in Celsius (a num) and
+#     returns it in Fahrenheit (a num): celsius * 1.8 + 32.0
+#  2. Replace the second '???' by a call to to_fahrenheit on the whole array
+#     'temps', in one call: to_fahrenheit(temps). No loop.
+#
+#  The annotation  Vec[3, num]  is your safety net: if you call the function
+#  on a single value, the compiler will tell you it got a num, not three.
+#
+# -----------------------------------------------------------------------------
+
+let to_fahrenheit <- ???;
+
+let temps <- [0.0, 20.0, 37.0];
+
+let fahrenheit: Vec[3, num] <- ???;
+
+print(fahrenheit);

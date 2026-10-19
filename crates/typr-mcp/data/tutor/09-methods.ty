@@ -1,0 +1,32 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 9 of 13  ·  Functions on your types
+# =============================================================================
+#
+#  Lessons 6 and 8 meet here. A function whose first parameter is a Book can
+#  be called "on" a book, with the method style:
+#
+#      let describe <- fn(b: Book): char { b$title };
+#      dune.describe();          # same as describe(dune)
+#
+#  No class, no 'impl' block: any function does it. And since the compiler
+#  knows 'dune' is a Book, it knows which 'describe' you mean.
+#
+#  Records are STRUCTURAL: a function that takes a Book accepts any record
+#  having at least the fields of Book. Extra fields are fine.
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE
+#
+#  1. Write 'is_long': it takes a Book and returns a bool, true when the book
+#     has more than 300 pages.
+#  2. Replace the last '???' by a call to is_long on 'dune', in method style.
+#
+# -----------------------------------------------------------------------------
+
+type Book <- list { title: char, pages: int };
+
+let dune <- Book:{ title = "Dune", pages = 412 };
+
+let is_long <- ???;
+
+print(???);

@@ -1,0 +1,4 @@
+# exit=1
+
+## stdout/stderr
+Syntax error: `list{...}` requires named fields (`name = value`)

@@ -1,0 +1,32 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "M$my.v <- my.v"
+
+[[rule]]
+file = "R/main.R"
+must_contain = "M$as.pt <- as.pt"
+
+[[rule]]
+file = "R/main.R"
+must_contain = "M$`_u` <- `_u`"
+
+[[rule]]
+file = "R/main.R"
+must_contain = "print(M$my.v)"
+
+[[rule]]
+file = "R/main.R"
+must_not_contain = "my__v"
+
+# a plain typed member keeps its S3 registration
+[[rule]]
+file = "R/main.R"
+must_contain = "registerS3method(\"f\", \"Pt\", f.Pt)"
+
+[[rule]]
+file = "@run"
+must_contain = "2\n5\n7\n2"
+
+[[rule]]
+file = "@run"
+must_not_contain = "failed"

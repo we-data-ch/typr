@@ -764,7 +764,7 @@ fn interface(s: Span) -> IResult<Span, Type> {
     let res = (
         terminated(tag("interface"), multispace0),
         terminated(tag("{"), multispace0),
-        terminated(many1(interface_function), multispace0),
+        terminated(many0(interface_function), multispace0),
         terminated(tag("}"), multispace0),
     )
         .parse(s);
@@ -1406,6 +1406,12 @@ mod tests {
         let self_t = builder::self_generic_type();
         let inter = builder::interface_type(&[("hey", builder::function_type(&[self_t, num.clone()], num))]);
         assert_eq!(res, inter);
+    }
+
+    #[test]
+    fn test_empty_interface_parsing() {
+        let res = interface("interface {}".into()).unwrap().1;
+        assert_eq!(res, builder::interface_type(&[]));
     }
 
     #[test]

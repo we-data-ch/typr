@@ -1,0 +1,7 @@
+type Sales <- dataframe[3]{ units: num, price: num };
+
+let with_vat <- fn(s: Sales): num { 1.0 };
+
+let raw <- data.frame(units = c(1.0, 2.0, 3.0), price = c(5.0, 6.0, 7.0));
+let s <- raw as! Sales;
+with_vat(s);

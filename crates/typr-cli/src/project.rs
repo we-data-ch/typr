@@ -82,6 +82,11 @@ fn print_step(title: &str) {
 /// `std.ty` instead of the user's file — neither is a state any working
 /// project depends on, and treating it as a mere warning would leave the
 /// silent-data-loss case exactly as silent as before.
+/// `HiddenNameAfterDot` (`x..f()`) and `PublicHiddenName` (`@pub let .x`)
+/// are fatal from day one: both only became reachable when hidden `.names`
+/// were introduced (`x..f` didn't parse at all before), so no existing
+/// project can depend on them, and each is a contradiction rather than a
+/// style slip — the recovered AST would silently pick one reading.
 fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
     if errors.is_empty() {
         return false;
@@ -93,6 +98,8 @@ fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
                 | SyntaxError::SingleLetterTypeName { .. }
                 | SyntaxError::KeywordRecordPositionalElements { .. }
                 | SyntaxError::TupleDestructureArityMismatch { .. }
+                | SyntaxError::HiddenNameAfterDot(..)
+                | SyntaxError::PublicHiddenName { .. }
         )
     });
     if !warnings.is_empty() {
@@ -526,7 +533,13 @@ pub fn write_header(context: Context, output_dir: &Path, environment: Environmen
         .map(|(var, _)| var.get_name())
         .filter(|x| !x.contains("<-"))
         .map(|fn_name| {
-            let export = if environment.is_project() { "#' @export\n" } else { "" }.to_string();
+            // A hidden `.name` stays out of the package's NAMESPACE.
+            let export = if environment.is_project() && !fn_name.starts_with('.') {
+                "#' @export\n"
+            } else {
+                ""
+            }
+            .to_string();
             format!(
                 "{}{} <- function(x, ...) UseMethod('{}', x)",
                 export,
@@ -756,11 +769,13 @@ pub fn check_project() {
 }
 
 pub fn check_file(path: &PathBuf) {
+    // The file may be given from anywhere inside the project (e.g. from
+    // `TypR/`), so anchor everything on the project root, not the cwd.
+    let dir = crate::metaprogramming::find_project_root(&path.to_string_lossy()).unwrap_or_else(|| PathBuf::from("."));
     let context = crate::standard_library::load_project_type_definitions(
-        Path::new("."),
+        &dir,
         Context::default().set_environment(Environment::Project),
     );
-    let dir = PathBuf::from(".");
     write_std_for_type_checking(&dir);
 
     let step = Step::new("Parsing");
@@ -1164,7 +1179,7 @@ fn rprof_wrap(r_body: &str) -> String {
     )
 }
 
-pub fn run_project(profile: bool, checked_mode: bool, strict_mode: bool) {
+pub fn run_in_project(profile: bool, checked_mode: bool, strict_mode: bool) {
     build_project_impl(false, checked_mode, strict_mode, true, true, true);
     // Use the TypR loader instead of devtools to respect module encapsulation.
     // Top-level code in main.ty already runs as a side effect of sourcing it
@@ -1228,8 +1243,9 @@ pub fn run_file(path: &Path) {
     run_file_impl(path, false, false, false, false);
 }
 
-// run the file while keeping the generated files
-pub fn run_file_keep(path: &Path, profile: bool, checked_mode: bool, strict_mode: bool) {
+/// run the file while keeping the generated 
+/// R files (app.R, std.R, types.R, generic_functions.R)
+pub fn run_file_keep_R_files(path: &Path, profile: bool, checked_mode: bool, strict_mode: bool) {
     run_file_impl(path, true, profile, checked_mode, strict_mode);
 }
 
@@ -1258,6 +1274,7 @@ impl Drop for TempDirGuard {
     }
 }
 
+// @explore
 fn run_file_impl(path: &Path, keep_files: bool, profile: bool, checked_mode: bool, strict_mode: bool) {
     let step = Step::new("Parsing");
     let content = get_content(path);
@@ -1644,7 +1661,7 @@ pub fn pkg_install(packages: Option<&[String]>) {
                 }
             };
 
-            let project_path = current_dir.to_str().unwrap();
+            let project_path = r_path(&current_dir);
             let r_command = format!("devtools::install_local('{}')", project_path);
             println!("Executing: R -e \"{}\"", r_command);
 
@@ -1736,7 +1753,7 @@ pub fn pkgdown() {
             std::process::exit(1);
         }
     };
-    let project_path = current_dir.to_str().unwrap_or(".");
+    let project_path = r_path(&current_dir);
     let r_command = format!("pkgdown::build_site('{}')", project_path);
     let output = Command::new("R").arg("-e").arg(&r_command).output();
     match output {
@@ -1859,6 +1876,18 @@ fn document_from_spg(spg: &Spg, quiet: bool, manifest: Option<&mut cache::BuildM
     update_namespace(quiet, manifest);
 }
 
+/// Format a path for embedding in a single-quoted R string literal.
+///
+/// R accepts forward slashes as path separators on every platform,
+/// Windows included — while backslashes in a Windows absolute path are
+/// read by R's parser as escape sequences (`\U` starts a unicode
+/// escape, which aborts commands like `devtools::install_local()`).
+/// Converting to forward slashes is the standard fix and is a no-op on
+/// Unix paths, which contain no backslashes.
+fn r_path(p: &std::path::Path) -> String {
+    p.to_string_lossy().replace('\\', "/")
+}
+
 /// Run `devtools::document(roclets = c('collate', 'namespace'))`. When a
 /// build manifest is provided and the inputs of that run (`R/*.R` +
 /// `DESCRIPTION`) hash to the same value as the last successful run, the R
@@ -1882,7 +1911,7 @@ fn update_namespace(quiet: bool, manifest: Option<&mut cache::BuildManifest>) {
             std::process::exit(1);
         }
     };
-    let project_path = current_dir.to_str().unwrap_or(".");
+    let project_path = r_path(&current_dir);
     let r_command = format!(
         "devtools::document('{}', roclets = c('collate', 'namespace'))",
         project_path
@@ -2115,5 +2144,49 @@ mod roxygen_injection_tests {
         };
         let entries = build_roxygen_entries(&spg);
         assert!(entries.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod r_path_tests {
+    use super::r_path;
+    use std::path::Path;
+
+    /// The bug this fixes: a Windows absolute path interpolated into an
+    /// R string literal makes R's parser read `\U` as a unicode escape
+    /// and abort (`devtools::install_local('C:\Users\...')`). Forward
+    /// slashes are valid path separators in R on Windows too.
+    #[test]
+    fn windows_backslashes_become_forward_slashes() {
+        let p = Path::new(r"C:\Users\Desktop\TypR\mytestpkg");
+        assert_eq!(r_path(p), "C:/Users/Desktop/TypR/mytestpkg");
+    }
+
+    /// Unix paths contain no backslashes — the conversion must be a
+    /// no-op so Linux/macOS behavior is unchanged.
+    #[test]
+    fn unix_paths_are_unchanged() {
+        let p = Path::new("/home/user/mytestpkg");
+        assert_eq!(r_path(p), "/home/user/mytestpkg");
+    }
+
+    /// A bare "." (the fallback when the current directory can't be
+    /// read) must survive untouched.
+    #[test]
+    fn dot_fallback_is_unchanged() {
+        assert_eq!(r_path(Path::new(".")), ".");
+    }
+
+    /// The generated R command must not contain any backslash that R
+    /// could misread as an escape sequence.
+    #[test]
+    fn generated_r_command_contains_no_backslash() {
+        let p = Path::new(r"C:\Users\Desktop\TypR\mytestpkg");
+        let cmd = format!("devtools::install_local('{}')", r_path(p));
+        assert!(!cmd.contains('\\'), "{}", cmd);
+        assert_eq!(
+            cmd,
+            "devtools::install_local('C:/Users/Desktop/TypR/mytestpkg')"
+        );
     }
 }

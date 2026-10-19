@@ -171,6 +171,12 @@ pub enum TypeError {
     /// A call binds one `I@Id` to two different types:
     /// `(id, first_type, first_arg_position, second_type, second_arg_position)`.
     IdBoundToTwoTypes(String, String, HelpData, String, HelpData),
+    /// `e$field` where `e`'s type is neither a record, a module nor a data
+    /// frame (e.g. a vector alias) — `(field_name, type_display, position)`.
+    FieldAccessOnNonRecord(String, String, HelpData),
+    /// `...e` (record literal or constructor spread) where `e` isn't a
+    /// record — `(type_display, position)`.
+    SpreadNonRecord(String, HelpData),
 }
 
 impl TypeError {
@@ -226,6 +232,8 @@ impl TypeError {
             TypeError::ConflictingBound(_, _, _, h) => Some(h.clone()),
             TypeError::BoundCollidesWithGeneric(_, h) => Some(h.clone()),
             TypeError::IdBoundToTwoTypes(_, _, _, _, h) => Some(h.clone()),
+            TypeError::FieldAccessOnNonRecord(_, _, h) => Some(h.clone()),
+            TypeError::SpreadNonRecord(_, h) => Some(h.clone()),
         }
     }
 
@@ -283,6 +291,8 @@ impl TypeError {
             TypeError::ConflictingBound(..) => "T047",
             TypeError::BoundCollidesWithGeneric(..) => "T048",
             TypeError::IdBoundToTwoTypes(..) => "T049",
+            TypeError::FieldAccessOnNonRecord(..) => "T050",
+            TypeError::SpreadNonRecord(..) => "T051",
         }
     }
 
@@ -320,7 +330,7 @@ impl TypeError {
             TypeError::FieldNotFound((name, _), typ) => {
                 format!("Field '{}' not found on type {}", name, typ.pretty())
             }
-            TypeError::WrongExpression(_) => "Type error in expression".to_string(),
+            TypeError::WrongExpression(_) => "This expression doesn't type-check".to_string(),
             TypeError::WrongIndexing(t1, t2) => {
                 format!("Cannot index {} with {}", t1.pretty(), t2.pretty())
             }
@@ -528,6 +538,12 @@ impl TypeError {
             TypeError::IdBoundToTwoTypes(id, t1, _, t2, _) => {
                 format!("'{}' is bound to '{}' and then to '{}' in the same call.", id, t1, t2)
             }
+            TypeError::FieldAccessOnNonRecord(field, typ, _) => {
+                format!("Cannot access field '{}': type {} is not a record", field, typ)
+            }
+            TypeError::SpreadNonRecord(typ, _) => {
+                format!("Cannot spread a value of type {}: only records can be spread", typ)
+            }
         }
     }
 }
@@ -547,6 +563,15 @@ fn safe_file_pos(help_data: &HelpData, span_len: usize) -> ((String, String), (u
     let offset = help_data.get_offset().min(text.len().saturating_sub(1));
     let safe_len = span_len.min(text.len() - offset);
     ((file, text), (offset, safe_len))
+}
+
+/// Like `safe_file_pos`, spanning the node's whole source range (`offset..end`)
+/// minus the trailing whitespace the parser consumes after a token.
+fn node_file_pos(help_data: &HelpData) -> ((String, String), (usize, usize)) {
+    let ((file, text), (offset, _)) = safe_file_pos(help_data, 0);
+    let end = help_data.get_end().clamp(offset, text.len());
+    let len = text.get(offset..end).map_or(0, |s| s.trim_end().len());
+    ((file, text), (offset, len))
 }
 
 // main
@@ -758,16 +783,11 @@ impl ErrorMsg for TypeError {
                     .build()
             }
             TypeError::WrongExpression(help_data) => {
-                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
-                let offset = help_data.get_offset().min(text.len());
-                let line = (text[..offset].lines().count() + 1) as u32;
-                let element = text[offset..].lines().next().unwrap_or("").trim().to_string();
-                SingleBuilder::new(file_name.clone(), text)
-                    .pos((offset, 0))
-                    .text(format!(
-                        "Unknown element `{}` in `{}` at `{}`",
-                        element, file_name, line
-                    ))
+                let ((file_name, text), pos) = node_file_pos(&help_data);
+                SingleBuilder::new(file_name, text)
+                    .pos(pos)
+                    .text("This expression doesn't type-check")
+                    .pos_text("Unexpected expression here")
                     .build()
             }
             TypeError::WrongIndexing(t1, t2) => {
@@ -1157,6 +1177,27 @@ impl ErrorMsg for TypeError {
                     .text(format!("'{}' is bounded by both '{}' and '{}'", id, b1, b2))
                     .pos_text(format!("'{}' already bounded by '{}'", id, b1))
                     .help("One id names one type, so it can satisfy only one interface here. Use a different id for the second bound.")
+                    .build()
+            }
+            TypeError::FieldAccessOnNonRecord(field, typ, help_data) => {
+                let ((file_name, text), pos) = safe_file_pos(&help_data, field.len());
+                SingleBuilder::new(file_name, text)
+                    .pos(pos)
+                    .text(format!("Cannot access field '{}': type {} is not a record", field, typ))
+                    .pos_text(format!("{} has no field '{}'", typ, field))
+                    .help("`$` reads a field of a record (`list { ... }`), a module or a data frame.")
+                    .build()
+            }
+            TypeError::SpreadNonRecord(typ, help_data) => {
+                let ((file_name, text), pos) = node_file_pos(&help_data);
+                SingleBuilder::new(file_name, text)
+                    .pos(pos)
+                    .text(format!(
+                        "Cannot spread a value of type {}: only records can be spread",
+                        typ
+                    ))
+                    .pos_text(format!("this is a {}", typ))
+                    .help("`...e` copies the fields of a record (`list { ... }`) into the one being built.")
                     .build()
             }
             TypeError::IdBoundToTwoTypes(id, t1, h1, t2, h2) => {

@@ -1,0 +1,6 @@
+[[rule]]
+file = "@run"
+must_contain = "successful"
+[[rule]]
+file = "@run"
+must_not_contain = "bound to"

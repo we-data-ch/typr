@@ -1,0 +1,4 @@
+# read_x() returns [num] (length unknown): the call must carry a runtime length check
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_length_range("

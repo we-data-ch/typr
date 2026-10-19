@@ -1,0 +1,6 @@
+let name: char <- "Ada";
+let age: int <- 36;
+let height: num <- 1.68;
+let is_admin: bool <- false;
+
+print(name);

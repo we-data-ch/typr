@@ -109,10 +109,7 @@ fn encode_semantic_tokens(raw: &[RawToken], content: &str) -> Vec<SemanticToken>
 /// Locate a `Lang::Variable`/`Var` identifier's byte span from its
 /// `HelpData`. The parser uses two different conventions depending on which
 /// grammar branch matched: a lowercase-first name goes through
-/// `variable_exp`, whose per-character combinator loop returns the
-/// *remaining* span after consuming just the first character — so the
-/// offset lands one byte past the real start (the same quirk
-/// `collect_inlay_hints` already corrects for `let` type hints). A
+/// `variable_exp`, whose offset is the identifier's real start. A
 /// Pascal-case name goes through `pascal_case_helper`, which consumes the
 /// whole identifier in one shot and returns the remaining span *after* it —
 /// so the offset lands at the identifier's end. Returns `None` for
@@ -127,8 +124,7 @@ fn lang_variable_span(name: &str, help_data: &HelpData) -> Option<(usize, usize)
         let start = end.checked_sub(name.len())?;
         Some((start, end))
     } else {
-        let start = offset.checked_sub(1)?;
-        Some((start, start + name.len()))
+        Some((offset, offset + name.len()))
     }
 }
 

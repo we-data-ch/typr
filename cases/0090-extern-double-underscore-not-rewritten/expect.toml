@@ -1,0 +1,6 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "utils::read.csv("
+[[rule]]
+file = "R/main.R"
+must_not_contain = "read__csv"

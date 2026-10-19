@@ -1,0 +1,28 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 13 of 13  ·  Your own program
+# =============================================================================
+#
+#  You now know the heart of TypR:
+#
+#    let x: T <- ...;           values and the four primitive types
+#    fn(a: T): U { ... }        typed functions
+#    x |> f(y)   x.f(y)         three ways to call any function
+#    type R <- list { ... }     records, built with R:{ ... }
+#    .Tag(T) | .Other           unions, opened with an exhaustive 'match'
+#    Option<T>                  generics
+#    @f: (T) -> U;              typing R functions
+#
+#  and that the compiler is a colleague who reads your code before it runs.
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE   (free style)
+#
+#  Erase this lesson and write a small program of your own, on any subject
+#  you like (a to-do list, a shop, a game...). It must compile, and use at
+#  least:  a 'type', a typed function 'fn(', and a 'match'.
+#
+#  Stuck for an idea? Model a traffic light: .Red | .Orange | .Green, and a
+#  function that returns the next colour.
+#
+# -----------------------------------------------------------------------------
+

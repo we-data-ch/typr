@@ -70,6 +70,9 @@
       "include": "#types.variant"
     },
     {
+      "include": "#variables.hidden"
+    },
+    {
       "include": "#types.sigil-generic"
     },
     {
@@ -503,8 +506,17 @@
         }
       ]
     },
+    "variables.hidden": {
+      "comment": "Hidden name, `.helper` — private by name, as in R (`parsing/elements.rs::variable_exp`). Lowercase after the dot, so a tag (`.Some`) never matches; the look-behind leaves the member of `x.f` to the access operator. Ahead of `operators.access`, which owns a lone `.`.",
+      "patterns": [
+        {
+          "match": "(?<![A-Za-z0-9_.)\\]])\\.[a-z_][A-Za-z0-9_]*\\b",
+          "name": "variable.other.hidden.typr"
+        }
+      ]
+    },
     "variables.other": {
-      "comment": "An identifier starts lowercase-or-underscore and continues in `[A-Za-z0-9_]` — no dots, unlike R (`parsing/elements.rs::starting_char`/`body_char`). `data.frame` is a single dedicated tag, not an identifier.",
+      "comment": "An identifier starts lowercase-or-underscore and continues in `[A-Za-z0-9_]` — no inner dots, unlike R (`parsing/elements.rs::starting_char`/`body_char`): `__` stands for `.` (`as__character` → `as.character`). A *leading* dot is the hidden-name rule above. `data.frame` is a single dedicated tag.",
       "patterns": [
         {
           "match": "\\b[a-z_][A-Za-z0-9_]*\\b",

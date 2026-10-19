@@ -93,7 +93,9 @@ pub fn not_in_blacklist(name: &str) -> bool {
         && !name.contains(":")
         && !name.contains("-")
         && !name.contains(".POSIXt")
-        && !name.contains(".")
+        // An inner dot is an R name (`as.character`); a leading one is a
+        // user's hidden `.name`, which gets its generic like any function.
+        && !name.trim_start_matches('.').contains(".")
 }
 
 /// Validate that vectorization is consistent across arguments

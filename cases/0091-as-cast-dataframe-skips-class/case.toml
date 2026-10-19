@@ -1,0 +1,7 @@
+title = "as! on a dataframe alias calls validate_X, skipping the S3 class (as.X)"
+cmd = "build"
+layer = "transpile"
+status = "open"
+created = "2026-10-01"
+origin = "perso"
+checked = false

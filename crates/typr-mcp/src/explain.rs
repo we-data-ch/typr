@@ -196,6 +196,26 @@ pub const ENTRIES: &[ExplainEntry] = &[
         good: "let f <- fn(a: Lovable@A): bool { true };",
     },
     ExplainEntry {
+        code: "S019",
+        title: "Hidden name after the `.` operator",
+        explanation: "A hidden name starts with `.` (`.helper`, private by name, as in R). Right \
+            after the UFCS/field `.` operator that gives `x..helper()`, which reads as the `..` \
+            spread token. After a dot, spell the hidden name with its ASCII form `__` (which \
+            compiles to `.` in R), or call it through the pipe.",
+        bad: "let .twice <- fn(a: int): int { a * 2 }; let y <- 3..twice();",
+        good: "let .twice <- fn(a: int): int { a * 2 }; let y <- 3.__twice();",
+    },
+    ExplainEntry {
+        code: "S020",
+        title: "Hidden name marked `@pub`/`@export`",
+        explanation: "A leading `.` (or its ASCII spelling `__`) makes a name hidden, i.e. \
+            private by definition — the same convention R's default `exportPattern(\"^[^\\\\.]\")` \
+            follows. Annotating it `@pub` or `@export` contradicts the name: either drop the \
+            annotation or drop the leading dot.",
+        bad: "module M { @pub let .cache <- 0; };",
+        good: "module M { let .cache <- 0; @pub let cache <- 0; };",
+    },
+    ExplainEntry {
         code: "T001",
         title: "Type mismatch on a 'let' binding",
         explanation: "The value on the right-hand side doesn't match the type annotation on the \
@@ -605,6 +625,23 @@ pub const ENTRIES: &[ExplainEntry] = &[
             receive the same type. Give them different ids when they may differ.",
         bad: "type Lovable <- interface { love: (Self) -> char };\ntype Cat <- list { name: char };\ntype Dog <- list { age: int };\nlet love <- fn(c: Cat): char { c.name };\nlet love <- fn(d: Dog): char { \"dog\" };\nlet cat <- Cat:{ name = \"tom\" };\nlet dog <- Dog:{ age = 3 };\nlet f <- fn(a: Lovable@X, b: Lovable@X): char { a.love() };\nf(cat, dog);",
         good: "type Lovable <- interface { love: (Self) -> char };\ntype Cat <- list { name: char };\ntype Dog <- list { age: int };\nlet love <- fn(c: Cat): char { c.name };\nlet love <- fn(d: Dog): char { \"dog\" };\nlet cat <- Cat:{ name = \"tom\" };\nlet dog <- Dog:{ age = 3 };\nlet f <- fn(a: Lovable@X, b: Lovable@Y): char { a.love() };\nf(cat, dog);",
+    },
+    ExplainEntry {
+        code: "T050",
+        title: "Field access on a value that isn't a record",
+        explanation: "`e$field` reads a field of a record (`list { ... }`), a module or a data frame. \
+            Any other type — a vector alias like `[2, int]`, a scalar — has no named fields; \
+            the message shows what an alias stands for so the mismatch is visible.",
+        bad: "type Position <- [2, int];\nlet p: Position <- [1, 2];\np$x;",
+        good: "type Position <- list { x: int, y: int };\nlet p <- :{ x: 1, y: 2 };\np$x;",
+    },
+    ExplainEntry {
+        code: "T051",
+        title: "Spreading a value that isn't a record",
+        explanation: "`...e` in a record literal or a constructor copies `e`'s fields into the \
+            record being built, so `e` must itself be a record.",
+        bad: "let v <- [1, 2];\nlet r <- :{ a: 1, ...v };",
+        good: "let v <- :{ b: 2 };\nlet r <- :{ a: 1, ...v };",
     },
 ];
 

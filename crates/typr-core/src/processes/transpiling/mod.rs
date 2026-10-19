@@ -13,6 +13,7 @@ use crate::components::language::set_related_type_if_variable;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
 use crate::components::language::ModulePosition;
+use crate::components::language::{r_name_string, r_name_symbol};
 use crate::components::r#type::argument_type::ArgumentType;
 use crate::components::r#type::array_type::ArrayType;
 use crate::components::r#type::function_type::FunctionType;
@@ -64,6 +65,33 @@ pub fn escape_r_string(s: &str) -> String {
 /// `c(el1, …)`, or the typed empty vector (`integer(0)`, …) matching `elem`
 /// when there are no elements (`c()` alone would be `NULL`, a different R
 /// value entirely).
+/// The R name a module member is bound under, as its own definition emits it
+/// (`Lang::Variable` arm): `__` → `.` (`my__v` → `my.v`), and `_x` quoted.
+fn module_member_name(v: &Var) -> String {
+    r_symbol(v.get_name().replace("__", "."))
+}
+
+/// Same, with the S3 class suffix a typed function's definition carries
+/// (`f.Pt`). A `__` name gets none, exactly like its definition.
+fn module_member_binding(v: &Var, cont: &Context) -> String {
+    if v.contains("__") {
+        module_member_name(v)
+    } else {
+        r_symbol(v.clone().display_type(cont).get_name())
+    }
+}
+
+/// A name used as a bare R symbol. TypR identifiers may start with `_`
+/// (`_x`), which R only accepts backtick-quoted — definitions already are
+/// (`format_backtick`), use sites go through here.
+fn r_symbol(name: String) -> String {
+    if name.starts_with('_') {
+        format!("`{}`", name)
+    } else {
+        name
+    }
+}
+
 fn atomic_array_literal(array: &Lang, cont: &Context, elem: &Type) -> String {
     let lin_array = array
         .linearize_array()
@@ -547,7 +575,13 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
         Lang::List { value: fields, .. } => {
             let conditions: Vec<String> = fields
                 .iter()
-                .map(|arg_val: &ArgumentValue| format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument()))
+                .map(|arg_val: &ArgumentValue| {
+                    format!(
+                        "!is.null({}[[\"{}\"]])",
+                        match_var,
+                        r_name_string(&arg_val.get_argument())
+                    )
+                })
                 .collect();
             let cond = if conditions.is_empty() {
                 "is.list(".to_string() + match_var + ")"
@@ -562,7 +596,7 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
                             "{} <- {}[[\"{}\"]]",
                             var_name,
                             match_var,
-                            arg_val.get_argument()
+                            r_name_string(&arg_val.get_argument())
                         ))
                     } else {
                         None
@@ -575,7 +609,13 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
         Lang::DataFrame { value: fields, .. } => {
             let conditions: Vec<String> = fields
                 .iter()
-                .map(|arg_val: &ArgumentValue| format!("!is.null({}[[\"{}\"]])", match_var, arg_val.get_argument()))
+                .map(|arg_val: &ArgumentValue| {
+                    format!(
+                        "!is.null({}[[\"{}\"]])",
+                        match_var,
+                        r_name_string(&arg_val.get_argument())
+                    )
+                })
                 .collect();
             let cond = if conditions.is_empty() {
                 "is.data.frame(".to_string() + match_var + ")"
@@ -590,7 +630,7 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
                             "{} <- {}[[\"{}\"]]",
                             var_name,
                             match_var,
-                            arg_val.get_argument()
+                            r_name_string(&arg_val.get_argument())
                         ))
                     } else {
                         None
@@ -667,12 +707,18 @@ impl RTranslatable<(String, Context)> for Lang {
                             .to_r(&e1)
                             .add("]]")
                             .into(),
-                        _ if is_dot => Translatable::from(cont.clone())
-                            .to_r(&e1)
-                            .add("[['")
-                            .to_r(&e2)
-                            .add("']]")
-                            .into(),
+                        // The field name is a string here, not a symbol: no
+                        // backticks, no S3 suffix — only `__` → `.`.
+                        _ if is_dot => {
+                            let field = match &e2 {
+                                Lang::Variable { name, .. } => r_name_string(name),
+                                _ => unreachable!(),
+                            };
+                            Translatable::from(cont.clone())
+                                .to_r(&e1)
+                                .add(&format!("[['{}']]", field))
+                                .into()
+                        }
                         _ => Translatable::from(cont.clone())
                             .to_r(&e2)
                             .add("[['")
@@ -742,7 +788,9 @@ impl RTranslatable<(String, Context)> for Lang {
                         let name_str = name.replace("__", ".");
                         format!("get({}, '{}')", e1.to_r(cont).0, name_str)
                     }
-                    (_, Lang::Variable { name, .. }) => format!("{}${}", e1.to_r(cont).0, name),
+                    // A module member (`M::my__v`) or a record field
+                    // (`r$a__b`): the R name its definition binds.
+                    (_, Lang::Variable { name, .. }) => format!("{}${}", e1.to_r(cont).0, r_name_symbol(&name)),
                     _ => format!("{}${}", e1.to_r(cont).0, e2.to_r(cont).0),
                 };
                 (val, cont.clone())
@@ -870,7 +918,7 @@ impl RTranslatable<(String, Context)> for Lang {
                 } else {
                     var.display_type(cont).get_name()
                 };
-                (name.to_string(), cont.clone())
+                (r_symbol(name), cont.clone())
             }
             Lang::FunctionApp {
                 identifier: exp,
@@ -975,7 +1023,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 ty => format!("{}.{}", new_name, cont1.get_class_unquoted(&ty)),
                             };
                             let (args, current_cont) = Translatable::from(cont1).join(&new_vals, ", ").into();
-                            (format!("{}({})", forced_name, args), current_cont)
+                            (format!("{}({})", r_symbol(forced_name), args), current_cont)
                         }
                     })
                     .unwrap_or_else(|| {
@@ -1054,7 +1102,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         let new_name = if &dotted[0..1] == "%" {
                             format!("`{}`", dotted)
                         } else {
-                            dotted
+                            r_symbol(dotted)
                         };
                         // Which argument positions actually carry the vector
                         // being mapped over (the others are passed through as
@@ -1149,7 +1197,7 @@ impl RTranslatable<(String, Context)> for Lang {
                                 let new_name = if &name[0..1] == "%" {
                                     format!("`{}`", name.replace("__", "."))
                                 } else {
-                                    name.replace("__", ".")
+                                    r_symbol(name.replace("__", "."))
                                 };
                                 (format!("{}({})", new_name, args), current_cont.clone())
                             })
@@ -1197,7 +1245,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             let new_name = if &name[0..1] == "%" {
                                 format!("`{}`", name.replace("__", "."))
                             } else {
-                                name.replace("__", ".")
+                                r_symbol(name.replace("__", "."))
                             };
                             (format!("vec_apply({}, {})", new_name, args), current_cont.clone())
                         })
@@ -1289,10 +1337,17 @@ impl RTranslatable<(String, Context)> for Lang {
                             other => other,
                         };
                         let method = match cont.get_environment() {
-                            Environment::Project => format!(
-                                "#' @method {}\n",
-                                new_name.replace(".", " ").replace("`", "")
-                            ),
+                            // `generic.Class` → `@method generic Class`. Only the
+                            // class suffix is split off: the generic itself may
+                            // hold dots (`.helper`, `as__x` → `as.x`).
+                            Environment::Project => {
+                                let bare = new_name.replace("`", "");
+                                let suffix = cont.get_class_unquoted(&related_type);
+                                match bare.strip_suffix(&format!(".{}", suffix)) {
+                                    Some(generic) => format!("#' @method {} {}\n", generic, suffix),
+                                    None => format!("#' @method {}\n", bare.replace(".", " ")),
+                                }
+                            }
                             _ => "".to_string(),
                         };
                         match related_type {
@@ -1630,7 +1685,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         sorted_fields.sort_by_key(|f| f.get_argument_str());
                         let params = sorted_fields
                             .iter()
-                            .map(|f| f.get_argument_str())
+                            .map(|f| r_name_symbol(&f.get_argument_str()))
                             .collect::<Vec<_>>()
                             .join(", ");
                         // Each field is only added to `explicit` when the caller
@@ -1641,8 +1696,9 @@ impl RTranslatable<(String, Context)> for Lang {
                         let explicit_lines = sorted_fields
                             .iter()
                             .map(|f| {
-                                let n = f.get_argument_str();
-                                format!("  if (!missing({n})) explicit[[\"{n}\"]] <- {n}")
+                                let n = r_name_string(&f.get_argument_str());
+                                let sym = r_name_symbol(&f.get_argument_str());
+                                format!("  if (!missing({sym})) explicit[[\"{n}\"]] <- {sym}")
                             })
                             .collect::<Vec<_>>()
                             .join("\n");
@@ -1712,6 +1768,10 @@ impl RTranslatable<(String, Context)> for Lang {
                             .filter(|(_, alias_typ)| !alias_typ.has_generic())
                             .filter_map(|(var, alias_typ)| {
                                 let methods = facets::interface_facet(cont, alias_typ)?;
+                                // An empty interface constrains nothing: no runtime class.
+                                if methods.is_empty() {
+                                    return None;
+                                }
                                 (seen_ifaces.insert(var.get_name()) && self_alias.is_subtype_raw(alias_typ, cont))
                                     .then(|| (var.get_name(), methods.len()))
                             })
@@ -1739,7 +1799,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         );
                         let fields_quoted = sorted_fields
                             .iter()
-                            .map(|f| format!("\"{}\"", f.get_argument_str()))
+                            .map(|f| format!("\"{}\"", r_name_string(&f.get_argument_str())))
                             .collect::<Vec<_>>()
                             .join(", ");
                         // Per-field type invariants, checked by class (`inherits`).
@@ -1748,7 +1808,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         let field_checks = sorted_fields
                             .iter()
                             .filter_map(|f| {
-                                let n = f.get_argument_str();
+                                let n = r_name_string(&f.get_argument_str());
                                 record_field_class(&f.body_type(), cont).map(|cls| {
                                     format!(
                                         "  if (!inherits(x[[\"{n}\"]], \"{cls}\")) stop(\"Validation failed for type {name}: field '{n}' must be of class {cls}\")"
@@ -1788,14 +1848,15 @@ impl RTranslatable<(String, Context)> for Lang {
                         sorted_fields.sort_by_key(|f| f.get_argument_str());
                         let params = sorted_fields
                             .iter()
-                            .map(|f| f.get_argument_str())
+                            .map(|f| r_name_symbol(&f.get_argument_str()))
                             .collect::<Vec<_>>()
                             .join(", ");
                         let explicit_lines = sorted_fields
                             .iter()
                             .map(|f| {
-                                let n = f.get_argument_str();
-                                format!("  if (!missing({n})) explicit[[\"{n}\"]] <- {n}")
+                                let n = r_name_string(&f.get_argument_str());
+                                let sym = r_name_symbol(&f.get_argument_str());
+                                format!("  if (!missing({sym})) explicit[[\"{n}\"]] <- {sym}")
                             })
                             .collect::<Vec<_>>()
                             .join("\n");
@@ -1812,7 +1873,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         );
                         let fields_quoted = sorted_fields
                             .iter()
-                            .map(|f| format!("\"{}\"", f.get_argument_str()))
+                            .map(|f| format!("\"{}\"", r_name_string(&f.get_argument_str())))
                             .collect::<Vec<_>>()
                             .join(", ");
                         // Per-column type invariants, checked by class
@@ -1820,7 +1881,7 @@ impl RTranslatable<(String, Context)> for Lang {
                         let field_checks = sorted_fields
                             .iter()
                             .filter_map(|f| {
-                                let n = f.get_argument_str();
+                                let n = r_name_string(&f.get_argument_str());
                                 record_field_class(&f.body_type(), cont).map(|cls| {
                                     format!(
                                         "  if (!inherits(x[[\"{n}\"]], \"{cls}\")) stop(\"Validation failed for type {name}: column '{n}' must be of class {cls}\")"
@@ -2233,8 +2294,8 @@ impl RTranslatable<(String, Context)> for Lang {
                                 is_testable: true,
                                 ..
                             } => Var::from_language(*var.clone()).map(|v| {
-                                let raw = v.get_name();
-                                format!("{} <- {}$`.test_{}`", raw, name_str, raw)
+                                let raw = module_member_name(&v);
+                                format!("{} <- {}$`.test_{}`", raw, name_str, raw.trim_matches('`'))
                             }),
                             _ => None,
                         })
@@ -2291,7 +2352,7 @@ impl RTranslatable<(String, Context)> for Lang {
                     } = lang
                     {
                         if let Some(v) = Var::from_language(*var.clone()) {
-                            let raw_name = v.get_name();
+                            let raw_name = module_member_name(&v);
                             // Use `inner_cont`, not `cont`: `body_content` above rendered
                             // this same `Let` via `inner_cont` (the re-typed module-body
                             // context), so `display_type`'s alias lookup must use the same
@@ -2299,7 +2360,7 @@ impl RTranslatable<(String, Context)> for Lang {
                             // *different* auto-named alias (e.g. the function gets defined
                             // as `animate_move.Record4` but exported/registered as
                             // `animate_move.Record1` — a dangling reference at R runtime).
-                            let typed_name = v.clone().display_type(&inner_cont).get_name();
+                            let typed_name = module_member_binding(&v, &inner_cont);
 
                             // Export the (possibly type-suffixed) member into the module env
                             exports.push(format!("{}${} <- {}", name_str, typed_name, typed_name));
@@ -2316,11 +2377,16 @@ impl RTranslatable<(String, Context)> for Lang {
                                 let class_name = inner_cont.get_class_unquoted(&var_type);
                                 exports.push(format!(
                                     "registerS3method(\"{}\", \"{}\", {})",
-                                    raw_name, class_name, typed_name
+                                    raw_name.trim_matches('`'),
+                                    class_name,
+                                    typed_name
                                 ));
 
-                                let generic_def =
-                                    format!("{} <- function(x, ...) UseMethod(\"{}\")", raw_name, raw_name);
+                                let generic_def = format!(
+                                    "{} <- function(x, ...) UseMethod(\"{}\")",
+                                    raw_name,
+                                    raw_name.trim_matches('`')
+                                );
                                 if !generics.contains(&generic_def) {
                                     generics.push(generic_def);
                                     generic_exports.push(format!("{}${} <- {}", name_str, raw_name, raw_name));
@@ -2371,19 +2437,24 @@ impl RTranslatable<(String, Context)> for Lang {
                     } = lang
                     {
                         if let Some(v) = Var::from_language(*var.clone()) {
-                            let raw_name = v.get_name();
-                            let typed_name = v.clone().display_type(&inner_cont).get_name();
+                            let raw_name = module_member_name(&v);
+                            let typed_name = module_member_binding(&v, &inner_cont);
                             let var_type = v.get_type();
                             if !var_type.is_empty() && typed_name != raw_name {
                                 let class_name = inner_cont.get_class_unquoted(&var_type);
-                                let generic_def =
-                                    format!("{} <- function(x, ...) UseMethod(\"{}\")", raw_name, raw_name);
+                                let generic_def = format!(
+                                    "{} <- function(x, ...) UseMethod(\"{}\")",
+                                    raw_name,
+                                    raw_name.trim_matches('`')
+                                );
                                 if !generics.contains(&generic_def) && !exports.contains(&generic_def) {
                                     exports.push(generic_def);
                                 }
                                 exports.push(format!(
                                     "registerS3method(\"{}\", \"{}\", {})",
-                                    raw_name, class_name, typed_name
+                                    raw_name.trim_matches('`'),
+                                    class_name,
+                                    typed_name
                                 ));
                             }
                         }
@@ -2399,12 +2470,17 @@ impl RTranslatable<(String, Context)> for Lang {
                         } = lang
                         {
                             if let Some(v) = Var::from_language(*var.clone()) {
-                                let raw_name = v.get_name();
+                                let raw_name = module_member_name(&v);
                                 // Reference the actual (possibly type-suffixed)
                                 // binding emitted in the module body. Must use
                                 // `inner_cont` for the same reason as above.
-                                let typed_name = v.clone().display_type(&inner_cont).get_name();
-                                exports.push(format!("{}$`.test_{}` <- {}", name_str, raw_name, typed_name));
+                                let typed_name = module_member_binding(&v, &inner_cont);
+                                exports.push(format!(
+                                    "{}$`.test_{}` <- {}",
+                                    name_str,
+                                    raw_name.trim_matches('`'),
+                                    typed_name
+                                ));
                             }
                         }
                     }

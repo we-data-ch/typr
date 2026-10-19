@@ -1,0 +1,5 @@
+let norm <- fn(x: [3, num]): num {
+  1.0
+};
+
+let r <- norm([1.0, 2.0]);

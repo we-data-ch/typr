@@ -1,0 +1,7 @@
+title = "A record field with `__` (`a__b`) is built as `a__b` but read through `.` as `a.b` — field access returns NULL"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-12"
+origin = "perso"
+checked = false

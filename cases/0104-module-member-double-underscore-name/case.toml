@@ -1,0 +1,7 @@
+title = "A `@pub` module member with `__` in its name (`my__v`) is defined as `my.v` but exported and accessed as `M$my__v` — object not found at runtime"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-12"
+origin = "perso"
+checked = false

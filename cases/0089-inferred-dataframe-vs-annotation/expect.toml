@@ -1,0 +1,4 @@
+# the call type-checks, so the R file is produced and the call is emitted
+[[rule]]
+file = "R/main.R"
+must_contain = "total(sales)"

@@ -1,0 +1,31 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 4 of 13  ·  Fix it
+# =============================================================================
+#
+#  Now the other way round: this program has TWO type errors. Run
+#
+#      typr tutor check
+#
+#  first, BEFORE changing anything, and read what the compiler says.
+#
+#  Two things to know:
+#
+#    - "2026" (with quotes) is a char, 2026 (without) is an int.
+#    - TypR never turns an int into a num behind your back: a function that
+#      expects a num wants 3.0, not 3.
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE
+#
+#  Fix both errors by changing the VALUES, not the types: keep the
+#  annotations ': int' and '(x: num): num' exactly as they are.
+#
+# -----------------------------------------------------------------------------
+
+let year: int <- "2026";
+
+let square <- fn(x: num): num {
+  x * x
+};
+
+print(square(3));

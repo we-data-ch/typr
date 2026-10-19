@@ -1,0 +1,7 @@
+# the cast must go through as.Sales (sets the S3 class) so UFCS dispatch on Sales works
+[[rule]]
+file = "R/main.R"
+must_contain = "as.Sales(raw)"
+[[rule]]
+file = "R/main.R"
+must_not_contain = "validate_Sales(raw)"

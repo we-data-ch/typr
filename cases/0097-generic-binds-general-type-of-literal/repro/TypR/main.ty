@@ -1,0 +1,4 @@
+let pick <- fn(a: T, b: T): T { a };
+let n: int <- pick(3, 5);
+let s: char <- pick("a", "b");
+let b: bool <- pick(true, false);

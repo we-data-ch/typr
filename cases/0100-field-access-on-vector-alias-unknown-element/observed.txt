@@ -1,0 +1,18 @@
+  × Type error: Unknown element `elf$position +
+  │ other,` in `TypR/position.ty` at `13`
+    ╭─[TypR/position.ty:12:14]
+ 11 │     :{
+ 12 │         position: self$position + other,
+    ·                    ▲
+    ·                    ╰── Error here
+ 13 │         ...self
+    ╰────
+
+  × Type error: Unknown element `elf` in `TypR/position.ty` at `14`
+    ╭─[TypR/position.ty:13:7]
+ 12 │         position: self$position + other,
+ 13 │         ...self
+    ·             ▲
+    ·             ╰── Error here
+ 14 │     }
+    ╰────

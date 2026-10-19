@@ -397,6 +397,8 @@ impl VarType {
             Type::Boolean(_, _) => "logical".to_string(),
             Type::Number(_, _) => "numeric".to_string(),
             Type::Any(_) => "Any".to_string(),
+            // A bare generic carries no class (see `get_class_unquoted`).
+            Type::Generic(_, _) => "default".to_string(),
             // Atomic-representation arrays (step ③) are bare R atomic
             // vectors: no `as.ArrayN` class is ever applied, so the only
             // class S3 dispatch sees is the implicit one.
@@ -559,6 +561,8 @@ impl VarType {
             Type::Number(_, _) => "number".to_string(),
             Type::Char(_, _) => "character".to_string(),
             Type::Alias(name, _, _, _) => name.to_string(),
+            // A bare generic carries no class: only `<name>.default` dispatches.
+            Type::Generic(_, _) => "default".to_string(),
             _ => self
                 .aliases
                 .iter()
@@ -577,6 +581,10 @@ impl VarType {
             Type::Boolean(_, _) => "logical".to_string(),
             Type::Number(_, _) => "numeric".to_string(),
             Type::Any(_) => "Any".to_string(),
+            // A bare generic (`a: T`) has no class of its own: `PartialEq` deems
+            // it equal to the auto-registered `Generic` alias, which no value
+            // carries, so only the `default` method is ever reached.
+            Type::Generic(_, _) => "default".to_string(),
             // Same rationale as `get_class`: atomic arrays only carry R's
             // implicit class (step ③, unification_arrays.md).
             Type::Vec(_, _, _, _) if self.atomic_array_elem(t).is_some() => {

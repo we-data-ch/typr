@@ -1,0 +1,7 @@
+title = "Hidden names: `.x` (R-style) and its ASCII spelling `__x` are one binding, compile to `.x`, and work as UFCS methods"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-11"
+origin = "perso"
+checked = false

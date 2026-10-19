@@ -1,0 +1,13 @@
+type Simple <- interface {
+    simple: (self: Self) -> Self
+};
+
+let simple <- fn(self: int): int {
+    self
+};
+
+let f <- fn(a: Simple, b: Simple): Simple {
+    a
+};
+
+f(3, 5)

@@ -1,0 +1,5 @@
+@strrep: (char, int) -> char;
+
+let line: char <- strrep("-", 20);
+
+print(line);

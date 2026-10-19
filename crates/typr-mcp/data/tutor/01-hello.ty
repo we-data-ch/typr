@@ -1,0 +1,34 @@
+# =============================================================================
+#  TypR tutor  ·  Lesson 1 of 13  ·  Say hello
+# =============================================================================
+#
+#  Welcome to the TypR tutor!
+#
+#  This file is both a lesson and a TypR program. You read the comments (the
+#  lines starting with '#'), you edit the code, and the compiler tells you
+#  whether you got it right. Nothing here can break: if you get lost, run
+#
+#      typr tutor reset 1
+#
+#  and this file comes back exactly as it was.
+#
+#  TypR is R with types. You write code that looks almost like R, a compiler
+#  checks it, and the output is ordinary, readable R code.
+#
+#  One habit to pick up right away: every statement ends with a ';'.
+#
+#      print("like this");
+#
+# -----------------------------------------------------------------------------
+#  >>> EXERCISE
+#
+#  The line below does not compile: '???' is not TypR. Replace '???' so the
+#  program prints the text "Hello, TypR!" (with the quotes, it is a string).
+#
+#  Then save the file and run, in your terminal:
+#
+#      typr tutor check
+#
+# -----------------------------------------------------------------------------
+
+print(???);

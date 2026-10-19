@@ -62,6 +62,7 @@ pub mod registry_validate;
 pub mod repl;
 pub mod standard_library;
 pub mod syntax;
+pub mod tutor;
 pub mod type_definition;
 pub mod type_registry;
 pub mod vignette_renderer;

@@ -1,0 +1,10 @@
+@pub
+type Position <- [2, int];
+
+@pub
+let move <- fn(self: Position, other: Position): Position {
+	:{
+		position: self$position + other,
+		...self
+	}
+};

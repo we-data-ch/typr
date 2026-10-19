@@ -1,0 +1,7 @@
+title = "`_x` is backtick-quoted at its definition but emitted bare at its use sites — invalid R"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-11"
+origin = "perso"
+checked = false

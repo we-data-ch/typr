@@ -1,0 +1,9 @@
+let add <- fn(a: int, b: int): int {
+  a + b
+};
+
+let nested <- add(add(1, 2), 3);
+let piped <- (1) |> add(2) |> add(3);
+let chained <- (1).add(2).add(3);
+
+print(chained);
