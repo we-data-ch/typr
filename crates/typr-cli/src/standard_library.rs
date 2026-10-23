@@ -338,6 +338,7 @@ const ORD_TY: &str = include_str!("../configs/std/ord.ty");
 const FOREIGN_TY: &str = include_str!("../configs/std/foreign.ty");
 const STATS_TY: &str = include_str!("../configs/std/stats.ty");
 const UTILS_TY: &str = include_str!("../configs/std/utils.ty");
+const USETHIS_TY: &str = include_str!("../configs/std/usethis.ty");
 
 // Embedded source files for JS
 const FUNCTIONS_JS: &str = include_str!("../configs/src/functions_JS.txt");
@@ -383,7 +384,7 @@ pub fn declared_targets() -> std::collections::HashMap<String, std::collections:
 /// `base.ty` contains R base function type annotations for the doc SPG —
 /// these are NOT TypR-owned functions (TypR doesn't provide implementations).
 /// They serve as reference documentation for the MCP, not compiler entries.
-const R_DOC_ONLY_SOURCES: &[(&str, &str)] = &[("base.ty", BASE_TY), ("stats.ty", STATS_TY), ("utils.ty", UTILS_TY)];
+const R_DOC_ONLY_SOURCES: &[(&str, &str)] = &[("base.ty", BASE_TY), ("stats.ty", STATS_TY), ("utils.ty", UTILS_TY), ("usethis.ty", USETHIS_TY)];
 
 /// Every name TypR's own bundled standard library declares (`@name: T;` in
 /// `configs/std/*.ty`), R and JS alike.
