@@ -231,6 +231,35 @@ fn strip_params_at_depth(chars: &mut std::iter::Peekable<std::str::Chars>, resul
             // Named variadic falls through to the shared type-copy loop
             // below, which copies `: Type` verbatim. Bare `...` (no colon)
             // also falls through: the loop then sees ',' or ')' and emits it.
+        } else if chars.peek() == Some(&'?') {
+            // Optional parameter `name?: Type`. Unlike a plain `name:`, the
+            // `name?:` prefix must reach the parser (it is what marks the
+            // parameter omittable), so it is kept — with the dots of R names
+            // (`na.rm`) turned into `_`, which the parser's labels require.
+            chars.next(); // consume '?'
+            while let Some(&ch) = chars.peek() {
+                if ch.is_whitespace() {
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if let Some(&':') = chars.peek() {
+                chars.next(); // consume ':'
+                result.push_str(&potential_name.replace('.', "_"));
+                result.push_str("?: ");
+                while let Some(&ch) = chars.peek() {
+                    if ch.is_whitespace() {
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+            } else {
+                result.push_str(&potential_name);
+                result.push('?');
+                result.push_str(&saved_whitespace);
+            }
         } else if let Some(&':') = chars.peek() {
             chars.next(); // consume ':'
                           // Skip whitespace after ':'

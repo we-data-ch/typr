@@ -183,7 +183,7 @@
 #! note: T2 — generic dispatch; head.data.frame is the most common method
 #! example: head(mtcars, 3)   # -> first 3 rows of mtcars
 #! seealso: tail, str
-@`head.matrix`: (x: [#N, [#M, T]], n: int) -> [#K, [#M, T]];
+@`head.matrix`: (x: [#N, [#M, T]], n?: int) -> [#K, [#M, T]];
 
 #! pkg: utils
 #! tier: T2
@@ -193,7 +193,7 @@
 #! note: T2 — generic dispatch
 #! example: tail(mtcars, 3)   # -> last 3 rows of mtcars
 #! seealso: head, str
-@`tail.matrix`: (x: [#N, [#M, T]], n: int) -> [#K, [#M, T]];
+@`tail.matrix`: (x: [#N, [#M, T]], n?: int) -> [#K, [#M, T]];
 
 #! pkg: utils
 #! tier: T1
@@ -241,7 +241,7 @@
 #! note: T2 — returns complex list structure
 #! example: pd <- packageDescription("base"); pd$Title   # -> "The R Base Package"
 #! seealso: packageVersion, installed.packages
-@packageDescription: (pkg: char, lib_loc: char, fields: [#N, char], verbose: bool) -> Any;
+@packageDescription: (pkg: char, lib_loc: char, fields?: [#N, char], verbose?: bool) -> Any;
 
 #! pkg: utils
 #! tier: T2
@@ -267,7 +267,7 @@
 #! example: # noplayground: combn(5, 3)   # -> 3 x 10 matrix of combinations
 #! example: combn(5, 2, FUN = sum)   # -> c(3, 4, 5, 5, 6, 7, 6, 7, 8, 9)
 #! seealso: expand.grid
-@combn: (n: int, m: int, FUN: Any, simplify: bool) -> Any;
+@combn: (n: int, m?: int, FUN?: Any, simplify?: bool) -> Any;
 
 
 # ============================================================
@@ -372,7 +372,7 @@
 #! note: encodes spaces as %20, special chars as %XX
 #! example: # noplayground: URLencode("hello world")   # -> "hello%20world"
 #! seealso: URLdecode
-@URLencode: (URL: char, reserved: bool) -> char;
+@URLencode: (URL: char, reserved?: bool) -> char;
 
 #! pkg: utils
 #! tier: T1
@@ -398,7 +398,7 @@
 #! note: T2 — side-effectful, platform-dependent
 #! example: # noplayground: system("ls", intern = TRUE)   # -> character vector of file names
 #! seealso: system2, Sys.sleep
-@system: (command: char, intern: bool, ignore_stderr: bool, wait: bool) -> Any;
+@system: (command: char, intern: bool, ignore_stderr: bool, wait?: bool) -> Any;
 
 #! pkg: utils
 #! tier: T2
@@ -412,7 +412,7 @@
 #! note: T2 — more flexible than system(); handles args and I/O redirection
 #! example: # noplayground: system2("ls", args = "-la", stdout = TRUE)
 #! seealso: system
-@system2: (command: char, args: [#N, char], stdout: Any, stderr: Any, input: [#M, char], timeout: num) -> Any;
+@system2: (command: char, args: [#N, char], stdout: Any, stderr: Any, input: [#M, char], timeout?: num) -> Any;
 
 
 # ============================================================
@@ -525,7 +525,7 @@
 #! note: T2 — opens interactive data viewer (GUI-dependent)
 #! example: View(mtcars)   # -> opens data viewer window
 #! seealso: edit, data.entry
-@View: (data.obj: Any, title: char) -> Any;
+@View: (data.obj: Any, title?: char) -> Any;
 
 
 # ============================================================
@@ -550,7 +550,7 @@
 #! note: T2 — saves R command history to file
 #! example: # noplayground: savehistory()
 #! seealso: loadhistory, history
-@savehistory: (file: char) -> Empty;
+@savehistory: (file?: char) -> Empty;
 
 #! pkg: utils
 #! tier: T2
@@ -559,7 +559,7 @@
 #! note: T2 — loads R command history from file
 #! example: # noplayground: loadhistory()
 #! seealso: savehistory, history
-@loadhistory: (file: char) -> Empty;
+@loadhistory: (file?: char) -> Empty;
 
 
 # ============================================================
@@ -584,7 +584,7 @@
 #! note: T2 — interactive debugging tool (GUI-dependent)
 #! example: # noplayground: recover()
 #! seealso: debugger, traceback
-@recover: (filename: char) -> Empty;
+@recover: (filename?: char) -> Empty;
 
 
 # ============================================================

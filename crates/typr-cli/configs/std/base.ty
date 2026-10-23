@@ -43,7 +43,7 @@
 #! example: log(100.0, 10.0)   # -> 4.6051...
 #! example: log(8.0, 2.0)   # -> 3
 #! seealso: log2, log10, log1p, exp
-@log: (x: num, base: num) -> num;
+@log: (x: num, base?: num) -> num;
 
 #! pkg: base
 #! tier: T1
@@ -118,7 +118,7 @@
 #! example: # noplayground: round(3.5)   # -> 4
 #! example: round(2.345, 2)   # -> 2.35
 #! seealso: ceiling, floor, trunc, signif
-@round: (x: num, digits: int) -> num;
+@round: (x: num, digits?: int) -> num;
 
 #! pkg: base
 #! tier: T1
@@ -297,7 +297,7 @@
 #! ret: psigamma function (polygamma)
 #! note: deriv=0 is digamma, deriv=1 is trigamma
 #! seealso: digamma, trigamma
-@psigamma: (x: num, deriv: int) -> num;
+@psigamma: (x: num, deriv?: int) -> num;
 
 #! pkg: base
 #! tier: T1
@@ -374,7 +374,7 @@
 #! note: variance of single element returns NA in R
 #! example: var(c(1, 2, 3, 4, 5))   # -> 2.5
 #! seealso: sd, mean
-@var: (x: [#N, num], na.rm: bool) -> num;
+@var: (x: [#N, num], na.rm?: bool) -> num;
 
 #! pkg: base
 #! tier: T1
@@ -1096,7 +1096,7 @@
 #! ret: new vector with values inserted
 #! example: append(1:5, 99, after = 2)   # -> c(1, 2, 99, 3, 4, 5)
 #! seealso: c
-@append: (x: [#N, T], values: [#M, T], after: int) -> [#N, T];
+@append: (x: [#N, T], values: [#M, T], after?: int) -> [#N, T];
 
 #! pkg: base
 #! tier: T1
@@ -1140,7 +1140,7 @@
 #! note: tabulate(x) counts occurrences of each integer 1, 2, ..., max(x)
 #! example: tabulate(c(1, 2, 2, 3, 3, 3))   # -> c(1, 2, 3)
 #! seealso: table
-@tabulate: (x: [#N, int], nbins: int) -> [#M, int];
+@tabulate: (x: [#N, int], nbins?: int) -> [#M, int];
 
 #! pkg: base
 #! tier: T1
@@ -1150,7 +1150,7 @@
 #! note: named vector as lookup table
 #! example: lookup(c(a=1, b=2), c("a","c"))   # -> c(1, NA)
 #! seealso: match, which
-@match: (x: [#N, T], table: [#M, T], nomatch: int) -> [#N, int];
+@match: (x: [#N, T], table: [#M, T], nomatch?: int) -> [#N, int];
 
 #! pkg: base
 #! tier: T1

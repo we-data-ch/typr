@@ -44,37 +44,69 @@ use std::collections::HashSet;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
-// Handles the `name: type` form in function type signatures, e.g. `(a: char) -> .None`.
-// The parameter name is discarded — only the type matters for type checking.
-fn labeled_ltype(s: Span) -> IResult<Span, Type> {
-    let res = (terminated(label, multispace0), terminated(tag(":"), multispace0), ltype).parse(s);
+// Handles the `name: type` and `name?: type` forms in function type signatures,
+// e.g. `(a: char, b?: int) -> .None`. The parameter name is discarded — only the
+// type (and whether the parameter is optional) matters for type checking.
+fn labeled_ltype(s: Span) -> IResult<Span, (bool, Type)> {
+    let res = (
+        terminated(label, multispace0),
+        terminated(opt(tag("?")), multispace0),
+        terminated(tag(":"), multispace0),
+        ltype,
+    )
+        .parse(s);
     match res {
-        Ok((s, (_, _, typ))) => Ok((s, typ)),
+        Ok((s, (_, optional, _, typ))) => Ok((s, (optional.is_some(), typ))),
         Err(r) => Err(r),
     }
 }
 
-fn ltype_arg(s: Span) -> IResult<Span, (bool, Type)> {
+fn unlabeled_ltype(s: Span) -> IResult<Span, (bool, Type)> {
+    ltype(s).map(|(s, typ)| (s, (false, typ)))
+}
+
+/// A parsed signature parameter: `(is_variadic, is_optional, type)`.
+type SigParam = (bool, bool, Type);
+
+fn ltype_arg(s: Span) -> IResult<Span, SigParam> {
     // Try variadic: `...Type` or `...name: Type`
     let variadic = (
         terminated(tag("..."), multispace0),
-        terminated(alt((labeled_ltype, ltype)), multispace0),
+        terminated(alt((labeled_ltype, unlabeled_ltype)), multispace0),
         opt(terminated(tag(","), multispace0)),
     )
         .parse(s.clone());
-    if let Ok((s2, (_, typ, _))) = variadic {
-        return Ok((s2, (true, typ)));
+    if let Ok((s2, (_, (_, typ), _))) = variadic {
+        return Ok((s2, (true, false, typ)));
     }
-    // Regular: `Type` or `name: Type`
+    // Regular: `Type`, `name: Type` or `name?: Type`
     let res = terminated(
-        terminated(alt((labeled_ltype, ltype)), multispace0),
+        terminated(alt((labeled_ltype, unlabeled_ltype)), multispace0),
         opt(terminated(tag(","), multispace0)),
     )
     .parse(s);
     match res {
-        Ok((s, t)) => Ok((s, (false, t))),
+        Ok((s, (optional, t))) => Ok((s, (false, optional, t))),
         Err(r) => Err(r),
     }
+}
+
+/// Builds the argument list of a signature. An optional parameter (`b?: T`)
+/// is recorded as a parameter with a default, so call sites may omit it.
+fn signature_args(params: &[SigParam], help: &HelpData) -> Vec<ArgumentType> {
+    params
+        .iter()
+        .enumerate()
+        .map(|(i, (is_variadic, is_optional, typ))| {
+            let arg_name = crate::components::r#type::generate_arg(i);
+            let arg = ArgumentType::new(&arg_name, typ).set_variadic(*is_variadic);
+            if *is_optional {
+                arg.set_default(Some(Lang::Empty(help.clone())))
+            } else {
+                arg
+            }
+        })
+        .collect()
 }
 
 fn function_type(s: Span) -> IResult<Span, Type> {
@@ -88,15 +120,8 @@ fn function_type(s: Span) -> IResult<Span, Type> {
         .parse(s);
     match res {
         Ok((s, (start, v, _, _, t))) => {
-            let args: Vec<ArgumentType> = v
-                .iter()
-                .enumerate()
-                .map(|(i, (is_variadic, typ))| {
-                    let arg_name = crate::components::r#type::generate_arg(i);
-                    ArgumentType::new(&arg_name, typ).set_variadic(*is_variadic)
-                })
-                .collect();
-            Ok((s, Type::Function(args, Box::new(t), start.into())))
+            let help: HelpData = start.into();
+            Ok((s, Type::Function(signature_args(&v, &help), Box::new(t), help)))
         }
         Err(r) => Err(r),
     }
@@ -116,14 +141,7 @@ fn fn_function_type_error(s: Span) -> IResult<Span, Type> {
         .parse(s);
     match res {
         Ok((s, (fn_span, _, v, _, _, t))) => {
-            let args: Vec<ArgumentType> = v
-                .iter()
-                .enumerate()
-                .map(|(i, (is_variadic, typ))| {
-                    let arg_name = crate::components::r#type::generate_arg(i);
-                    ArgumentType::new(&arg_name, typ).set_variadic(*is_variadic)
-                })
-                .collect();
+            let args = signature_args(&v, &fn_span.clone().into());
             let help_data: HelpData = fn_span.clone().into();
             push_parse_error(SyntaxError::FunctionTypeSyntax(help_data));
             Ok((s, Type::Function(args, Box::new(t), fn_span.into())))
@@ -1892,6 +1910,21 @@ mod tests {
         match &typ {
             Type::Record(fields, _) => assert_eq!(fields.len(), 2),
             other => panic!("Expected Record, got {:?}", other),
+        }
+    }
+
+    // ── Optional parameters in function signatures (`b?: T`) ────────────────
+
+    #[test]
+    fn test_signature_optional_param() {
+        let typ = ltype("(a: int, b?: int) -> int".into()).unwrap().1;
+        match &typ {
+            Type::Function(args, _, _) => {
+                assert_eq!(args.len(), 2);
+                assert!(!args[0].has_default());
+                assert!(args[1].has_default());
+            }
+            other => panic!("Expected Function, got {:?}", other),
         }
     }
 
