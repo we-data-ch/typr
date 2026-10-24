@@ -188,9 +188,17 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
         (Type::Vec(VecType::DataFrame, _, ref body, h), Lang::List { value: fields2, .. }, _) => match body.as_ref() {
             Type::Record(fields1, rh) => {
                 let at = fields2[0].clone();
+                let column = at.get_argument();
                 let fields3 = fields1
                     .iter()
                     .map(replace_fields_type_if_needed(context, at))
+                    .map(|f| {
+                        if f.get_argument_str() == column {
+                            ArgumentType::new(&column, &field_access::column_element_type(&f.get_type()))
+                        } else {
+                            f
+                        }
+                    })
                     .collect::<HashSet<_>>();
                 TypeContext::new(
                     Type::vec(

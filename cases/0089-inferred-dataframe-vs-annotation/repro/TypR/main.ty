@@ -4,5 +4,5 @@ let total <- fn(
   sum(sales$units * sales$price)
 };
 
-let sales <- data.frame(units = c(1.0, 2.0, 3.0), price = c(5.0, 6.0, 7.0));
+let sales <- data_frame(units = c(1.0, 2.0, 3.0), price = c(5.0, 6.0, 7.0));
 total(sales);

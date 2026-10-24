@@ -1,0 +1,15 @@
+[[rule]]
+file = "R/main.R"
+must_contain = "typr_refine_length_range("
+[[rule]]
+file = "R/std.R"
+must_contain = "typr_refine_size"
+[[rule]]
+file = "@run"
+must_not_contain = "no applicable method"
+[[rule]]
+file = "@run"
+must_contain = "2"
+[[rule]]
+file = "R/main.R"
+must_contain = "rows.data.frame"

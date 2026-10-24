@@ -49,15 +49,15 @@ validate_Object <- function(x) {
   if (!inherits(x[["id"]], "character")) stop("Validation failed for type Object: field 'id' must be of class character")
   x
 }
-#' @method get_object_by_id Array1
-`get_object_by_id.Array1` <- (function(objects) {
+#' @method get_object_by_id Array0
+`get_object_by_id.Array0` <- (function(objects) {
 NA
 } |> as.Object()) |> as.Generic()
 
 object$Id <- Id
 object$Object <- Object
-object$get_object_by_id.Array1 <- get_object_by_id.Array1
-registerS3method("get_object_by_id", "Array1", get_object_by_id.Array1)
+object$get_object_by_id.Array0 <- get_object_by_id.Array0
+registerS3method("get_object_by_id", "Array0", get_object_by_id.Array0)
 })
 object$get_object_by_id <- get_object_by_id
-get_object_by_id.Array1 <- object$get_object_by_id.Array1
+get_object_by_id.Array0 <- object$get_object_by_id.Array0

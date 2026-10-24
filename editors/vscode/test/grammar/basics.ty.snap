@@ -639,7 +639,7 @@
 #                   ^ source.typr
 #                    ^^^^^^^ source.typr variable.other.typr
 >
->data.frame(x)
+>data_frame(x)
 #^^^^^^^^^^ source.typr support.type.builtin.typr
 #          ^ source.typr punctuation.section.brackets.typr
 #           ^ source.typr variable.other.typr

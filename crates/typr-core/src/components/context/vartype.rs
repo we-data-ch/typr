@@ -402,6 +402,12 @@ impl VarType {
             // Atomic-representation arrays (step ③) are bare R atomic
             // vectors: no `as.ArrayN` class is ever applied, so the only
             // class S3 dispatch sees is the implicit one.
+            // A data frame is a plain R `data.frame`: no `as.ArrayN` class is
+            // applied to it, so that is the class `UseMethod` finds.
+            Type::Vec(VecType::DataFrame, _, _, _) => "data.frame".to_string(),
+            Type::Refined(base, _, _) if matches!(**base, Type::Vec(VecType::DataFrame, ..)) => {
+                "data.frame".to_string()
+            }
             Type::Vec(_, _, _, _) if self.atomic_array_elem(t).is_some() => {
                 Self::implicit_atomic_class(&self.atomic_array_elem(t).unwrap()).to_string()
             }
@@ -587,6 +593,12 @@ impl VarType {
             Type::Generic(_, _) => "default".to_string(),
             // Same rationale as `get_class`: atomic arrays only carry R's
             // implicit class (step ③, unification_arrays.md).
+            // A data frame is a plain R `data.frame`: no `as.ArrayN` class is
+            // applied to it, so that is the class `UseMethod` finds.
+            Type::Vec(VecType::DataFrame, _, _, _) => "data.frame".to_string(),
+            Type::Refined(base, _, _) if matches!(**base, Type::Vec(VecType::DataFrame, ..)) => {
+                "data.frame".to_string()
+            }
             Type::Vec(_, _, _, _) if self.atomic_array_elem(t).is_some() => {
                 Self::implicit_atomic_class(&self.atomic_array_elem(t).unwrap()).to_string()
             }

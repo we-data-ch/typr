@@ -159,8 +159,7 @@ in this list is not a keyword: it is an ordinary identifier. See
 | `Record[...]` | Bracket record type: `Record[name: char]`, variadic `Record[Fs..., id: int]`. |
 | `UnknownFunction` | The type given to an R function TypR knows nothing about. |
 | `dataframe[...]{...}` | Data frame with typed columns: `dataframe[#N]{ name: char }`. |
-| `data.frame` | R's own data-frame name, accepted as a type. |
-| `data__frame` | The `__` spelling of `data.frame` — `__` becomes `.` in the emitted R. |
+| `data_frame(...)` | Data-frame literal: `data_frame(a = [1, 2], b = ["x", "y"])` — emitted as R's `data.frame(...)`. |
 | `list { ... }` | Record literal type: `list { x: int, y: int }`. |
 | `tuple { ... }` | Tuple literal type: `tuple { int, char }`. |
 | `df[...]{...}` | Short spelling of `dataframe`. |

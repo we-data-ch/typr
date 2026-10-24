@@ -15,22 +15,6 @@
 #! pkg: utils
 #! tier: T2
 #! param file: file path or URL
-#! param header: TRUE if first row is column names (default TRUE)
-#! param sep: field separator (default "," for read.csv)
-#! param dec: decimal separator (default ".")
-#! param na.strings: strings to interpret as NA (default c("NA",""))
-#! param skip: number of lines to skip at start of file
-#! param nrows: number of rows to read (-1 = all)
-#! param stringsAsFactors: convert character columns to factors (deprecated in R >= 4.0)
-#! ret: data frame
-#! note: T2 — returns data.frame, complex options; read.csv is read.table with comma defaults
-#! example: # noplayground: read_csv("data.csv")   # -> data frame from CSV file
-#! seealso: read.table, write.csv, read.delim
-@extern(r = "read.csv") read_csv: (file: char, header: bool, sep: char, dec: char, na_strings: [#N, char], skip: int, nrows: int, strings_as_factors: bool) -> Any;
-
-#! pkg: utils
-#! tier: T2
-#! param file: file path or URL
 #! param header: TRUE if first row is column names
 #! param sep: field separator (default ";" for csv2)
 #! param dec: decimal separator (default "," for csv2)

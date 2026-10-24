@@ -1070,7 +1070,7 @@
 #! param type: prediction type ("response", "link", "terms")
 #! ret: predicted values
 #! note: T2 — generic dispatch, complex return
-#! example: # noplayground: m <- lm(mpg ~ wt, data = mtcars); predict(m, newdata = data.frame(wt = 3))
+#! example: # noplayground: m <- lm(mpg ~ wt, data = mtcars); predict(m, newdata = data_frame(wt = 3))
 #! seealso: fitted, residuals
 @predict: (object: Any, newdata: Any, type: char) -> Any;
 

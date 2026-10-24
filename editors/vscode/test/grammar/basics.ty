@@ -52,7 +52,7 @@ loop { break; }
 # a plain comment
 #N is a sigil not a comment
 
-data.frame(x)
+data_frame(x)
 c(1, 2, 3)
 library(foo)
 Class(x)

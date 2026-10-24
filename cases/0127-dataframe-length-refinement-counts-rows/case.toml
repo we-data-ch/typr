@@ -1,0 +1,7 @@
+title = "runtime `length(> 0)` check on a data frame counted columns, not rows"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-24"
+origin = "perso"
+checked = false

@@ -95,7 +95,7 @@ impl RHighlighter {
                 | "range"
                 | "c"
                 | "list"
-                | "data.frame"
+                | "data_frame"
                 | "matrix"
                 | "array"
                 | "factor"

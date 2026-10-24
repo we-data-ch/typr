@@ -439,7 +439,7 @@
       "comment": "No `Option`/`Result`/`List`/`Matrix`: TypR has none of them. These are the names usable bare in a type position; the ones that only exist in front of a delimiter are in `types.constructor` and `keywords.block`.",
       "patterns": [
         {
-          "match": "(?<![A-Za-z0-9_])(UnknownFunction|data__frame|data\\.frame|dataframe|Record|Array|Tuple|tuple|list|Vec)(?![A-Za-z0-9_])",
+          "match": "(?<![A-Za-z0-9_])(UnknownFunction|data_frame|dataframe|Record|Array|Tuple|tuple|list|Vec)(?![A-Za-z0-9_])",
           "name": "support.type.builtin.typr"
         }
       ]
@@ -516,7 +516,7 @@
       ]
     },
     "variables.other": {
-      "comment": "An identifier starts lowercase-or-underscore and continues in `[A-Za-z0-9_]` — no inner dots, unlike R (`parsing/elements.rs::starting_char`/`body_char`): `__` stands for `.` (`as__character` → `as.character`). A *leading* dot is the hidden-name rule above. `data.frame` is a single dedicated tag.",
+      "comment": "An identifier starts lowercase-or-underscore and continues in `[A-Za-z0-9_]` — no inner dots, unlike R (`parsing/elements.rs::starting_char`/`body_char`): `__` stands for `.` (`as__character` → `as.character`). A *leading* dot is the hidden-name rule above. `data_frame` is a single dedicated tag.",
       "patterns": [
         {
           "match": "\\b[a-z_][A-Za-z0-9_]*\\b",

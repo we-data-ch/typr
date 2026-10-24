@@ -1,0 +1,3 @@
+let rows <- fn(d: df[#N]{a: num} & length(> 0)): int { nrow(d) };
+let via <- fn(d: df[#N]{a: num}): int { rows(d) };
+print(via(data_frame(a = [4.5, 5.5])));

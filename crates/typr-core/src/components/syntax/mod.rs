@@ -418,8 +418,7 @@ impl SyntaxManifest {
                     "Record",
                     "UnknownFunction",
                     "dataframe",
-                    "data.frame",
-                    "data__frame",
+                    "data_frame",
                     "list",
                     "tuple",
                 ]),
@@ -611,7 +610,7 @@ impl SyntaxManifest {
                 "An identifier starts lowercase-or-underscore and continues in `[A-Za-z0-9_]` — \
                  no inner dots, unlike R (`parsing/elements.rs::starting_char`/`body_char`): \
                  `__` stands for `.` (`as__character` → `as.character`). A *leading* dot is \
-                 the hidden-name rule above. `data.frame` is a single dedicated tag.",
+                 the hidden-name rule above. `data_frame` is a single dedicated tag.",
             ),
             Rule::new("punctuation.terminator", "punctuation.terminator.typr", symbols(&[";"])),
             Rule::new(

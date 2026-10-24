@@ -1543,10 +1543,14 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
                 .map(|arg_val: &ArgumentValue| typing(context, &arg_val.get_value()))
                 .collect();
             let mut errors: Vec<TypRError> = type_contexts.iter().flat_map(|tc| tc.errors.clone()).collect();
+            // A column is stored by its element type, as `df[N]{a: int}`
+            // writes it: the row count lives once, in the dataframe's index.
+            // Storing the column's `[N, int]` made a constructed dataframe
+            // unassignable to its own annotation (case 0089).
             let field_types = fields
                 .iter()
                 .zip(type_contexts.iter())
-                .map(|(arg_val, tc)| (arg_val.get_argument(), tc.value.clone()).into())
+                .map(|(arg_val, tc)| (arg_val.get_argument(), field_access::column_element_type(&tc.value)).into())
                 .collect();
 
             // D1 (audit_type_checking.md): every column must be vector-shaped,
@@ -2733,14 +2737,14 @@ mod tests {
 
     #[test]
     fn test_dataframe_parsing_simple() {
-        let res = "data__frame(x = [1, 2, 3]) ".parse::<Lang>().unwrap();
+        let res = "data_frame(x = [1, 2, 3]) ".parse::<Lang>().unwrap();
         println!("{:?}", res);
         assert_eq!(res.simple_print(), "DataFrame");
     }
 
     #[test]
     fn test_dataframe_type_simple() {
-        let expr = "data__frame(x = [1, 2, 3]) ".parse::<Lang>().unwrap();
+        let expr = "data_frame(x = [1, 2, 3]) ".parse::<Lang>().unwrap();
         let result = typing_with_errors(&Context::default(), &expr);
         let typ = result.get_type().clone();
         println!("typ: {:?}", typ);
@@ -2752,9 +2756,24 @@ mod tests {
     }
 
     #[test]
+    fn test_generic_inside_returned_record_is_substituted() {
+        // `T`/`U` sit inside the record body of the return type: the
+        // named-generic match used to substitute `#N` and leave them bare.
+        let typ = FluentParser::new()
+            .set_context(Context::default())
+            .push("@df2: (a: [#N, T], b: [#N, U]) -> df[#N]{a: T, b: U};")
+            .parse_type_next()
+            .push("df2([1, 2], [\"x\", \"y\"])")
+            .parse_type_next()
+            .get_last_type();
+        assert!(matches!(typ, Type::Vec(VecType::DataFrame, _, _, _)), "{typ:?}");
+        assert!(!typ.has_generic(), "generics left in {}", typ.pretty());
+    }
+
+    #[test]
     fn test_dataframe_dollar_access() {
         let fp = FluentParser::new()
-            .push("let df <- data__frame(x = [1, 2, 3]);")
+            .push("let df <- data_frame(x = [1, 2, 3]);")
             .parse_type_next();
         let context = fp.context.clone();
         let df_type = context.get_type_from_existing_variable(Var::from_name("df"));
@@ -2773,7 +2792,7 @@ mod tests {
     #[test]
     fn test_dataframe_dollar_unknown_field() {
         let fp = FluentParser::new()
-            .push("let df <- data__frame(x = [1, 2, 3]);")
+            .push("let df <- data_frame(x = [1, 2, 3]);")
             .parse_type_next();
         let context = fp.context.clone();
         use crate::processes::parsing::parse_from_string;
@@ -2785,7 +2804,7 @@ mod tests {
     #[test]
     fn test_dataframe_dollar_preserves_inner_type() {
         let fp = FluentParser::new()
-            .push("let df <- data__frame(x = [\"a\", \"b\", \"c\"]);")
+            .push("let df <- data_frame(x = [\"a\", \"b\", \"c\"]);")
             .parse_type_next();
         let context = fp.context.clone();
         use crate::processes::parsing::parse_from_string;
@@ -2807,7 +2826,7 @@ mod tests {
     #[test]
     fn test_dataframe_dollar_numeric_columns() {
         let fp = FluentParser::new()
-            .push("let df <- data__frame(x = [1.0], y = [2.0]);")
+            .push("let df <- data_frame(x = [1.0], y = [2.0]);")
             .parse_type_next();
         let context = fp.context.clone();
         use crate::processes::parsing::parse_from_string;
@@ -4795,7 +4814,7 @@ p"#;
     #[test]
     fn edge_d1_dataframe_matching_column_lengths_is_allowed() {
         use crate::processes::parsing::parse_from_string;
-        let ast = parse_from_string("data.frame(a = [1, 2, 3], b = [4, 5, 6]);", "test.ty");
+        let ast = parse_from_string("data_frame(a = [1, 2, 3], b = [4, 5, 6]);", "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
         assert!(
             !result.has_errors(),
@@ -4805,11 +4824,54 @@ p"#;
     }
 
     #[test]
+    fn constructed_dataframe_matches_its_annotation() {
+        // Case 0089: the constructor stored each column as `[N, T]` while an
+        // annotation stores `T`, so no annotation could ever accept it.
+        use crate::processes::parsing::parse_from_string;
+        let ok = parse_from_string(
+            "let d: df[2]{a: int, b: char} <- data_frame(a = [1, 2], b = [\"x\", \"y\"]);",
+            "test.ty",
+        );
+        let result = typing_with_errors(&Context::default(), &ok);
+        assert!(!result.has_errors(), "got: {:?}", result.get_errors());
+
+        let wrong_column = parse_from_string("let d: df[2]{a: char} <- data_frame(a = [1, 2]);", "test.ty");
+        assert!(typing_with_errors(&Context::default(), &wrong_column).has_errors());
+
+        let wrong_height = parse_from_string("let d: df[3]{a: int} <- data_frame(a = [1, 2]);", "test.ty");
+        assert!(typing_with_errors(&Context::default(), &wrong_height).has_errors());
+    }
+
+    #[test]
+    fn dataframe_and_vector_of_records_are_distinct_kinds() {
+        // `Vec` kinds were ignored at subtyping: a data frame was accepted
+        // where `[N, list{..}]` is expected, and the reverse.
+        use crate::processes::parsing::parse_from_string;
+        let df_as_vec = parse_from_string(
+            "let d <- data_frame(a = [1, 2]);\nlet v: [2, list{a: int}] <- d;",
+            "test.ty",
+        );
+        assert!(typing_with_errors(&Context::default(), &df_as_vec).has_errors());
+
+        let vec_as_df = parse_from_string(
+            "let w: [2, list{a: int}] <- [:{a = 1}, :{a = 2}];\nlet e: df[2]{a: int} <- w;",
+            "test.ty",
+        );
+        assert!(typing_with_errors(&Context::default(), &vec_as_df).has_errors());
+
+        let df_as_df = parse_from_string(
+            "let d <- data_frame(a = [1, 2]);\nlet e: df[2]{a: int} <- d;",
+            "test.ty",
+        );
+        assert!(!typing_with_errors(&Context::default(), &df_as_df).has_errors());
+    }
+
+    #[test]
     fn edge_d1_dataframe_column_length_mismatch_is_an_error() {
         // D1 (audit_type_checking.md, Phase 5): column lengths were never
         // compared against each other before.
         use crate::processes::parsing::parse_from_string;
-        let ast = parse_from_string("data.frame(a = [1, 2, 3], b = [4, 5]);", "test.ty");
+        let ast = parse_from_string("data_frame(a = [1, 2, 3], b = [4, 5]);", "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
         assert!(
             result.has_errors(),
@@ -4822,7 +4884,7 @@ p"#;
         // D1: a non-vector column used to silently give the DataFrame's
         // index type `Any` instead of raising an error.
         use crate::processes::parsing::parse_from_string;
-        let ast = parse_from_string("data.frame(a = [1, 2, 3], b = 5);", "test.ty");
+        let ast = parse_from_string("data_frame(a = [1, 2, 3], b = 5);", "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
         assert!(
             result.has_errors(),

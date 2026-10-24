@@ -73,16 +73,21 @@ typr_assert_type <- function(x, expected, loc, what) {
 #' Émises par le compilateur seulement là où il n'a pas pu prouver le
 #' raffinement. Elles renvoient `x` pour s'insérer dans n'importe quelle
 #' expression ; `all()`/`isTRUE()` les rendent sûres face aux vecteurs et aux NA.
+# The "length" of a refined value: the row count of a data frame (its
+# `length()` is the number of columns), `length()` for anything else.
+typr_refine_size <- function(x) if (is.data.frame(x)) nrow(x) else length(x)
+
 typr_refine_length <- function(x, n, loc) {
-  if (!isTRUE(length(x) == n)) {
+  len <- typr_refine_size(x)
+  if (!isTRUE(len == n)) {
     stop(sprintf("Type refinement violation at %s: expected length %d, got %d",
-                 loc, n, length(x)), call. = FALSE)
+                 loc, n, len), call. = FALSE)
   }
   x
 }
 
 typr_refine_length_range <- function(x, lo, lo_open, hi, hi_open, loc) {
-  n <- length(x)
+  n <- typr_refine_size(x)
   ok <- (if (lo_open) n > lo else n >= lo) && (if (hi_open) n < hi else n <= hi)
   if (!isTRUE(ok)) {
     stop(sprintf("Type refinement violation at %s: length %d is out of bounds %s%s, %s%s",

@@ -1,0 +1,275 @@
+#! pkg: base
+#! tier: T1
+#! format: TypR stdlib catalog — functions that read a data frame
+#
+# `data_frame(a = [1, 2], b = ["x", "y"])` is typed `df[2]{a: int, b: char}`
+# by the compiler (a language construct, not a function). A parameter written
+# `df[#N]{}` accepts a data frame of any schema and any height; the column
+# list of the argument is not constrained.
+#
+# What this file does NOT contain, on purpose: functions that return a data
+# frame whose columns depend on their arguments (`read_csv`, `merge`,
+# `rbind`, `head`, `subset`, ...). `df[#N]{}` is the data frame with *no*
+# column, not a data frame of unknown schema, so such a result is `Any` and
+# the caller narrows it with a validating cast to a named schema:
+#   type Prices <- df[#N]{price: num};
+#   let d <- read_csv("data.csv") as! Prices;
+#
+# Every function that also accepts a matrix or a vector keeps an overload for
+# it, so typing the data-frame case does not reject existing code.
+
+# ============================================================
+# SHAPE
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: data frame, matrix or array
+#! ret: number of rows
+#! example: nrow(data_frame(a = [1, 2, 3]))   # -> 3
+#! seealso: ncol, dim
+@nrow: (x: df[#N]{}) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: number of rows
+#! example: # noplayground: nrow(matrix(1:6, 2, 3))   # -> 2
+@nrow: (x: [#M, [#N, num]]) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: any object with a `dim` attribute
+#! ret: number of rows
+@nrow: (x: Any) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: data frame
+#! ret: number of columns
+#! example: ncol(data_frame(a = [1, 2], b = [3, 4]))   # -> 2
+#! seealso: nrow, dim
+@ncol: (x: df[#N]{}) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: number of columns
+#! example: # noplayground: ncol(matrix(1:6, 2, 3))   # -> 3
+@ncol: (x: [#M, [#N, num]]) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: any object with a `dim` attribute
+#! ret: number of columns
+@ncol: (x: Any) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: data frame
+#! ret: c(rows, columns)
+#! example: dim(data_frame(a = [1, 2, 3]))   # -> c(3, 1)
+#! seealso: nrow, ncol
+@dim: (x: df[#N]{}) -> [2, int];
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix or array
+#! ret: dimension vector (rows, cols, ...)
+#! example: # noplayground: dim(matrix(1:6, 2, 3))   # -> c(2, 3)
+@dim: (x: Any) -> [#N, int];
+
+# ============================================================
+# LABELS
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: data frame
+#! ret: column names
+#! example: names(data_frame(a = [1, 2], b = [3, 4]))   # -> c("a", "b")
+#! seealso: colnames, rownames
+@names: (x: df[#N]{}) -> [#M, char];
+
+#! pkg: base
+#! tier: T1
+#! param x: vector or list with names
+#! ret: its names
+#! example: names(c(a = 1, b = 2))   # -> c("a", "b")
+@names: (x: Any) -> [#N, char];
+
+#! pkg: base
+#! tier: T1
+#! param x: data frame
+#! ret: column names
+#! seealso: names, rownames
+@colnames: (x: df[#N]{}) -> [#M, char];
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: column names
+@colnames: (x: Any) -> [#N, char];
+
+#! pkg: base
+#! tier: T1
+#! param x: data frame
+#! ret: row names (as character)
+#! seealso: names, colnames
+@rownames: (x: df[#N]{}) -> [#N, char];
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: row names
+@rownames: (x: Any) -> [#N, char];
+
+# ============================================================
+# MARGINS
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: data frame with numeric columns
+#! ret: column sums
+#! example: colSums(data_frame(a = [1, 2], b = [3, 4]))   # -> c(a = 3, b = 7)
+#! seealso: rowSums, colMeans
+@colSums: (x: df[#N]{}) -> [#M, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: column sums
+#! example: colSums(matrix(1:6, 2, 3))   # -> c(3, 7, 11)
+@colSums: (x: [#M, [#N, num]]) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: object of unknown type (an untyped matrix or data frame)
+#! ret: column sums
+@colSums: (x: Any) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: data frame with numeric columns
+#! ret: row sums
+#! seealso: colSums, rowMeans
+@rowSums: (x: df[#N]{}) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: row sums
+#! example: rowSums(matrix(1:6, 2, 3))   # -> c(6, 15)
+@rowSums: (x: [#M, [#N, num]]) -> [#M, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: object of unknown type (an untyped matrix or data frame)
+#! ret: row sums
+@rowSums: (x: Any) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: data frame with numeric columns
+#! ret: column means
+#! seealso: rowMeans, colSums
+@colMeans: (x: df[#N]{}) -> [#M, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: column means
+#! example: colMeans(matrix(1:6, 2, 3))   # -> c(1.5, 3.5, 5.5)
+@colMeans: (x: [#M, [#N, num]]) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: object of unknown type (an untyped matrix or data frame)
+#! ret: column means
+@colMeans: (x: Any) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: data frame with numeric columns
+#! ret: row means
+#! seealso: colMeans, rowSums
+@rowMeans: (x: df[#N]{}) -> [#N, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: matrix
+#! ret: row means
+#! example: rowMeans(matrix(1:6, 2, 3))   # -> c(2, 5)
+@rowMeans: (x: [#M, [#N, num]]) -> [#M, num];
+
+#! pkg: base
+#! tier: T1
+#! param x: object of unknown type (an untyped matrix or data frame)
+#! ret: row means
+@rowMeans: (x: Any) -> [#N, num];
+
+# ============================================================
+# TESTS AND CONVERSIONS
+# ============================================================
+
+#! pkg: base
+#! tier: T1
+#! param x: object to test
+#! ret: TRUE if x is a data frame
+#! example: is_data_frame(data_frame(a = [1]))   # -> TRUE
+#! example: is_data_frame(1)   # -> FALSE
+@extern(r = "is.data.frame") is_data_frame: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: data frame
+#! ret: for each row, TRUE if it has no NA
+#! seealso: is_na
+@extern(r = "complete.cases") complete_cases: (x: df[#N]{}) -> [#N, bool];
+
+#! pkg: base
+#! tier: T1
+#! param x: object of unknown type
+#! ret: for each row, TRUE if it has no NA
+@extern(r = "complete.cases") complete_cases: (x: Any) -> [#N, bool];
+
+#! pkg: base
+#! tier: T1
+#! param x: list, matrix or vector to convert
+#! ret: a data frame; its columns depend on x, so the result is `Any`
+#! note: `as! Schema` recovers the columns, with `type Schema <- df[#N]{a: num};`
+#! example: # noplayground: as_data_frame(matrix(1:4, 2, 2))
+@extern(r = "as.data.frame") as_data_frame: (x: Any) -> Any;
+
+#! pkg: base
+#! tier: T1
+#! param x: first data frame
+#! param y: second data frame
+#! param by: columns to join on (default: the columns they share)
+#! ret: the joined data frame; its columns depend on both inputs, so the result is `Any`
+#! example: # noplayground: merge(a, b, ["id"])
+@merge: (x: df[#N]{}, y: df[#M]{}, by?: [#K, char]) -> Any;
+
+#! pkg: base
+#! tier: T1
+#! param x: first object, of unknown type (e.g. the result of `read_csv`)
+#! param y: second object
+#! param by: columns to join on
+#! ret: the joined data frame
+@merge: (x: Any, y: Any, by?: [#K, char]) -> Any;
+
+# ============================================================
+# I/O
+# ============================================================
+
+#! pkg: utils
+#! tier: T1
+#! param file: file path or URL
+#! param header: TRUE if the first row holds the column names (default TRUE)
+#! param sep: field separator (default ",")
+#! ret: the data frame read; its columns depend on the file, so the result is `Any`
+#! note: `as! Schema` recovers the columns, with `type Schema <- df[#N]{price: num};`
+#! example: # noplayground: read_csv("data.csv")
+#! seealso: write_csv
+@extern(r = "read.csv") read_csv: (file: char, header?: bool, sep?: char) -> Any;

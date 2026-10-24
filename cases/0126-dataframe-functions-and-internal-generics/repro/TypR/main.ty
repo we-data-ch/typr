@@ -1,0 +1,6 @@
+let d <- data_frame(a = [1.5, 2.5, 3.5], b = ["x", "y", "z"], c = [1.0, 2.0, 3.0]);
+print(nrow(d));
+print(ncol(d));
+print(names(d));
+print(dim(matrix(1:6, 2, 3)));
+print(colSums(data_frame(p = [1.0, 2.0], q = [3.0, 4.0])));

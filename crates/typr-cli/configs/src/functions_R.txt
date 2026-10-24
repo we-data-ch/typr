@@ -32,7 +32,6 @@ as__array__default
 as__call
 as__character
 as__complex
-as__data__frame
 as__Date
 as__difftime
 as__double
@@ -131,9 +130,6 @@ clearPushBack
 close
 closeAllConnections
 col
-colMeans
-colnames
-colSums
 commandArgs
 comment
 complex
@@ -174,7 +170,6 @@ diag
 diff
 difftime
 digamma
-dim
 dimnames
 dir
 dirname
@@ -302,7 +297,6 @@ is__atomic
 is__call
 is__character
 is__complex
-is__data__frame
 is__double
 is__element
 is__environment
@@ -415,7 +409,6 @@ mem__maxVSize
 memCompress
 memDecompress
 memory__profile
-merge
 message
 mget
 min
@@ -425,7 +418,6 @@ mode
 months
 mtfrm
 nameOfClass
-names
 namespaceExport
 namespaceImport
 namespaceImportClasses
@@ -433,7 +425,6 @@ namespaceImportFrom
 namespaceImportMethods
 nargs
 nchar
-ncol
 NCOL
 Negate
 new__env
@@ -444,7 +435,6 @@ nlevels
 noquote
 norm
 normalizePath
-nrow
 NROW
 nullfile
 numeric
@@ -550,10 +540,7 @@ RNGkind
 RNGversion
 round
 row
-rowMeans
-rownames
 rowsum
-rowSums
 sample
 sample__int
 sapply

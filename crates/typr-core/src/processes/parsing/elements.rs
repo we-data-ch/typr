@@ -719,7 +719,7 @@ fn dataframe_exp(s: Span) -> IResult<Span, Lang> {
 
 fn dataframe_exp_impl(s: Span) -> IResult<Span, Lang> {
     let res = (
-        alt((tag("data__frame"), tag("data.frame"))),
+        tag("data_frame"),
         terminated(tag("("), multispace0),
         many0(argument_val),
         terminated(tag(")"), multispace0),

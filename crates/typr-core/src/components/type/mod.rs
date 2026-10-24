@@ -263,7 +263,11 @@ impl TypeSystem for Type {
                 t1.is_subtype_raw(typ, context) || t2.is_subtype_raw(typ, context)
             }
             (_, Type::Any(_)) => true,
-            (Type::Vec(_, n1, t1, h1), Type::Vec(_, n2, t2, h2)) => {
+            (Type::Vec(k1, n1, t1, h1), Type::Vec(k2, n2, t2, h2)) => {
+                // A data frame is not a vector of records and vice versa:
+                // `df[3]{a: int}` never stands for `[3, list{a: int}]`. The
+                // other kinds (`Vec`, `Array`, `[N, T]`) stay interchangeable.
+                let kind_ok = matches!(k1, VecType::DataFrame) == matches!(k2, VecType::DataFrame);
                 let length_ok = match (n1, n2) {
                     // Numeric ranges, or a symbolic length against a range:
                     // interval inclusion (`[#N + 1, T] <: [T] & length(> 0)`).
@@ -273,7 +277,7 @@ impl TypeSystem for Type {
                     (Length::Range(_), Length::Sym(_)) if n1.as_proper_range().is_some() => false,
                     _ => n1.to_type(h1.clone()).is_subtype_raw(&n2.to_type(h2.clone()), context),
                 };
-                length_ok && t1.is_subtype_raw(t2, context)
+                kind_ok && length_ok && t1.is_subtype_raw(t2, context)
             }
             // A function type is structural: only the arity, the parameter
             // *types* and the return type carry meaning. Parameter names are a
@@ -1370,7 +1374,11 @@ impl PartialEq for Type {
             (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
             (Type::LabelGen(_, _), Type::LabelGen(_, _)) => true,
             (Type::KindedGen(k1, _, _), Type::KindedGen(k2, _, _)) => k1 == k2,
-            (Type::Vec(_, a1, b1, _), Type::Vec(_, a2, b2, _)) => a1 == a2 && b1 == b2,
+            // Kinds are interchangeable, except that a data frame is never
+            // equal to a vector of records.
+            (Type::Vec(k1, a1, b1, _), Type::Vec(k2, a2, b2, _)) => {
+                matches!(k1, VecType::DataFrame) == matches!(k2, VecType::DataFrame) && a1 == a2 && b1 == b2
+            }
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
             (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) => a1 == a2 && b1 == b2 && c1 == c2,
             (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) => a1 == a2 && b1 == b2,

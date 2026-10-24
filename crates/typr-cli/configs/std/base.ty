@@ -782,38 +782,6 @@
 #! seealso: crossprod
 @inner: (x: [#N, T], y: [#N, T]) -> T;
 
-#! pkg: base
-#! tier: T1
-#! param x: matrix
-#! ret: column sums
-#! example: colSums(matrix(1:6, 2, 3))   # -> c(3, 7, 11)
-#! seealso: rowSums, colMeans
-@colSums: (x: [#M, [#N, num]]) -> [#N, num];
-
-#! pkg: base
-#! tier: T1
-#! param x: matrix
-#! ret: row sums
-#! example: rowSums(matrix(1:6, 2, 3))   # -> c(6, 15)
-#! seealso: colSums, rowMeans
-@rowSums: (x: [#M, [#N, num]]) -> [#M, num];
-
-#! pkg: base
-#! tier: T1
-#! param x: matrix
-#! ret: column means
-#! example: colMeans(matrix(1:6, 2, 3))   # -> c(1.5, 3.5, 5.5)
-#! seealso: rowMeans, colSums
-@colMeans: (x: [#M, [#N, num]]) -> [#N, num];
-
-#! pkg: base
-#! tier: T1
-#! param x: matrix
-#! ret: row means
-#! example: rowMeans(matrix(1:6, 2, 3))   # -> c(2, 5)
-#! seealso: colMeans, rowSums
-@rowMeans: (x: [#M, [#N, num]]) -> [#M, num];
-
 # ============================================================
 # COMPARISON UTILITIES
 # ============================================================
@@ -933,40 +901,6 @@
 #! example: order(c(3, 1, 4, 1, 5))   # -> c(2, 4, 1, 3, 5)
 #! seealso: sort, rank
 @order: (x: [#N, T]) -> [#N, int];
-
-#! pkg: base
-#! tier: T1
-#! param x: vector with names
-#! param value: value to search for
-#! ret: name(s) matching value
-#! note: inverse of names(x)
-#! example: names(c(a=1, b=2, c=3))[2]   # -> "b"
-#! seealso: match, which
-@names: (x: [#N, T]) -> [#N, char];
-
-#! pkg: base
-#! tier: T1
-#! param x: matrix or data.frame
-#! ret: number of rows
-#! example: # noplayground: nrow(matrix(1:6, 2, 3))   # -> 2
-#! seealso: ncol, dim
-@nrow: (x: Any) -> int;
-
-#! pkg: base
-#! tier: T1
-#! param x: matrix or data.frame
-#! ret: number of columns
-#! example: # noplayground: ncol(matrix(1:6, 2, 3))   # -> 3
-#! seealso: nrow, dim
-@ncol: (x: Any) -> int;
-
-#! pkg: base
-#! tier: T1
-#! param x: matrix or array
-#! ret: dimension vector (rows, cols, ...)
-#! example: # noplayground: dim(matrix(1:6, 2, 3))   # -> c(2, 3)
-#! seealso: nrow, ncol
-@dim: (x: Any) -> [#N, int];
 
 #! pkg: base
 #! tier: T1

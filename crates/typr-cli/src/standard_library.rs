@@ -360,6 +360,7 @@ const FOREIGN_TY: &str = include_str!("../configs/std/foreign.ty");
 const STATS_TY: &str = include_str!("../configs/std/stats.ty");
 const UTILS_TY: &str = include_str!("../configs/std/utils.ty");
 const R_NAMES_TY: &str = include_str!("../configs/std/r_names.ty");
+const DATAFRAME_TY: &str = include_str!("../configs/std/dataframe.ty");
 const USETHIS_TY: &str = include_str!("../configs/std/usethis.ty");
 
 // Embedded source files for JS
@@ -382,6 +383,7 @@ const R_T1_SOURCES: &[(&str, &str)] = &[
     ("foreign.ty", FOREIGN_TY),
     ("ord.ty", ORD_TY),
     ("r_names.ty", R_NAMES_TY),
+    ("dataframe.ty", DATAFRAME_TY),
 ];
 
 /// The standard-library entries that declare `#! targets:` (rfcs/0000-compilation-targets.md §4),
@@ -425,7 +427,7 @@ pub fn stdlib_declared_names() -> std::collections::BTreeSet<String> {
         // Note: BASE_TY is excluded — it contains R base function type
         // annotations for the doc SPG only, not TypR-owned functions.
         STD_R_TY, DEFAULT_TY, FILE_TY, OPTION_TY, PLOT_TY, LIN_ALG_TY, SYSTEM_TY, FACTOR_TY, STATE_TY, ORD_TY,
-        R_NAMES_TY, FOREIGN_TY, STD_JS_TY,
+        R_NAMES_TY, DATAFRAME_TY, FOREIGN_TY, STD_JS_TY,
     ]
     .iter()
     .flat_map(|source| source.lines())

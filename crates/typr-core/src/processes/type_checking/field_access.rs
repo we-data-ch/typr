@@ -53,6 +53,17 @@ where
     }
 }
 
+/// The type a dataframe's record body stores for a column: the element type
+/// of the column vector (`[3, num]` -> `num`), as `df[3]{a: num}` writes it.
+/// A non-vector type is kept as is (it was already reported where the
+/// column was built).
+pub fn column_element_type(column: &Type) -> Type {
+    match column {
+        Type::Vec(_, _, inner, _) => (**inner).clone(),
+        other => other.clone(),
+    }
+}
+
 /// `df$col` / `df.col` on a typed dataframe (`reduced_df` is its reduced
 /// `Vec(DataFrame, N, Record{...})`): the column, as a plain vector of the
 /// column's element type with the dataframe's row count. `None` (after
@@ -76,10 +87,7 @@ pub fn dataframe_column_or_push_error(
             return None;
         }
     };
-    let inner_type = match find_field_or_push_error(fields, name, receiver_type, name_help, errors)? {
-        Type::Vec(_, _, inner, _) => *inner,
-        other => other,
-    };
+    let inner_type = column_element_type(&find_field_or_push_error(fields, name, receiver_type, name_help, errors)?);
     Some(Type::vec(
         VecType::Vector,
         reduced_df.vec_length().unwrap_or_else(builder::any_type),

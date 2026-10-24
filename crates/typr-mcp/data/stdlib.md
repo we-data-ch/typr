@@ -3,7 +3,7 @@
 > Auto-generated from `configs/std/*.ty` by `typr std doc --format md`.
 > Compiled signatures (T1) are verified by the type-checker.
 
-**398** documented entities (381 with structured metadata).
+**422** documented entities (405 with structured metadata).
 
 ## `_typR` package  
 - **`Option`** `.Some(T) | .None`
@@ -440,6 +440,54 @@
   which_max(c(3, 1, 4, 1, 5))   # -> 5 (1-indexed)
   ```
   See also: `which.min`, `max`
+- `T1` **`nrow`** `(a: DataFrame[#N, {}]) -> int` — number of rows
+- `T1` **`nrow`** `(a: [#M, [#N, num]]) -> int` — number of rows
+- `T1` **`nrow`** `(a: any) -> int` — number of rows
+- `T1` **`ncol`** `(a: DataFrame[#N, {}]) -> int` — number of columns
+- `T1` **`ncol`** `(a: [#M, [#N, num]]) -> int` — number of columns
+- `T1` **`ncol`** `(a: any) -> int` — number of columns
+- `T1` **`dim`** `(a: DataFrame[#N, {}]) -> [2, int]` — dimension vector (rows, cols, 
+  ```
+  dim(matrix(1:6, 2, 3))   # -> c(2, 3)
+  ```
+- `T1` **`dim`** `(a: any) -> [#N, int]` — dimension vector (rows, cols, 
+  ```
+  dim(matrix(1:6, 2, 3))   # -> c(2, 3)
+  ```
+- `T1` **`names`** `(a: DataFrame[#N, {}]) -> [#M, char]` — its names
+  ```
+  names(c(a = 1, b = 2))   # -> c("a", "b")
+  ```
+- `T1` **`names`** `(a: any) -> [#N, char]` — its names
+  ```
+  names(c(a = 1, b = 2))   # -> c("a", "b")
+  ```
+- `T1` **`colnames`** `(a: DataFrame[#N, {}]) -> [#M, char]` — column names
+- `T1` **`colnames`** `(a: any) -> [#N, char]` — column names
+- `T1` **`rownames`** `(a: DataFrame[#N, {}]) -> [#N, char]` — row names
+- `T1` **`rownames`** `(a: any) -> [#N, char]` — row names
+- `T1` **`colSums`** `(a: DataFrame[#N, {}]) -> [#M, num]` — column sums
+- `T1` **`colSums`** `(a: [#M, [#N, num]]) -> [#N, num]` — column sums
+- `T1` **`colSums`** `(a: any) -> [#N, num]` — column sums
+- `T1` **`rowSums`** `(a: DataFrame[#N, {}]) -> [#N, num]` — row sums
+- `T1` **`rowSums`** `(a: [#M, [#N, num]]) -> [#M, num]` — row sums
+- `T1` **`rowSums`** `(a: any) -> [#N, num]` — row sums
+- `T1` **`colMeans`** `(a: DataFrame[#N, {}]) -> [#M, num]` — column means
+- `T1` **`colMeans`** `(a: [#M, [#N, num]]) -> [#N, num]` — column means
+- `T1` **`colMeans`** `(a: any) -> [#N, num]` — column means
+- `T1` **`rowMeans`** `(a: DataFrame[#N, {}]) -> [#N, num]` — row means
+- `T1` **`rowMeans`** `(a: [#M, [#N, num]]) -> [#M, num]` — row means
+- `T1` **`rowMeans`** `(a: any) -> [#N, num]` — row means
+- `T1` **`is_data_frame`** `(a: any) -> bool` — TRUE if x is a data frame
+  ```
+  is_data_frame(data_frame(a = [1]))   # -> TRUE
+  ```
+- `T1` **`as_data_frame`** `(a: any) -> any` — a data frame; its columns depend on x, so the result is `Any`
+  ```
+  as_data_frame(matrix(1:4, 2, 2))
+  ```
+- `T1` **`merge`** `(a: DataFrame[#N, {}], b: DataFrame[#M, {}], c: [#K, char]) -> any` — the joined data frame
+- `T1` **`merge`** `(a: any, b: any, c: [#K, char]) -> any` — the joined data frame
 - `T1` **`abs`** `(a: num) -> num` — absolute value
   ```
   abs(-5.0)   # -> 5
@@ -831,26 +879,6 @@
   inner(c(1,2), c(3,4))   # -> 11
   ```
   See also: `crossprod`
-- `T1` **`colSums`** `(a: [#M, [#N, num]]) -> [#N, num]` — column sums
-  ```
-  colSums(matrix(1:6, 2, 3))   # -> c(3, 7, 11)
-  ```
-  See also: `rowSums`, `colMeans`
-- `T1` **`rowSums`** `(a: [#M, [#N, num]]) -> [#M, num]` — row sums
-  ```
-  rowSums(matrix(1:6, 2, 3))   # -> c(6, 15)
-  ```
-  See also: `colSums`, `rowMeans`
-- `T1` **`colMeans`** `(a: [#M, [#N, num]]) -> [#N, num]` — column means
-  ```
-  colMeans(matrix(1:6, 2, 3))   # -> c(1.5, 3.5, 5.5)
-  ```
-  See also: `rowMeans`, `colSums`
-- `T1` **`rowMeans`** `(a: [#M, [#N, num]]) -> [#M, num]` — row means
-  ```
-  rowMeans(matrix(1:6, 2, 3))   # -> c(2, 5)
-  ```
-  See also: `colMeans`, `rowSums`
 - `T1` **`identical`** `(a: any, b: any) -> bool` — TRUE if x and y are exactly equal (or nearly equal with tolerance)
   ```
   identical(1, 1)   # -> TRUE
@@ -911,26 +939,6 @@
   order(c(3, 1, 4, 1, 5))   # -> c(2, 4, 1, 3, 5)
   ```
   See also: `sort`, `rank`
-- `T1` **`names`** `(a: [#N, T]) -> [#N, char]` — name(s) matching value
-  ```
-  names(c(a=1, b=2, c=3))[2]   # -> "b"
-  ```
-  See also: `match`, `which`
-- `T1` **`nrow`** `(a: any) -> int` — number of rows
-  ```
-  nrow(matrix(1:6, 2, 3))   # -> 2
-  ```
-  See also: `ncol`, `dim`
-- `T1` **`ncol`** `(a: any) -> int` — number of columns
-  ```
-  ncol(matrix(1:6, 2, 3))   # -> 3
-  ```
-  See also: `nrow`, `dim`
-- `T1` **`dim`** `(a: any) -> [#N, int]` — dimension vector (rows, cols, 
-  ```
-  dim(matrix(1:6, 2, 3))   # -> c(2, 3)
-  ```
-  See also: `nrow`, `ncol`
 - `T1` **`anyNA`** `(a: [#N, T]) -> bool` — TRUE if x has no NA values
   ```
   anyNA(c(1, 2, 3))   # -> FALSE
@@ -983,6 +991,16 @@
   ```
   See also: `stepfun`
 - `T1` **`complete_cases`** `(a: [#N, T]) -> [#N, bool]` — complete cases indicator (logical vector)
+  ```
+  complete_cases(c(1, NA, 3))   # -> c(TRUE, FALSE, TRUE)
+  ```
+  See also: `na.omit`, `is.na`
+- `T1` **`complete_cases`** `(a: DataFrame[#N, {}]) -> [#N, bool]` — complete cases indicator (logical vector)
+  ```
+  complete_cases(c(1, NA, 3))   # -> c(TRUE, FALSE, TRUE)
+  ```
+  See also: `na.omit`, `is.na`
+- `T1` **`complete_cases`** `(a: any) -> [#N, bool]` — complete cases indicator (logical vector)
   ```
   complete_cases(c(1, NA, 3))   # -> c(TRUE, FALSE, TRUE)
   ```
@@ -1449,7 +1467,7 @@
   See also: `median`, `IQR`, `fivenum`
 - `T2` **`predict`** `(a: any, b: any, c: char) -> any` — predicted values
   ```
-  m <- lm(mpg ~ wt, data = mtcars); predict(m, newdata = data.frame(wt = 3))
+  m <- lm(mpg ~ wt, data = mtcars); predict(m, newdata = data_frame(wt = 3))
   ```
   See also: `fitted`, `residuals`
 - `T2` **`fitted`** `(a: any) -> any` — fitted (predicted) values
@@ -1536,11 +1554,11 @@
   object_size(mtcars)   # -> ~6-7 KB
   ```
   See also: `str`, `ls.str`
-- `T2` **`read_csv`** `(a: char, b: bool, c: char, d: char, e: [#N, char], f: int, g: int, h: bool) -> any` — data frame
+- `T1` **`read_csv`** `(a: char, b: bool, c: char) -> any` — the data frame read; its columns depend on the file, so the result is `Any`
   ```
-  read_csv("data.csv")   # -> data frame from CSV file
+  read_csv("data.csv")
   ```
-  See also: `read.table`, `write.csv`, `read.delim`
+  See also: `write_csv`
 - `T2` **`read_csv2`** `(a: char, b: bool, c: char, d: char, e: [#N, char]) -> any` — data frame
   ```
   read_csv2("data.csv2")   # -> data frame
