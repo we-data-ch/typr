@@ -731,20 +731,9 @@
 #! seealso: dsignrank, qsignrank, rsignrank
 @psignrank: (q: num, n: int, lower_tail?: bool) -> num;
 
-
 # ============================================================
 # SUMMARY STATISTICS — Functions not in base.ty
 # ============================================================
-
-#! pkg: stats
-#! tier: T1
-#! param x: numeric vector
-#! param na.rm: if TRUE, remove NA before computing (default FALSE)
-#! ret: interquartile range (75th percentile - 25th percentile)
-#! note: IQR(x) = quantile(x, 0.75) - quantile(x, 0.25)
-#! example: # noplayground: IQR(1:10)   # -> 5
-#! seealso: quantile, mad
-@IQR: (x: [#N, num], na.rm?: bool) -> num;
 
 #! pkg: stats
 #! tier: T1
@@ -765,18 +754,6 @@
 #! example: # noplayground: fivenum(c(1, 2, 3, 4, 5))   # -> c(1, 1.5, 3, 4.5, 5)
 #! seealso: summary, quantile, range
 @fivenum: (x: [#N, num], na.rm?: bool) -> [5, num];
-
-#! pkg: stats
-#! tier: T1
-#! param x: numeric vector
-#! param w: optional weight vector (default: equal weights)
-#! param na.rm: if TRUE, remove NA (default FALSE)
-#! ret: weighted arithmetic mean
-#! note: weighted.mean(x, w) = sum(w * x) / sum(w)
-#! example: # noplayground: weighted.mean(c(1, 2, 3), c(3, 2, 1))   # -> 1.6666...
-#! seealso: mean, sum
-@`weighted.mean`: (x: [#N, num], w?: [#N, num], na.rm?: bool) -> num;
-
 
 # ============================================================
 # CORRELATION AND COVARIANCE
@@ -804,9 +781,9 @@
 #! param conf_level: confidence level (default 0.95)
 #! ret: list with estimate, p.value, conf.int, method
 #! note: T2 — returns complex list structure
-#! example: # noplayground: cor.test(1:10, c(2,4,6,8,10,12,14,16,18,20))   # -> r=1, p<2.2e-16
+#! example: # noplayground: cor_test(1:10, c(2,4,6,8,10,12,14,16,18,20))   # -> r=1, p<2.2e-16
 #! seealso: cor, cov
-@`cor.test`: (x: [#N, num], y: [#N, num], alternative: char, method: char, conf_level?: num) -> Any;
+@extern(r = "cor.test") cor_test: (x: [#N, num], y: [#N, num], alternative: char, method: char, conf_level?: num) -> Any;
 
 #! pkg: stats
 #! tier: T1
@@ -818,7 +795,6 @@
 #! example: # noplayground: cov(c(1, 2, 3), c(2, 4, 6))   # -> 2
 #! seealso: cor, cor.test
 @cov: (x: [#N, num], y: [#N, num], method: char) -> num;
-
 
 # ============================================================
 # TESTS STATISTIQUES — T2 (complex return types)
@@ -834,9 +810,9 @@
 #! param conf_level: confidence level (default 0.95)
 #! ret: list with statistic, df, p.value, conf.int, estimate
 #! note: T2 — complex list structure; Welch's t-test by default
-#! example: # noplayground: t.test(1:10, rnorm(10))   # -> t-test result
+#! example: # noplayground: t_test(1:10, rnorm(10))   # -> t-test result
 #! seealso: var.test, wilcox.test
-@`t.test`: (x: [#N, num], y: [#N, num], alternative: char, mu: num, var_equal: bool, conf_level?: num) -> Any;
+@extern(r = "t.test") t_test: (x: [#N, num], y: [#N, num], alternative: char, mu: num, var_equal: bool, conf_level?: num) -> Any;
 
 #! pkg: stats
 #! tier: T2
@@ -846,9 +822,9 @@
 #! param correct: continuity correction for 2x2 tables (default TRUE)
 #! ret: list with statistic, df, p.value, method
 #! note: T2 — complex return structure
-#! example: # noplayground: chisq.test(c(10, 10, 10))   # -> Chi-squared test
+#! example: # noplayground: chisq_test(c(10, 10, 10))   # -> Chi-squared test
 #! seealso: fisher.test, prop.test
-@`chisq.test`: (x: [#N, num], y: [#N, num], alternative: char, correct?: bool) -> Any;
+@extern(r = "chisq.test") chisq_test: (x: [#N, num], y: [#N, num], alternative: char, correct?: bool) -> Any;
 
 #! pkg: stats
 #! tier: T2
@@ -857,9 +833,9 @@
 #! param conf_level: confidence level (default 0.95)
 #! ret: list with estimate, p.value, conf.int, method
 #! note: T2 — exact test for 2x2 tables, recommended when n < 20
-#! example: # noplayground: fisher.test(matrix(c(1, 9, 11, 2), 2, 2))   # -> Fisher's exact test
+#! example: # noplayground: fisher_test(matrix(c(1, 9, 11, 2), 2, 2))   # -> Fisher's exact test
 #! seealso: chisq.test
-@`fisher.test`: (x: [#M, [#N, num]], alternative: char, conf_level?: num) -> Any;
+@extern(r = "fisher.test") fisher_test: (x: [#M, [#N, num]], alternative: char, conf_level?: num) -> Any;
 
 #! pkg: stats
 #! tier: T2
@@ -870,9 +846,9 @@
 #! param conf_level: confidence level (default 0.95)
 #! ret: list with statistic, p.value, estimate, conf.int
 #! note: T2 — non-parametric test
-#! example: # noplayground: wilcox.test(1:10, 2:11)   # -> Wilcoxon rank-sum test
+#! example: # noplayground: wilcox_test(1:10, 2:11)   # -> Wilcoxon rank-sum test
 #! seealso: t.test, ks.test
-@`wilcox.test`: (x: [#N, num], y: [#N, num], alternative: char, correct?: bool, conf_level?: num) -> Any;
+@extern(r = "wilcox.test") wilcox_test: (x: [#N, num], y: [#N, num], alternative: char, correct?: bool, conf_level?: num) -> Any;
 
 #! pkg: stats
 #! tier: T2
@@ -882,9 +858,9 @@
 #! param conf_level: confidence level (default 0.95)
 #! ret: list with statistic, p.value, estimate, conf.int
 #! note: T2 — binomial test for proportion
-#! example: # noplayground: binom.test(6, 10)   # -> exact binomial test
+#! example: # noplayground: binom_test(6, 10)   # -> exact binomial test
 #! seealso: prop.test, chisq.test
-@`binom.test`: (x: int, n: int, p: num, alternative: char, conf_level?: num) -> Any;
+@extern(r = "binom.test") binom_test: (x: int, n: int, p: num, alternative: char, conf_level?: num) -> Any;
 
 #! pkg: stats
 #! tier: T2
@@ -892,9 +868,9 @@
 #! param alternative: "greater", "less", or "two.sided"
 #! ret: list with statistic, p.value
 #! note: T2 — tests for normality, requires n >= 3
-#! example: # noplayground: shapiro.test(rnorm(100))   # -> W ≈ 1, p ≈ 1
+#! example: # noplayground: shapiro_test(rnorm(100))   # -> W ≈ 1, p ≈ 1
 #! seealso: ks.test
-@`shapiro.test`: (x: [#N, num]) -> Any;
+@extern(r = "shapiro.test") shapiro_test: (x: [#N, num]) -> Any;
 
 #! pkg: stats
 #! tier: T2
@@ -903,9 +879,9 @@
 #! param alternative: "two.sided", "less", or "greater"
 #! ret: list with statistic, p.value
 #! note: T2 — Kolmogorov-Smirnov test for distribution comparison
-#! example: # noplayground: ks.test(rnorm(100), "pnorm")   # -> KS test against normal
+#! example: # noplayground: ks_test(rnorm(100), "pnorm")   # -> KS test against normal
 #! seealso: shapiro.test, wilcox.test
-@`ks.test`: (x: [#N, num], y: [#N, num], alternative: char) -> Any;
+@extern(r = "ks.test") ks_test: (x: [#N, num], y: [#N, num], alternative: char) -> Any;
 
 #! pkg: stats
 #! tier: T2
@@ -914,9 +890,9 @@
 #! param alternative: "two.sided", "less", or "greater"
 #! ret: list with statistic, df, p.value
 #! note: T2 — F-test for equality of two variances
-#! example: # noplayground: var.test(rnorm(100), rnorm(100, sd = 2))   # -> F-test
+#! example: # noplayground: var_test(rnorm(100), rnorm(100, sd = 2))   # -> F-test
 #! seealso: t.test
-@`var.test`: (x: [#N, num], y: [#N, num], alternative: char) -> Any;
+@extern(r = "var.test") var_test: (x: [#N, num], y: [#N, num], alternative: char) -> Any;
 
 #! pkg: stats
 #! tier: T2
@@ -924,10 +900,9 @@
 #! param groups: factor or grouping vector
 #! ret: list with statistic, p.value
 #! note: T2 — non-parametric one-way test (Kruskal-Wallis)
-#! example: # noplayground: kruskal.test(list(c(1,2,3), c(4,5,6), c(7,8,9)))   # -> H-test
+#! example: # noplayground: kruskal_test(list(c(1,2,3), c(4,5,6), c(7,8,9)))   # -> H-test
 #! seealso: wilcox.test, oneway.test
-@`kruskal.test`: (x: [#N, num], groups: Any) -> Any;
-
+@extern(r = "kruskal.test") kruskal_test: (x: [#N, num], groups: Any) -> Any;
 
 # ============================================================
 # APPROXIMATION AND INTERPOLATION
@@ -967,7 +942,6 @@
 #! example: # noplayground: sp <- splinefun(1:4, c(1, 4, 9, 16)); sp(2.5)   # -> interpolated value
 #! seealso: spline, approx
 @splinefun: (x: [#N, num], y: [#N, num], method?: char) -> Any;
-
 
 # ============================================================
 # OPTIMIZATION
@@ -1009,7 +983,6 @@
 #! seealso: optim, nlminb
 @optimize: (f: Any, lower: num, upper: num) -> Any;
 
-
 # ============================================================
 # INTEGRATION
 # ============================================================
@@ -1024,7 +997,6 @@
 #! example: # noplayground: integrate(function(x) x^2, 0, 1)   # -> value = 0.3333...
 #! seealso: optim, nlminb
 @integrate: (f: Any, lower: num, upper: num, subdivisions?: int) -> Any;
-
 
 # ============================================================
 # DISTANCE AND CLUSTERING
@@ -1073,7 +1045,6 @@
 #! seealso: hclust, dist
 @kmeans: (x: [#N, [#M, num]], centers: int, nstart: int, iter_max: int) -> Any;
 
-
 # ============================================================
 # SORTING AND ORDERING (rank-based, complement to base.ty)
 # ============================================================
@@ -1087,7 +1058,6 @@
 #! example: # noplayground: quantile(1:100)   # -> c(1, 25.75, 50.5, 75.25, 100)
 #! seealso: median, IQR, fivenum
 @quantile: (x: [#N, num], probs?: [#M, num], na.rm?: bool) -> [#M, num];
-
 
 # ============================================================
 # FORMULA AND MODEL (T2 — complex objects)
@@ -1123,26 +1093,9 @@
 #! seealso: fitted, predict
 @residuals: (object: Any, type: char) -> Any;
 
-
 # ============================================================
 # MISC UTILITIES
 # ============================================================
-
-#! pkg: stats
-#! tier: T1
-#! param x: numeric vector
-#! ret: TRUE if x has a time series attribute (tsp)
-#! example: # noplayground: is.ts(1:10)   # -> FALSE
-#! seealso: ts, as.ts
-@`is.ts`: (x: Any) -> bool;
-
-#! pkg: stats
-#! tier: T1
-#! param x: object to test
-#! ret: TRUE if x is a step function
-#! example: # noplayground: is.stepfun(stepfun(1:5, 1:5))   # -> TRUE
-#! seealso: stepfun
-@`is.stepfun`: (x: Any) -> bool;
 
 #! pkg: stats
 #! tier: T1
@@ -1151,16 +1104,6 @@
 #! example: # noplayground: hasTsp(ts(1:10))   # -> TRUE
 #! seealso: tsp, ts
 @hasTsp: (x: Any) -> bool;
-
-#! pkg: stats
-#! tier: T1
-#! param x: numeric vector
-#! param na.rm: if TRUE, remove NA (default FALSE)
-#! ret: complete cases indicator (logical vector)
-#! note: returns TRUE for rows with no NA values
-#! example: complete.cases(c(1, NA, 3))   # -> c(TRUE, FALSE, TRUE)
-#! seealso: na.omit, is.na
-@`complete.cases`: (x: [#N, T]) -> [#N, bool];
 
 #! pkg: stats
 #! tier: T1

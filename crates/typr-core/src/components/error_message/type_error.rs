@@ -805,10 +805,25 @@ impl ErrorMsg for TypeError {
                     .pos((help_data.get_offset(), 0))
                     .pos_text(format!("Undefined variable '{}'", var2.get_name()))
                     .text(format!("Undefined variable '{}'", var2.get_name()))
-                    .help(format!(
-                        "- Check the orthograph \n- if it's a function check if it's defined for the given type {}",
-                        var2.get_type()
-                    ))
+                    .help({
+                        let mut help = format!(
+                            "- Check the orthograph \n- if it's a function check if it's defined for the given type {}",
+                            var2.get_type()
+                        );
+                        // TypR variables start in lowercase: a capitalised name is
+                        // most likely the head of a dotted R name (`Sys.sleep`).
+                        if var2.get_name().chars().next().is_some_and(|c| c.is_uppercase()) {
+                            help.push_str(&format!(
+                                "\n- if `{}` starts an R name such as `{}.f`, `.` is TypR's call-chain operator: declare it with `@extern(r = \"{}.f\") {}_f: (...) -> T;` and call `{}_f(...)`",
+                                var2.get_name(),
+                                var2.get_name(),
+                                var2.get_name(),
+                                var2.get_name().to_lowercase(),
+                                var2.get_name().to_lowercase(),
+                            ));
+                        }
+                        help
+                    })
                     .build()
             }
             TypeError::ImmutableVariable(var_assign, var) => {

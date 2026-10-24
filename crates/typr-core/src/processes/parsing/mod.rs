@@ -1544,6 +1544,40 @@ fn signature_extern_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     }
 }
 
+/// `@extern base::Sys.sleep: T;` — the R name is not a TypR identifier (a dot or
+/// a capital). The R name belongs in `@extern(r = "...")`; reports S022 with the
+/// rewritten declaration and consumes the signature so nothing cascades.
+fn signature_extern_r_name(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, (_at, _, pkg, name_span, _, body, _)) = (
+        tag("@extern"),
+        multispace1,
+        opt((
+            take_while1(|c: char| c.is_alphanumeric() || c == '_' || c == '.'),
+            tag("::"),
+        )),
+        take_while1(|c: char| c.is_alphanumeric() || c == '_' || c == '.'),
+        terminated(tag(":"), multispace0),
+        nom::bytes::complete::take_till(|c: char| c == ';'),
+        terminated(tag(";"), multispace0),
+    )
+        .parse(s.clone())?;
+    let name = name_span.fragment().to_string();
+    if !(name.contains('.') || name.chars().next().is_some_and(|c| c.is_uppercase())) {
+        return Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Tag)));
+    }
+    let r_name = match pkg {
+        Some((pkg, _)) => format!("{}::{}", pkg.fragment(), name),
+        None => name.clone(),
+    };
+    let typr_name = name.replace('.', "_").to_lowercase();
+    push_parse_error(SyntaxError::ExternRName {
+        suggestion: format!("@extern(r = \"{}\") {}: {};", r_name, typr_name, body.fragment().trim()),
+        written: name,
+        help_data: name_span.into(),
+    });
+    Ok((rest, vec![]))
+}
+
 /// A target name (`r`, `rust`). An unknown one is a syntax error (S021), never
 /// silently ignored (rfcs/0000-compilation-targets.md §5).
 fn target_name(s: Span) -> IResult<Span, Target> {
@@ -1653,6 +1687,7 @@ fn signature_impl(s: Span) -> IResult<Span, Vec<Lang>> {
     alt((
         signature_extern,
         signature_extern_targets,
+        signature_extern_r_name,
         extern_attribute,
         target_attribute,
         signature_opaque,
@@ -2380,6 +2415,39 @@ mod tesus {
             }
         }
         assert!(take_parse_errors().is_empty());
+    }
+
+    #[test]
+    fn test_extern_with_r_name_suggests_the_attribute_form() {
+        for (src, written, suggestion) in [
+            (
+                "@extern base::Sys.sleep: (time: num) -> null;",
+                "Sys.sleep",
+                "@extern(r = \"base::Sys.sleep\") sys_sleep: (time: num) -> null;",
+            ),
+            (
+                "@extern Sys.getenv: (x: char) -> char;",
+                "Sys.getenv",
+                "@extern(r = \"Sys.getenv\") sys_getenv: (x: char) -> char;",
+            ),
+        ] {
+            let _ = take_parse_errors();
+            let parsed = signature(src.into()).unwrap();
+            assert!(parsed.1.is_empty(), "{src}: the bad signature is consumed whole");
+            let errors = take_parse_errors();
+            match errors.as_slice() {
+                [SyntaxError::ExternRName { written: w, suggestion: s, .. }] => {
+                    assert_eq!((w.as_str(), s.as_str()), (written, suggestion), "{src}");
+                }
+                other => panic!("{src}: {other:?}"),
+            }
+        }
+        // Valid forms are untouched.
+        for src in ["@extern stats::sd: (x: [Any, num]) -> num;", "@extern(r = \"Sys.sleep\") sys_sleep: (time: num) -> null;"] {
+            let _ = take_parse_errors();
+            let _ = signature(src.into()).unwrap();
+            assert!(take_parse_errors().is_empty(), "{src}");
+        }
     }
 
     #[test]

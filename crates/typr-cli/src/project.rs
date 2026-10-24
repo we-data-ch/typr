@@ -103,6 +103,7 @@ fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
                 | SyntaxError::HiddenNameAfterDot(..)
                 | SyntaxError::PublicHiddenName { .. }
                 | SyntaxError::UnknownTarget { .. }
+                | SyntaxError::ExternRName { .. }
         )
     });
     if !warnings.is_empty() {

@@ -44,6 +44,13 @@ pub enum SyntaxError {
         name: String,
         help_data: HelpData,
     },
+    /// `@extern base::Sys.sleep: T;`: the name after `@extern` must be a TypR
+    /// identifier. An R name with a dot or a capital is given in `(r = "...")`.
+    ExternRName {
+        written: String,
+        suggestion: String,
+        help_data: HelpData,
+    },
     WrongCommentSyntax(HelpData),
     SingleEqualsComparison(HelpData),
     TupleDestructureArityMismatch {
@@ -89,6 +96,7 @@ impl SyntaxError {
             SyntaxError::DetachedBoundSuffix(h) => Some(h.clone()),
             SyntaxError::HiddenNameAfterDot(h) => Some(h.clone()),
             SyntaxError::UnknownTarget { help_data, .. } => Some(help_data.clone()),
+            SyntaxError::ExternRName { help_data, .. } => Some(help_data.clone()),
             SyntaxError::PublicHiddenName { help_data, .. } => Some(help_data.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
@@ -122,6 +130,7 @@ impl SyntaxError {
             SyntaxError::HiddenNameAfterDot(..) => "S019",
             SyntaxError::PublicHiddenName { .. } => "S020",
             SyntaxError::UnknownTarget { .. } => "S021",
+            SyntaxError::ExternRName { .. } => "S022",
             SyntaxError::WithNode(_, inner) => inner.code(),
         }
     }
@@ -199,6 +208,9 @@ impl SyntaxError {
             SyntaxError::UnknownTarget { name, .. } => format!(
                 "Unknown target `{name}`: valid targets are {}",
                 Target::NAMES.join(", ")
+            ),
+            SyntaxError::ExternRName { written, suggestion, .. } => format!(
+                "`{written}` is not a TypR name: write `{suggestion}`"
             ),
             SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
@@ -425,6 +437,22 @@ impl ErrorMsg for SyntaxError {
                     .text("A hidden name can't follow the `.` operator")
                     .pos_text("`..` here reads as the spread token")
                     .help("Spell the hidden name with `__` after a dot (`x.__f()`, `r.__a`), or use the pipe: `x |> .f()`")
+                    .build()
+            }
+            SyntaxError::ExternRName {
+                written,
+                suggestion,
+                help_data,
+            } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), written.len()))
+                    .text(format!("`{written}` can't name a TypR function"))
+                    .pos_text("An R name with a dot or a capital is not a TypR identifier")
+                    .help(format!(
+                        "Give the R name in `(r = \"...\")` and pick a snake_case TypR name: {suggestion}"
+                    ))
                     .build()
             }
             SyntaxError::UnknownTarget { name, help_data } => {

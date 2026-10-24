@@ -222,6 +222,7 @@ let plot_results <- fn(...): Empty { ... };
 | Forme | Sens |
 |---|---|
 | `@extern pkg::f: T;` | inchangé ; sucre pour `@extern(r = "pkg::f") f: T;` |
+| `@extern(r = "Sys.sleep") sys_sleep: T;` | le nom R (point, majuscule) va dans la chaîne ; le nom TypR reste un identifiant snake_case. `@extern base::Sys.sleep: T;` est refusé (S022) avec la forme à écrire |
 | `@extern(r = "…", rust = "…") nom: T;` | externe sans corps, une implémentation par cible |
 | `@extern(rust = "…")` devant un `let` | externe pour certaines cibles, corps TypR pour les autres |
 | `@target(r, rust)` | cibles *déclarées* ; vérifié (T053) et appliqué |

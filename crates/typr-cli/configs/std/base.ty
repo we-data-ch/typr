@@ -499,204 +499,13 @@
 #! seealso: identical, intersect
 @setequal: (x: [#N, T], y: [#M, T]) -> bool;
 
-#! pkg: base
-#! tier: T1
-#! param a: element to search for
-#! param x: vector to search in
-#! ret: TRUE if a is in x
-#! note: set membership test
-#! example: is.element(2, c(1,2,3))   # -> TRUE
-#! seealso: intersect, match
-@`is.element`: (a: T, x: [#N, T]) -> bool;
-
 # ============================================================
 # TYPE CHECKING — is.* functions
 # ============================================================
 
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is numeric (integer or double)
-#! example: is.numeric(42)   # -> TRUE
-#! example: is.numeric("hello")   # -> FALSE
-#! seealso: is.integer, is.character
-@`is.numeric`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is integer
-#! example: # noplayground: is.integer(42L)   # -> TRUE
-#! example: is.integer(42)   # -> FALSE
-#! seealso: is.numeric
-@`is.integer`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is character
-#! example: is.character("hello")   # -> TRUE
-#! example: is.character(42)   # -> FALSE
-#! seealso: is.numeric
-@`is.character`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is logical
-#! example: is.logical(TRUE)   # -> TRUE
-#! example: is.logical(1)   # -> FALSE
-#! seealso: is.numeric
-@`is.logical`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is a factor
-#! example: # noplayground: is.factor(factor("a"))   # -> TRUE
-#! seealso: is.character
-@`is.factor`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is NULL
-#! example: is.null(NULL)   # -> TRUE
-#! example: is.null(42)   # -> FALSE
-@`is.null`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is NA
-#! note: NA is distinct from NULL and NaN
-#! example: is.na(NA)   # -> TRUE
-#! example: # noplayground: is.na(NaN)   # -> TRUE (NaN is also NA)
-#! example: is.na(NULL)   # -> logical(0) (empty)
-@`is.na`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is NaN (Not a Number)
-#! note: NaN is a special floating-point value; NaN is also NA
-#! example: # noplayground: is.nan(NaN)   # -> TRUE
-#! example: is.nan(NA)   # -> FALSE
-@`is.nan`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: numeric value
-#! ret: TRUE if x is finite (not Inf, -Inf, or NaN)
-#! example: is.finite(42.0)   # -> TRUE
-#! example: # noplayground: is.finite(Inf)   # -> FALSE
-#! seealso: is.infinite
-@`is.finite`: (x: num) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: numeric value
-#! ret: TRUE if x is Inf or -Inf
-#! example: # noplayground: is.infinite(Inf)   # -> TRUE
-#! example: is.infinite(42.0)   # -> FALSE
-#! seealso: is.finite
-@`is.infinite`: (x: num) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is complex
-#! example: # noplayground: is.complex(1+2i)   # -> TRUE
-#! seealso: is.numeric
-@`is.complex`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is raw (bytes)
-#! example: # noplayground: is.raw(charToRaw("a"))   # -> TRUE
-#! seealso: is.character
-@`is.raw`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is a function
-#! example: is.function(mean)   # -> TRUE
-#! example: is.function(42)   # -> FALSE
-@`is.function`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to test
-#! ret: TRUE if x is a primitive function
-#! example: is.primitive(`+`)   # -> TRUE
-#! example: is.primitive(function(){})   # -> FALSE
-#! seealso: is.function
-@`is.primitive`: (x: Any) -> bool;
-
 # ============================================================
 # TYPE COERCION — as.* functions
 # ============================================================
-
-#! pkg: base
-#! tier: T1
-#! param x: value to coerce
-#! ret: numeric (double) representation
-#! coercion: integer/logical -> numeric
-#! example: as.numeric(TRUE)   # -> 1.0
-#! example: as.numeric(42L)   # -> 42.0
-#! seealso: as.integer, as.character
-@`as.numeric`: (x: Any) -> num;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to coerce
-#! ret: integer representation
-#! coercion: numeric -> integer (truncation), logical -> integer
-#! example: as.integer(3.7)   # -> 3L
-#! example: as.integer(TRUE)   # -> 1L
-#! seealso: as.numeric
-@`as.integer`: (x: Any) -> int;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to coerce
-#! ret: character representation
-#! coercion: any atomic type -> character
-#! example: as.character(42)   # -> "42"
-#! example: as.character(TRUE)   # -> "TRUE"
-#! seealso: as.numeric, as.integer
-@`as.character`: (x: Any) -> char;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to coerce
-#! ret: logical representation
-#! coercion: numeric -> logical (0 = FALSE, non-zero = TRUE)
-#! example: as.logical(0)   # -> FALSE
-#! example: as.logical(1)   # -> TRUE
-#! example: as.logical("TRUE")   # -> TRUE
-#! seealso: as.numeric
-@`as.logical`: (x: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to coerce
-#! ret: complex representation
-#! coercion: numeric -> complex (imaginary part = 0)
-#! example: as.complex(42)   # -> 42+0i
-#! seealso: as.numeric
-@`as.complex`: (x: Any) -> complex;
-
-#! pkg: base
-#! tier: T1
-#! param x: value to coerce
-#! ret: raw (byte) representation
-#! coercion: integer -> raw (mod 256)
-#! example: # noplayground: as.raw(65L)   # -> charToRaw("A")
-#! seealso: as.integer
-@`as.raw`: (x: Any) -> raw;
 
 # ============================================================
 # STRING / CHARACTER OPERATIONS
@@ -929,16 +738,6 @@
 #! seealso: rep
 @rep_len: (x: [#N, T], length: int) -> [#M, T];
 
-#! pkg: base
-#! tier: T1
-#! param x: vector to repeat
-#! param times: number of repetitions
-#! ret: vector with each element repeated
-#! note: rep.int(x, times) repeats each element 'times' times
-#! example: rep.int(c(1, 2), 3)   # -> c(1, 1, 1, 2, 2, 2)
-#! seealso: rep_len
-@`rep.int`: (x: [#N, T], times: int) -> [#M, T];
-
 # ============================================================
 # MATRIX OPERATIONS
 # ============================================================
@@ -1031,40 +830,6 @@
 #! example: identical(1, 1.0)   # -> FALSE (different types)
 #! seealso: all.equal, is.element
 @identical: (x: Any, y: Any) -> bool;
-
-#! pkg: base
-#! tier: T1
-#! param x: numeric vector
-#! ret: index of minimum value (first occurrence)
-#! example: which.min(c(3, 1, 4, 1, 5))   # -> 2 (1-indexed)
-#! seealso: which.max, min
-@`which.min`: (x: [#N, num]) -> int;
-
-#! pkg: base
-#! tier: T1
-#! param x: numeric vector
-#! ret: index of maximum value (first occurrence)
-#! example: which.max(c(3, 1, 4, 1, 5))   # -> 5 (1-indexed)
-#! seealso: which.min, max
-@`which.max`: (x: [#N, num]) -> int;
-
-#! pkg: base
-#! tier: T1
-#! param x: numeric vector
-#! ret: index of minimum value
-#! note: same as which.min, included for completeness
-#! example: which.is.min(c(3, 1, 4, 1, 5))   # -> 2
-#! seealso: which.min
-@`which.is.min`: (x: [#N, num]) -> int;
-
-#! pkg: base
-#! tier: T1
-#! param x: numeric vector
-#! ret: index of maximum value
-#! note: same as which.max, included for completeness
-#! example: which.is.max(c(3, 1, 4, 1, 5))   # -> 5
-#! seealso: which.max
-@`which.is.max`: (x: [#N, num]) -> int;
 
 # ============================================================
 # VECTOR UTILITIES

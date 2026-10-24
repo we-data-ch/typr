@@ -28,3 +28,91 @@ type System2 = record{ command: char, args: [#N, char], stdout: char, stderr: ch
 #! note: side-effectful; runs the external process
 @exec: (System2) -> char;
 # --------------------------------
+
+# Sys.* — R names with a capital cannot be written in TypR; see `@extern(r = ...)`.
+#! pkg: base
+#! tier: T1
+#! ret: named character vector (sysname, release, nodename, user, ...)
+#! note: side-effect free; values depend on the host
+#! example: # noplayground: sys_info()
+@extern(r = "Sys.info") sys_info: () -> [#N, char];
+
+#! pkg: base
+#! tier: T1
+#! param x: name of the environment variable
+#! param unset: value returned when it is not set (default "")
+#! ret: value of the variable
+#! example: # noplayground: sys_getenv("HOME")
+@extern(r = "Sys.getenv") sys_getenv: (x: char, unset?: char) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: names of the variables to unset
+#! ret: logical vector, TRUE for each success
+@extern(r = "Sys.unsetenv") sys_unsetenv: (x: [#N, char]) -> [#N, bool];
+
+#! pkg: base
+#! tier: T1
+#! ret: current date-time (POSIXct), opaque to TypR
+#! example: # noplayground: sys_time()
+@extern(r = "Sys.time") sys_time: () -> Foreign<Any>;
+
+#! pkg: base
+#! tier: T1
+#! ret: current date (Date), opaque to TypR
+#! example: # noplayground: sys_date()
+@extern(r = "Sys.Date") sys_date: () -> Foreign<Any>;
+
+#! pkg: base
+#! tier: T1
+#! param time: seconds to pause
+#! ret: NULL (invisibly)
+#! note: side-effectful; blocks the R session
+#! example: # noplayground: sys_sleep(0.5)
+@extern(r = "Sys.sleep") sys_sleep: (time: num) -> null;
+
+#! pkg: base
+#! tier: T1
+#! param names: program names to look up on the PATH
+#! ret: full paths ("" when not found)
+#! example: # noplayground: sys_which("ls")
+@extern(r = "Sys.which") sys_which: (names: [#N, char]) -> [#N, char];
+
+#! pkg: base
+#! tier: T1
+#! param location: if TRUE, return the Olson name (default TRUE)
+#! ret: time zone name
+@extern(r = "Sys.timezone") sys_timezone: (location?: bool) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param category: "LC_ALL", "LC_TIME", ... (default "LC_ALL")
+#! ret: locale string
+@extern(r = "Sys.getlocale") sys_getlocale: (category?: char) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param category: locale category (default "LC_ALL")
+#! param locale: locale name (default "")
+#! ret: the new locale string, "" on failure
+#! note: side-effectful; changes the R session locale
+#! example: # noplayground: sys_setlocale("LC_ALL", "C")
+@extern(r = "Sys.setlocale") sys_setlocale: (category?: char, locale?: char) -> char;
+
+#! pkg: base
+#! tier: T1
+#! ret: process id of the R session
+@extern(r = "Sys.getpid") sys_getpid: () -> int;
+
+#! pkg: base
+#! tier: T1
+#! param paths: wildcard patterns
+#! param dirmark: append "/" to directories (default FALSE)
+#! ret: matching paths
+@extern(r = "Sys.glob") sys_glob: (paths: [#N, char], dirmark?: bool) -> [#M, char];
+
+#! pkg: base
+#! tier: T1
+#! param paths: symbolic links to read
+#! ret: link targets ("" if not a link)
+@extern(r = "Sys.readlink") sys_readlink: (paths: [#N, char]) -> [#N, char];

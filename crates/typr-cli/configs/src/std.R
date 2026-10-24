@@ -1,15 +1,3 @@
-# --- Fonctions Système ---
-
-sys.info      <- function() Sys.info()
-sys.getenv    <- function() Sys.getenv()
-sys.setenv    <- function(var, val) Sys.setenv(var = val)
-sys.time      <- function() Sys.time()
-sys.date      <- function() Sys.Date()
-sys.sleep     <- function(n) Sys.sleep(n)
-sys.which     <- function(s) Sys.which(s)
-sys.timezone  <- function() Sys.timezone()
-sys.setlocale <- function() Sys.setlocale()
-
 # --- Utilitaires de Typage ---
 
 #' @title Ajout d'une structure de classe

@@ -95,11 +95,14 @@ fn fix_colon_return_type(line: &str) -> String {
 fn strip_param_names_from_signature(line: &str) -> String {
     // Find the first `:` after `@name` to separate the name from the type part
     let at_pos = line.find('@').unwrap();
-    let after_at = &line[at_pos + 1..];
+    // `@extern(r = "base::Sys.sleep") name: T;` — its argument list may hold
+    // `::`, so the separator is searched for after it.
+    let name_start = at_pos + 1 + extern_args_len(&line[at_pos + 1..]);
+    let after_name = &line[name_start..];
 
     // Find the first `:` that separates the signature name from the type
-    let colon_pos = match after_at.find(':') {
-        Some(pos) => at_pos + 1 + pos,
+    let colon_pos = match after_name.find(':') {
+        Some(pos) => name_start + pos,
         None => return line.to_string(),
     };
 
@@ -108,6 +111,24 @@ fn strip_param_names_from_signature(line: &str) -> String {
 
     let cleaned_type = strip_named_params(type_part);
     format!("{}{}", prefix, cleaned_type)
+}
+
+/// Byte length of a leading `extern(r = "...", ...)` attribute (the text after
+/// the `@`), 0 when there is none. Quoted strings are skipped, so a `)` inside
+/// one does not end it.
+fn extern_args_len(after_at: &str) -> usize {
+    if !after_at.starts_with("extern(") {
+        return 0;
+    }
+    let mut in_str = false;
+    for (i, c) in after_at.char_indices() {
+        match c {
+            '"' => in_str = !in_str,
+            ')' if !in_str => return i + 1,
+            _ => {}
+        }
+    }
+    0
 }
 
 /// Strip named parameters from a type string.
@@ -338,6 +359,7 @@ const ORD_TY: &str = include_str!("../configs/std/ord.ty");
 const FOREIGN_TY: &str = include_str!("../configs/std/foreign.ty");
 const STATS_TY: &str = include_str!("../configs/std/stats.ty");
 const UTILS_TY: &str = include_str!("../configs/std/utils.ty");
+const R_NAMES_TY: &str = include_str!("../configs/std/r_names.ty");
 const USETHIS_TY: &str = include_str!("../configs/std/usethis.ty");
 
 // Embedded source files for JS
@@ -359,6 +381,7 @@ const R_T1_SOURCES: &[(&str, &str)] = &[
     ("state.ty", STATE_TY),
     ("foreign.ty", FOREIGN_TY),
     ("ord.ty", ORD_TY),
+    ("r_names.ty", R_NAMES_TY),
 ];
 
 /// The standard-library entries that declare `#! targets:` (rfcs/0000-compilation-targets.md §4),
@@ -402,13 +425,15 @@ pub fn stdlib_declared_names() -> std::collections::BTreeSet<String> {
         // Note: BASE_TY is excluded — it contains R base function type
         // annotations for the doc SPG only, not TypR-owned functions.
         STD_R_TY, DEFAULT_TY, FILE_TY, OPTION_TY, PLOT_TY, LIN_ALG_TY, SYSTEM_TY, FACTOR_TY, STATE_TY, ORD_TY,
-        FOREIGN_TY, STD_JS_TY,
+        R_NAMES_TY, FOREIGN_TY, STD_JS_TY,
     ]
     .iter()
     .flat_map(|source| source.lines())
     .filter_map(|line| {
         // `@name: Type;`, or `@extern [pkg::]name: Type;`.
         let rest = line.trim().strip_prefix('@')?;
+        // `@extern(r = "pkg::f") name: T;` — the name follows the attribute.
+        let rest = &rest[extern_args_len(rest)..];
         let (head, _) = rest.split_once(':')?;
         let name = head
             .strip_prefix("extern ")
@@ -556,6 +581,17 @@ fn extend_context_with_ty_sources(
 fn build_typed_vartype(ty_sources: &[(&str, &str)]) -> (VarType, Vec<(String, String)>) {
     let (context, skipped) = extend_context_with_ty_sources(Context::empty(), ty_sources);
     (context.get_vartype(), skipped)
+}
+
+/// Like `build_typed_vartype`, but also returns the `@extern(r = "...")`
+/// registry the sources declare. A `VarType` carries types only, so without
+/// this sidecar a stdlib `@extern(r = "Sys.sleep") sys_sleep: ...` would be
+/// compiled as an ordinary call to a non-existent R function `sys_sleep`.
+fn build_typed_vartype_and_externs(
+    ty_sources: &[(&str, &str)],
+) -> (VarType, Vec<(String, Option<String>)>, Vec<(String, String)>) {
+    let (context, skipped) = extend_context_with_ty_sources(Context::empty(), ty_sources);
+    (context.get_vartype(), context.extern_fns.clone(), skipped)
 }
 
 /// Ranking of the three tiers by trustworthiness, most trusted first (`T1`
@@ -1004,6 +1040,16 @@ fn save_to_all(vartype: &VarType, filename: &str, dirs: &[PathBuf]) {
     }
 }
 
+/// Save the stdlib `@extern` registry (bincode, like the `VarType` bins).
+fn save_externs_to_all(externs: &[(String, Option<String>)], filename: &str, dirs: &[PathBuf]) {
+    let bytes = bincode::serialize(externs).unwrap_or_else(|e| panic!("Failed to serialize {}: {}", filename, e));
+    for dir in dirs {
+        let path = dir.join(filename);
+        std::fs::write(&path, &bytes).unwrap_or_else(|e| panic!("Failed to save {}: {}", path.display(), e));
+        println!("  Saved {}", path.display());
+    }
+}
+
 /// Generate all binary standard library files and print the standard library content.
 pub fn standard_library() {
     let dirs = bin_output_paths();
@@ -1030,8 +1076,12 @@ pub fn standard_library() {
     //    Doc-only (T2) sources must NOT appear here — only T1 ever reaches
     //    the compiler (RFC-STDLIB-0001 §4, Sink B).
     let r_ty_sources: Vec<(&str, &str)> = R_T1_SOURCES.to_vec();
-    let (std_r_typed, mut skipped) = build_typed_vartype(&r_ty_sources);
+    let (std_r_typed, std_r_externs, mut skipped) = build_typed_vartype_and_externs(&r_ty_sources);
     save_to_all(&std_r_typed, ".std_r_typed.bin", &dirs);
+
+    // 2b. .std_r_externs.bin: the `@extern(r = "...")` names those signatures
+    //     declare (TypR name -> R name), seeded into every R `Context`.
+    save_externs_to_all(&std_r_externs, ".std_r_externs.bin", &dirs);
 
     // --- JS Standard Library ---
     println!("Generating JS standard library binaries...");
@@ -1078,6 +1128,30 @@ mod tests {
     /// Step 7: what the `.ty` sources declare portable and what the Rust backend implements are the
     /// same list. A tag without an implementation would pass the availability pass and then fail in
     /// the backend; an implementation without a tag would be unreachable.
+    /// `@extern(r = "...")` in the bundled stdlib: the R name must reach the
+    /// compiler's `Context` (it is not part of the `VarType` bins), and the
+    /// signature line must survive preprocessing even when the R name holds `::`.
+    #[test]
+    fn stdlib_extern_r_names_reach_the_default_context() {
+        let context = Context::default();
+        assert_eq!(context.get_extern_r_name("sys_sleep").as_deref(), Some("Sys.sleep"));
+        assert!(stdlib_declared_names().contains("sys_sleep"));
+    }
+
+    #[test]
+    fn extern_attribute_with_qualified_r_name_is_preprocessed() {
+        let line = r#"@extern(r = "base::Sys.sleep") sys_sleep: (time?: num) -> null;"#;
+        assert_eq!(
+            strip_param_names_from_signature(line),
+            r#"@extern(r = "base::Sys.sleep") sys_sleep: (time?: num) -> null;"#
+        );
+        let line = r#"@extern(r = "base::Sys.getenv") getenv: (x: char, unset?: char) -> char;"#;
+        assert_eq!(
+            strip_param_names_from_signature(line),
+            r#"@extern(r = "base::Sys.getenv") getenv: (char, unset?: char) -> char;"#
+        );
+    }
+
     #[test]
     fn declared_rust_targets_match_the_backend_intrinsics() {
         use typr_core::components::context::config::Target;
@@ -1751,6 +1825,7 @@ mod tests {
 /// Helper to extract function name from a `@name: ...` or `@extern pkg::name: ...` signature line.
 fn unwrap_signature_name(line: &str) -> Option<String> {
     let rest = line.strip_prefix('@')?;
+    let rest = &rest[extern_args_len(rest)..];
     let (head, _) = rest.split_once(':')?;
     let name = head
         .strip_prefix("extern ")
@@ -1768,6 +1843,7 @@ fn unwrap_signature_name(line: &str) -> Option<String> {
 /// Helper to extract the exact raw function name string (keeping backticks) from a `@name: ...` line.
 fn extract_raw_signature_name(line: &str) -> Option<String> {
     let rest = line.strip_prefix('@')?;
+    let rest = &rest[extern_args_len(rest)..];
     let (head, _) = rest.split_once(':')?;
     let name = head
         .strip_prefix("extern ")

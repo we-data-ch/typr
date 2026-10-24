@@ -1,0 +1,373 @@
+#! pkg: base
+#! tier: T1
+#! format: TypR stdlib catalog — R functions whose R name is not a TypR identifier
+#
+# R names with a dot (`is.na`) or a capital (`URLencode`) cannot be written in
+# TypR, where `.` is the call-chain operator and a capital starts a type. Each
+# entry names the R function in `@extern(r = "...")` and gives it a snake_case
+# TypR name: `@extern(r = "is.na") is_na: ...` is called as `is_na(x)` and
+# compiles to `is.na(x)`. Compiler-grade (T1) signatures only; the soft ones
+# (tier T2) stay documentation-only in base.ty / stats.ty / utils.ty.
+
+#! pkg: base
+#! tier: T1
+#! param a: element to search for
+#! param x: vector to search in
+#! ret: TRUE if a is in x
+#! note: set membership test
+#! example: is_element(2, c(1,2,3))   # -> TRUE
+#! seealso: intersect, match
+@extern(r = "is.element") is_element: (a: T, x: [#N, T]) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is numeric (integer or double)
+#! example: is_numeric(42)   # -> TRUE
+#! example: is_numeric("hello")   # -> FALSE
+#! seealso: is.integer, is.character
+@extern(r = "is.numeric") is_numeric: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is integer
+#! example: # noplayground: is_integer(42L)   # -> TRUE
+#! example: is_integer(42)   # -> FALSE
+#! seealso: is.numeric
+@extern(r = "is.integer") is_integer: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is character
+#! example: is_character("hello")   # -> TRUE
+#! example: is_character(42)   # -> FALSE
+#! seealso: is.numeric
+@extern(r = "is.character") is_character: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is logical
+#! example: is_logical(TRUE)   # -> TRUE
+#! example: is_logical(1)   # -> FALSE
+#! seealso: is.numeric
+@extern(r = "is.logical") is_logical: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is a factor
+#! example: # noplayground: is_factor(factor("a"))   # -> TRUE
+#! seealso: is.character
+@extern(r = "is.factor") is_factor: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is NULL
+#! example: is_null(NULL)   # -> TRUE
+#! example: is_null(42)   # -> FALSE
+@extern(r = "is.null") is_null: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is NA
+#! note: NA is distinct from NULL and NaN
+#! example: is_na(NA)   # -> TRUE
+#! example: # noplayground: is_na(NaN)   # -> TRUE (NaN is also NA)
+#! example: is_na(NULL)   # -> logical(0) (empty)
+@extern(r = "is.na") is_na: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is NaN (Not a Number)
+#! note: NaN is a special floating-point value; NaN is also NA
+#! example: # noplayground: is_nan(NaN)   # -> TRUE
+#! example: is_nan(NA)   # -> FALSE
+@extern(r = "is.nan") is_nan: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: TRUE if x is finite (not Inf, -Inf, or NaN)
+#! example: is_finite(42.0)   # -> TRUE
+#! example: # noplayground: is_finite(Inf)   # -> FALSE
+#! seealso: is.infinite
+@extern(r = "is.finite") is_finite: (x: num) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric value
+#! ret: TRUE if x is Inf or -Inf
+#! example: # noplayground: is_infinite(Inf)   # -> TRUE
+#! example: is_infinite(42.0)   # -> FALSE
+#! seealso: is.finite
+@extern(r = "is.infinite") is_infinite: (x: num) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is complex
+#! example: # noplayground: is_complex(1+2i)   # -> TRUE
+#! seealso: is.numeric
+@extern(r = "is.complex") is_complex: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is raw (bytes)
+#! example: # noplayground: is_raw(charToRaw("a"))   # -> TRUE
+#! seealso: is.character
+@extern(r = "is.raw") is_raw: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is a function
+#! example: is_function(mean)   # -> TRUE
+#! example: is_function(42)   # -> FALSE
+@extern(r = "is.function") is_function: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to test
+#! ret: TRUE if x is a primitive function
+#! example: is_primitive(`+`)   # -> TRUE
+#! example: is_primitive(function(){})   # -> FALSE
+#! seealso: is.function
+@extern(r = "is.primitive") is_primitive: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: numeric (double) representation
+#! coercion: integer/logical -> numeric
+#! example: as_numeric(TRUE)   # -> 1.0
+#! example: as_numeric(42L)   # -> 42.0
+#! seealso: as.integer, as.character
+@extern(r = "as.numeric") as_numeric: (x: Any) -> num;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: integer representation
+#! coercion: numeric -> integer (truncation), logical -> integer
+#! example: as_integer(3.7)   # -> 3L
+#! example: as_integer(TRUE)   # -> 1L
+#! seealso: as.numeric
+@extern(r = "as.integer") as_integer: (x: Any) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: character representation
+#! coercion: any atomic type -> character
+#! example: as_character(42)   # -> "42"
+#! example: as_character(TRUE)   # -> "TRUE"
+#! seealso: as.numeric, as.integer
+@extern(r = "as.character") as_character: (x: Any) -> char;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: logical representation
+#! coercion: numeric -> logical (0 = FALSE, non-zero = TRUE)
+#! example: as_logical(0)   # -> FALSE
+#! example: as_logical(1)   # -> TRUE
+#! example: as_logical("TRUE")   # -> TRUE
+#! seealso: as.numeric
+@extern(r = "as.logical") as_logical: (x: Any) -> bool;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: complex representation
+#! coercion: numeric -> complex (imaginary part = 0)
+#! example: as_complex(42)   # -> 42+0i
+#! seealso: as.numeric
+@extern(r = "as.complex") as_complex: (x: Any) -> complex;
+
+#! pkg: base
+#! tier: T1
+#! param x: value to coerce
+#! ret: raw (byte) representation
+#! coercion: integer -> raw (mod 256)
+#! example: # noplayground: as_raw(65L)   # -> charToRaw("A")
+#! seealso: as.integer
+@extern(r = "as.raw") as_raw: (x: Any) -> raw;
+
+#! pkg: base
+#! tier: T1
+#! param x: vector to repeat
+#! param times: number of repetitions
+#! ret: vector with each element repeated
+#! note: rep.int(x, times) repeats each element 'times' times
+#! example: rep_int(c(1, 2), 3)   # -> c(1, 1, 1, 2, 2, 2)
+#! seealso: rep_len
+@extern(r = "rep.int") rep_int: (x: [#N, T], times: int) -> [#M, T];
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: index of minimum value (first occurrence)
+#! example: which_min(c(3, 1, 4, 1, 5))   # -> 2 (1-indexed)
+#! seealso: which.max, min
+@extern(r = "which.min") which_min: (x: [#N, num]) -> int;
+
+#! pkg: base
+#! tier: T1
+#! param x: numeric vector
+#! ret: index of maximum value (first occurrence)
+#! example: which_max(c(3, 1, 4, 1, 5))   # -> 5 (1-indexed)
+#! seealso: which.min, max
+@extern(r = "which.max") which_max: (x: [#N, num]) -> int;
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector
+#! param na.rm: if TRUE, remove NA before computing (default FALSE)
+#! param type: quantile algorithm, 1-9 (default 7)
+#! ret: interquartile range (75th percentile - 25th percentile)
+#! note: IQR(x) = quantile(x, 0.75) - quantile(x, 0.25)
+#! example: # noplayground: iqr(1:10)   # -> 5
+#! seealso: quantile, mad
+@extern(r = "IQR") iqr: (x: [#N, num], na.rm?: bool, type?: int) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector
+#! param w: optional weight vector (default: equal weights)
+#! ret: weighted arithmetic mean
+#! note: weighted.mean(x, w) = sum(w * x) / sum(w)
+#! example: # noplayground: weighted_mean(c(1, 2, 3), c(3, 2, 1))   # -> 1.6666...
+#! seealso: mean, sum
+@extern(r = "weighted.mean") weighted_mean: (x: [#N, num], w?: [#N, num]) -> num;
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector
+#! ret: TRUE if x has a time series attribute (tsp)
+#! example: # noplayground: is_ts(1:10)   # -> FALSE
+#! seealso: ts, as.ts
+@extern(r = "is.ts") is_ts: (x: Any) -> bool;
+
+#! pkg: stats
+#! tier: T1
+#! param x: object to test
+#! ret: TRUE if x is a step function
+#! example: # noplayground: is_stepfun(stepfun(1:5, 1:5))   # -> TRUE
+#! seealso: stepfun
+@extern(r = "is.stepfun") is_stepfun: (x: Any) -> bool;
+
+#! pkg: stats
+#! tier: T1
+#! param x: numeric vector
+#! param na.rm: if TRUE, remove NA (default FALSE)
+#! ret: complete cases indicator (logical vector)
+#! note: returns TRUE for rows with no NA values
+#! example: complete_cases(c(1, NA, 3))   # -> c(TRUE, FALSE, TRUE)
+#! seealso: na.omit, is.na
+@extern(r = "complete.cases") complete_cases: (x: [#N, T]) -> [#N, bool];
+
+#! pkg: utils
+#! tier: T1
+#! param x: value to convert
+#! param na.strings: strings to treat as NA (default "NA")
+#! param as.is: keep character columns as character (default FALSE)
+#! param dec: decimal separator (default ".")
+#! param numerals: how to handle numerals ("allow.loss", "warn.loss", "no.loss")
+#! ret: converted value
+#! note: T1 — auto-converts character to appropriate atomic type
+#! example: type_convert(c("1", "2.5", "TRUE"))   # -> c(1L, 2.5, TRUE)
+#! seealso: as.numeric, as.integer, as.logical
+@extern(r = "type.convert") type_convert: (x: Any, na_strings?: [#N, char], as_is?: bool, dec?: char, numerals?: char) -> Any;
+
+#! pkg: utils
+#! tier: T1
+#! param URL: character string to encode
+#! param reserved: also encode reserved characters (default FALSE)
+#! param repeated: re-encode already-encoded sequences (default FALSE)
+#! ret: percent-encoded URL string
+#! note: encodes spaces as %20, special chars as %XX
+#! example: # noplayground: urlencode("hello world")   # -> "hello%20world"
+#! seealso: URLdecode
+@extern(r = "URLencode") urlencode: (URL: char, reserved?: bool, repeated?: bool) -> char;
+
+#! pkg: utils
+#! tier: T1
+#! param URL: percent-encoded string to decode
+#! ret: decoded URL string
+#! note: decodes %XX sequences back to original characters
+#! example: urldecode("hello%20world")   # -> "hello world"
+#! seealso: URLencode
+@extern(r = "URLdecode") urldecode: (URL: char) -> char;
+
+#! pkg: utils
+#! tier: T1
+#! param from: source file path(s)
+#! param to: destination file path(s)
+#! param overwrite: if TRUE, overwrite existing files (default FALSE)
+#! param recursive: if TRUE, copy directories recursively (default FALSE)
+#! param copy.mode: copy file permissions (default TRUE)
+#! param copy.date: copy modification time (default FALSE)
+#! ret: logical vector (TRUE for each successful copy)
+#! note: copies file(s) from source to destination
+#! example: # noplayground: file_copy("source.txt", "dest.txt")
+#! seealso: file.remove, file.rename, file.exists
+@extern(r = "file.copy") file_copy: (from: [#N, char], to: [#M, char], overwrite?: bool, recursive?: bool, copy_mode?: bool, copy_date?: bool) -> [#N, bool];
+
+#! pkg: utils
+#! tier: T1
+#! param ...: character strings giving file paths
+#! ret: logical vector (TRUE for each successful deletion)
+#! note: deletes file(s) from filesystem
+#! example: # noplayground: file_remove("temp.txt")
+#! seealso: file.copy, file.exists
+@extern(r = "file.remove") file_remove: (...: [#N, char]) -> [#N, bool];
+
+#! pkg: utils
+#! tier: T1
+#! param from: current file path(s)
+#! param to: new file path(s)
+#! ret: logical vector (TRUE for each successful rename)
+#! note: renames or moves file(s)
+#! example: # noplayground: file_rename("old.txt", "new.txt")
+#! seealso: file.copy, file.remove
+@extern(r = "file.rename") file_rename: (from: [#N, char], to: [#M, char]) -> [#N, bool];
+
+#! pkg: utils
+#! tier: T1
+#! param path: directory path to create
+#! param recursive: if TRUE, create intermediate directories (default FALSE)
+#! param showWarnings: if TRUE, warn if directory exists (default TRUE)
+#! ret: TRUE if successful, FALSE otherwise
+#! note: creates a directory (like mkdir -p)
+#! example: # noplayground: dir_create("output/dir1/dir2")
+#! seealso: list.files, dir.create
+@extern(r = "dir.create") dir_create: (path: char, show_warnings?: bool, recursive?: bool) -> bool;
+
+#! pkg: utils
+#! tier: T1
+#! param path: directory path to list (default ".")
+#! param pattern: regex pattern to filter file names (default NULL = all)
+#! param full.names: if TRUE, return full paths; if FALSE, just file names (default FALSE)
+#! param recursive: if TRUE, list subdirectories recursively (default FALSE)
+#! param all.files: if TRUE, include hidden files (default FALSE)
+#! ret: character vector of file/directory names
+#! note: equivalent to ls on filesystem
+#! example: list_files(path = ".", pattern = "\\.R$")
+#! seealso: dir.create, file.exists, list.dirs
+@extern(r = "list.files") list_files: (path?: char, pattern?: char, all_files?: bool, full_names?: bool, recursive?: bool) -> [#N, char];
+
+#! pkg: utils
+#! tier: T1
+#! param object: any R object
+#! ret: approximate size in bytes (as a "number_of_bytes" object)
+#! note: T1 — simple size measurement
+#! example: object_size(mtcars)   # -> ~6-7 KB
+#! seealso: str, ls.str
+@extern(r = "object.size") object_size: (x: Any) -> Any;
