@@ -1,0 +1,7 @@
+title = "a record parameter tied to the return keeps the caller's extra fields"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-25"
+origin = "perso"
+checked = false

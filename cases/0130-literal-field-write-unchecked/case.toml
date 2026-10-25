@@ -1,0 +1,7 @@
+title = "writing a field of a literal-typed record keeps the stale literal type"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-24"
+origin = "perso"
+checked = false

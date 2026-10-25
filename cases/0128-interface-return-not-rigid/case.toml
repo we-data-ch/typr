@@ -1,0 +1,7 @@
+title = "a body returning a concrete value is accepted for an interface (rigid) return type"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-24"
+origin = "perso"
+checked = false

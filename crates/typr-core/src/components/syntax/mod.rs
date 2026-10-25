@@ -428,6 +428,10 @@ impl SyntaxManifest {
                  names usable bare in a type position; the ones that only exist in front of \
                  a delimiter are in `types.constructor` and `keywords.block`.",
             ),
+            Rule::new("types.modifier", "storage.modifier.typr", words(&["exact"])).with_note(
+                "Prefix of a record or data-frame type (`exact list{a: int}`): a closed record \
+                 (`parsing/types.rs::exact_type`, rfcs/0000-record-bound-generics.md).",
+            ),
             Rule::new(
                 "types.refinement",
                 "support.type.builtin.typr",

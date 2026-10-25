@@ -1,0 +1,6 @@
+[[rule]]
+file = "@run"
+must_contain = "Syntax errors found"
+[[rule]]
+file = "@run"
+must_contain = "after a tuple or vector type"

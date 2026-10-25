@@ -1,0 +1,2 @@
+let pick <- fn(x: list{a: int}, y: list{a: int}): list{a: int} { x };
+let q <- pick(list(a = 1, b = true), list(a = 2, c = "z"));

@@ -190,6 +190,14 @@ pub fn null_lang() -> Lang {
     Lang::Null(HelpData::default())
 }
 
+pub fn record_return_not_caller(declared: &Type, found: &Type) -> TypRError {
+    TypRError::Type(TypeError::RecordReturnNotCaller(declared.clone(), found.clone()))
+}
+
+pub fn exact_mismatch(expected: &Type, found: &Type) -> TypRError {
+    TypRError::Type(TypeError::ExactMismatch(expected.clone(), found.clone()))
+}
+
 pub fn unmatching_return_type(typ1: &Type, typ2: &Type) -> TypRError {
     TypRError::Type(TypeError::UnmatchingReturnType(typ1.clone(), typ2.clone()))
 }

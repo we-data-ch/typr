@@ -1,0 +1,7 @@
+title = "caller's literal field types are widened on the way out"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-25"
+origin = "perso"
+checked = false

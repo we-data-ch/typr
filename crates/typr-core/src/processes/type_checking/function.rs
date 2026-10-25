@@ -360,6 +360,57 @@ pub fn is_compatible_return_type(body_type: &Type, declared_ret: &Type, context:
         || is_rigid_compatible(body_type, declared_ret, context)
 }
 
+/// The expression whose value a body returns: its last statement.
+fn tail_expression(body: &Lang) -> &Lang {
+    match body {
+        Lang::Scope { body, .. } => body.last().map(tail_expression).unwrap_or(body_fallback()),
+        other => other,
+    }
+}
+
+fn body_fallback() -> &'static Lang {
+    static EMPTY: std::sync::OnceLock<Lang> = std::sync::OnceLock::new();
+    EMPTY.get_or_init(|| Lang::Empty(HelpData::default()))
+}
+
+/// Checks `found`, the type of the returned expression `returned`, against the
+/// type `declared` the body is held to. `written` is what the author wrote, used
+/// in the message. `None` when it is accepted.
+///
+/// A record literal is closed by construction, so it satisfies an `exact` return
+/// (record_bound_generics RFC, *exact*); a literal where the caller's record is
+/// expected gets its own error (`RecordReturnNotCaller`).
+pub fn check_return(
+    returned: &Lang,
+    found: &Type,
+    declared: &Type,
+    written: &Type,
+    context: &Context,
+) -> Option<TypRError> {
+    let closed_literal = matches!(returned, Lang::List { spreads, .. } if spreads.is_empty());
+    let closed_found = match found {
+        Type::Record(..) if closed_literal => Type::Exact(Box::new(found.clone()), found.get_help_data()),
+        _ => found.clone(),
+    };
+    if is_compatible_return_type(&closed_found, declared, context) {
+        return None;
+    }
+    let rigid_record = match declared {
+        Type::Generic(name, _) if is_rigid_name(name) => context
+            .get_interface_constraint(name)
+            .filter(|bound| matches!(bound, Type::Record(..) | Type::Vec(crate::components::r#type::vector_type::VecType::DataFrame, ..))),
+        _ => None,
+    };
+    let found_plain = matches!(reduce_type(context, found), Type::Record(..));
+    Some(if rigid_record.is_some() && found_plain {
+        builder::record_return_not_caller(written, found)
+    } else if matches!(declared, Type::Exact(..)) && found_plain {
+        builder::exact_mismatch(declared, found)
+    } else {
+        builder::unmatching_return_type(written, found)
+    })
+}
+
 pub fn function(
     context: &Context,
     expr: &Lang,
@@ -533,19 +584,30 @@ pub fn function(
     errors.extend(kind_consistency_errors);
     errors.extend(default_param_errors);
     errors.extend(undefined_alias_errors);
-    let is_compatible = is_compatible_return_type(&body_type.value, &checked_ret, &sub_context);
-    (!is_compatible).then(|| {
-        let found = name_rigids(&body_type.value, &rigid_of_id, &normalized.params);
-        let back: std::collections::HashMap<String, Type> = generic_rigids
-            .iter()
-            .filter_map(|(name, rigid)| match rigid {
-                Type::Generic(r, _) => Some((r.clone(), Type::Generic(name.clone(), h.clone()))),
-                _ => None,
-            })
-            .collect();
-        let found = substitute_generics(&found, &back);
-        errors.push(builder::unmatching_return_type(ret_ty, &found))
-    });
+    let tail_error = check_return(
+        tail_expression(body),
+        &body_type.value,
+        &checked_ret,
+        ret_ty,
+        &sub_context,
+    );
+    if let Some(error) = tail_error {
+        let error = if matches!(error, TypRError::Type(TypeError::UnmatchingReturnType(..))) {
+            let found = name_rigids(&body_type.value, &rigid_of_id, &normalized.params);
+            let back: std::collections::HashMap<String, Type> = generic_rigids
+                .iter()
+                .filter_map(|(name, rigid)| match rigid {
+                    Type::Generic(r, _) => Some((r.clone(), Type::Generic(name.clone(), h.clone()))),
+                    _ => None,
+                })
+                .collect();
+            let found = substitute_generics(&found, &back);
+            builder::unmatching_return_type(ret_ty, &found)
+        } else {
+            error
+        };
+        errors.push(error);
+    }
     // Structural types registered on the fly while typing the body (e.g. the
     // `ArrayN` alias created by an inline `expr as! [T]` cast) must survive
     // into the outer context: the transpiler resolves them there to emit the

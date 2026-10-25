@@ -48,7 +48,7 @@ use crate::processes::type_checking::constructor_call::constructor_call;
 use crate::processes::type_checking::dollar_access::dollar_access;
 use crate::processes::type_checking::dot_pipe_access::dot_pipe_access;
 use crate::processes::type_checking::function::function;
-use crate::processes::type_checking::function::is_compatible_return_type;
+use crate::processes::type_checking::function::check_return;
 use crate::processes::type_checking::function_application::function_application;
 use crate::processes::type_checking::let_expression::let_expression;
 use crate::processes::type_checking::match_expression::match_expression;
@@ -334,7 +334,11 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 let Some(var) =
                     Var::from_language((**left_expr).clone()).map(|v| v.set_type(widened_right_type.clone()))
                 else {
-                    return TypeContext::new(widened_right_type, expr.clone(), context.clone()).with_errors(errors);
+                    let new_context = match field_write_retype(context, left_expr, &widened_right_type) {
+                        Some((var, record)) => context.clone().push_var_type(var, record, context),
+                        None => context.clone(),
+                    };
+                    return TypeContext::new(widened_right_type, expr.clone(), new_context).with_errors(errors);
                 };
                 TypeContext::new(
                     widened_right_type.clone(),
@@ -830,6 +834,46 @@ impl WithLang2 for Type {
 /// - `empty_elem_type`: the element type used when the container is empty ("Empty" or "Any")
 /// - `reduce`: whether to alias-reduce element types before checking homogeneity
 /// - `generalize`: whether to generalize the element type when all elements share a type
+/// `x$a <- v` / `x.a <- v` on a variable of anonymous record type: the field
+/// takes the (widened) type of `v`, as a variable does on reassignment
+/// (cases/0065). Without it, `let x <- list(a = 1); x$a <- 5;` left `x` typed
+/// `list{a: 1}` (cases/0130). A named alias (`Point`) keeps its declared type:
+/// its fields are already declared, and the write was checked against them.
+fn field_write_retype(context: &Context, target: &Lang, value_type: &Type) -> Option<(Var, Type)> {
+    // Same operand order as `dollar_access`: `rhs` is the object, `lhs` the field.
+    let Lang::Operator {
+        operator: Op::Dollar(_) | Op::Dot(_),
+        rhs: object,
+        lhs: field,
+        ..
+    } = target
+    else {
+        return None;
+    };
+    let var = Var::from_language((**object).clone())?;
+    let Lang::Variable { name: field, .. } = &**field else {
+        return None;
+    };
+    let Type::Record(fields, h) = context.get_type_from_variable(&Var::from_name(&var.get_name())).ok()? else {
+        return None;
+    };
+    if !fields.iter().any(|f| f.get_argument_str() == *field) {
+        return None;
+    }
+    let fields = fields
+        .iter()
+        .map(|f| {
+            if f.get_argument_str() == *field {
+                f.clone().set_type(value_type.clone())
+            } else {
+                f.clone()
+            }
+        })
+        .collect();
+    let record = Type::Record(fields, h);
+    Some((var.set_type(record.clone()), record))
+}
+
 fn typing_container(
     context: &Context,
     expr: &Lang,
@@ -874,15 +918,22 @@ fn typing_container(
         } else {
             &types[0]
         };
-        let elem_str = if generalize {
-            representative.clone().generalize().pretty()
+        let elem = if generalize {
+            representative.clone().generalize()
         } else {
-            representative.clone().pretty()
+            representative.clone()
         };
-        format!("{}[{}, {}]", type_prefix, exprs.len(), elem_str)
+        // Only the container is parsed: the element type is put back as is,
+        // since a printed rigid (`__rigid_0` → `.RIGID_0`) does not parse back
+        // to itself (cases/0128).
+        let shell = format!("{}[{}, Any]", type_prefix, exprs.len())
             .parse::<Type>()
             .unwrap()
-            .set_help_data(h.clone())
+            .set_help_data(h.clone());
+        match shell {
+            Type::Vec(kind, len, _, vh) => Type::Vec(kind, len, Box::new(elem), vh),
+            other => other,
+        }
     } else {
         errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
         format!("{}[{}, Any]", type_prefix, exprs.len())
@@ -1493,9 +1544,23 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             // component instead of being rejected as a type error.
             let mut merged: Vec<ArgumentType> = Vec::new();
             let mut unresolved: Vec<Type> = Vec::new();
+            // `list(...x, f = v)` with `x: A`, `A` a rigid bounded by a record
+            // (record_bound_generics RFC): the copy is still an `A` when every
+            // override stays inside the bound.
+            let mut rigid_spread: Option<(Type, Vec<ArgumentType>)> = None;
             for spread_expr in spreads {
                 let tc = typing(context, spread_expr);
                 errors.extend(tc.errors);
+                if let Type::Generic(name, _) = &tc.value {
+                    if context.is_rigid_constrained(name) {
+                        if let Some(bound_fields) = facets::record_facet(context, &tc.value) {
+                            let bound_fields: Vec<ArgumentType> = bound_fields.into_iter().collect();
+                            merged = merge_record_fields_override(&merged, &bound_fields);
+                            rigid_spread = Some((tc.value.clone(), bound_fields));
+                            continue;
+                        }
+                    }
+                }
                 match tc.value.reduce(context) {
                     Type::Record(spread_fields, _) => {
                         merged = merge_record_fields_override(&merged, &spread_fields.into_iter().collect::<Vec<_>>());
@@ -1512,6 +1577,18 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
                 }
             }
             merged = merge_record_fields_override(&merged, &field_types);
+
+            if let (Some((rigid, bound_fields)), 1, true) = (&rigid_spread, spreads.len(), unresolved.is_empty()) {
+                let stays_in_bound = field_types.iter().all(|ft| {
+                    bound_fields.iter().any(|bf| {
+                        bf.get_argument_str() == ft.get_argument_str()
+                            && ft.get_type().reduce_and_subtype(&bf.get_type(), context).0
+                    })
+                });
+                if stays_in_bound {
+                    return TypeContext::new(rigid.clone(), expr.clone(), context.clone()).with_errors(errors);
+                }
+            }
 
             let result_type = if unresolved.is_empty() {
                 Type::Record(merged.into_iter().collect(), h.clone())
@@ -1986,8 +2063,12 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             // (parse-error territory already, but defensive) is left alone.
             let mut errors = tc.errors;
             if let Some(expected) = context.get_expected_return_type() {
-                if !is_compatible_return_type(&tc.value, &expected, context) {
-                    errors.push(builder::unmatching_return_type(&expected, &tc.value));
+                let written = match &expected {
+                    Type::Generic(name, _) => context.get_interface_constraint(name).cloned().unwrap_or(expected.clone()),
+                    other => other.clone(),
+                };
+                if let Some(error) = check_return(exp, &tc.value, &expected, &written, context) {
+                    errors.push(error);
                 }
             }
             TypeContext::new(tc.value, tc.lang, tc.context).with_errors(errors)
@@ -4809,6 +4890,103 @@ p"#;
             result.has_errors(),
             "mutating a never-declared variable should be a type error"
         );
+    }
+
+    fn has_errors(src: &str) -> bool {
+        use crate::processes::parsing::parse_from_string;
+        typing_with_errors(&Context::default(), &parse_from_string(src, "test.ty")).has_errors()
+    }
+
+    #[test]
+    fn field_write_widens_the_literal_field_type() {
+        // cases/0130: `x` must not stay `list{a: 1, b: true}` once `a` holds 5.
+        let write = "let x <- list(a = 1, b = true); x$a <- 5;";
+        assert!(has_errors(&format!("{write} let z: list{{a: 1, b: bool}} <- x;")));
+        assert!(!has_errors(&format!("{write} let z: list{{a: int, b: bool}} <- x;")));
+    }
+
+    #[test]
+    fn rigid_return_accepts_only_the_rigid() {
+        // cases/0128: the caller picks the interface's concrete type, so a body
+        // cannot return some other value that merely satisfies the interface.
+        let prelude = "type Lovable <- interface { love: (Self) -> int }; type Cat <- list { name: char }; \
+                       let love <- fn(c: Cat): int { 1 }; let tom <- Cat:{ name = \"tom\" };";
+        assert!(has_errors(&format!("{prelude} let f <- fn(a: Lovable): Lovable {{ tom }};")));
+        assert!(has_errors(&format!("{prelude} let f <- fn(a: Lovable@A): Lovable@A {{ tom }};")));
+        assert!(!has_errors(&format!("{prelude} let f <- fn(a: Lovable@A): Lovable@A {{ a }};")));
+        // A generic inside a literal vector keeps its rigid (`[a]` with `a: T`).
+        assert!(!has_errors("let f <- fn(a: T): [1, T] { [a] };"));
+    }
+
+    fn error_codes(src: &str) -> Vec<&'static str> {
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string(src, "test.ty");
+        typing_with_errors(&Context::default(), &ast)
+            .get_errors()
+            .iter()
+            .map(|e| match e {
+                TypRError::Type(t) => t.code(),
+                _ => "other",
+            })
+            .collect()
+    }
+
+    #[test]
+    fn record_bound_body_reads_updates_and_copies_the_parameter() {
+        // record_bound_generics RFC, step 4: the body works on the caller's record.
+        for body in [
+            "x",
+            "x$a <- 0; x",
+            "let n <- x$a; x",
+            "list(...x, a = x$a * 2)",
+        ] {
+            let src = format!("let f <- fn(x: list{{a: int}}): list{{a: int}} {{ {body} }};");
+            assert!(!has_errors(&src), "{src}");
+        }
+    }
+
+    #[test]
+    fn record_bound_body_cannot_return_a_new_record() {
+        let src = "let f <- fn(x: list{a: int}): list{a: int} { list(a = 2) };";
+        assert_eq!(error_codes(src), vec!["T055"]);
+        // An early `return` is held to the same bar.
+        let src = "let f <- fn(x: list{a: int}): list{a: int} { return list(a = 2); x };";
+        assert_eq!(error_codes(src), vec!["T055"]);
+        // An override outside the bound loses the caller's type.
+        assert!(has_errors("let f <- fn(x: list{a: int}): list{a: int} { list(...x, c = 1) };"));
+    }
+
+    #[test]
+    fn record_bound_body_only_knows_the_written_fields() {
+        assert!(has_errors("let f <- fn(x: list{a: int}): list{a: int} { x$zz; x };"));
+    }
+
+    #[test]
+    fn exact_return_accepts_a_literal_and_refuses_an_open_record() {
+        assert!(!has_errors("let f <- fn(x: list{a: int}): exact list{a: int} { list(a = 0) };"));
+        let src = "let f <- fn(x: list{a: int}): exact list{a: int} { x };";
+        assert_eq!(error_codes(src), vec!["T056"]);
+        // A literal with an extra field is not exactly `list{a: int}`.
+        assert!(has_errors("let f <- fn(x: list{a: int}): exact list{a: int} { list(a = 0, b = 1) };"));
+    }
+
+    #[test]
+    fn exact_value_fields_are_readable() {
+        let f = "let f <- fn(x: list{a: int}): exact list{a: int} { list(a = 0) };\n";
+        assert!(!has_errors(&format!("{f}let r <- f(list(a = 1, b = true));\nlet n: int <- r$a;")));
+        // closed: the caller's extra field is gone
+        assert!(has_errors(&format!("{f}let r <- f(list(a = 1, b = true));\nlet m <- r$b;")));
+    }
+
+    #[test]
+    fn record_literal_flows_into_an_exact_slot() {
+        let g = "let g <- fn(x: exact list{a: int}): int { x$a };\n";
+        assert!(!has_errors(&format!("{g}let z <- g(list(a = 1));")));
+        assert!(has_errors(&format!("{g}let z <- g(list(a = 1, b = true));")));
+        // an open variable is not closed
+        assert!(has_errors(&format!("{g}let v <- list(a = 1);\nlet z <- g(v);")));
+        assert!(!has_errors("let z: exact list{a: int} <- list(a = 1);"));
+        assert!(has_errors("let z: exact list{a: int} <- list(a = 1, b = 2);"));
     }
 
     #[test]

@@ -55,6 +55,9 @@
       "include": "#types.builtin"
     },
     {
+      "include": "#types.modifier"
+    },
+    {
       "include": "#types.refinement"
     },
     {
@@ -467,6 +470,15 @@
         {
           "match": "\\b[A-Z](?![A-Za-z0-9_])",
           "name": "entity.name.type.parameter.typr"
+        }
+      ]
+    },
+    "types.modifier": {
+      "comment": "Prefix of a record or data-frame type (`exact list{a: int}`): a closed record (`parsing/types.rs::exact_type`, rfcs/0000-record-bound-generics.md).",
+      "patterns": [
+        {
+          "match": "(?<![A-Za-z0-9_])(exact)(?![A-Za-z0-9_])",
+          "name": "storage.modifier.typr"
         }
       ]
     },

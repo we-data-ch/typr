@@ -61,6 +61,12 @@ pub enum SyntaxError {
     /// `Lovable @A` / `Lovable@Self`: the `@Id` bound suffix must be one capital
     /// letter touching the interface name.
     DetachedBoundSuffix(HelpData),
+    /// `list{a: int}@A` / `df[#N]{a: int}@A`: an `@Id` suffix after a structural
+    /// type, where only an interface name carries one.
+    StructuralBoundSuffix(HelpData),
+    /// `exact int` / `exact Point`: `exact` only prefixes a written-out record or
+    /// data-frame type.
+    ExactOnNonRecord(HelpData),
     /// `x..f()` / `r..a`: a hidden name right after the UFCS/field `.` operator.
     HiddenNameAfterDot(HelpData),
     /// `@pub let .x` / `@export let __x`: a hidden name is private by name.
@@ -94,6 +100,8 @@ impl SyntaxError {
             SyntaxError::SingleEqualsComparison(h) => Some(h.clone()),
             SyntaxError::TupleDestructureArityMismatch { help_data, .. } => Some(help_data.clone()),
             SyntaxError::DetachedBoundSuffix(h) => Some(h.clone()),
+            SyntaxError::StructuralBoundSuffix(h) => Some(h.clone()),
+            SyntaxError::ExactOnNonRecord(h) => Some(h.clone()),
             SyntaxError::HiddenNameAfterDot(h) => Some(h.clone()),
             SyntaxError::UnknownTarget { help_data, .. } => Some(help_data.clone()),
             SyntaxError::ExternRName { help_data, .. } => Some(help_data.clone()),
@@ -131,6 +139,8 @@ impl SyntaxError {
             SyntaxError::PublicHiddenName { .. } => "S020",
             SyntaxError::UnknownTarget { .. } => "S021",
             SyntaxError::ExternRName { .. } => "S022",
+            SyntaxError::StructuralBoundSuffix(..) => "S023",
+            SyntaxError::ExactOnNonRecord(..) => "S024",
             SyntaxError::WithNode(_, inner) => inner.code(),
         }
     }
@@ -198,6 +208,12 @@ impl SyntaxError {
             }
             SyntaxError::DetachedBoundSuffix(_) => {
                 "The `@Id` suffix must be a single capital letter touching the interface name: write `Lovable@A`, not `Lovable @A` or `Lovable@Self`".to_string()
+            }
+            SyntaxError::StructuralBoundSuffix(_) => {
+                "Only an interface name, a `list{...}` or a `df[...]{...}` can carry an `@Id` suffix (`Lovable@A`, `list{a: int}@A`); tuples and vectors cannot".to_string()
+            }
+            SyntaxError::ExactOnNonRecord(_) => {
+                "`exact` must be followed by a record or data-frame type: `exact list{...}`, `exact df[...]{...}`".to_string()
             }
             SyntaxError::HiddenNameAfterDot(_) => {
                 "A hidden name can't follow the `.` operator (`x..f` reads as the `..` spread): write `x.__f()` or `x |> .f()`".to_string()
@@ -427,6 +443,26 @@ impl ErrorMsg for SyntaxError {
                     .text("Malformed `@Id` suffix")
                     .pos_text("Expected `@` + one capital letter, right after the name")
                     .help("Write `Lovable@A` (no space, one-letter id)")
+                    .build()
+            }
+            SyntaxError::StructuralBoundSuffix(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), 1))
+                    .text("`@Id` after a tuple or vector type")
+                    .pos_text("Only an interface name, a `list{...}` or a `df[...]{...}` can carry an `@Id` suffix")
+                    .help("Remove the suffix")
+                    .build()
+            }
+            SyntaxError::ExactOnNonRecord(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), 5))
+                    .text("`exact` must prefix a record or data-frame type")
+                    .pos_text("Expected `list{...}` or `df[...]{...}` after `exact`")
+                    .help("Write `exact list{a: int}`; to make an alias exact, declare it so: `type Point <- exact list{x: int, y: int}`")
                     .build()
             }
             SyntaxError::HiddenNameAfterDot(help_data) => {

@@ -45,6 +45,7 @@ syn match   typrKeywordsBlock "\v<%(Test|JS|R)%(\s*[\[{])@="
 syn match   typrTypesConstructor "\v<%(library|Class|seq|c)%(\s*[\[(])@="
 syn match   typrTypesBuiltinIndexed "\v<%(df)%(\s*\[)@="
 syn match   typrTypesRefinement "\v<%(length)%(\s*\(\s*[\d<>])@="
+syn keyword typrTypesModifier exact
 syn keyword typrTypesBuiltin Vec Array Tuple Record UnknownFunction dataframe data_frame list tuple
 syn keyword typrTypesPrimitive int num char bool logic Any Empty Self
 syn keyword typrConstants true TRUE false FALSE null NULL na NA
@@ -77,6 +78,7 @@ hi def link typrKeywordsOperatorWord Keyword
 hi def link typrConstants Constant
 hi def link typrTypesPrimitive Type
 hi def link typrTypesBuiltin Type
+hi def link typrTypesModifier StorageClass
 hi def link typrTypesRefinement Type
 hi def link typrTypesBuiltinIndexed Type
 hi def link typrTypesConstructor Function

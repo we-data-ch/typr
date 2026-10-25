@@ -1,0 +1,4 @@
+let bump <- fn(x: list{a: int}): list{a: int} { x$a <- x$a + 1; x };
+let p <- bump(list(a = 1, b = true, name = "p"));
+let n: char <- p$name;
+let b: bool <- p$b;

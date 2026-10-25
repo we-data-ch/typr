@@ -1,0 +1,1 @@
+let f <- fn(x: tuple{int}@A): int { 1 };

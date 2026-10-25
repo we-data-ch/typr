@@ -45,7 +45,11 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
     let mut errors = tc1.errors;
     let ty1 = tc1.value;
 
-    let reduced1 = ty1.reduce(context);
+    // `exact` only closes a record: reading its fields is the same as for the open one.
+    let reduced1 = match ty1.reduce(context) {
+        Type::Exact(inner, _) => inner.reduce(context),
+        other => other,
+    };
     match (reduced1.clone(), e2.clone(), &op) {
         (Type::Record(fields, _), Lang::Variable { name, help_data: h, .. }, _) => {
             field_access::find_field_or_push_error(&fields, &name, &ty1, h, &mut errors)
@@ -63,7 +67,12 @@ pub fn dollar_access(context: &Context, expr: &Lang, e1: &Lang, e2: &Lang, hd: &
             if facets::record_facet(context, &reduced_ty).is_some() =>
         {
             let fields = facets::record_facet(context, &reduced_ty).unwrap();
-            field_access::find_field_or_push_error(&fields, &name, &ty1, h, &mut errors)
+            // A rigid is shown as the record it is bound to, never as `__RIGID_0`.
+            let shown = match &ty1 {
+                Type::Generic(rigid, _) => context.get_interface_constraint(rigid).cloned().unwrap_or(ty1.clone()),
+                other => other.clone(),
+            };
+            field_access::find_field_or_push_error(&fields, &name, &shown, h, &mut errors)
                 .map(|ty| TypeContext::new(ty, expr.clone(), context.clone()).with_errors(errors.clone()))
                 .unwrap_or_else(|| {
                     TypeContext::new(builder::any_type(), expr.clone(), context.clone()).with_errors(errors.clone())

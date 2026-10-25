@@ -1,0 +1,7 @@
+title = "explicit @A/@B tags make record parameters independent"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-25"
+origin = "perso"
+checked = false

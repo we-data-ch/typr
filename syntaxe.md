@@ -108,6 +108,27 @@ type Point <- list { x: int, y: int };
 type Config <- record { name: char, timeout: int };   # synonyme explicite
 ```
 
+### Records qui gardent le type de l'appelant : `list{..}` en entrée et en sortie, `exact`
+
+```typr
+let bump <- fn(x: list{a: int}): list{a: int} { x$a <- x$a + 1; x };   # x et retour : même type
+let p <- bump(list(a = 1, b = true));                                  # p : list{a: int, b: bool}
+let ok <- fn(x: list{a: int}): list{a: int} { list(...x, a = 2) };     # copie du paramètre
+let reset <- fn(x: list{a: int}): exact list{a: int} { list(a = 0) };  # nouveau record, fermé
+let two <- fn(x: list{a: int}@A, y: list{a: int}@B): list{a: int}@A { x };   # tags explicites
+```
+
+Un type record (ou `df[..]{..}`) **écrit en toutes lettres** à la fois dans un paramètre et dans le
+type de retour est une *borne* : la fonction accepte tout record qui a au moins ces champs et
+renvoie celui de l'appelant. Le corps ne connaît que les champs de la signature ; renvoyer un
+record neuf est l'erreur T055. Les champs de la borne prennent le type de la borne, les autres ont
+leurs littéraux élargis (`true` → `bool`). Pour un dataframe, seules les colonnes sont liées (les
+lignes viennent de chaque annotation). Les alias nommés (`Point`) ne sont pas touchés. Deux
+paramètres du même record partagent un seul type ; `@A`/`@B` (collé au `}`) les rend indépendants.
+`exact R` est un record fermé : exactement ces champs ; `exact` devant autre chose qu'un record est
+S024. `list{..}@A` accepte `@Id` comme les interfaces ; `tuple{..}@A` et `[N, T]@A` restent S023.
+Le R généré ne change pas.
+
 ### Tuples
 
 ```typr

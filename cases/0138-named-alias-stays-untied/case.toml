@@ -1,0 +1,7 @@
+title = "a named alias is not tied; Alias@A opts in"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-25"
+origin = "perso"
+checked = false

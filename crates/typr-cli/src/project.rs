@@ -89,6 +89,9 @@ fn print_step(title: &str) {
 /// were introduced (`x..f` didn't parse at all before), so no existing
 /// project can depend on them, and each is a contradiction rather than a
 /// style slip — the recovered AST would silently pick one reading.
+/// `StructuralBoundSuffix` (`tuple{int}@A`) and `ExactOnNonRecord` (`exact int`) are fatal for the same reason:
+/// the suffix used to be dropped without a word, so the code never meant what
+/// it said, and no project in the corpus spells it.
 fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
     if errors.is_empty() {
         return false;
@@ -104,6 +107,8 @@ fn report_syntax_errors(errors: Vec<SyntaxError>) -> bool {
                 | SyntaxError::PublicHiddenName { .. }
                 | SyntaxError::UnknownTarget { .. }
                 | SyntaxError::ExternRName { .. }
+                | SyntaxError::StructuralBoundSuffix(..)
+                | SyntaxError::ExactOnNonRecord(..)
         )
     });
     if !warnings.is_empty() {

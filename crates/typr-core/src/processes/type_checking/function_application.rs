@@ -1418,13 +1418,32 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
     // *prove* a refinement (`[int]` given for `[3, int]`) standing in as the
     // parameter type. The check that could not be proven statically becomes a
     // runtime obligation on that argument, recorded in the context.
-    for attempt in 0..2 {
+    //
+    // Third attempt (record_bound_generics RFC, *exact*): a record literal is
+    // closed by construction, so it may flow into an `exact` parameter that
+    // its open type is refused by.
+    for attempt in 0..3 {
         let (try_types, obligations): (Vec<Type>, Vec<(HelpData, RefinementSet)>) = if attempt == 0 {
             (types.clone(), Vec::new())
+        } else if attempt == 2 {
+            let closed: Vec<Type> = types
+                .iter()
+                .zip(expanded_parameters.iter())
+                .map(|(t, arg)| match (t, arg) {
+                    (Type::Record(..), Lang::List { spreads, .. }) if spreads.is_empty() => {
+                        Type::Exact(Box::new(t.clone()), t.get_help_data())
+                    }
+                    _ => t.clone(),
+                })
+                .collect();
+            if closed == types {
+                break;
+            }
+            (closed, Vec::new())
         } else {
             match relax_refined_arguments(&all_signatures, &types, &expanded_parameters, context) {
                 Some(relaxed) => relaxed,
-                None => break,
+                None => continue,
             }
         };
         let context = &obligations

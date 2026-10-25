@@ -1,0 +1,3 @@
+let positives <- fn(d: df[#N]{a: int}): df[#M]{a: int} { d };
+let d2 <- positives(data_frame(a = [1, -2], label = ["x", "y"]));
+let l <- d2$label;
