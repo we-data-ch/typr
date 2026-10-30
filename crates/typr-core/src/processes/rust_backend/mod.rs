@@ -33,8 +33,27 @@ pub const UNDECLARABLE_INTRINSICS: &[&str] = &["length"];
 /// standard library's `.ty` sources (the availability pass reads it from there), except the
 /// undeclarable ones above; a test in `typr-cli` keeps the two lists equal.
 pub const INTRINSICS: &[&str] = &[
-    "print", "length", "sum", "seq", "state", "get", "set", "update", "version", "map", "filter", "reduce", "fold",
-    "extend", "set_at", "as_vec", "startsWith", "endsWith", "stop", "join", "contains",
+    "print",
+    "length",
+    "sum",
+    "seq",
+    "state",
+    "get",
+    "set",
+    "update",
+    "version",
+    "map",
+    "filter",
+    "reduce",
+    "fold",
+    "extend",
+    "set_at",
+    "as_vec",
+    "startsWith",
+    "endsWith",
+    "stop",
+    "join",
+    "contains",
 ];
 
 const RUNTIME: &str = include_str!("runtime.rs");
@@ -61,7 +80,11 @@ pub fn emit(program: &Program) -> Result<String, Vec<RustError>> {
 
 /// Emits `program` for a platform (Step 6): the crate root, and for `extendr` the R wrappers.
 pub fn emit_with(program: &Program, options: &Options) -> Result<Output, Vec<RustError>> {
-    let mut em = Emitter { platform: options.platform, module_name: options.module_name.clone(), ..Default::default() };
+    let mut em = Emitter {
+        platform: options.platform,
+        module_name: options.module_name.clone(),
+        ..Default::default()
+    };
     em.ensure_root_scope();
     em.collect(&program.body, None);
     em.assigned_names(&program.body);
@@ -74,7 +97,10 @@ pub fn emit_with(program: &Program, options: &Options) -> Result<Output, Vec<Rus
     let mut out = em.finish(&items, &main_body);
     let r_wrappers = em.platform_exports(program, &mut out);
     if em.errors.is_empty() {
-        Ok(Output { source: out, r_wrappers })
+        Ok(Output {
+            source: out,
+            r_wrappers,
+        })
     } else {
         Err(em.errors)
     }
@@ -92,7 +118,10 @@ const RESERVED_TYPES: &[&str] = &[
 ];
 
 fn mangle(name: &str) -> String {
-    let mut s: String = name.chars().map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' }).collect();
+    let mut s: String = name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .collect();
     if s.is_empty() || s.chars().next().unwrap().is_ascii_digit() {
         s.insert(0, '_');
     }
@@ -115,7 +144,10 @@ fn is_scalar(t: &IrType) -> bool {
 }
 
 fn is_copy(t: &IrType) -> bool {
-    matches!(t, IrType::Int | IrType::Num | IrType::Bool | IrType::Unit | IrType::Null)
+    matches!(
+        t,
+        IrType::Int | IrType::Num | IrType::Bool | IrType::Unit | IrType::Null
+    )
 }
 
 #[derive(Default)]
@@ -182,7 +214,12 @@ struct Resolved {
 impl Resolved {
     /// The Rust name of the (non-generic) definition.
     fn rust_name(&self, defs: &HashMap<String, Vec<String>>) -> String {
-        base_rust_name(self.module.as_deref(), &self.name, self.index, defs[&self.key].len() > 1)
+        base_rust_name(
+            self.module.as_deref(),
+            &self.name,
+            self.index,
+            defs[&self.key].len() > 1,
+        )
     }
 
     /// How the call site spells it.
@@ -195,7 +232,11 @@ impl Resolved {
 }
 
 fn base_rust_name(module: Option<&str>, name: &str, index: usize, overloaded: bool) -> String {
-    let base = if module.is_none() && name == "main" { "main_".to_string() } else { mangle(name) };
+    let base = if module.is_none() && name == "main" {
+        "main_".to_string()
+    } else {
+        mangle(name)
+    };
     if overloaded {
         format!("{base}__o{index}")
     } else {
@@ -210,7 +251,10 @@ fn compatible(p: &IrType, a: &IrType) -> bool {
         _ if p == a => true,
         (IrType::Any | IrType::Param(_), _) => true,
         (IrType::Num, IrType::Int) => true,
-        (IrType::Optional(i), IrType::Na) => { let _ = i; true }
+        (IrType::Optional(i), IrType::Na) => {
+            let _ = i;
+            true
+        }
         (IrType::Optional(i), a) => compatible(i, a),
         (IrType::Union(ms), a) => ms.iter().any(|m| compatible(m, a)),
         (IrType::Vector(pe), IrType::Vector(ae)) => compatible(pe, ae),
@@ -230,7 +274,10 @@ struct PendingInstance {
 
 impl Emitter {
     fn err(&mut self, span: Option<&Span>, message: impl Into<String>) {
-        self.errors.push(RustError { message: message.into(), span: span.cloned() });
+        self.errors.push(RustError {
+            message: message.into(),
+            span: span.cloned(),
+        });
     }
 
     // ---- pass 1: declarations -------------------------------------------------------------
@@ -254,7 +301,11 @@ impl Emitter {
                         let mut n = 0;
                         let ifaces = self.interfaces.clone();
                         let ps: Vec<IrType> = params.iter().map(|p| anyfy(&p.ty, &mut n, &ifaces)).collect();
-                        let ret = if n > 0 && *ret == IrType::Any { IrType::Param("__any_ret".into()) } else { ret.clone() };
+                        let ret = if n > 0 && *ret == IrType::Any {
+                            IrType::Param("__any_ret".into())
+                        } else {
+                            ret.clone()
+                        };
                         // A second definition of the same name makes an overload set.
                         let ids = self.defs.entry(key.clone()).or_default();
                         let id = if ids.is_empty() {
@@ -289,7 +340,8 @@ impl Emitter {
             for m in tags_of(ty) {
                 self.generic_tag_owner.insert(m, name.to_string());
             }
-            self.generic_types.insert(name.to_string(), (params.to_vec(), ty.clone()));
+            self.generic_types
+                .insert(name.to_string(), (params.to_vec(), ty.clone()));
             return;
         }
         if matches!(ty, IrType::Other(s) if s.contains("interface")) {
@@ -301,7 +353,10 @@ impl Emitter {
             || self.enums.iter().any(|(n, _)| *n == tname)
             || self.aliases.iter().any(|(n, _)| *n == tname)
         {
-            self.err(at.span.as_ref(), format!("type `{name}` is declared twice (types share one namespace on `rust`)"));
+            self.err(
+                at.span.as_ref(),
+                format!("type `{name}` is declared twice (types share one namespace on `rust`)"),
+            );
             return;
         }
         let variants: Option<Vec<(String, IrType)>> = match ty {
@@ -318,7 +373,11 @@ impl Emitter {
         };
         if let Some(vs) = variants {
             for (tag, payload) in &vs {
-                if self.tag_owner.insert(tag.clone(), (tname.clone(), payload.clone())).is_some() {
+                if self
+                    .tag_owner
+                    .insert(tag.clone(), (tname.clone(), payload.clone()))
+                    .is_some()
+                {
                     self.err(at.span.as_ref(), format!("tag `.{tag}` belongs to two declared types"));
                 }
             }
@@ -371,7 +430,10 @@ impl Emitter {
             IrType::Tag(n, _) => match self.tag_owner.get(n) {
                 Some((e, _)) => e.clone(),
                 None => {
-                    self.err(at, format!("tag `.{n}` is not part of a declared union (declare `type T <- .{n}(...) | ...`)"));
+                    self.err(
+                        at,
+                        format!("tag `.{n}` is not part of a declared union (declare `type T <- .{n}(...) | ...`)"),
+                    );
                     "()".into()
                 }
             },
@@ -408,7 +470,10 @@ impl Emitter {
                 self.named_instance(n, args, at)
             }
             IrType::Named(n, _) => {
-                self.err(at, format!("generic type `{n}` is used with the wrong number of arguments"));
+                self.err(
+                    at,
+                    format!("generic type `{n}` is used with the wrong number of arguments"),
+                );
                 "()".into()
             }
             IrType::Vector(elem) => format!("typr_rt::Vector<{}>", self.rust_ty(elem, at)),
@@ -527,7 +592,10 @@ impl Emitter {
                 return t;
             }
             if let Some((ps, r)) = self.fn_sigs.get(n).or_else(|| {
-                self.defs.get(n).and_then(|d| d.first()).and_then(|id| self.fn_sigs.get(id))
+                self.defs
+                    .get(n)
+                    .and_then(|d| d.first())
+                    .and_then(|id| self.fn_sigs.get(id))
             }) {
                 return IrType::Function(ps.clone(), Box::new(r.clone()));
             }
@@ -591,7 +659,10 @@ impl Emitter {
                         ),
                     }
                 }
-                self.mod_bodies.entry(name.clone()).or_default().insert_str(0, &mod_items);
+                self.mod_bodies
+                    .entry(name.clone())
+                    .or_default()
+                    .insert_str(0, &mod_items);
             }
             _ => {
                 self.ensure_root_scope();
@@ -634,7 +705,11 @@ impl Emitter {
     }
 
     fn fn_item_in(&mut self, module: Option<&str>, name: &str, f: &Expr) -> String {
-        let rust_name = if module.is_none() && name == "main" { "main_".to_string() } else { mangle(name) };
+        let rust_name = if module.is_none() && name == "main" {
+            "main_".to_string()
+        } else {
+            mangle(name)
+        };
         self.fn_item_named(module, rust_name, f)
     }
 
@@ -646,7 +721,9 @@ impl Emitter {
     }
 
     fn fn_item_body(&mut self, rust_name: String, f: &Expr) -> String {
-        let ExprKind::Fn { params, ret, body } = &f.kind else { return String::new() };
+        let ExprKind::Fn { params, ret, body } = &f.kind else {
+            return String::new();
+        };
         let at = f.span.as_ref();
         self.scopes.push(HashMap::new());
         self.rets.push(ret.clone());
@@ -660,8 +737,18 @@ impl Emitter {
         let body_s = self.body(body, ret);
         self.rets.pop();
         self.scopes.pop();
-        let ret_s = if *ret == IrType::Unit { String::new() } else { format!(" -> {ret_ty}") };
-        format!("#[allow(dead_code)]\npub fn {}({}){} {{\n{}\n}}\n", rust_name, ps.join(", "), ret_s, indent(&body_s))
+        let ret_s = if *ret == IrType::Unit {
+            String::new()
+        } else {
+            format!(" -> {ret_ty}")
+        };
+        format!(
+            "#[allow(dead_code)]\npub fn {}({}){} {{\n{}\n}}\n",
+            rust_name,
+            ps.join(", "),
+            ret_s,
+            indent(&body_s)
+        )
     }
 
     // ---- statements and expressions ---------------------------------------------------------
@@ -700,7 +787,10 @@ impl Emitter {
                 if matches!(value.kind, ExprKind::Fn { .. }) {
                     self.declare(name, value.ty.clone());
                     if let ExprKind::Fn { params, ret, .. } = &value.kind {
-                        self.fn_sigs.insert(name.clone(), (params.iter().map(|p| p.ty.clone()).collect(), ret.clone()));
+                        self.fn_sigs.insert(
+                            name.clone(),
+                            (params.iter().map(|p| p.ty.clone()).collect(), ret.clone()),
+                        );
                     }
                     return self.fn_item_in(None, name, value);
                 }
@@ -719,12 +809,23 @@ impl Emitter {
                 self.declare(name, ty);
                 format!("let {}{}{} = {};", self.mut_kw(name), mangle(name), annotation, v)
             }
-            ExprKind::Block(_) | ExprKind::If { .. } | ExprKind::Match { .. } | ExprKind::While { .. }
-            | ExprKind::Loop(_) | ExprKind::For { .. } => {
+            ExprKind::Block(_)
+            | ExprKind::If { .. }
+            | ExprKind::Match { .. }
+            | ExprKind::While { .. }
+            | ExprKind::Loop(_)
+            | ExprKind::For { .. } => {
                 let ty = e.ty.clone();
-                let want = if matches!(ty, IrType::Unit | IrType::Unknown) { IrType::Unit } else { ty };
+                let want = if matches!(ty, IrType::Unit | IrType::Unknown) {
+                    IrType::Unit
+                } else {
+                    ty
+                };
                 let v = self.expr(e, &want);
-                if matches!(e.kind, ExprKind::While { .. } | ExprKind::Loop(_) | ExprKind::For { .. }) {
+                if matches!(
+                    e.kind,
+                    ExprKind::While { .. } | ExprKind::Loop(_) | ExprKind::For { .. }
+                ) {
                     v
                 } else {
                     format!("{v};")
@@ -740,7 +841,10 @@ impl Emitter {
         let at = at.as_ref();
         let have = self.ty_of(e);
         // Branching forms push the target type into their branches.
-        let pushes = matches!(e.kind, ExprKind::If { .. } | ExprKind::Match { .. } | ExprKind::Block(_));
+        let pushes = matches!(
+            e.kind,
+            ExprKind::If { .. } | ExprKind::Match { .. } | ExprKind::Block(_)
+        );
         let want_inner = match want {
             IrType::Unknown => have.clone(),
             w => w.clone(),
@@ -752,7 +856,11 @@ impl Emitter {
         match (want, &have) {
             (IrType::Optional(_), IrType::Optional(_) | IrType::Na | IrType::Unknown) => s,
             (IrType::Optional(inner), h) => {
-                let inner_conv = if **inner == IrType::Num && *h == IrType::Int { format!("({s} as f64)") } else { s };
+                let inner_conv = if **inner == IrType::Num && *h == IrType::Int {
+                    format!("({s} as f64)")
+                } else {
+                    s
+                };
                 format!("Some({inner_conv})")
             }
             (IrType::Num, IrType::Int) => format!("({s} as f64)"),
@@ -823,7 +931,12 @@ impl Emitter {
                 let b = self.body(body, ret);
                 self.rets.pop();
                 self.scopes.pop();
-                format!("std::rc::Rc::new(move |{}| -> {} {{\n{}\n}})", ps.join(", "), ret_ty, indent(&b))
+                format!(
+                    "std::rc::Rc::new(move |{}| -> {} {{\n{}\n}})",
+                    ps.join(", "),
+                    ret_ty,
+                    indent(&b)
+                )
             }
             K::Call { func, args } => self.call(e, func, args),
             K::Binary { op, lhs, rhs } => self.binary(e, *op, lhs, rhs),
@@ -853,7 +966,11 @@ impl Emitter {
             }
             K::Record { name, fields } => self.record(e, name.as_deref(), fields),
             K::Tag { name, payload } => match {
-                let ctx = if matches!(want, IrType::Named(..)) { want.clone() } else { e.ty.clone() };
+                let ctx = if matches!(want, IrType::Named(..)) {
+                    want.clone()
+                } else {
+                    e.ty.clone()
+                };
                 self.tag_info(name, &ctx, at)
             } {
                 Some((en, pty)) => {
@@ -928,7 +1045,12 @@ impl Emitter {
                 self.declare(var, elem);
                 let b = self.body(body, &IrType::Unit);
                 self.scopes.pop();
-                format!("for {}{} in {it}.iter() {{\n{}\n}}", self.mut_kw(var), mangle(var), indent(&b))
+                format!(
+                    "for {}{} in {it}.iter() {{\n{}\n}}",
+                    self.mut_kw(var),
+                    mangle(var),
+                    indent(&b)
+                )
             }
             K::Cast { value, name } => {
                 let have = self.ty_of(value);
@@ -942,7 +1064,10 @@ impl Emitter {
                     // A value of a known scalar type narrowed to another: it always fails.
                     format!("{{ let _ = {v}; panic!(\"Validation failed for type {name}: expected {name}\") }}")
                 } else {
-                    self.err(at, format!("`as! {name}` (a validation of a {have:?}) is not supported on `rust` yet"));
+                    self.err(
+                        at,
+                        format!("`as! {name}` (a validation of a {have:?}) is not supported on `rust` yet"),
+                    );
                     "todo!()".into()
                 }
             }
@@ -993,7 +1118,11 @@ impl Emitter {
 
     fn var(&mut self, e: &Expr, n: &str) -> String {
         let ty = self.ty_of(e);
-        let name = if n == "main" && self.lookup(n).is_none() { "main_".to_string() } else { mangle(n) };
+        let name = if n == "main" && self.lookup(n).is_none() {
+            "main_".to_string()
+        } else {
+            mangle(n)
+        };
         // A named function used as a value.
         if self.lookup(n).is_none() && (self.fn_sigs.contains_key(n) || self.defs.contains_key(n)) {
             return format!("std::rc::Rc::new({name})");
@@ -1042,7 +1171,11 @@ impl Emitter {
             }
             ("set" | "update", [s, _]) if state_inner(s).is_some() => {
                 let inner = state_inner(s).unwrap();
-                let want = if name == "set" { inner.clone() } else { IrType::Function(vec![inner.clone()], Box::new(inner)) };
+                let want = if name == "set" {
+                    inner.clone()
+                } else {
+                    IrType::Function(vec![inner.clone()], Box::new(inner))
+                };
                 let a = self.expr(&args[0], &IrType::Unknown);
                 let b = self.expr(&args[1], &want);
                 format!("typr_rt::{name}({a}, {b})")
@@ -1069,8 +1202,11 @@ impl Emitter {
             }
             ("fold", [IrType::Vector(t), u, IrType::Function(..)]) => {
                 let f = IrType::Function(vec![u.clone(), (**t).clone()], Box::new(u.clone()));
-                let (v, i, f) =
-                    (self.expr(&args[0], &IrType::Unknown), self.expr(&args[1], u), self.expr(&args[2], &f));
+                let (v, i, f) = (
+                    self.expr(&args[0], &IrType::Unknown),
+                    self.expr(&args[1], u),
+                    self.expr(&args[2], &f),
+                );
                 format!("typr_rt::fold({v}, {i}, {f})")
             }
             ("extend", [IrType::Vector(t), _]) => {
@@ -1087,7 +1223,11 @@ impl Emitter {
             }
             ("as_vec", [IrType::Vector(_)]) => self.expr(&args[0], &IrType::Unknown),
             ("startsWith" | "endsWith", [IrType::Char, IrType::Char]) => {
-                let f = if name == "startsWith" { "starts_with" } else { "ends_with" };
+                let f = if name == "startsWith" {
+                    "starts_with"
+                } else {
+                    "ends_with"
+                };
                 let a: Vec<String> = args.iter().map(|a| self.expr(a, &IrType::Char)).collect();
                 format!("typr_rt::{f}({})", a.join(", "))
             }
@@ -1096,12 +1236,18 @@ impl Emitter {
                 format!("typr_rt::contains({})", a.join(", "))
             }
             ("join", [IrType::Vector(t), IrType::Char]) if **t == IrType::Char => {
-                let (v, s) = (self.expr(&args[0], &IrType::Unknown), self.expr(&args[1], &IrType::Char));
+                let (v, s) = (
+                    self.expr(&args[0], &IrType::Unknown),
+                    self.expr(&args[1], &IrType::Char),
+                );
                 format!("typr_rt::join({v}, {s})")
             }
             ("stop", [IrType::Char]) => format!("typr_rt::stop({})", self.expr(&args[0], &IrType::Char)),
             _ => {
-                self.err(at, format!("`{name}` is not available on `rust` for these argument types"));
+                self.err(
+                    at,
+                    format!("`{name}` is not available on `rust` for these argument types"),
+                );
                 "todo!()".into()
             }
         }
@@ -1137,7 +1283,10 @@ impl Emitter {
                     if INTRINSICS.contains(&name.as_str()) {
                         return self.intrinsic(e, name, args);
                     }
-                    self.err(at, format!("`{name}` is not available on `rust` (no implementation for this target)"));
+                    self.err(
+                        at,
+                        format!("`{name}` is not available on `rust` (no implementation for this target)"),
+                    );
                     return "todo!()".into();
                 }
                 _ => {
@@ -1154,7 +1303,12 @@ impl Emitter {
         let lifted: Vec<bool> = args
             .iter()
             .enumerate()
-            .map(|(i, a)| is_vec(&self.ty_of(a)) && params.get(i).is_some_and(|p| !is_vec(p) && !matches!(p, IrType::Any | IrType::Param(_))))
+            .map(|(i, a)| {
+                is_vec(&self.ty_of(a))
+                    && params
+                        .get(i)
+                        .is_some_and(|p| !is_vec(p) && !matches!(p, IrType::Any | IrType::Param(_)))
+            })
             .collect();
         if lifted.iter().any(|l| *l) {
             let rendered: Vec<String> = args
@@ -1173,7 +1327,10 @@ impl Emitter {
                 [a] => format!("{a}.map(|a| {callee}(a))"),
                 [a, b] => format!("typr_rt::zip_with(&{a}, &{b}, |a, b| {callee}(a, b))"),
                 _ => {
-                    self.err(at, "a function lifted over vectors takes at most two arguments on `rust`");
+                    self.err(
+                        at,
+                        "a function lifted over vectors takes at most two arguments on `rust`",
+                    );
                     "todo!()".into()
                 }
             };
@@ -1213,8 +1370,18 @@ impl Emitter {
             _ => return None,
         };
         let ids = &self.defs[&key];
-        let index = if ids.len() == 1 { 0 } else { self.pick_overload(ids, arg_tys) };
-        Some(Resolved { id: ids[index].clone(), key, module, name, index })
+        let index = if ids.len() == 1 {
+            0
+        } else {
+            self.pick_overload(ids, arg_tys)
+        };
+        Some(Resolved {
+            id: ids[index].clone(),
+            key,
+            module,
+            name,
+            index,
+        })
     }
 
     /// The overload whose parameters fit `arg_tys`: an exact match first, then a compatible one.
@@ -1294,13 +1461,20 @@ impl Emitter {
     /// Emits every requested instance (which may request others).
     fn drain_instances(&mut self, items: &mut String) {
         while let Some(inst) = self.pending.pop() {
-            let Some(orig) = self.generic_fns.get(&inst.key).cloned() else { continue };
-            let ExprKind::Fn { params, body, .. } = &orig.kind else { continue };
+            let Some(orig) = self.generic_fns.get(&inst.key).cloned() else {
+                continue;
+            };
+            let ExprKind::Fn { params, body, .. } = &orig.kind else {
+                continue;
+            };
             // The body names its type parameters with the checker's rigid variables, which are
             // not the ones the signature uses: read them off the parameters' uses.
             let mut sub = inst.sub.clone();
-            let env: HashMap<String, IrType> =
-                params.iter().zip(&inst.params).map(|(p, t)| (p.name.clone(), t.clone())).collect();
+            let env: HashMap<String, IrType> = params
+                .iter()
+                .zip(&inst.params)
+                .map(|(p, t)| (p.name.clone(), t.clone()))
+                .collect();
             derive_rigids(body, &env, &mut sub);
             unify(&body.ty, &inst.ret, &mut sub);
             let mut f = orig.clone();
@@ -1332,7 +1506,11 @@ impl Emitter {
         let (le, re) = (elem_of(&lt), elem_of(&rt));
         let numeric = |t: &IrType| matches!(t, IrType::Int | IrType::Num);
         // `int` and `num` mix: the integer is widened, as R does.
-        let operand_ty = if numeric(&le) && numeric(&re) && le != re { IrType::Num } else { le.clone() };
+        let operand_ty = if numeric(&le) && numeric(&re) && le != re {
+            IrType::Num
+        } else {
+            le.clone()
+        };
         if vec_l || vec_r {
             // Element-wise, with R's recycling rule; a scalar is a vector of length one.
             if op == BinOp::In {
@@ -1382,11 +1560,19 @@ impl Emitter {
                 IrType::Record(fs) => (self.record_name(fs), fs.clone()),
                 IrType::Named(n, a) if a.is_empty() => {
                     let t = mangle_type(n);
-                    let fs = self.records.iter().find(|(rn, _)| *rn == t).map(|(_, f)| f.clone()).unwrap_or_default();
+                    let fs = self
+                        .records
+                        .iter()
+                        .find(|(rn, _)| *rn == t)
+                        .map(|(_, f)| f.clone())
+                        .unwrap_or_default();
                     (t, fs)
                 }
                 other => {
-                    self.err(at, format!("record of type `{other:?}` has no representation on `rust`"));
+                    self.err(
+                        at,
+                        format!("record of type `{other:?}` has no representation on `rust`"),
+                    );
                     return "todo!()".into();
                 }
             },
@@ -1394,7 +1580,11 @@ impl Emitter {
         let parts: Vec<String> = fields
             .iter()
             .map(|(f, v)| {
-                let want = decl.iter().find(|(n, _)| n == f).map(|(_, t)| t.clone()).unwrap_or(IrType::Unknown);
+                let want = decl
+                    .iter()
+                    .find(|(n, _)| n == f)
+                    .map(|(_, t)| t.clone())
+                    .unwrap_or(IrType::Unknown);
                 format!("{}: {}", mangle(f), self.expr(v, &want))
             })
             .collect();
@@ -1439,12 +1629,18 @@ impl Emitter {
                     ExprKind::Bool(b) => b.to_string(),
                     ExprKind::Str(t) => format!("{t:?}"),
                     _ => {
-                        self.err(at, "only integer, boolean and string literals can be matched on `rust` yet");
+                        self.err(
+                            at,
+                            "only integer, boolean and string literals can be matched on `rust` yet",
+                        );
                         "_".into()
                     }
                 },
                 Pattern::Type { .. } => {
-                    self.err(at, "matching on a type (`x as int`) needs union types, not supported on `rust` yet");
+                    self.err(
+                        at,
+                        "matching on a type (`x as int`) needs union types, not supported on `rust` yet",
+                    );
                     "_".into()
                 }
             };
@@ -1492,8 +1688,10 @@ impl Emitter {
             structs.push((format!("Rec{i}"), fs.clone()));
         }
         for (name, fields) in &structs {
-            let fs: Vec<String> =
-                fields.iter().map(|(f, t)| format!("pub {}: {}", mangle(f), self.rust_ty(t, None))).collect();
+            let fs: Vec<String> = fields
+                .iter()
+                .map(|(f, t)| format!("pub {}: {}", mangle(f), self.rust_ty(t, None)))
+                .collect();
             let _ = writeln!(
                 decls,
                 "#[derive(Debug, Clone, PartialEq)]\npub struct {name} {{ {} }}\nimpl Show for {name} {{ fn show(&self) -> String {{ format!(\"{{:?}}\", self) }} }}\nimpl typr_rt::Elem for {name} {{ fn cell(&self) -> String {{ format!(\"{{:?}}\", self) }} }}",
@@ -1536,10 +1734,15 @@ impl Emitter {
                     if !ex.params.iter().all(|p| scalar(&p.ty)) || !(scalar(&ex.ret) || ex.ret == IrType::Unit) {
                         continue;
                     }
-                    let ps: Vec<String> =
-                        ex.params.iter().map(|p| format!("{}: {}", mangle(&p.name), platform::c_scalar(&p.ty).unwrap())).collect();
+                    let ps: Vec<String> = ex
+                        .params
+                        .iter()
+                        .map(|p| format!("{}: {}", mangle(&p.name), platform::c_scalar(&p.ty).unwrap()))
+                        .collect();
                     let args: Vec<String> = ex.params.iter().map(|p| mangle(&p.name)).collect();
-                    let ret = platform::c_scalar(&ex.ret).map(|t| format!(" -> {t}")).unwrap_or_default();
+                    let ret = platform::c_scalar(&ex.ret)
+                        .map(|t| format!(" -> {t}"))
+                        .unwrap_or_default();
                     let _ = writeln!(
                         out,
                         "\n#[export_name = \"{}\"]\npub extern \"C\" fn __wasm_{}({}){} {{ {}({}) }}",
@@ -1569,7 +1772,13 @@ impl Emitter {
         out.push_str("\nuse extendr_api::prelude::*;\n");
         for ex in exports(program) {
             if !seen.insert(ex.name.clone()) {
-                self.err(ex.span.as_ref(), format!("`{}` is defined more than once: an overloaded function cannot be exported", ex.name));
+                self.err(
+                    ex.span.as_ref(),
+                    format!(
+                        "`{}` is defined more than once: an overloaded function cannot be exported",
+                        ex.name
+                    ),
+                );
                 continue;
             }
             let at = ex.span.clone();
@@ -1584,7 +1793,13 @@ impl Emitter {
                         args.push(conv);
                     }
                     None => {
-                        self.err(at.as_ref(), format!("`{}`: parameter `{}` of type `{}` is not supported through extendr yet", ex.name, p.name, p.ty));
+                        self.err(
+                            at.as_ref(),
+                            format!(
+                                "`{}`: parameter `{}` of type `{}` is not supported through extendr yet",
+                                ex.name, p.name, p.ty
+                            ),
+                        );
                     }
                 }
             }
@@ -1598,12 +1813,22 @@ impl Emitter {
                         (format!(" -> {ty}"), conv)
                     }
                     None => {
-                        self.err(at.as_ref(), format!("`{}`: return type `{}` is not supported through extendr yet", ex.name, t));
+                        self.err(
+                            at.as_ref(),
+                            format!(
+                                "`{}`: return type `{}` is not supported through extendr yet",
+                                ex.name, t
+                            ),
+                        );
                         continue;
                     }
                 },
             };
-            let _ = writeln!(out, "\n#[extendr]\nfn {rust_name}({}){ret_ty} {{ {body} }}", ps.join(", "));
+            let _ = writeln!(
+                out,
+                "\n#[extendr]\nfn {rust_name}({}){ret_ty} {{ {body} }}",
+                ps.join(", ")
+            );
             let r_params: Vec<String> = ex.params.iter().map(|p| p.name.clone()).collect();
             let _ = writeln!(
                 r,
@@ -1617,7 +1842,11 @@ impl Emitter {
         let _ = writeln!(
             out,
             "\nextendr_module! {{\n    mod {};\n{}}}",
-            if self.module_name.is_empty() { "typr_out" } else { &self.module_name },
+            if self.module_name.is_empty() {
+                "typr_out"
+            } else {
+                &self.module_name
+            },
             rust_fns.iter().map(|f| format!("    fn {f};\n")).collect::<String>()
         );
         r
@@ -1788,7 +2017,11 @@ fn subst_expr(e: &mut Expr, sub: &HashMap<String, IrType>) {
 fn is_statement(e: &Expr) -> bool {
     matches!(
         e.kind,
-        ExprKind::Let { .. } | ExprKind::While { .. } | ExprKind::Loop(_) | ExprKind::For { .. } | ExprKind::TypeDef { .. }
+        ExprKind::Let { .. }
+            | ExprKind::While { .. }
+            | ExprKind::Loop(_)
+            | ExprKind::For { .. }
+            | ExprKind::TypeDef { .. }
     )
 }
 
@@ -1814,7 +2047,16 @@ fn op_of(name: &str) -> Option<BinOp> {
 }
 
 fn indent(s: &str) -> String {
-    s.lines().map(|l| if l.is_empty() { String::new() } else { format!("    {l}") }).collect::<Vec<_>>().join("\n")
+    s.lines()
+        .map(|l| {
+            if l.is_empty() {
+                String::new()
+            } else {
+                format!("    {l}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// The Rust for `l <op> r` on two scalars. `int` `+ - *` are checked: overflow is an error.
@@ -1887,7 +2129,10 @@ mod runtime_tests {
 
     #[test]
     fn character_vectors_are_quoted_and_left_aligned() {
-        assert_eq!(v(vec!["a".to_string(), "bcd".to_string()]).show(), "[1] \"a\"   \"bcd\"");
+        assert_eq!(
+            v(vec!["a".to_string(), "bcd".to_string()]).show(),
+            "[1] \"a\"   \"bcd\""
+        );
     }
 
     #[test]
@@ -1967,7 +2212,14 @@ mod platform_tests {
     }
 
     fn build(src: &str, platform: Platform) -> Output {
-        emit_with(&lower(src), &Options { platform, module_name: "mylib".into() }).expect("emits")
+        emit_with(
+            &lower(src),
+            &Options {
+                platform,
+                module_name: "mylib".into(),
+            },
+        )
+        .expect("emits")
     }
 
     const API: &str = "@pub let area <- fn(r: num): num { 3.0 * r };\n@pub let nth <- fn(xs: [#N, int]): int | na { NA };\nlet hidden <- fn(): int { 1 };\n";
@@ -1992,12 +2244,24 @@ mod platform_tests {
     #[test]
     fn extendr_wraps_exports_and_writes_the_r_side() {
         let out = build(API, Platform::Extendr);
-        assert!(out.source.contains("#[extendr]\nfn typr_export_area(r: f64) -> f64"), "{}", out.source);
-        assert!(out.source.contains("fn typr_export_nth(xs: Vec<i32>) -> Option<i32> { nth(typr_rt::Vector::new(xs)) }"), "{}", out.source);
+        assert!(
+            out.source.contains("#[extendr]\nfn typr_export_area(r: f64) -> f64"),
+            "{}",
+            out.source
+        );
+        assert!(
+            out.source
+                .contains("fn typr_export_nth(xs: Vec<i32>) -> Option<i32> { nth(typr_rt::Vector::new(xs)) }"),
+            "{}",
+            out.source
+        );
         assert!(out.source.contains("mod mylib;"), "{}", out.source);
         assert!(!out.source.contains("typr_export_hidden"));
         let r = out.r_wrappers.unwrap();
-        assert!(r.contains("area <- function(r) .Call(wrap__typr_export_area, r)"), "{r}");
+        assert!(
+            r.contains("area <- function(r) .Call(wrap__typr_export_area, r)"),
+            "{r}"
+        );
         assert!(r.contains("@useDynLib mylib, .registration = TRUE"), "{r}");
     }
 
@@ -2013,7 +2277,11 @@ mod platform_tests {
         let errors = boundary_errors(&p);
         assert_eq!(errors.len(), 2, "{errors:?}");
         let text: Vec<String> = errors.iter().map(|e| format!("{e:?}")).collect();
-        assert!(text[0].contains("NotExportable") && text[0].contains("union"), "{}", text[0]);
+        assert!(
+            text[0].contains("NotExportable") && text[0].contains("union"),
+            "{}",
+            text[0]
+        );
         assert!(text[1].contains("closure"), "{}", text[1]);
     }
 }

@@ -313,7 +313,8 @@ fn explain(
     stdlib: &StdlibAvailability,
 ) -> Option<Explanation> {
     // Breadth-first, so the chain shown is the shortest one.
-    let mut queue: std::collections::VecDeque<(Vec<String>, Option<HelpData>, &Def)> = std::collections::VecDeque::new();
+    let mut queue: std::collections::VecDeque<(Vec<String>, Option<HelpData>, &Def)> =
+        std::collections::VecDeque::new();
     let mut seen: HashSet<String> = HashSet::new();
     seen.insert(start.name.clone());
     queue.push_back((vec![start.name.clone()], None, start));
@@ -421,7 +422,10 @@ fn collect_statements(stmts: &[Lang], defs: &mut Vec<Def>, top: &mut Def) {
                 d.is_root = *is_public || *is_export || name == "main";
                 apply_attributes(&mut d, std::mem::take(&mut pending));
                 scan_type(&mut d, r#type);
-                scan_into(&mut d, &serde_json::to_value(expression.as_ref()).unwrap_or(Value::Null));
+                scan_into(
+                    &mut d,
+                    &serde_json::to_value(expression.as_ref()).unwrap_or(Value::Null),
+                );
                 defs.push(d);
             }
             Lang::Signature {
@@ -480,9 +484,7 @@ fn scan_into(d: &mut Def, root: &Value) {
 
 fn help_of(v: &Value) -> Option<HelpData> {
     match v {
-        Value::Object(m) => m
-            .get("help_data")
-            .and_then(|h| serde_json::from_value(h.clone()).ok()),
+        Value::Object(m) => m.get("help_data").and_then(|h| serde_json::from_value(h.clone()).ok()),
         Value::Array(items) => items
             .iter()
             .rev()
@@ -527,7 +529,11 @@ fn walk(v: &Value, near: Option<&HelpData>, d: &mut Def, locals: &mut HashSet<St
                 let here = help_of(payload);
                 let site = here.clone().or_else(|| near.cloned()).unwrap_or_default();
                 if let Some((what, avail)) = leak_of(key, payload) {
-                    d.leaks.push(Leak { what, avail, site: site.clone() });
+                    d.leaks.push(Leak {
+                        what,
+                        avail,
+                        site: site.clone(),
+                    });
                 }
                 match key {
                     "Variable" => {
@@ -554,7 +560,11 @@ fn walk(v: &Value, near: Option<&HelpData>, d: &mut Def, locals: &mut HashSet<St
                     }
                     "Let" => bound_names(payload.get("variable"), locals),
                     "ForLoop" => {
-                        if let Some(n) = payload.get("identifier").and_then(|i| i.get("name")).and_then(Value::as_str) {
+                        if let Some(n) = payload
+                            .get("identifier")
+                            .and_then(|i| i.get("name"))
+                            .and_then(Value::as_str)
+                        {
                             locals.insert(n.to_string());
                         }
                     }

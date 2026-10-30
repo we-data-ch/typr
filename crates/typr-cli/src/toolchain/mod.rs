@@ -21,9 +21,12 @@ pub use cmd::Cmd;
 #[allow(unused_imports)]
 pub use env::{current_env, project_env, REnv};
 #[allow(unused_imports)] // API for later steps
-pub use rig::{add as rig_add, default as rig_default, find_r, list_installed, rig_available, r_available, r_missing_message, require_project_r, require_r, FoundR, Version, VersionReq};
+pub use rig::{
+    add as rig_add, default as rig_default, find_r, list_installed, r_available, r_missing_message, require_project_r,
+    require_r, rig_available, FoundR, Version, VersionReq,
+};
 #[allow(unused_imports)] // `remove_packages` and the constants are API, not all called yet
 pub use uvr::{
-    add_packages, init, remove_packages, require_uvr, sync, uvr_available, uvr_missing_message,
-    UVR_INSTALL_HINT, UVR_LIBRARY, UVR_MANIFEST,
+    add_packages, init, remove_packages, require_uvr, sync, uvr_available, uvr_missing_message, UVR_INSTALL_HINT,
+    UVR_LIBRARY, UVR_MANIFEST,
 };

@@ -47,8 +47,8 @@ use crate::components::r#type::Type;
 use crate::processes::type_checking::constructor_call::constructor_call;
 use crate::processes::type_checking::dollar_access::dollar_access;
 use crate::processes::type_checking::dot_pipe_access::dot_pipe_access;
-use crate::processes::type_checking::function::function;
 use crate::processes::type_checking::function::check_return;
+use crate::processes::type_checking::function::function;
 use crate::processes::type_checking::function_application::function_application;
 use crate::processes::type_checking::let_expression::let_expression;
 use crate::processes::type_checking::match_expression::match_expression;
@@ -2064,7 +2064,10 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             let mut errors = tc.errors;
             if let Some(expected) = context.get_expected_return_type() {
                 let written = match &expected {
-                    Type::Generic(name, _) => context.get_interface_constraint(name).cloned().unwrap_or(expected.clone()),
+                    Type::Generic(name, _) => context
+                        .get_interface_constraint(name)
+                        .cloned()
+                        .unwrap_or(expected.clone()),
                     other => other.clone(),
                 };
                 if let Some(error) = check_return(exp, &tc.value, &expected, &written, context) {
@@ -4911,9 +4914,15 @@ p"#;
         // cannot return some other value that merely satisfies the interface.
         let prelude = "type Lovable <- interface { love: (Self) -> int }; type Cat <- list { name: char }; \
                        let love <- fn(c: Cat): int { 1 }; let tom <- Cat:{ name = \"tom\" };";
-        assert!(has_errors(&format!("{prelude} let f <- fn(a: Lovable): Lovable {{ tom }};")));
-        assert!(has_errors(&format!("{prelude} let f <- fn(a: Lovable@A): Lovable@A {{ tom }};")));
-        assert!(!has_errors(&format!("{prelude} let f <- fn(a: Lovable@A): Lovable@A {{ a }};")));
+        assert!(has_errors(&format!(
+            "{prelude} let f <- fn(a: Lovable): Lovable {{ tom }};"
+        )));
+        assert!(has_errors(&format!(
+            "{prelude} let f <- fn(a: Lovable@A): Lovable@A {{ tom }};"
+        )));
+        assert!(!has_errors(&format!(
+            "{prelude} let f <- fn(a: Lovable@A): Lovable@A {{ a }};"
+        )));
         // A generic inside a literal vector keeps its rigid (`[a]` with `a: T`).
         assert!(!has_errors("let f <- fn(a: T): [1, T] { [a] };"));
     }
@@ -4934,12 +4943,7 @@ p"#;
     #[test]
     fn record_bound_body_reads_updates_and_copies_the_parameter() {
         // record_bound_generics RFC, step 4: the body works on the caller's record.
-        for body in [
-            "x",
-            "x$a <- 0; x",
-            "let n <- x$a; x",
-            "list(...x, a = x$a * 2)",
-        ] {
+        for body in ["x", "x$a <- 0; x", "let n <- x$a; x", "list(...x, a = x$a * 2)"] {
             let src = format!("let f <- fn(x: list{{a: int}}): list{{a: int}} {{ {body} }};");
             assert!(!has_errors(&src), "{src}");
         }
@@ -4953,7 +4957,9 @@ p"#;
         let src = "let f <- fn(x: list{a: int}): list{a: int} { return list(a = 2); x };";
         assert_eq!(error_codes(src), vec!["T055"]);
         // An override outside the bound loses the caller's type.
-        assert!(has_errors("let f <- fn(x: list{a: int}): list{a: int} { list(...x, c = 1) };"));
+        assert!(has_errors(
+            "let f <- fn(x: list{a: int}): list{a: int} { list(...x, c = 1) };"
+        ));
     }
 
     #[test]
@@ -4963,19 +4969,27 @@ p"#;
 
     #[test]
     fn exact_return_accepts_a_literal_and_refuses_an_open_record() {
-        assert!(!has_errors("let f <- fn(x: list{a: int}): exact list{a: int} { list(a = 0) };"));
+        assert!(!has_errors(
+            "let f <- fn(x: list{a: int}): exact list{a: int} { list(a = 0) };"
+        ));
         let src = "let f <- fn(x: list{a: int}): exact list{a: int} { x };";
         assert_eq!(error_codes(src), vec!["T056"]);
         // A literal with an extra field is not exactly `list{a: int}`.
-        assert!(has_errors("let f <- fn(x: list{a: int}): exact list{a: int} { list(a = 0, b = 1) };"));
+        assert!(has_errors(
+            "let f <- fn(x: list{a: int}): exact list{a: int} { list(a = 0, b = 1) };"
+        ));
     }
 
     #[test]
     fn exact_value_fields_are_readable() {
         let f = "let f <- fn(x: list{a: int}): exact list{a: int} { list(a = 0) };\n";
-        assert!(!has_errors(&format!("{f}let r <- f(list(a = 1, b = true));\nlet n: int <- r$a;")));
+        assert!(!has_errors(&format!(
+            "{f}let r <- f(list(a = 1, b = true));\nlet n: int <- r$a;"
+        )));
         // closed: the caller's extra field is gone
-        assert!(has_errors(&format!("{f}let r <- f(list(a = 1, b = true));\nlet m <- r$b;")));
+        assert!(has_errors(&format!(
+            "{f}let r <- f(list(a = 1, b = true));\nlet m <- r$b;"
+        )));
     }
 
     #[test]

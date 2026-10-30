@@ -24,7 +24,11 @@ pub fn list_installed() -> Cmd {
 /// `release`, `oldrel`, `4.4`, `4.4.3`, …
 pub fn add(version: &str, without_fonts: bool) -> Cmd {
     let cmd = Cmd::new("rig").arg("add").arg(version).arg("--user").arg("--json");
-    if without_fonts { cmd.arg("--without-fonts") } else { cmd }
+    if without_fonts {
+        cmd.arg("--without-fonts")
+    } else {
+        cmd
+    }
 }
 
 /// `rig default <version> --user`. Only for an explicit `--version` on an R that
@@ -89,12 +93,22 @@ enum Op {
 impl VersionReq {
     pub fn parse(s: &str) -> Option<VersionReq> {
         let s = s.trim();
-        let (op, rest) = [(">=", Op::Ge), ("<=", Op::Le), (">", Op::Gt), ("<", Op::Lt), ("=", Op::Eq)]
-            .into_iter()
-            .find_map(|(sym, op)| s.strip_prefix(sym).map(|r| (op, r)))
-            .unwrap_or((Op::Eq, s));
+        let (op, rest) = [
+            (">=", Op::Ge),
+            ("<=", Op::Le),
+            (">", Op::Gt),
+            ("<", Op::Lt),
+            ("=", Op::Eq),
+        ]
+        .into_iter()
+        .find_map(|(sym, op)| s.strip_prefix(sym).map(|r| (op, r)))
+        .unwrap_or((Op::Eq, s));
         let rest = rest.trim();
-        Some(VersionReq { op, version: Version::parse(rest)?, parts: rest.split('.').count() })
+        Some(VersionReq {
+            op,
+            version: Version::parse(rest)?,
+            parts: rest.split('.').count(),
+        })
     }
 
     pub fn matches(&self, found: Version) -> bool {
@@ -170,12 +184,20 @@ fn rig_candidates(home: &Path) -> Vec<PathBuf> {
 /// R on the `PATH`, else rig's user-mode layout. `None` when neither has one.
 pub fn find_r() -> Option<FoundR> {
     if let Some(version) = probe(Path::new("R")) {
-        return Some(FoundR { path: PathBuf::from("R"), version, on_path: true });
+        return Some(FoundR {
+            path: PathBuf::from("R"),
+            version,
+            on_path: true,
+        });
     }
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
     rig_candidates(Path::new(&home)).into_iter().find_map(|path| {
         let version = probe(&path)?;
-        Some(FoundR { path, version, on_path: false })
+        Some(FoundR {
+            path,
+            version,
+            on_path: false,
+        })
     })
 }
 
@@ -262,7 +284,10 @@ mod tests {
         assert_eq!(list.program, "rig");
         assert_eq!(strs(&list), ["list", "--user", "--json"]);
         assert_eq!(strs(&add("4.4", false)), ["add", "4.4", "--user", "--json"]);
-        assert_eq!(strs(&add("release", true)), ["add", "release", "--user", "--json", "--without-fonts"]);
+        assert_eq!(
+            strs(&add("release", true)),
+            ["add", "release", "--user", "--json", "--without-fonts"]
+        );
         assert_eq!(strs(&default("4.3.3")), ["default", "4.3.3", "--user"]);
         for cmd in [list_installed(), add("4.4", false), default("4.4")] {
             assert!(strs(&cmd).contains(&"--user".to_string()), "{cmd:?}");
@@ -353,7 +378,11 @@ mod tests {
         assert!(missing.starts_with("R is not installed"));
         assert!(missing.contains("typr setup-r"));
 
-        let found = FoundR { path: PathBuf::from("/usr/bin/R"), version: Version(4, 1, 2), on_path: true };
+        let found = FoundR {
+            path: PathBuf::from("/usr/bin/R"),
+            version: Version(4, 1, 2),
+            on_path: true,
+        };
         let old = r_too_old_message(&req(">=4.3"), &found);
         assert!(old.contains("needs R >=4.3, found R 4.1.2 at /usr/bin/R"), "{old}");
     }

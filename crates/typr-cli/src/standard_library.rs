@@ -390,12 +390,15 @@ const R_T1_SOURCES: &[(&str, &str)] = &[
 /// by name, read from the T1 sources the compiler sees. An entry that doesn't declare is `r` only.
 /// The granularity is the name: an overloaded name is available on a target as soon as one of its
 /// signatures declares it, and the backend refuses the argument types it doesn't implement.
-pub fn declared_targets() -> std::collections::HashMap<String, std::collections::BTreeSet<typr_core::components::context::config::Target>> {
+pub fn declared_targets(
+) -> std::collections::HashMap<String, std::collections::BTreeSet<typr_core::components::context::config::Target>> {
     let mut out: std::collections::HashMap<String, std::collections::BTreeSet<_>> = Default::default();
     for (_, source) in R_T1_SOURCES {
         for (name, meta) in parse_meta_from_source(source) {
             if let Some(targets) = meta.targets {
-                out.entry(name.trim_matches('`').to_string()).or_default().extend(targets);
+                out.entry(name.trim_matches('`').to_string())
+                    .or_default()
+                    .extend(targets);
             }
         }
     }
@@ -409,7 +412,12 @@ pub fn declared_targets() -> std::collections::HashMap<String, std::collections:
 /// `base.ty` contains R base function type annotations for the doc SPG —
 /// these are NOT TypR-owned functions (TypR doesn't provide implementations).
 /// They serve as reference documentation for the MCP, not compiler entries.
-const R_DOC_ONLY_SOURCES: &[(&str, &str)] = &[("base.ty", BASE_TY), ("stats.ty", STATS_TY), ("utils.ty", UTILS_TY), ("usethis.ty", USETHIS_TY)];
+const R_DOC_ONLY_SOURCES: &[(&str, &str)] = &[
+    ("base.ty", BASE_TY),
+    ("stats.ty", STATS_TY),
+    ("utils.ty", UTILS_TY),
+    ("usethis.ty", USETHIS_TY),
+];
 
 /// Every name TypR's own bundled standard library declares (`@name: T;` in
 /// `configs/std/*.ty`), R and JS alike.
@@ -426,8 +434,20 @@ pub fn stdlib_declared_names() -> std::collections::BTreeSet<String> {
     [
         // Note: BASE_TY is excluded — it contains R base function type
         // annotations for the doc SPG only, not TypR-owned functions.
-        STD_R_TY, DEFAULT_TY, FILE_TY, OPTION_TY, PLOT_TY, LIN_ALG_TY, SYSTEM_TY, FACTOR_TY, STATE_TY, ORD_TY,
-        R_NAMES_TY, DATAFRAME_TY, FOREIGN_TY, STD_JS_TY,
+        STD_R_TY,
+        DEFAULT_TY,
+        FILE_TY,
+        OPTION_TY,
+        PLOT_TY,
+        LIN_ALG_TY,
+        SYSTEM_TY,
+        FACTOR_TY,
+        STATE_TY,
+        ORD_TY,
+        R_NAMES_TY,
+        DATAFRAME_TY,
+        FOREIGN_TY,
+        STD_JS_TY,
     ]
     .iter()
     .flat_map(|source| source.lines())

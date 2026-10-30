@@ -391,7 +391,10 @@ fn collect_named_generics(concrete: &Type, param: &Type, subs: &mut std::collect
         Type::Record(fields_p, _) => {
             if let Type::Record(fields_c, _) = concrete {
                 for fp in fields_p {
-                    if let Some(fc) = fields_c.iter().find(|fc| fc.get_argument_str() == fp.get_argument_str()) {
+                    if let Some(fc) = fields_c
+                        .iter()
+                        .find(|fc| fc.get_argument_str() == fp.get_argument_str())
+                    {
                         collect_named_generics(&fc.get_type(), &fp.get_type(), subs);
                     }
                 }
@@ -530,7 +533,9 @@ fn apply_named_generics(ty: &Type, subs: &std::collections::HashMap<String, Type
         ),
         Type::Tuple(elems, h) => Type::Tuple(elems.iter().map(|e| apply_named_generics(e, subs)).collect(), h.clone()),
         Type::Tag(name, inner, h) => Type::Tag(name.clone(), Box::new(apply_named_generics(inner, subs)), h.clone()),
-        Type::Refined(base, set, h) => Type::Refined(Box::new(apply_named_generics(base, subs)), set.clone(), h.clone()),
+        Type::Refined(base, set, h) => {
+            Type::Refined(Box::new(apply_named_generics(base, subs)), set.clone(), h.clone())
+        }
         Type::Operator(op, t1, t2, h) => Type::Operator(
             *op,
             Box::new(apply_named_generics(t1, subs)),

@@ -100,7 +100,9 @@ struct CaseMeta {
 fn fake_r_dirs(tmp: &Path, spec: &str) -> (PathBuf, PathBuf) {
     let bin = tmp.join("fake-bin");
     let home = tmp.join("fake-home");
-    std::fs::create_dir_all(&bin).and_then(|_| std::fs::create_dir_all(&home)).expect("fake_r dirs");
+    std::fs::create_dir_all(&bin)
+        .and_then(|_| std::fs::create_dir_all(&home))
+        .expect("fake_r dirs");
     if spec != "none" {
         let r = bin.join("R");
         std::fs::write(&r, format!("#!/bin/sh\necho 'R version {spec} (fake) -- \"Stub\"'\n")).expect("fake R");
@@ -410,7 +412,13 @@ pub fn list(status: Option<String>) {
 /// What a program printed: stdout only. The CLI's progress lines go to stderr, so for `typr run`
 /// stdout is the program's own output on every target.
 fn program_output(sb: &Sandbox) -> String {
-    sb.stdout.lines().map(str::trim_end).collect::<Vec<_>>().join("\n").trim_end().to_string()
+    sb.stdout
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim_end()
+        .to_string()
 }
 
 /// Replays the case on every other target and compares stdout with the first one's (`sb`).
@@ -423,14 +431,22 @@ fn differential_checks(case: &Path, expect: &ExpectFile, sb: &Sandbox, keep: boo
         let other = build_sandbox(case, Some(t));
         let got = program_output(&other);
         if got != reference {
-            diverged.push(format!("`{first}` and `{t}` print different output:\n--- {first}\n{reference}\n--- {t}\n{got}"));
+            diverged.push(format!(
+                "`{first}` and `{t}` print different output:\n--- {first}\n{reference}\n--- {t}\n{got}"
+            ));
         }
         cleanup(&other.work, keep);
     }
     match (&expect.divergence, diverged.is_empty()) {
-        (None, true) => results.push(RuleResult { ok: true, msg: format!("{} agree", expect.targets.join(" and ")) }),
+        (None, true) => results.push(RuleResult {
+            ok: true,
+            msg: format!("{} agree", expect.targets.join(" and ")),
+        }),
         (None, false) => results.extend(diverged.into_iter().map(|m| RuleResult { ok: false, msg: m })),
-        (Some(reason), false) => results.push(RuleResult { ok: true, msg: format!("documented divergence: {reason}") }),
+        (Some(reason), false) => results.push(RuleResult {
+            ok: true,
+            msg: format!("documented divergence: {reason}"),
+        }),
         (Some(reason), true) => results.push(RuleResult {
             ok: false,
             msg: format!("the targets now agree: remove `divergence` (\"{reason}\")"),
@@ -463,7 +479,10 @@ pub fn run(filter: Option<String>, status: Option<String>, keep: bool) {
         let meta = read_meta(case);
         let expect = read_expect(case);
         let differential = expect.targets.len() >= 2;
-        let sb = build_sandbox(case, expect.targets.first().filter(|_| differential).map(String::as_str));
+        let sb = build_sandbox(
+            case,
+            expect.targets.first().filter(|_| differential).map(String::as_str),
+        );
         let mut checks = check_rules(case, &sb);
         if differential {
             checks.extend(differential_checks(case, &expect, &sb, keep));

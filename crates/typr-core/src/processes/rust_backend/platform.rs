@@ -94,10 +94,17 @@ pub fn exports(program: &Program) -> Vec<Export> {
         .body
         .iter()
         .filter_map(|e| match &e.kind {
-            ExprKind::Let { name, public: true, value } => match &value.kind {
-                ExprKind::Fn { params, ret, .. } => {
-                    Some(Export { name: name.clone(), params: params.clone(), ret: ret.clone(), span: e.span.clone() })
-                }
+            ExprKind::Let {
+                name,
+                public: true,
+                value,
+            } => match &value.kind {
+                ExprKind::Fn { params, ret, .. } => Some(Export {
+                    name: name.clone(),
+                    params: params.clone(),
+                    ret: ret.clone(),
+                    span: e.span.clone(),
+                }),
                 _ => None,
             },
             _ => None,
@@ -160,7 +167,9 @@ fn crosses(t: &IrType, aliases: &HashMap<String, IrType>, depth: usize) -> Optio
             IrType::Vector(_) => Some(format!("`{t}` is a vector of vectors")),
             el => crosses(el, aliases, depth + 1),
         },
-        IrType::Record(fields) => fields.iter().find_map(|(f, ft)| crosses(ft, aliases, depth + 1).map(|r| format!("field `{f}`: {r}"))),
+        IrType::Record(fields) => fields
+            .iter()
+            .find_map(|(f, ft)| crosses(ft, aliases, depth + 1).map(|r| format!("field `{f}`: {r}"))),
         IrType::Named(n, args) if args.is_empty() => match aliases.get(n) {
             Some(IrType::Record(_)) => crosses(&aliases[n], aliases, depth + 1),
             Some(IrType::Tag(..) | IrType::Union(_)) => Some(format!("`{n}` is a union")),

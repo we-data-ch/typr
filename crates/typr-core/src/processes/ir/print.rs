@@ -22,7 +22,11 @@ impl fmt::Display for IrType {
                 write!(f, "{{ {} }}", body.join(", "))
             }
             IrType::Tag(n, t) => write!(f, ".{n}({t})"),
-            IrType::Union(ts) => write!(f, "{}", ts.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(" | ")),
+            IrType::Union(ts) => write!(
+                f,
+                "{}",
+                ts.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(" | ")
+            ),
             IrType::Tuple(ts) => write!(f, "({})", list(ts)),
             IrType::Function(ps, r) => write!(f, "({}) -> {r}", list(ps)),
             IrType::Named(n, args) if args.is_empty() => f.write_str(n),
@@ -77,7 +81,11 @@ fn head(e: &Expr) -> String {
         Tuple(_) => "tuple".into(),
         Record { name, fields } => {
             let names: Vec<&str> = fields.iter().map(|(n, _)| n.as_str()).collect();
-            format!("record {}{{{}}}", name.as_deref().map(|n| format!("{n} ")).unwrap_or_default(), names.join(", "))
+            format!(
+                "record {}{{{}}}",
+                name.as_deref().map(|n| format!("{n} ")).unwrap_or_default(),
+                names.join(", ")
+            )
         }
         Tag { name, .. } => format!("tag .{name}"),
         Field { name, .. } => format!("field {name}"),
@@ -90,8 +98,17 @@ fn head(e: &Expr) -> String {
         For { var, .. } => format!("for {var}"),
         Break => "break".into(),
         Next => "next".into(),
-        TypeDef { name, params, ty, public } => {
-            let ps = if params.is_empty() { String::new() } else { format!("<{}>", params.join(", ")) };
+        TypeDef {
+            name,
+            params,
+            ty,
+            public,
+        } => {
+            let ps = if params.is_empty() {
+                String::new()
+            } else {
+                format!("<{}>", params.join(", "))
+            };
             format!("type {}{name}{ps} = {ty}", if *public { "pub " } else { "" })
         }
         Module { name, .. } => format!("module {name}"),

@@ -1318,7 +1318,7 @@ pub fn single_type(s: Span) -> IResult<Span, Type> {
             unknown_function,
             bracket_tuple_record, // Tuple[...] / Record[...] — before type_alias
             composite_vec_type_checked,
-            list_types_checked, // tuple{}/record{}/list{} brace forms
+            list_types_checked,  // tuple{}/record{}/list{} brace forms
             refinement_property, // length(n), (> c), (< c)
             parenthese_value,
             tag_type,
@@ -1446,7 +1446,9 @@ mod tests {
             let (rest, _) = ltype(src.into()).unwrap();
             let errors = crate::processes::parsing::take_parse_errors();
             assert!(
-                errors.iter().any(|e| matches!(e, SyntaxError::StructuralBoundSuffix(_))),
+                errors
+                    .iter()
+                    .any(|e| matches!(e, SyntaxError::StructuralBoundSuffix(_))),
                 "{src}: {errors:?}"
             );
             assert!(rest.fragment().is_empty(), "{src}: suffix not consumed");

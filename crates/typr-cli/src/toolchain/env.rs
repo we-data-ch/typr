@@ -32,7 +32,9 @@ pub fn project_env(dir: &Path) -> REnv {
         .unwrap_or_else(|_| dir.to_path_buf());
     abs.ancestors()
         .find(|d| d.join(UVR_MANIFEST).is_file())
-        .map(|root| REnv::Uvr { root: root.to_path_buf() })
+        .map(|root| REnv::Uvr {
+            root: root.to_path_buf(),
+        })
         .unwrap_or(REnv::System)
 }
 
@@ -107,7 +109,9 @@ mod tests {
     }
 
     fn uvr_env() -> REnv {
-        REnv::Uvr { root: PathBuf::from("/p") }
+        REnv::Uvr {
+            root: PathBuf::from("/p"),
+        }
     }
 
     #[test]
@@ -137,7 +141,10 @@ mod tests {
         let cmd = uvr_env().rscript_eval("x");
         assert_eq!(cmd.program, "Rscript");
         assert_eq!(strs(&cmd.args), ["-e", "x"]);
-        assert_eq!(cmd.envs, vec![(OsString::from("R_LIBS"), OsString::from("/p/.uvr/library"))]);
+        assert_eq!(
+            cmd.envs,
+            vec![(OsString::from("R_LIBS"), OsString::from("/p/.uvr/library"))]
+        );
     }
 
     #[test]

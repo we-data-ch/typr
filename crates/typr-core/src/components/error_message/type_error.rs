@@ -618,7 +618,10 @@ impl TypeError {
                 format!("`{}` is not available on target `{}`: {}", e.root, e.target, e.reason)
             }
             TypeError::NotExportable(e) => {
-                format!("`{}` cannot be exported through extendr: {} ({})", e.name, e.position, e.reason)
+                format!(
+                    "`{}` cannot be exported through extendr: {} ({})",
+                    e.name, e.position, e.reason
+                )
             }
             TypeError::RecordReturnNotCaller(t1, t2) => format!(
                 "This function must return the caller's record, received a new {} (declared {})",

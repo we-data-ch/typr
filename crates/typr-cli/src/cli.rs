@@ -11,10 +11,9 @@
 //! - `typr lsp`: Start Language Server Protocol server
 
 use crate::project::{
-    ir_file,
-    build_file, build_project, rust_build, check_file, check_project, clean, cran, debug_file, document, generate_spg, load, new,
-    pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep_R_files, run_in_project, test, use_package,
-    DebugOptions,
+    build_file, build_project, check_file, check_project, clean, cran, debug_file, document, generate_spg, ir_file,
+    load, new, pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep_R_files, run_in_project, rust_build, test,
+    use_package, DebugOptions,
 };
 use crate::repl;
 use crate::standard_library::{standard_library, standard_library_doc};

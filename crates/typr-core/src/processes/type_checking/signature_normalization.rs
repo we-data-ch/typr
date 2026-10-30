@@ -157,8 +157,7 @@ fn same_bare_record(a: &Type, b: &Type, context: &Context) -> bool {
             fa.len() == fb.len()
                 && fa.iter().all(|x| {
                     fb.iter().any(|y| {
-                        x.get_argument_str() == y.get_argument_str()
-                            && same_type(&x.get_type(), &y.get_type(), context)
+                        x.get_argument_str() == y.get_argument_str() && same_type(&x.get_type(), &y.get_type(), context)
                     })
                 })
         }
@@ -337,23 +336,36 @@ fn generalize_to_bound(concrete: &Type, bound: &Type, context: &Context) -> Type
             (Type::Record(fields, h), Type::Record(bound_fields, _)) => Type::Record(
                 fields
                     .iter()
-                    .map(|f| match bound_fields.iter().find(|b| b.get_argument_str() == f.get_argument_str()) {
-                        Some(b) => f.clone().set_type(b.get_type()),
-                        None if exact => f.clone(),
-                        None => f.clone().set_type(f.get_type().generalize()),
+                    .map(|f| {
+                        match bound_fields
+                            .iter()
+                            .find(|b| b.get_argument_str() == f.get_argument_str())
+                        {
+                            Some(b) => f.clone().set_type(b.get_type()),
+                            None if exact => f.clone(),
+                            None => f.clone().set_type(f.get_type().generalize()),
+                        }
                     })
                     .collect(),
                 h.clone(),
             ),
             (Type::Vec(VecType::DataFrame, rows, elem, h), Type::Vec(VecType::DataFrame, _, bound_elem, _)) => {
-                Type::Vec(VecType::DataFrame, rows.clone(), Box::new(go(elem, bound_elem, exact)), h.clone())
+                Type::Vec(
+                    VecType::DataFrame,
+                    rows.clone(),
+                    Box::new(go(elem, bound_elem, exact)),
+                    h.clone(),
+                )
             }
             (other, _) => other.clone().generalize(),
         }
     }
     let reduced = reduce_type(context, concrete);
     let general = go(&reduced, bound, false);
-    if matches!(concrete, Type::Alias(..)) && matches!(bound, Type::Record(..)) && same_type(&reduced, &general, context) {
+    if matches!(concrete, Type::Alias(..))
+        && matches!(bound, Type::Record(..))
+        && same_type(&reduced, &general, context)
+    {
         concrete.clone()
     } else {
         general
@@ -645,12 +657,15 @@ mod tests {
     /// normalization (`Point` is a declared alias).
     fn normalized(params: &[&str], ret: &str) -> (Vec<String>, String) {
         use crate::processes::parsing::types::ltype;
-        let tc = TypeChecker::new(Context::empty())
-            .typing_no_panic(&parse2("type Point <- list{x: int};".into()).unwrap());
+        let tc =
+            TypeChecker::new(Context::empty()).typing_no_panic(&parse2("type Point <- list{x: int};".into()).unwrap());
         let ty = |s: &str| ltype(s.into()).unwrap().1;
         let args: Vec<ArgumentType> = params.iter().map(|p| ArgumentType::new("x", &ty(p))).collect();
         let out = normalize_signature(&tc.get_context(), &args, &ty(ret));
-        (out.params.iter().map(|p| p.get_type().pretty()).collect(), out.ret.pretty())
+        (
+            out.params.iter().map(|p| p.get_type().pretty()).collect(),
+            out.ret.pretty(),
+        )
     }
 
     #[test]
@@ -663,14 +678,20 @@ mod tests {
     #[test]
     fn record_only_in_return_or_only_in_param_is_untied() {
         assert_eq!(normalized(&["int"], "list{a: int}").1, "list{a: int}");
-        assert_eq!(normalized(&["list{a: int}"], "int"), (vec!["list{a: int}".to_string()], "int".to_string()));
+        assert_eq!(
+            normalized(&["list{a: int}"], "int"),
+            (vec!["list{a: int}".to_string()], "int".to_string())
+        );
         // a different record in the return: nothing to tie to
         assert_eq!(normalized(&["list{a: int}"], "list{b: int}").1, "list{b: int}");
     }
 
     #[test]
     fn repeated_record_shares_one_id_and_field_order_is_ignored() {
-        let (p, r) = normalized(&["list{a: int, b: bool}", "list{b: bool, a: int}"], "list{a: int, b: bool}");
+        let (p, r) = normalized(
+            &["list{a: int, b: bool}", "list{b: bool, a: int}"],
+            "list{a: int, b: bool}",
+        );
         assert!(p.iter().all(|t| t.contains('@')) && r.contains('@'));
         let id = |s: &str| s.rsplit('@').next().unwrap().to_string();
         assert_eq!(id(&p[0]), id(&p[1]));
@@ -687,7 +708,10 @@ mod tests {
     fn data_frame_rows_are_ignored_when_tying() {
         let (p, r) = normalized(&["df[#N]{a: int}"], "df[#M]{a: int}");
         assert!(p[0].contains('@') && r.contains('@'), "{p:?} {r}");
-        assert!(p[0].contains("#N") && r.contains("#M"), "each side keeps its own row index: {p:?} {r}");
+        assert!(
+            p[0].contains("#N") && r.contains("#M"),
+            "each side keeps its own row index: {p:?} {r}"
+        );
         // a data frame is not the record of its row
         assert_eq!(normalized(&["df[#N]{a: int}"], "list{a: int}").1, "list{a: int}");
     }
@@ -729,13 +753,22 @@ mod tests {
     fn call_returns_the_callers_record() {
         let call = "let p <- f(list(a = 1, b = true));\nlet z: list{a: int, b: bool} <- p;\nlet y: bool <- p$b;";
         assert!(record_codes(BARE_BODY, call).is_empty());
-        assert!(!record_codes(BARE_BODY, "let p <- f(list(a = 1, b = true));\nlet z: list{a: int, b: char} <- p;").is_empty());
+        assert!(!record_codes(
+            BARE_BODY,
+            "let p <- f(list(a = 1, b = true));\nlet z: list{a: int, b: char} <- p;"
+        )
+        .is_empty());
     }
 
     #[test]
     fn call_generalizes_bound_fields_and_literals() {
         // `a` is what the signature says (int), `b: true` is widened to bool
-        let f = |ty: &str| record_codes(BARE_BODY, &format!("let p <- f(list(a = 1, b = true));\nlet z: {} <- p;", ty));
+        let f = |ty: &str| {
+            record_codes(
+                BARE_BODY,
+                &format!("let p <- f(list(a = 1, b = true));\nlet z: {} <- p;", ty),
+            )
+        };
         assert!(f("list{a: int, b: bool}").is_empty());
         assert!(!f("list{a: 1, b: bool}").is_empty());
         assert!(!f("list{a: int, b: true}").is_empty());
@@ -743,7 +776,10 @@ mod tests {
 
     #[test]
     fn exact_argument_keeps_its_extra_fields_precisely() {
-        let decls = format!("{}\nlet mk <- fn(): exact list{{a: 1, b: true}} {{ list(a = 1, b = true) }};", BARE_BODY);
+        let decls = format!(
+            "{}\nlet mk <- fn(): exact list{{a: 1, b: true}} {{ list(a = 1, b = true) }};",
+            BARE_BODY
+        );
         assert!(record_codes(&decls, "let z: exact list{a: int, b: true} <- f(mk());").is_empty());
     }
 
@@ -751,9 +787,16 @@ mod tests {
     fn shared_record_id_rejects_different_shapes_and_tags_split_them() {
         let shared = "let g <- fn(x: list{a: int}, y: list{a: int}): list{a: int} { x };";
         assert!(record_codes(shared, "g(list(a = 1, b = true), list(a = 1, b = true));").is_empty());
-        assert_eq!(record_codes(shared, "g(list(a = 1, b = true), list(a = 1, c = 2));"), vec!["T049"]);
+        assert_eq!(
+            record_codes(shared, "g(list(a = 1, b = true), list(a = 1, c = 2));"),
+            vec!["T049"]
+        );
         let tagged = "let h <- fn(x: list{a: int}@A, y: list{a: int}@B): list{a: int}@A { x };";
-        assert!(record_codes(tagged, "let r <- h(list(a = 1, b = true), list(a = 1, c = 2));\nlet q: bool <- r$b;").is_empty());
+        assert!(record_codes(
+            tagged,
+            "let r <- h(list(a = 1, b = true), list(a = 1, c = 2));\nlet q: bool <- r$b;"
+        )
+        .is_empty());
     }
 
     #[test]
@@ -765,7 +808,10 @@ mod tests {
 
     #[test]
     fn named_alias_argument_is_kept() {
-        let decls = format!("type Cat <- list{{a: int, name: char}};\n{}\nlet c <- Cat:{{a = 1, name = \"t\"}};", BARE_BODY);
+        let decls = format!(
+            "type Cat <- list{{a: int, name: char}};\n{}\nlet c <- Cat:{{a = 1, name = \"t\"}};",
+            BARE_BODY
+        );
         assert!(record_codes(&decls, "let p: Cat <- f(c);").is_empty());
     }
 }

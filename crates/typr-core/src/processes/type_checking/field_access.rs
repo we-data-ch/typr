@@ -87,7 +87,13 @@ pub fn dataframe_column_or_push_error(
             return None;
         }
     };
-    let inner_type = column_element_type(&find_field_or_push_error(fields, name, receiver_type, name_help, errors)?);
+    let inner_type = column_element_type(&find_field_or_push_error(
+        fields,
+        name,
+        receiver_type,
+        name_help,
+        errors,
+    )?);
     Some(Type::vec(
         VecType::Vector,
         reduced_df.vec_length().unwrap_or_else(builder::any_type),

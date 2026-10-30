@@ -11,7 +11,11 @@ pub struct Cmd {
 
 impl Cmd {
     pub(super) fn new(program: &str) -> Self {
-        Cmd { program: program.to_string(), args: Vec::new(), envs: Vec::new() }
+        Cmd {
+            program: program.to_string(),
+            args: Vec::new(),
+            envs: Vec::new(),
+        }
     }
 
     pub(super) fn arg(mut self, arg: impl Into<OsString>) -> Self {

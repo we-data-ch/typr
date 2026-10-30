@@ -1700,7 +1700,10 @@ mod tests {
         let ab = rec(&[("a", int.clone()), ("b", builder::boolean_type())]);
         let a = rec(&[("a", int.clone())]);
         assert!(exact(ab.clone()).is_subtype(&ab, &ctx).0);
-        assert!(exact(ab.clone()).is_subtype(&a, &ctx).0, "exact keeps width subtyping towards a plain record");
+        assert!(
+            exact(ab.clone()).is_subtype(&a, &ctx).0,
+            "exact keeps width subtyping towards a plain record"
+        );
     }
 
     #[test]
@@ -1709,7 +1712,10 @@ mod tests {
         let int = builder::integer_type_default();
         let a = rec(&[("a", int.clone())]);
         let ab = rec(&[("a", int), ("b", builder::boolean_type())]);
-        assert!(!a.is_subtype(&exact(a.clone()), &ctx).0, "nothing non-exact is known to be closed");
+        assert!(
+            !a.is_subtype(&exact(a.clone()), &ctx).0,
+            "nothing non-exact is known to be closed"
+        );
         assert!(!ab.is_subtype(&exact(a.clone()), &ctx).0);
     }
 
@@ -1719,7 +1725,10 @@ mod tests {
         let int = builder::integer_type_default();
         let a = rec(&[("a", int.clone())]);
         let ab = rec(&[("a", int.clone()), ("b", builder::boolean_type())]);
-        assert!(!exact(ab.clone()).is_subtype(&exact(a.clone()), &ctx).0, "extra field 'b' is not allowed");
+        assert!(
+            !exact(ab.clone()).is_subtype(&exact(a.clone()), &ctx).0,
+            "extra field 'b' is not allowed"
+        );
         assert!(!exact(a.clone()).is_subtype(&exact(ab), &ctx).0);
         // depth is allowed: `exact list{a: 3}` <: `exact list{a: int}`
         let a3 = rec(&[("a", builder::integer_type(3))]);

@@ -329,10 +329,20 @@ pub fn init() {
 
     println!("Installing missing R package(s) via uvr: {}", status.missing.join(", "));
     let add = crate::toolchain::add_packages(&status.missing, true);
-    println!("Executing: {} {}", add.program, add.args.iter().map(|a| a.to_string_lossy()).collect::<Vec<_>>().join(" "));
+    println!(
+        "Executing: {} {}",
+        add.program,
+        add.args
+            .iter()
+            .map(|a| a.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
 
     let sync = crate::toolchain::sync(false);
-    let ok = [add, sync].iter().all(|cmd| matches!(cmd.command().status(), Ok(s) if s.success()));
+    let ok = [add, sync]
+        .iter()
+        .all(|cmd| matches!(cmd.command().status(), Ok(s) if s.success()));
     invalidate_cache();
     if !ok {
         eprintln!("{RED}error{RESET}: R package installation failed.");

@@ -17,7 +17,6 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
-use typr_core::processes::rust_backend::Platform;
 use typr_core::components::context::config::Environment;
 use typr_core::components::context::config::Target;
 use typr_core::components::context::Context;
@@ -26,6 +25,7 @@ use typr_core::components::error_message::syntax_error::SyntaxError;
 use typr_core::components::language::var::Var;
 use typr_core::components::language::Lang;
 use typr_core::components::r#type::type_system::TypeSystem;
+use typr_core::processes::rust_backend::Platform;
 use typr_core::processes::spg::build_spg_from_items;
 use typr_core::processes::spg::model::{NodePayload, Spg, Visibility};
 use typr_core::processes::type_checking::type_checker::TypeChecker;
@@ -790,10 +790,7 @@ fn targets_to_check(root: &Path, requested: Option<&str>) -> Vec<Target> {
         // "how far is this project from portable?" (RFC §Step 1), so it needn't be declared.
         Ok(t) => vec![t],
         Err(bad) => {
-            eprintln!(
-                "error: unknown target `{bad}` (valid: {})",
-                Target::NAMES.join(", ")
-            );
+            eprintln!("error: unknown target `{bad}` (valid: {})", Target::NAMES.join(", "));
             std::process::exit(1);
         }
     }
@@ -907,7 +904,9 @@ pub fn build_target(file: Option<&Path>, requested: Option<&str>) -> Target {
         Some(f) => crate::metaprogramming::find_project_root(&f.to_string_lossy()),
         None => Some(PathBuf::from(".")),
     };
-    root.map(|r| project_targets(&r)).and_then(|t| t.first().copied()).unwrap_or(Target::R)
+    root.map(|r| project_targets(&r))
+        .and_then(|t| t.first().copied())
+        .unwrap_or(Target::R)
 }
 
 /// `typr build|run --target rust` (rfcs/0000-compilation-targets.md §7, Step 3): type-check,
@@ -915,8 +914,11 @@ pub fn build_target(file: Option<&Path>, requested: Option<&str>) -> Target {
 /// `target/rust/` and build it. `file` is a single source file; without it the project's
 /// `TypR/main.ty` is used. Returns the path of the generated manifest.
 pub fn rust_build(file: Option<&Path>, run: bool, platform: Option<&str>) {
-    let entry = file.map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("TypR/main.ty"));
-    let root = crate::metaprogramming::find_project_root(&entry.to_string_lossy()).unwrap_or_else(|| PathBuf::from("."));
+    let entry = file
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("TypR/main.ty"));
+    let root =
+        crate::metaprogramming::find_project_root(&entry.to_string_lossy()).unwrap_or_else(|| PathBuf::from("."));
     let context = crate::standard_library::load_project_type_definitions(
         &root,
         Context::default().set_environment(Environment::Project),
@@ -966,7 +968,10 @@ pub fn rust_build(file: Option<&Path>, run: bool, platform: Option<&str>) {
 
     let step = Step::new("Generating Rust");
     let crate_name = rust_crate_name(&root);
-    let options = typr_core::processes::rust_backend::Options { platform, module_name: crate_name.clone() };
+    let options = typr_core::processes::rust_backend::Options {
+        platform,
+        module_name: crate_name.clone(),
+    };
     let generated = match typr_core::processes::rust_backend::emit_with(&program, &options) {
         Ok(out) => out,
         Err(errors) => {
@@ -999,7 +1004,9 @@ pub fn rust_build(file: Option<&Path>, run: bool, platform: Option<&str>) {
     let mut written = fs::write(out.join("Cargo.toml"), manifest).is_ok()
         && fs::write(out.join("src").join(platform.entry_file()), &generated.source).is_ok();
     if let Some(wrappers) = &generated.r_wrappers {
-        written = written && fs::create_dir_all(out.join("R")).is_ok() && fs::write(out.join("R").join("extendr-wrappers.R"), wrappers).is_ok();
+        written = written
+            && fs::create_dir_all(out.join("R")).is_ok()
+            && fs::write(out.join("R").join("extendr-wrappers.R"), wrappers).is_ok();
     }
     if !written {
         step.fail();
@@ -1040,7 +1047,10 @@ fn rust_platform(root: &Path, requested: Option<&str>) -> Platform {
     match requested.map(String::from).or(configured) {
         None => Platform::Bin,
         Some(name) => name.parse::<Platform>().unwrap_or_else(|bad| {
-            eprintln!("error: unknown platform `{bad}` (valid: {})", Platform::NAMES.join(", "));
+            eprintln!(
+                "error: unknown platform `{bad}` (valid: {})",
+                Platform::NAMES.join(", ")
+            );
             std::process::exit(1);
         }),
     }
@@ -1060,7 +1070,13 @@ fn rust_crate_name(root: &Path) -> String {
     });
     let mut name: String = raw
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
         .collect();
     if name.is_empty() || name.starts_with(|c: char| c.is_ascii_digit()) {
         name.insert_str(0, "typr_");
@@ -1500,7 +1516,11 @@ pub fn run_in_project(profile: bool, checked_mode: bool, strict_mode: bool) {
         base_command.to_string()
     };
     let step = Step::new("Running");
-    match crate::toolchain::current_env().rscript_eval(&r_command).command().output() {
+    match crate::toolchain::current_env()
+        .rscript_eval(&r_command)
+        .command()
+        .output()
+    {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1871,13 +1891,19 @@ pub const UVR_DEV_PACKAGES: [&str; 3] = ["devtools", "testthat", "usethis"];
 pub fn uvr_init(name: &str, project_path: &Path) {
     use crate::toolchain;
     if let Err(msg) = toolchain::require_r(None).and_then(|_| toolchain::require_uvr()) {
-        eprintln!("Warning: {}\nThe project was created without a uvr environment; \
-                   run `uvr init --here {}` once uvr is installed.", msg, name);
+        eprintln!(
+            "Warning: {}\nThe project was created without a uvr environment; \
+                   run `uvr init --here {}` once uvr is installed.",
+            msg, name
+        );
         return;
     }
     println!("Initializing uvr...");
     if !run_cmd(&toolchain::init(name, false), Some(project_path)) {
-        eprintln!("Warning: `uvr init` failed; run it yourself in '{}'.", project_path.display());
+        eprintln!(
+            "Warning: `uvr init` failed; run it yourself in '{}'.",
+            project_path.display()
+        );
         return;
     }
     let dev: Vec<String> = UVR_DEV_PACKAGES.iter().map(|p| p.to_string()).collect();
@@ -1885,7 +1911,10 @@ pub fn uvr_init(name: &str, project_path: &Path) {
     if run_cmd(&toolchain::add_packages(&dev, true), Some(project_path)) {
         println!("uvr initialized successfully!");
     } else {
-        eprintln!("Warning: could not install the dev dependencies; run `uvr add --dev {}`.", dev.join(" "));
+        eprintln!(
+            "Warning: could not install the dev dependencies; run `uvr add --dev {}`.",
+            dev.join(" ")
+        );
     }
 }
 
@@ -2211,7 +2240,11 @@ pub fn use_package(package_name: &str) {
 pub fn use_packages(packages: &[String]) {
     require_uvr_project();
 
-    println!("Adding {} as dependenc{}...", packages.join(", "), if packages.len() == 1 { "y" } else { "ies" });
+    println!(
+        "Adding {} as dependenc{}...",
+        packages.join(", "),
+        if packages.len() == 1 { "y" } else { "ies" }
+    );
     if !run_cmd(&crate::toolchain::add_packages(packages, false), None) {
         eprintln!("Error: `uvr add` failed");
         std::process::exit(1);
@@ -2434,9 +2467,6 @@ mod r_path_tests {
         let p = Path::new(r"C:\Users\Desktop\TypR\mytestpkg");
         let cmd = format!("devtools::install_local('{}')", r_path(p));
         assert!(!cmd.contains('\\'), "{}", cmd);
-        assert_eq!(
-            cmd,
-            "devtools::install_local('C:/Users/Desktop/TypR/mytestpkg')"
-        );
+        assert_eq!(cmd, "devtools::install_local('C:/Users/Desktop/TypR/mytestpkg')");
     }
 }

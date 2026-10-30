@@ -90,7 +90,11 @@ print(p$y);
     );
     let out = typr(&dir, &["run"]);
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(stdout(&out).contains("[1] 42") && stdout(&out).contains("[1] \"a\""), "{}", stdout(&out));
+    assert!(
+        stdout(&out).contains("[1] 42") && stdout(&out).contains("[1] \"a\""),
+        "{}",
+        stdout(&out)
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -125,7 +129,14 @@ print(get(s));
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out).lines().collect::<Vec<_>>(),
-        ["[1] 11 22 33", "[1] 2 4 6", "[1] 1.50 2.00 3.25", "[1] 1 2", "[1] 6", "[1] 5"]
+        [
+            "[1] 11 22 33",
+            "[1] 2 4 6",
+            "[1] 1.50 2.00 3.25",
+            "[1] 1 2",
+            "[1] 6",
+            "[1] 5"
+        ]
     );
     let _ = fs::remove_dir_all(&dir);
 }
@@ -136,7 +147,11 @@ fn an_index_out_of_range_stops_the_program() {
     let out = typr(&dir, &["run"]);
     assert!(!out.status.success());
     assert_eq!(stdout(&out).trim(), "[1] 2");
-    assert!(stderr(&out).contains("Error: subscript out of bounds"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("Error: subscript out of bounds"),
+        "{}",
+        stderr(&out)
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -170,7 +185,16 @@ print(m$pick(true, false));
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(
         stdout(&out).lines().collect::<Vec<_>>(),
-        ["[1] 1", "[1] \"s\"", "[1] 1.5", "[1] \"boxed\"", "[1] 4", "[1] \"dflt\"", "[1] 11", "[1] TRUE"]
+        [
+            "[1] 1",
+            "[1] \"s\"",
+            "[1] 1.5",
+            "[1] \"boxed\"",
+            "[1] 4",
+            "[1] \"dflt\"",
+            "[1] 11",
+            "[1] TRUE"
+        ]
     );
     let _ = fs::remove_dir_all(&dir);
 }
@@ -246,18 +270,30 @@ fn a_library_platform_builds_without_an_entry_point() {
     assert!(!dir.join("target/rust/src/main.rs").exists());
     // `run` needs an executable.
     let out = typr(&dir, &["run", "--platform", "lib"]);
-    assert!(!out.status.success() && stderr(&out).contains("needs the `bin` platform"), "{}", stderr(&out));
+    assert!(
+        !out.status.success() && stderr(&out).contains("needs the `bin` platform"),
+        "{}",
+        stderr(&out)
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn platform_comes_from_typr_toml_and_is_validated() {
     let dir = scaffold("platform_cfg", API);
-    fs::write(dir.join("typr.toml"), "[project]\ntargets = [\"rust\"]\n[rust]\nplatform = \"lib\"\n").unwrap();
+    fs::write(
+        dir.join("typr.toml"),
+        "[project]\ntargets = [\"rust\"]\n[rust]\nplatform = \"lib\"\n",
+    )
+    .unwrap();
     assert!(typr(&dir, &["build"]).status.success());
     assert!(dir.join("target/rust/src/lib.rs").exists());
     let out = typr(&dir, &["build", "--platform", "jvm"]);
-    assert!(!out.status.success() && stderr(&out).contains("unknown platform `jvm`"), "{}", stderr(&out));
+    assert!(
+        !out.status.success() && stderr(&out).contains("unknown platform `jvm`"),
+        "{}",
+        stderr(&out)
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -276,7 +312,9 @@ fn wasm_platform_exports_scalar_functions() {
     let out = typr(&dir, &["build", "--platform", "wasm"]);
     assert!(out.status.success(), "{}", stderr(&out));
     let wasm = dir.join("target/rust/target/wasm32-unknown-unknown/debug");
-    assert!(fs::read_dir(&wasm).unwrap().any(|e| e.unwrap().path().extension().is_some_and(|x| x == "wasm")));
+    assert!(fs::read_dir(&wasm)
+        .unwrap()
+        .any(|e| e.unwrap().path().extension().is_some_and(|x| x == "wasm")));
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -289,7 +327,13 @@ fn extendr_refuses_an_export_that_cannot_cross_into_r() {
     let out = typr(&dir, &["build", "--platform", "extendr"]);
     assert!(!out.status.success());
     let err = stderr(&out);
-    assert!(err.contains("cannot be exported through extendr") && err.contains("`Sh` is a union"), "{err}");
-    assert!(!dir.join("target/rust/src/lib.rs").exists(), "nothing is written when the boundary check fails");
+    assert!(
+        err.contains("cannot be exported through extendr") && err.contains("`Sh` is a union"),
+        "{err}"
+    );
+    assert!(
+        !dir.join("target/rust/src/lib.rs").exists(),
+        "nothing is written when the boundary check fails"
+    );
     let _ = fs::remove_dir_all(&dir);
 }

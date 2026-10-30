@@ -157,38 +157,99 @@ pub enum ExprKind {
     Var(String),
     /// A sequence of expressions; the value is the last one's (`Unit` when empty).
     Block(Vec<Expr>),
-    Let { name: String, public: bool, value: Box<Expr> },
-    Assign { name: String, value: Box<Expr> },
-    Fn { params: Vec<Param>, ret: IrType, body: Box<Expr> },
-    Call { func: Box<Expr>, args: Vec<Expr> },
-    Binary { op: BinOp, lhs: Box<Expr>, rhs: Box<Expr> },
+    Let {
+        name: String,
+        public: bool,
+        value: Box<Expr>,
+    },
+    Assign {
+        name: String,
+        value: Box<Expr>,
+    },
+    Fn {
+        params: Vec<Param>,
+        ret: IrType,
+        body: Box<Expr>,
+    },
+    Call {
+        func: Box<Expr>,
+        args: Vec<Expr>,
+    },
+    Binary {
+        op: BinOp,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+    },
     Not(Box<Expr>),
-    If { cond: Box<Expr>, then: Box<Expr>, otherwise: Box<Expr> },
-    Match { scrutinee: Box<Expr>, arms: Vec<Arm> },
+    If {
+        cond: Box<Expr>,
+        then: Box<Expr>,
+        otherwise: Box<Expr>,
+    },
+    Match {
+        scrutinee: Box<Expr>,
+        arms: Vec<Arm>,
+    },
     Vector(Vec<Expr>),
     Tuple(Vec<Expr>),
     /// `Name:{ f = e, ... }` or `{ f = e, ... }`; fields in source order. `name` is the declared
     /// type when the record was built through a constructor.
-    Record { name: Option<String>, fields: Vec<(String, Expr)> },
-    Tag { name: String, payload: Box<Expr> },
-    Field { target: Box<Expr>, name: String },
-    Index { target: Box<Expr>, index: Box<Expr> },
+    Record {
+        name: Option<String>,
+        fields: Vec<(String, Expr)>,
+    },
+    Tag {
+        name: String,
+        payload: Box<Expr>,
+    },
+    Field {
+        target: Box<Expr>,
+        name: String,
+    },
+    Index {
+        target: Box<Expr>,
+        index: Box<Expr>,
+    },
     Return(Box<Expr>),
     /// `value as! Name`: a runtime check that `value` is a `Name` (`ty`), then that value.
-    Cast { value: Box<Expr>, name: String },
+    Cast {
+        value: Box<Expr>,
+        name: String,
+    },
     /// A boundary the checker could not prove (`refinement_check.rs`): `value` is checked
     /// against `checks` at run time, then is that value. `loc` is `file:line`, as in R's message.
-    Refine { value: Box<Expr>, checks: Vec<RefineCheck>, loc: String },
-    While { cond: Box<Expr>, body: Box<Expr> },
+    Refine {
+        value: Box<Expr>,
+        checks: Vec<RefineCheck>,
+        loc: String,
+    },
+    While {
+        cond: Box<Expr>,
+        body: Box<Expr>,
+    },
     Loop(Box<Expr>),
-    For { var: String, iter: Box<Expr>, body: Box<Expr> },
+    For {
+        var: String,
+        iter: Box<Expr>,
+        body: Box<Expr>,
+    },
     Break,
     Next,
     /// `type Name<params> <- ty;`
-    TypeDef { name: String, params: Vec<String>, ty: IrType, public: bool },
-    Module { name: String, body: Vec<Expr> },
+    TypeDef {
+        name: String,
+        params: Vec<String>,
+        ty: IrType,
+        public: bool,
+    },
+    Module {
+        name: String,
+        body: Vec<Expr>,
+    },
     /// A construct with no portable meaning. `what` names it (`"R block"`, `"data frame"`, ...).
-    Unsupported { what: String },
+    Unsupported {
+        what: String,
+    },
 }
 
 /// One property of a refinement: an interval on what is measured. `None` is unbounded; the
@@ -241,8 +302,18 @@ impl Expr {
     pub fn for_each_child<'a>(&'a self, f: &mut dyn FnMut(&'a Expr)) {
         use ExprKind::*;
         match &self.kind {
-            Int(_) | Num(_) | Bool(_) | Str(_) | Null | Na | Unit | Var(_) | Break | Next
-            | TypeDef { .. } | Unsupported { .. } => {}
+            Int(_)
+            | Num(_)
+            | Bool(_)
+            | Str(_)
+            | Null
+            | Na
+            | Unit
+            | Var(_)
+            | Break
+            | Next
+            | TypeDef { .. }
+            | Unsupported { .. } => {}
             Block(v) | Vector(v) | Tuple(v) => v.iter().for_each(f),
             Module { body, .. } => body.iter().for_each(f),
             Let { value, .. } | Assign { value, .. } => f(value),
@@ -295,8 +366,18 @@ impl Expr {
     pub fn for_each_child_mut(&mut self, f: &mut dyn FnMut(&mut Expr)) {
         use ExprKind::*;
         match &mut self.kind {
-            Int(_) | Num(_) | Bool(_) | Str(_) | Null | Na | Unit | Var(_) | Break | Next
-            | TypeDef { .. } | Unsupported { .. } => {}
+            Int(_)
+            | Num(_)
+            | Bool(_)
+            | Str(_)
+            | Null
+            | Na
+            | Unit
+            | Var(_)
+            | Break
+            | Next
+            | TypeDef { .. }
+            | Unsupported { .. } => {}
             Block(v) | Vector(v) | Tuple(v) => v.iter_mut().for_each(f),
             Module { body, .. } => body.iter_mut().for_each(f),
             Let { value, .. } | Assign { value, .. } => f(value),
@@ -399,12 +480,19 @@ let total <- area(.Circle(2.0)) + 1.5;
         assert!(text.contains("let p : { x: int, y: char }"), "{text}");
         assert!(text.contains("let v : [int]"), "{text}");
         assert!(text.contains("type Shape = .Circle(num) | .Square(num)"), "{text}");
-        let Some(Expr { kind: ExprKind::Let { value, .. }, .. }) =
-            p.body.iter().find(|e| matches!(&e.kind, ExprKind::Let { name, .. } if name == "safe_div"))
+        let Some(Expr {
+            kind: ExprKind::Let { value, .. },
+            ..
+        }) = p
+            .body
+            .iter()
+            .find(|e| matches!(&e.kind, ExprKind::Let { name, .. } if name == "safe_div"))
         else {
             panic!("safe_div not lowered")
         };
-        let IrType::Function(_, ret) = &value.ty else { panic!("not a function: {:?}", value.ty) };
+        let IrType::Function(_, ret) = &value.ty else {
+            panic!("not a function: {:?}", value.ty)
+        };
         assert_eq!(**ret, IrType::Optional(Box::new(IrType::Int)));
     }
 

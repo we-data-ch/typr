@@ -10,8 +10,21 @@ use std::path::Path;
 
 /// Packages shipped with R itself: never declared anywhere.
 const BASE_PACKAGES: &[&str] = &[
-    "R", "base", "compiler", "datasets", "grDevices", "graphics", "grid", "methods", "parallel",
-    "splines", "stats", "stats4", "tcltk", "tools", "utils",
+    "R",
+    "base",
+    "compiler",
+    "datasets",
+    "grDevices",
+    "graphics",
+    "grid",
+    "methods",
+    "parallel",
+    "splines",
+    "stats",
+    "stats4",
+    "tcltk",
+    "tools",
+    "utils",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,7 +56,11 @@ impl Drift {
 }
 
 fn section(dev: bool) -> &'static str {
-    if dev { "dev-dependencies" } else { "dependencies" }
+    if dev {
+        "dev-dependencies"
+    } else {
+        "dependencies"
+    }
 }
 
 fn is_base(name: &str) -> bool {
@@ -105,7 +122,10 @@ pub fn library_uses(source: &str) -> BTreeSet<String> {
         for call in ["library(", "require("] {
             let mut rest = code;
             while let Some(i) = rest.find(call) {
-                let preceded_by_ident = rest[..i].chars().next_back().is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.');
+                let preceded_by_ident = rest[..i]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.');
                 rest = &rest[i + call.len()..];
                 if preceded_by_ident {
                     continue;
@@ -136,17 +156,28 @@ pub fn diagnose(description: &str, manifest: &str, sources: &[String]) -> Vec<Dr
             if uvr_run.contains(p) || uvr_dev.contains(p) {
                 continue;
             }
-            drifts.push(Drift::MissingInUvr { package: p.clone(), dev });
+            drifts.push(Drift::MissingInUvr {
+                package: p.clone(),
+                dev,
+            });
         }
         // [dev-dependencies] is tooling (devtools, usethis…), not necessarily `Suggests`.
         for p in uvr.difference(desc).filter(|_| !dev) {
             if desc_run.contains(p) || desc_sug.contains(p) {
                 continue;
             }
-            drifts.push(Drift::MissingInDescription { package: p.clone(), dev });
+            drifts.push(Drift::MissingInDescription {
+                package: p.clone(),
+                dev,
+            });
         }
     }
-    let declared: BTreeSet<&String> = desc_run.iter().chain(&desc_sug).chain(&uvr_run).chain(&uvr_dev).collect();
+    let declared: BTreeSet<&String> = desc_run
+        .iter()
+        .chain(&desc_sug)
+        .chain(&uvr_run)
+        .chain(&uvr_dev)
+        .collect();
     let used: BTreeSet<String> = sources.iter().flat_map(|s| library_uses(s)).collect();
     for p in used {
         if !declared.contains(&p) {
@@ -192,7 +223,8 @@ pub fn warn(root: &Path) {
 mod tests {
     use super::*;
 
-    const DESC: &str = "Package: demo\nImports:\n    cli (>= 3.0),\n    stats,\n    dplyr\nSuggests:\n    testthat (>= 3.0.0)\n";
+    const DESC: &str =
+        "Package: demo\nImports:\n    cli (>= 3.0),\n    stats,\n    dplyr\nSuggests:\n    testthat (>= 3.0.0)\n";
 
     #[test]
     fn parses_description_fields_across_lines() {
@@ -203,17 +235,27 @@ mod tests {
 
     #[test]
     fn dev_tooling_only_in_uvr_is_not_a_drift() {
-        let uvr = "[dependencies]\ncli = \"*\"\ndplyr = \"*\"\n[dev-dependencies]\ntestthat = \"*\"\ndevtools = \"*\"\n";
+        let uvr =
+            "[dependencies]\ncli = \"*\"\ndplyr = \"*\"\n[dev-dependencies]\ntestthat = \"*\"\ndevtools = \"*\"\n";
         let d = diagnose(DESC, uvr, &[]);
-        assert!(d.is_empty(), "dev tooling absent from DESCRIPTION is not a drift: {d:?}");
+        assert!(
+            d.is_empty(),
+            "dev tooling absent from DESCRIPTION is not a drift: {d:?}"
+        );
     }
 
     #[test]
     fn both_directions_are_reported() {
         let uvr = "[dependencies]\ncli = \"*\"\njsonlite = \"*\"\n[dev-dependencies]\ntestthat = \"*\"\n";
         let d = diagnose(DESC, uvr, &[]);
-        assert!(d.contains(&Drift::MissingInUvr { package: "dplyr".into(), dev: false }));
-        assert!(d.contains(&Drift::MissingInDescription { package: "jsonlite".into(), dev: false }));
+        assert!(d.contains(&Drift::MissingInUvr {
+            package: "dplyr".into(),
+            dev: false
+        }));
+        assert!(d.contains(&Drift::MissingInDescription {
+            package: "jsonlite".into(),
+            dev: false
+        }));
     }
 
     #[test]
@@ -221,8 +263,12 @@ mod tests {
         let uvr = "[dependencies]\ncli = \"*\"\ndplyr = \"*\"\n";
         let src = "library(cli)\nlibrary(\"ggplot2\") # library(commented)\nx <- 1;".to_string();
         let d = diagnose(DESC, uvr, &[src]);
-        assert!(d.contains(&Drift::Undeclared { package: "ggplot2".into() }));
-        assert!(!d.iter().any(|x| matches!(x, Drift::Undeclared { package } if package == "cli" || package == "commented")));
+        assert!(d.contains(&Drift::Undeclared {
+            package: "ggplot2".into()
+        }));
+        assert!(!d
+            .iter()
+            .any(|x| matches!(x, Drift::Undeclared { package } if package == "cli" || package == "commented")));
     }
 
     #[test]

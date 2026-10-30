@@ -9,16 +9,15 @@ pub mod types;
 pub mod vector_priority;
 
 use crate::components::context::config::Config;
+use crate::components::context::config::Target;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::language::operators::custom_op;
 use crate::components::language::operators::Op;
 use crate::components::language::var::Var;
-use crate::components::context::config::Target;
 use crate::components::language::Lang;
-use crate::components::language::TargetAttr;
-use std::collections::BTreeMap;
 use crate::components::language::ModulePosition;
+use crate::components::language::TargetAttr;
 use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::Type;
 use crate::processes::parsing::elements::break_exp;
@@ -59,6 +58,7 @@ use nom::sequence::terminated;
 use nom::IResult;
 use nom::Parser;
 use nom_locate::LocatedSpan;
+use std::collections::BTreeMap;
 use std::ops::Deref;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
@@ -1589,7 +1589,10 @@ fn target_name(s: Span) -> IResult<Span, Target> {
                 name,
                 help_data: s.into(),
             });
-            Err(nom::Err::Error(nom::error::Error::new(rest, nom::error::ErrorKind::Tag)))
+            Err(nom::Err::Error(nom::error::Error::new(
+                rest,
+                nom::error::ErrorKind::Tag,
+            )))
         }
     }
 }
@@ -1599,7 +1602,11 @@ fn extern_args(s: Span) -> IResult<Span, BTreeMap<Target, Option<String>>> {
     let entry = (
         terminated(target_name, multispace0),
         terminated(tag("="), multispace0),
-        delimited(tag("\""), nom::bytes::complete::take_while(|c: char| c != '"'), tag("\"")),
+        delimited(
+            tag("\""),
+            nom::bytes::complete::take_while(|c: char| c != '"'),
+            tag("\""),
+        ),
     );
     let (rest, entries) = delimited(
         terminated(tag("("), multispace0),
@@ -2436,14 +2443,21 @@ mod tesus {
             assert!(parsed.1.is_empty(), "{src}: the bad signature is consumed whole");
             let errors = take_parse_errors();
             match errors.as_slice() {
-                [SyntaxError::ExternRName { written: w, suggestion: s, .. }] => {
+                [SyntaxError::ExternRName {
+                    written: w,
+                    suggestion: s,
+                    ..
+                }] => {
                     assert_eq!((w.as_str(), s.as_str()), (written, suggestion), "{src}");
                 }
                 other => panic!("{src}: {other:?}"),
             }
         }
         // Valid forms are untouched.
-        for src in ["@extern stats::sd: (x: [Any, num]) -> num;", "@extern(r = \"Sys.sleep\") sys_sleep: (time: num) -> null;"] {
+        for src in [
+            "@extern stats::sd: (x: [Any, num]) -> num;",
+            "@extern(r = \"Sys.sleep\") sys_sleep: (time: num) -> null;",
+        ] {
             let _ = take_parse_errors();
             let _ = signature(src.into()).unwrap();
             assert!(take_parse_errors().is_empty(), "{src}");

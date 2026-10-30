@@ -57,12 +57,8 @@ struct Release {
 }
 
 /// `(version, asset)` for `asset_name_of(version)` out of the GitHub release JSON.
-fn pick_asset(
-    json: &str,
-    asset_name_of: impl Fn(&str) -> Option<String>,
-) -> Result<(String, Asset), String> {
-    let release: Release =
-        serde_json::from_str(json).map_err(|e| format!("unreadable rig release data: {e}"))?;
+fn pick_asset(json: &str, asset_name_of: impl Fn(&str) -> Option<String>) -> Result<(String, Asset), String> {
+    let release: Release = serde_json::from_str(json).map_err(|e| format!("unreadable rig release data: {e}"))?;
     let version = release.tag_name.trim_start_matches('v').to_string();
     let name = asset_name_of(&version).ok_or_else(|| {
         format!(
@@ -81,7 +77,9 @@ fn pick_asset(
 
 /// Does the file's SHA-256 equal GitHub's `sha256:<hex>` digest?
 pub fn digest_matches(file_hex: &str, digest: &str) -> bool {
-    digest.strip_prefix("sha256:").is_some_and(|d| d.eq_ignore_ascii_case(file_hex))
+    digest
+        .strip_prefix("sha256:")
+        .is_some_and(|d| d.eq_ignore_ascii_case(file_hex))
 }
 
 fn sha256_file(path: &Path) -> std::io::Result<String> {
@@ -117,7 +115,9 @@ pub fn installed_matching<'a>(list: &'a [InstalledR], spec: &str) -> Option<&'a 
 }
 
 fn home() -> Option<PathBuf> {
-    std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from)
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
 }
 
 /// rig on the `PATH`, else the `~/.local/bin/rig` this command installs.
@@ -149,7 +149,10 @@ fn confirm(question: &str, yes: bool) -> Result<bool, String> {
     print!("{question} [y/N] ");
     std::io::stdout().flush().ok();
     let mut line = String::new();
-    std::io::stdin().lock().read_line(&mut line).map_err(|e| e.to_string())?;
+    std::io::stdin()
+        .lock()
+        .read_line(&mut line)
+        .map_err(|e| e.to_string())?;
     Ok(matches!(line.trim().to_ascii_lowercase().as_str(), "y" | "yes"))
 }
 
@@ -163,7 +166,10 @@ fn curl(args: &[&str]) -> Result<std::process::Output, String> {
             if o.status.success() {
                 Ok(o)
             } else {
-                Err(format!("download failed: {}", String::from_utf8_lossy(&o.stderr).trim()))
+                Err(format!(
+                    "download failed: {}",
+                    String::from_utf8_lossy(&o.stderr).trim()
+                ))
             }
         })
 }
@@ -181,7 +187,10 @@ fn install_rig(asset: &Asset, prefix: &Path) -> Result<(), String> {
         curl(&["--output", &archive.to_string_lossy(), &asset.url])?;
         let got = sha256_file(&archive).map_err(|e| e.to_string())?;
         if !digest_matches(&got, digest) {
-            return Err(format!("checksum mismatch for {} (expected {digest}, got sha256:{got}); not installing it.", asset.name));
+            return Err(format!(
+                "checksum mismatch for {} (expected {digest}, got sha256:{got}); not installing it.",
+                asset.name
+            ));
         }
         std::fs::create_dir_all(prefix).map_err(|e| e.to_string())?;
         let status = std::process::Command::new("tar")
@@ -191,7 +200,10 @@ fn install_rig(asset: &Asset, prefix: &Path) -> Result<(), String> {
             .arg(prefix)
             .status()
             .map_err(|e| format!("could not run tar: {e}"))?;
-        status.success().then_some(()).ok_or_else(|| "could not unpack the rig archive".to_string())
+        status
+            .success()
+            .then_some(())
+            .ok_or_else(|| "could not unpack the rig archive".to_string())
     })();
     let _ = std::fs::remove_dir_all(&dir);
     result
@@ -238,13 +250,18 @@ fn run(opts: &Options) -> Result<(), String> {
         Some(p) => p,
         None => {
             let target = home().ok_or("cannot find your home directory")?.join(".local");
-            let json = String::from_utf8_lossy(&curl(&["--header", "Accept: application/vnd.github+json", RELEASE_API])?.stdout).into_owned();
-            let (version, asset) =
-                pick_asset(&json, |v| rig_asset(std::env::consts::OS, std::env::consts::ARCH, v))?;
+            let json = String::from_utf8_lossy(
+                &curl(&["--header", "Accept: application/vnd.github+json", RELEASE_API])?.stdout,
+            )
+            .into_owned();
+            let (version, asset) = pick_asset(&json, |v| rig_asset(std::env::consts::OS, std::env::consts::ARCH, v))?;
             println!("rig is not installed. TypR can install it for you:");
             println!("  {}   (sha256 checked against GitHub's published digest)", asset.url);
             if !confirm(
-                &format!("Install rig {version} into {} and R ({spec}) in your home directory, no administrator rights?", target.join("bin").display()),
+                &format!(
+                    "Install rig {version} into {} and R ({spec}) in your home directory, no administrator rights?",
+                    target.join("bin").display()
+                ),
                 opts.yes,
             )? {
                 return Err("declined; nothing was installed.".to_string());
@@ -268,7 +285,10 @@ fn run(opts: &Options) -> Result<(), String> {
     if let Some(r) = installed_matching(&installed, spec) {
         // Already installed: only switch the default, and only because a version was asked for.
         if !r.default {
-            println!("R {} is installed but not the default; making it the default.", r.version);
+            println!(
+                "R {} is installed but not the default; making it the default.",
+                r.version
+            );
             let status = with_program(rig::default(&r.version), &rig)
                 .command()
                 .status()
@@ -306,10 +326,22 @@ mod tests {
 
     #[test]
     fn asset_names_follow_rigs_releases() {
-        assert_eq!(rig_asset("linux", "x86_64", "0.11.0").unwrap(), "rig-linux-x86_64-0.11.0.tar.gz");
-        assert_eq!(rig_asset("linux", "aarch64", "0.11.0").unwrap(), "rig-linux-aarch64-0.11.0.tar.gz");
-        assert_eq!(rig_asset("macos", "aarch64", "0.11.0").unwrap(), "rig-macos-arm64-0.11.0.tar.gz");
-        assert_eq!(rig_asset("macos", "x86_64", "0.11.0").unwrap(), "rig-macos-x86_64-0.11.0.tar.gz");
+        assert_eq!(
+            rig_asset("linux", "x86_64", "0.11.0").unwrap(),
+            "rig-linux-x86_64-0.11.0.tar.gz"
+        );
+        assert_eq!(
+            rig_asset("linux", "aarch64", "0.11.0").unwrap(),
+            "rig-linux-aarch64-0.11.0.tar.gz"
+        );
+        assert_eq!(
+            rig_asset("macos", "aarch64", "0.11.0").unwrap(),
+            "rig-macos-arm64-0.11.0.tar.gz"
+        );
+        assert_eq!(
+            rig_asset("macos", "x86_64", "0.11.0").unwrap(),
+            "rig-macos-x86_64-0.11.0.tar.gz"
+        );
         assert_eq!(rig_asset("linux", "riscv64", "0.11.0"), None);
         assert_eq!(rig_asset("windows", "x86_64", "0.11.0"), None);
     }
@@ -325,7 +357,9 @@ mod tests {
         assert_eq!(a.url, "https://example/rig.tgz");
         assert_eq!(a.digest.as_deref(), Some("sha256:ABCD"));
         assert!(pick_asset(RELEASE, |_| None).unwrap_err().contains("no rig build"));
-        assert!(pick_asset(RELEASE, |v| rig_asset("macos", "x86_64", v)).unwrap_err().contains("no asset named"));
+        assert!(pick_asset(RELEASE, |v| rig_asset("macos", "x86_64", v))
+            .unwrap_err()
+            .contains("no asset named"));
     }
 
     #[test]

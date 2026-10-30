@@ -396,9 +396,12 @@ pub fn check_return(
         return None;
     }
     let rigid_record = match declared {
-        Type::Generic(name, _) if is_rigid_name(name) => context
-            .get_interface_constraint(name)
-            .filter(|bound| matches!(bound, Type::Record(..) | Type::Vec(crate::components::r#type::vector_type::VecType::DataFrame, ..))),
+        Type::Generic(name, _) if is_rigid_name(name) => context.get_interface_constraint(name).filter(|bound| {
+            matches!(
+                bound,
+                Type::Record(..) | Type::Vec(crate::components::r#type::vector_type::VecType::DataFrame, ..)
+            )
+        }),
         _ => None,
     };
     let found_plain = matches!(reduce_type(context, found), Type::Record(..));
