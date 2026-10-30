@@ -721,9 +721,11 @@ jobs:
           # `brew readall` va plus loin que `brew style` : il charge la formule
           # comme le fera `brew install`. Une formule que Homebrew sait lire mais
           # pas charger est detectable ici, et nulle part ailleurs.
-          brew readall "$TAP_DIR"
-          brew style "$TAP_DIR/Formula/typr.rb"
-          brew audit --strict --formula="$TAP_DIR/Formula/typr.rb"
+          # Ces trois commandes prennent un nom de tap ou de formule, pas un
+          # chemin : `brew readall "$TAP_DIR"` sort sur « Invalid tap name ».
+          brew readall we-data-ch/typr
+          brew style we-data-ch/typr/typr
+          brew audit --strict --formula we-data-ch/typr/typr
 
       - name: Pousser la formule vers le tap
         if: env.HOMEBREW_TAP_TOKEN != ''
@@ -776,128 +778,9 @@ jobs:
           echo "::warning title=Homebrew non mis a jour::HOMEBREW_TAP_TOKEN absent ; le tap garde sa version precedente."
 
   # ---------------------------------------------------------------------------
-  # WinGet — pull request vers microsoft/winget-pkgs
-  #
-  # Ce job dépend d'un jeton GitHub ayant `public_repo` : winget-pkgs est un dépôt
-  # public, dans lequel il faut pouvoir ouvrir une pull request. Sans jeton, les
-  # étapes de rendu et de contrôle s'exécutent quand même, et seule la soumission
-  # est sautée.
-  # ---------------------------------------------------------------------------
-  winget:
-    name: WinGet manifest
-    needs: [verify, release]
-    runs-on: windows-latest
-    # Au niveau du job pour que l'étape de publication puisse tester sa présence
-    # dans son propre `if` : un `env` de step n'y est pas visible.
-    env:
-      WINGET_CREATE_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.verify.outputs.tag }}
-
-      - name: Récupérer checksums.txt de la release
-        shell: bash
-        env:
-          TAG: ${{ needs.verify.outputs.tag }}
-        run: |
-          set -euo pipefail
-          curl -fsSfL \
-            "https://github.com/${{ github.repository }}/releases/download/$TAG/checksums.txt" \
-            -o checksums.txt
-          cat checksums.txt
-
-      - name: Générer les manifestes depuis checksums.txt
-        shell: bash
-        env:
-          TAG: ${{ needs.verify.outputs.tag }}
-        run: |
-          set -euo pipefail
-          packaging/render.sh --tag "$TAG" --checksums checksums.txt --out manifests
-          find manifests -type f | sort
-
-      # Les manifestes reprennent `checksums.txt`, donc leur empreinte est
-      # correcte par construction — sauf si le fichier a été réécrit entre le
-      # rendu et cet instant, ou si la ligne lue était celle d'un autre artefact.
-      # On télécharge donc les deux archives pour de vrai et on les compare :
-      # c'est le seul endroit où une erreur de sélection se verrait avant la
-      # soumission. `Get-FileHash` plutôt qu'un `sha256sum` de Git Bash, pour
-      # ne pas dépendre du jeu d'outils embarqué par Git for Windows.
-      - name: Les empreintes des manifestes correspondent aux archives publiées
-        shell: pwsh
-        env:
-          TAG: ${{ needs.verify.outputs.tag }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $targets = @('x86_64', 'aarch64')
-          # Les manifestes sont lus et accolés en une seule chaîne : `Contains`
-          # sur un tableau teste l'égalité d'un élément, pas la présence d'un
-          # motif — l'assertion passerait donc pour n'importe quelle empreinte.
-          $manifests = (Get-ChildItem -Recurse manifests -File |
-                         ForEach-Object { Get-Content -Raw $_.FullName }) -join "`n"
-
-          foreach ($target in $targets) {
-            $artifact = "typr-$env:TAG-$target-pc-windows-msvc.zip"
-            $url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:TAG/$artifact"
-            Invoke-WebRequest -Uri $url -OutFile $artifact
-            $actual = (Get-FileHash -Algorithm SHA256 $artifact).Hash.ToLowerInvariant()
-            Remove-Item $artifact
-
-            if (-not $manifests.Contains($actual)) {
-              throw "l'empreinte de $artifact ($actual) ne figure dans aucun manifeste rendu"
-            }
-            Write-Host "$artifact : $actual, présente dans les manifestes rendus"
-          }
-
-      # `wingetcreate submit <dossier>` est la commande prévue pour une première
-      # soumission : `update` exigerait que le paquet existe déjà dans
-      # winget-pkgs. Le chemin de destination (`manifests/w/we-data-ch/typpr/
-      # <version>/`) est calculé par l'outil d'après le contenu des manifestes ;
-      # le dossier rendu n'a donc pas besoin d'être pré-dispositionné.
-      #
-      # L'outil valide les fichiers avec le validateur officiel de WinGet avant
-      # d'ouvrir la pull request : c'est le même contrôle que winget-pkgs
-      # appliquera, et il échoue ici plutôt qu'après la fusion.
-      #
-      # Le jeton passe par la variable d'environnement `WINGET_CREATE_GITHUB_TOKEN`
-      # et non par `--token` : sur la ligne de commande il apparaîtrait dans la
-      # liste des processus du runner et dans les journaux.
-      #
-      # `wingetcreate` réécrit les manifestes avec son propre sérialiseur : les
-      # commentaires de nos gabarits ne se retrouvent donc pas dans la pull
-      # request. Ce qui compte — les champs — est celui que l'outil a validé.
-      - name: wingetcreate
-        if: env.WINGET_CREATE_TOKEN != ''
-        shell: pwsh
-        env:
-          VERSION: ${{ needs.verify.outputs.version }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          Invoke-WebRequest `
-            -Uri https://github.com/microsoft/winget-create/releases/latest/download/wingetcreate.exe `
-            -OutFile wingetcreate.exe
-
-          $env:WINGET_CREATE_GITHUB_TOKEN = $env:WINGET_CREATE_TOKEN
-          & .\wingetcreate.exe submit --prtitle "TypR $env:VERSION" --no-open manifests/winget
-          if ($LASTEXITCODE -ne 0) {
-            throw "wingetcreate submit a échoué (code $LASTEXITCODE)"
-          }
-
-      # `wingetcreate` n'a pas de commande `validate` autonome, et `submit` exige
-      # une authentification même pour valider : sans jeton, la validation
-      # officielle ne peut pas tourner ici. Elle a alors lieu à chaque PR, dans
-      # le job `packaging-win` de ci.yml, contre les schémas JSON de winget-pkgs.
-      - name: WINGET_CREATE_GITHUB_TOKEN absent — manifestes non soumis
-        if: env.WINGET_CREATE_TOKEN == ''
-        shell: bash
-        run: |
-          echo "::warning title=WinGet non publie::WINGET_CREATE_GITHUB_TOKEN absent ; les manifestes rendus sont valides (job packaging-win de ci.yml) mais aucune pull request n'est ouverte."
-
-  # ---------------------------------------------------------------------------
   # Scoop — commit vers we-data-ch/scoop-bucket, après installation réelle
   #
-  # Contrairement à WinGet, un bucket est un dépôt ordinaire : pas de compte à
+  # Un bucket est un dépôt ordinaire, sous notre contrôle : pas de compte à
   # créer, pas de validation à passer. Le contrôle utile n'est donc pas la
   # validation du manifeste — Scoop n'en fait pas au commit — mais
   # l'installation : `scoop install <manifeste local>` télécharge l'archive
@@ -965,7 +848,7 @@ jobs:
 
           # Scoop ne résout pas un chemin relatif comme un fichier : il le prend pour
           # un nom de paquet. Il lui faut un chemin absolu.
-          $manifest = (Resolve-Path "manifests\scoop\typr.json").Path
+          $manifest = (Resolve-Path "manifests\scoop\bucket\typr.json").Path
           scoop install $manifest
           if ($LASTEXITCODE -ne 0) {
             throw "scoop install a échoué (code $LASTEXITCODE)"

@@ -234,19 +234,17 @@ jobs:
       - name: render.sh — suite de tests
         run: bash packaging/homebrew/tests/run-tests.sh
 
-  # Les manifestes WinGet et Scoop sont validés ici sur la fixture, donc sans
-  # réseau et sans release : c'est le même code de substitution que la release
-  # exercera, avec des empreintes factices. Ce que la fixture ne peut pas
-  # vérifier — WinGet qui installe vraiment, Scoop qui télécharge et vérifie une
-  # empreinte — appartient au job `winget` et au job `scoop` de release.yml, qui
-  # travaillent sur une release publiée.
+  # Le manifeste Scoop est validé ici sur la fixture, donc sans réseau et sans
+  # release : c'est le même code de substitution que la release exercera, avec
+  # des empreintes factices. Ce que la fixture ne peut pas vérifier — Scoop qui
+  # télécharge et vérifie une empreinte — appartient au job `scoop` de
+  # release.yml, qui travaille sur une release publiée.
   #
-  # `packaging/tests/validate-schemas.py` valide contre les JSON Schema officiels
-  # de winget-pkgs et de Scoop, téléchargés depuis leurs dépôts : winget-pkgs
-  # n'accepte que le sien, et un schéma recopié ici validerait moins que ce qui
-  # sera exigé dès la version suivante.
+  # `packaging/tests/validate-schemas.py` valide contre le JSON Schema officiel
+  # de Scoop, téléchargé depuis son dépôt : un schéma recopié ici validerait
+  # moins que ce qui sera exigé dès la version suivante.
   packaging-win:
-    name: Packaging (WinGet + Scoop)
+    name: Packaging (Scoop)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -257,13 +255,13 @@ jobs:
           sudo apt-get install -y shellcheck
 
       - name: Installer les dépendances de validation
-        run: python3 -m pip install --user --upgrade pyyaml jsonschema
+        run: python3 -m pip install --user --upgrade jsonschema
 
       - name: Cache des schémas officiels
         uses: actions/cache@v5
         with:
           path: ~/.cache/typr-packaging/schemas
-          key: winget-scoop-schemas-${{ hashFiles('packaging/**/*.in') }}
+          key: scoop-schemas-${{ hashFiles('packaging/**/*.in') }}
 
       - name: render.sh — shellcheck
         run: shellcheck -s sh packaging/render.sh
@@ -282,15 +280,14 @@ jobs:
 
       # La suite tolère que les schémas soient indisponibles — le réseau peut
       # tomber, et une suite qui échoue pour ça n'apprend rien. Ici, hors de la
-      # suite, la validation est obligatoire : un manifeste que winget-pkgs ou le
-      # dépôt Scoop refuseraient doit arrêter la PR, pas la release.
-      - name: Manifestes rendus — schémas officiels
+      # suite, la validation est obligatoire : un manifeste que Scoop refuserait
+      # doit arrêter la PR, pas la release.
+      - name: Manifestes rendus — schéma officiel
         run: |
           set -euo pipefail
           packaging/render.sh \
             --tag v9.9.9 \
             --checksums packaging/tests/fixtures/checksums-v9.9.9.txt \
-            --release-date 2026-01-02 \
             --out rendered
           python3 packaging/tests/validate-schemas.py rendered
 

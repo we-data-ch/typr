@@ -1,14 +1,11 @@
 #!/bin/sh
-# TypR — génération des manifestes WinGet et Scoop à partir d'un tag.
+# TypR — génération du manifeste Scoop à partir d'un tag.
 #
 #   packaging/render.sh --tag v0.5.12
 #
-# Produit les six fichiers des deux canaux Windows, tels que les dépôts de
-# destination les attendent :
+# Produit les trois fichiers du bucket Scoop, tels que le dépôt de destination
+# les attend :
 #
-#   winget/we-data-ch.TypR.yaml                 version      → PR winget-pkgs
-#   winget/we-data-ch.TypR.installer.yaml       installateurs  (x64, arm64)
-#   winget/we-data-ch.TypR.locale.en-US.yaml    locale
 #   scoop/bucket/typr.json                      version courante du bucket
 #   scoop/bin/typr/<version>.json               historique
 #   scoop/README.md                             README du bucket
@@ -16,12 +13,11 @@
 # Rien n'est écrit à la main, et surtout pas un SHA-256 : recopié à la main, il
 # finit forcément par désigner un binaire qui n'est plus celui de la release. Ici
 # les empreintes viennent du fichier que la release a publié, donc aucun
-# manifeste ne peut en diverger — et les deux canaux lisent le même fichier, ce
-# qui les empêche de diverger entre eux.
+# manifeste ne peut en diverger.
 #
 # POSIX sh de bout en bout : ni bash, ni ruby, ni python. La validation par
-# WinGet et par Scoop ne peut pas tourner ici ; elle est faite par la suite de
-# tests (schémas officiels) et par la CI (installation réelle).
+# Scoop ne peut pas tourner ici ; elle est faite par la suite de tests (schéma
+# officiel) et par la CI (installation réelle).
 #
 # Ce que ce fichier répète de `packaging/homebrew/render.sh` — la lecture du
 # `checksums.txt`, l'isolement d'une ligne, la vérification 64 hexadécimaux — y est
@@ -43,26 +39,19 @@ ORIGIN="${TYPR_ORIGIN:-https://github.com}"
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 
-WINGET_VERSION_IN="$HERE/winget/we-data-ch.TypR.yaml.in"
-WINGET_INSTALLER_IN="$HERE/winget/we-data-ch.TypR.installer.yaml.in"
-WINGET_LOCALE_IN="$HERE/winget/we-data-ch.TypR.locale.en-US.yaml.in"
 SCOOP_IN="$HERE/scoop/typr.json.in"
 SCOOP_README_IN="$HERE/scoop/README.md.in"
 
-# Les deux cibles Windows, dans l'ordre où elles apparaissent dans les manifestes.
+# Les deux cibles Windows, dans l'ordre où elles apparaissent dans le manifeste.
 # L'ordre est une convention lisible, pas une contrainte : chaque entrée porte
 # son URL et son empreinte, donc les deux sont interchangeables sans que rien ne
 # puisse devenir faux.
 A_WINDOWS_X86="x86_64-pc-windows-msvc"
 A_WINDOWS_ARM="aarch64-pc-windows-msvc"
 
-# Nom de fichier WinGet : l'identifiant du paquet, puis le type de manifeste.
-WINGET_ID="we-data-ch.TypR"
-
 TAG=""
 CHECKSUMS=""
 OUT="."
-RELEASE_DATE=""
 
 TMP=""
 
@@ -97,7 +86,7 @@ cleanup() {
 
 usage() {
   cat <<'EOF'
-TypR — générateur des manifestes WinGet et Scoop
+TypR — générateur du manifeste Scoop
 
 Usage :
   render.sh --tag <vX.Y.Z> [options]
@@ -105,12 +94,10 @@ Usage :
 Options :
   --tag <tag>          version à publier (ex. v0.5.12 ; le v initial est optionnel)
   --checksums <src>    checksums.txt de la release : URL (défaut) ou fichier local
-  --out <dossier>      où écrire winget/ et scoop/ (défaut : .)
-  --release-date <d>   ReleaseDate WinGet, format AAAA-MM-JJ (défaut : aujourd'hui, UTC)
+  --out <dossier>      où écrire scoop/ (défaut : .)
   --help               cette aide
 
 Écrit :
-  winget/we-data-ch.TypR.yaml, .installer.yaml, .locale.en-US.yaml
   scoop/bucket/typr.json, scoop/bin/typr/<version>.json, scoop/README.md
 
 Ces fichiers sont entièrement générés : ne jamais les éditer à la main. Voir
@@ -150,15 +137,6 @@ while [ $# -gt 0 ]; do
       OUT="${1#--out=}"
       shift
       ;;
-    --release-date)
-      [ $# -ge 2 ] || usage_die "--release-date attend une date (AAAA-MM-JJ)."
-      RELEASE_DATE="$2"
-      shift 2
-      ;;
-    --release-date=*)
-      RELEASE_DATE="${1#--release-date=}"
-      shift
-      ;;
     --help|-h)
       usage
       exit 0
@@ -179,27 +157,15 @@ esac
 # La forme exacte est vérifiée, pas seulement le préfixe `v` : le tag entre dans
 # une URL, dans un nom de fichier (`scoop/bin/typr/<version>.json`) et dans une
 # substitution sed, donc un `v../../x` n'a rien à faire ici. `-alpha.1` et
-# `-beta.2` sont acceptés : release.yml marque ces versions prerelease, et les
-# deux canaux savent les publier.
+# `-beta.2` sont acceptés : release.yml marque ces versions prerelease, et Scoop
+# sait les publier.
 printf '%s' "$TAG" \
   | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$' \
   || usage_die "tag illisible : '$TAG' (attendu : vX.Y.Z, ou vX.Y.Z-alpha.N)."
 
 VERSION="${TAG#v}"
 
-# WinGet classe les versions par version puis par ReleaseDate. Une date illisible
-# ferait échouer la validation du dépôt avec un message qui ne parle que de la
-# date — mieux vaut la nommer ici, où le tag est en cause.
-if [ -z "$RELEASE_DATE" ]; then
-  RELEASE_DATE=$(date -u +%Y-%m-%d) \
-    || die "date du jour illisible par \`date\` — passez --release-date AAAA-MM-JJ."
-fi
-
-printf '%s' "$RELEASE_DATE" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' \
-  || usage_die "release-date illisible : '$RELEASE_DATE' (attendu : AAAA-MM-JJ)."
-
-for required in "$WINGET_VERSION_IN" "$WINGET_INSTALLER_IN" "$WINGET_LOCALE_IN" \
-                "$SCOOP_IN" "$SCOOP_README_IN"; do
+for required in "$SCOOP_IN" "$SCOOP_README_IN"; do
   [ -f "$required" ] || die "gabarit manquant : $required"
 done
 
@@ -283,7 +249,6 @@ SHA_WINDOWS_ARM=$(require_sha "typr-$TAG-$A_WINDOWS_ARM.zip") || exit 1
 
 step "TypR $VERSION"
 note "tag          : $TAG"
-note "release date : $RELEASE_DATE"
 note "sortie       : $OUT"
 
 # Les valeurs substituées sont des URL et des empreintes : aucun caractère `&`
@@ -292,25 +257,6 @@ note "sortie       : $OUT"
 BASE_URL="$ORIGIN/$REPO/releases/download/$TAG"
 URL_WINDOWS_X86="$BASE_URL/typr-$TAG-$A_WINDOWS_X86.zip"
 URL_WINDOWS_ARM="$BASE_URL/typr-$TAG-$A_WINDOWS_ARM.zip"
-
-# Les trois manifestes WinGet sont rendus par la même substitution : `sed` ne
-# sait pas répéter une substitution par cible, alors que `awk` le ferait — mais
-# `awk` n'est pas garanti sur un macOS minimal, et POSIX sh l'est.
-for template in version installer locale; do
-  case "$template" in
-    version)   in_file="$WINGET_VERSION_IN" ;;
-    installer) in_file="$WINGET_INSTALLER_IN" ;;
-    locale)    in_file="$WINGET_LOCALE_IN" ;;
-  esac
-  sed \
-    -e "s|@@VERSION@@|$VERSION|g" \
-    -e "s|@@RELEASE_DATE@@|$RELEASE_DATE|g" \
-    -e "s|@@URL_X86_64_WINDOWS@@|$URL_WINDOWS_X86|g" \
-    -e "s|@@SHA256_X86_64_WINDOWS@@|$SHA_WINDOWS_X86|g" \
-    -e "s|@@URL_AARCH64_WINDOWS@@|$URL_WINDOWS_ARM|g" \
-    -e "s|@@SHA256_AARCH64_WINDOWS@@|$SHA_WINDOWS_ARM|g" \
-    "$in_file" > "$TMP/winget-$template.yaml"
-done
 
 sed \
   -e "s|@@VERSION@@|$VERSION|g" \
@@ -321,38 +267,28 @@ sed \
   "$SCOOP_IN" > "$TMP/typr.json"
 
 # Un gabarit dont le nom d'un marqueur a changé produirait un manifeste servi
-# tel quel, avec `@@…@@` dedans — pour WinGet, une pull request qui ne passe
-# jamais la validation ; pour Scoop, un bucket cassé.
-for rendered in "$TMP/winget-version.yaml" "$TMP/winget-installer.yaml" \
-                "$TMP/winget-locale.yaml" "$TMP/typr.json"; do
-  grep -q '@@' "$rendered" \
-    && die "$(basename "$rendered") contient encore un marqueur non substitué :
-$(grep -n '@@' "$rendered")"
-done
+# tel quel, avec `@@…@@` dedans : un bucket cassé.
+grep -q '@@' "$TMP/typr.json" \
+  && die "typr.json contient encore un marqueur non substitué :
+$(grep -n '@@' "$TMP/typr.json")"
 
 # Un gabarit écrit sans retour à la ligne final donne un fichier que les
 # validateurs refusent, et le retrait ne se voit que dans le diff du dépôt de
 # destination. Aucune de ces anomalies ne se voit dans la sortie de ce script,
 # d'où le contrôle.
-for rendered in "$TMP/winget-version.yaml" "$TMP/winget-installer.yaml" \
-                "$TMP/winget-locale.yaml" "$TMP/typr.json"; do
-  [ -z "$(tail -c1 "$rendered")" ] \
-    || die "$(basename "$rendered") ne se termine pas par un retour à la ligne."
-done
+[ -z "$(tail -c1 "$TMP/typr.json")" ] \
+  || die "typr.json ne se termine pas par un retour à la ligne."
 
 # Le compte est une garde, pas une décoration : il vérifie que les deux cibles
 # Windows ont chacune produit une URL et une empreinte, sans quoi un gabarit
 # amputé d'une moitié partirait sans bruit.
-shas=$(grep -cE '^[[:space:]]*InstallerSha256: [0-9a-f]{64}$' "$TMP/winget-installer.yaml" || true)
+shas=$(grep -cE '^[[:space:]]*"[0-9a-f]{64}",?$' "$TMP/typr.json" || true)
 [ "$shas" -eq 2 ] \
-  || die "le manifeste d'installation déclare $shas empreintes, attendu 2.
+  || die "le manifeste Scoop déclare $shas empreintes, attendu 2.
 Le gabarit et le rendu ne correspondent plus."
 
-grep -Fq "PackageVersion: $VERSION" "$TMP/winget-installer.yaml" \
-  || die "le manifeste d'installation ne déclare pas PackageVersion: $VERSION."
-
-grep -Fq "ReleaseDate: \"$RELEASE_DATE\"" "$TMP/winget-installer.yaml" \
-  || die "le manifeste d'installation ne déclare pas ReleaseDate: \"$RELEASE_DATE\"."
+grep -Fq "\"version\": \"$VERSION\"" "$TMP/typr.json" \
+  || die "le manifeste Scoop ne déclare pas \"version\": \"$VERSION\"."
 
 # Le README du bucket est dérivé du manifeste, pas d'une deuxième source :
 # description et URL y sont relues dans ce qui vient d'être écrit, donc les deux
@@ -383,15 +319,10 @@ $(grep -n '@@' "$TMP/README.md")"
 #
 # Rien n'est écrit dans le dossier de sortie tant que le rendu n'est pas
 # complet : un échec au milieu ne doit pas laisser un manifeste tronqué que la
-# CI pousserait vers winget-pkgs ou vers le bucket.
+# CI pousserait vers le bucket.
 # ---------------------------------------------------------------------------
-mkdir -p "$OUT/winget" || die "impossible de créer $OUT/winget."
 mkdir -p "$OUT/scoop/bucket" "$OUT/scoop/bin/typr" \
   || die "impossible de créer $OUT/scoop."
-
-cp "$TMP/winget-version.yaml"   "$OUT/winget/$WINGET_ID.yaml"
-cp "$TMP/winget-installer.yaml" "$OUT/winget/$WINGET_ID.installer.yaml"
-cp "$TMP/winget-locale.yaml"    "$OUT/winget/$WINGET_ID.locale.en-US.yaml"
 
 cp "$TMP/typr.json" "$OUT/scoop/bucket/typr.json"
 cp "$TMP/typr.json" "$OUT/scoop/bin/typr/$VERSION.json"
@@ -401,4 +332,4 @@ note "sha256  : $SHA_WINDOWS_X86  ($A_WINDOWS_X86)"
 note "sha256  : $SHA_WINDOWS_ARM  ($A_WINDOWS_ARM)"
 
 printf '\n'
-step "Écrit : $OUT/winget/ (3 manifestes) et $OUT/scoop/ (bucket, historique, README)"
+step "Écrit : $OUT/scoop/ (bucket, historique, README)"
