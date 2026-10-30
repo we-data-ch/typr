@@ -16,7 +16,7 @@ mod metaprogramming;
 mod progress;
 mod project;
 mod r_deps;
-mod r_env;
+mod toolchain;
 mod r_manifest;
 mod r_name_cache;
 mod r_name_lint;

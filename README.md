@@ -72,6 +72,9 @@ R dependencies of a TypR project are managed by [uvr](https://github.com/nbafran
 `typr new`/`typr use` call for you. It is not installed automatically; if it is missing, typr
 prints the install command (`cargo install --git https://github.com/nbafrank/uvr`).
 
+R itself, if missing, is installed on request with `typr setup-r` (rig in user mode, no admin
+rights; `--version`, `--yes`, `--check`). Nothing is installed without that command.
+
 All channels are published from the same tag and carry the same version number.
 See [RELEASING.md](RELEASING.md).
 

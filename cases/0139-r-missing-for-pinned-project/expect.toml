@@ -1,0 +1,9 @@
+[[rule]]
+file = "@run"
+must_contain = "R is not installed"
+[[rule]]
+file = "@run"
+must_contain = "typr setup-r"
+[[rule]]
+file = "@run"
+must_not_contain = "Code verification successful"

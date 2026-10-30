@@ -1,0 +1,8 @@
+title = "a project pinning r_version stops with a fix when R is missing"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-26"
+origin = "perso"
+checked = false
+fake_r = "none"

@@ -817,7 +817,17 @@ fn check_availability(lang: &Lang, context: &Context, targets: &[Target]) -> boo
     true
 }
 
+/// Stop before doing any work when the project pins `r_version` in `uvr.toml`
+/// and the R on this machine is missing or does not satisfy it.
+fn enforce_r_constraint() {
+    if let Err(msg) = crate::toolchain::require_project_r(Path::new(".")) {
+        eprintln!("error: {msg}");
+        std::process::exit(1);
+    }
+}
+
 pub fn check_project(target: Option<&str>) {
+    enforce_r_constraint();
     let targets = targets_to_check(Path::new("."), target);
     let context = crate::standard_library::load_project_type_definitions(
         Path::new("."),
@@ -1273,6 +1283,7 @@ fn build_project_impl(
     skip_document: bool,
     incremental: bool,
 ) {
+    enforce_r_constraint();
     let dir = PathBuf::from(".");
 
     // Whole-project short-circuit: when every source and generated file
@@ -1489,7 +1500,7 @@ pub fn run_in_project(profile: bool, checked_mode: bool, strict_mode: bool) {
         base_command.to_string()
     };
     let step = Step::new("Running");
-    match crate::r_env::current_env().rscript_eval(&r_command).command().output() {
+    match crate::toolchain::current_env().rscript_eval(&r_command).command().output() {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1688,13 +1699,13 @@ if (is.null(p) || nrow(p$by.self) == 0L) {{
 "#,
             r_path_str = r_path_str
         );
-        crate::r_env::project_env(work_dir)
+        crate::toolchain::project_env(work_dir)
             .rscript_eval(&profile_script)
             .command()
             .current_dir(work_dir)
             .output()
     } else {
-        crate::r_env::project_env(work_dir)
+        crate::toolchain::project_env(work_dir)
             .rscript_file(&r_path)
             .command()
             .current_dir(work_dir)
@@ -1726,7 +1737,7 @@ pub fn test(profile: bool) {
 
     println!("Execution of: R -e \"{}\"", r_command);
 
-    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
+    let output = crate::toolchain::current_env().r_eval(&r_command).command().output();
 
     match output {
         Ok(output) => {
@@ -1827,7 +1838,7 @@ pub fn generate_spg(output: Option<PathBuf>) {
 
 /// Run `cmd` (a uvr/R subprocess), streaming nothing but reporting failures.
 /// Returns `true` on success.
-fn run_cmd(cmd: &crate::r_env::Cmd, dir: Option<&Path>) -> bool {
+fn run_cmd(cmd: &crate::toolchain::Cmd, dir: Option<&Path>) -> bool {
     let mut command = cmd.command();
     if let Some(dir) = dir {
         command.current_dir(dir);
@@ -1858,20 +1869,20 @@ pub const UVR_DEV_PACKAGES: [&str; 3] = ["devtools", "testthat", "usethis"];
 /// `typr new`: set up the uvr environment. A missing uvr is not fatal — the
 /// project exists either way — but is reported with what to run later.
 pub fn uvr_init(name: &str, project_path: &Path) {
-    use crate::r_env;
-    if let Err(msg) = r_env::require_uvr() {
+    use crate::toolchain;
+    if let Err(msg) = toolchain::require_r(None).and_then(|_| toolchain::require_uvr()) {
         eprintln!("Warning: {}\nThe project was created without a uvr environment; \
                    run `uvr init --here {}` once uvr is installed.", msg, name);
         return;
     }
     println!("Initializing uvr...");
-    if !run_cmd(&r_env::init(name, false), Some(project_path)) {
+    if !run_cmd(&toolchain::init(name, false), Some(project_path)) {
         eprintln!("Warning: `uvr init` failed; run it yourself in '{}'.", project_path.display());
         return;
     }
     let dev: Vec<String> = UVR_DEV_PACKAGES.iter().map(|p| p.to_string()).collect();
     println!("Installing dev dependencies: {}", dev.join(", "));
-    if run_cmd(&r_env::add_packages(&dev, true), Some(project_path)) {
+    if run_cmd(&toolchain::add_packages(&dev, true), Some(project_path)) {
         println!("uvr initialized successfully!");
     } else {
         eprintln!("Warning: could not install the dev dependencies; run `uvr add --dev {}`.", dev.join(" "));
@@ -1881,11 +1892,11 @@ pub fn uvr_init(name: &str, project_path: &Path) {
 /// The current project's uvr environment, or exit with a hint: every package
 /// installation goes through uvr.
 fn require_uvr_project() {
-    if let Err(msg) = crate::r_env::require_uvr() {
+    if let Err(msg) = crate::toolchain::require_r(None).and_then(|_| crate::toolchain::require_uvr()) {
         eprintln!("Error: {}", msg);
         std::process::exit(1);
     }
-    if crate::r_env::current_env().root().is_none() {
+    if crate::toolchain::current_env().root().is_none() {
         eprintln!("Error: no `uvr.toml` found. Run `uvr init --here <name>` in the project first.");
         std::process::exit(1);
     }
@@ -1909,7 +1920,7 @@ pub fn pkg_install(packages: Option<&[String]>) {
             let r_command = format!("devtools::install_local('{}')", project_path);
             println!("Executing: R -e \"{}\"", r_command);
 
-            let output = crate::r_env::current_env().r_eval(&r_command).command().output();
+            let output = crate::toolchain::current_env().r_eval(&r_command).command().output();
 
             match output {
                 Ok(output) => {
@@ -1953,7 +1964,7 @@ pub fn pkg_uninstall() {
     let r_command = format!("remove.packages('{}')", package_name);
     println!("Executing: R -e \"{}\"", r_command);
 
-    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
+    let output = crate::toolchain::current_env().r_eval(&r_command).command().output();
 
     match output {
         Ok(output) => {
@@ -1999,7 +2010,7 @@ pub fn pkgdown() {
     };
     let project_path = current_dir.to_str().unwrap_or(".");
     let r_command = format!("pkgdown::build_site('{}')", project_path);
-    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
+    let output = crate::toolchain::current_env().r_eval(&r_command).command().output();
     match output {
         Ok(out) if out.status.success() => {
             step.done();
@@ -2148,7 +2159,7 @@ fn update_namespace(quiet: bool, manifest: Option<&mut cache::BuildManifest>) {
         "devtools::document('{}', roclets = c('collate', 'namespace'))",
         project_path
     );
-    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
+    let output = crate::toolchain::current_env().r_eval(&r_command).command().output();
     match output {
         Ok(out) if out.status.success() => {
             step.done();
@@ -2189,12 +2200,12 @@ pub fn use_packages(packages: &[String]) {
     require_uvr_project();
 
     println!("Adding {} as dependenc{}...", packages.join(", "), if packages.len() == 1 { "y" } else { "ies" });
-    if !run_cmd(&crate::r_env::add_packages(packages, false), None) {
+    if !run_cmd(&crate::toolchain::add_packages(packages, false), None) {
         eprintln!("Error: `uvr add` failed");
         std::process::exit(1);
     }
 
-    let env = crate::r_env::current_env();
+    let env = crate::toolchain::current_env();
     for package_name in packages {
         let r_command = format!("usethis::use_package('{}')", package_name);
         println!("Execution of: R -e \"{}\"", r_command);
@@ -2212,7 +2223,7 @@ pub fn load() {
 
     println!("Execution of: R -e \"{}\"", r_command);
 
-    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
+    let output = crate::toolchain::current_env().r_eval(&r_command).command().output();
 
     match output {
         Ok(output) => {
@@ -2242,7 +2253,7 @@ pub fn cran() {
     let r_command = "devtools::check()".to_string();
     println!("Execution of: R -e \"{}\"", r_command);
 
-    let output = crate::r_env::current_env().r_eval(&r_command).command().output();
+    let output = crate::toolchain::current_env().r_eval(&r_command).command().output();
 
     match output {
         Ok(output) => {

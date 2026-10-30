@@ -67,6 +67,14 @@ particulier à gérer. `@run` n'est **jamais** diffé en golden (le texte captur
 timings de la barre de progression CLI, qui varient à chaque run) — reste du grep pur, golden/
 continue de ne cibler que des fichiers `R/*.R` déterministes.
 
+## Contrôler le R trouvé (`fake_r`)
+
+`case.toml` accepte `fake_r = "none"` (aucun R) ou `fake_r = "4.1.2"` (un `R` factice qui annonce
+cette version). Le sandbox tourne alors avec un `PATH` ne contenant que ce dossier et un `HOME`
+vide (donc sans le `~/.local` de rig) : on peut couvrir « R absent » / « R trop vieux »
+(`toolchain/rig.rs`) sur une machine qui a R. Exemples : `0139`, `0140` (`uvr.toml` avec
+`r_version = ">=4.3"`, `cmd = "check"`, règles sur `@run`).
+
 ## Bundler un cache (`cache/`)
 
 Certaines fonctionnalités lisent un cache **hors** du répertoire du projet par construction —

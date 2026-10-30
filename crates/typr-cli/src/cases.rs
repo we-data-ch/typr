@@ -88,6 +88,29 @@ struct CaseMeta {
     /// double as a `typr_assert_type` oracle run without a separate harness.
     #[serde(default)]
     checked: bool,
+    /// Run the sandbox with a throw-away `PATH` and `HOME` so the R found is
+    /// controlled: `"none"` = no R at all, `"4.1.2"` = a stub `R` that reports
+    /// that version. Lets a case cover "R missing" / "R too old" on a machine
+    /// that has R (toolchain/rig.rs).
+    #[serde(default)]
+    fake_r: Option<String>,
+}
+
+/// Directory to use as `PATH` (and, next to it, an empty `HOME`) for `fake_r`.
+fn fake_r_dirs(tmp: &Path, spec: &str) -> (PathBuf, PathBuf) {
+    let bin = tmp.join("fake-bin");
+    let home = tmp.join("fake-home");
+    std::fs::create_dir_all(&bin).and_then(|_| std::fs::create_dir_all(&home)).expect("fake_r dirs");
+    if spec != "none" {
+        let r = bin.join("R");
+        std::fs::write(&r, format!("#!/bin/sh\necho 'R version {spec} (fake) -- \"Stub\"'\n")).expect("fake R");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&r, std::fs::Permissions::from_mode(0o755)).expect("chmod fake R");
+        }
+    }
+    (bin, home)
 }
 
 fn default_cmd() -> String {
@@ -242,6 +265,10 @@ fn build_sandbox(case: &Path, target: Option<&str>) -> Sandbox {
         .arg(&meta.cmd)
         .current_dir(&work)
         .env(crate::r_deps::SKIP_ENV_VAR, "1");
+    if let Some(spec) = &meta.fake_r {
+        let (bin, home) = fake_r_dirs(&tmp, spec);
+        command.env("PATH", bin).env("HOME", home);
+    }
     let bundled_cache = case.join("cache");
     if bundled_cache.is_dir() {
         let cache_work = tmp.join("cache");
@@ -560,6 +587,7 @@ pub fn add(slug: &str, from: Option<String>, cmd: &str, layer: &str) {
         created: today,
         origin: "perso".to_string(),
         checked: false,
+        fake_r: None,
     };
     let _ = std::fs::write(dir.join("case.toml"), toml::to_string(&meta).unwrap_or_default());
 
@@ -701,6 +729,7 @@ pub fn snapshot(slug_arg: Option<String>) {
         created: current_date(),
         origin: "perso".to_string(),
         checked: false,
+        fake_r: None,
     };
     let _ = std::fs::write(bundle.join("case.toml"), toml::to_string(&meta).unwrap_or_default());
 

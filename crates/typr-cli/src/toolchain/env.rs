@@ -2,31 +2,18 @@
 //!
 //! A TypR project can carry a [uvr](https://github.com/nbafrank/uvr) environment
 //! (`uvr.toml` + `.uvr/library/`). Every R subprocess spawned on behalf of a
-//! project must see that library, and every package installation must go through
-//! uvr — never a silent `install.packages`.
+//! project must see that library.
 //!
 //! uvr has no `run -e`, so we do not go through `uvr run` to *execute* R: we
 //! launch `R`/`Rscript` directly with `R_LIBS=<root>/.uvr/library` in the
-//! subprocess environment. uvr is only needed to *install* (`uvr add`, `uvr sync`).
-//!
-//! The builders below are pure: they return a [`Cmd`] (program, argv, env) that
-//! tests can inspect without R or uvr on the machine. [`Cmd::command`] turns one
-//! into a [`std::process::Command`].
-//!
-//! Subprocesses that deliberately interrogate the *system* R (`gen-types`, the
-//! R name cache, registry validation, `typr fuzz`'s availability probe) stay on
-//! plain `Command::new("Rscript")`: they describe the installed CRAN world, not a
-//! project.
+//! subprocess environment. uvr is only needed to *install* (see [`super::uvr`]).
 
 use std::ffi::OsString;
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::Command;
 
-pub const UVR_MANIFEST: &str = "uvr.toml";
-pub const UVR_LIBRARY: &str = ".uvr/library";
-pub const UVR_INSTALL_HINT: &str =
-    "curl -fsSL https://raw.githubusercontent.com/nbafrank/uvr/main/install.sh | sh";
+use super::cmd::Cmd;
+use super::uvr::{UVR_LIBRARY, UVR_MANIFEST};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum REnv {
@@ -34,32 +21,6 @@ pub enum REnv {
     System,
     /// A uvr project rooted at `root` (absolute).
     Uvr { root: PathBuf },
-}
-
-/// A subprocess to spawn: program, argv, extra environment variables.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Cmd {
-    pub program: String,
-    pub args: Vec<OsString>,
-    pub envs: Vec<(OsString, OsString)>,
-}
-
-impl Cmd {
-    fn new(program: &str) -> Self {
-        Cmd { program: program.to_string(), args: Vec::new(), envs: Vec::new() }
-    }
-
-    fn arg(mut self, arg: impl Into<OsString>) -> Self {
-        self.args.push(arg.into());
-        self
-    }
-
-    pub fn command(&self) -> Command {
-        let mut cmd = Command::new(&self.program);
-        cmd.args(&self.args);
-        cmd.envs(self.envs.iter().map(|(k, v)| (k, v)));
-        cmd
-    }
 }
 
 /// The environment of the project containing `dir`: `Uvr` when a `uvr.toml`
@@ -129,63 +90,13 @@ impl REnv {
     }
 }
 
-/// `uvr add [--dev] --no-companion <pkgs…>`. The companion R package is never
-/// wanted from typr (see uvr.md, step 0.7).
-pub fn add_packages(pkgs: &[String], dev: bool) -> Cmd {
-    let mut cmd = Cmd::new("uvr").arg("add");
-    if dev {
-        cmd = cmd.arg("--dev");
-    }
-    cmd = cmd.arg("--no-companion");
-    pkgs.iter().fold(cmd, |c, p| c.arg(p))
-}
-
-/// `uvr remove --no-companion <pkgs…>`.
-#[allow(dead_code)] // no `typr` command removes a dependency yet
-pub fn remove_packages(pkgs: &[String]) -> Cmd {
-    pkgs.iter().fold(Cmd::new("uvr").arg("remove").arg("--no-companion"), |c, p| c.arg(p))
-}
-
-/// `uvr sync`, with `--frozen` for CI.
-pub fn sync(frozen: bool) -> Cmd {
-    let cmd = Cmd::new("uvr").arg("sync");
-    if frozen { cmd.arg("--frozen") } else { cmd }
-}
-
-/// `uvr init --here <name>` in an existing directory, without touching the
-/// working tree beyond what the project needs when `unattended` is false.
-pub fn init(name: &str, unattended: bool) -> Cmd {
-    let cmd = Cmd::new("uvr").arg("init").arg("--here");
-    let cmd = if unattended { cmd.arg("--unattended") } else { cmd };
-    cmd.arg(name)
-}
-
-pub fn uvr_available() -> bool {
-    Command::new("uvr")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-}
-
-/// Message for a command that needs uvr when it is not on the `PATH`.
-pub fn uvr_missing_message() -> String {
-    format!("uvr is not installed. Install it with:\n  {UVR_INSTALL_HINT}")
-}
-
-/// `Ok` when uvr can be run, the install hint otherwise. Never falls back to
-/// `install.packages`.
-pub fn require_uvr() -> Result<(), String> {
-    if uvr_available() { Ok(()) } else { Err(uvr_missing_message()) }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
 
     fn tmp_dir(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("typr_r_env_{}_{}", tag, std::process::id()));
+        let dir = std::env::temp_dir().join(format!("typr_toolchain_env_{}_{}", tag, std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir.canonicalize().unwrap()
@@ -242,22 +153,6 @@ mod tests {
     fn rscript_file_passes_the_script_path() {
         let cmd = uvr_env().rscript_file("a.R");
         assert_eq!(strs(&cmd.args), ["a.R"]);
-    }
-
-    #[test]
-    fn add_packages_never_installs_the_companion() {
-        let pkgs = vec!["dplyr".to_string(), "ggplot2".to_string()];
-        assert_eq!(strs(&add_packages(&pkgs, false).args), ["add", "--no-companion", "dplyr", "ggplot2"]);
-        assert_eq!(strs(&add_packages(&pkgs[..1], true).args), ["add", "--dev", "--no-companion", "dplyr"]);
-    }
-
-    #[test]
-    fn remove_sync_and_init_argv() {
-        assert_eq!(strs(&remove_packages(&["x".to_string()]).args), ["remove", "--no-companion", "x"]);
-        assert_eq!(strs(&sync(false).args), ["sync"]);
-        assert_eq!(strs(&sync(true).args), ["sync", "--frozen"]);
-        assert_eq!(strs(&init("demo", false).args), ["init", "--here", "demo"]);
-        assert_eq!(strs(&init("demo", true).args), ["init", "--here", "--unattended", "demo"]);
     }
 
     #[test]

@@ -142,7 +142,7 @@ fn candidate_lib_dirs(cached: Option<&DepsCache>) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = Vec::new();
 
     if let Ok(cwd) = std::env::current_dir() {
-        dirs.extend(crate::r_env::project_env(&cwd).lib_dirs());
+        dirs.extend(crate::toolchain::project_env(&cwd).lib_dirs());
     }
 
     for var in ["R_LIBS_USER", "R_LIBS", "R_LIBS_SITE"] {
@@ -185,7 +185,7 @@ fn scan(lib_dirs: &[PathBuf]) -> Vec<String> {
 /// Ask R for its real `.libPaths()`. The one expensive path, guarded by the
 /// TTL above. `None` means R could not be reached.
 fn probe_lib_paths() -> Option<Vec<String>> {
-    let output = crate::r_env::current_env()
+    let output = crate::toolchain::current_env()
         .rscript_eval("cat(.libPaths(), sep = '\\n')")
         .command()
         .output()
@@ -315,11 +315,11 @@ pub fn init() {
         return;
     }
 
-    if let Err(msg) = crate::r_env::require_uvr() {
+    if let Err(msg) = crate::toolchain::require_r(None).and_then(|_| crate::toolchain::require_uvr()) {
         eprintln!("{RED}error{RESET}: {msg}");
         std::process::exit(1);
     }
-    if crate::r_env::current_env().root().is_none() {
+    if crate::toolchain::current_env().root().is_none() {
         eprintln!(
             "{RED}error{RESET}: not in a uvr project (no `uvr.toml`). \
              Run `uvr init --here <name>` here, then `typr init` again."
@@ -328,10 +328,10 @@ pub fn init() {
     }
 
     println!("Installing missing R package(s) via uvr: {}", status.missing.join(", "));
-    let add = crate::r_env::add_packages(&status.missing, true);
+    let add = crate::toolchain::add_packages(&status.missing, true);
     println!("Executing: {} {}", add.program, add.args.iter().map(|a| a.to_string_lossy()).collect::<Vec<_>>().join(" "));
 
-    let sync = crate::r_env::sync(false);
+    let sync = crate::toolchain::sync(false);
     let ok = [add, sync].iter().all(|cmd| matches!(cmd.command().status(), Ok(s) if s.success()));
     invalidate_cache();
     if !ok {
@@ -413,7 +413,7 @@ mod tests {
         fs::create_dir_all(&lib).unwrap();
         fake_package(&lib, "testthat");
 
-        let dirs = crate::r_env::project_env(&project).lib_dirs();
+        let dirs = crate::toolchain::project_env(&project).lib_dirs();
         assert_eq!(dirs, vec![project.canonicalize().unwrap().join(".uvr/library")]);
         assert!(is_installed_in(&dirs, "testthat"));
 

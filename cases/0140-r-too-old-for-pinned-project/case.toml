@@ -1,0 +1,8 @@
+title = "a project pinning r_version stops with a fix when R is too old"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-26"
+origin = "perso"
+checked = false
+fake_r = "4.1.2"

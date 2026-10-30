@@ -40,6 +40,19 @@ struct Cli {
 enum Commands {
     /// Install the R packages TypR needs (devtools, testthat).
     Init,
+    /// Install R when it is missing, using rig in user mode (no administrator
+    /// rights). Asks before downloading anything; `--yes` skips the question.
+    SetupR {
+        /// A rig version spec: `release`, `oldrel`, `4.4`, `4.4.3`.
+        #[arg(long, value_name = "SPEC")]
+        version: Option<String>,
+        /// Do not ask for confirmation (CI).
+        #[arg(long, short)]
+        yes: bool,
+        /// Report only; exit 1 if R is missing or does not match `--version`.
+        #[arg(long)]
+        check: bool,
+    },
     New {
         name: String,
         /// Do not set up a uvr environment (`uvr.toml`, `.uvr/library`).
@@ -496,6 +509,7 @@ fn skips_r_deps_check(command: &Option<Commands>) -> bool {
         // `syntax` renders grammars out of typr's own manifest — it never
         // touches a project, let alone R.
         Some(Commands::Init)
+            | Some(Commands::SetupR { .. })
             | Some(Commands::Lsp)
             | Some(Commands::Mcp)
             | Some(Commands::Tutor { .. })
@@ -569,6 +583,14 @@ pub fn start() {
         Some(Commands::New { name, no_uvr }) => new(&name, !no_uvr),
         // $ typr init
         Some(Commands::Init) => crate::r_deps::init(),
+
+        // $ typr setup-r
+        Some(Commands::SetupR { version, yes, check }) => {
+            let code = crate::toolchain::setup::setup_r(&crate::toolchain::setup::Options { version, yes, check });
+            if code != 0 {
+                std::process::exit(code);
+            }
+        }
         // $ typr graph diff
         Some(Commands::Graph {
             graph_command:

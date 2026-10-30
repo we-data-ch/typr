@@ -31,7 +31,7 @@ pub fn read_file_from_name(name: &str, environment: Environment) -> String {
 }
 
 pub fn execute_r_with_path(execution_path: &PathBuf, file_name: &str) {
-    match crate::r_env::project_env(execution_path)
+    match crate::toolchain::project_env(execution_path)
         .rscript_file(get_os_file(file_name))
         .command()
         .current_dir(execution_path)
@@ -57,7 +57,7 @@ pub fn execute_r_with_path(execution_path: &PathBuf, file_name: &str) {
 }
 
 pub fn execute_r_with_path2(execution_path: &PathBuf, file_name: &str) -> String {
-    match crate::r_env::project_env(execution_path)
+    match crate::toolchain::project_env(execution_path)
         .rscript_file(get_os_file(file_name))
         .command()
         .current_dir(execution_path)
