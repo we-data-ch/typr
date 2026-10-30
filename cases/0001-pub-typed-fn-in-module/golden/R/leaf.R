@@ -6,7 +6,7 @@ local({
 #' @method g
 `g` <- (function() {
 1L |> as.Integer()
-} |> as.Integer()) |> as.Function0()
+} |> as.Integer()) |> as.Function54()
 
 leaf$g <- g
 })

@@ -45,14 +45,15 @@ syn match   typrKeywordsBlock "\v<%(Test|JS|R)%(\s*[\[{])@="
 syn match   typrTypesConstructor "\v<%(library|Class|seq|c)%(\s*[\[(])@="
 syn match   typrTypesBuiltinIndexed "\v<%(df)%(\s*\[)@="
 syn match   typrTypesRefinement "\v<%(length)%(\s*\(\s*[\d<>])@="
-syn match   typrTypesBuiltin "\v<%(UnknownFunction|data__frame|data\.frame|dataframe|Record|Array|Tuple|tuple|list|Vec)[A-Za-z0-9_]@!"
+syn keyword typrTypesModifier exact
+syn keyword typrTypesBuiltin Vec Array Tuple Record UnknownFunction dataframe data_frame list tuple
 syn keyword typrTypesPrimitive int num char bool logic Any Empty Self
 syn keyword typrConstants true TRUE false FALSE null NULL na NA
 syn keyword typrKeywordsOperatorWord and or in
 syn match   typrKeywordsCast "\v<%(as\!|as)[A-Za-z0-9_]@!"
 syn keyword typrKeywordsDeclaration let fn function type opaque typeconstructor recursive interface record object module mod import use extern embed
 syn keyword typrKeywordsControl if else match for while loop break next return
-syn match   typrAnnotations "\v%(\@importFrom|\@testable|\@export|\@extern|\@pub)[A-Za-z0-9_]@!"
+syn match   typrAnnotations "\v%(\@importFrom|\@testable|\@export|\@extern|\@target|\@pub)[A-Za-z0-9_]@!"
 syn match   typrNumbersInteger "\v<[0-9]+>"
 syn match   typrNumbersFloat "\v<[0-9]+\.[0-9]+>"
 syn region  typrStringsBacktick start=+`+ end=+`+
@@ -77,6 +78,7 @@ hi def link typrKeywordsOperatorWord Keyword
 hi def link typrConstants Constant
 hi def link typrTypesPrimitive Type
 hi def link typrTypesBuiltin Type
+hi def link typrTypesModifier StorageClass
 hi def link typrTypesRefinement Type
 hi def link typrTypesBuiltinIndexed Type
 hi def link typrTypesConstructor Function

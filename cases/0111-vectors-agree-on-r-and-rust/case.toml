@@ -1,0 +1,6 @@
+title = "Vectors print and compute the same on `r` and `rust` (element-wise ops, recycling, indexing, slicing, for)"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-13"
+origin = "perso"

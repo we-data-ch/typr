@@ -53,9 +53,9 @@ validate_StoryBoard <- function(x) {
   }
   x
 }
-#' @method new_storyboard Array1
-`new_storyboard.Array1` <- (function(objects) {
-StoryBoard(objects = objects, snapshots = typed_vec(dim = c(0)) |> as.Array2())
+#' @method new_storyboard Array0
+`new_storyboard.Array0` <- (function(objects) {
+StoryBoard(objects = objects, snapshots = typed_vec(dim = c(0)) |> as.Array1())
 }) |> as.Generic()
 
 #' @method snapshot StoryBoard
@@ -74,14 +74,14 @@ fold(actions, self, function(acc, x) { snapshot(acc, acc) })
 
 storyboard$Snapshot <- Snapshot
 storyboard$StoryBoard <- StoryBoard
-storyboard$new_storyboard.Array1 <- new_storyboard.Array1
-registerS3method("new_storyboard", "Array1", new_storyboard.Array1)
+storyboard$new_storyboard.Array0 <- new_storyboard.Array0
+registerS3method("new_storyboard", "Array0", new_storyboard.Array0)
 snapshot <- function(x, ...) UseMethod("snapshot")
 registerS3method("snapshot", "StoryBoard", snapshot.StoryBoard)
 storyboard$snapshots.StoryBoard <- snapshots.StoryBoard
 registerS3method("snapshots", "StoryBoard", snapshots.StoryBoard)
 })
 storyboard$new_storyboard <- new_storyboard
-new_storyboard.Array1 <- storyboard$new_storyboard.Array1
+new_storyboard.Array0 <- storyboard$new_storyboard.Array0
 storyboard$snapshots <- snapshots
 snapshots.StoryBoard <- storyboard$snapshots.StoryBoard

@@ -1,7 +1,7 @@
-title = "data.frame(...) inferred type does not match a dataframe[N]{...} annotation"
+title = "data_frame(...) inferred type does not match a dataframe[N]{...} annotation"
 cmd = "build"
 layer = "type"
-status = "open"
+status = "fixed"
 created = "2026-10-01"
 origin = "perso"
 checked = false

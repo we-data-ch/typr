@@ -343,7 +343,7 @@ impl SyntaxManifest {
             Rule::new(
                 "annotations",
                 "storage.modifier.annotation.typr",
-                annotations(&["@export", "@pub", "@testable", "@extern", "@importFrom"]),
+                annotations(&["@export", "@pub", "@testable", "@extern", "@target", "@importFrom"]),
             )
             .with_note(
                 "Visibility/interop annotations (RFC-TR-032). Ahead of the `@T` interface \
@@ -418,8 +418,7 @@ impl SyntaxManifest {
                     "Record",
                     "UnknownFunction",
                     "dataframe",
-                    "data.frame",
-                    "data__frame",
+                    "data_frame",
                     "list",
                     "tuple",
                 ]),
@@ -428,6 +427,10 @@ impl SyntaxManifest {
                 "No `Option`/`Result`/`List`/`Matrix`: TypR has none of them. These are the \
                  names usable bare in a type position; the ones that only exist in front of \
                  a delimiter are in `types.constructor` and `keywords.block`.",
+            ),
+            Rule::new("types.modifier", "storage.modifier.typr", words(&["exact"])).with_note(
+                "Prefix of a record or data-frame type (`exact list{a: int}`): a closed record \
+                 (`parsing/types.rs::exact_type`, rfcs/0000-record-bound-generics.md).",
             ),
             Rule::new(
                 "types.refinement",
@@ -611,7 +614,7 @@ impl SyntaxManifest {
                 "An identifier starts lowercase-or-underscore and continues in `[A-Za-z0-9_]` — \
                  no inner dots, unlike R (`parsing/elements.rs::starting_char`/`body_char`): \
                  `__` stands for `.` (`as__character` → `as.character`). A *leading* dot is \
-                 the hidden-name rule above. `data.frame` is a single dedicated tag.",
+                 the hidden-name rule above. `data_frame` is a single dedicated tag.",
             ),
             Rule::new("punctuation.terminator", "punctuation.terminator.typr", symbols(&[";"])),
             Rule::new(

@@ -324,6 +324,10 @@ jobs:
         run: |
           set -euo pipefail
           brew tap-new --no-git we-data-ch/typr
+          # Depuis 2025 Homebrew refuse de charger une formule d'un tap auquel
+          # il ne fait pas encore confiance, ce qui fait échouer `readall` sur
+          # le runner macOS avant même d'auditer la formule.
+          brew trust we-data-ch/typr
           TAP_DIR="$(brew --repository we-data-ch/typr)"
           mkdir -p "$TAP_DIR/Formula"
           cp tap/Formula/typr.rb "$TAP_DIR/Formula/typr.rb"

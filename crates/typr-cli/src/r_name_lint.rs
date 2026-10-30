@@ -51,15 +51,34 @@ pub struct StubPlan {
     /// `(name, pkg)` pairs needing a generated `<name>.default` that forwards
     /// to `pkg::name`, because shadowing `name` would otherwise strand it.
     pub auto_defaults: Vec<(String, String)>,
+    /// Internal-generic primitives (see [`INTERNAL_GENERIC_PRIMITIVES`]) whose
+    /// `UseMethod` stub must be undone: the primitive already dispatches.
+    pub internal_restores: Vec<String>,
 }
 
 impl StubPlan {
     /// The R source for the generated defaults, appended to
     /// `generic_functions.R` next to the stubs themselves.
     pub fn render_auto_defaults(&self) -> String {
-        if self.auto_defaults.is_empty() {
+        if self.auto_defaults.is_empty() && self.internal_restores.is_empty() {
             return String::new();
         }
+        let restores = self
+            .internal_restores
+            .iter()
+            .map(|name| {
+                // A `.default` forwarding to the primitive would loop: the
+                // primitive's own internal dispatch finds `<name>.default`.
+                format!(
+                    "# `{name}` is a primitive that dispatches internally: the stub above would\n\
+                     # strand every class without a `{name}.<class>` method, so restore it.\n\
+                     {} <- base::{}",
+                    r_name(name),
+                    r_name(name)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
         let body = self
             .auto_defaults
             .iter()
@@ -78,7 +97,12 @@ impl StubPlan {
             })
             .collect::<Vec<_>>()
             .join("\n");
-        format!("\n# ---- Generated `.default` fallbacks (see r_name_lint.rs) ----\n{body}\n")
+        let sections = [body, restores]
+            .into_iter()
+            .filter(|section| !section.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!("\n# ---- Generated `.default` fallbacks (see r_name_lint.rs) ----\n{sections}\n")
     }
 }
 
@@ -134,6 +158,14 @@ fn emits_default(name: &str, generated_r: &str) -> bool {
 /// over with a `.default` that would never actually be reached.
 const ZERO_ARITY_STDLIB_EXEMPT: &[&str] = &["dir", "getwd"];
 
+/// Base R primitives that dispatch *internally* (`?InternalMethods`). The cache
+/// marks them `s3_generic` (they do dispatch), yet no `<name>.default` exists:
+/// the fallback is C code that only runs when the primitive itself is called.
+/// A `UseMethod` stub in front of one therefore strands every object without
+/// a dedicated method — `names(<data.frame>)`, `dim(<matrix>)` — so the stub is
+/// replaced by the primitive again.
+const INTERNAL_GENERIC_PRIMITIVES: &[&str] = &["names", "dim", "dimnames", "length", "lengths"];
+
 /// Plan the `UseMethod` stubs the build is about to write.
 ///
 /// `names` are the stub names (see `Context::get_all_generic_functions`),
@@ -185,6 +217,10 @@ pub fn plan_generic_stubs(
         // been applying by hand. Checked independently of the S4 row below: a
         // name that IS a known S4 generic gets only the S4 warning (row 2),
         // since S4 objects do not dispatch through an S3 `.default` anyway.
+        if INTERNAL_GENERIC_PRIMITIVES.contains(&name.as_str()) && !entry.has_default {
+            plan.internal_restores.push(name.clone());
+            continue;
+        }
         if entry.needs_generated_default() && !emits_default(name, generated_r) {
             // …unless TypR's own stdlib owns the name and the only candidate
             // is a package the user merely imports. `div` is TypR's arithmetic
@@ -286,6 +322,17 @@ mod tests {
             &RNameCache::seed(),
             strict,
         )
+    }
+
+    #[test]
+    fn internal_generic_primitives_get_their_primitive_back_not_a_default() {
+        // A `names.default` forwarding to `base::names` would loop (the
+        // primitive's internal dispatch finds it), and a bare `UseMethod`
+        // stub strands `names(<data.frame>)`: the stub is replaced instead.
+        let p = plan(&["names"], "", false);
+        assert!(p.auto_defaults.is_empty());
+        assert_eq!(p.internal_restores, vec!["names".to_string()]);
+        assert!(p.render_auto_defaults().contains("names <- base::names"));
     }
 
     #[test]

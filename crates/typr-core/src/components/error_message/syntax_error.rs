@@ -1,3 +1,4 @@
+use crate::components::context::config::Target;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::help_message::ErrorMsg;
 use crate::components::error_message::help_message::SingleBuilder;
@@ -38,6 +39,18 @@ pub enum SyntaxError {
         help_data: HelpData,
     },
     MutationTargetNotAssignable(HelpData),
+    /// `@target(rus)` / `@extern(js2 = ...)`: a target name the compiler doesn't know.
+    UnknownTarget {
+        name: String,
+        help_data: HelpData,
+    },
+    /// `@extern base::Sys.sleep: T;`: the name after `@extern` must be a TypR
+    /// identifier. An R name with a dot or a capital is given in `(r = "...")`.
+    ExternRName {
+        written: String,
+        suggestion: String,
+        help_data: HelpData,
+    },
     WrongCommentSyntax(HelpData),
     SingleEqualsComparison(HelpData),
     TupleDestructureArityMismatch {
@@ -48,6 +61,12 @@ pub enum SyntaxError {
     /// `Lovable @A` / `Lovable@Self`: the `@Id` bound suffix must be one capital
     /// letter touching the interface name.
     DetachedBoundSuffix(HelpData),
+    /// `list{a: int}@A` / `df[#N]{a: int}@A`: an `@Id` suffix after a structural
+    /// type, where only an interface name carries one.
+    StructuralBoundSuffix(HelpData),
+    /// `exact int` / `exact Point`: `exact` only prefixes a written-out record or
+    /// data-frame type.
+    ExactOnNonRecord(HelpData),
     /// `x..f()` / `r..a`: a hidden name right after the UFCS/field `.` operator.
     HiddenNameAfterDot(HelpData),
     /// `@pub let .x` / `@export let __x`: a hidden name is private by name.
@@ -81,7 +100,11 @@ impl SyntaxError {
             SyntaxError::SingleEqualsComparison(h) => Some(h.clone()),
             SyntaxError::TupleDestructureArityMismatch { help_data, .. } => Some(help_data.clone()),
             SyntaxError::DetachedBoundSuffix(h) => Some(h.clone()),
+            SyntaxError::StructuralBoundSuffix(h) => Some(h.clone()),
+            SyntaxError::ExactOnNonRecord(h) => Some(h.clone()),
             SyntaxError::HiddenNameAfterDot(h) => Some(h.clone()),
+            SyntaxError::UnknownTarget { help_data, .. } => Some(help_data.clone()),
+            SyntaxError::ExternRName { help_data, .. } => Some(help_data.clone()),
             SyntaxError::PublicHiddenName { help_data, .. } => Some(help_data.clone()),
             SyntaxError::WithNode(_, inner) => inner.get_help_data(),
         }
@@ -114,6 +137,10 @@ impl SyntaxError {
             SyntaxError::DetachedBoundSuffix(..) => "S018",
             SyntaxError::HiddenNameAfterDot(..) => "S019",
             SyntaxError::PublicHiddenName { .. } => "S020",
+            SyntaxError::UnknownTarget { .. } => "S021",
+            SyntaxError::ExternRName { .. } => "S022",
+            SyntaxError::StructuralBoundSuffix(..) => "S023",
+            SyntaxError::ExactOnNonRecord(..) => "S024",
             SyntaxError::WithNode(_, inner) => inner.code(),
         }
     }
@@ -182,12 +209,25 @@ impl SyntaxError {
             SyntaxError::DetachedBoundSuffix(_) => {
                 "The `@Id` suffix must be a single capital letter touching the interface name: write `Lovable@A`, not `Lovable @A` or `Lovable@Self`".to_string()
             }
+            SyntaxError::StructuralBoundSuffix(_) => {
+                "Only an interface name, a `list{...}` or a `df[...]{...}` can carry an `@Id` suffix (`Lovable@A`, `list{a: int}@A`); tuples and vectors cannot".to_string()
+            }
+            SyntaxError::ExactOnNonRecord(_) => {
+                "`exact` must be followed by a record or data-frame type: `exact list{...}`, `exact df[...]{...}`".to_string()
+            }
             SyntaxError::HiddenNameAfterDot(_) => {
                 "A hidden name can't follow the `.` operator (`x..f` reads as the `..` spread): write `x.__f()` or `x |> .f()`".to_string()
             }
             SyntaxError::PublicHiddenName { name, annotation, .. } => {
                 format!("`{name}` is a hidden name (leading `.`/`__`), private by definition — it can't be `{annotation}`")
             }
+            SyntaxError::UnknownTarget { name, .. } => format!(
+                "Unknown target `{name}`: valid targets are {}",
+                Target::NAMES.join(", ")
+            ),
+            SyntaxError::ExternRName { written, suggestion, .. } => format!(
+                "`{written}` is not a TypR name: write `{suggestion}`"
+            ),
             SyntaxError::WithNode(_, inner) => inner.simple_message(),
         }
     }
@@ -405,6 +445,26 @@ impl ErrorMsg for SyntaxError {
                     .help("Write `Lovable@A` (no space, one-letter id)")
                     .build()
             }
+            SyntaxError::StructuralBoundSuffix(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), 1))
+                    .text("`@Id` after a tuple or vector type")
+                    .pos_text("Only an interface name, a `list{...}` or a `df[...]{...}` can carry an `@Id` suffix")
+                    .help("Remove the suffix")
+                    .build()
+            }
+            SyntaxError::ExactOnNonRecord(help_data) => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), 5))
+                    .text("`exact` must prefix a record or data-frame type")
+                    .pos_text("Expected `list{...}` or `df[...]{...}` after `exact`")
+                    .help("Write `exact list{a: int}`; to make an alias exact, declare it so: `type Point <- exact list{x: int, y: int}`")
+                    .build()
+            }
             SyntaxError::HiddenNameAfterDot(help_data) => {
                 let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
                 SingleBuilder::new(file_name, text)
@@ -413,6 +473,32 @@ impl ErrorMsg for SyntaxError {
                     .text("A hidden name can't follow the `.` operator")
                     .pos_text("`..` here reads as the spread token")
                     .help("Spell the hidden name with `__` after a dot (`x.__f()`, `r.__a`), or use the pipe: `x |> .f()`")
+                    .build()
+            }
+            SyntaxError::ExternRName {
+                written,
+                suggestion,
+                help_data,
+            } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), written.len()))
+                    .text(format!("`{written}` can't name a TypR function"))
+                    .pos_text("An R name with a dot or a capital is not a TypR identifier")
+                    .help(format!(
+                        "Give the R name in `(r = \"...\")` and pick a snake_case TypR name: {suggestion}"
+                    ))
+                    .build()
+            }
+            SyntaxError::UnknownTarget { name, help_data } => {
+                let (file_name, text) = help_data.get_file_data().unwrap_or_else(default_file_data);
+                SingleBuilder::new(file_name, text)
+                    .kind("Syntax error")
+                    .pos((help_data.get_offset(), name.len()))
+                    .text(format!("Unknown target `{name}`"))
+                    .pos_text("Not a compilation target")
+                    .help(format!("Valid targets: {}", Target::NAMES.join(", ")))
                     .build()
             }
             SyntaxError::PublicHiddenName {

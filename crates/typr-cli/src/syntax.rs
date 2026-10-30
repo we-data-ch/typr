@@ -301,6 +301,7 @@ fn vim_highlight_link(scope: &str) -> &'static str {
         ("comment.", "Comment"),
         ("string.", "String"),
         ("storage.modifier.annotation", "PreProc"),
+        ("storage.modifier", "StorageClass"),
         ("keyword.control", "Statement"),
         ("keyword.declaration", "Keyword"),
         ("keyword.operator.cast", "Keyword"),

@@ -154,6 +154,10 @@ pub enum Type {
     /// `interface_generic_unification`). Appended last for the `.bin` layout.
     /// Only meaningful in signatures; the id `_` is anonymous.
     Bounded(String, Box<Type>, HelpData),
+    /// `exact list{a: int}` / `exact df[#N]{a: int}`: a closed record or data
+    /// frame (RFC `record_bound_generics`). Appended last for the `.bin` layout.
+    /// The wrapped type is always a `Record` or a `Vec(DataFrame, ..)`.
+    Exact(Box<Type>, HelpData),
 }
 
 /// Structural fallback for interface-method-set comparison: for every
@@ -205,6 +209,15 @@ fn record_fields_subtype(r1: &HashSet<ArgumentType>, r2: &HashSet<ArgumentType>,
     })
 }
 
+/// Field names of a record, or of the element record of a data frame.
+fn closed_field_names(t: &Type) -> Option<std::collections::BTreeSet<String>> {
+    match t {
+        Type::Record(fields, _) => Some(fields.iter().map(|f| f.get_argument_str()).collect()),
+        Type::Vec(VecType::DataFrame, _, elem, _) => closed_field_names(elem),
+        _ => None,
+    }
+}
+
 impl TypeSystem for Type {
     fn pretty(&self) -> String {
         format(self)
@@ -249,6 +262,25 @@ impl TypeSystem for Type {
             // `PartialEq` ignores which generic sits inside a composite, so
             // `[#N, __rigid_0] == [#N, __rigid_1]`: compare those structurally.
             (typ1, typ2) if typ1 == typ2 && !(mentions_rigid(typ1) && mentions_rigid(typ2)) => true,
+            // `exact R` (RFC record-bound-generics): the same fields as `R`,
+            // never more. Two exact types agree on the field names and each
+            // field is a subtype; an exact type is still a record for any
+            // non-exact target; nothing non-exact is known to be closed.
+            (Type::Exact(a, _), Type::Exact(b, _)) => {
+                closed_field_names(a) == closed_field_names(b) && a.is_subtype_raw(b, context)
+            }
+            (Type::Exact(..), Type::Operator(TypeOperator::Union, t1, t2, _)) => {
+                self.is_subtype_raw(t1, context) || self.is_subtype_raw(t2, context)
+            }
+            (Type::Exact(a, _), _) => a.is_subtype_raw(other, context),
+            (Type::Operator(TypeOperator::Union, t1, t2, _), Type::Exact(..)) => {
+                t1.is_subtype_raw(other, context) && t2.is_subtype_raw(other, context)
+            }
+            (Type::Alias(_, _, false, _), Type::Exact(..)) => {
+                let reduced = self.reduce(context);
+                reduced != *self && reduced.is_subtype_raw(other, context)
+            }
+            (_, Type::Exact(..)) => false,
             // Refined types (plan §Phase 4). Only `Proven` answers `true`: an
             // unproven refinement is never assumed, the boundary check of
             // Phase 5 is what turns it into a runtime obligation. These arms
@@ -263,7 +295,11 @@ impl TypeSystem for Type {
                 t1.is_subtype_raw(typ, context) || t2.is_subtype_raw(typ, context)
             }
             (_, Type::Any(_)) => true,
-            (Type::Vec(_, n1, t1, h1), Type::Vec(_, n2, t2, h2)) => {
+            (Type::Vec(k1, n1, t1, h1), Type::Vec(k2, n2, t2, h2)) => {
+                // A data frame is not a vector of records and vice versa:
+                // `df[3]{a: int}` never stands for `[3, list{a: int}]`. The
+                // other kinds (`Vec`, `Array`, `[N, T]`) stay interchangeable.
+                let kind_ok = matches!(k1, VecType::DataFrame) == matches!(k2, VecType::DataFrame);
                 let length_ok = match (n1, n2) {
                     // Numeric ranges, or a symbolic length against a range:
                     // interval inclusion (`[#N + 1, T] <: [T] & length(> 0)`).
@@ -273,7 +309,7 @@ impl TypeSystem for Type {
                     (Length::Range(_), Length::Sym(_)) if n1.as_proper_range().is_some() => false,
                     _ => n1.to_type(h1.clone()).is_subtype_raw(&n2.to_type(h2.clone()), context),
                 };
-                length_ok && t1.is_subtype_raw(t2, context)
+                kind_ok && length_ok && t1.is_subtype_raw(t2, context)
             }
             // A function type is structural: only the arity, the parameter
             // *types* and the return type carry meaning. Parameter names are a
@@ -309,6 +345,16 @@ impl TypeSystem for Type {
             (Type::Tag(name1, body1, _h1), Type::Tag(name2, body2, _h2)) => {
                 (name1 == name2) && body1.is_subtype_raw(body2, context)
             }
+            // A rigid (`Lovable@A` in a body) is chosen by the caller: no type
+            // the body builds is known to be one. Only the rigid itself (arm
+            // above) and `Any` stand for it (cases/0128).
+            (typ, Type::Generic(b, _)) if is_rigid_name(b) => match typ {
+                Type::Any(_) => true,
+                Type::Operator(TypeOperator::Union, t1, t2, _) => {
+                    t1.is_subtype_raw(other, context) && t2.is_subtype_raw(other, context)
+                }
+                _ => false,
+            },
             // Generic subtyping
             (_, Type::Generic(_, _)) => true,
             (Type::Integer(_, _), Type::IndexGen(_, _)) => true,
@@ -938,6 +984,7 @@ impl Type {
             Type::IndexGen(_, _) => TypeCategory::GenericKinded(GKind::Number),
             Type::KindedGen(k, _, _) => TypeCategory::GenericKinded(GKind::from_kind(*k)),
             Type::Bounded(_, bound, _) => bound.to_category(),
+            Type::Exact(inner, _) => inner.to_category(),
             Type::Integer(_, _) => TypeCategory::Integer,
             Type::Alias(_, _, false, _) => TypeCategory::Alias,
             Type::Alias(name, _, _, _) => TypeCategory::Opaque(name.clone()),
@@ -1021,6 +1068,7 @@ impl Type {
             Type::NA(h) => h.clone(),
             Type::KindedGen(_, _, h) => h.clone(),
             Type::Bounded(_, _, h) => h.clone(),
+            Type::Exact(_, h) => h.clone(),
             Type::Refined(_, _, h) => h.clone(),
             Type::Property(_, h) => h.clone(),
         }
@@ -1060,6 +1108,7 @@ impl Type {
             Type::NA(_) => Type::NA(h2),
             Type::KindedGen(k, a, _) => Type::KindedGen(k, a, h2),
             Type::Bounded(id, b, _) => Type::Bounded(id, b, h2),
+            Type::Exact(t, _) => Type::Exact(t, h2),
             Type::Refined(b, r, _) => Type::Refined(b, r, h2),
             Type::Property(p, _) => Type::Property(p, h2),
         }
@@ -1370,7 +1419,11 @@ impl PartialEq for Type {
             (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
             (Type::LabelGen(_, _), Type::LabelGen(_, _)) => true,
             (Type::KindedGen(k1, _, _), Type::KindedGen(k2, _, _)) => k1 == k2,
-            (Type::Vec(_, a1, b1, _), Type::Vec(_, a2, b2, _)) => a1 == a2 && b1 == b2,
+            // Kinds are interchangeable, except that a data frame is never
+            // equal to a vector of records.
+            (Type::Vec(k1, a1, b1, _), Type::Vec(k2, a2, b2, _)) => {
+                matches!(k1, VecType::DataFrame) == matches!(k2, VecType::DataFrame) && a1 == a2 && b1 == b2
+            }
             (Type::Record(e1, _), Type::Record(e2, _)) => e1 == e2,
             (Type::Alias(a1, b1, c1, _), Type::Alias(a2, b2, c2, _)) => a1 == a2 && b1 == b2 && c1 == c2,
             (Type::Tag(a1, b1, _), Type::Tag(a2, b2, _)) => a1 == a2 && b1 == b2,
@@ -1404,6 +1457,7 @@ impl PartialEq for Type {
             (Type::Refined(b1, r1, _), Type::Refined(b2, r2, _)) => b1 == b2 && r1 == r2,
             (Type::Property(p1, _), Type::Property(p2, _)) => p1 == p2,
             (Type::Bounded(i1, b1, _), Type::Bounded(i2, b2, _)) => i1 == i2 && b1 == b2,
+            (Type::Exact(t1, _), Type::Exact(t2, _)) => t1 == t2,
             _ => false,
         }
     }
@@ -1566,6 +1620,10 @@ impl Hash for Type {
                 id.hash(state);
                 bound.hash(state);
             }
+            Type::Exact(inner, _) => {
+                46.hash(state);
+                inner.hash(state);
+            }
         }
     }
 }
@@ -1625,6 +1683,75 @@ mod tests {
     use crate::processes::parsing::parse;
     use crate::processes::type_checking::typing;
     use crate::utils::fluent_parser::FluentParser;
+
+    fn rec(fields: &[(&str, Type)]) -> Type {
+        let fields: Vec<(String, Type)> = fields.iter().map(|(n, t)| (n.to_string(), t.clone())).collect();
+        builder::record_type(&fields)
+    }
+
+    fn exact(t: Type) -> Type {
+        Type::Exact(Box::new(t), HelpData::default())
+    }
+
+    #[test]
+    fn test_exact_is_still_a_record() {
+        let ctx = Context::default();
+        let int = builder::integer_type_default();
+        let ab = rec(&[("a", int.clone()), ("b", builder::boolean_type())]);
+        let a = rec(&[("a", int.clone())]);
+        assert!(exact(ab.clone()).is_subtype(&ab, &ctx).0);
+        assert!(
+            exact(ab.clone()).is_subtype(&a, &ctx).0,
+            "exact keeps width subtyping towards a plain record"
+        );
+    }
+
+    #[test]
+    fn test_plain_record_is_not_exact() {
+        let ctx = Context::default();
+        let int = builder::integer_type_default();
+        let a = rec(&[("a", int.clone())]);
+        let ab = rec(&[("a", int), ("b", builder::boolean_type())]);
+        assert!(
+            !a.is_subtype(&exact(a.clone()), &ctx).0,
+            "nothing non-exact is known to be closed"
+        );
+        assert!(!ab.is_subtype(&exact(a.clone()), &ctx).0);
+    }
+
+    #[test]
+    fn test_exact_to_exact_needs_same_fields() {
+        let ctx = Context::default();
+        let int = builder::integer_type_default();
+        let a = rec(&[("a", int.clone())]);
+        let ab = rec(&[("a", int.clone()), ("b", builder::boolean_type())]);
+        assert!(
+            !exact(ab.clone()).is_subtype(&exact(a.clone()), &ctx).0,
+            "extra field 'b' is not allowed"
+        );
+        assert!(!exact(a.clone()).is_subtype(&exact(ab), &ctx).0);
+        // depth is allowed: `exact list{a: 3}` <: `exact list{a: int}`
+        let a3 = rec(&[("a", builder::integer_type(3))]);
+        assert!(exact(a3).is_subtype(&exact(a), &ctx).0);
+    }
+
+    #[test]
+    fn test_exact_union_member_and_data_frame() {
+        let ctx = Context::default();
+        let int = builder::integer_type_default();
+        let a = exact(rec(&[("a", int.clone())]));
+        let union = builder::union_type(&[a.clone(), builder::character_type_default()]);
+        assert!(a.is_subtype(&union, &ctx).0);
+        assert!(!rec(&[("a", int.clone())]).is_subtype(&union, &ctx).0);
+        let df = |cols: &[(&str, Type)]| {
+            let cols: Vec<(String, Type)> = cols.iter().map(|(n, t)| (n.to_string(), t.clone())).collect();
+            exact(builder::dataframe_type(builder::integer_type(2), &cols))
+        };
+        let a_only = df(&[("a", int.clone())]);
+        let a_b = df(&[("a", int), ("b", builder::boolean_type())]);
+        assert!(!a_b.is_subtype(&a_only, &ctx).0);
+        assert!(a_only.is_subtype(&a_only, &ctx).0);
+    }
 
     /// Regression: `extract_generics` on `Type::Function` used to chain the
     /// literal return type into the result instead of its own extracted

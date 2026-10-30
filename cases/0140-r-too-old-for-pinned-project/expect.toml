@@ -1,0 +1,9 @@
+[[rule]]
+file = "@run"
+must_contain = "this project needs R >=4.3, found R 4.1.2"
+[[rule]]
+file = "@run"
+must_contain = "typr setup-r"
+[[rule]]
+file = "@run"
+must_not_contain = "Code verification successful"

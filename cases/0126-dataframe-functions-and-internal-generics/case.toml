@@ -1,0 +1,6 @@
+title = "typed data-frame functions (`nrow`, `names`, `colSums`…) and internal-generic primitives under a `UseMethod` stub"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-24"
+origin = "perso"

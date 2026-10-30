@@ -1,0 +1,2 @@
+targets = ["r", "rust"]
+divergence = "on r a value that crossed an `Any` parameter keeps a class attribute (`State`, `Any`, `None`) that `print` shows; rust prints the bare value"

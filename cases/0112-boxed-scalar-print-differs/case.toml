@@ -1,0 +1,6 @@
+title = "`print` of a boxed scalar is bare on `r` (`cat`) and `[1] x` on `rust`"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-13"
+origin = "perso"

@@ -714,6 +714,10 @@ jobs:
           cp tap/Formula/typr.rb "$TAP_DIR/Formula/typr.rb"
           cp tap/README.md "$TAP_DIR/README.md"
 
+          # Homebrew refuse de charger la formule d'un tap non approuvé : sans
+          # ça `readall` échoue avant l'audit, sur le runner macOS.
+          brew trust we-data-ch/typr
+
           # `brew readall` va plus loin que `brew style` : il charge la formule
           # comme le fera `brew install`. Une formule que Homebrew sait lire mais
           # pas charger est detectable ici, et nulle part ailleurs.

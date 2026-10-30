@@ -12,7 +12,7 @@
 #   nu publish.nu sync                     # propage la version aux éditeurs
 #   nu publish.nu check                    # compare tous les canaux publiés
 #   nu publish.nu release [--dry-run]      # tag + push du tag → la CI prend le relais
-#   nu publish.nu ship patch|minor|major   # TOUT : bump, PR, attente CI, fusion, tag
+#   nu publish.nu ship patch|minor|major   # TOUT : cargo fmt, bump, PR, attente CI, fusion, tag
 #
 # `release` ne pousse QUE le tag : main est protégée, son contenu y arrive par PR.
 
@@ -160,6 +160,14 @@ def "main release" [--dry-run] {
     error make { msg: "commite ou remise tes changements avant de publier" }
   }
 
+  # 1 bis. le code doit être formaté. On ne formate pas ici : main est protégée,
+  #    le correctif ne peut arriver que par une PR — c'est ce que fait `ship`.
+  if (cargo fmt --all -- --check | complete | get exit_code) != 0 {
+    print $"(ansi red)Le code n'est pas formaté \(cargo fmt --all -- --check\).(ansi reset)"
+    print "Lance `cargo fmt --all` sur develop et fais-le arriver par PR, ou utilise `nu publish.nu ship`."
+    error make { msg: "code non formaté — on ne tague pas" }
+  }
+
   # 2. la release part de main, jamais d'une branche de travail
   let branch = (git rev-parse --abbrev-ref HEAD | complete | get stdout | str trim)
   if $branch != "main" {
@@ -272,6 +280,22 @@ def "main ship" [
       error make { msg: "conflit en fusionnant main dans develop — résous-le puis relance" }
     }
 
+    # rustfmt avant le bump : le job `test` de la CI lance `cargo fmt --all -- --check`,
+    # une PR de release non formatée y échouerait. Commit séparé, pour que le
+    # commit de version reste lisible.
+    mut formatted = false
+    if (cargo fmt --all -- --check | complete | get exit_code) != 0 {
+      let fmt = (cargo fmt --all | complete)
+      if $fmt.exit_code != 0 {
+        print $fmt.stderr
+        error make { msg: "cargo fmt --all a échoué — rien n'a été commité" }
+      }
+      git add -A
+      git commit --quiet -m "cargo fmt --all"
+      $formatted = true
+      print $"(ansi green)✓(ansi reset) code formaté \(cargo fmt --all\), commité"
+    }
+
     let before = (current-version)
     main bump $level
     let v = (current-version)
@@ -291,9 +315,14 @@ def "main ship" [
     git push --quiet origin develop
     print $"(ansi green)✓(ansi reset) ($before) → ($v), commité et poussé"
 
+    let code_note = if $formatted {
+      "Seul changement de code : un commit `cargo fmt --all`, purement de mise en forme."
+    } else {
+      "Aucun changement de code — ce commit n'existe que pour porter le numéro de version jusqu'à `main`, d'où le tag sera posé."
+    }
     let url = (gh pr create --base main --head develop
                  --title $"release v($v)"
-                 --body $"Bump de version : ($before) → ($v).(char nl)(char nl)Aucun changement de code — ce commit n'existe que pour porter le numéro de version jusqu'à `main`, d'où le tag sera posé."
+                 --body $"Bump de version : ($before) → ($v).(char nl)(char nl)($code_note)"
                | complete | get stdout | str trim)
     $pr = ($url | split row "/" | last)
     print $"(ansi green)✓(ansi reset) PR #($pr) ouverte — ($url)"
@@ -333,8 +362,8 @@ def "main ship" [
   git switch --quiet main
   git pull --quiet --ff-only origin main
 
-  # release refait ses quatre gardes : arbre propre, branche main, main alignée
-  # sur origin/main, tag inexistant. C'est volontairement redondant — c'est la
+  # release refait ses gardes : arbre propre, code formaté, branche main, main
+  # alignée sur origin/main, tag inexistant. C'est volontairement redondant — c'est la
   # dernière barrière avant l'irréversible.
   main release
 

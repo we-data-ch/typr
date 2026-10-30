@@ -67,6 +67,14 @@ particulier à gérer. `@run` n'est **jamais** diffé en golden (le texte captur
 timings de la barre de progression CLI, qui varient à chaque run) — reste du grep pur, golden/
 continue de ne cibler que des fichiers `R/*.R` déterministes.
 
+## Contrôler le R trouvé (`fake_r`)
+
+`case.toml` accepte `fake_r = "none"` (aucun R) ou `fake_r = "4.1.2"` (un `R` factice qui annonce
+cette version). Le sandbox tourne alors avec un `PATH` ne contenant que ce dossier et un `HOME`
+vide (donc sans le `~/.local` de rig) : on peut couvrir « R absent » / « R trop vieux »
+(`toolchain/rig.rs`) sur une machine qui a R. Exemples : `0139`, `0140` (`uvr.toml` avec
+`r_version = ">=4.3"`, `cmd = "check"`, règles sur `@run`).
+
 ## Bundler un cache (`cache/`)
 
 Certaines fonctionnalités lisent un cache **hors** du répertoire du projet par construction —
@@ -113,7 +121,7 @@ projet** :
    (fichier:ligne). Optionnel : un fichier `.case.md` à la racine pour une description plus longue.
 
 2. `typr case snapshot [slug]` → produit un bundle auto-portant `<slug>.case/` **dans le projet** :
-   - `repro/` = copie curatée (`TypR/` + `DESCRIPTION`/`NAMESPACE`, sans `renv/`, `.git/`, etc.) ;
+   - `repro/` = copie curatée (`TypR/` + `DESCRIPTION`/`NAMESPACE`, sans `.uvr/`, `.git/`, etc.) ;
    - `case.toml` / `expect.md` (depuis `.case.md` + marqueurs) / `expect.toml` (squelette) ;
    - `observed.txt` = build capturé du snapshot ;
    - crée un `.case.md` squelette s'il n'existe pas encore.
@@ -157,7 +165,7 @@ typr case show <id>
 
 Pour un cas `r-run` créé depuis un vrai projet : `typr case add <slug> --from <dir> --cmd run
 --layer r-run` (`add` curate la copie comme `snapshot` — `TypR/` + `DESCRIPTION`/`NAMESPACE`
-seulement, sans `renv/`/`.git/`).
+seulement, sans `.uvr/`/`.git/`).
 
 `run` rejoue chaque cas en réinvoquant ce même binaire `typr` (via `current_exe`) sur une copie
 temporaire de `repro/` — un rebuild est donc pris en compte automatiquement (pas de `--build`).

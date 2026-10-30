@@ -1,10 +1,11 @@
+# ERROR HANDLING ----------
 #! pkg: base
 #! tier: T2
 #! param msg: error message
 #! ret: never returns (stops execution)
 #! note: throws an R error condition
 #! example: stop("something went wrong")
-# ERROR HANDLING ----------
+#! targets: r, rust
 @stop: (msg: char) -> Empty;
 
 # OPTION TYPE -------------

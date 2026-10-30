@@ -1,0 +1,6 @@
+title = "Generic functions, generic types and closures print the same on r and rust"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-13"
+origin = "perso"

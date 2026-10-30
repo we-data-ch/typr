@@ -35,6 +35,7 @@ use std::collections::HashSet;
 pub fn record_facet(context: &Context, typ: &Type) -> Option<HashSet<ArgumentType>> {
     match reduce_type(context, typ) {
         Type::Record(fields, _) => Some(fields),
+        Type::Exact(inner, _) => record_facet(context, &inner),
         Type::Operator(TypeOperator::Intersection, ..) => {
             let flat = IntersectionType::try_from(reduce_type(context, typ)).ok()?;
             let h = flat.get_help_data().clone();

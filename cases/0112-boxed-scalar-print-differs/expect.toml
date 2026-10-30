@@ -1,0 +1,2 @@
+targets = ["r", "rust"]
+divergence = "r prints boxed scalars (class Integer/Character/Boolean/Number) through `cat`: `2`, `hi`. rust prints `[1] 2`, `[1] \"hi\"`, like R's own print of an unboxed value"

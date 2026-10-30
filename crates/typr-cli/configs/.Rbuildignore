@@ -3,3 +3,8 @@
 ^TypR$
 ^\.git$
 ^\.gitignore$
+^uvr\.toml$
+^uvr\.lock$
+^\.uvr$
+^\.r-version$
+^\.Rprofile$

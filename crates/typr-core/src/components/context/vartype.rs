@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code, unused_assignments)]
 use crate::components::context::config::Config;
-use crate::components::context::config::TargetLanguage;
+use crate::components::context::config::Target;
 use crate::components::context::Context;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
@@ -186,8 +186,8 @@ impl VarType {
     pub fn from_config(config: Config) -> VarType {
         let vartype = VarType::new();
         match config.target_language {
-            TargetLanguage::R => vartype.load_r().unwrap().load_typed_r().unwrap(),
-            TargetLanguage::JS => vartype.load_js().unwrap().load_typed_js().unwrap(),
+            Target::R | Target::Rust => vartype.load_r().unwrap().load_typed_r().unwrap(),
+            Target::JS => vartype.load_js().unwrap().load_typed_js().unwrap(),
         }
     }
 
@@ -402,6 +402,12 @@ impl VarType {
             // Atomic-representation arrays (step ③) are bare R atomic
             // vectors: no `as.ArrayN` class is ever applied, so the only
             // class S3 dispatch sees is the implicit one.
+            // A data frame is a plain R `data.frame`: no `as.ArrayN` class is
+            // applied to it, so that is the class `UseMethod` finds.
+            Type::Vec(VecType::DataFrame, _, _, _) => "data.frame".to_string(),
+            Type::Refined(base, _, _) if matches!(**base, Type::Vec(VecType::DataFrame, ..)) => {
+                "data.frame".to_string()
+            }
             Type::Vec(_, _, _, _) if self.atomic_array_elem(t).is_some() => {
                 Self::implicit_atomic_class(&self.atomic_array_elem(t).unwrap()).to_string()
             }
@@ -587,6 +593,12 @@ impl VarType {
             Type::Generic(_, _) => "default".to_string(),
             // Same rationale as `get_class`: atomic arrays only carry R's
             // implicit class (step ③, unification_arrays.md).
+            // A data frame is a plain R `data.frame`: no `as.ArrayN` class is
+            // applied to it, so that is the class `UseMethod` finds.
+            Type::Vec(VecType::DataFrame, _, _, _) => "data.frame".to_string(),
+            Type::Refined(base, _, _) if matches!(**base, Type::Vec(VecType::DataFrame, ..)) => {
+                "data.frame".to_string()
+            }
             Type::Vec(_, _, _, _) if self.atomic_array_elem(t).is_some() => {
                 Self::implicit_atomic_class(&self.atomic_array_elem(t).unwrap()).to_string()
             }
@@ -811,10 +823,10 @@ impl VarType {
         self.set_default_var_types()
     }
 
-    pub fn source(self, target_language: TargetLanguage) -> Self {
+    pub fn source(self, target_language: Target) -> Self {
         match target_language {
-            TargetLanguage::JS => self.set_js_var_types(),
-            TargetLanguage::R => self.set_r_var_types(),
+            Target::JS => self.set_js_var_types(),
+            Target::R | Target::Rust => self.set_r_var_types(),
         }
     }
 

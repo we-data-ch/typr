@@ -17,6 +17,7 @@ use crate::processes::parsing::elements::variable2;
 use crate::processes::parsing::elements::variable_exp;
 use crate::processes::parsing::operation_priority::PriorityTokens;
 use crate::processes::parsing::push_parse_error;
+use crate::processes::parsing::push_parse_error_once;
 use crate::processes::parsing::type_token::TypeToken;
 use crate::processes::parsing::vector_priority::VectorPriority;
 use crate::utils::builder;
@@ -44,37 +45,69 @@ use std::collections::HashSet;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
 
-// Handles the `name: type` form in function type signatures, e.g. `(a: char) -> .None`.
-// The parameter name is discarded — only the type matters for type checking.
-fn labeled_ltype(s: Span) -> IResult<Span, Type> {
-    let res = (terminated(label, multispace0), terminated(tag(":"), multispace0), ltype).parse(s);
+// Handles the `name: type` and `name?: type` forms in function type signatures,
+// e.g. `(a: char, b?: int) -> .None`. The parameter name is discarded — only the
+// type (and whether the parameter is optional) matters for type checking.
+fn labeled_ltype(s: Span) -> IResult<Span, (bool, Type)> {
+    let res = (
+        terminated(label, multispace0),
+        terminated(opt(tag("?")), multispace0),
+        terminated(tag(":"), multispace0),
+        ltype,
+    )
+        .parse(s);
     match res {
-        Ok((s, (_, _, typ))) => Ok((s, typ)),
+        Ok((s, (_, optional, _, typ))) => Ok((s, (optional.is_some(), typ))),
         Err(r) => Err(r),
     }
 }
 
-fn ltype_arg(s: Span) -> IResult<Span, (bool, Type)> {
+fn unlabeled_ltype(s: Span) -> IResult<Span, (bool, Type)> {
+    ltype(s).map(|(s, typ)| (s, (false, typ)))
+}
+
+/// A parsed signature parameter: `(is_variadic, is_optional, type)`.
+type SigParam = (bool, bool, Type);
+
+fn ltype_arg(s: Span) -> IResult<Span, SigParam> {
     // Try variadic: `...Type` or `...name: Type`
     let variadic = (
         terminated(tag("..."), multispace0),
-        terminated(alt((labeled_ltype, ltype)), multispace0),
+        terminated(alt((labeled_ltype, unlabeled_ltype)), multispace0),
         opt(terminated(tag(","), multispace0)),
     )
         .parse(s.clone());
-    if let Ok((s2, (_, typ, _))) = variadic {
-        return Ok((s2, (true, typ)));
+    if let Ok((s2, (_, (_, typ), _))) = variadic {
+        return Ok((s2, (true, false, typ)));
     }
-    // Regular: `Type` or `name: Type`
+    // Regular: `Type`, `name: Type` or `name?: Type`
     let res = terminated(
-        terminated(alt((labeled_ltype, ltype)), multispace0),
+        terminated(alt((labeled_ltype, unlabeled_ltype)), multispace0),
         opt(terminated(tag(","), multispace0)),
     )
     .parse(s);
     match res {
-        Ok((s, t)) => Ok((s, (false, t))),
+        Ok((s, (optional, t))) => Ok((s, (false, optional, t))),
         Err(r) => Err(r),
     }
+}
+
+/// Builds the argument list of a signature. An optional parameter (`b?: T`)
+/// is recorded as a parameter with a default, so call sites may omit it.
+fn signature_args(params: &[SigParam], help: &HelpData) -> Vec<ArgumentType> {
+    params
+        .iter()
+        .enumerate()
+        .map(|(i, (is_variadic, is_optional, typ))| {
+            let arg_name = crate::components::r#type::generate_arg(i);
+            let arg = ArgumentType::new(&arg_name, typ).set_variadic(*is_variadic);
+            if *is_optional {
+                arg.set_default(Some(Lang::Empty(help.clone())))
+            } else {
+                arg
+            }
+        })
+        .collect()
 }
 
 fn function_type(s: Span) -> IResult<Span, Type> {
@@ -88,15 +121,8 @@ fn function_type(s: Span) -> IResult<Span, Type> {
         .parse(s);
     match res {
         Ok((s, (start, v, _, _, t))) => {
-            let args: Vec<ArgumentType> = v
-                .iter()
-                .enumerate()
-                .map(|(i, (is_variadic, typ))| {
-                    let arg_name = crate::components::r#type::generate_arg(i);
-                    ArgumentType::new(&arg_name, typ).set_variadic(*is_variadic)
-                })
-                .collect();
-            Ok((s, Type::Function(args, Box::new(t), start.into())))
+            let help: HelpData = start.into();
+            Ok((s, Type::Function(signature_args(&v, &help), Box::new(t), help)))
         }
         Err(r) => Err(r),
     }
@@ -116,14 +142,7 @@ fn fn_function_type_error(s: Span) -> IResult<Span, Type> {
         .parse(s);
     match res {
         Ok((s, (fn_span, _, v, _, _, t))) => {
-            let args: Vec<ArgumentType> = v
-                .iter()
-                .enumerate()
-                .map(|(i, (is_variadic, typ))| {
-                    let arg_name = crate::components::r#type::generate_arg(i);
-                    ArgumentType::new(&arg_name, typ).set_variadic(*is_variadic)
-                })
-                .collect();
+            let args = signature_args(&v, &fn_span.clone().into());
             let help_data: HelpData = fn_span.clone().into();
             push_parse_error(SyntaxError::FunctionTypeSyntax(help_data));
             Ok((s, Type::Function(args, Box::new(t), fn_span.into())))
@@ -1225,17 +1244,81 @@ fn composite_vec_type(s: Span) -> IResult<Span, Type> {
     .parse(s)
 }
 
+/// A written-out record or data-frame type: the only structural types that can
+/// carry an `@Id` suffix or an `exact` prefix (rfcs/0000-record-bound-generics.md).
+fn is_record_like(t: &Type) -> bool {
+    matches!(t, Type::Record(..) | Type::Vec(VecType::DataFrame, ..))
+}
+
+/// `list{a: int}@A`, `df[#N]{a: int}@A` become `Bounded`; `[#N, int]@A` and
+/// `tuple{int}@A` stay an error. Left alone, the priority resolver would silently
+/// drop the stray `@A`, so a suffix that is not accepted is reported and consumed.
+/// Lowercase (`@pub`, `@extern`) is never an id. `input` is where the type began,
+/// to tell `list{a: int}@A` from the detached `list{a: int} @A`.
+fn structural_bound_suffix<'a>(input: Span<'a>, res: IResult<Span<'a>, Type>) -> IResult<Span<'a>, Type> {
+    let (rest, typ) = res?;
+    let id_start = rest.fragment().strip_prefix('@').and_then(|r| r.chars().next());
+    if !matches!(id_start, Some(c) if c.is_ascii_uppercase() || c == '_') {
+        return Ok((rest, typ));
+    }
+    if is_record_like(&typ) {
+        let consumed = rest.location_offset() - input.location_offset();
+        let touching = !input.fragment()[..consumed].ends_with(char::is_whitespace);
+        match bound_suffix(rest.clone()) {
+            Ok((after, id)) if touching => {
+                let h = typ.get_help_data();
+                return Ok((after, Type::Bounded(id, Box::new(typ), h)));
+            }
+            _ => push_parse_error_once(SyntaxError::DetachedBoundSuffix(rest.clone().into())),
+        }
+    } else {
+        push_parse_error_once(SyntaxError::StructuralBoundSuffix(rest.clone().into()));
+    }
+    let (rest, _) = (
+        tag("@"),
+        nom::bytes::complete::take_while(|c: char| c.is_alphanumeric() || c == '_'),
+        multispace0,
+    )
+        .parse(rest)?;
+    Ok((rest, typ))
+}
+
+fn composite_vec_type_checked(s: Span) -> IResult<Span, Type> {
+    structural_bound_suffix(s.clone(), composite_vec_type(s))
+}
+
+fn list_types_checked(s: Span) -> IResult<Span, Type> {
+    structural_bound_suffix(s.clone(), list_types(s))
+}
+
+/// `exact list{a: int}`, `exact df[#N]{a: int}`: a closed record. `exact` only
+/// prefixes a written-out record or data-frame type; on anything else
+/// (`exact int`, `exact Point`, `exact list{a: int}@A`) it is reported and the
+/// inner type is kept, so parsing goes on.
+fn exact_type(s: Span) -> IResult<Span, Type> {
+    let (rest, kw) = terminated(tag("exact"), multispace1).parse(s)?;
+    let (rest, inner) = single_type(rest)?;
+    let h: HelpData = kw.into();
+    if is_record_like(&inner) {
+        Ok((rest, Type::Exact(Box::new(inner), h)))
+    } else {
+        push_parse_error_once(SyntaxError::ExactOnNonRecord(h));
+        Ok((rest, inner))
+    }
+}
+
 // main
 pub fn single_type(s: Span) -> IResult<Span, Type> {
     terminated(
         alt((
             alt((function_type, fn_function_type_error)),
             self_type,
+            exact_type,
             r_class,
             unknown_function,
             bracket_tuple_record, // Tuple[...] / Record[...] — before type_alias
-            composite_vec_type,
-            list_types,          // tuple{}/record{}/list{} brace forms
+            composite_vec_type_checked,
+            list_types_checked,  // tuple{}/record{}/list{} brace forms
             refinement_property, // length(n), (> c), (< c)
             parenthese_value,
             tag_type,
@@ -1332,6 +1415,98 @@ mod tests {
             ltype("@A".into()).unwrap().1,
             Type::KindedGen(Kind::Interface, ..)
         ));
+    }
+
+    #[test]
+    fn test_record_bound_suffix_parses() {
+        let _ = crate::processes::parsing::take_parse_errors();
+        assert_eq!(bounded("list{a: int}@A"), ("A".to_string(), "list{a: int}".to_string()));
+        assert_eq!(bounded("df[#N]{a: int}@_").0, "_");
+        assert_eq!(bounded("dataframe[3]{a: int}@B").0, "B");
+        let t = ltype("(list{a: int}@A) -> list{a: int}@A".into()).unwrap().1;
+        assert!(matches!(&t, Type::Function(args, ret, _)
+            if matches!(&args[0].get_type(), Type::Bounded(_, b, _) if matches!(b.as_ref(), Type::Record(..)))
+                && matches!(ret.as_ref(), Type::Bounded(..))));
+        assert!(crate::processes::parsing::take_parse_errors().is_empty());
+    }
+
+    #[test]
+    fn test_record_bound_suffix_prints_back() {
+        for src in ["list{a: int}@A", "df[#N]{a: int}@B"] {
+            let t = ltype(src.into()).unwrap().1;
+            assert!(t.pretty().ends_with(&src[src.len() - 2..]), "{src}: {}", t.pretty());
+        }
+    }
+
+    #[test]
+    fn test_structural_bound_suffix_is_an_error() {
+        // cases/0129: the `@A` after a tuple or vector used to be dropped without a word.
+        for src in ["[#N, int]@B", "tuple{int}@A"] {
+            let _ = crate::processes::parsing::take_parse_errors();
+            let (rest, _) = ltype(src.into()).unwrap();
+            let errors = crate::processes::parsing::take_parse_errors();
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| matches!(e, SyntaxError::StructuralBoundSuffix(_))),
+                "{src}: {errors:?}"
+            );
+            assert!(rest.fragment().is_empty(), "{src}: suffix not consumed");
+        }
+        let _ = ltype("list{a: int}".into());
+        assert!(crate::processes::parsing::take_parse_errors().is_empty());
+    }
+
+    #[test]
+    fn test_detached_record_bound_suffix_is_an_error() {
+        for src in ["list{a: int} @A", "list{a: int}@Self"] {
+            let _ = crate::processes::parsing::take_parse_errors();
+            let (_, t) = ltype(src.into()).unwrap();
+            let errors = crate::processes::parsing::take_parse_errors();
+            assert!(
+                errors.iter().any(|e| matches!(e, SyntaxError::DetachedBoundSuffix(_))),
+                "{src}: {errors:?}"
+            );
+            assert!(matches!(t, Type::Record(..)), "{src}");
+        }
+    }
+
+    #[test]
+    fn test_exact_parses() {
+        let _ = crate::processes::parsing::take_parse_errors();
+        for src in ["exact list{a: int}", "exact df[#N]{a: int}", "exact dataframe{a: int}"] {
+            let t = ltype(src.into()).unwrap().1;
+            assert!(
+                matches!(&t, Type::Exact(inner, _) if matches!(inner.as_ref(), Type::Record(..) | Type::Vec(..))),
+                "{src}: {t:?}"
+            );
+            assert!(t.pretty().starts_with("exact "), "{src}: {}", t.pretty());
+        }
+        let t = ltype("(exact list{a: int}) -> exact list{a: int}".into()).unwrap().1;
+        assert!(matches!(&t, Type::Function(args, ret, _)
+            if matches!(&args[0].get_type(), Type::Exact(..)) && matches!(ret.as_ref(), Type::Exact(..))));
+        assert!(crate::processes::parsing::take_parse_errors().is_empty());
+    }
+
+    #[test]
+    fn test_exact_on_non_record_is_an_error() {
+        for src in ["exact int", "exact Point", "exact tuple{int}", "exact list{a: int}@A"] {
+            let _ = crate::processes::parsing::take_parse_errors();
+            let _ = ltype(src.into()).unwrap();
+            let errors = crate::processes::parsing::take_parse_errors();
+            assert!(
+                errors.iter().any(|e| matches!(e, SyntaxError::ExactOnNonRecord(_))),
+                "{src}: {errors:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_exact_is_a_whole_word() {
+        // `exactly` is an ordinary type variable / alias name, not `exact ly`.
+        let _ = crate::processes::parsing::take_parse_errors();
+        let _ = ltype("Exactly".into());
+        assert!(crate::processes::parsing::take_parse_errors().is_empty());
     }
 
     #[test]
@@ -1892,6 +2067,21 @@ mod tests {
         match &typ {
             Type::Record(fields, _) => assert_eq!(fields.len(), 2),
             other => panic!("Expected Record, got {:?}", other),
+        }
+    }
+
+    // ── Optional parameters in function signatures (`b?: T`) ────────────────
+
+    #[test]
+    fn test_signature_optional_param() {
+        let typ = ltype("(a: int, b?: int) -> int".into()).unwrap().1;
+        match &typ {
+            Type::Function(args, _, _) => {
+                assert_eq!(args.len(), 2);
+                assert!(!args[0].has_default());
+                assert!(args[1].has_default());
+            }
+            other => panic!("Expected Function, got {:?}", other),
         }
     }
 

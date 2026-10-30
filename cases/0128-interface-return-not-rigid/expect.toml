@@ -1,0 +1,6 @@
+[[rule]]
+file = "@run"
+must_contain = "Type errors found"
+[[rule]]
+file = "@run"
+must_contain = "Expected: Lovable@A"

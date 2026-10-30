@@ -1,0 +1,3 @@
+let g <- fn(x: list{a: int}): list{a: int} { x$a <- -1; x };
+let p <- g(list(a = 1, b = true));
+let z: list{a: 1, b: bool} <- p;

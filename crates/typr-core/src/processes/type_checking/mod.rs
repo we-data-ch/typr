@@ -25,7 +25,7 @@ pub mod unification;
 pub mod unification_map;
 pub mod vectorizability;
 
-use crate::components::context::config::TargetLanguage;
+use crate::components::context::config::Target;
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::type_error::TypeError;
@@ -47,8 +47,8 @@ use crate::components::r#type::Type;
 use crate::processes::type_checking::constructor_call::constructor_call;
 use crate::processes::type_checking::dollar_access::dollar_access;
 use crate::processes::type_checking::dot_pipe_access::dot_pipe_access;
+use crate::processes::type_checking::function::check_return;
 use crate::processes::type_checking::function::function;
-use crate::processes::type_checking::function::is_compatible_return_type;
 use crate::processes::type_checking::function_application::function_application;
 use crate::processes::type_checking::let_expression::let_expression;
 use crate::processes::type_checking::match_expression::match_expression;
@@ -160,48 +160,6 @@ pub fn execute_r_function(function_code: &str) -> Result<String, Box<dyn Error>>
 #[cfg(target_arch = "wasm32")]
 pub fn execute_r_function(_function_code: &str) -> Result<String, Box<dyn Error>> {
     Err("R execution is not supported in WASM mode".into())
-}
-
-/// Check if an R package is already installed in the system.
-/// Only available in native mode.
-#[cfg(not(target_arch = "wasm32"))]
-fn is_package_installed(name: &str) -> bool {
-    let check_code = format!("length(find.package(\"{}\", quiet = TRUE)) > 0", name);
-    let output = Command::new("Rscript").args(["-e", &check_code]).output();
-
-    match output {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout);
-            stdout.trim().contains("TRUE")
-        }
-        Err(_) => false,
-    }
-}
-
-/// Install an R package. Only available in native mode.
-/// First checks if the package is already installed in the system.
-#[cfg(not(target_arch = "wasm32"))]
-fn install_package(name: &str) {
-    if is_package_installed(name) {
-        return;
-    }
-
-    let _status = Command::new("Rscript")
-        .args([
-            "-e",
-            &format!(
-                "if (!requireNamespace(\"{}\", quietly = TRUE)) install.packages(\"{}\")",
-                name, name
-            ),
-        ])
-        .status()
-        .expect("failed to execute Rscript");
-}
-
-/// Stub for WASM mode - package installation is not supported
-#[cfg(target_arch = "wasm32")]
-fn install_package(_name: &str) {
-    // No-op in WASM mode - packages must be pre-registered
 }
 
 /// Validate that every `Name[N]{...}` record-constructor usage in `typ` refers to a
@@ -376,7 +334,11 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
                 let Some(var) =
                     Var::from_language((**left_expr).clone()).map(|v| v.set_type(widened_right_type.clone()))
                 else {
-                    return TypeContext::new(widened_right_type, expr.clone(), context.clone()).with_errors(errors);
+                    let new_context = match field_write_retype(context, left_expr, &widened_right_type) {
+                        Some((var, record)) => context.clone().push_var_type(var, record, context),
+                        None => context.clone(),
+                    };
+                    return TypeContext::new(widened_right_type, expr.clone(), new_context).with_errors(errors);
                 };
                 TypeContext::new(
                     widened_right_type.clone(),
@@ -395,24 +357,20 @@ pub fn eval(context: &Context, expr: &Lang) -> TypeContext {
             }
         }
         Lang::Library {
-            value: name,
+            value: _name,
             help_data: _h,
         } => {
-            // In WASM mode, library imports are no-op (types must be pre-registered)
-            // In native mode, this would install and load the package
-            install_package(name);
-
-            // For now, just return unknown function type
-            // The package types should be pre-loaded in the context for WASM
+            // Type-checking never installs anything: packages are declared and installed
+            // explicitly (`typr use`, `uvr add`). The package types come from the context.
             (builder::unknown_function_type(), expr.clone(), context.clone()).into()
         }
         Lang::Signature {
             identifier: var,
             target_type: typ,
-            is_extern,
-            extern_r_name,
+            externs,
             ..
-        } => signature_expression(context, expr, var, typ, *is_extern, extern_r_name.clone()),
+        } => signature_expression(context, expr, var, typ, externs.get(&Target::R).cloned()),
+        Lang::Attribute { .. } => (builder::unknown_function_type(), expr.clone(), context.clone()).into(),
         Lang::TypeConstructor {
             name,
             parameters,
@@ -876,6 +834,46 @@ impl WithLang2 for Type {
 /// - `empty_elem_type`: the element type used when the container is empty ("Empty" or "Any")
 /// - `reduce`: whether to alias-reduce element types before checking homogeneity
 /// - `generalize`: whether to generalize the element type when all elements share a type
+/// `x$a <- v` / `x.a <- v` on a variable of anonymous record type: the field
+/// takes the (widened) type of `v`, as a variable does on reassignment
+/// (cases/0065). Without it, `let x <- list(a = 1); x$a <- 5;` left `x` typed
+/// `list{a: 1}` (cases/0130). A named alias (`Point`) keeps its declared type:
+/// its fields are already declared, and the write was checked against them.
+fn field_write_retype(context: &Context, target: &Lang, value_type: &Type) -> Option<(Var, Type)> {
+    // Same operand order as `dollar_access`: `rhs` is the object, `lhs` the field.
+    let Lang::Operator {
+        operator: Op::Dollar(_) | Op::Dot(_),
+        rhs: object,
+        lhs: field,
+        ..
+    } = target
+    else {
+        return None;
+    };
+    let var = Var::from_language((**object).clone())?;
+    let Lang::Variable { name: field, .. } = &**field else {
+        return None;
+    };
+    let Type::Record(fields, h) = context.get_type_from_variable(&Var::from_name(&var.get_name())).ok()? else {
+        return None;
+    };
+    if !fields.iter().any(|f| f.get_argument_str() == *field) {
+        return None;
+    }
+    let fields = fields
+        .iter()
+        .map(|f| {
+            if f.get_argument_str() == *field {
+                f.clone().set_type(value_type.clone())
+            } else {
+                f.clone()
+            }
+        })
+        .collect();
+    let record = Type::Record(fields, h);
+    Some((var.set_type(record.clone()), record))
+}
+
 fn typing_container(
     context: &Context,
     expr: &Lang,
@@ -920,15 +918,22 @@ fn typing_container(
         } else {
             &types[0]
         };
-        let elem_str = if generalize {
-            representative.clone().generalize().pretty()
+        let elem = if generalize {
+            representative.clone().generalize()
         } else {
-            representative.clone().pretty()
+            representative.clone()
         };
-        format!("{}[{}, {}]", type_prefix, exprs.len(), elem_str)
+        // Only the container is parsed: the element type is put back as is,
+        // since a printed rigid (`__rigid_0` → `.RIGID_0`) does not parse back
+        // to itself (cases/0128).
+        let shell = format!("{}[{}, Any]", type_prefix, exprs.len())
             .parse::<Type>()
             .unwrap()
-            .set_help_data(h.clone())
+            .set_help_data(h.clone());
+        match shell {
+            Type::Vec(kind, len, _, vh) => Type::Vec(kind, len, Box::new(elem), vh),
+            other => other,
+        }
     } else {
         errors.push(TypRError::Type(TypeError::WrongExpression(h.clone())));
         format!("{}[{}, Any]", type_prefix, exprs.len())
@@ -1539,9 +1544,23 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             // component instead of being rejected as a type error.
             let mut merged: Vec<ArgumentType> = Vec::new();
             let mut unresolved: Vec<Type> = Vec::new();
+            // `list(...x, f = v)` with `x: A`, `A` a rigid bounded by a record
+            // (record_bound_generics RFC): the copy is still an `A` when every
+            // override stays inside the bound.
+            let mut rigid_spread: Option<(Type, Vec<ArgumentType>)> = None;
             for spread_expr in spreads {
                 let tc = typing(context, spread_expr);
                 errors.extend(tc.errors);
+                if let Type::Generic(name, _) = &tc.value {
+                    if context.is_rigid_constrained(name) {
+                        if let Some(bound_fields) = facets::record_facet(context, &tc.value) {
+                            let bound_fields: Vec<ArgumentType> = bound_fields.into_iter().collect();
+                            merged = merge_record_fields_override(&merged, &bound_fields);
+                            rigid_spread = Some((tc.value.clone(), bound_fields));
+                            continue;
+                        }
+                    }
+                }
                 match tc.value.reduce(context) {
                     Type::Record(spread_fields, _) => {
                         merged = merge_record_fields_override(&merged, &spread_fields.into_iter().collect::<Vec<_>>());
@@ -1558,6 +1577,18 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
                 }
             }
             merged = merge_record_fields_override(&merged, &field_types);
+
+            if let (Some((rigid, bound_fields)), 1, true) = (&rigid_spread, spreads.len(), unresolved.is_empty()) {
+                let stays_in_bound = field_types.iter().all(|ft| {
+                    bound_fields.iter().any(|bf| {
+                        bf.get_argument_str() == ft.get_argument_str()
+                            && ft.get_type().reduce_and_subtype(&bf.get_type(), context).0
+                    })
+                });
+                if stays_in_bound {
+                    return TypeContext::new(rigid.clone(), expr.clone(), context.clone()).with_errors(errors);
+                }
+            }
 
             let result_type = if unresolved.is_empty() {
                 Type::Record(merged.into_iter().collect(), h.clone())
@@ -1589,10 +1620,14 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
                 .map(|arg_val: &ArgumentValue| typing(context, &arg_val.get_value()))
                 .collect();
             let mut errors: Vec<TypRError> = type_contexts.iter().flat_map(|tc| tc.errors.clone()).collect();
+            // A column is stored by its element type, as `df[N]{a: int}`
+            // writes it: the row count lives once, in the dataframe's index.
+            // Storing the column's `[N, int]` made a constructed dataframe
+            // unassignable to its own annotation (case 0089).
             let field_types = fields
                 .iter()
                 .zip(type_contexts.iter())
-                .map(|(arg_val, tc)| (arg_val.get_argument(), tc.value.clone()).into())
+                .map(|(arg_val, tc)| (arg_val.get_argument(), field_access::column_element_type(&tc.value)).into())
                 .collect();
 
             // D1 (audit_type_checking.md): every column must be vector-shaped,
@@ -1996,7 +2031,7 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             }
         }
         Lang::JSBlock(body, _, h) => {
-            let js_context = Context::default().set_target_language(TargetLanguage::JS);
+            let js_context = Context::default().set_target_language(Target::JS);
             let _ = typing(&js_context, body).context;
             //TODO add js subcontext
             let (new_context, id) = (context.clone(), 0); //.add_js_subcontext(js_context);
@@ -2015,6 +2050,8 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
         Lang::Library { .. } => eval(context, expr).with_lang(expr),
         Lang::TestBlock { .. } => eval(context, expr).with_lang(expr),
         Lang::Signature { .. } => eval(context, expr).with_lang(expr),
+        // Availability bookkeeping only; read by `processes::availability`.
+        Lang::Attribute { .. } => eval(context, expr).with_lang(expr),
         Lang::TypeConstructor { .. } => eval(context, expr).with_lang(expr),
         Lang::Return { value: exp, .. } => {
             let tc = typing(&context.clone().set_return_position(true), exp);
@@ -2026,8 +2063,15 @@ fn typing_impl(context: &Context, expr: &Lang) -> TypeContext {
             // (parse-error territory already, but defensive) is left alone.
             let mut errors = tc.errors;
             if let Some(expected) = context.get_expected_return_type() {
-                if !is_compatible_return_type(&tc.value, &expected, context) {
-                    errors.push(builder::unmatching_return_type(&expected, &tc.value));
+                let written = match &expected {
+                    Type::Generic(name, _) => context
+                        .get_interface_constraint(name)
+                        .cloned()
+                        .unwrap_or(expected.clone()),
+                    other => other.clone(),
+                };
+                if let Some(error) = check_return(exp, &tc.value, &expected, &written, context) {
+                    errors.push(error);
                 }
             }
             TypeContext::new(tc.value, tc.lang, tc.context).with_errors(errors)
@@ -2777,14 +2821,14 @@ mod tests {
 
     #[test]
     fn test_dataframe_parsing_simple() {
-        let res = "data__frame(x = [1, 2, 3]) ".parse::<Lang>().unwrap();
+        let res = "data_frame(x = [1, 2, 3]) ".parse::<Lang>().unwrap();
         println!("{:?}", res);
         assert_eq!(res.simple_print(), "DataFrame");
     }
 
     #[test]
     fn test_dataframe_type_simple() {
-        let expr = "data__frame(x = [1, 2, 3]) ".parse::<Lang>().unwrap();
+        let expr = "data_frame(x = [1, 2, 3]) ".parse::<Lang>().unwrap();
         let result = typing_with_errors(&Context::default(), &expr);
         let typ = result.get_type().clone();
         println!("typ: {:?}", typ);
@@ -2796,9 +2840,24 @@ mod tests {
     }
 
     #[test]
+    fn test_generic_inside_returned_record_is_substituted() {
+        // `T`/`U` sit inside the record body of the return type: the
+        // named-generic match used to substitute `#N` and leave them bare.
+        let typ = FluentParser::new()
+            .set_context(Context::default())
+            .push("@df2: (a: [#N, T], b: [#N, U]) -> df[#N]{a: T, b: U};")
+            .parse_type_next()
+            .push("df2([1, 2], [\"x\", \"y\"])")
+            .parse_type_next()
+            .get_last_type();
+        assert!(matches!(typ, Type::Vec(VecType::DataFrame, _, _, _)), "{typ:?}");
+        assert!(!typ.has_generic(), "generics left in {}", typ.pretty());
+    }
+
+    #[test]
     fn test_dataframe_dollar_access() {
         let fp = FluentParser::new()
-            .push("let df <- data__frame(x = [1, 2, 3]);")
+            .push("let df <- data_frame(x = [1, 2, 3]);")
             .parse_type_next();
         let context = fp.context.clone();
         let df_type = context.get_type_from_existing_variable(Var::from_name("df"));
@@ -2817,7 +2876,7 @@ mod tests {
     #[test]
     fn test_dataframe_dollar_unknown_field() {
         let fp = FluentParser::new()
-            .push("let df <- data__frame(x = [1, 2, 3]);")
+            .push("let df <- data_frame(x = [1, 2, 3]);")
             .parse_type_next();
         let context = fp.context.clone();
         use crate::processes::parsing::parse_from_string;
@@ -2829,7 +2888,7 @@ mod tests {
     #[test]
     fn test_dataframe_dollar_preserves_inner_type() {
         let fp = FluentParser::new()
-            .push("let df <- data__frame(x = [\"a\", \"b\", \"c\"]);")
+            .push("let df <- data_frame(x = [\"a\", \"b\", \"c\"]);")
             .parse_type_next();
         let context = fp.context.clone();
         use crate::processes::parsing::parse_from_string;
@@ -2851,7 +2910,7 @@ mod tests {
     #[test]
     fn test_dataframe_dollar_numeric_columns() {
         let fp = FluentParser::new()
-            .push("let df <- data__frame(x = [1.0], y = [2.0]);")
+            .push("let df <- data_frame(x = [1.0], y = [2.0]);")
             .parse_type_next();
         let context = fp.context.clone();
         use crate::processes::parsing::parse_from_string;
@@ -4836,10 +4895,118 @@ p"#;
         );
     }
 
+    fn has_errors(src: &str) -> bool {
+        use crate::processes::parsing::parse_from_string;
+        typing_with_errors(&Context::default(), &parse_from_string(src, "test.ty")).has_errors()
+    }
+
+    #[test]
+    fn field_write_widens_the_literal_field_type() {
+        // cases/0130: `x` must not stay `list{a: 1, b: true}` once `a` holds 5.
+        let write = "let x <- list(a = 1, b = true); x$a <- 5;";
+        assert!(has_errors(&format!("{write} let z: list{{a: 1, b: bool}} <- x;")));
+        assert!(!has_errors(&format!("{write} let z: list{{a: int, b: bool}} <- x;")));
+    }
+
+    #[test]
+    fn rigid_return_accepts_only_the_rigid() {
+        // cases/0128: the caller picks the interface's concrete type, so a body
+        // cannot return some other value that merely satisfies the interface.
+        let prelude = "type Lovable <- interface { love: (Self) -> int }; type Cat <- list { name: char }; \
+                       let love <- fn(c: Cat): int { 1 }; let tom <- Cat:{ name = \"tom\" };";
+        assert!(has_errors(&format!(
+            "{prelude} let f <- fn(a: Lovable): Lovable {{ tom }};"
+        )));
+        assert!(has_errors(&format!(
+            "{prelude} let f <- fn(a: Lovable@A): Lovable@A {{ tom }};"
+        )));
+        assert!(!has_errors(&format!(
+            "{prelude} let f <- fn(a: Lovable@A): Lovable@A {{ a }};"
+        )));
+        // A generic inside a literal vector keeps its rigid (`[a]` with `a: T`).
+        assert!(!has_errors("let f <- fn(a: T): [1, T] { [a] };"));
+    }
+
+    fn error_codes(src: &str) -> Vec<&'static str> {
+        use crate::processes::parsing::parse_from_string;
+        let ast = parse_from_string(src, "test.ty");
+        typing_with_errors(&Context::default(), &ast)
+            .get_errors()
+            .iter()
+            .map(|e| match e {
+                TypRError::Type(t) => t.code(),
+                _ => "other",
+            })
+            .collect()
+    }
+
+    #[test]
+    fn record_bound_body_reads_updates_and_copies_the_parameter() {
+        // record_bound_generics RFC, step 4: the body works on the caller's record.
+        for body in ["x", "x$a <- 0; x", "let n <- x$a; x", "list(...x, a = x$a * 2)"] {
+            let src = format!("let f <- fn(x: list{{a: int}}): list{{a: int}} {{ {body} }};");
+            assert!(!has_errors(&src), "{src}");
+        }
+    }
+
+    #[test]
+    fn record_bound_body_cannot_return_a_new_record() {
+        let src = "let f <- fn(x: list{a: int}): list{a: int} { list(a = 2) };";
+        assert_eq!(error_codes(src), vec!["T055"]);
+        // An early `return` is held to the same bar.
+        let src = "let f <- fn(x: list{a: int}): list{a: int} { return list(a = 2); x };";
+        assert_eq!(error_codes(src), vec!["T055"]);
+        // An override outside the bound loses the caller's type.
+        assert!(has_errors(
+            "let f <- fn(x: list{a: int}): list{a: int} { list(...x, c = 1) };"
+        ));
+    }
+
+    #[test]
+    fn record_bound_body_only_knows_the_written_fields() {
+        assert!(has_errors("let f <- fn(x: list{a: int}): list{a: int} { x$zz; x };"));
+    }
+
+    #[test]
+    fn exact_return_accepts_a_literal_and_refuses_an_open_record() {
+        assert!(!has_errors(
+            "let f <- fn(x: list{a: int}): exact list{a: int} { list(a = 0) };"
+        ));
+        let src = "let f <- fn(x: list{a: int}): exact list{a: int} { x };";
+        assert_eq!(error_codes(src), vec!["T056"]);
+        // A literal with an extra field is not exactly `list{a: int}`.
+        assert!(has_errors(
+            "let f <- fn(x: list{a: int}): exact list{a: int} { list(a = 0, b = 1) };"
+        ));
+    }
+
+    #[test]
+    fn exact_value_fields_are_readable() {
+        let f = "let f <- fn(x: list{a: int}): exact list{a: int} { list(a = 0) };\n";
+        assert!(!has_errors(&format!(
+            "{f}let r <- f(list(a = 1, b = true));\nlet n: int <- r$a;"
+        )));
+        // closed: the caller's extra field is gone
+        assert!(has_errors(&format!(
+            "{f}let r <- f(list(a = 1, b = true));\nlet m <- r$b;"
+        )));
+    }
+
+    #[test]
+    fn record_literal_flows_into_an_exact_slot() {
+        let g = "let g <- fn(x: exact list{a: int}): int { x$a };\n";
+        assert!(!has_errors(&format!("{g}let z <- g(list(a = 1));")));
+        assert!(has_errors(&format!("{g}let z <- g(list(a = 1, b = true));")));
+        // an open variable is not closed
+        assert!(has_errors(&format!("{g}let v <- list(a = 1);\nlet z <- g(v);")));
+        assert!(!has_errors("let z: exact list{a: int} <- list(a = 1);"));
+        assert!(has_errors("let z: exact list{a: int} <- list(a = 1, b = 2);"));
+    }
+
     #[test]
     fn edge_d1_dataframe_matching_column_lengths_is_allowed() {
         use crate::processes::parsing::parse_from_string;
-        let ast = parse_from_string("data.frame(a = [1, 2, 3], b = [4, 5, 6]);", "test.ty");
+        let ast = parse_from_string("data_frame(a = [1, 2, 3], b = [4, 5, 6]);", "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
         assert!(
             !result.has_errors(),
@@ -4849,11 +5016,54 @@ p"#;
     }
 
     #[test]
+    fn constructed_dataframe_matches_its_annotation() {
+        // Case 0089: the constructor stored each column as `[N, T]` while an
+        // annotation stores `T`, so no annotation could ever accept it.
+        use crate::processes::parsing::parse_from_string;
+        let ok = parse_from_string(
+            "let d: df[2]{a: int, b: char} <- data_frame(a = [1, 2], b = [\"x\", \"y\"]);",
+            "test.ty",
+        );
+        let result = typing_with_errors(&Context::default(), &ok);
+        assert!(!result.has_errors(), "got: {:?}", result.get_errors());
+
+        let wrong_column = parse_from_string("let d: df[2]{a: char} <- data_frame(a = [1, 2]);", "test.ty");
+        assert!(typing_with_errors(&Context::default(), &wrong_column).has_errors());
+
+        let wrong_height = parse_from_string("let d: df[3]{a: int} <- data_frame(a = [1, 2]);", "test.ty");
+        assert!(typing_with_errors(&Context::default(), &wrong_height).has_errors());
+    }
+
+    #[test]
+    fn dataframe_and_vector_of_records_are_distinct_kinds() {
+        // `Vec` kinds were ignored at subtyping: a data frame was accepted
+        // where `[N, list{..}]` is expected, and the reverse.
+        use crate::processes::parsing::parse_from_string;
+        let df_as_vec = parse_from_string(
+            "let d <- data_frame(a = [1, 2]);\nlet v: [2, list{a: int}] <- d;",
+            "test.ty",
+        );
+        assert!(typing_with_errors(&Context::default(), &df_as_vec).has_errors());
+
+        let vec_as_df = parse_from_string(
+            "let w: [2, list{a: int}] <- [:{a = 1}, :{a = 2}];\nlet e: df[2]{a: int} <- w;",
+            "test.ty",
+        );
+        assert!(typing_with_errors(&Context::default(), &vec_as_df).has_errors());
+
+        let df_as_df = parse_from_string(
+            "let d <- data_frame(a = [1, 2]);\nlet e: df[2]{a: int} <- d;",
+            "test.ty",
+        );
+        assert!(!typing_with_errors(&Context::default(), &df_as_df).has_errors());
+    }
+
+    #[test]
     fn edge_d1_dataframe_column_length_mismatch_is_an_error() {
         // D1 (audit_type_checking.md, Phase 5): column lengths were never
         // compared against each other before.
         use crate::processes::parsing::parse_from_string;
-        let ast = parse_from_string("data.frame(a = [1, 2, 3], b = [4, 5]);", "test.ty");
+        let ast = parse_from_string("data_frame(a = [1, 2, 3], b = [4, 5]);", "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
         assert!(
             result.has_errors(),
@@ -4866,7 +5076,7 @@ p"#;
         // D1: a non-vector column used to silently give the DataFrame's
         // index type `Any` instead of raising an error.
         use crate::processes::parsing::parse_from_string;
-        let ast = parse_from_string("data.frame(a = [1, 2, 3], b = 5);", "test.ty");
+        let ast = parse_from_string("data_frame(a = [1, 2, 3], b = 5);", "test.ty");
         let result = typing_with_errors(&Context::default(), &ast);
         assert!(
             result.has_errors(),

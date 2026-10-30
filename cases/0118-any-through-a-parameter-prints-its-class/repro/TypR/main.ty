@@ -1,0 +1,2 @@
+let pick <- fn(c: bool, a: Any, b: Any): Any { if (c) { a } else { b } };
+print(pick(false, [1, 2], [3, 4]));

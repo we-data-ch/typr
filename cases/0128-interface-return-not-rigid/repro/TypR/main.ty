@@ -1,0 +1,6 @@
+type Lovable <- interface { love: (Self) -> int };
+type Cat <- list { name: char };
+let love <- fn(c: Cat): int { 1 };
+let tom <- Cat:{ name = "tom" };
+let fresh <- fn(a: Lovable): Lovable { tom };
+let fresh_tagged <- fn(a: Lovable@A): Lovable@A { tom };

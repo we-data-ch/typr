@@ -13,8 +13,9 @@ pub fn signature_expression(
     expr: &Lang,
     var: &Var,
     typ: &Type,
-    is_extern: bool,
-    extern_r_name: Option<String>,
+    // `Some(name)` when the signature has an `r` external (`None`: no r external;
+    // `Some(None)`: the bare `@extern name: T;` form, same name).
+    r_extern: Option<Option<String>>,
 ) -> TypeContext {
     let mut constructor_errors = validate_named_constructors(context, typ);
     constructor_errors.extend(validate_operator_kinds(context, typ));
@@ -34,7 +35,7 @@ pub fn signature_expression(
         if !new_context.signature_fns.contains(&var.get_name()) {
             new_context.signature_fns.push(var.get_name());
         }
-        if is_extern {
+        if let Some(extern_r_name) = r_extern.clone() {
             new_context.extern_fns.push((var.get_name(), extern_r_name));
         }
         (builder::unknown_function_type(), expr.clone(), new_context).into()
@@ -43,7 +44,7 @@ pub fn signature_expression(
         let mut new_context = context
             .clone()
             .replace_or_push_var_type(var.to_owned(), typ.to_owned(), context);
-        if is_extern {
+        if let Some(extern_r_name) = r_extern.clone() {
             new_context.extern_fns.push((var.get_name(), extern_r_name));
         }
         (builder::unknown_function_type(), expr.clone(), new_context).into()
@@ -81,8 +82,7 @@ mod tests {
                 identifier: var,
                 target_type: integer,
                 help_data: HelpData::default(),
-                is_extern: false,
-                extern_r_name: None,
+                externs: Default::default(),
             }
         );
     }

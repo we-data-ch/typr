@@ -1,0 +1,8 @@
+let s <- state(0);
+set(s, 5);
+update(s, fn(x: int): int { x + 1 });
+print(c(get(s)));
+print(c(version(s)));
+let t <- s;
+set(t, 10);
+print(c(get(s)));

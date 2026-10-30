@@ -1,0 +1,12 @@
+[[rule]]
+file = "@run"
+must_contain = "successful"
+[[rule]]
+file = "@run"
+must_contain = "`jsonlite` is in DESCRIPTION but not in uvr.toml"
+[[rule]]
+file = "@run"
+must_contain = "package `ggplot2` is used with library() but not declared"
+[[rule]]
+file = "@run"
+must_not_contain = "`devtools`"

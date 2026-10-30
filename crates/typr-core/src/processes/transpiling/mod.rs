@@ -605,7 +605,7 @@ fn pattern_to_condition(pattern: &Lang, match_var: &str, _context: &Context) -> 
                 .collect();
             (cond, bindings.join("\n"))
         }
-        // DataFrame pattern: data__frame(col1 = x, col2 = y)
+        // DataFrame pattern: data_frame(col1 = x, col2 = y)
         Lang::DataFrame { value: fields, .. } => {
             let conditions: Vec<String> = fields
                 .iter()

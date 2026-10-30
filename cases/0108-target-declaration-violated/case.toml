@@ -1,0 +1,6 @@
+title = "T053: `@target(r, rust)` on a definition that uses an R block is reported on the definition itself"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-13"
+origin = "perso"

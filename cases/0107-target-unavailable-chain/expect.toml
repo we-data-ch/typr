@@ -1,0 +1,11 @@
+[[rule]]
+file = "@run"
+must_contain = "is not available on target `rust`"
+
+[[rule]]
+file = "@run"
+must_contain = "`main` -> `load` -> `summarise` uses an `R { ... }` block"
+
+[[rule]]
+file = "@run"
+must_not_contain = "Code verification successful!"

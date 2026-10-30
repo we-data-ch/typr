@@ -11,15 +11,16 @@
 //! - `typr lsp`: Start Language Server Protocol server
 
 use crate::project::{
-    build_file, build_project, check_file, check_project, clean, cran, debug_file, document, generate_spg, load, new,
-    pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep_R_files, run_in_project, test, use_package,
-    DebugOptions,
+    build_file, build_project, check_file, check_project, clean, cran, debug_file, document, generate_spg, ir_file,
+    load, new, pkg_install, pkg_uninstall, pkgdown, run_file, run_file_keep_R_files, run_in_project, rust_build, test,
+    use_package, DebugOptions,
 };
 use crate::repl;
 use crate::standard_library::{standard_library, standard_library_doc};
 use crate::tutor;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use typr_core::components::context::config::Target as BuildTarget;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -38,14 +39,39 @@ struct Cli {
 enum Commands {
     /// Install the R packages TypR needs (devtools, testthat).
     Init,
+    /// Install R when it is missing, using rig in user mode (no administrator
+    /// rights). Asks before downloading anything; `--yes` skips the question.
+    SetupR {
+        /// A rig version spec: `release`, `oldrel`, `4.4`, `4.4.3`.
+        #[arg(long, value_name = "SPEC")]
+        version: Option<String>,
+        /// Do not ask for confirmation (CI).
+        #[arg(long, short)]
+        yes: bool,
+        /// Report only; exit 1 if R is missing or does not match `--version`.
+        #[arg(long)]
+        check: bool,
+    },
     New {
         name: String,
-        #[arg(long, default_value = "true")]
-        renv: bool,
+        /// Do not set up a uvr environment (`uvr.toml`, `.uvr/library`).
+        #[arg(long)]
+        no_uvr: bool,
     },
     Check {
         #[arg(value_name = "FILE")]
         file: Option<PathBuf>,
+        /// Check availability on one target only (`r`, `rust`) instead of every
+        /// target `typr.toml [project] targets` declares.
+        #[arg(long, value_name = "TARGET")]
+        target: Option<String>,
+    },
+    /// Print the typed intermediate representation of a file (rfcs/0000-compilation-targets.md,
+    /// Step 2): what a non-R backend reads. A debugging aid, not a build step; the text form is
+    /// not stable. Constructs with no portable meaning show up as `unsupported (...)`.
+    Ir {
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
     },
     /// Emit the block-graph view of a file (`visualization_graph_v2.md`): the program broken
     /// into typed blocks with their ports, wires, and cross-block `Ref`/`HasType`/`TypePosition`
@@ -86,6 +112,13 @@ enum Commands {
         /// errors (soundness_transpilation.md Phase C).
         #[arg(long)]
         strict: bool,
+        /// Target to build for (`r`, `rust`). Default: the first of `typr.toml [project] targets`.
+        #[arg(long, value_name = "TARGET")]
+        target: Option<String>,
+        /// Packaging of the `rust` target: `bin` (default), `lib`, `wasm`, `extendr`.
+        /// Default: `[rust] platform` in `typr.toml`.
+        #[arg(long, value_name = "PLATFORM")]
+        platform: Option<String>,
     },
     Run {
         #[arg(value_name = "FILE")]
@@ -101,6 +134,13 @@ enum Commands {
         /// errors (soundness_transpilation.md Phase C).
         #[arg(long)]
         strict: bool,
+        /// Target to run (`r`, `rust`). Default: the first of `typr.toml [project] targets`.
+        #[arg(long, value_name = "TARGET")]
+        target: Option<String>,
+        /// Packaging of the `rust` target: `bin` (default), `lib`, `wasm`, `extendr`.
+        /// Default: `[rust] platform` in `typr.toml`.
+        #[arg(long, value_name = "PLATFORM")]
+        platform: Option<String>,
     },
     Debug {
         #[arg(value_name = "FILE")]
@@ -468,6 +508,7 @@ fn skips_r_deps_check(command: &Option<Commands>) -> bool {
         // `syntax` renders grammars out of typr's own manifest — it never
         // touches a project, let alone R.
         Some(Commands::Init)
+            | Some(Commands::SetupR { .. })
             | Some(Commands::Lsp)
             | Some(Commands::Mcp)
             | Some(Commands::Tutor { .. })
@@ -503,9 +544,14 @@ pub fn start() {
             profile,
             checked,
             strict,
-        }) => match file {
-            Some(path) => run_file_keep_R_files(&path, profile, checked, strict),
-            _ => run_in_project(profile, checked, strict),
+            target,
+            platform,
+        }) => match crate::project::build_target(file.as_deref(), target.as_deref()) {
+            BuildTarget::Rust => rust_build(file.as_deref(), true, platform.as_deref()),
+            _ => match file {
+                Some(path) => run_file_keep_R_files(&path, profile, checked, strict),
+                _ => run_in_project(profile, checked, strict),
+            },
         },
         // $ typr build
         Some(Commands::Build {
@@ -514,21 +560,36 @@ pub fn start() {
             no_incremental,
             checked,
             strict,
-        }) => match file {
-            Some(path) => build_file(&path, test, checked, strict),
-            _ => build_project(test, no_incremental, checked, strict),
+            target,
+            platform,
+        }) => match crate::project::build_target(file.as_deref(), target.as_deref()) {
+            BuildTarget::Rust => rust_build(file.as_deref(), false, platform.as_deref()),
+            _ => match file {
+                Some(path) => build_file(&path, test, checked, strict),
+                _ => build_project(test, no_incremental, checked, strict),
+            },
         },
         // $ typr check
-        Some(Commands::Check { file }) => match file {
-            Some(path) => check_file(&path),
-            _ => check_project(),
+        Some(Commands::Check { file, target }) => match file {
+            Some(path) => check_file(&path, target.as_deref()),
+            _ => check_project(target.as_deref()),
         },
+        // $ typr ir
+        Some(Commands::Ir { file }) => ir_file(&file),
         // $ typr test
         Some(Commands::Test { profile }) => test(profile),
         // $ typr new
-        Some(Commands::New { name, renv }) => new(&name, renv),
+        Some(Commands::New { name, no_uvr }) => new(&name, !no_uvr),
         // $ typr init
         Some(Commands::Init) => crate::r_deps::init(),
+
+        // $ typr setup-r
+        Some(Commands::SetupR { version, yes, check }) => {
+            let code = crate::toolchain::setup::setup_r(&crate::toolchain::setup::Options { version, yes, check });
+            if code != 0 {
+                std::process::exit(code);
+            }
+        }
         // $ typr graph diff
         Some(Commands::Graph {
             graph_command:

@@ -189,6 +189,14 @@ pub fn let_expression(
     // becomes a runtime obligation on the initialiser, instead of a static
     // error. The variable then carries the annotated type from this point on.
     let mut typed = exp.typing(&new_context);
+    // A record literal is closed by construction (record_bound_generics RFC,
+    // *exact*): it may initialise an `exact` annotation.
+    if matches!(ty, Type::Exact(..))
+        && matches!(exp.as_ref(), Lang::List { spreads, .. } if spreads.is_empty())
+        && matches!(typed.value, Type::Record(..))
+    {
+        typed.value = Type::Exact(Box::new(typed.value.clone()), typed.value.get_help_data());
+    }
     if !ty.is_empty() && !typed.has_errors() {
         match coerce_to(&typed.value, ty, &typed.context) {
             Coercion::Runtime(set) => {

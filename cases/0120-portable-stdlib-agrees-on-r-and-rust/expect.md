@@ -1,0 +1,1 @@
+Differential case (Step 7): the standard-library entries tagged `#! targets: r, rust` (`map`, `filter`, `reduce`, `fold`, `extend`, `startsWith`, `endsWith`) give the same output on both targets. Scalars are wrapped in `[...]` to stay clear of the boxed-scalar divergence (case 0112).

@@ -10,7 +10,6 @@
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::Command;
 use typr_core::components::context::config::Environment;
 
 pub fn get_os_file(file: &str) -> String {
@@ -32,9 +31,10 @@ pub fn read_file_from_name(name: &str, environment: Environment) -> String {
 }
 
 pub fn execute_r_with_path(execution_path: &PathBuf, file_name: &str) {
-    match Command::new("Rscript")
+    match crate::toolchain::project_env(execution_path)
+        .rscript_file(get_os_file(file_name))
+        .command()
         .current_dir(execution_path)
-        .arg(get_os_file(file_name))
         .output()
     {
         Ok(output) => {
@@ -57,9 +57,10 @@ pub fn execute_r_with_path(execution_path: &PathBuf, file_name: &str) {
 }
 
 pub fn execute_r_with_path2(execution_path: &PathBuf, file_name: &str) -> String {
-    match Command::new("Rscript")
+    match crate::toolchain::project_env(execution_path)
+        .rscript_file(get_os_file(file_name))
+        .command()
         .current_dir(execution_path)
-        .arg(get_os_file(file_name))
         .output()
     {
         Ok(output) => {

@@ -1,0 +1,3 @@
+let x <- list(a = 1, b = true);
+x$a <- 5;
+let z: list{a: 1, b: bool} <- x;

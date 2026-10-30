@@ -5,9 +5,6 @@
 #' @include position.R
 #' @include scene.R
 
-
-
-
 new_circle <- circle$new_circle
 Circle <- circle$Circle
 Position <- position$Position

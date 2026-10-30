@@ -20,6 +20,7 @@
 #! ret: same vector unchanged
 #! note: identity for arrays; other types implement via S3 dispatch
 #! example: as_vec(c(1,2,3))   # -> c(1,2,3)
+#! targets: r, rust
 @as_vec: (a: [#N, T]) -> [#N, T];
 
 #! pkg: base
@@ -28,6 +29,7 @@
 #! param f: transformation function (T) -> U
 #! ret: transformed vector with same length
 #! example: map(c(1,2,3), add(1))   # -> c(2,3,4)
+#! targets: r, rust
 @map: (a: [#N, T], f: (T) -> U) -> [#N, U];
 
 #! pkg: base
@@ -37,6 +39,7 @@
 #! ret: elements where predicate is TRUE
 #! note: result length <= input length
 #! example: filter(c(1,2,3,4), is_even)   # -> c(2,4)
+#! targets: r, rust
 @filter: (a: [#N, T], f: (T) -> bool) -> [#N, T];
 
 #! pkg: base
@@ -47,6 +50,7 @@
 #! ret: new vector with element at i replaced
 #! note: returns new vector (immutable update)
 #! example: set_at(c(1,2,3), 2, 99)   # -> c(1,99,3)
+#! targets: r, rust
 @set_at: (a: [#N, T], i: int, val: T) -> [#N, T];
 
 #! pkg: base
@@ -125,6 +129,7 @@
 #! param c: step size
 #! ret: integer sequence from a to b by c
 #! example: seq(1L, 5L, 1L)   # -> c(1,2,3,4,5)
+#! targets: r, rust
 @seq: (a: #I, b: #J, c: #K) -> Vec[#J-#I/#K+1, int];
 
 #! pkg: base
@@ -133,6 +138,7 @@
 #! param s: separator string
 #! ret: single concatenated string
 #! example: join(c("a","b","c"), ",")   # -> "a,b,c"
+#! targets: r, rust
 @join: (a: [#N, char], s: char) -> char;
 
 #! pkg: base
@@ -141,6 +147,7 @@
 #! param b: prefix to test
 #! ret: TRUE if a starts with b
 #! example: startsWith("hello", "hel")   # -> TRUE
+#! targets: r, rust
 @startsWith: (a: char, b: char) -> bool;
 
 #! pkg: base
@@ -149,6 +156,7 @@
 #! param b: suffix to test
 #! ret: TRUE if a ends with b
 #! example: endsWith("hello", "llo")   # -> TRUE
+#! targets: r, rust
 @endsWith: (a: char, b: char) -> bool;
 
 #! pkg: base
@@ -157,4 +165,5 @@
 #! param b: string to search in
 #! ret: TRUE if a is found in b
 #! example: contains("hello", "ell")   # -> TRUE
+#! targets: r, rust
 @contains: (a: char, b: char) -> bool;

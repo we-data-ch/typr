@@ -1,0 +1,7 @@
+title = "typr check should warn when DESCRIPTION and uvr.toml disagree, or when library(x) uses an undeclared package"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-19"
+origin = "perso"
+checked = false

@@ -1,0 +1,11 @@
+type Box <- list { v: Any };
+let pick <- fn(c: bool, a: Any, b: Any): Any { if (c) { a } else { b } };
+let flag <- true;
+let x: Any <- if (flag) { [1, 2] } else { ["a"] };
+print(x);
+let p <- pick(false, [1, 2], [3, 4]);
+print(sum(p as! [int]));
+let bs <- [Box:{ v = [1] }, Box:{ v = ["a"] }];
+print(bs[2]$v);
+let n <- x as! [int];
+print(n);

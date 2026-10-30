@@ -1,0 +1,7 @@
+let check <- fn(x: int): Empty {
+    if (x > 2) { stop("too big") } else { print([x]) }
+};
+check(1);
+check(2);
+check(5);
+check(0)

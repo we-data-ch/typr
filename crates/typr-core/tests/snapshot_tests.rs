@@ -370,12 +370,12 @@ mod diagnostics {
 
     #[test]
     fn d1_dataframe_column_not_vector() {
-        insta::assert_snapshot!(diagnose("data.frame(a = [1, 2, 3], b = 5);"));
+        insta::assert_snapshot!(diagnose("data_frame(a = [1, 2, 3], b = 5);"));
     }
 
     #[test]
     fn d1_dataframe_column_length_mismatch() {
-        insta::assert_snapshot!(diagnose("data.frame(a = [1, 2, 3], b = [4, 5]);"));
+        insta::assert_snapshot!(diagnose("data_frame(a = [1, 2, 3], b = [4, 5]);"));
     }
 
     #[test]

@@ -1,0 +1,17 @@
+{
+  "cache_format": 1,
+  "typr_version": "0.6.1",
+  "test_mode": false,
+  "checked_mode": false,
+  "source_hashes": {
+    "TypR/main.ty": 16170262170841924615
+  },
+  "output_hashes": {
+    "R/generic_functions.R": 1958086608075786943,
+    "R/main.R": 8592088671298288869,
+    "R/std.R": 15323592514859371513,
+    "R/types.R": 2921492680086623759,
+    "load_module.R": 12764404020043362217
+  },
+  "devtools_input_hash": null
+}

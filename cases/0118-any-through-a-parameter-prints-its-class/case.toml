@@ -1,0 +1,6 @@
+title = "A value returned through an `Any` parameter prints its class attribute on `r`"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-13"
+origin = "perso"

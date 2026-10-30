@@ -1,0 +1,6 @@
+title = "An unproven refinement is checked at run time on both targets, with the same message"
+cmd = "run"
+layer = "r-run"
+status = "fixed"
+created = "2026-10-13"
+origin = "perso"

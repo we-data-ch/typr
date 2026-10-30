@@ -1,0 +1,1 @@
+let bad <- fn(x: list{a: int}): list{a: int} { list(a = 2) };

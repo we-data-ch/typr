@@ -9,6 +9,7 @@ pub mod types;
 pub mod vector_priority;
 
 use crate::components::context::config::Config;
+use crate::components::context::config::Target;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::syntax_error::SyntaxError;
 use crate::components::language::operators::custom_op;
@@ -16,6 +17,7 @@ use crate::components::language::operators::Op;
 use crate::components::language::var::Var;
 use crate::components::language::Lang;
 use crate::components::language::ModulePosition;
+use crate::components::language::TargetAttr;
 use crate::components::r#type::vector_type::ConstructorCategory;
 use crate::components::r#type::Type;
 use crate::processes::parsing::elements::break_exp;
@@ -56,6 +58,7 @@ use nom::sequence::terminated;
 use nom::IResult;
 use nom::Parser;
 use nom_locate::LocatedSpan;
+use std::collections::BTreeMap;
 use std::ops::Deref;
 
 type Span<'a> = LocatedSpan<&'a str, String>;
@@ -1460,8 +1463,7 @@ fn signature_variable_impl(s: Span) -> IResult<Span, Vec<Lang>> {
                     identifier: var2,
                     target_type: typ,
                     help_data: at.into(),
-                    is_extern: false,
-                    extern_r_name: None,
+                    externs: Default::default(),
                 }],
             ))
         }
@@ -1494,8 +1496,7 @@ fn signature_opaque_impl(s: Span) -> IResult<Span, Vec<Lang>> {
                     identifier: var2,
                     target_type: typ,
                     help_data: at.into(),
-                    is_extern: false,
-                    extern_r_name: None,
+                    externs: Default::default(),
                 }],
             ))
         }
@@ -1535,13 +1536,151 @@ fn signature_extern_impl(s: Span) -> IResult<Span, Vec<Lang>> {
                     identifier: var2,
                     target_type: typ,
                     help_data: at.into(),
-                    is_extern: true,
-                    extern_r_name: r_name,
+                    externs: BTreeMap::from([(Target::R, r_name)]),
                 }],
             ))
         }
         Err(r) => Err(r),
     }
+}
+
+/// `@extern base::Sys.sleep: T;` — the R name is not a TypR identifier (a dot or
+/// a capital). The R name belongs in `@extern(r = "...")`; reports S022 with the
+/// rewritten declaration and consumes the signature so nothing cascades.
+fn signature_extern_r_name(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, (_at, _, pkg, name_span, _, body, _)) = (
+        tag("@extern"),
+        multispace1,
+        opt((
+            take_while1(|c: char| c.is_alphanumeric() || c == '_' || c == '.'),
+            tag("::"),
+        )),
+        take_while1(|c: char| c.is_alphanumeric() || c == '_' || c == '.'),
+        terminated(tag(":"), multispace0),
+        nom::bytes::complete::take_till(|c: char| c == ';'),
+        terminated(tag(";"), multispace0),
+    )
+        .parse(s.clone())?;
+    let name = name_span.fragment().to_string();
+    if !(name.contains('.') || name.chars().next().is_some_and(|c| c.is_uppercase())) {
+        return Err(nom::Err::Error(nom::error::Error::new(s, nom::error::ErrorKind::Tag)));
+    }
+    let r_name = match pkg {
+        Some((pkg, _)) => format!("{}::{}", pkg.fragment(), name),
+        None => name.clone(),
+    };
+    let typr_name = name.replace('.', "_").to_lowercase();
+    push_parse_error(SyntaxError::ExternRName {
+        suggestion: format!("@extern(r = \"{}\") {}: {};", r_name, typr_name, body.fragment().trim()),
+        written: name,
+        help_data: name_span.into(),
+    });
+    Ok((rest, vec![]))
+}
+
+/// A target name (`r`, `rust`). An unknown one is a syntax error (S021), never
+/// silently ignored (rfcs/0000-compilation-targets.md §5).
+fn target_name(s: Span) -> IResult<Span, Target> {
+    let (rest, word) = take_while1(|c: char| c.is_ascii_alphanumeric() || c == '_').parse(s.clone())?;
+    match word.fragment().parse::<Target>() {
+        Ok(t) => Ok((rest, t)),
+        Err(name) => {
+            push_parse_error(SyntaxError::UnknownTarget {
+                name,
+                help_data: s.into(),
+            });
+            Err(nom::Err::Error(nom::error::Error::new(
+                rest,
+                nom::error::ErrorKind::Tag,
+            )))
+        }
+    }
+}
+
+/// `(r = "stats::median", rust = "typr_std::stats::median")`
+fn extern_args(s: Span) -> IResult<Span, BTreeMap<Target, Option<String>>> {
+    let entry = (
+        terminated(target_name, multispace0),
+        terminated(tag("="), multispace0),
+        delimited(
+            tag("\""),
+            nom::bytes::complete::take_while(|c: char| c != '"'),
+            tag("\""),
+        ),
+    );
+    let (rest, entries) = delimited(
+        terminated(tag("("), multispace0),
+        separated_list0(terminated(tag(","), multispace0), terminated(entry, multispace0)),
+        terminated(tag(")"), multispace0),
+    )
+    .parse(s)?;
+    let externs = entries
+        .into_iter()
+        .map(|(t, _, name)| (t, Some(name.fragment().to_string())))
+        .collect();
+    Ok((rest, externs))
+}
+
+/// `@extern(r = "...", rust = "...") name: T;`: a body-less external with one
+/// implementation per target.
+fn signature_extern_targets(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, (at, externs, (name, h), _, typ, _)) = (
+        tag("@extern"),
+        extern_args,
+        alt((variable_recognizer, custom_operators)),
+        terminated(tag(":"), multispace0),
+        ltype,
+        terminated(tag(";"), multispace0),
+    )
+        .parse(s)?;
+    let var = Var::from_name(&name).set_help_data(h).set_type(typ.clone());
+    Ok((
+        rest,
+        vec![Lang::Signature {
+            identifier: var,
+            target_type: typ,
+            help_data: at.into(),
+            externs,
+        }],
+    ))
+}
+
+/// `@extern(rust = "...")` in front of a `let`: externals for some targets, the
+/// TypR body for the others.
+fn extern_attribute(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, (at, externs, _)) = (
+        tag("@extern"),
+        extern_args,
+        nom::combinator::peek(alt((tag("let"), tag("@pub"), tag("@export"), tag("@testable")))),
+    )
+        .parse(s)?;
+    Ok((
+        rest,
+        vec![Lang::Attribute {
+            attr: TargetAttr::Extern(externs),
+            help_data: at.into(),
+        }],
+    ))
+}
+
+/// `@target(r, rust)`: the declared upper bound on a definition's availability.
+fn target_attribute(s: Span) -> IResult<Span, Vec<Lang>> {
+    let (rest, (at, targets)) = (
+        tag("@target"),
+        delimited(
+            terminated(tag("("), multispace0),
+            separated_list0(terminated(tag(","), multispace0), terminated(target_name, multispace0)),
+            terminated(tag(")"), multispace0),
+        ),
+    )
+        .parse(s)?;
+    Ok((
+        rest,
+        vec![Lang::Attribute {
+            attr: TargetAttr::Only(targets.into_iter().collect()),
+            help_data: at.into(),
+        }],
+    ))
 }
 
 pub fn signature(s: Span) -> IResult<Span, Vec<Lang>> {
@@ -1552,7 +1691,16 @@ pub fn signature(s: Span) -> IResult<Span, Vec<Lang>> {
 }
 
 fn signature_impl(s: Span) -> IResult<Span, Vec<Lang>> {
-    alt((signature_extern, signature_opaque, signature_variable)).parse(s)
+    alt((
+        signature_extern,
+        signature_extern_targets,
+        signature_extern_r_name,
+        extern_attribute,
+        target_attribute,
+        signature_opaque,
+        signature_variable,
+    ))
+    .parse(s)
 }
 
 fn for_loop(s: Span) -> IResult<Span, Vec<Lang>> {
@@ -2274,6 +2422,46 @@ mod tesus {
             }
         }
         assert!(take_parse_errors().is_empty());
+    }
+
+    #[test]
+    fn test_extern_with_r_name_suggests_the_attribute_form() {
+        for (src, written, suggestion) in [
+            (
+                "@extern base::Sys.sleep: (time: num) -> null;",
+                "Sys.sleep",
+                "@extern(r = \"base::Sys.sleep\") sys_sleep: (time: num) -> null;",
+            ),
+            (
+                "@extern Sys.getenv: (x: char) -> char;",
+                "Sys.getenv",
+                "@extern(r = \"Sys.getenv\") sys_getenv: (x: char) -> char;",
+            ),
+        ] {
+            let _ = take_parse_errors();
+            let parsed = signature(src.into()).unwrap();
+            assert!(parsed.1.is_empty(), "{src}: the bad signature is consumed whole");
+            let errors = take_parse_errors();
+            match errors.as_slice() {
+                [SyntaxError::ExternRName {
+                    written: w,
+                    suggestion: s,
+                    ..
+                }] => {
+                    assert_eq!((w.as_str(), s.as_str()), (written, suggestion), "{src}");
+                }
+                other => panic!("{src}: {other:?}"),
+            }
+        }
+        // Valid forms are untouched.
+        for src in [
+            "@extern stats::sd: (x: [Any, num]) -> num;",
+            "@extern(r = \"Sys.sleep\") sys_sleep: (time: num) -> null;",
+        ] {
+            let _ = take_parse_errors();
+            let _ = signature(src.into()).unwrap();
+            assert!(take_parse_errors().is_empty(), "{src}");
+        }
     }
 
     #[test]

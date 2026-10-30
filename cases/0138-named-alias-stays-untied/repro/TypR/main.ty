@@ -1,0 +1,4 @@
+type Point <- list{x: int, y: int};
+let shift <- fn(p: Point): Point { Point:{ x = p$x + 1, y = p$y } };
+let s <- shift(Point:{ x = 1, y = 2 });
+let keep <- fn(p: Point@A): Point@A { Self:{ x = p$x + 1, ...p } };

@@ -1,0 +1,34 @@
+#! pkg: usethis
+#! tier: T2
+#! format: TypR stdlib catalog — R usethis package functions
+#
+# Catalogue des fonctions R usethis typées pour TypR.
+# Doc SPG uniquement (R_DOC_ONLY_SOURCES), pas embarquées dans le compilateur.
+# usethis n'est pas un paquet de base : il doit être installé (`uvr add --dev usethis`).
+
+# ============================================================
+# GIT / GITHUB — Version control setup for a project
+# ============================================================
+
+#! pkg: usethis
+#! tier: T2
+#! param message: commit message for the initial commit (default "Initial commit")
+#! ret: TRUE invisibly if a repository was created, FALSE if one already existed
+#! note: T2 — side-effectful; runs `git init` and makes the initial commit in the active project
+#! example: # noplayground: use_git()   # -> initialise a git repo in the active project
+#! seealso: use_github
+@use_git: (message?: char) -> bool;
+
+#! pkg: usethis
+#! tier: T2
+#! param organisation: GitHub organisation to create the repository in (default NULL = your account)
+#! param private: whether the repository is private (default FALSE)
+#! param visibility: "public", "private" or "internal" (default derived from private)
+#! param protocol: "https" or "ssh" (default from gh_protocol)
+#! param host: GitHub host, for GitHub Enterprise (default NULL)
+#! param description: repository description (default NULL = DESCRIPTION Title)
+#! ret: NULL invisibly
+#! note: T2 — side-effectful; creates the remote repository, sets `origin` and pushes. Requires a git repo (use_git) and a GitHub token
+#! example: # noplayground: use_github()   # -> create a GitHub repo from the active project
+#! seealso: use_git
+@use_github: (organisation?: char, private?: bool, visibility?: char, protocol?: char, host?: char, description?: char) -> Any;

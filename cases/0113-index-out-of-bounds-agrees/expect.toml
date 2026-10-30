@@ -1,0 +1,9 @@
+targets = ["r", "rust"]
+
+[[rule]]
+file = "@run"
+must_contain = "[1] 2"
+
+[[rule]]
+file = "@run"
+must_not_contain = "[1] 1"

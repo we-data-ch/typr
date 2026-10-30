@@ -23,6 +23,14 @@ library({{PACKAGE_NAME}})
 
 This package is generated from TypR source code located in the `TypR/` directory.
 
+R dependencies are managed with [uvr](https://github.com/nbafrank/uvr):
+
+```bash
+uvr sync        # install the locked packages (after a clone)
+typr use dplyr  # declare a package in DESCRIPTION and uvr.toml
+uvr run script.R
+```
+
 To build the package:
 
 ```bash

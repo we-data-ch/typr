@@ -3,7 +3,7 @@
 > Auto-generated from `configs/std/*.ty` by `typr std doc --format md`.
 > Compiled signatures (T1) are verified by the type-checker.
 
-**386** documented entities (368 with structured metadata).
+**422** documented entities (405 with structured metadata).
 
 ## `_typR` package  
 - **`Option`** `.Some(T) | .None`
@@ -15,7 +15,7 @@
 - **`Plot`** `{ ann: bool, axes: bool, kind: char, log: char, main: char, sub: char, x: [#N, num], xlab: char, xlim: [2, num], y: [#N, num], ylab: char, ylim: [2, num] }`
 - **`bplot`** `Plot`
 - **`lvec`** `(a: [#M, T]) -> [1, [#M, T]]`
-- **`cvec`** `(a: [#M, T]) -> [#M, [int, T]]`
+- **`cvec`** `(a: [#M, T]) -> [#M, [1, T]]`
 - **`System2`** `{ args: [#N, char], command: char, stderr: char, stdin: char, stdout: char }`
 - **`Factor`** `= int`
 - **`factor`** `(a: char, b: [#N, char]) -> Factor<[#N, char]>`
@@ -184,7 +184,7 @@
   ```
   get(list(x=1), "x")   # -> 1
   ```
-- `T1` **`seq`** `(a: #I, b: #J, c: #K) -> Vec[#J-#I/#K+int, int]` — integer sequence from a to b by c
+- `T1` **`seq`** `(a: #I, b: #J, c: #K) -> Vec[#J-#I/#K+1, int]` — integer sequence from a to b by c
   ```
   seq(1L, 5L, 1L)   # -> c(1,2,3,4,5)
   ```
@@ -256,6 +256,40 @@
   ```
 - `T2` **`bsystem2`** `(a: char) -> System2` — System2 struct for execution
 - `T2` **`exec`** `(a: System2) -> char` — command output
+- `T1` **`sys_info`** `() -> [#N, char]` — named character vector (sysname, release, nodename, user, 
+  ```
+  sys_info()
+  ```
+- `T1` **`sys_getenv`** `(a: char, b: char) -> char` — value of the variable
+  ```
+  sys_getenv("HOME")
+  ```
+- `T1` **`sys_unsetenv`** `(a: [#N, char]) -> [#N, bool]` — logical vector, TRUE for each success
+- `T1` **`sys_time`** `() -> Foreign<any>` — current date-time (POSIXct), opaque to TypR
+  ```
+  sys_time()
+  ```
+- `T1` **`sys_date`** `() -> Foreign<any>` — current date (Date), opaque to TypR
+  ```
+  sys_date()
+  ```
+- `T1` **`sys_sleep`** `(a: num) -> null` — NULL (invisibly)
+  ```
+  sys_sleep(0.5)
+  ```
+- `T1` **`sys_which`** `(a: [#N, char]) -> [#N, char]` — full paths ("" when not found)
+  ```
+  sys_which("ls")
+  ```
+- `T1` **`sys_timezone`** `(a: bool) -> char` — time zone name
+- `T1` **`sys_getlocale`** `(a: char) -> char` — locale string
+- `T1` **`sys_setlocale`** `(a: char, b: char) -> char` — the new locale string, "" on failure
+  ```
+  sys_setlocale("LC_ALL", "C")
+  ```
+- `T1` **`sys_getpid`** `() -> int` — process id of the R session
+- `T1` **`sys_glob`** `(a: [#N, char], b: bool) -> [#M, char]` — matching paths
+- `T1` **`sys_readlink`** `(a: [#N, char]) -> [#N, char]` — link targets ("" if not a link)
 - `T1` **`annotate_factor`** `(a: int, b: [#N, char]) -> Factor<[#N, char]>` — Factor wrapping the integer index
 - `T1` **`as__factor`** `(a: any, b: [#N, char]) -> Factor<[#N, char]>` — Factor from any value
 - `T1` **`levels`** `(a: Factor<L>) -> L` — levels vector
@@ -290,34 +324,198 @@
   ```
   sort(c(3,1,4,1,5))   # -> c(1,1,3,4,5)
   ```
+- `T1` **`is_element`** `(a: T, b: [#N, T]) -> bool` — TRUE if a is in x
+  ```
+  is_element(2, c(1,2,3))   # -> TRUE
+  ```
+  See also: `intersect`, `match`
+- `T1` **`is_numeric`** `(a: any) -> bool` — TRUE if x is numeric (integer or double)
+  ```
+  is_numeric(42)   # -> TRUE
+  ```
+  See also: `is.integer`, `is.character`
+- `T1` **`is_integer`** `(a: any) -> bool` — TRUE if x is integer
+  ```
+  is_integer(42L)   # -> TRUE
+  ```
+  See also: `is.numeric`
+- `T1` **`is_character`** `(a: any) -> bool` — TRUE if x is character
+  ```
+  is_character("hello")   # -> TRUE
+  ```
+  See also: `is.numeric`
+- `T1` **`is_logical`** `(a: any) -> bool` — TRUE if x is logical
+  ```
+  is_logical(TRUE)   # -> TRUE
+  ```
+  See also: `is.numeric`
+- `T1` **`is_factor`** `(a: any) -> bool` — TRUE if x is a factor
+  ```
+  is_factor(factor("a"))   # -> TRUE
+  ```
+  See also: `is.character`
+- `T1` **`is_null`** `(a: any) -> bool` — TRUE if x is NULL
+  ```
+  is_null(NULL)   # -> TRUE
+  ```
+- `T1` **`is_na`** `(a: any) -> bool` — TRUE if x is NA
+  ```
+  is_na(NA)   # -> TRUE
+  ```
+- `T1` **`is_nan`** `(a: any) -> bool` — TRUE if x is NaN (Not a Number)
+  ```
+  is_nan(NaN)   # -> TRUE
+  ```
+- `T1` **`is_finite`** `(a: num) -> bool` — TRUE if x is finite (not Inf, -Inf, or NaN)
+  ```
+  is_finite(42.0)   # -> TRUE
+  ```
+  See also: `is.infinite`
+- `T1` **`is_infinite`** `(a: num) -> bool` — TRUE if x is Inf or -Inf
+  ```
+  is_infinite(Inf)   # -> TRUE
+  ```
+  See also: `is.finite`
+- `T1` **`is_complex`** `(a: any) -> bool` — TRUE if x is complex
+  ```
+  is_complex(1+2i)   # -> TRUE
+  ```
+  See also: `is.numeric`
+- `T1` **`is_raw`** `(a: any) -> bool` — TRUE if x is raw (bytes)
+  ```
+  is_raw(charToRaw("a"))   # -> TRUE
+  ```
+  See also: `is.character`
+- `T1` **`is_function`** `(a: any) -> bool` — TRUE if x is a function
+  ```
+  is_function(mean)   # -> TRUE
+  ```
+- `T1` **`is_primitive`** `(a: any) -> bool` — TRUE if x is a primitive function
+  ```
+  is_primitive(`+`)   # -> TRUE
+  ```
+  See also: `is.function`
+- `T1` **`as_numeric`** `(a: any) -> num` — numeric (double) representation
+  ```
+  as_numeric(TRUE)   # -> 1.0
+  ```
+  See also: `as.integer`, `as.character`
+- `T1` **`as_integer`** `(a: any) -> int` — integer representation
+  ```
+  as_integer(3.7)   # -> 3L
+  ```
+  See also: `as.numeric`
+- `T1` **`as_character`** `(a: any) -> char` — character representation
+  ```
+  as_character(42)   # -> "42"
+  ```
+  See also: `as.numeric`, `as.integer`
+- `T1` **`as_logical`** `(a: any) -> bool` — logical representation
+  ```
+  as_logical(0)   # -> FALSE
+  ```
+  See also: `as.numeric`
+- `T1` **`as_complex`** `(a: any) -> complex` — complex representation
+  ```
+  as_complex(42)   # -> 42+0i
+  ```
+  See also: `as.numeric`
+- `T1` **`as_raw`** `(a: any) -> raw` — raw (byte) representation
+  ```
+  as_raw(65L)   # -> charToRaw("A")
+  ```
+  See also: `as.integer`
+- `T1` **`rep_int`** `(a: [#N, T], b: int) -> [#M, T]` — vector with each element repeated
+  ```
+  rep_int(c(1, 2), 3)   # -> c(1, 1, 1, 2, 2, 2)
+  ```
+  See also: `rep_len`
+- `T1` **`which_min`** `(a: [#N, num]) -> int` — index of minimum value (first occurrence)
+  ```
+  which_min(c(3, 1, 4, 1, 5))   # -> 2 (1-indexed)
+  ```
+  See also: `which.max`, `min`
+- `T1` **`which_max`** `(a: [#N, num]) -> int` — index of maximum value (first occurrence)
+  ```
+  which_max(c(3, 1, 4, 1, 5))   # -> 5 (1-indexed)
+  ```
+  See also: `which.min`, `max`
+- `T1` **`nrow`** `(a: DataFrame[#N, {}]) -> int` — number of rows
+- `T1` **`nrow`** `(a: [#M, [#N, num]]) -> int` — number of rows
+- `T1` **`nrow`** `(a: any) -> int` — number of rows
+- `T1` **`ncol`** `(a: DataFrame[#N, {}]) -> int` — number of columns
+- `T1` **`ncol`** `(a: [#M, [#N, num]]) -> int` — number of columns
+- `T1` **`ncol`** `(a: any) -> int` — number of columns
+- `T1` **`dim`** `(a: DataFrame[#N, {}]) -> [2, int]` — dimension vector (rows, cols, 
+  ```
+  dim(matrix(1:6, 2, 3))   # -> c(2, 3)
+  ```
+- `T1` **`dim`** `(a: any) -> [#N, int]` — dimension vector (rows, cols, 
+  ```
+  dim(matrix(1:6, 2, 3))   # -> c(2, 3)
+  ```
+- `T1` **`names`** `(a: DataFrame[#N, {}]) -> [#M, char]` — its names
+  ```
+  names(c(a = 1, b = 2))   # -> c("a", "b")
+  ```
+- `T1` **`names`** `(a: any) -> [#N, char]` — its names
+  ```
+  names(c(a = 1, b = 2))   # -> c("a", "b")
+  ```
+- `T1` **`colnames`** `(a: DataFrame[#N, {}]) -> [#M, char]` — column names
+- `T1` **`colnames`** `(a: any) -> [#N, char]` — column names
+- `T1` **`rownames`** `(a: DataFrame[#N, {}]) -> [#N, char]` — row names
+- `T1` **`rownames`** `(a: any) -> [#N, char]` — row names
+- `T1` **`colSums`** `(a: DataFrame[#N, {}]) -> [#M, num]` — column sums
+- `T1` **`colSums`** `(a: [#M, [#N, num]]) -> [#N, num]` — column sums
+- `T1` **`colSums`** `(a: any) -> [#N, num]` — column sums
+- `T1` **`rowSums`** `(a: DataFrame[#N, {}]) -> [#N, num]` — row sums
+- `T1` **`rowSums`** `(a: [#M, [#N, num]]) -> [#M, num]` — row sums
+- `T1` **`rowSums`** `(a: any) -> [#N, num]` — row sums
+- `T1` **`colMeans`** `(a: DataFrame[#N, {}]) -> [#M, num]` — column means
+- `T1` **`colMeans`** `(a: [#M, [#N, num]]) -> [#N, num]` — column means
+- `T1` **`colMeans`** `(a: any) -> [#N, num]` — column means
+- `T1` **`rowMeans`** `(a: DataFrame[#N, {}]) -> [#N, num]` — row means
+- `T1` **`rowMeans`** `(a: [#M, [#N, num]]) -> [#M, num]` — row means
+- `T1` **`rowMeans`** `(a: any) -> [#N, num]` — row means
+- `T1` **`is_data_frame`** `(a: any) -> bool` — TRUE if x is a data frame
+  ```
+  is_data_frame(data_frame(a = [1]))   # -> TRUE
+  ```
+- `T1` **`as_data_frame`** `(a: any) -> any` — a data frame; its columns depend on x, so the result is `Any`
+  ```
+  as_data_frame(matrix(1:4, 2, 2))
+  ```
+- `T1` **`merge`** `(a: DataFrame[#N, {}], b: DataFrame[#M, {}], c: [#K, char]) -> any` — the joined data frame
+- `T1` **`merge`** `(a: any, b: any, c: [#K, char]) -> any` — the joined data frame
 - `T1` **`abs`** `(a: num) -> num` — absolute value
   ```
-  abs(-5)   # -> 5
+  abs(-5.0)   # -> 5
   ```
   See also: `sign`
 - `T1` **`sqrt`** `(a: num) -> num` — square root
   ```
-  sqrt(9)   # -> 3
+  sqrt(9.0)   # -> 3.0
   ```
   See also: `^`, `exp`
 - `T1` **`log`** `(a: num, b: num) -> num` — logarithm of x
   ```
-  log(100)   # -> 4.6051...
+  log(100.0, 10.0)   # -> 4.6051...
   ```
   See also: `log2`, `log10`, `log1p`, `exp`
 - `T1` **`log2`** `(a: num) -> num` — base-2 logarithm
   ```
-  log2(8)   # -> 3
+  log2(8.0)   # -> 3
   ```
   See also: `log`, `log10`
 - `T1` **`log10`** `(a: num) -> num` — base-10 logarithm
   ```
-  log10(100)   # -> 2
+  log10(100.0)   # -> 2
   ```
   See also: `log`, `log2`
 - `T1` **`exp`** `(a: num) -> num` — e^x
   ```
-  exp(0)   # -> 1
+  exp(0.0)   # -> 1.0
   ```
   See also: `log`
 - `T1` **`expm1`** `(a: num) -> num` — e^x - 1
@@ -352,109 +550,109 @@
   See also: `ceiling`, `floor`, `round`
 - `T1` **`sign`** `(a: num) -> int` — sign of x (-1, 0, or 1)
   ```
-  sign(-5)   # -> -1
+  sign(-5.0)   # -> -1
   ```
   See also: `abs`
 - `T1` **`signif`** `(a: num, b: int) -> num` — value rounded to significant digits
   ```
-  signif(12345, 3)   # -> 12300
+  signif(12345.0, 3)   # -> 12300
   ```
   See also: `round`
 - `T1` **`cos`** `(a: num) -> num` — cosine
   ```
-  cos(0)   # -> 1
+  cos(0.0)   # -> 1.0
   ```
   See also: `sin`, `tan`, `acos`
 - `T1` **`sin`** `(a: num) -> num` — sine
   ```
-  sin(0)   # -> 0
+  sin(0.0)   # -> 0.0
   ```
   See also: `cos`, `tan`, `asin`
 - `T1` **`tan`** `(a: num) -> num` — tangent
   ```
-  tan(0)   # -> 0
+  tan(0.0)   # -> 0.0
   ```
   See also: `cos`, `sin`, `atan`
 - `T1` **`acos`** `(a: num) -> num` — arc cosine (radians)
   ```
-  acos(1)   # -> 0
+  acos(1.0)   # -> 0.0
   ```
   See also: `asin`, `atan`, `cos`
 - `T1` **`asin`** `(a: num) -> num` — arc sine (radians)
   ```
-  asin(0)   # -> 0
+  asin(0.0)   # -> 0.0
   ```
   See also: `acos`, `atan`, `sin`
 - `T1` **`atan`** `(a: num) -> num` — arc tangent (radians)
   ```
-  atan(0)   # -> 0
+  atan(0.0)   # -> 0.0
   ```
   See also: `acos`, `asin`, `tan`
 - `T1` **`cosh`** `(a: num) -> num` — hyperbolic cosine
   ```
-  cosh(0)   # -> 1
+  cosh(0.0)   # -> 1.0
   ```
   See also: `sinh`, `tanh`, `cos`
 - `T1` **`sinh`** `(a: num) -> num` — hyperbolic sine
   ```
-  sinh(0)   # -> 0
+  sinh(0.0)   # -> 0.0
   ```
   See also: `cosh`, `tanh`, `sin`
 - `T1` **`tanh`** `(a: num) -> num` — hyperbolic tangent
   ```
-  tanh(0)   # -> 0
+  tanh(0.0)   # -> 0.0
   ```
   See also: `cosh`, `sinh`, `tan`
 - `T1` **`acosh`** `(a: num) -> num` — hyperbolic arc cosine
   ```
-  acosh(1)   # -> 0
+  acosh(1.0)   # -> 0.0
   ```
   See also: `asinh`, `atanh`, `cosh`
 - `T1` **`asinh`** `(a: num) -> num` — hyperbolic arc sine
   ```
-  asinh(0)   # -> 0
+  asinh(0.0)   # -> 0.0
   ```
   See also: `acosh`, `atanh`, `sinh`
 - `T1` **`atanh`** `(a: num) -> num` — hyperbolic arc tangent
   ```
-  atanh(0)   # -> 0
+  atanh(0.0)   # -> 0.0
   ```
   See also: `acosh`, `asinh`, `tanh`
 - `T1` **`cospi`** `(a: num) -> num` — cosine of angle in degrees
   ```
-  cospi(0)   # -> 1
+  cospi(0.0)   # -> 1.0
   ```
   See also: `cos`, `sinpi`, `tanpi`
 - `T1` **`sinpi`** `(a: num) -> num` — sine of angle in degrees
   ```
-  sinpi(0)   # -> 0
+  sinpi(0.0)   # -> 0.0
   ```
   See also: `sin`, `cospi`, `tanpi`
 - `T1` **`tanpi`** `(a: num) -> num` — tangent of angle in degrees
   ```
-  tanpi(0)   # -> 0
+  tanpi(0.0)   # -> 0.0
   ```
   See also: `tan`, `cospi`, `sinpi`
 - `T1` **`digamma`** `(a: num) -> num` — digamma function (derivative of log(gamma(x)))
   ```
-  digamma(1)   # -> -0.5772... (Euler-Mascheroni constant, negated)
+  digamma(1.0)   # -> -0.5772... (Euler-Mascheroni constant, negated)
   ```
   See also: `trigamma`, `lgamma`, `gamma`
 - `T1` **`trigamma`** `(a: num) -> num` — trigamma function (second derivative of log(gamma(x)))
   ```
-  trigamma(1)   # -> 1.6449... (pi^2 / 6)
+  trigamma(1.0)   # -> 1.6449... (pi^2 / 6)
   ```
   See also: `digamma`, `lgamma`
 - `T1` **`psigamma`** `(a: num, b: int) -> num` — psigamma function (polygamma)
   See also: `digamma`, `trigamma`
 - `T1` **`lgamma`** `(a: num) -> num` — log of absolute value of gamma function
   ```
-  lgamma(1)   # -> 0 (log(|Gamma(1)|) = log(1) = 0)
+  lgamma(1.0)   # -> 0.0 (log(|Gamma(1)|) = log(1) = 0)
   ```
   See also: `gamma`, `digamma`
 - `T1` **`gamma`** `(a: num) -> num` — gamma function value
   ```
-  gamma(5)   # -> 24 (4!)
+  gamma(5.0)   # -> 24.0 (4!)
   ```
   See also: `lgamma`, `digamma`
 - `T1` **`cumsum`** `(a: [#N, num]) -> [#N, num]` — cumulative sum
@@ -551,107 +749,6 @@
   setequal(c(1,2,3), c(3,2,1))   # -> TRUE
   ```
   See also: `identical`, `intersect`
-- `T1` **`is.element`** `(a: T, b: [#N, T]) -> bool` — TRUE if a is in x
-  ```
-  is.element(2, c(1,2,3))   # -> TRUE
-  ```
-  See also: `intersect`, `match`
-- `T1` **`is.numeric`** `(a: any) -> bool` — TRUE if x is numeric (integer or double)
-  ```
-  is.numeric(42)   # -> TRUE
-  ```
-  See also: `is.integer`, `is.character`
-- `T1` **`is.integer`** `(a: any) -> bool` — TRUE if x is integer
-  ```
-  is.integer(42L)   # -> TRUE
-  ```
-  See also: `is.numeric`
-- `T1` **`is.character`** `(a: any) -> bool` — TRUE if x is character
-  ```
-  is.character("hello")   # -> TRUE
-  ```
-  See also: `is.numeric`
-- `T1` **`is.logical`** `(a: any) -> bool` — TRUE if x is logical
-  ```
-  is.logical(TRUE)   # -> TRUE
-  ```
-  See also: `is.numeric`
-- `T1` **`is.factor`** `(a: any) -> bool` — TRUE if x is a factor
-  ```
-  is.factor(factor("a"))   # -> TRUE
-  ```
-  See also: `is.character`
-- `T1` **`is.null`** `(a: any) -> bool` — TRUE if x is NULL
-  ```
-  is.null(NULL)   # -> TRUE
-  ```
-- `T1` **`is.na`** `(a: any) -> bool` — TRUE if x is NA
-  ```
-  is.na(NA)   # -> TRUE
-  ```
-- `T1` **`is.nan`** `(a: any) -> bool` — TRUE if x is NaN (Not a Number)
-  ```
-  is.nan(NaN)   # -> TRUE
-  ```
-- `T1` **`is.finite`** `(a: num) -> bool` — TRUE if x is finite (not Inf, -Inf, or NaN)
-  ```
-  is.finite(42)   # -> TRUE
-  ```
-  See also: `is.infinite`
-- `T1` **`is.infinite`** `(a: num) -> bool` — TRUE if x is Inf or -Inf
-  ```
-  is.infinite(Inf)   # -> TRUE
-  ```
-  See also: `is.finite`
-- `T1` **`is.complex`** `(a: any) -> bool` — TRUE if x is complex
-  ```
-  is.complex(1+2i)   # -> TRUE
-  ```
-  See also: `is.numeric`
-- `T1` **`is.raw`** `(a: any) -> bool` — TRUE if x is raw (bytes)
-  ```
-  is.raw(charToRaw("a"))   # -> TRUE
-  ```
-  See also: `is.character`
-- `T1` **`is.function`** `(a: any) -> bool` — TRUE if x is a function
-  ```
-  is.function(mean)   # -> TRUE
-  ```
-- `T1` **`is.primitive`** `(a: any) -> bool` — TRUE if x is a primitive function
-  ```
-  is.primitive(`+`)   # -> TRUE
-  ```
-  See also: `is.function`
-- `T1` **`as.numeric`** `(a: any) -> num` — numeric (double) representation
-  ```
-  as.numeric(TRUE)   # -> 1.0
-  ```
-  See also: `as.integer`, `as.character`
-- `T1` **`as.integer`** `(a: any) -> int` — integer representation
-  ```
-  as.integer(3.7)   # -> 3L
-  ```
-  See also: `as.numeric`
-- `T1` **`as.character`** `(a: any) -> char` — character representation
-  ```
-  as.character(42)   # -> "42"
-  ```
-  See also: `as.numeric`, `as.integer`
-- `T1` **`as.logical`** `(a: any) -> bool` — logical representation
-  ```
-  as.logical(0)   # -> FALSE
-  ```
-  See also: `as.numeric`
-- `T1` **`as.complex`** `(a: any) -> complex` — complex representation
-  ```
-  as.complex(42)   # -> 42+0i
-  ```
-  See also: `as.numeric`
-- `T1` **`as.raw`** `(a: any) -> raw` — raw (byte) representation
-  ```
-  as.raw(65L)   # -> charToRaw("A")
-  ```
-  See also: `as.integer`
 - `T1` **`nchar`** `(a: char) -> int` — number of characters
   ```
   nchar("hello")   # -> 5
@@ -691,8 +788,8 @@
   ```
   chartr("a", "A", "hello abc")   # -> "hello Abc"
   ```
-  See also: `sub`, `gsub`
-- `T1` **`sprintf`** `(a: char, b: any) -> char` — formatted character string
+  See also: `toupper`, `tolower`, `sub`, `gsub`
+- `T1` **`sprintf`** `(a: char, b: any) -> char` — formatted string
   ```
   sprintf("Hello %s, you are %d", "world", 42)   # -> "Hello world, you are 42"
   ```
@@ -762,11 +859,6 @@
   rep_len(c(1, 2), 3)   # -> c(1, 2, 1, 2, 1, 2)
   ```
   See also: `rep`
-- `T1` **`rep.int`** `(a: [#N, T], b: int) -> [#M, T]` — vector with each element repeated
-  ```
-  rep.int(c(1, 2), 3)   # -> c(1, 1, 1, 2, 2, 2)
-  ```
-  See also: `rep_len`
 - `T1` **`crossprod`** `(a: [#M, T], b: [#N, T]) -> [#M, #N]` — cross-product (t(x) %*% y)
   ```
   crossprod(c(1,2), c(3,4))   # -> 11 (1*3 + 2*4)
@@ -787,51 +879,11 @@
   inner(c(1,2), c(3,4))   # -> 11
   ```
   See also: `crossprod`
-- `T1` **`colSums`** `(a: [#M, [#N, num]]) -> [#N, num]` — column sums
-  ```
-  colSums(matrix(1:6, 2, 3))   # -> c(3, 7, 11)
-  ```
-  See also: `rowSums`, `colMeans`
-- `T1` **`rowSums`** `(a: [#M, [#N, num]]) -> [#M, num]` — row sums
-  ```
-  rowSums(matrix(1:6, 2, 3))   # -> c(6, 15)
-  ```
-  See also: `colSums`, `rowMeans`
-- `T1` **`colMeans`** `(a: [#M, [#N, num]]) -> [#N, num]` — column means
-  ```
-  colMeans(matrix(1:6, 2, 3))   # -> c(1.5, 3.5, 5.5)
-  ```
-  See also: `rowMeans`, `colSums`
-- `T1` **`rowMeans`** `(a: [#M, [#N, num]]) -> [#M, num]` — row means
-  ```
-  rowMeans(matrix(1:6, 2, 3))   # -> c(2, 5)
-  ```
-  See also: `colMeans`, `rowSums`
 - `T1` **`identical`** `(a: any, b: any) -> bool` — TRUE if x and y are exactly equal (or nearly equal with tolerance)
   ```
   identical(1, 1)   # -> TRUE
   ```
   See also: `all.equal`, `is.element`
-- `T1` **`which.min`** `(a: [#N, num]) -> int` — index of minimum value (first occurrence)
-  ```
-  which.min(c(3, 1, 4, 1, 5))   # -> 2 (1-indexed)
-  ```
-  See also: `which.max`, `min`
-- `T1` **`which.max`** `(a: [#N, num]) -> int` — index of maximum value (first occurrence)
-  ```
-  which.max(c(3, 1, 4, 1, 5))   # -> 5 (1-indexed)
-  ```
-  See also: `which.min`, `max`
-- `T1` **`which.is.min`** `(a: [#N, num]) -> int` — index of minimum value
-  ```
-  which.is.min(c(3, 1, 4, 1, 5))   # -> 2
-  ```
-  See also: `which.min`
-- `T1` **`which.is.max`** `(a: [#N, num]) -> int` — index of maximum value
-  ```
-  which.is.max(c(3, 1, 4, 1, 5))   # -> 5
-  ```
-  See also: `which.max`
 - `T1` **`head`** `(a: [#N, T], b: int) -> [#M, T]` — first n elements
   ```
   head(1:10, 3)   # -> c(1, 2, 3)
@@ -887,26 +939,6 @@
   order(c(3, 1, 4, 1, 5))   # -> c(2, 4, 1, 3, 5)
   ```
   See also: `sort`, `rank`
-- `T1` **`names`** `(a: [#N, T]) -> [#N, char]` — name(s) matching value
-  ```
-  names(c(a=1, b=2, c=3))[2]   # -> "b"
-  ```
-  See also: `match`, `which`
-- `T1` **`nrow`** `(a: any) -> int` — number of rows
-  ```
-  nrow(matrix(1:6, 2, 3))   # -> 2
-  ```
-  See also: `ncol`, `dim`
-- `T1` **`ncol`** `(a: any) -> int` — number of columns
-  ```
-  ncol(matrix(1:6, 2, 3))   # -> 3
-  ```
-  See also: `nrow`, `dim`
-- `T1` **`dim`** `(a: any) -> [#N, int]` — dimension vector (rows, cols, 
-  ```
-  dim(matrix(1:6, 2, 3))   # -> c(2, 3)
-  ```
-  See also: `nrow`, `ncol`
 - `T1` **`anyNA`** `(a: [#N, T]) -> bool` — TRUE if x has no NA values
   ```
   anyNA(c(1, 2, 3))   # -> FALSE
@@ -929,7 +961,7 @@
   ```
   chartr("a", "A", "hello abc")   # -> "hello Abc"
   ```
-  See also: `sub`, `gsub`
+  See also: `toupper`, `tolower`, `sub`, `gsub`
 
 ## `graphics` package  
 - `T2` **`plot`** `(a: [#N, num], b: [#N, num], c: char, d: [2, num], e: [2, num], f: char, g: char, h: char, i: char, j: char, k: bool, overflow: bool) -> .None` — NULL (invisibly) — opens graphics device
@@ -938,6 +970,41 @@
   ```
 
 ## `stats` package  
+- `T1` **`iqr`** `(a: [#N, num], b: bool, c: int) -> num` — interquartile range (75th percentile - 25th percentile)
+  ```
+  iqr(1:10)   # -> 5
+  ```
+  See also: `quantile`, `mad`
+- `T1` **`weighted_mean`** `(a: [#N, num], b: [#N, num]) -> num` — weighted arithmetic mean
+  ```
+  weighted_mean(c(1, 2, 3), c(3, 2, 1))   # -> 1.6666...
+  ```
+  See also: `mean`, `sum`
+- `T1` **`is_ts`** `(a: any) -> bool` — TRUE if x has a time series attribute (tsp)
+  ```
+  is_ts(1:10)   # -> FALSE
+  ```
+  See also: `ts`, `as.ts`
+- `T1` **`is_stepfun`** `(a: any) -> bool` — TRUE if x is a step function
+  ```
+  is_stepfun(stepfun(1:5, 1:5))   # -> TRUE
+  ```
+  See also: `stepfun`
+- `T1` **`complete_cases`** `(a: [#N, T]) -> [#N, bool]` — complete cases indicator (logical vector)
+  ```
+  complete_cases(c(1, NA, 3))   # -> c(TRUE, FALSE, TRUE)
+  ```
+  See also: `na.omit`, `is.na`
+- `T1` **`complete_cases`** `(a: DataFrame[#N, {}]) -> [#N, bool]` — complete cases indicator (logical vector)
+  ```
+  complete_cases(c(1, NA, 3))   # -> c(TRUE, FALSE, TRUE)
+  ```
+  See also: `na.omit`, `is.na`
+- `T1` **`complete_cases`** `(a: any) -> [#N, bool]` — complete cases indicator (logical vector)
+  ```
+  complete_cases(c(1, NA, 3))   # -> c(TRUE, FALSE, TRUE)
+  ```
+  See also: `na.omit`, `is.na`
 - `T1` **`dnorm`** `(a: num, b: num, c: num) -> num` — normal density at x
   ```
   dnorm(0)   # -> 0.3989...
@@ -1268,11 +1335,6 @@
   psignrank(2, n = 5)   # -> 0.6875
   ```
   See also: `dsignrank`, `qsignrank`, `rsignrank`
-- `T1` **`IQR`** `(a: [#N, num], b: bool) -> num` — interquartile range (75th percentile - 25th percentile)
-  ```
-  IQR(1:10)   # -> 5
-  ```
-  See also: `quantile`, `mad`
 - `T1` **`mad`** `(a: [#N, num], b: bool) -> num` — median absolute deviation: median(|x - median(x)|) * 1
   ```
   mad(c(1, 1, 2, 2, 4, 6, 9))   # -> 2.9652...
@@ -1283,19 +1345,14 @@
   fivenum(c(1, 2, 3, 4, 5))   # -> c(1, 1.5, 3, 4.5, 5)
   ```
   See also: `summary`, `quantile`, `range`
-- `T1` **`weighted.mean`** `(a: [#N, num], b: [#N, num], c: bool) -> num` — weighted arithmetic mean
-  ```
-  weighted.mean(c(1, 2, 3), c(3, 2, 1))   # -> 1.6666...
-  ```
-  See also: `mean`, `sum`
 - `T1` **`cor`** `(a: [#N, num], b: [#N, num], c: char) -> num` — correlation coefficient or matrix
   ```
   cor(c(1, 2, 3), c(2, 4, 6))   # -> 1
   ```
   See also: `cor.test`, `cov`, `cov2cor`
-- `T2` **`cor.test`** `(a: [#N, num], b: [#N, num], c: char, d: char, e: num) -> any` — list with estimate, p
+- `T2` **`cor_test`** `(a: [#N, num], b: [#N, num], c: char, d: char, e: num) -> any` — list with estimate, p
   ```
-  cor.test(1:10, c(2,4,6,8,10,12,14,16,18,20))   # -> r=1, p<2.2e-16
+  cor_test(1:10, c(2,4,6,8,10,12,14,16,18,20))   # -> r=1, p<2.2e-16
   ```
   See also: `cor`, `cov`
 - `T1` **`cov`** `(a: [#N, num], b: [#N, num], c: char) -> num` — covariance or covariance matrix
@@ -1303,49 +1360,49 @@
   cov(c(1, 2, 3), c(2, 4, 6))   # -> 2
   ```
   See also: `cor`, `cor.test`
-- `T2` **`t.test`** `(a: [#N, num], b: [#N, num], c: char, d: num, e: bool, f: num) -> any` — list with statistic, df, p
+- `T2` **`t_test`** `(a: [#N, num], b: [#N, num], c: char, d: num, e: bool, f: num) -> any` — list with statistic, df, p
   ```
-  t.test(1:10, rnorm(10))   # -> t-test result
+  t_test(1:10, rnorm(10))   # -> t-test result
   ```
   See also: `var.test`, `wilcox.test`
-- `T2` **`chisq.test`** `(a: [#N, num], b: [#N, num], c: char, d: bool) -> any` — list with statistic, df, p
+- `T2` **`chisq_test`** `(a: [#N, num], b: [#N, num], c: char, d: bool) -> any` — list with statistic, df, p
   ```
-  chisq.test(c(10, 10, 10))   # -> Chi-squared test
+  chisq_test(c(10, 10, 10))   # -> Chi-squared test
   ```
   See also: `fisher.test`, `prop.test`
-- `T2` **`fisher.test`** `(a: [#M, [#N, num]], b: char, c: num) -> any` — list with estimate, p
+- `T2` **`fisher_test`** `(a: [#M, [#N, num]], b: char, c: num) -> any` — list with estimate, p
   ```
-  fisher.test(matrix(c(1, 9, 11, 2), 2, 2))   # -> Fisher's exact test
+  fisher_test(matrix(c(1, 9, 11, 2), 2, 2))   # -> Fisher's exact test
   ```
   See also: `chisq.test`
-- `T2` **`wilcox.test`** `(a: [#N, num], b: [#N, num], c: char, d: bool, e: num) -> any` — list with statistic, p
+- `T2` **`wilcox_test`** `(a: [#N, num], b: [#N, num], c: char, d: bool, e: num) -> any` — list with statistic, p
   ```
-  wilcox.test(1:10, 2:11)   # -> Wilcoxon rank-sum test
+  wilcox_test(1:10, 2:11)   # -> Wilcoxon rank-sum test
   ```
   See also: `t.test`, `ks.test`
-- `T2` **`binom.test`** `(a: int, b: int, c: num, d: char, e: num) -> any` — list with statistic, p
+- `T2` **`binom_test`** `(a: int, b: int, c: num, d: char, e: num) -> any` — list with statistic, p
   ```
-  binom.test(6, 10)   # -> exact binomial test
+  binom_test(6, 10)   # -> exact binomial test
   ```
   See also: `prop.test`, `chisq.test`
-- `T2` **`shapiro.test`** `(a: [#N, num]) -> any` — list with statistic, p
+- `T2` **`shapiro_test`** `(a: [#N, num]) -> any` — list with statistic, p
   ```
-  shapiro.test(rnorm(100))   # -> W ≈ 1, p ≈ 1
+  shapiro_test(rnorm(100))   # -> W ≈ 1, p ≈ 1
   ```
   See also: `ks.test`
-- `T2` **`ks.test`** `(a: [#N, num], b: [#N, num], c: char) -> any` — list with statistic, p
+- `T2` **`ks_test`** `(a: [#N, num], b: [#N, num], c: char) -> any` — list with statistic, p
   ```
-  ks.test(rnorm(100), "pnorm")   # -> KS test against normal
+  ks_test(rnorm(100), "pnorm")   # -> KS test against normal
   ```
   See also: `shapiro.test`, `wilcox.test`
-- `T2` **`var.test`** `(a: [#N, num], b: [#N, num], c: char) -> any` — list with statistic, df, p
+- `T2` **`var_test`** `(a: [#N, num], b: [#N, num], c: char) -> any` — list with statistic, df, p
   ```
-  var.test(rnorm(100), rnorm(100, sd = 2))   # -> F-test
+  var_test(rnorm(100), rnorm(100, sd = 2))   # -> F-test
   ```
   See also: `t.test`
-- `T2` **`kruskal.test`** `(a: [#N, num], b: any) -> any` — list with statistic, p
+- `T2` **`kruskal_test`** `(a: [#N, num], b: any) -> any` — list with statistic, p
   ```
-  kruskal.test(list(c(1,2,3), c(4,5,6), c(7,8,9)))   # -> H-test
+  kruskal_test(list(c(1,2,3), c(4,5,6), c(7,8,9)))   # -> H-test
   ```
   See also: `wilcox.test`, `oneway.test`
 - `T1` **`approx`** `(a: [#N, num], b: [#N, num], c: [#M, num], d: char, e: int) -> [#M, num]` — interpolated y-values
@@ -1410,7 +1467,7 @@
   See also: `median`, `IQR`, `fivenum`
 - `T2` **`predict`** `(a: any, b: any, c: char) -> any` — predicted values
   ```
-  m <- lm(mpg ~ wt, data = mtcars); predict(m, newdata = data.frame(wt = 3))
+  m <- lm(mpg ~ wt, data = mtcars); predict(m, newdata = data_frame(wt = 3))
   ```
   See also: `fitted`, `residuals`
 - `T2` **`fitted`** `(a: any) -> any` — fitted (predicted) values
@@ -1423,26 +1480,11 @@
   m <- lm(mpg ~ wt, data = mtcars); residuals(m)   # -> residuals
   ```
   See also: `fitted`, `predict`
-- `T1` **`is.ts`** `(a: any) -> bool` — TRUE if x has a time series attribute (tsp)
-  ```
-  is.ts(1:10)   # -> FALSE
-  ```
-  See also: `ts`, `as.ts`
-- `T1` **`is.stepfun`** `(a: any) -> bool` — TRUE if x is a step function
-  ```
-  is.stepfun(stepfun(1:5, 1:5))   # -> TRUE
-  ```
-  See also: `stepfun`
 - `T1` **`hasTsp`** `(a: any) -> bool` — TRUE if x has TSP (time series) attributes
   ```
   hasTsp(ts(1:10))   # -> TRUE
   ```
   See also: `tsp`, `ts`
-- `T1` **`complete.cases`** `(a: [#N, T]) -> [#N, bool]` — complete cases indicator (logical vector)
-  ```
-  complete.cases(c(1, NA, 3))   # -> c(TRUE, FALSE, TRUE)
-  ```
-  See also: `na.omit`, `is.na`
 - `T1` **`setNames`** `(a: [#N, T], b: [#N, char]) -> [#N, T]` — named list
   ```
   setNames(1:3, c("a", "b", "c"))   # -> c(a=1, b=2, c=3)
@@ -1454,55 +1496,112 @@
   ```
   See also: `lm`, `glm`, `update`
 
+## `usethis` package  
+- `T2` **`use_git`** `(a: char) -> bool` — TRUE invisibly if a repository was created, FALSE if one already existed
+  ```
+  use_git()   # -> initialise a git repo in the active project
+  ```
+  See also: `use_github`
+- `T2` **`use_github`** `(a: char, b: bool, c: char, d: char, e: char, f: char) -> any` — NULL invisibly
+  ```
+  use_github()   # -> create a GitHub repo from the active project
+  ```
+  See also: `use_git`
+
 ## `utils` package  
-- `T2` **`read.csv`** `(a: char, b: bool, c: char, d: char, e: [#N, char], f: int, g: int, h: bool) -> any` — data frame
+- `T1` **`type_convert`** `(a: any, b: [#N, char], c: bool, d: char, e: char) -> any` — converted value
   ```
-  read.csv("data.csv")   # -> data frame from CSV file
+  type_convert(c("1", "2.5", "TRUE"))   # -> c(1L, 2.5, TRUE)
   ```
-  See also: `read.table`, `write.csv`, `read.delim`
-- `T2` **`read.csv2`** `(a: char, b: bool, c: char, d: char, e: [#N, char]) -> any` — data frame
+  See also: `as.numeric`, `as.integer`, `as.logical`
+- `T1` **`urlencode`** `(a: char, b: bool, c: bool) -> char` — percent-encoded URL string
   ```
-  read.csv2("data.csv2")   # -> data frame
+  urlencode("hello world")   # -> "hello%20world"
+  ```
+  See also: `URLdecode`
+- `T1` **`urldecode`** `(a: char) -> char` — decoded URL string
+  ```
+  urldecode("hello%20world")   # -> "hello world"
+  ```
+  See also: `URLencode`
+- `T1` **`file_copy`** `(a: [#N, char], b: [#M, char], c: bool, d: bool, e: bool, f: bool) -> [#N, bool]` — logical vector (TRUE for each successful copy)
+  ```
+  file_copy("source.txt", "dest.txt")
+  ```
+  See also: `file.remove`, `file.rename`, `file.exists`
+- `T1` **`file_remove`** `(a: [#N, char]) -> [#N, bool]` — logical vector (TRUE for each successful deletion)
+  ```
+  file_remove("temp.txt")
+  ```
+  See also: `file.copy`, `file.exists`
+- `T1` **`file_rename`** `(a: [#N, char], b: [#M, char]) -> [#N, bool]` — logical vector (TRUE for each successful rename)
+  ```
+  file_rename("old.txt", "new.txt")
+  ```
+  See also: `file.copy`, `file.remove`
+- `T1` **`dir_create`** `(a: char, b: bool, c: bool) -> bool` — TRUE if successful, FALSE otherwise
+  ```
+  dir_create("output/dir1/dir2")
+  ```
+  See also: `list.files`, `dir.create`
+- `T1` **`list_files`** `(a: char, b: char, c: bool, d: bool, e: bool) -> [#N, char]` — character vector of file/directory names
+  ```
+  list_files(path = ".", pattern = "\\.R$")
+  ```
+  See also: `dir.create`, `file.exists`, `list.dirs`
+- `T1` **`object_size`** `(a: any) -> any` — approximate size in bytes (as a "number_of_bytes" object)
+  ```
+  object_size(mtcars)   # -> ~6-7 KB
+  ```
+  See also: `str`, `ls.str`
+- `T1` **`read_csv`** `(a: char, b: bool, c: char) -> any` — the data frame read; its columns depend on the file, so the result is `Any`
+  ```
+  read_csv("data.csv")
+  ```
+  See also: `write_csv`
+- `T2` **`read_csv2`** `(a: char, b: bool, c: char, d: char, e: [#N, char]) -> any` — data frame
+  ```
+  read_csv2("data.csv2")   # -> data frame
   ```
   See also: `read.csv`, `write.csv2`
-- `T2` **`read.delim`** `(a: char, b: bool, c: char, d: char, e: [#N, char], f: int, g: int) -> any` — data frame
+- `T2` **`read_delim`** `(a: char, b: bool, c: char, d: char, e: [#N, char], f: int, g: int) -> any` — data frame
   ```
-  read.delim("data.tsv")   # -> data frame from TSV file
+  read_delim("data.tsv")   # -> data frame from TSV file
   ```
   See also: `read.csv`, `read.table`, `write.table`
-- `T2` **`read.delim2`** `(a: char, b: bool, c: char, d: char, e: [#N, char]) -> any` — data frame
+- `T2` **`read_delim2`** `(a: char, b: bool, c: char, d: char, e: [#N, char]) -> any` — data frame
   ```
-  read.delim2("data.tsv2")   # -> data frame
+  read_delim2("data.tsv2")   # -> data frame
   ```
   See also: `read.delim`, `write.table`
-- `T2` **`read.table`** `(a: char, b: bool, c: char, d: char, e: char, f: any, g: [#M, char], h: [#N, char], i: [#M, char], j: int, k: int, overflow: bool) -> any` — data frame
+- `T2` **`read_table`** `(a: char, b: bool, c: char, d: char, e: char, f: any, g: [#M, char], h: [#N, char], i: [#M, char], j: int, k: int, overflow: bool) -> any` — data frame
   ```
-  read.table("data.txt", header = TRUE)   # -> data frame
+  read_table("data.txt", header = TRUE)   # -> data frame
   ```
   See also: `read.csv`, `read.delim`, `write.table`
-- `T2` **`read.fwf`** `(a: char, b: [#N, int], c: bool, d: [#M, char], e: int) -> any` — data frame with fixed-width fields
+- `T2` **`read_fwf`** `(a: char, b: [#N, int], c: bool, d: [#M, char], e: int) -> any` — data frame with fixed-width fields
   ```
-  read.fwf("data.fwf", widths = c(5, 10, 3))
+  read_fwf("data.fwf", widths = c(5, 10, 3))
   ```
   See also: `read.table`, `read.fortran`
-- `T2` **`read.DIF`** `(a: char, b: bool, c: [#M, char], d: [#N, char]) -> any` — data frame
+- `T2` **`read_dif`** `(a: char, b: bool, c: [#M, char], d: [#N, char]) -> any` — data frame
   ```
-  read.DIF("data.dif")
+  read_dif("data.dif")
   ```
   See also: `read.table`
-- `T2` **`write.csv`** `(a: any, b: char, c: bool, d: bool, e: char, f: bool, g: char, h: char, i: char) -> Empty` — invisibly, NULL
+- `T2` **`write_csv`** `(a: any, b: char, c: bool, d: bool, e: char, f: bool, g: char, h: char, i: char) -> Empty` — invisibly, NULL
   ```
-  write.csv(mtcars, "output.csv")
+  write_csv(mtcars, "output.csv")
   ```
   See also: `write.table`, `write.csv2`, `read.csv`
-- `T2` **`write.csv2`** `(a: any, b: char) -> Empty` — invisibly, NULL
+- `T2` **`write_csv2`** `(a: any, b: char) -> Empty` — invisibly, NULL
   ```
-  write.csv2(mtcars, "output.csv2")
+  write_csv2(mtcars, "output.csv2")
   ```
   See also: `write.csv`, `write.table`
-- `T2` **`write.table`** `(a: any, b: char, c: bool, d: bool, e: char, f: bool, g: char, h: char) -> Empty` — invisibly, NULL
+- `T2` **`write_table`** `(a: any, b: char, c: bool, d: bool, e: char, f: bool, g: char, h: char) -> Empty` — invisibly, NULL
   ```
-  write.table(mtcars, "output.txt", sep = "\t")
+  write_table(mtcars, "output.txt", sep = "\t")
   ```
   See also: `write.csv`, `read.table`
 - `T2` **`str`** `(a: any, b: int) -> Empty` — invisibly, NULL (prints to stdout)
@@ -1510,24 +1609,19 @@
   str(mtcars)   # -> prints column types and first values
   ```
   See also: `summary`, `head`
-- `T2` **`head.matrix`** `(a: [#N, [#M, T]], b: int) -> [#K, [#M, T]]` — first n rows as data frame
+- `T2` **`head_matrix`** `(a: [#N, [#M, T]], b: int) -> [#K, [#M, T]]` — first n rows as data frame
   ```
   head(mtcars, 3)   # -> first 3 rows of mtcars
   ```
   See also: `tail`, `str`
-- `T2` **`tail.matrix`** `(a: [#N, [#M, T]], b: int) -> [#K, [#M, T]]` — last n rows as data frame
+- `T2` **`tail_matrix`** `(a: [#N, [#M, T]], b: int) -> [#K, [#M, T]]` — last n rows as data frame
   ```
   tail(mtcars, 3)   # -> last 3 rows of mtcars
   ```
   See also: `head`, `str`
-- `T1` **`type.convert`** `(a: any, b: [#N, char], c: char) -> any` — converted value
+- `T2` **`installed_packages`** `(a: [#N, char], b: [#M, char]) -> any` — character matrix with columns Package, LibPath, Version, 
   ```
-  type.convert(c("1", "2.5", "TRUE"))   # -> c(1L, 2.5, TRUE)
-  ```
-  See also: `as.numeric`, `as.integer`, `as.logical`
-- `T2` **`installed.packages`** `(a: [#N, char], b: [#M, char]) -> any` — character matrix with columns Package, LibPath, Version, 
-  ```
-  ip <- installed.packages(); head(ip[, "Package"])   # -> first 6 package names
+  ip <- installed_packages(); head(ip[, "Package"])   # -> first 6 package names
   ```
   See also: `packageVersion`, `packageDescription`, `sessionInfo`
 - `T1` **`packageVersion`** `(a: char, b: char) -> any` — packageVersion object (comparable numeric version)
@@ -1550,9 +1644,9 @@
   combn(5, 3)   # -> 3 x 10 matrix of combinations
   ```
   See also: `expand.grid`
-- `T2` **`expand.grid`** `(a: any) -> any` — data frame with all combinations (full factorial design)
+- `T2` **`expand_grid`** `(a: any) -> any` — data frame with all combinations (full factorial design)
   ```
-  expand.grid(height = c(60, 80), weight = c(100, 150, 200))
+  expand_grid(height = c(60, 80), weight = c(100, 150, 200))
   ```
   See also: `combn`
 - `T1` **`stack`** `(a: [#N, T], b: [#M, char], c: char, d: char) -> any` — data frame in long format
@@ -1585,46 +1679,11 @@
   aregexec("temperature", "tempurature", max.distance = 2)
   ```
   See also: `agrep`, `grep`
-- `T1` **`URLencode`** `(a: char, b: bool) -> char` — percent-encoded URL string
-  ```
-  URLencode("hello world")   # -> "hello%20world"
-  ```
-  See also: `URLdecode`
-- `T1` **`URLdecode`** `(a: char) -> char` — decoded URL string
-  ```
-  URLdecode("hello%20world")   # -> "hello world"
-  ```
-  See also: `URLencode`
 - `T2` **`system`** `(a: char, b: bool, c: bool, d: bool) -> any` — command output (if intern = TRUE) or exit status (if intern = FALSE)
   ```
   system("ls", intern = TRUE)   # -> character vector of file names
   ```
   See also: `system2`, `Sys.sleep`
-- `T1` **`file.copy`** `(a: [#N, char], b: [#M, char], c: bool, d: bool, e: bool) -> [#N, bool]` — logical vector (TRUE for each successful copy)
-  ```
-  file.copy("source.txt", "dest.txt")
-  ```
-  See also: `file.remove`, `file.rename`, `file.exists`
-- `T1` **`file.remove`** `(a: [#N, char], b: bool) -> [#N, bool]` — logical vector (TRUE for each successful deletion)
-  ```
-  file.remove("temp.txt")
-  ```
-  See also: `file.copy`, `file.exists`
-- `T1` **`file.rename`** `(a: [#N, char], b: [#M, char], c: bool) -> [#N, bool]` — logical vector (TRUE for each successful rename)
-  ```
-  file.rename("old.txt", "new.txt")
-  ```
-  See also: `file.copy`, `file.remove`
-- `T1` **`dir.create`** `(a: char, b: bool, c: bool) -> bool` — TRUE if successful, FALSE otherwise
-  ```
-  file.create("output/dir1/dir2")
-  ```
-  See also: `list.files`, `dir.create`
-- `T1` **`list.files`** `(a: char, b: char, c: bool, d: bool, e: bool) -> [#N, char]` — character vector of file/directory names
-  ```
-  list.files(path = ".", pattern = "\\.R$")
-  ```
-  See also: `dir.create`, `file.exists`, `list.dirs`
 - `T1` **`txtProgressBar`** `(a: num, b: num, c: num, d: char, e: char) -> any` — txtProgressBar object (use setTxtProgressBar to update)
   ```
   pb <- txtProgressBar(min = 0, max = 100, style = "txt")
@@ -1640,9 +1699,9 @@
   getTxtProgressBar(pb)
   ```
   See also: `txtProgressBar`, `setTxtProgressBar`
-- `T2` **`View`** `(a: any, b: char) -> any` — invisibly, the (potentially modified) data object
+- `T2` **`view`** `(a: any, b: char) -> any` — invisibly, the (potentially modified) data object
   ```
-  View(mtcars)   # -> opens data viewer window
+  view(mtcars)   # -> opens data viewer window
   ```
   See also: `edit`, `data.entry`
 - `T2` **`history`** `(a: int, b: char, c: bool) -> [#N, char]` — character vector of history entries
@@ -1685,24 +1744,14 @@
   vignette("intro", package = "utils")
   ```
   See also: `browseVignettes`
-- `T2` **`Sys.info`** `(a: char) -> any` — requested system information
-  ```
-  Sys.info()["sysname"]   # -> "Linux" or "Darwin" or "Windows"
-  ```
-  See also: `R.version`, `sessionInfo`
-- `T1` **`object.size`** `(a: any) -> any` — approximate size in bytes (as a "number_of_bytes" object)
-  ```
-  object.size(mtcars)   # -> ~6-7 KB
-  ```
-  See also: `str`, `ls.str`
 - `T1` **`glob2rx`** `(a: char, b: [#N, char], c: bool, d: bool) -> [#M, char]` — matching strings or logical vector
   ```
   glob2rx("*.csv")   # -> "^.*\\.csv$"
   ```
   See also: `grep`, `grepl`
-- `T1` **`capture.output`** `(a: any, b: any) -> [#N, char]` — list of captured values
+- `T1` **`capture_output`** `(a: any, b: any) -> [#N, char]` — list of captured values
   ```
-  capture.output(print("hello"))   # -> "hello"
+  capture_output(print("hello"))   # -> "hello"
   ```
   See also: `system`
 - `T2` **`strOptions`** `() -> any` — formatted object

@@ -1,0 +1,4 @@
+let reset <- fn(x: list{a: int}): exact list{a: int} { list(a = 0) };
+let r <- reset(list(a = 1, b = true));
+let n: int <- r$a;
+let m <- r$b;

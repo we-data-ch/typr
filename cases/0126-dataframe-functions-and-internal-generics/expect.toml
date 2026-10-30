@@ -1,0 +1,12 @@
+[[rule]]
+file = "@run"
+must_not_contain = "no applicable method"
+[[rule]]
+file = "@run"
+must_not_contain = "C stack usage"
+[[rule]]
+file = "@run"
+must_contain = "\"a\" \"b\" \"c\""
+[[rule]]
+file = "@run"
+must_contain = "p q"

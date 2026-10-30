@@ -1,0 +1,5 @@
+let pick2 <- fn(x: list{a: int}@A, y: list{a: int}@B): list{a: int}@A { x };
+let q <- pick2(list(a = 1, b = true), list(a = 2, c = "z"));
+let b: bool <- q$b;
+let pick3 <- fn(x: list{a: int}, y: list{a: int}): bool { x$a == y$a };
+let r <- pick3(list(a = 1, b = true), list(a = 2, c = "z"));

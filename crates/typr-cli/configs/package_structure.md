@@ -14,7 +14,9 @@ structure du package:
 ├── vignettes/        # Vignettes/tutoriels
 ├── DESCRIPTION       # Métadonnées du package
 ├── NAMESPACE         # Exports et imports
+├── uvr.toml          # Dépendances R (uvr), uvr.lock les fige
 ├── README.md         # Documentation
 ├── .Rbuildignore     # Fichiers ignorés lors du build
+├── .uvr/             # Bibliothèque R du projet (ignorée par git)
 ├── .gitignore        # Fichiers ignorés par git
 └── {{PACKAGE_NAME}}.Rproj          # Projet RStudio", name, name);

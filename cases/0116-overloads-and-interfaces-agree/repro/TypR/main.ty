@@ -1,0 +1,9 @@
+type Pt <- list { x: int, y: int };
+type Ci <- list { r: int };
+type Sized <- interface { size: (Self) -> int };
+let size <- fn(p: Pt): int { p$x + p$y };
+let size <- fn(c: Ci): int { c$r };
+let total <- fn(s: Sized): int { size(s) + 1 };
+print([total(Pt:{ x = 1, y = 2 })]);
+print([total(Ci:{ r = 10 })]);
+print([size(Ci:{ r = 3 })]);

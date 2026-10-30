@@ -5,17 +5,20 @@
 #! note: backed by R environment (reference semantics)
 opaque State<T> <- Any;
 
+#! targets: r, rust
 @state: (value: T) -> State<T>;
 #! pkg: base
 #! tier: T1
 #! param s: state cell to read
 #! ret: current value
+#! targets: r, rust
 @get: (s: State<T>) -> T;
 #! pkg: base
 #! tier: T1
 #! param s: state cell to update
 #! param value: new value
 #! ret: NULL (invisibly)
+#! targets: r, rust
 @set: (s: State<T>, value: T) -> Empty;
 #! pkg: base
 #! tier: T1
@@ -23,11 +26,13 @@ opaque State<T> <- Any;
 #! param f: transformation function
 #! ret: NULL (invisibly)
 #! note: applies f to current value and stores result
+#! targets: r, rust
 @update: (s: State<T>, f: (T) -> T) -> Empty;
 #! pkg: base
 #! tier: T1
 #! param s: state cell
 #! ret: version counter (incremented on each mutation)
+#! targets: r, rust
 @version: (s: State<T>) -> int;
 
 #! pkg: base
@@ -36,6 +41,7 @@ opaque State<T> <- Any;
 #! param f: transformation function
 #! ret: new independent State with transformed value
 #! note: pure snapshot — no aliasing with original
+#! targets: r, rust
 @map: (s: State<T>, f: (T) -> U) -> State<U>;
 #! pkg: base
 #! tier: T1

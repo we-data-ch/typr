@@ -1,0 +1,4 @@
+let v <- [1, 2, 3];
+print(v[2]);
+print(v[7]);
+print(v[1]);

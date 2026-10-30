@@ -1,0 +1,7 @@
+title = "an exact return type is a closed record"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-25"
+origin = "perso"
+checked = false

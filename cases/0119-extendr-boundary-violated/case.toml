@@ -1,0 +1,6 @@
+title = "T054: an `@pub` function whose signature holds a union cannot be exported through extendr"
+cmd = "build"
+layer = "type"
+status = "fixed"
+created = "2026-10-13"
+origin = "perso"

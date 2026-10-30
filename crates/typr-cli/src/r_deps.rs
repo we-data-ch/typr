@@ -6,7 +6,7 @@
 //! *every* command, it must never cost an R subprocess in the common case:
 //!
 //! - the check is a pure `stat` of `<lib>/<pkg>/DESCRIPTION` over a list of
-//!   candidate library directories (project `renv/library/**`, `R_LIBS_USER`
+//!   candidate library directories (project `.uvr/library`, `R_LIBS_USER`
 //!   / `R_LIBS` / `R_LIBS_SITE`, plus the paths cached from a previous run);
 //! - `Rscript -e '.libPaths()'` is spawned **only** when that stat scan comes
 //!   up short *and* the cached library list is missing or older than
@@ -24,9 +24,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use std::fs;
-use std::path::Path;
 use std::path::PathBuf;
-use std::process::Command;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -138,13 +136,13 @@ pub fn invalidate_cache() {
 }
 
 /// Library directories to `stat`, cheapest/most specific first: the project's
-/// own renv library, then the R library env vars, then whatever R reported at
+/// own uvr library, then the R library env vars, then whatever R reported at
 /// the last probe.
 fn candidate_lib_dirs(cached: Option<&DepsCache>) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = Vec::new();
 
     if let Ok(cwd) = std::env::current_dir() {
-        dirs.extend(renv_lib_dirs(&cwd));
+        dirs.extend(crate::toolchain::project_env(&cwd).lib_dirs());
     }
 
     for var in ["R_LIBS_USER", "R_LIBS", "R_LIBS_SITE"] {
@@ -168,32 +166,6 @@ fn candidate_lib_dirs(cached: Option<&DepsCache>) -> Vec<PathBuf> {
     dirs
 }
 
-/// renv nests its library under a platform/R-version pair whose exact order
-/// changed across renv releases, so walk `renv/library` a few levels deep
-/// instead of hardcoding a layout.
-fn renv_lib_dirs(project: &Path) -> Vec<PathBuf> {
-    let root = project.join("renv").join("library");
-    if !root.is_dir() {
-        return Vec::new();
-    }
-    let mut found = vec![root.clone()];
-    let mut frontier = vec![root];
-    for _ in 0..3 {
-        let mut next = Vec::new();
-        for dir in &frontier {
-            let Ok(entries) = fs::read_dir(dir) else { continue };
-            for entry in entries.flatten() {
-                if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                    next.push(entry.path());
-                }
-            }
-        }
-        found.extend(next.iter().cloned());
-        frontier = next;
-    }
-    found
-}
-
 /// An installed R package is a directory holding a `DESCRIPTION` file — the
 /// same thing `.libPaths()` lookups key on.
 pub fn is_installed_in(lib_dirs: &[PathBuf], package: &str) -> bool {
@@ -213,9 +185,9 @@ fn scan(lib_dirs: &[PathBuf]) -> Vec<String> {
 /// Ask R for its real `.libPaths()`. The one expensive path, guarded by the
 /// TTL above. `None` means R could not be reached.
 fn probe_lib_paths() -> Option<Vec<String>> {
-    let output = Command::new("Rscript")
-        .arg("-e")
-        .arg("cat(.libPaths(), sep = '\\n')")
+    let output = crate::toolchain::current_env()
+        .rscript_eval("cat(.libPaths(), sep = '\\n')")
+        .command()
         .output()
         .ok()?;
     if !output.status.success() {
@@ -325,8 +297,8 @@ pub fn warn_if_missing() {
     );
 }
 
-/// `typr init` — install the required R packages (renv-aware, like
-/// `typr pkg install`), then refresh the cache.
+/// `typr init` — install the required R packages as uvr dev-dependencies,
+/// then refresh the cache.
 pub fn init() {
     let status = check();
 
@@ -343,60 +315,55 @@ pub fn init() {
         return;
     }
 
-    let renv = std::env::current_dir()
-        .map(|d| d.join("renv.lock").exists())
-        .unwrap_or(false);
+    if let Err(msg) = crate::toolchain::require_r(None).and_then(|_| crate::toolchain::require_uvr()) {
+        eprintln!("{RED}error{RESET}: {msg}");
+        std::process::exit(1);
+    }
+    if crate::toolchain::current_env().root().is_none() {
+        eprintln!(
+            "{RED}error{RESET}: not in a uvr project (no `uvr.toml`). \
+             Run `uvr init --here <name>` here, then `typr init` again."
+        );
+        std::process::exit(1);
+    }
 
-    let pkgs = status
-        .missing
+    println!("Installing missing R package(s) via uvr: {}", status.missing.join(", "));
+    let add = crate::toolchain::add_packages(&status.missing, true);
+    println!(
+        "Executing: {} {}",
+        add.program,
+        add.args
+            .iter()
+            .map(|a| a.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+
+    let sync = crate::toolchain::sync(false);
+    let ok = [add, sync]
         .iter()
-        .map(|p| format!("'{}'", p))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let r_command = if renv {
-        println!(
-            "Installing missing R package(s) via renv: {}",
-            status.missing.join(", ")
-        );
-        format!("renv::install(c({}))", pkgs)
+        .all(|cmd| matches!(cmd.command().status(), Ok(s) if s.success()));
+    invalidate_cache();
+    if !ok {
+        eprintln!("{RED}error{RESET}: R package installation failed.");
+        std::process::exit(1);
+    }
+    let after = check();
+    if after.missing.is_empty() {
+        println!("{GREEN}✓{RESET} R dependencies installed.");
     } else {
-        println!(
-            "Installing missing R package(s) from CRAN: {}",
-            status.missing.join(", ")
+        eprintln!(
+            "{RED}error{RESET}: still missing after installation: {}",
+            after.missing.join(", ")
         );
-        format!("install.packages(c({}), repos = 'https://cloud.r-project.org')", pkgs)
-    };
-    println!("Executing: R -e \"{}\"", r_command);
-
-    match Command::new("R").arg("-e").arg(&r_command).status() {
-        Ok(exit) if exit.success() => {
-            invalidate_cache();
-            let after = check();
-            if after.missing.is_empty() {
-                println!("{GREEN}✓{RESET} R dependencies installed.");
-            } else {
-                eprintln!(
-                    "{RED}error{RESET}: still missing after installation: {}",
-                    after.missing.join(", ")
-                );
-                std::process::exit(1);
-            }
-        }
-        Ok(_) => {
-            invalidate_cache();
-            eprintln!("{RED}error{RESET}: R package installation failed.");
-            std::process::exit(1);
-        }
-        Err(e) => {
-            eprintln!("{RED}error{RESET}: could not execute R: {}", e);
-            std::process::exit(1);
-        }
+        std::process::exit(1);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     fn tmp_dir(tag: &str) -> PathBuf {
         let nanos = SystemTime::now()
@@ -449,23 +416,17 @@ mod tests {
     }
 
     #[test]
-    fn renv_lib_dirs_walks_the_nested_layout() {
-        let project = tmp_dir("renv");
-        let lib = project.join("renv/library/R-4.3/x86_64-pc-linux-gnu");
+    fn candidate_dirs_start_with_the_uvr_library() {
+        let project = tmp_dir("uvr");
+        fs::write(project.join("uvr.toml"), "").unwrap();
+        let lib = project.join(".uvr/library");
         fs::create_dir_all(&lib).unwrap();
         fake_package(&lib, "testthat");
 
-        let dirs = renv_lib_dirs(&project);
-        assert!(dirs.contains(&lib), "expected {:?} in {:?}", lib, dirs);
+        let dirs = crate::toolchain::project_env(&project).lib_dirs();
+        assert_eq!(dirs, vec![project.canonicalize().unwrap().join(".uvr/library")]);
         assert!(is_installed_in(&dirs, "testthat"));
 
-        fs::remove_dir_all(&project).unwrap();
-    }
-
-    #[test]
-    fn renv_lib_dirs_is_empty_without_a_renv_library() {
-        let project = tmp_dir("no-renv");
-        assert!(renv_lib_dirs(&project).is_empty());
         fs::remove_dir_all(&project).unwrap();
     }
 

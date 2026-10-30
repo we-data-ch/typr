@@ -1,0 +1,1 @@
+Differential case (Step 7): `stop` is tagged `#! targets: r, rust` (`panic!` on `rust`). The program prints up to the failing call, then stops on both targets; only stdout is compared, the error message goes to stderr.

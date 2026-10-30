@@ -9,6 +9,7 @@ pub mod var_function;
 
 use crate::components::context::config::Config;
 use crate::components::context::config::Environment;
+use crate::components::context::config::Target;
 use crate::components::context::Context;
 use crate::components::error_message::help_data::HelpData;
 use crate::components::error_message::locatable::Locatable;
@@ -29,12 +30,30 @@ use crate::processes::type_checking::type_context::TypeContext;
 use crate::processes::type_checking::typing;
 use crate::utils::builder;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::str::FromStr;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum ModulePosition {
     Internal,
     External,
+}
+
+/// What a [`Lang::Attribute`] declares about the definition that follows it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum TargetAttr {
+    /// `@target(...)`: the upper bound on the definition's availability.
+    Only(BTreeSet<Target>),
+    /// `@extern(...)` before a `let`: the targets that bring their own implementation.
+    Extern(BTreeMap<Target, Option<String>>),
+}
+
+impl Lang {
+    /// Whether this signature has an `r` implementation outside TypR (`@extern`).
+    pub fn is_r_extern(externs: &BTreeMap<Target, Option<String>>) -> bool {
+        externs.contains_key(&Target::R)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -259,8 +278,18 @@ pub enum Lang {
         identifier: Var,
         target_type: Type,
         help_data: HelpData,
-        is_extern: bool,
-        extern_r_name: Option<String>,
+        /// Per-target external implementations (`@extern(r = "...", rust = "...")`).
+        /// The value is the implementation's name; `None` means "same name as
+        /// the declaration" (the bare `@extern name: T;` form).
+        externs: BTreeMap<Target, Option<String>>,
+    },
+    /// `@target(r, rust)` / `@extern(rust = "...")` written before a definition
+    /// (rfcs/0000-compilation-targets.md §5). It is a statement of its own: it
+    /// applies to the next definition, is invisible to type checking and
+    /// transpiles to nothing; only the availability pass reads it.
+    Attribute {
+        attr: TargetAttr,
+        help_data: HelpData,
     },
     TypeConstructor {
         name: String,
@@ -1005,6 +1034,7 @@ impl Lang {
             Lang::Exp { help_data: h, .. } => h,
             Lang::Empty(h) => h,
             Lang::Signature { help_data: h, .. } => h,
+            Lang::Attribute { help_data: h, .. } => h,
             Lang::TypeConstructor { help_data: h, .. } => h,
             Lang::ForLoop { help_data: h, .. } => h,
             Lang::RFunction { help_data: h, .. } => h,
@@ -1077,6 +1107,7 @@ impl Lang {
             Lang::Exp { help_data: h, .. } => h,
             Lang::Empty(h) => h,
             Lang::Signature { help_data: h, .. } => h,
+            Lang::Attribute { help_data: h, .. } => h,
             Lang::TypeConstructor { help_data: h, .. } => h,
             Lang::ForLoop { help_data: h, .. } => h,
             Lang::RFunction { help_data: h, .. } => h,
@@ -1180,6 +1211,7 @@ impl Lang {
             Lang::Exp { .. } => "Exp".to_string(),
             Lang::Empty(_) => "Empty".to_string(),
             Lang::Signature { .. } => "Signature".to_string(),
+            Lang::Attribute { .. } => "Attribute".to_string(),
             Lang::TypeConstructor { .. } => "TypeConstructor".to_string(),
             Lang::ForLoop { .. } => "ForLoop".to_string(),
             Lang::RFunction { .. } => "RFunction".to_string(),
@@ -1607,6 +1639,7 @@ impl From<Lang> for HelpData {
             Lang::Library { help_data: h, .. } => h,
             Lang::Exp { help_data: h, .. } => h,
             Lang::Signature { help_data: h, .. } => h,
+            Lang::Attribute { help_data: h, .. } => h,
             Lang::TypeConstructor { help_data: h, .. } => h,
             Lang::ForLoop { help_data: h, .. } => h,
             Lang::RFunction { help_data: h, .. } => h,

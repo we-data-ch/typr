@@ -1,0 +1,7 @@
+title = "a data-frame filter keeps the caller's columns"
+cmd = "check"
+layer = "type"
+status = "fixed"
+created = "2026-10-25"
+origin = "perso"
+checked = false

@@ -216,6 +216,16 @@ pub const ENTRIES: &[ExplainEntry] = &[
         good: "module M { let .cache <- 0; @pub let cache <- 0; };",
     },
     ExplainEntry {
+        code: "S022",
+        title: "R name with a dot or a capital after `@extern`",
+        explanation: "The name after `@extern` is a TypR identifier: lowercase, no dot (`.` is the \
+            call-chain operator). An R function such as `Sys.sleep` is declared by giving its R \
+            name in the attribute, `@extern(r = \"Sys.sleep\") sys_sleep: ...;`, and called by its \
+            TypR name, `sys_sleep(...)`, which compiles to `Sys.sleep(...)`.",
+        bad: "@extern base::Sys.sleep: (time: num) -> null;",
+        good: "@extern(r = \"base::Sys.sleep\") sys_sleep: (time: num) -> null;",
+    },
+    ExplainEntry {
         code: "T001",
         title: "Type mismatch on a 'let' binding",
         explanation: "The value on the right-hand side doesn't match the type annotation on the \
@@ -546,20 +556,20 @@ pub const ENTRIES: &[ExplainEntry] = &[
     ExplainEntry {
         code: "T038",
         title: "DataFrame column isn't vector-shaped",
-        explanation: "'data.frame(col = value, ...)' requires every column to be a vector \
+        explanation: "'data_frame(col = value, ...)' requires every column to be a vector \
             ('[T]'/'Vec[T]'), even a one-element one — a bare scalar isn't a valid column. Wrap \
             the value in an array literal.",
-        bad: "let d <- data.frame(x = 1);",
-        good: "let d <- data.frame(x = [1]);",
+        bad: "let d <- data_frame(x = 1);",
+        good: "let d <- data_frame(x = [1]);",
     },
     ExplainEntry {
         code: "T039",
         title: "DataFrame columns have different lengths",
-        explanation: "Two columns in the same 'data.frame(...)' literal have statically known \
+        explanation: "Two columns in the same 'data_frame(...)' literal have statically known \
             lengths that don't match — every column of a dataframe must have the same number of \
             rows. Pad or trim the shorter array literal to match.",
-        bad: "let d <- data.frame(x = [1, 2, 3], y = [4, 5]);",
-        good: "let d <- data.frame(x = [1, 2, 3], y = [4, 5, 6]);",
+        bad: "let d <- data_frame(x = [1, 2, 3], y = [4, 5]);",
+        good: "let d <- data_frame(x = [1, 2, 3], y = [4, 5, 6]);",
     },
     ExplainEntry {
         code: "T040",

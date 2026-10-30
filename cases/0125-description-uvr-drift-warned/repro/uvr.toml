@@ -1,0 +1,8 @@
+[project]
+name = "demo"
+description = "What the Package Does (One Line, Title Case)"
+
+[dev-dependencies]
+testthat = "*"
+devtools = "*"
+usethis = "*"

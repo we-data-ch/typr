@@ -17,11 +17,23 @@ as_vec <- function(x, ...) UseMethod('as_vec', x)
 #' @export
 bsystem2 <- function(x, ...) UseMethod('bsystem2', x)
 #' @export
+colMeans <- function(x, ...) UseMethod('colMeans', x)
+#' @export
+colMeans <- function(x, ...) UseMethod('colMeans', x)
+#' @export
+colSums <- function(x, ...) UseMethod('colSums', x)
+#' @export
+colSums <- function(x, ...) UseMethod('colSums', x)
+#' @export
+colnames <- function(x, ...) UseMethod('colnames', x)
+#' @export
 contains <- function(x, ...) UseMethod('contains', x)
 #' @export
 cvec <- function(x, ...) UseMethod('cvec', x)
 #' @export
 derive <- function(x, ...) UseMethod('derive', x)
+#' @export
+dim <- function(x, ...) UseMethod('dim', x)
 #' @export
 dir <- function(x, ...) UseMethod('dir', x)
 #' @export
@@ -81,6 +93,8 @@ map <- function(x, ...) UseMethod('map', x)
 #' @export
 map <- function(x, ...) UseMethod('map', x)
 #' @export
+merge <- function(x, ...) UseMethod('merge', x)
+#' @export
 minus <- function(x, ...) UseMethod('minus', x)
 #' @export
 minus <- function(x, ...) UseMethod('minus', x)
@@ -88,12 +102,32 @@ minus <- function(x, ...) UseMethod('minus', x)
 mul <- function(x, ...) UseMethod('mul', x)
 #' @export
 mul <- function(x, ...) UseMethod('mul', x)
+#' @export
+names <- function(x, ...) UseMethod('names', x)
+#' @export
+ncol <- function(x, ...) UseMethod('ncol', x)
+#' @export
+ncol <- function(x, ...) UseMethod('ncol', x)
 #' @export
 nlevels <- function(x, ...) UseMethod('nlevels', x)
+#' @export
+nrow <- function(x, ...) UseMethod('nrow', x)
+#' @export
+nrow <- function(x, ...) UseMethod('nrow', x)
 #' @export
 plot <- function(x, ...) UseMethod('plot', x)
 #' @export
 reduce <- function(x, ...) UseMethod('reduce', x)
+#' @export
+rowMeans <- function(x, ...) UseMethod('rowMeans', x)
+#' @export
+rowMeans <- function(x, ...) UseMethod('rowMeans', x)
+#' @export
+rowSums <- function(x, ...) UseMethod('rowSums', x)
+#' @export
+rowSums <- function(x, ...) UseMethod('rowSums', x)
+#' @export
+rownames <- function(x, ...) UseMethod('rownames', x)
 #' @export
 seq <- function(x, ...) UseMethod('seq', x)
 #' @export
@@ -130,3 +164,35 @@ unwrap_or <- function(x, ...) UseMethod('unwrap_or', x)
 update <- function(x, ...) UseMethod('update', x)
 #' @export
 version <- function(x, ...) UseMethod('version', x)
+
+# ---- Generated `.default` fallbacks (see r_name_lint.rs) ----
+# `colMeans` is not S3-generic in `base`: without this, the stub above
+# would strand it ("no applicable method for 'colMeans'").
+colMeans.default <- function(...) base::colMeans(...)
+# `colSums` is not S3-generic in `base`: without this, the stub above
+# would strand it ("no applicable method for 'colSums'").
+colSums.default <- function(...) base::colSums(...)
+# `colnames` is not S3-generic in `base`: without this, the stub above
+# would strand it ("no applicable method for 'colnames'").
+colnames.default <- function(...) base::colnames(...)
+# `ncol` is not S3-generic in `base`: without this, the stub above
+# would strand it ("no applicable method for 'ncol'").
+ncol.default <- function(...) base::ncol(...)
+# `nrow` is not S3-generic in `base`: without this, the stub above
+# would strand it ("no applicable method for 'nrow'").
+nrow.default <- function(...) base::nrow(...)
+# `rowMeans` is not S3-generic in `base`: without this, the stub above
+# would strand it ("no applicable method for 'rowMeans'").
+rowMeans.default <- function(...) base::rowMeans(...)
+# `rowSums` is not S3-generic in `base`: without this, the stub above
+# would strand it ("no applicable method for 'rowSums'").
+rowSums.default <- function(...) base::rowSums(...)
+# `rownames` is not S3-generic in `base`: without this, the stub above
+# would strand it ("no applicable method for 'rownames'").
+rownames.default <- function(...) base::rownames(...)
+# `dim` is a primitive that dispatches internally: the stub above would
+# strand every class without a `dim.<class>` method, so restore it.
+dim <- base::dim
+# `names` is a primitive that dispatches internally: the stub above would
+# strand every class without a `names.<class>` method, so restore it.
+names <- base::names

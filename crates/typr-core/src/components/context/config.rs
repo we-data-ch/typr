@@ -44,11 +44,47 @@ impl fmt::Display for Environment {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Default)]
-pub enum TargetLanguage {
-    R,
+/// A compilation target (rfcs/0000-compilation-targets.md §1): a language with
+/// its own semantics implementation. `R` is what TypR has always produced;
+/// `Rust` is declarable and checked (availability) but has no backend yet; `JS`
+/// stays dormant.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Serialize, Deserialize, Default)]
+pub enum Target {
     #[default]
+    R,
+    Rust,
     JS,
+}
+
+impl Target {
+    /// Every target name accepted in `@target(...)`, `@extern(...)`,
+    /// `#! targets:` and `typr.toml`. `js` is dormant, so it is not offered.
+    pub const NAMES: [&'static str; 2] = ["r", "rust"];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Target::R => "r",
+            Target::Rust => "rust",
+            Target::JS => "js",
+        }
+    }
+}
+
+impl fmt::Display for Target {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+impl std::str::FromStr for Target {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "r" => Ok(Target::R),
+            "rust" => Ok(Target::Rust),
+            other => Err(other.to_string()),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Default)]
@@ -62,7 +98,7 @@ pub enum FileType {
 pub struct Config {
     pub environment: Environment,
     pub file_type: FileType,
-    pub target_language: TargetLanguage,
+    pub target_language: Target,
     /// When true, opaque alias declarations are registered as transparent.
     /// Set to true when type-checking a module body so internal functions
     /// can see through opaque types they declare.
@@ -101,7 +137,7 @@ impl Config {
         }
     }
 
-    pub fn set_target_language(self, language: TargetLanguage) -> Self {
+    pub fn set_target_language(self, language: Target) -> Self {
         Self {
             target_language: language,
             ..self
@@ -130,7 +166,7 @@ impl Config {
         }
     }
 
-    pub fn get_target_language(&self) -> TargetLanguage {
+    pub fn get_target_language(&self) -> Target {
         self.target_language
     }
 
@@ -142,7 +178,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Config {
         Config {
-            target_language: TargetLanguage::R,
+            target_language: Target::R,
             environment: Environment::StandAlone,
             file_type: FileType::Main,
             in_module_body: false,

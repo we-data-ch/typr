@@ -387,6 +387,26 @@ fn collect_named_generics(concrete: &Type, param: &Type, subs: &mut std::collect
                 collect_named_generics(ret_c, ret_p, subs);
             }
         }
+        // `(cols: record{a: [#N, T]})`: fields pair up by name, not position.
+        Type::Record(fields_p, _) => {
+            if let Type::Record(fields_c, _) = concrete {
+                for fp in fields_p {
+                    if let Some(fc) = fields_c
+                        .iter()
+                        .find(|fc| fc.get_argument_str() == fp.get_argument_str())
+                    {
+                        collect_named_generics(&fc.get_type(), &fp.get_type(), subs);
+                    }
+                }
+            }
+        }
+        Type::Tuple(elems_p, _) => {
+            if let Type::Tuple(elems_c, _) = concrete {
+                for (c, p) in elems_c.iter().zip(elems_p.iter()) {
+                    collect_named_generics(c, p, subs);
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -424,6 +444,18 @@ fn verify_named_generics(
         Type::Vec(_, _, elem_param, _) => {
             if let Type::Vec(_, _, elem_concrete, _) = concrete {
                 verify_named_generics(elem_concrete, elem_param, subs, context)
+            } else {
+                false
+            }
+        }
+        Type::Record(fields_p, _) if fields_p.iter().any(|f| f.get_type().has_generic()) => {
+            if let Type::Record(fields_c, _) = concrete {
+                fields_p.iter().all(|fp| {
+                    fields_c
+                        .iter()
+                        .find(|fc| fc.get_argument_str() == fp.get_argument_str())
+                        .is_some_and(|fc| verify_named_generics(&fc.get_type(), &fp.get_type(), subs, context))
+                })
             } else {
                 false
             }
@@ -489,6 +521,25 @@ fn apply_named_generics(ty: &Type, subs: &std::collections::HashMap<String, Type
             name.clone(),
             params.iter().map(|p| apply_named_generics(p, subs)).collect(),
             *opacity,
+            h.clone(),
+        ),
+        // `-> df[#N]{a: T}`: without these the record body kept a bare `T`.
+        Type::Record(fields, h) => Type::Record(
+            fields
+                .iter()
+                .map(|f| ArgumentType(f.0.clone(), apply_named_generics(&f.1, subs), f.2, f.3, f.4.clone()))
+                .collect(),
+            h.clone(),
+        ),
+        Type::Tuple(elems, h) => Type::Tuple(elems.iter().map(|e| apply_named_generics(e, subs)).collect(), h.clone()),
+        Type::Tag(name, inner, h) => Type::Tag(name.clone(), Box::new(apply_named_generics(inner, subs)), h.clone()),
+        Type::Refined(base, set, h) => {
+            Type::Refined(Box::new(apply_named_generics(base, subs)), set.clone(), h.clone())
+        }
+        Type::Operator(op, t1, t2, h) => Type::Operator(
+            *op,
+            Box::new(apply_named_generics(t1, subs)),
+            Box::new(apply_named_generics(t2, subs)),
             h.clone(),
         ),
         _ => ty.clone(),
@@ -1372,13 +1423,32 @@ fn apply_from_variable_inner(var: Var, context: &Context, parameters: &[Lang], h
     // *prove* a refinement (`[int]` given for `[3, int]`) standing in as the
     // parameter type. The check that could not be proven statically becomes a
     // runtime obligation on that argument, recorded in the context.
-    for attempt in 0..2 {
+    //
+    // Third attempt (record_bound_generics RFC, *exact*): a record literal is
+    // closed by construction, so it may flow into an `exact` parameter that
+    // its open type is refused by.
+    for attempt in 0..3 {
         let (try_types, obligations): (Vec<Type>, Vec<(HelpData, RefinementSet)>) = if attempt == 0 {
             (types.clone(), Vec::new())
+        } else if attempt == 2 {
+            let closed: Vec<Type> = types
+                .iter()
+                .zip(expanded_parameters.iter())
+                .map(|(t, arg)| match (t, arg) {
+                    (Type::Record(..), Lang::List { spreads, .. }) if spreads.is_empty() => {
+                        Type::Exact(Box::new(t.clone()), t.get_help_data())
+                    }
+                    _ => t.clone(),
+                })
+                .collect();
+            if closed == types {
+                break;
+            }
+            (closed, Vec::new())
         } else {
             match relax_refined_arguments(&all_signatures, &types, &expanded_parameters, context) {
                 Some(relaxed) => relaxed,
-                None => break,
+                None => continue,
             }
         };
         let context = &obligations
