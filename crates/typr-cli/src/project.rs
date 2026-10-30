@@ -1916,7 +1916,7 @@ pub fn pkg_install(packages: Option<&[String]>) {
                 }
             };
 
-            let project_path = current_dir.to_str().unwrap();
+            let project_path = r_path(&current_dir);
             let r_command = format!("devtools::install_local('{}')", project_path);
             println!("Executing: R -e \"{}\"", r_command);
 
@@ -2008,7 +2008,7 @@ pub fn pkgdown() {
             std::process::exit(1);
         }
     };
-    let project_path = current_dir.to_str().unwrap_or(".");
+    let project_path = r_path(&current_dir);
     let r_command = format!("pkgdown::build_site('{}')", project_path);
     let output = crate::toolchain::current_env().r_eval(&r_command).command().output();
     match output {
@@ -2131,6 +2131,18 @@ fn document_from_spg(spg: &Spg, quiet: bool, manifest: Option<&mut cache::BuildM
     update_namespace(quiet, manifest);
 }
 
+/// Format a path for embedding in a single-quoted R string literal.
+///
+/// R accepts forward slashes as path separators on every platform,
+/// Windows included — while backslashes in a Windows absolute path are
+/// read by R's parser as escape sequences (`\U` starts a unicode
+/// escape, which aborts commands like `devtools::install_local()`).
+/// Converting to forward slashes is the standard fix and is a no-op on
+/// Unix paths, which contain no backslashes.
+fn r_path(p: &std::path::Path) -> String {
+    p.to_string_lossy().replace('\\', "/")
+}
+
 /// Run `devtools::document(roclets = c('collate', 'namespace'))`. When a
 /// build manifest is provided and the inputs of that run (`R/*.R` +
 /// `DESCRIPTION`) hash to the same value as the last successful run, the R
@@ -2154,7 +2166,7 @@ fn update_namespace(quiet: bool, manifest: Option<&mut cache::BuildManifest>) {
             std::process::exit(1);
         }
     };
-    let project_path = current_dir.to_str().unwrap_or(".");
+    let project_path = r_path(&current_dir);
     let r_command = format!(
         "devtools::document('{}', roclets = c('collate', 'namespace'))",
         project_path
@@ -2382,5 +2394,49 @@ mod roxygen_injection_tests {
         };
         let entries = build_roxygen_entries(&spg);
         assert!(entries.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod r_path_tests {
+    use super::r_path;
+    use std::path::Path;
+
+    /// The bug this fixes: a Windows absolute path interpolated into an
+    /// R string literal makes R's parser read `\U` as a unicode escape
+    /// and abort (`devtools::install_local('C:\Users\...')`). Forward
+    /// slashes are valid path separators in R on Windows too.
+    #[test]
+    fn windows_backslashes_become_forward_slashes() {
+        let p = Path::new(r"C:\Users\Desktop\TypR\mytestpkg");
+        assert_eq!(r_path(p), "C:/Users/Desktop/TypR/mytestpkg");
+    }
+
+    /// Unix paths contain no backslashes — the conversion must be a
+    /// no-op so Linux/macOS behavior is unchanged.
+    #[test]
+    fn unix_paths_are_unchanged() {
+        let p = Path::new("/home/user/mytestpkg");
+        assert_eq!(r_path(p), "/home/user/mytestpkg");
+    }
+
+    /// A bare "." (the fallback when the current directory can't be
+    /// read) must survive untouched.
+    #[test]
+    fn dot_fallback_is_unchanged() {
+        assert_eq!(r_path(Path::new(".")), ".");
+    }
+
+    /// The generated R command must not contain any backslash that R
+    /// could misread as an escape sequence.
+    #[test]
+    fn generated_r_command_contains_no_backslash() {
+        let p = Path::new(r"C:\Users\Desktop\TypR\mytestpkg");
+        let cmd = format!("devtools::install_local('{}')", r_path(p));
+        assert!(!cmd.contains('\\'), "{}", cmd);
+        assert_eq!(
+            cmd,
+            "devtools::install_local('C:/Users/Desktop/TypR/mytestpkg')"
+        );
     }
 }

@@ -1,120 +1,76 @@
-# Contribuer à TypR
+# Contributing to TypR
 
-## Modèle de branches
+## Branch model
 
-- `main` — ce qui est publiable. Les tags de release en partent, et
-  `nu publish.nu release` refuse de publier depuis autre chose.
-- `develop` — intégration.
-- Les contributions passent par une PR vers `develop`.
+- `main` holds what is publishable. Release tags are cut from it, and `nu publish.nu release` refuses to publish from anything else.
+- `develop` is where integration happens.
+- All contributions land through a PR targeting `develop`.
 
-`main` devrait être protégée sur GitHub : PR obligatoire, CI verte requise.
-Sans ça, la garde de `publish.nu` ne protège que celui qui l'utilise.
+`main` should be protected on GitHub, with mandatory PRs and green CI. Without that, the guard in `publish.nu` only protects whoever happens to use it.
 
-## Ce que la CI vérifie
+## What the CI checks
 
-| Job | Vérifie |
+| Job | Checks |
 |---|---|
-| `test` | `cargo test --workspace` — 868 tests, bloquant |
-| `build-check` | compilation en `--release` |
-| `cases` | rejeu du catalogue `cases/` — échoue sur toute `REGRESS` |
-| `coherence` | versions alignées, aucun binaire commité |
-| `editors` | l'extension VS Code compile, le package R est analysable |
+| `test` | `cargo test --workspace` (868 tests, blocking) |
+| `build-check` | `--release` compilation |
+| `cases` | replays the `cases/` catalog and fails on any `REGRESS` |
+| `coherence` | aligned versions, no committed binaries |
+| `editors` | the VS Code extension compiles, the R package is analyzable |
 
-`RUST_MIN_STACK=8388608` est indispensable : le typage est récursif et déborde
-la pile par défaut de 2 Mo sur au moins un test. La CI le définit ; en local,
-exporte-le si `cargo test` s'interrompt sur un `stack overflow`.
+`RUST_MIN_STACK=8388608` matters more than it looks. Type checking is recursive, and it overflows the default 2 MB stack on at least one test. CI sets it for you. Locally, export it yourself if `cargo test` ever dies with a `stack overflow`.
 
-## Proposer un changement de langage (RFC)
+## Proposing a language change (RFC)
 
-Une correction de bug se discute dans une issue. Un **changement de langage** —
-une syntaxe nouvelle, une règle de typage, une autre forme de R engendré — passe
-d'abord par une RFC : une proposition écrite, relue en PR, fusionnée dans
-`rfcs/` si elle est acceptée. Le but n'est pas la cérémonie, c'est que le
-*raisonnement* survive : six mois plus tard, « pourquoi TypR fait comme ça ? » a
-une réponse écrite.
+A bug fix is discussed in an issue. A **language change**, meaning new syntax, a typing rule, or a different form of generated R, goes through an RFC first. That means a written proposal, reviewed as a PR, merged into `rfcs/` if accepted. The point is not ceremony. The point is making sure the reasoning survives: six months later, when someone asks why TypR behaves this way, there is a written answer.
 
-La frontière : **si la réponse à « que fait TypR ici ? » change, c'est une
-RFC ; si le compilateur ne fait que rattraper une réponse déjà donnée, c'est une
-issue.** Une idée encore floue va dans la catégorie
-[Ideas](https://github.com/we-data-ch/typr/discussions/categories/ideas) des
-Discussions — c'est souvent là qu'elle se règle, et sinon elle en sort meilleure.
+Here is the dividing line. If the answer to "what does TypR do here?" changes, it is an RFC. If the compiler is just catching up to an answer that was already given, it is an issue. An idea that is still fuzzy belongs in the [Ideas](https://github.com/we-data-ch/typr/discussions/categories/ideas) category of Discussions. It often gets resolved right there, and when it doesn't, it comes out sharper anyway.
 
-Le processus complet, les étiquettes (`rfc-draft` / `rfc-accepted` /
-`rfc-rejected`) et le gabarit sont dans [rfcs/README.md](rfcs/README.md). Les
-notes de conception du workspace (`spécifications/`, `ai_context/*.md`) en sont
-la matière première : une RFC, c'est leur face publique.
+The full process, the labels (`rfc-draft`, `rfc-accepted`, `rfc-rejected`), and the template live in [rfcs/README.md](rfcs/README.md). The workspace design notes (`spécifications/`, `ai_context/*.md`) are its raw material. An RFC is their public face.
 
-## Travailler sur le parseur ou le typage
+## Working on the parser or the type system
 
-Le catalogue `cases/` est un ensemble de reproductions curées, chacune avec sa
-sortie R attendue. C'est à la fois la documentation d'un comportement et son
-test de non-régression.
+The `cases/` catalog is a set of curated reproductions, each with its expected R output. It serves two purposes at once: documenting a behavior and testing that it does not regress.
 
 ```bash
-typr case list              # état du catalogue
-typr case run               # rejoue tout ; sort en 1 sur REGRESS
-typr case add --from <proj> # crée un cas depuis un vrai projet
-typr case freeze <nnnn>     # fige la sortie actuelle comme golden
+typr case list              # catalog status
+typr case run               # replays everything, exits 1 on REGRESS
+typr case add --from <proj> # creates a case from a real project
+typr case freeze <nnnn>     # freezes the current output as golden
 ```
 
-Une correction de bug sans cas associé n'a rien qui l'empêche de revenir.
+A bug fix without an associated case has nothing stopping it from coming back.
 
-## Travailler sur la coloration syntaxique
+## Working on syntax highlighting
 
-Les grammaires d'éditeur sont **générées**. La source de vérité unique est le
-manifeste de syntaxe, `crates/typr-core/src/components/syntax/mod.rs` : une
-liste ordonnée de règles, une entrée par lexème que le parseur reconnaît
-réellement.
+Editor grammars are **generated**. The single source of truth is the syntax manifest at `crates/typr-core/src/components/syntax/mod.rs`: an ordered list of rules, one entry per token the parser actually recognizes.
 
 ```bash
-typr syntax --json          # le manifeste
+typr syntax --json          # the manifest
 typr syntax --target tmlanguage
-typr syntax --write         # régénère les grammaires sous editors/
-typr syntax --check         # échoue si une grammaire commitée a dérivé
+typr syntax --write         # regenerates the grammars under editors/
+typr syntax --check         # fails if a committed grammar has drifted
 ```
 
-N'édite jamais `editors/vscode/syntaxes/typr.tmLanguage.json` à la main : le
-fichier porte un en-tête qui le dit, et `cargo test -p typr-cli` le compare à
-ce que le manifeste produit.
+Never edit `editors/vscode/syntaxes/typr.tmLanguage.json` by hand. The file carries a header saying exactly that, and `cargo test -p typr-cli` compares it against what the manifest produces.
 
-Deux tests gardent l'invariant dans les deux sens
-(`components::syntax::tests`) :
+Two tests guard the invariant in both directions (`components::syntax::tests`):
 
-- ajouter un `tag("…")` au parseur sans l'ajouter au manifeste fait échouer
-  `every_parser_tag_is_in_the_manifest` ;
-- mettre dans le manifeste un mot que le parseur ne connaît pas fait échouer
-  `manifest_claims_no_word_the_parser_does_not_know`.
+- add a `tag("…")` to the parser without adding it to the manifest, and `every_parser_tag_is_in_the_manifest` fails;
+- put a word in the manifest the parser does not know, and `manifest_claims_no_word_the_parser_does_not_know` fails.
 
-C'est le second qui manquait : les grammaires écrites à la main coloraient
-`impl`, `trait`, `struct`, `enum`, `where`, `mut`, `Option`, `Result` —
-copiés d'une grammaire Rust, inexistants en TypR — pendant que `opaque`,
-`module`, `record`, `object`, `interface`, `typeconstructor`, `recursive`,
-`embed`, `@export` et les sigils de kind n'étaient colorés nulle part.
+The second one was missing, and it showed. The hand-written grammars happily highlighted `impl`, `trait`, `struct`, `enum`, `where`, `mut`, `Option`, and `Result`, all copied from a Rust grammar and none of them existing in TypR. Meanwhile `opaque`, `module`, `record`, `object`, `interface`, `typeconstructor`, `recursive`, `embed`, `@export`, and the kind sigils got no highlighting at all.
 
-## Travailler sur la documentation
+## Working on the documentation
 
-La documentation vit dans un dépôt séparé : `we-data-ch/typr.github.io`.
-Chaque PR y déclenche une construction complète du site — `onBrokenLinks` est
-réglé sur `throw`, donc un lien mort fait échouer la CI avant la fusion, pas
-après.
+The documentation lives in a separate repository: `we-data-ch/typr.github.io`. Every PR there triggers a full build of the site. `onBrokenLinks` is set to `throw`, so a dead link breaks the CI before merging rather than after.
 
-Chaque bloc ` ```typr ` du site est passé au vrai compilateur en CI
-(`npm run check:examples`) : un exemple qui cesse de compiler bloque la
-construction. L'oracle est la **dernière release** — la version que le lecteur a
-réellement installée — et un second workflow rejoue la même chose chaque nuit
-contre `develop`, en avertissement seulement. C'est le préavis « la prochaine
-release va casser tel exemple » : quand il se déclenche, la PR du compilateur et
-celle de la doc doivent partir ensemble.
+Every ` ```typr ` block on the site is run through the real compiler in CI (`npm run check:examples`). If an example stops compiling, the build stops too. The oracle is the **latest release**, meaning the version readers actually have installed. A second workflow replays the same checks every night against `develop`, as warnings only. Think of it as the heads-up that the next release will break a given example. When it fires, the compiler PR and the doc PR should ship together.
 
 ## Versions
 
-Personne ne modifie une version à la main. `Cargo.toml [workspace.package]
-version` est la seule source de vérité ; `nu publish.nu sync` la propage à
-l'extension VS Code et au runner RStudio, et le job `coherence` échoue en cas
-d'écart. Voir [RELEASING.md](RELEASING.md).
+Nobody bumps a version by hand. `Cargo.toml [workspace.package] version` is the single source of truth. `nu publish.nu sync` propagates it to the VS Code extension and the RStudio runner, and the `coherence` job fails on any mismatch. See [RELEASING.md](RELEASING.md).
 
-## Binaires
+## Binaries
 
-Aucun binaire ne doit être commité. Ceux du runner RStudio sont assemblés par la
-CI au moment de construire le tarball de release. Le job `coherence` échoue si
-un binaire réapparaît dans l'index.
+Never commit a binary. The RStudio runner's binaries are assembled by CI when building the release tarball, and the `coherence` job fails if one sneaks back into the index.

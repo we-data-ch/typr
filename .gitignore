@@ -82,6 +82,9 @@ lcov.info
 AGENTS.md
 CLAUDE.md
 /.claude/
+/.agents/
+/LOCAL/
+
 
 # Documentation
 function_type_checking.md
