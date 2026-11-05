@@ -5,6 +5,7 @@
 mod cache;
 mod cases;
 mod cli;
+mod decisions;
 mod engine;
 mod format_r;
 mod fuzz;

@@ -2062,8 +2062,13 @@ pub fn pkgdown() {
 }
 
 fn document_impl(quiet: bool) {
-    // Step 1: Parse + type-check the project to build the SPG.
-    let context = Context::default().set_environment(Environment::Project);
+    // Step 1: Parse + type-check the project to build the SPG. Load the
+    // pinned package definitions (`typr.lock`) like `check`/`build` do, so
+    // the documented types match what those commands see.
+    let context = crate::standard_library::load_project_type_definitions(
+        Path::new("."),
+        Context::default().set_environment(Environment::Project),
+    );
 
     let step = Step::new("Parsing");
     let (lang, syntax_errors) = parse_code(&PathBuf::from("TypR/main.ty"), context.get_environment());

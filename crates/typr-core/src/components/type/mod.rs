@@ -317,12 +317,16 @@ impl TypeSystem for Type {
             // int`, and requiring the implementation to reuse that generated
             // `a` would reject `fn(z: int): int { z }` for no reason.
             (Type::Function(args1, ret_typ1, _), Type::Function(args2, ret_typ2, _)) => {
+                // Parameters are contravariant (`g.param <: f.param` for
+                // `f <: g`), the return type covariant. Both go through the
+                // full relation, so record width, unions and refinements
+                // keep working inside a function type.
                 args1.len() == args2.len()
                     && args1
                         .iter()
                         .zip(args2.iter())
-                        .all(|(p1, p2)| p1.get_type().strict_subtype(&p2.get_type()))
-                    && ret_typ1.strict_subtype(ret_typ2)
+                        .all(|(p1, p2)| p2.get_type().is_subtype_raw(&p1.get_type(), context))
+                    && ret_typ1.is_subtype_raw(ret_typ2, context)
             }
             (_, Type::UnknownFunction(_)) => true,
             (Type::Interface(args1, _), Type::Interface(args2, _)) => {
@@ -384,10 +388,15 @@ impl TypeSystem for Type {
             (Type::Boolean(t1, _), Type::Boolean(t2, _)) => t1.is_subtype(t2),
             (Type::Number(t1, _), Type::Number(t2, _)) => t1.is_subtype(t2),
             (Type::Integer(t1, _), Type::Integer(t2, _)) => t1.is_subtype(t2),
-            (Type::Tuple(types1, _), Type::Tuple(types2, _)) => types1
-                .iter()
-                .zip(types2.iter())
-                .all(|(typ1, typ2)| typ1.is_subtype_raw(typ2, context)),
+            // Same arity required: `zip` alone stops at the shorter list and
+            // would accept `tuple{int}` for `tuple{int, int}` and back.
+            (Type::Tuple(types1, _), Type::Tuple(types2, _)) => {
+                types1.len() == types2.len()
+                    && types1
+                        .iter()
+                        .zip(types2.iter())
+                        .all(|(typ1, typ2)| typ1.is_subtype_raw(typ2, context))
+            }
             // Empty tuple <: empty record (spec §3.2: tuple{} <: list{})
             (Type::Tuple(ts, _), Type::Record(fs, _)) if ts.is_empty() && fs.is_empty() => true,
             (Type::Record(fs, _), Type::Tuple(ts, _)) if fs.is_empty() && ts.is_empty() => true,
@@ -1213,7 +1222,7 @@ impl Type {
                     && args1
                         .iter()
                         .zip(args2.iter())
-                        .all(|(p1, p2)| p1.get_type().strict_subtype(&p2.get_type()))
+                        .all(|(p1, p2)| p2.get_type().strict_subtype(&p1.get_type()))
                     && ret1.strict_subtype(ret2)
             }
             _ => false,
@@ -1415,7 +1424,14 @@ impl PartialEq for Type {
             (Type::Boolean(b1, _), Type::Boolean(b2, _)) => b1 == b2,
             (Type::Char(t1, _), Type::Char(t2, _)) => t1 == t2,
             (Type::Function(b1, c1, _), Type::Function(b2, c2, _)) => b1 == b2 && c1 == c2,
-            (Type::Generic(_, _), Type::Generic(_, _)) => true,
+            // Flexible generics are all equal (inference of untyped lambdas
+            // relies on it); a rigid is only equal to itself. This keeps `Eq`
+            // an equivalence consistent with `Hash`.
+            (Type::Generic(a, _), Type::Generic(b, _)) => match (is_rigid_name(a), is_rigid_name(b)) {
+                (false, false) => true,
+                (true, true) => a == b,
+                _ => false,
+            },
             (Type::IndexGen(_, _), Type::IndexGen(_, _)) => true,
             (Type::LabelGen(_, _), Type::LabelGen(_, _)) => true,
             (Type::KindedGen(k1, _, _), Type::KindedGen(k2, _, _)) => k1 == k2,
@@ -1438,7 +1454,7 @@ impl PartialEq for Type {
             (Type::In(_), Type::In(_)) => true,
             (Type::Empty(_), Type::Empty(_)) => true,
             (Type::Any(_), Type::Any(_)) => true,
-            (Type::RClass(el1, _), Type::RClass(el2, _)) => el1.difference(el2).next().is_none(),
+            (Type::RClass(el1, _), Type::RClass(el2, _)) => el1 == el2,
             (Type::Variable(s1, _), Type::Variable(s2, _)) => s1 == s2,
             (Type::Null(_), Type::Null(_)) => true,
             (Type::NA(_), Type::NA(_)) => true,
@@ -1479,6 +1495,9 @@ impl fmt::Display for Type {
     }
 }
 
+// NOTE (B-07): this is a subtype *test* in disguise, not a partial order:
+// it never returns `Greater` and is not antisymmetric. Only use it as
+// `partial_cmp(..).is_some()`; never sort or key a `BTreeMap` with `Type`.
 // main subtype
 impl PartialOrd for Type {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -1537,11 +1556,12 @@ impl PartialOrd for Type {
             (Type::RClass(set1, _), Type::RClass(set2, _)) => set1.is_subset(set2).then_some(Ordering::Less),
             (Type::Char(_, _), Type::Char(_, _)) => Some(Ordering::Less),
             (Type::Integer(_, _), Type::Integer(_, _)) => Some(Ordering::Less),
-            (Type::Tuple(types1, _), Type::Tuple(types2, _)) => types1
-                .iter()
-                .zip(types2.iter())
-                .all(|(typ1, typ2)| typ1.partial_cmp(typ2).is_some())
-                .then_some(Ordering::Less),
+            (Type::Tuple(types1, _), Type::Tuple(types2, _)) => (types1.len() == types2.len()
+                && types1
+                    .iter()
+                    .zip(types2.iter())
+                    .all(|(typ1, typ2)| typ1.partial_cmp(typ2).is_some()))
+            .then_some(Ordering::Less),
             (typ, Type::Operator(TypeOperator::Intersection, _, _, _)) => IntersectionType::try_from(other.clone())
                 .map(|intersection| {
                     intersection
@@ -1571,8 +1591,10 @@ impl Hash for Type {
             }
             Type::Char(_, _) => 3.hash(state),
             Type::Function(_, _, _) => 5.hash(state),
-            // Rigid names take part in the hash (though `PartialEq` ignores them) so
-            // the subtype cache keeps `(r0, r1)` apart from `(r0, r0)`.
+            // Rigid names take part in the hash, and `PartialEq` compares them
+            // too (`k1 == k2 ⇒ hash(k1) == hash(k2)`): record fields live in
+            // `HashSet`s, so `list{a: __rigid_0}` must stay apart from
+            // `list{a: __rigid_1}`.
             Type::Generic(name, _) if is_rigid_name(name) => {
                 6.hash(state);
                 name.hash(state);

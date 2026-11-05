@@ -916,7 +916,7 @@ fn capture_observed(repro: &Path) -> String {
     result
 }
 
-fn slugify(s: &str) -> String {
+pub(crate) fn slugify(s: &str) -> String {
     let mut out = String::new();
     let mut prev_dash = false;
     for c in s.chars() {

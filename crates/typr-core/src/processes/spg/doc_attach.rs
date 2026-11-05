@@ -51,7 +51,10 @@ fn attach_from_slice(items: &[Lang], map: &mut HashMap<usize, String>) {
     for item in items {
         match item {
             Lang::Comment { value, .. } => {
-                pending.push(value.trim().to_string());
+                // `#' Title` is parsed as the comment `' Title`: drop the
+                // roxygen apostrophe so `@param` & co. are still recognised.
+                let text = value.trim();
+                pending.push(text.strip_prefix('\'').unwrap_or(text).trim().to_string());
             }
             other => {
                 if !pending.is_empty() {
@@ -62,5 +65,24 @@ fn attach_from_slice(items: &[Lang], map: &mut HashMap<usize, String>) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::processes::parsing::parse_from_string;
+
+    #[test]
+    fn roxygen_apostrophe_is_stripped_from_doc_lines() {
+        let ast = parse_from_string("#' Title\n#' @param x the x\nlet f <- 1;", "t.ty");
+        let items = match &ast {
+            Lang::Lines { value, .. } => value.clone(),
+            other => vec![other.clone()],
+        };
+        let mut map = HashMap::new();
+        attach_from_slice(&items, &mut map);
+        let doc = map.values().next().expect("a doc block is attached");
+        assert_eq!(doc, "Title\n@param x the x");
     }
 }

@@ -192,28 +192,31 @@ pub fn type_substitution(type_: &Type, substitutions: &[(Type, Type)]) -> Type {
     }
 }
 
-/// Occurs check (G3): does `typ` contain a `Generic` named `name` anywhere
-/// inside its structure? Used to reject a binding like `T ↦ [T]` before it
-/// gets written into the substitution map — accepting it would make
-/// `type_substitution` (and anything that walks the resulting type) recurse
-/// forever the next time `T` is substituted back in.
-fn type_contains_generic(typ: &Type, name: &str) -> bool {
+/// Occurs check (G3): does `typ` contain the generic `key` (of any family:
+/// `Generic`, `IndexGen`, `LabelGen`, `KindedGen`) anywhere inside its
+/// structure? Used to reject a binding like `T ↦ [T]` before it gets written
+/// into the substitution map — accepting it would make `type_substitution`
+/// (and anything that walks the resulting type) recurse forever the next time
+/// `T` is substituted back in.
+fn type_contains_generic(typ: &Type, key: &Type) -> bool {
+    if same_generic_key(key, typ) {
+        return true;
+    }
     match typ {
-        Type::Generic(g, _) => g == name,
         Type::Function(params, ret, _) => {
-            params.iter().any(|p| type_contains_generic(&p.get_type(), name)) || type_contains_generic(ret, name)
+            params.iter().any(|p| type_contains_generic(&p.get_type(), key)) || type_contains_generic(ret, key)
         }
         Type::Vec(_, _, elem, _) => {
-            typ.vec_length().is_some_and(|size| type_contains_generic(&size, name)) || type_contains_generic(elem, name)
+            typ.vec_length().is_some_and(|size| type_contains_generic(&size, key)) || type_contains_generic(elem, key)
         }
-        Type::Record(fields, _) => fields.iter().any(|f| type_contains_generic(&f.get_type(), name)),
-        Type::Alias(_, params, _, _) => params.iter().any(|p| type_contains_generic(p, name)),
-        Type::Tag(_, inner, _) => type_contains_generic(inner, name),
-        Type::Refined(base, _, _) => type_contains_generic(base, name),
-        Type::Interface(fields, _) => fields.iter().any(|f| type_contains_generic(&f.get_type(), name)),
-        Type::Multi(inner, _) => type_contains_generic(inner, name),
-        Type::Tuple(elems, _) => elems.iter().any(|e| type_contains_generic(e, name)),
-        Type::Operator(_, t1, t2, _) => type_contains_generic(t1, name) || type_contains_generic(t2, name),
+        Type::Record(fields, _) => fields.iter().any(|f| type_contains_generic(&f.get_type(), key)),
+        Type::Alias(_, params, _, _) => params.iter().any(|p| type_contains_generic(p, key)),
+        Type::Tag(_, inner, _) => type_contains_generic(inner, key),
+        Type::Refined(base, _, _) => type_contains_generic(base, key),
+        Type::Interface(fields, _) => fields.iter().any(|f| type_contains_generic(&f.get_type(), key)),
+        Type::Multi(inner, _) => type_contains_generic(inner, key),
+        Type::Tuple(elems, _) => elems.iter().any(|e| type_contains_generic(e, key)),
+        Type::Operator(_, t1, t2, _) => type_contains_generic(t1, key) || type_contains_generic(t2, key),
         _ => false,
     }
 }
@@ -254,7 +257,7 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Option<Vec
         (t, Type::Generic(g, h)) | (Type::Generic(g, h), t) => {
             if matches!(t, Type::Generic(g2, _) if g2 == g) {
                 Some(vec![])
-            } else if type_contains_generic(t, g) {
+            } else if type_contains_generic(t, &Type::Generic(g.clone(), h.clone())) {
                 None
             } else {
                 // A generic stands for a general type: a literal argument
@@ -296,6 +299,9 @@ fn unification_helper(values: &[Type], type1: &Type, type2: &Type) -> Option<Vec
             // must be rejected explicitly rather than falling through
             // `type_kind`'s permissive `None` case.
             if matches!(concrete, Type::Number(_, _) | Type::Integer(_, _)) {
+                None
+            } else if type_contains_generic(concrete, &Type::KindedGen(*k, g.clone(), h2.clone())) {
+                // Occurs check: `%R ↦ [#N, %R]` would loop on substitution.
                 None
             } else {
                 match crate::components::r#type::kind::type_kind(concrete) {

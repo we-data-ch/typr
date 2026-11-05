@@ -85,6 +85,12 @@ CLAUDE.md
 /.agents/
 /LOCAL/
 
+# Notes personnelles de remise à niveau (non versionnées)
+lacunes.md
+
+# Journal local des décisions d'architecture (`typr decision`, non versionné)
+/decisions/
+
 
 # Documentation
 function_type_checking.md

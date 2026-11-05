@@ -42,6 +42,7 @@ pub use typr_core;
 pub mod cache;
 pub mod cases;
 pub mod cli;
+pub mod decisions;
 pub mod engine;
 pub mod format_r;
 pub mod fuzz;

@@ -170,6 +170,11 @@ enum Commands {
         #[command(subcommand)]
         case_command: CaseCommands,
     },
+    /// Architecture decision log: browse, record and revise decisions (see decisions/README.md).
+    Decision {
+        #[command(subcommand)]
+        decision_command: DecisionCommands,
+    },
     /// Type-directed generative fuzzing (soundness_transpilation.md Phase B
     /// Stage 2): generate well-typed programs, run them under `--checked`
     /// through a real R execution, catalog genuine failures.
@@ -407,6 +412,78 @@ enum CaseCommands {
 }
 
 #[derive(Subcommand, Debug)]
+enum DecisionCommands {
+    /// List decisions and the RFCs indexed from rfcs/. Filters combine.
+    List {
+        /// proposed|accepted|rejected|deprecated|superseded (RFCs: draft|accepted|...).
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long)]
+        tag: Option<String>,
+        /// Only entries linking a document whose path contains this text.
+        #[arg(long)]
+        doc: Option<String>,
+        /// Only entries whose title or text contains this, case-insensitively.
+        #[arg(long)]
+        grep: Option<String>,
+        /// Leave out the RFCs indexed from rfcs/.
+        #[arg(long)]
+        no_rfcs: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show one decision (`12`, `0012`) or RFC (`RFC-0028`, `RFC-rig`).
+    Show {
+        id: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Record a new decision and print the file to fill in.
+    Add {
+        title: String,
+        /// Repeatable.
+        #[arg(long)]
+        tag: Vec<String>,
+        /// Linked document, relative to the repository root. Repeatable.
+        #[arg(long)]
+        doc: Vec<String>,
+        #[arg(long, default_value = "proposed")]
+        status: String,
+    },
+    /// Amend a decision that still stands: logs a dated note, optionally links documents.
+    Revise {
+        id: String,
+        #[arg(long)]
+        note: String,
+        /// Linked document, relative to the repository root. Repeatable.
+        #[arg(long)]
+        doc: Vec<String>,
+    },
+    /// Change a decision's status and log it.
+    Status {
+        id: String,
+        /// proposed|accepted|rejected|deprecated.
+        status: String,
+        #[arg(long)]
+        note: Option<String>,
+    },
+    /// Reverse a decision: creates its replacement and links the two; the old text is kept.
+    Supersede {
+        id: String,
+        /// Title of the new decision.
+        title: String,
+        /// Added to the tags inherited from the old decision. Repeatable.
+        #[arg(long)]
+        tag: Vec<String>,
+        /// Added to the documents inherited from the old decision. Repeatable.
+        #[arg(long)]
+        doc: Vec<String>,
+    },
+    /// Validate the log: format, dead document links, supersede links. Exits 1 on any problem.
+    Check,
+}
+
+#[derive(Subcommand, Debug)]
 enum TutorCommands {
     /// Grade a lesson file (default: the first lesson not passed yet).
     Check { lesson: Option<usize> },
@@ -507,7 +584,9 @@ fn skips_r_deps_check(command: &Option<Commands>) -> bool {
         // package set (devtools/roxygen2) `warn_if_missing` checks for.
         // `syntax` renders grammars out of typr's own manifest — it never
         // touches a project, let alone R.
+        // `decision` only reads and writes Markdown files.
         Some(Commands::Init)
+            | Some(Commands::Decision { .. })
             | Some(Commands::SetupR { .. })
             | Some(Commands::Lsp)
             | Some(Commands::Mcp)
@@ -724,6 +803,39 @@ pub fn start() {
                 .join()
                 .unwrap();
         }
+        // $ typr decision
+        Some(Commands::Decision { decision_command }) => match decision_command {
+            DecisionCommands::List {
+                status,
+                tag,
+                doc,
+                grep,
+                no_rfcs,
+                json,
+            } => crate::decisions::list(
+                crate::decisions::ListFilter {
+                    status,
+                    tag,
+                    doc,
+                    grep,
+                    no_rfcs,
+                },
+                json,
+            ),
+            DecisionCommands::Show { id, json } => crate::decisions::show(&id, json),
+            DecisionCommands::Add {
+                title,
+                tag,
+                doc,
+                status,
+            } => crate::decisions::add(&title, tag, doc, &status),
+            DecisionCommands::Revise { id, note, doc } => crate::decisions::revise(&id, &note, doc),
+            DecisionCommands::Status { id, status, note } => {
+                crate::decisions::set_status(&id, &status, note.as_deref())
+            }
+            DecisionCommands::Supersede { id, title, tag, doc } => crate::decisions::supersede(&id, &title, tag, doc),
+            DecisionCommands::Check => crate::decisions::check(),
+        },
         // $ typr syntax
         Some(Commands::Syntax {
             json,
